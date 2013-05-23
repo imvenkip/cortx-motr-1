@@ -74,8 +74,6 @@ static void test_conn_establish(void)
 	struct fp fps1[] = {
 		{"session_gen_fom_create",         "reply_fop_alloc_failed"},
 		{"m0_rpc_fom_conn_establish_tick", "conn-alloc-failed"     },
-		{"m0_db_tx_init",                  "failed"                },
-		{"m0_rpc_slot_cob_create",         "failed"                },
 	};
 	struct fp fps2[] = {
 		{"rpc_chan_get",        "fake_error"   },
@@ -134,8 +132,6 @@ static void test_session_establish(void)
 								   -ETIMEDOUT},
 		{"m0_rpc_fom_session_establish_tick",
 		                           "session-alloc-failed", -ENOMEM},
-		{"m0_db_tx_init",          "failed",               -EINVAL},
-		{"m0_rpc_slot_cob_create", "failed",               -EINVAL},
 	};
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
 	M0_UT_ASSERT(rc == 0);
@@ -182,7 +178,6 @@ static void test_session_terminate(void)
 	struct fp fps[] = {
 		{"session_gen_fom_create", "reply_fop_alloc_failed",
 							-ETIMEDOUT},
-		{"m0_db_tx_init",          "failed",    -EINVAL},
 	};
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
 	M0_UT_ASSERT(rc == 0);
@@ -236,7 +231,6 @@ static void test_conn_terminate(void)
 	struct fp fps[] = {
 		{"session_gen_fom_create", "reply_fop_alloc_failed",
 							-ETIMEDOUT},
-		{"m0_db_tx_init",          "failed",    -EINVAL},
 	};
 
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);

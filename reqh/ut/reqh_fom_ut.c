@@ -167,9 +167,9 @@ static int server_init(const char             *stob_path,
 		       struct m0_stob        **reqh_addb_stob,
 		       struct m0_stob_id      *rh_addb_stob_id)
 {
-        struct m0_db_tx              tx;
         int                          rc;
 	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
+	struct m0_db_tx              tx;
 	uint32_t		     bufs_nr;
 	uint32_t		     tms_nr;
 	struct m0_reqh_service_type *stype;
@@ -224,17 +224,18 @@ static int server_init(const char             *stob_path,
         rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
         M0_UT_ASSERT(rc == 0);
 
-        rc = m0_db_tx_init(&tx, &srv_db, 0);
-        M0_UT_ASSERT(rc == 0);
+	rc = m0_db_tx_init(&tx, &srv_db, 0);
+	M0_UT_ASSERT(rc == 0);
 
-        /* Create root session cob and other structures */
-        rc = m0_rpc_root_session_cob_create(&srv_mdstore.md_dom, &tx);
-        M0_UT_ASSERT(rc == 0);
+	/* Create root session cob and other structures */
+	rc = m0_cob_domain_mkfs(&srv_mdstore.md_dom, &M0_COB_SLASH_FID,
+				&M0_COB_SESSIONS_FID, &tx);
+	M0_UT_ASSERT(rc == 0);
 
-        /* Comit and finalize old mdstore. */
-        m0_db_tx_commit(&tx);
+	/* Comit and finalize old mdstore. */
+	m0_db_tx_commit(&tx);
+
         m0_mdstore_fini(&srv_mdstore);
-
         /* Init new mdstore with open root flag. */
         rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 1);
         M0_UT_ASSERT(rc == 0);

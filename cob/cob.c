@@ -503,15 +503,10 @@ M0_EXPORTED(m0_cob_domain_fini);
 #define MKFS_ROOT_BLKSIZE       4096
 #define MKFS_ROOT_BLOCKS        16
 
-/**
- * Create initial files system structures, such as: entire storage root, root
- * cob for sessions and root cob for hierarchy. Latter is only one of them
- * visible to user on client.
- */
-M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
-				   const struct m0_fid *rootfid,
-				   const struct m0_fid *sessfid,
-				   struct m0_db_tx *tx)
+static int _mkfs(struct m0_cob_domain *dom,
+		 const struct m0_fid *rootfid,
+		 const struct m0_fid *sessfid,
+		 struct m0_db_tx *tx)
 {
 	struct m0_cob_nskey  *nskey;
 	struct m0_cob_nsrec   nsrec;
@@ -641,6 +636,25 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	}
 	return 0;
 }
+
+/**
+ * Create initial files system structures, such as: entire storage root, root
+ * cob for sessions and root cob for hierarchy. Latter is only one of them
+ * visible to user on client.
+ */
+M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+				   const struct m0_fid *rootfid,
+				   const struct m0_fid *sessfid,
+				   struct m0_db_tx *tx)
+{
+	int rc;
+
+	rc = _mkfs(dom, rootfid, sessfid, tx);
+	if (rc == -EEXIST)
+		rc = 0;
+	return rc;
+}
+
 #endif
 
 static void cob_free_cb(struct m0_ref *ref);

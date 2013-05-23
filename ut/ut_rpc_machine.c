@@ -41,8 +41,8 @@ static void buf_dummy(struct m0_net_buffer_pool *bp)
 
 M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 {
-	int             rc;
 	struct m0_db_tx tx;
+	int             rc;
 
 	ctx->rmc_xprt = &m0_net_lnet_xprt;
 	rc = m0_net_xprt_init(ctx->rmc_xprt);
@@ -73,8 +73,11 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 
 	rc = m0_db_tx_init(&tx, &ctx->rmc_dbenv, 0);
 	M0_ASSERT(rc == 0);
-	rc = m0_rpc_root_session_cob_create(&ctx->rmc_mdstore.md_dom, &tx);
+
+	rc = m0_cob_domain_mkfs(&ctx->rmc_mdstore.md_dom, &M0_COB_SLASH_FID,
+				&M0_COB_SESSIONS_FID, &tx);
 	M0_ASSERT(rc == 0);
+
 	m0_db_tx_commit(&tx);
 
 	/*

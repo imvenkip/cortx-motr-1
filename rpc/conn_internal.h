@@ -27,9 +27,7 @@
 
 /* Imports */
 struct m0_rpc_session;
-struct m0_db_tx;
 struct m0_rpc_item;
-struct m0_cob_domain;
 struct m0_rpc_item_source;
 
 /**
@@ -48,6 +46,8 @@ static inline int conn_state(const struct m0_rpc_conn *conn)
 {
 	return conn->c_sm.sm_state;
 }
+
+M0_INTERNAL void conn_state_set(struct m0_rpc_conn *conn, int state);
 
 /**
    Searches in conn->c_sessions list, a session object whose session id
@@ -76,26 +76,6 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_conn_session0(const struct m0_rpc_conn
 M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn);
 
 /**
-   Lookup for a cob that represents rpc connection with given @sender_id.
-
-   Searches for /SESSIONS/SENDER_$sender_id
- */
-M0_INTERNAL int m0_rpc_conn_cob_lookup(struct m0_cob_domain *dom,
-				       uint64_t sender_id,
-				       struct m0_cob **out,
-				       struct m0_db_tx *tx);
-
-/**
-   Creates a cob that represents rpc connection with given @sender_id
-
-   Creates a cob /SESSIONS/SENDER_$sender_id
- */
-M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
-				       uint64_t sender_id,
-				       struct m0_cob **out,
-				       struct m0_db_tx *tx);
-
-/**
    Initalises receiver end of conn object.
 
    @post ergo(result == 0, conn_state(conn) == M0_RPC_CONN_INITIALISED &&
@@ -107,19 +87,6 @@ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 				     struct m0_net_end_point *ep,
 				     struct m0_rpc_machine *machine,
 				     const struct m0_uint128 *uuid);
-/**
-   Creates a receiver end of conn.
-
-   @pre conn_state(conn) == M0_RPC_CONN_INITIALISED
-   @post ergo(result == 0, conn_state(conn) == M0_RPC_CONN_ACTIVE &&
-			   conn->c_sender_id != SENDER_ID_INVALID &&
-			   m0_list_contains(&machine->rm_incoming_conns,
-					    &conn->c_link)
-   @post ergo(result != 0, conn_state(conn) == M0_RPC_CONN_FAILED)
-   @post ergo(result == 0, conn_state(conn) == M0_RPC_CONN_ACTIVE)
- */
-M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn);
-
 /**
    Terminates receiver end of rpc connection.
 

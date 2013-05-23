@@ -82,8 +82,6 @@ struct m0_rpc_machine {
 	struct m0_tl			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
 	struct m0_net_transfer_mc	  rm_tm;
-	/** Cob domain in which cobs related to session will be stored */
-	struct m0_cob_domain		 *rm_dom;
 	/** List of m0_rpc_conn objects, linked using c_link.
 	    List descriptor: rpc_conn
 	    conn is in list if connection is not in {CONN_UNINITIALISED,
@@ -153,6 +151,7 @@ struct m0_rpc_machine {
 
    @param machine Input rpc_machine object.
    @param dom cob domain that contains cobs representing slots
+   @todo      remove above dom parameter. It is no more required.
    @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
    @param receive_pool Buffer pool to be attached to TM for provisioning it.

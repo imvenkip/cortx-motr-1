@@ -27,7 +27,6 @@
 #include "lib/misc.h"
 #include "lib/bitstring.h"
 #include "lib/finject.h"
-#include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
 #include "db/db.h"
@@ -167,7 +166,6 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 		.sl_xid             = 1, /* xid 0 will be taken by dummy item */
 		.sl_in_flight       = 0,
 		.sl_max_in_flight   = SLOT_DEFAULT_MAX_IN_FLIGHT,
-		.sl_cob             = NULL,
 		.sl_ops             = ops,
 		.sl_last_sent       = dummy_item,
 		.sl_last_persistent = dummy_item,
@@ -272,8 +270,6 @@ M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot)
 	m0_fop_put(fop);
 
 	slot_item_tlist_fini(&slot->sl_item_list);
-	if (slot->sl_cob != NULL)
-		m0_cob_put(slot->sl_cob);
 	M0_SET0(slot);
 	M0_LEAVE();
 }
@@ -935,54 +931,6 @@ M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)
 		rc = m0_rpc_slot_reply_received(slot, item, &req);
 
 	return rc;
-}
-
-M0_INTERNAL int m0_rpc_slot_cob_lookup(struct m0_cob *session_cob,
-				       uint32_t slot_id,
-				       uint64_t slot_generation,
-				       struct m0_cob **slot_cob,
-				       struct m0_db_tx *tx)
-{
-	struct m0_cob *cob;
-	char           name[SESSION_COB_MAX_NAME_LEN];
-	int            rc;
-
-	M0_ENTRY("session_cob: %p, slot_id: %u, slot_generation: %llu",
-		 session_cob, slot_id, (unsigned long long)slot_generation);
-	M0_PRE(session_cob != NULL && slot_cob != NULL);
-
-	*slot_cob = NULL;
-	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
-
-	rc = m0_rpc_cob_lookup_helper(session_cob->co_dom, session_cob, name,
-					&cob, tx);
-	M0_ASSERT(ergo(rc != 0, cob == NULL));
-	*slot_cob = cob;
-	M0_RETURN(rc);
-}
-
-M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
-				       uint32_t slot_id,
-				       uint64_t slot_generation,
-				       struct m0_cob **slot_cob,
-				       struct m0_db_tx *tx)
-{
-	struct m0_cob *cob;
-	char           name[SESSION_COB_MAX_NAME_LEN];
-	int            rc;
-
-	M0_ENTRY("session_cob: %p, slot_id: %u, slot_generation: %llu",
-		 session_cob, slot_id, (unsigned long long)slot_generation);
-	M0_PRE(session_cob != NULL && slot_cob != NULL);
-
-	if (M0_FI_ENABLED("failed")) return -EINVAL;
-
-	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
-	rc = m0_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
-					&cob, tx);
-	M0_ASSERT(ergo(rc != 0, cob == NULL));
-	*slot_cob = cob;
-	M0_RETURN(rc);
 }
 
 /**

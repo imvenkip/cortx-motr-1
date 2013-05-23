@@ -101,7 +101,6 @@ static void rpc_mc_init_fini_test(void)
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(machine.rm_reqh == NULL);
-	M0_UT_ASSERT(machine.rm_dom == &cdom);
 	M0_UT_ASSERT(machine.rm_stopping == false);
 	m0_rpc_machine_fini(&machine);
 }
@@ -134,19 +133,6 @@ static void rpc_mc_init_fail_test(void)
 	  Root session cob as well as other mkfs related structres are now
 	  created on behalf of serivice startup if -p option is specified.
 	 */
-/*#ifndef __KERNEL__
-	m0_fi_enable_once("root_session_cob_create", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
-				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size, tm_recv_queue_min_len);
-	M0_UT_ASSERT(rc == -EINVAL);
-
-	m0_fi_enable_once("m0_rpc_root_session_cob_create", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
-				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
-				 max_rpc_msg_size, tm_recv_queue_min_len);
-	M0_UT_ASSERT(rc == -EINVAL);
-#endif*/
 }
 
 #ifndef __KERNEL__

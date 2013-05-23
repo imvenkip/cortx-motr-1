@@ -464,9 +464,6 @@ struct m0_rpc_session {
 	 */
 	struct m0_tlink		  s_link;
 
-	/** Cob representing this session in persistent state */
-	struct m0_cob            *s_cob;
-
 	/** Number of items that needs to be sent or their reply is
 	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
 	    state in all slots belonging to this session.

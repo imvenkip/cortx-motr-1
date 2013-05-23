@@ -125,6 +125,9 @@ static struct m0_net_tm_callbacks m0_rpc_tm_callbacks = {
 	.ntc_event_cb = rpc_tm_event_cb
 };
 
+/**
+   @todo Remove dom:m0_cob_domain parameter. It is no more required.
+ */
 M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 				    struct m0_cob_domain *dom,
 				    struct m0_net_domain *net_dom,
@@ -148,7 +151,6 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 		M0_RETURN(-EINVAL);
 
 	M0_SET0(machine);
-	machine->rm_dom		  = dom;
 	machine->rm_reqh	  = reqh;
 	machine->rm_min_recv_size = m0_rpc_max_msg_size(net_dom, msg_size);
 

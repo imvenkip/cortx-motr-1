@@ -87,48 +87,6 @@ M0_INTERNAL void m0_rpc_session_module_fini(void);
 M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 				     struct m0_rpc_machine *machine);
 
-/**
-   Helper to create cob
-
-   @param dom cob domain in which cob should be created.
-   @param pcob parent cob in which new cob is to be created
-   @param name name of cob
-   @param out newly created cob
-   @param tx transaction context
-
-   @return 0 on success. *out != NULL
- */
-
-M0_INTERNAL int m0_rpc_cob_create_helper(struct m0_cob_domain *dom,
-					 const struct m0_cob *pcob,
-					 const char *name,
-					 struct m0_cob **out,
-					 struct m0_db_tx *tx);
-
-/**
-   Lookup a cob named 'name' in parent cob @pcob. If found store reference
-   in @out. If not found set *out to NULL. To lookup root cob, pcob can be
-   set to NULL
- */
-M0_INTERNAL int m0_rpc_cob_lookup_helper(struct m0_cob_domain *dom,
-					 struct m0_cob *pcob,
-					 const char *name,
-					 struct m0_cob **out,
-					 struct m0_db_tx *tx);
-
-/**
-  Lookup /SESSIONS entry in cob namespace
- */
-M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
-					    struct m0_cob **out,
-					    struct m0_db_tx *tx);
-
-/**
-  Creates /SESSIONS entry in cob namespace
- */
-int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
-				   struct m0_db_tx *tx);
-
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 
 /**

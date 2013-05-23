@@ -32,7 +32,6 @@
  */
 
 /* Imports */
-struct m0_db_tx;
 struct m0_rpc_item;
 
 enum {
@@ -81,34 +80,6 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 					   struct m0_rpc_conn *conn,
 					   uint32_t nr_slots);
 M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session);
-
-/**
-   Lookup for a cob named "SESSION_$session_id" that represents rpc session
-   within a given @conn_cob (cob that identifies rpc connection)
- */
-M0_INTERNAL int m0_rpc_session_cob_lookup(struct m0_cob *conn_cob,
-					  uint64_t session_id,
-					  struct m0_cob **session_cob,
-					  struct m0_db_tx *tx);
-
-/**
-   Creates a cob named "SESSION_$session_id" that represents rpc session
-   within a given @conn_cob (cob that identifies rpc connection)
- */
-M0_INTERNAL int m0_rpc_session_cob_create(struct m0_cob *conn_cob,
-					  uint64_t session_id,
-					  struct m0_cob **session_cob,
-					  struct m0_db_tx *tx);
-
-/**
-   Creates receiver end of session object.
-
-   @pre session->s_state == M0_RPC_SESSION_INITIALISED &&
-	session->s_conn != NULL
-   @post ergo(result == 0, session->s_state == M0_RPC_SESSION_IDLE)
-   @post ergo(result != 0, session->s_state == M0_RPC_SESSION_FAILED)
- */
-M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session);
 
 /**
    Terminates receiver end of session.

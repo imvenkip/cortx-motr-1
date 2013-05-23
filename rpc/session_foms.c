@@ -233,21 +233,18 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 			m0_rpc_conn_fini_locked(conn);
 			goto out;
 		}
-		rc = m0_rpc_rcv_conn_establish(conn);
-		if (rc == 0) {
-			/* See [1] at the end of function */
-			slot = session0->s_slot_table[ow_sref->osr_slot_id];
-			M0_ASSERT(slot != NULL);
-			item->ri_session = session0;
-			m0_rpc_slot_item_add_internal(slot, item);
-			/* See [2] at the end of function */
-			ow_sref->osr_sender_id = SENDER_ID_INVALID;
-			M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
-			M0_ASSERT(m0_rpc_conn_invariant(conn));
-		} else {
-			/* conn establish failed */
-			m0_rpc_conn_fini_locked(conn);
-		}
+		conn->c_sender_id = m0_rpc_id_generate();
+		conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+
+		/* See [1] at the end of function */
+		slot = session0->s_slot_table[ow_sref->osr_slot_id];
+		M0_ASSERT(slot != NULL);
+		item->ri_session = session0;
+		m0_rpc_slot_item_add_internal(slot, item);
+		/* See [2] at the end of function */
+		ow_sref->osr_sender_id = SENDER_ID_INVALID;
+		M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
+		M0_ASSERT(m0_rpc_conn_invariant(conn));
 	}
 	m0_rpc_machine_unlock(machine);
 
@@ -386,23 +383,21 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 		rc = -ENOMEM;
 		goto out;
 	}
-
 	m0_rpc_machine_lock(machine);
-
 	rc = m0_rpc_session_init_locked(session, conn, slot_cnt);
 	if (rc == 0) {
-		rc = m0_rpc_rcv_session_establish(session);
-		if (rc == 0)
-			reply->rser_session_id = session->s_session_id;
-		else
-			m0_rpc_session_fini_locked(session);
+		do {
+			session->s_session_id = m0_rpc_id_generate();
+		} while (session->s_session_id <= SESSION_ID_MIN ||
+			 session->s_session_id >  SESSION_ID_MAX);
+		session_state_set(session, M0_RPC_SESSION_IDLE);
+		reply->rser_session_id = session->s_session_id;
 	}
-
 	m0_rpc_machine_unlock(machine);
 
 out:
-	reply->rser_sender_id = request->rse_sender_id;
-	reply->rser_rc        = rc;
+	reply->rser_sender_id  = request->rse_sender_id;
+	reply->rser_rc         = rc;
 
 	if (rc != 0) {
 		reply->rser_session_id = SESSION_ID_INVALID;

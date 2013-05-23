@@ -27,7 +27,6 @@
 #include "lib/misc.h"
 #include "lib/bitstring.h"
 #include "lib/uuid.h"
-#include "cob/cob.h"
 #include "mero/magic.h"
 #include "fop/fop.h"
 #include "lib/arith.h"             /* M0_CNT_DEC */
@@ -59,20 +58,6 @@ static int  rcv_item_consume(struct m0_rpc_item *item);
 
 static void rcv_reply_consume(struct m0_rpc_item *req,
 			      struct m0_rpc_item *reply);
-
-/**
-   Creates cob hierarchy that represents persistent state of @session.
- */
-static int session_persistent_state_attach(struct m0_rpc_session *session,
-					   uint64_t               session_id,
-					   struct m0_db_tx       *tx);
-
-/**
-  Deletes all the cobs associated with the session and slots belonging to
-  the session
- */
-static int session_persistent_state_destroy(struct m0_rpc_session *session,
-					    struct m0_db_tx       *tx);
 
 static int nr_active_items_count(const struct m0_rpc_session *session);
 
@@ -134,6 +119,7 @@ static struct m0_sm_state_descr session_states[] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Initialised",
 		.sd_allowed   = M0_BITS(M0_RPC_SESSION_ESTABLISHING,
+					M0_RPC_SESSION_IDLE, /* only on rcvr */
 					M0_RPC_SESSION_FINALISED,
 					M0_RPC_SESSION_FAILED)
 	},
@@ -145,6 +131,7 @@ static struct m0_sm_state_descr session_states[] = {
 	[M0_RPC_SESSION_IDLE] = {
 		.sd_name      = "Idle",
 		.sd_allowed   = M0_BITS(M0_RPC_SESSION_TERMINATING,
+					M0_RPC_SESSION_TERMINATED,
 					M0_RPC_SESSION_BUSY,
 					M0_RPC_SESSION_FAILED)
 	},
@@ -244,8 +231,7 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 		       _0C(m0_rpc_session_is_idle(session));
 
 	case M0_RPC_SESSION_TERMINATED:
-		return  _0C(session->s_cob == NULL) &&
-			_0C(session->s_session_id <= SESSION_ID_MAX) &&
+		return	_0C(session->s_session_id <= SESSION_ID_MAX) &&
 			_0C(m0_rpc_session_is_idle(session));
 
 	case M0_RPC_SESSION_IDLE:
@@ -331,7 +317,6 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 	session->s_conn                = conn;
 	session->s_nr_slots            = nr_slots;
 	session->s_slot_table_capacity = nr_slots;
-	session->s_cob                 = NULL;
 
 	rpc_session_tlink_init(session);
 	m0_list_init(&session->s_unbound_items);
@@ -938,72 +923,6 @@ static void session_idle_x_busy(struct m0_rpc_session *session)
 					       M0_RPC_SESSION_BUSY)));
 }
 
-M0_INTERNAL int m0_rpc_session_cob_lookup(struct m0_cob *conn_cob,
-					  uint64_t session_id,
-					  struct m0_cob **session_cob,
-					  struct m0_db_tx *tx)
-{
-	struct m0_cob *cob;
-	char           name[SESSION_COB_MAX_NAME_LEN];
-	int            rc;
-
-	M0_ENTRY("conn_cob: %p, session_id: %llu", conn_cob,
-		 (unsigned long long)session_id);
-	M0_PRE(conn_cob != NULL && session_id <= SESSION_ID_MAX &&
-			session_cob != NULL);
-
-	*session_cob = NULL;
-	sprintf(name, "SESSION_%lu", (unsigned long)session_id);
-
-	rc = m0_rpc_cob_lookup_helper(conn_cob->co_dom, conn_cob, name,
-					&cob, tx);
-	M0_ASSERT(ergo(rc != 0, cob == NULL));
-	*session_cob = cob;
-	M0_RETURN(rc);
-}
-
-M0_INTERNAL int m0_rpc_session_cob_create(struct m0_cob *conn_cob,
-					  uint64_t session_id,
-					  struct m0_cob **session_cob,
-					  struct m0_db_tx *tx)
-{
-	struct m0_cob *cob;
-	char           name[SESSION_COB_MAX_NAME_LEN];
-	int            rc;
-
-	M0_ENTRY("conn_cob: %p, session_id: %llu", conn_cob,
-		 (unsigned long long)session_id);
-	M0_PRE(conn_cob != NULL && session_id != SESSION_ID_INVALID &&
-			session_cob != NULL);
-
-	*session_cob = NULL;
-	sprintf(name, "SESSION_%lu", (unsigned long)session_id);
-
-	rc = m0_rpc_cob_create_helper(conn_cob->co_dom, conn_cob, name,
-					&cob, tx);
-	M0_ASSERT(ergo(rc != 0, cob == NULL));
-	*session_cob = cob;
-	M0_RETURN(rc);
-}
-
-/**
-   Allocates and returns new session_id
- */
-M0_INTERNAL uint64_t session_id_allocate(void)
-{
-	uint64_t session_id;
-
-	M0_ENTRY();
-
-	do {
-		session_id = m0_rpc_id_generate();
-	} while (session_id <= SESSION_ID_MIN &&
-		 session_id >= SESSION_ID_MAX);
-
-	M0_LEAVE("session_id: %llu", (unsigned long long)session_id);
-	return session_id;
-}
-
 static void snd_slot_idle(struct m0_rpc_slot *slot)
 {
 	struct m0_rpc_frm *frm;
@@ -1107,162 +1026,21 @@ static void rcv_reply_consume(struct m0_rpc_item *req,
 	}
 }
 
-M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session)
-{
-	struct m0_rpc_machine *machine;
-	struct m0_db_tx        tx;
-	uint64_t               session_id;
-	int                    rc;
-
-	M0_ENTRY("session: %p", session);
-	M0_PRE(session != NULL);
-
-	machine = session_machine(session);
-	M0_PRE(m0_rpc_machine_is_locked(machine));
-	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_ASSERT(session_state(session) == M0_RPC_SESSION_INITIALISED);
-
-	session_state_set(session, M0_RPC_SESSION_ESTABLISHING);
-	rc = m0_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
-	if (rc == 0) {
-		session_id = session_id_allocate();
-		rc = session_persistent_state_attach(session, session_id, &tx);
-		if (rc == 0)
-			rc = m0_db_tx_commit(&tx);
-		else
-			m0_db_tx_abort(&tx);
-	}
-	if (rc == 0) {
-		session->s_session_id = session_id;
-		session_state_set(session, M0_RPC_SESSION_IDLE);
-	} else {
-		session_failed(session, rc);
-	}
-
-	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_RETURN(rc);
-}
-
-static int session_persistent_state_attach(struct m0_rpc_session *session,
-					   uint64_t               session_id,
-					   struct m0_db_tx       *tx)
-{
-	struct m0_cob  *cob;
-	int             rc;
-	int             i;
-
-	M0_ENTRY("session: %p, session_id: %llu", session,
-		 (unsigned long long)session_id);
-	M0_PRE(session != NULL &&
-	       m0_rpc_session_invariant(session) &&
-	       session_state(session) == M0_RPC_SESSION_ESTABLISHING &&
-	       session->s_cob == NULL);
-
-	session->s_cob = NULL;
-	rc = m0_rpc_session_cob_create(session->s_conn->c_cob,
-					session_id, &cob, tx);
-	if (rc != 0)
-		goto errout;
-
-	M0_ASSERT(cob != NULL);
-	session->s_cob = cob;
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		M0_ASSERT(session->s_slot_table[i]->sl_cob == NULL);
-		rc = m0_rpc_slot_cob_create(session->s_cob, i, 0,
-							&cob, tx);
-		if (rc != 0)
-			goto errout;
-
-		M0_ASSERT(cob != NULL);
-		session->s_slot_table[i]->sl_cob = cob;
-	}
-	M0_RETURN(rc);
-
-errout:
-	M0_ASSERT(rc != 0);
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		cob = session->s_slot_table[i]->sl_cob;
-		if (cob != NULL)
-			m0_cob_put(cob);
-		session->s_slot_table[i]->sl_cob = NULL;
-	}
-	if (session->s_cob != NULL) {
-		m0_cob_put(session->s_cob);
-		session->s_cob = NULL;
-	}
-	M0_RETURN(rc);
-}
-
-static int session_persistent_state_destroy(struct m0_rpc_session *session,
-					    struct m0_db_tx       *tx)
-{
-	struct m0_rpc_slot *slot;
-	int                 i;
-
-	M0_ENTRY("session: %p", session);
-	M0_ASSERT(session != NULL);
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		if (slot != NULL && slot->sl_cob != NULL) {
-			/*
-			 * m0_cob_delete_put() - even failed one - leaves the
-			 * cob unusable.  And we don't care about error code.
-			 */
-			(void)m0_cob_delete_put(slot->sl_cob, tx);
-			slot->sl_cob = NULL;
-		}
-	}
-	if (session->s_cob != NULL) {
-		m0_cob_delete_put(session->s_cob, tx);
-		session->s_cob = NULL;
-	}
-
-	M0_RETURN(0);
-}
-
 M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
 {
-	struct m0_rpc_machine *machine;
-	struct m0_rpc_conn    *conn;
-	struct m0_db_tx        tx;
-	int                    rc;
-
 	M0_ENTRY("session: %p", session);
+
 	M0_PRE(session != NULL);
-
-	conn    = session->s_conn;
-	machine = conn->c_rpc_machine;
-
-	M0_PRE(m0_rpc_machine_is_locked(machine));
-
+	M0_PRE(m0_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_PRE(session_state(session) == M0_RPC_SESSION_IDLE);
 
-	session_state_set(session, M0_RPC_SESSION_TERMINATING);
 	/* For receiver side session, no slots are on ready_slots list
 	   since all reply items are bound items. */
-
-	rc = m0_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
-	if (rc == 0) {
-		rc = session_persistent_state_destroy(session, &tx);
-		if (rc == 0)
-			rc = m0_db_tx_commit(&tx);
-		else
-			m0_db_tx_abort(&tx);
-	}
-
-	if (rc == 0)
-		session_state_set(session, M0_RPC_SESSION_TERMINATED);
-	else
-		session_failed(session, rc);
+	session_state_set(session, M0_RPC_SESSION_TERMINATED);
 
 	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_ASSERT(m0_rpc_machine_is_locked(machine));
-
-	M0_RETURN(rc);
+	M0_RETURN(0);
 }
 
 M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)

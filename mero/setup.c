@@ -1221,7 +1221,8 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_rpc_root_session_cob_create(&rctx->rc_mdstore.md_dom, &tx);
+	rc = m0_cob_domain_mkfs(&rctx->rc_mdstore.md_dom, &M0_COB_SLASH_FID,
+				&M0_COB_SESSIONS_FID, &tx);
 	if (rc == 0)
 		m0_db_tx_commit(&tx);
 	else
@@ -1348,13 +1349,11 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 			M0_LOG(M0_ERROR, "m0_mdstore_init");
 			goto cleanup_addb_stob;
 		}
-
 		rc = cs_storage_prepare(rctx);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_storage_prepare");
 			goto cleanup_mdstore;
 		}
-
 		m0_mdstore_fini(&rctx->rc_mdstore);
 	}
 

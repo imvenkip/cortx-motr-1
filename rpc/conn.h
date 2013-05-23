@@ -32,7 +32,6 @@
 struct m0_rpc_machine;
 struct m0_rpc_service;
 struct m0_rpc_chan;
-struct m0_cob;
 struct m0_net_end_point;
 
 /* Exports */
@@ -281,9 +280,6 @@ struct m0_rpc_conn {
 
 	/** Identifies destination of this connection. */
 	struct m0_rpc_chan       *c_rpcchan;
-
-	/** cob representing the connection */
-	struct m0_cob            *c_cob;
 
 	/** RPC connection state machine
 	    @see m0_rpc_conn_state, conn_conf

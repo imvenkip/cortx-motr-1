@@ -29,8 +29,6 @@
 /* Imports */
 struct m0_rpc_item;
 struct m0_rpc_session;
-struct m0_cob;
-struct m0_db_tx;
 
 /**
    @addtogroup rpc_session
@@ -152,9 +150,6 @@ struct m0_rpc_slot {
 	/** identifier of slot, unique within the session */
 	uint32_t                      sl_slot_id;
 
-	/** Cob representing this slot in persistent state */
-	struct m0_cob                *sl_cob;
-
 	/** list anchor to put in m0_rpc_session::s_ready_slots */
 	struct m0_tlink		      sl_link;
 
@@ -252,24 +247,6 @@ M0_INTERNAL void m0_rpc_slot_reset(struct m0_rpc_slot *slot,
 M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot);
 
 M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot);
-
-/**
-   Lookup for a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
- */
-M0_INTERNAL int m0_rpc_slot_cob_lookup(struct m0_cob *session_cob,
-				       uint32_t slot_id,
-				       uint64_t slot_generation,
-				       struct m0_cob **slot_cob,
-				       struct m0_db_tx *tx);
-
-/**
-   Creates a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
- */
-M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
-				       uint32_t slot_id,
-				       uint64_t slot_generation,
-				       struct m0_cob **slot_cob,
-				       struct m0_db_tx *tx);
 
 M0_INTERNAL void m0_rpc_slot_item_add(struct m0_rpc_slot *slot,
 				      struct m0_rpc_item *item);

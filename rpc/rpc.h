@@ -51,7 +51,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 
 /* imports */
 struct m0_db_tx;
-struct m0_cob_domain;
 
 M0_INTERNAL int m0_rpc_init(void);
 M0_INTERNAL void m0_rpc_fini(void);
