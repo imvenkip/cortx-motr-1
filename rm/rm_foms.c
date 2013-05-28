@@ -166,7 +166,7 @@ static void remote_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 
 static void remote_incoming_conflict(struct m0_rm_incoming *in)
 {
-	in->rin_sm.sm_rc = -EACCES;
+	/* Do nothing */
 }
 
 /*

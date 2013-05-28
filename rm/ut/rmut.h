@@ -21,7 +21,6 @@
 #ifndef __MERO_RM_UT_RMUT_H__
 #define __MERO_RM_UT_RMUT_H__
 
-#include "rings.h"
 #include "lib/types.h"            /* uint64_t */
 #include "lib/chan.h"
 #include "lib/misc.h"
@@ -38,6 +37,9 @@ enum obj_type {
 	OBJ_OWNER
 };
 
+/*
+ * If you add another server, you will have to make changes in other places.
+ */
 enum rm_server {
 	SERVER_1 = 0,
 	SERVER_2,
@@ -54,16 +56,30 @@ enum rr_tests {
 	TEST_NR,
 };
 
+/* Forward declaration */
+struct rm_ut_data;
+
+struct rm_ut_data_ops {
+	void (*rtype_set)(struct rm_ut_data *self);
+	void (*rtype_unset)(struct rm_ut_data *self);
+	void (*resource_set)(struct rm_ut_data *self);
+	void (*resource_unset)(struct rm_ut_data *self);
+	void (*owner_set)(struct rm_ut_data *self);
+	void (*owner_unset)(struct rm_ut_data *self);
+	void (*credit_datum_set)(struct rm_ut_data *self);
+};
+
 /*
  * Resource manager class-collection.
  */
 struct rm_ut_data {
-	struct m0_rm_domain	   rd_dom;
-	struct m0_rm_resource_type rd_rt;
-	struct m0_rings		   rd_res;
-	struct m0_rm_owner	   rd_owner;
-	struct m0_rm_incoming	   rd_in;
-	struct m0_rm_credit	   rd_credit;
+	struct m0_rm_domain	     rd_dom;
+	struct m0_rm_resource_type  *rd_rt;
+	struct m0_rm_resource	    *rd_res;
+	struct m0_rm_owner	    *rd_owner;
+	struct m0_rm_incoming	     rd_in;
+	struct m0_rm_credit	     rd_credit;
+	const struct rm_ut_data_ops *rd_ops;
 };
 
 /*
@@ -89,7 +105,7 @@ struct rm_context {
 /*
  * Test variable(s)
  */
-M0_EXTERN struct rm_ut_data  test_data;
+extern struct rm_ut_data     rm_test_data;
 M0_EXTERN struct rm_context  rm_ctx[];
 M0_EXTERN const char        *serv_addr[];
 M0_EXTERN const int          cob_ids[];
@@ -99,8 +115,18 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
 void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit);
+
+/* Test server functions */
+void rm_ctx_config(enum rm_server id);
 void rm_ctx_init(struct rm_context *rmctx);
 void rm_ctx_fini(struct rm_context *rmctx);
+void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest);
+void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest);
+void rm_ctx_server_start(enum rm_server srv_id);
+void rm_ctx_server_windup(enum rm_server srv_id);
+void rm_ctx_server_stop(enum rm_server srv_id);
+void creditor_cookie_setup(enum rm_server dsrv_id, enum rm_server csrv_id);
+void loan_session_set(enum rm_server csrv_id, enum rm_server dsrv_id);
 
 /* __MERO_RM_UT_RMUT_H__ */
 #endif

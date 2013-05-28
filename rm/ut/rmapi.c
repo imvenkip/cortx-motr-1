@@ -19,7 +19,7 @@
  */
 
 #include "lib/types.h"            /* uint64_t */
-#include "lib/misc.h"
+#include "lib/memory.h"
 #include "lib/misc.h"
 #include "ut/ut.h"
 #include "lib/ub.h"
@@ -45,158 +45,159 @@ static void credits_api_test (void)
 {
 	int rc;
 
-	rm_utdata_init(&test_data, OBJ_OWNER);
+	rings_utdata_ops_set(&rm_test_data);
+	rm_utdata_init(&rm_test_data, OBJ_OWNER);
 
 	/* 1. Test m0_rm_incoming_init() */
-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_INITIALISED);
-	M0_UT_ASSERT(test_data.rd_in.rin_type == M0_RIT_LOCAL);
-	M0_UT_ASSERT(test_data.rd_in.rin_policy == RIP_NONE);
-	M0_UT_ASSERT(test_data.rd_in.rin_flags == RIF_LOCAL_WAIT);
-	M0_UT_ASSERT(test_data.rd_in.rin_want.cr_datum == 0);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_INITIALISED);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_type == M0_RIT_LOCAL);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_policy == RIP_NONE);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_flags == RIF_LOCAL_WAIT);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_want.cr_datum == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
 
 	/* 2. Test m0_rm_credit_init */
-	m0_rm_credit_init(&test_data.rd_credit, &test_data.rd_owner);
-	M0_UT_ASSERT(test_data.rd_credit.cr_datum == 0);
-	M0_UT_ASSERT(test_data.rd_credit.cr_owner == &test_data.rd_owner);
+	m0_rm_credit_init(&rm_test_data.rd_credit, rm_test_data.rd_owner);
+	M0_UT_ASSERT(rm_test_data.rd_credit.cr_datum == 0);
+	M0_UT_ASSERT(rm_test_data.rd_credit.cr_owner == rm_test_data.rd_owner);
 
 	/* 3. Test m0_rm_owner_selfadd. Test memory failure */
-	test_data.rd_credit.cr_datum = ALLRINGS;
+	rm_test_data.rd_credit.cr_datum = ALLRINGS;
 	m0_fi_enable_once("rings_credit_copy", "fail_copy");
-	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
+	rc = m0_rm_owner_selfadd(rm_test_data.rd_owner,
+				 &rm_test_data.rd_credit);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	/* 4. Test m0_rm_owner_selfadd. Indirectly tests m0_rm_loan_init */
-	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
+	rc = m0_rm_owner_selfadd(rm_test_data.rd_owner,
+				 &rm_test_data.rd_credit);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]));
+	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
+			&rm_test_data.rd_owner->ro_borrowed));
+	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
+			&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
 
 	/*
 	 * 5. Test m0_rm_credit_get for memory failure.
 	 */
-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
-	test_data.rd_in.rin_ops = &rings_incoming_ops;
+	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
+	rm_test_data.rd_in.rin_want.cr_datum = rm_test_data.rd_credit.cr_datum;
+	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
 	m0_fi_enable_once("rings_credit_copy", "fail_copy");
-	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENOMEM);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ENOMEM);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
 	/* Test m0_rm_incoming_fini */
-	m0_rm_incoming_fini(&test_data.rd_in);
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
 
 	/*
 	 * 6. Test m0_rm_credit_get - Success case.
 	 * Indirectly tests owner_balance, incoming_check, incoming_check_with,
 	 * incoming_complete, pin_add.
 	 */
-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
-	test_data.rd_in.rin_ops = &rings_incoming_ops;
-	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+	rm_test_data.rd_in.rin_want.cr_datum = rm_test_data.rd_credit.cr_datum;
+	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
 
 	/* Test m0_rm_credit_put. Indirectly tests incoming_release, pin_del */
-	m0_rm_credit_put(&test_data.rd_in);
+	m0_rm_credit_put(&rm_test_data.rd_in);
 
 	/* Test m0_rm_incoming_fini */
-	m0_rm_incoming_fini(&test_data.rd_in);
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
 
-	rm_utdata_fini(&test_data, OBJ_OWNER);
+	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
 }
 
 static void owner_api_test (void)
 {
-	rm_utdata_init(&test_data, OBJ_RES);
+	rings_utdata_ops_set(&rm_test_data);
 
 	/*
 	 * 1. Test m0_rm_owner_init
 	 * Indirectly tests resource_get(), owner_internal_init(),
 	 * owner_invariant(), owner_invariant_state().
 	 */
-	m0_rm_owner_init(&test_data.rd_owner,
-			 &test_data.rd_res.rs_resource, NULL);
-	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_ACTIVE);
-	M0_UT_ASSERT(test_data.rd_owner.ro_creditor == NULL);
-	M0_UT_ASSERT(test_data.rd_owner.ro_resource ==
-			&test_data.rd_res.rs_resource);
+	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_sm.sm_state == ROS_ACTIVE);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_creditor == NULL);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == rm_test_data.rd_res);
 
 	/* 2. Test m0_rm_owner_windup - on newly initialised owner */
-	m0_rm_owner_windup(&test_data.rd_owner);
-	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_FINAL);
-	M0_UT_ASSERT(test_data.rd_owner.ro_resource ==
-			&test_data.rd_res.rs_resource);
-	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_ref == 1);
+	m0_rm_owner_windup(rm_test_data.rd_owner);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_sm.sm_state == ROS_FINAL);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == rm_test_data.rd_res);
+	M0_UT_ASSERT(rm_test_data.rd_res->r_ref == 1);
 
 	/* 3. Test m0_rm_owner_fini. Indirectly tests resource_put(). */
-	m0_rm_owner_fini(&test_data.rd_owner);
-	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_FINAL);
-	M0_UT_ASSERT(test_data.rd_owner.ro_creditor == NULL);
-	M0_UT_ASSERT(test_data.rd_owner.ro_resource == NULL);
-	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_ref == 0);
+	m0_rm_owner_fini(rm_test_data.rd_owner);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_sm.sm_state == ROS_FINAL);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_creditor == NULL);
+	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == NULL);
+	M0_UT_ASSERT(rm_test_data.rd_res->r_ref == 0);
 
-	rm_utdata_fini(&test_data, OBJ_RES);
+	m0_free(rm_test_data.rd_owner);
+	rm_test_data.rd_owner = NULL;
+	rm_utdata_fini(&rm_test_data, OBJ_RES);
 }
 
 static void res_api_test(void)
 {
-	M0_SET0(&test_data.rd_res);
-	rm_utdata_init(&test_data, OBJ_RES_TYPE);
+	rings_utdata_ops_set(&rm_test_data);
+	/* 1. Test m0_rm_resource_add. Resource is added during init */
+	rm_utdata_init(&rm_test_data, OBJ_RES);
 
-	/* 1. Test m0_rm_resource_add */
-	m0_rm_resource_add(&test_data.rd_rt, &test_data.rd_res.rs_resource);
-	m0_mutex_lock(&test_data.rd_rt.rt_lock);
-	M0_UT_ASSERT(test_data.rd_rt.rt_nr_resources == 1);
-	M0_UT_ASSERT(res_tlist_contains(&test_data.rd_rt.rt_resources,
-				        &test_data.rd_res.rs_resource));
-	m0_mutex_unlock(&test_data.rd_rt.rt_lock);
+	m0_mutex_lock(&rm_test_data.rd_rt->rt_lock);
+	M0_UT_ASSERT(rm_test_data.rd_rt->rt_nr_resources == 1);
+	M0_UT_ASSERT(res_tlist_contains(&rm_test_data.rd_rt->rt_resources,
+				        rm_test_data.rd_res));
+	m0_mutex_unlock(&rm_test_data.rd_rt->rt_lock);
 
-	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_type == &test_data.rd_rt);
+	M0_UT_ASSERT(rm_test_data.rd_res->r_type == rm_test_data.rd_rt);
 
 	/* 2. Test m0_rm_resource_del */
-	m0_rm_resource_del(&test_data.rd_res.rs_resource);
+	rm_test_data.rd_ops->resource_unset(&rm_test_data);
 
-	m0_mutex_lock(&test_data.rd_rt.rt_lock);
-	M0_UT_ASSERT(test_data.rd_rt.rt_nr_resources == 0);
-	M0_UT_ASSERT(res_tlist_is_empty(&test_data.rd_rt.rt_resources));
-	m0_mutex_unlock(&test_data.rd_rt.rt_lock);
+	m0_mutex_lock(&rm_test_data.rd_rt->rt_lock);
+	M0_UT_ASSERT(rm_test_data.rd_rt->rt_nr_resources == 0);
+	M0_UT_ASSERT(res_tlist_is_empty(&rm_test_data.rd_rt->rt_resources));
+	m0_mutex_unlock(&rm_test_data.rd_rt->rt_lock);
 
-	rm_utdata_fini(&test_data, OBJ_RES_TYPE);
+	rm_utdata_fini(&rm_test_data, OBJ_RES_TYPE);
 }
 
 static void rt_api_test(void)
 {
-	rm_utdata_init(&test_data, OBJ_RES_TYPE);
+	rings_utdata_ops_set(&rm_test_data);
+	rm_utdata_init(&rm_test_data, OBJ_RES_TYPE);
 
-	M0_UT_ASSERT(test_data.rd_rt.rt_dom == &test_data.rd_dom);
-	M0_UT_ASSERT(test_data.rd_dom.rd_types[0] == &test_data.rd_rt);
+	M0_UT_ASSERT(rm_test_data.rd_rt->rt_dom == &rm_test_data.rd_dom);
+	M0_UT_ASSERT(rm_test_data.rd_dom.rd_types[0] == rm_test_data.rd_rt);
 
 	/* Test m0_rm_type_deregister */
-	m0_rm_type_deregister(&test_data.rd_rt);
+	rm_test_data.rd_ops->rtype_unset(&rm_test_data);
+	M0_UT_ASSERT(rm_test_data.rd_dom.rd_types[0] == NULL);
 
-	M0_UT_ASSERT(test_data.rd_dom.rd_types[1] == NULL);
-	M0_UT_ASSERT(test_data.rd_rt.rt_dom == NULL);
-
-	m0_rm_domain_fini(&test_data.rd_dom);
+	m0_rm_domain_fini(&rm_test_data.rd_dom);
 }
 
 static void dom_api_test(void)
 {
-	/* Initialise test_data.rd_domain */
-	m0_rm_domain_init(&test_data.rd_dom);
+	/* Initialise rm_test_data.rd_domain */
+	m0_rm_domain_init(&rm_test_data.rd_dom);
 
 	/* Make sure that all resource entries are NULL */
-	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(test_data.rd_dom.rd_types),
-			       test_data.rd_dom.rd_types[i] == NULL));
-	M0_UT_ASSERT(test_data.rd_dom.rd_lock.m_owner == 0);
+	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(rm_test_data.rd_dom.rd_types),
+                         rm_test_data.rd_dom.rd_types[i] == NULL));
+	M0_UT_ASSERT(rm_test_data.rd_dom.rd_lock.m_owner == 0);
 
 	/* Finalise domain - Nothing to test - make sure it does not crash */
-	m0_rm_domain_fini(&test_data.rd_dom);
+	m0_rm_domain_fini(&rm_test_data.rd_dom);
 }
 
 void rm_api_test(void)

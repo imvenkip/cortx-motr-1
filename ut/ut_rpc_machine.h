@@ -31,7 +31,6 @@
 #include "mdstore/mdstore.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
-#include "rpc/rpc_internal.h"
 #include "rpc/rpc_machine.h"
 
 struct m0_ut_rpc_mach_ctx {

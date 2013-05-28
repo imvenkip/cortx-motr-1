@@ -22,6 +22,7 @@
 #include "rm/rm_internal.h"
 #include "rm/rm_service.h"
 #include "rm/ut/rmut.h"
+#include "rm/ut/rings.h"
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"
 
@@ -122,18 +123,19 @@ static void rm_client(const int tid)
 	M0_ALLOC_PTR(resource);
 	M0_UT_ASSERT(resource != NULL);
 
-	rm_utdata_init(&test_data, OBJ_OWNER);
+	rings_utdata_ops_set(&rm_test_data);
+	rm_utdata_init(&rm_test_data, OBJ_OWNER);
 
-	resource->r_type = &test_data.rd_rt;
+	resource->r_type = rm_test_data.rd_rt;
 	resource->r_ops  = &rings_ops;
 
 	m0_rm_remote_init(creditor, resource);
-	creditor->rem_session          = &client_ctx->rc_sess[SERVER_1];
-	creditor->rem_cookie           = M0_COOKIE_NULL;
-	test_data.rd_owner.ro_creditor = creditor;
+	creditor->rem_session              = &client_ctx->rc_sess[SERVER_1];
+	creditor->rem_cookie               = M0_COOKIE_NULL;
+	rm_test_data.rd_owner->ro_creditor = creditor;
 
-	m0_rm_incoming_init(&in, &test_data.rd_owner, M0_RIT_BORROW, RIP_NONE,
-			    RIF_MAY_BORROW);
+	m0_rm_incoming_init(&in, rm_test_data.rd_owner,
+			    M0_RIT_BORROW, RIP_NONE, RIF_MAY_BORROW);
 	in.rin_want.cr_datum = NENYA | DURIN;
 	in.rin_ops = &server2_incoming_ops;
 
@@ -152,8 +154,9 @@ static void rm_client(const int tid)
 	m0_chan_signal_lock(&rr_tests_chan);
 	/* Wait for server to stop */
 	m0_chan_wait(&tests_clink[SERVER_1]);
-	rm_utdata_fini(&test_data, OBJ_OWNER);
 	m0_rm_remote_fini(creditor);
+	rm_test_data.rd_owner->ro_creditor = NULL;
+	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
 	m0_free(resource);
 	m0_free(creditor);
 	rm_ctx_fini(client_ctx);

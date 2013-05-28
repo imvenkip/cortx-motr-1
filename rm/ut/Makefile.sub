@@ -4,6 +4,7 @@ ut_libmero_ut_la_SOURCES += rm/ut/rmut.h \
                             rm/ut/rcredits.c \
                             rm/ut/rm_foms.c \
                             rm/ut/rm_fops.c \
+                            rm/ut/file.c \
                             rm/ut/rmut.c \
                             rm/ut/rm_service.c
 

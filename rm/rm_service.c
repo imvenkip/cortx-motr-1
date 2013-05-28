@@ -269,8 +269,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 			goto err_owner;
 		}
 		m0_rm_credit_init(owner_credit, *owner);
-		/* Initialise owner_credit->cr_datum */
-		m0_rm_resource_initial_credit(resource, owner_credit);
+		owner_credit->cr_ops->cro_initial_capital(owner_credit);
 		rc = m0_rm_owner_selfadd(*owner, owner_credit);
 		m0_free(owner_credit);
 		if (rc != 0)

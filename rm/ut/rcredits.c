@@ -22,6 +22,7 @@
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
 #include "rm/ut/rmut.h"
+#include "rm/ut/rings.h"
 
 const char *db_name[] = {"ut-rm-cob_1",
 			 "ut-rm-cob_2",
@@ -40,6 +41,8 @@ const char *serv_addr[] = { "0@lo:12345:34:1",
 };
 
 const int cob_ids[] = { 20, 30, 40 };
+/* Maximum test servers for this testcase */
+static enum rm_server test_servers_nr;
 
 struct m0_chan    rr_tests_chan;
 struct m0_clink   tests_clink[TEST_NR];
@@ -91,142 +94,12 @@ const struct m0_rm_incoming_ops server3_incoming_ops = {
 	.rio_conflict = server3_in_conflict
 };
 
-void rm_ctx_init(struct rm_context *rmctx)
-{
-	int                                 rc;
-	static struct m0_reqh_service_type *stype = NULL;
-
-	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
-
-	m0_mutex_init(&rmctx->rc_mutex);
-
-	if (stype == NULL) {
-		stype = m0_reqh_service_type_find("rmservice");
-		M0_UT_ASSERT(stype != NULL);
-	}
-
-	rc = m0_reqh_service_allocate(&rmctx->rc_reqh_svc, stype, NULL);
-	M0_UT_ASSERT(rc == 0);
-	m0_reqh_service_init(rmctx->rc_reqh_svc,
-			     &rmctx->rc_rmach_ctx.rmc_reqh, NULL);
-	rc = m0_reqh_service_start(rmctx->rc_reqh_svc);
-	M0_UT_ASSERT(rc == 0);
-	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
-	m0_clink_init(&rmctx->rc_clink, NULL);
-}
-
-void rm_ctx_fini(struct rm_context *rmctx)
-{
-	m0_clink_fini(&rmctx->rc_clink);
-	m0_chan_fini_lock(&rmctx->rc_chan);
-	m0_mutex_fini(&rmctx->rc_mutex);
-	m0_reqh_service_stop(rmctx->rc_reqh_svc);
-	m0_reqh_service_fini(rmctx->rc_reqh_svc);
-	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
-}
-
-void rm_connect(struct rm_context *src, const struct rm_context *dest)
-{
-	struct m0_net_end_point *ep;
-	int		         rc;
-
-	/*
-	 * Create a local end point to communicate with remote server.
-	 */
-	rc = m0_net_end_point_create(&ep,
-				     &src->rc_rmach_ctx.rmc_rpc.rm_tm,
-				     dest->rc_rmach_ctx.rmc_ep_addr);
-	M0_UT_ASSERT(rc == 0);
-	src->rc_ep[dest->rc_id] = ep;
-
-	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
-				ep, &src->rc_rmach_ctx.rmc_rpc, 15,
-				M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
-				   &src->rc_conn[dest->rc_id], 1,
-				   M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-}
-
-void rm_disconnect(struct rm_context *src, const struct rm_context *dest)
-{
-	int rc;
-
-	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id], M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id], M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
-}
-
-static void server_start(enum rm_server srv_id)
-{
-	struct m0_rm_remote *creditor;
-	struct m0_rm_owner  *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
-	struct m0_rm_credit *credit = &rm_ctx[srv_id].rc_test_data.rd_credit;
-	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
-	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
-
-	rm_utdata_init(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
-	/*
-	 * If creditor id is valid, do creditor setup.
-	 * If there is no creditor, this server is original owner.
-	 * For original owner, raise capital.
-	 */
-	if (cred_id != SERVER_INVALID) {
-		rm_connect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
-		M0_ALLOC_PTR(creditor);
-		M0_UT_ASSERT(creditor != NULL);
-		m0_rm_remote_init(creditor, owner->ro_resource);
-		creditor->rem_session = &rm_ctx[srv_id].rc_sess[cred_id];
-		owner->ro_creditor = creditor;
-	} else
-		rm_test_owner_capital_raise(owner, credit);
-
-	if (debt_id != SERVER_INVALID)
-		rm_connect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
-}
-
-static void server_stop(enum rm_server srv_id)
-{
-	struct m0_rm_remote *creditor;
-	struct m0_rm_owner  *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
-	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
-	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
-
-	if (cred_id != SERVER_INVALID) {
-		creditor = owner->ro_creditor;
-		M0_UT_ASSERT(creditor != NULL);
-		m0_rm_remote_fini(creditor);
-		m0_free(creditor);
-		owner->ro_creditor = NULL;
-	}
-	rm_utdata_fini(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
-	if (cred_id != SERVER_INVALID)
-		rm_disconnect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
-	if (debt_id != SERVER_INVALID)
-		rm_disconnect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
-}
-
-static void creditor_cookie_setup(enum rm_server dsrv_id,
-				  enum rm_server csrv_id)
-{
-	struct m0_rm_owner *creditor = &rm_ctx[csrv_id].rc_test_data.rd_owner;
-	struct m0_rm_owner *owner = &rm_ctx[dsrv_id].rc_test_data.rd_owner;
-
-	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
-}
-
 static void credit_setup(enum rm_server srv_id,
 			enum m0_rm_incoming_flags flag,
 			int value)
 {
 	struct m0_rm_incoming *in = &rm_ctx[srv_id].rc_test_data.rd_in;
-	struct m0_rm_owner    *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
 
 	m0_rm_incoming_init(in, owner, M0_RIT_LOCAL, RIP_NONE, flag);
 	in->rin_want.cr_datum = value;
@@ -245,26 +118,10 @@ static void credit_setup(enum rm_server srv_id,
 	}
 }
 
-static void loan_session_set(enum rm_server csrv_id,
-			     enum rm_server dsrv_id)
-{
-	struct m0_rm_owner  *owner = &rm_ctx[csrv_id].rc_test_data.rd_owner;
-	struct m0_rm_loan   *loan;
-	struct m0_rm_credit *credit;
-
-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_sublet));
-	m0_tl_for (m0_rm_ur, &owner->ro_sublet, credit) {
-		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
-		M0_UT_ASSERT(loan != NULL && loan->rl_other != NULL);
-		loan->rl_other->rem_session =
-			&rm_ctx[csrv_id].rc_sess[dsrv_id];
-	} m0_tl_endfor;
-}
-
 static void test2_verify(void)
 {
-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
-	struct m0_rm_owner *so1 = &rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -307,9 +164,9 @@ static void server1_tests(void)
 
 static void test3_verify(void)
 {
-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
-	struct m0_rm_owner *so1 = &rm_ctx[SERVER_1].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -352,8 +209,8 @@ static void test3_run(void)
 
 static void test1_verify(void)
 {
-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
@@ -416,7 +273,7 @@ static void server2_tests(void)
 
 static void test4_run(void)
 {
-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
+	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
 	int		    rc;
 
 	/*
@@ -424,13 +281,13 @@ static void test4_run(void)
 	 */
 	loan_session_set(SERVER_3, SERVER_2);
 	m0_rm_owner_windup(so3);
-	rc = m0_rm_owner_timedwait(so3, ROS_FINAL, M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == -ESRCH);
+	rc = m0_rm_owner_timedwait(so3, M0_BITS(ROS_FINAL), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(owner_state(so3) == ROS_FINAL);
 	m0_rm_owner_fini(so3);
-	M0_SET0(&rm_ctx[SERVER_3].rc_test_data.rd_owner);
-	m0_rm_owner_init(&rm_ctx[SERVER_3].rc_test_data.rd_owner,
-			 &rm_ctx[SERVER_3].rc_test_data.rd_res.rs_resource,
+	M0_SET0(rm_ctx[SERVER_3].rc_test_data.rd_owner);
+	m0_rm_owner_init(rm_ctx[SERVER_3].rc_test_data.rd_owner,
+			 rm_ctx[SERVER_3].rc_test_data.rd_res,
 			 NULL);
 }
 
@@ -443,10 +300,50 @@ static void server3_tests(void)
 	m0_clink_del_lock(&rm_ctx[SERVER_3].rc_clink);
 }
 
+void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest)
+{
+	struct m0_net_end_point *ep;
+	int		         rc;
+
+	/*
+	 * Create a local end point to communicate with remote server.
+	 */
+	rc = m0_net_end_point_create(&ep,
+				     &src->rc_rmach_ctx.rmc_rpc.rm_tm,
+				     dest->rc_rmach_ctx.rmc_ep_addr);
+	M0_UT_ASSERT(rc == 0);
+	src->rc_ep[dest->rc_id] = ep;
+
+	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
+				ep, &src->rc_rmach_ctx.rmc_rpc, 15,
+				M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
+				   &src->rc_conn[dest->rc_id], 1,
+				   M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+}
+
+void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest)
+{
+	int rc;
+
+	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id], M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id], M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
+}
+
 static void rm_server_start(const int tid)
 {
-	if (tid < SERVER_NR)
-		server_start(tid);
+	if (tid < test_servers_nr) {
+		rings_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+		rm_ctx_server_start(tid);
+	}
 
 	switch(tid) {
 	case SERVER_1:
@@ -482,14 +379,10 @@ static void remote_credits_utinit(void)
 {
 	uint32_t i;
 
-	for (i = 0; i < SERVER_NR; ++i) {
-		M0_SET0(&rm_ctx[i]);
-		rm_ctx[i].rc_id = i;
-		rm_ctx[i].rc_rmach_ctx.rmc_cob_id.id = cob_ids[i];
-		rm_ctx[i].rc_rmach_ctx.rmc_dbname = db_name[i];
-		rm_ctx[i].rc_rmach_ctx.rmc_ep_addr = serv_addr[i];
-		rm_ctx_init(&rm_ctx[i]);
-	}
+	test_servers_nr = SERVER_NR;
+	for (i = 0; i < test_servers_nr; ++i)
+		rm_ctx_config(i);
+
 	server_hier_config();
 	m0_mutex_init(&rr_tests_chan_mutex);
 	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
@@ -504,15 +397,22 @@ static void remote_credits_utfini(void)
 {
 	uint32_t i;
 
-	for (i = 0; i < SERVER_NR; ++i)
-		server_stop(i);
 	/*
-	 * Another loop is needed, because no rm_context should be finalised
-	 * until all servers are stopped.
+	 * Following loops cannot be combined.
+	 * The ops within the loops need sync points. Hence they are separate.
 	 */
-	for (i = 0; i < SERVER_NR; ++i)
+	/* De-construct RM objects hierarchy */
+	for (i = 0; i < test_servers_nr; ++i) {
+		rm_ctx_server_windup(i);
+	}
+	/* Disconnect the servers */
+	for (i = 0; i < test_servers_nr; ++i) {
+		rm_ctx_server_stop(i);
+	}
+	/* Finalise the servers */
+	for (i = 0; i < test_servers_nr; ++i) {
 		rm_ctx_fini(&rm_ctx[i]);
-
+	}
 	for (i = 0; i < TEST_NR; ++i) {
 		m0_clink_del_lock(&tests_clink[i]);
 		m0_clink_fini(&tests_clink[i]);
@@ -528,7 +428,7 @@ void remote_credits_test(void)
 
 	remote_credits_utinit();
 	/* Start RM servers */
-	for (i = 0; i < SERVER_NR; ++i) {
+	for (i = 0; i < test_servers_nr; ++i) {
 		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
 				    &rm_server_start, i, "rm_server_%d", i);
 		M0_UT_ASSERT(rc == 0);
@@ -536,7 +436,7 @@ void remote_credits_test(void)
 
 	/* Now start the tests - wait till all the servers are ready */
 	m0_chan_signal_lock(&rr_tests_chan);
-	for (i = 0; i < SERVER_NR; ++i) {
+	for (i = 0; i < test_servers_nr; ++i) {
 		m0_thread_join(&rm_ctx[i].rc_thr);
 		m0_thread_fini(&rm_ctx[i].rc_thr);
 	}

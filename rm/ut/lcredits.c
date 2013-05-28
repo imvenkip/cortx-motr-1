@@ -24,7 +24,6 @@
 #include "lib/ub.h"
 
 #include "rm/rm.h"
-#include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
 
 static struct m0_chan lcredits_chan;
@@ -49,37 +48,38 @@ const struct m0_rm_incoming_ops lcredits_incoming_ops = {
 
 static void local_credits_init(void)
 {
-	rm_utdata_init(&test_data, OBJ_OWNER);
-	rm_test_owner_capital_raise(&test_data.rd_owner, &test_data.rd_credit);
-	M0_SET0(&test_data.rd_in);
-	m0_chan_init(&lcredits_chan, &test_data.rd_rt.rt_lock);
+	rings_utdata_ops_set(&rm_test_data);
+	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+	rm_test_owner_capital_raise(rm_test_data.rd_owner,
+				    &rm_test_data.rd_credit);
+	M0_SET0(&rm_test_data.rd_in);
+	m0_chan_init(&lcredits_chan, &rm_test_data.rd_rt->rt_lock);
 }
 
 static void local_credits_fini(void)
 {
 	m0_chan_fini_lock(&lcredits_chan);
-	rm_utdata_fini(&test_data, OBJ_OWNER);
+	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
 }
 
 static void cached_credits_test(enum m0_rm_incoming_flags flags)
 {
 	struct m0_rm_incoming next_in;
 
-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, flags);
 
-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_want.cr_datum = NENYA;
-	test_data.rd_in.rin_ops = &rings_incoming_ops;
+	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
+	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
 	/*
 	 * 1. Test obtaining cached credit.
 	 */
-	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
 
 	M0_SET0(&next_in);
-	m0_rm_incoming_init(&next_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&next_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, flags);
 	next_in.rin_want.cr_datum = VILYA;
 	next_in.rin_ops = &rings_incoming_ops;
@@ -91,10 +91,10 @@ static void cached_credits_test(enum m0_rm_incoming_flags flags)
 	M0_UT_ASSERT(next_in.rin_rc == 0);
 	M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
 
-	m0_rm_credit_put(&test_data.rd_in);
+	m0_rm_credit_put(&rm_test_data.rd_in);
 	m0_rm_credit_put(&next_in);
 
-	m0_rm_incoming_fini(&test_data.rd_in);
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
 	m0_rm_incoming_fini(&next_in);
 }
 
@@ -103,20 +103,19 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	struct m0_rm_incoming next_in;
 	struct m0_clink	      clink;
 
-	M0_SET0(&test_data.rd_in);
-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+	M0_SET0(&rm_test_data.rd_in);
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, flags);
 
-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_want.cr_datum = NENYA;
-	test_data.rd_in.rin_ops = &lcredits_incoming_ops;
+	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
+	rm_test_data.rd_in.rin_ops = &lcredits_incoming_ops;
 
-	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
 
 	M0_SET0(&next_in);
-	m0_rm_incoming_init(&next_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&next_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, flags);
 	next_in.rin_want.cr_datum = NENYA;
 	next_in.rin_ops = &lcredits_incoming_ops;
@@ -136,7 +135,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 	}
 
 	/* First caller releases the credit */
-	m0_rm_credit_put(&test_data.rd_in);
+	m0_rm_credit_put(&rm_test_data.rd_in);
 
 	/*
 	 * 2. If the flag is RIF_LOCAL_WAIT, check if we get the credit
@@ -151,39 +150,37 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
 		m0_clink_fini(&clink);
 	}
 
-	m0_rm_incoming_fini(&test_data.rd_in);
+	m0_rm_incoming_fini(&rm_test_data.rd_in);
 	m0_rm_incoming_fini(&next_in);
 }
 
 static void failures_test(void)
 {
-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
 
-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_ops = &rings_incoming_ops;
-	test_data.rd_in.rin_want.cr_datum = INVALID_RING;
+	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
+	rm_test_data.rd_in.rin_want.cr_datum = INVALID_RING;
 
 	/*
 	 * 1. Test - m0_rm_credit_get() with invalid credit (value) fails.
 	 */
-	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ESRCH);
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ESRCH);
 
 	/*
 	 * 2. Test - credit_get fails when owner is not in ROS_ACTIVE state.
 	 */
-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
-	test_data.rd_in.rin_ops = &rings_incoming_ops;
-	test_data.rd_in.rin_want.cr_datum = INVALID_RING;
-	test_data.rd_owner.ro_sm.sm_state = ROS_FINALISING;
-	m0_rm_credit_get(&test_data.rd_in);
-	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENODEV);
-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
-	test_data.rd_owner.ro_sm.sm_state = ROS_ACTIVE;
+	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
+	rm_test_data.rd_in.rin_want.cr_datum = INVALID_RING;
+	rm_test_data.rd_owner->ro_sm.sm_state = ROS_FINALISING;
+	m0_rm_credit_get(&rm_test_data.rd_in);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ENODEV);
+	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+	rm_test_data.rd_owner->ro_sm.sm_state = ROS_ACTIVE;
 }
 
 void local_credits_test(void)

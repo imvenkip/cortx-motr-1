@@ -26,9 +26,16 @@
 #include "lib/misc.h"
 #include "lib/chan.h"
 #include "lib/vec.h"
+#include "xcode/xcode.h"
+#include "ut/ut.h"
 
 #include "rm/rm.h"
 #include "rm/ut/rings.h"
+
+struct m0_rm_resource_type rings_resource_type = {
+	.rt_name = "Rings of Power",
+	.rt_id   = RINGS_RESOURCE_TYPE_ID,
+};
 
 static void rings_policy(struct m0_rm_resource *resource,
 			 struct m0_rm_incoming *in)
@@ -38,6 +45,7 @@ static void rings_policy(struct m0_rm_resource *resource,
 static void rings_credit_init(struct m0_rm_resource *resource,
 			      struct m0_rm_credit   *credit)
 {
+	credit->cr_datum = 0;
 	credit->cr_ops = &rings_credit_ops;
 }
 
@@ -49,18 +57,11 @@ void rings_resource_free(struct m0_rm_resource *resource)
 	m0_free(rings);
 }
 
-void rings_initial_credit(const struct m0_rm_resource *resource,
-			  struct m0_rm_credit         *credit)
-{
-	credit->cr_datum = ALLRINGS;
-}
-
 const struct m0_rm_resource_ops rings_ops = {
 	.rop_credit_decode  = NULL,
 	.rop_policy	    = rings_policy,
 	.rop_credit_init    = rings_credit_init,
 	.rop_resource_free  = rings_resource_free,
-	.rop_initial_credit = rings_initial_credit,
 };
 
 static bool rings_resources_are_equal(const struct m0_rm_resource *c0,
@@ -84,8 +85,8 @@ static m0_bcount_t rings_resource_len(const struct m0_rm_resource *resource)
 	return (m0_bcount_t) sizeof(uint64_t) + sizeof(uint64_t);
 }
 
-static int rings_resource_encode(struct m0_bufvec_cursor  *cur,
-				 struct m0_rm_resource    *resource)
+static int rings_resource_encode(struct m0_bufvec_cursor     *cur,
+				 const struct m0_rm_resource *resource)
 {
 	struct m0_rings *rings;
 
@@ -103,8 +104,8 @@ static int rings_resource_encode(struct m0_bufvec_cursor  *cur,
 static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
 				 struct m0_rm_resource   **resource)
 {
-	static uint64_t  res_id;
-	struct m0_rings *rings;
+	static uint64_t             res_id;
+	struct m0_rings            *rings;
 
 	m0_bufvec_cursor_copyfrom(cur, &res_id, sizeof res_id);
 
@@ -112,8 +113,10 @@ static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
 	if (rings == NULL)
 		return -ENOMEM;
 
-	rings->rs_id              = res_id;
-	rings->rs_resource.r_ops  = &rings_ops;
+	rings->rs_id                      = res_id;
+	rings->rs_resource.r_type         = &rings_resource_type;
+	rings->rs_resource.r_type->rt_ops = &rings_rtype_ops;
+	rings->rs_resource.r_ops          = &rings_ops;
 
 	*resource = &rings->rs_resource;
 	return 0;
@@ -152,21 +155,28 @@ static void rings_credit_free(struct m0_rm_credit *credit)
 	credit->cr_datum = 0;
 }
 
-static int rings_credit_encode(const struct m0_rm_credit *credit,
-			       struct m0_bufvec_cursor   *cur)
+static int rings_credit_encdec(struct m0_rm_credit *credit,
+			       struct m0_bufvec_cursor *cur,
+			       enum m0_bufvec_what what)
 {
-	m0_bufvec_cursor_copyto(cur, (void *)&credit->cr_datum,
-				sizeof credit->cr_datum);
+	struct m0_xcode_obj datumobj;
+	struct m0_xcode_ctx ctx;
 
-	return 0;
+	datumobj.xo_type = &M0_XT_U64;
+	datumobj.xo_ptr = (void *)&credit->cr_datum;
+	return m0_xcode_encdec(&ctx, &datumobj, cur, what);
 }
 
-static int rings_credit_decode(struct m0_rm_credit     *credit,
+static int rings_credit_encode(struct m0_rm_credit     *credit,
 			       struct m0_bufvec_cursor *cur)
 {
-	m0_bufvec_cursor_copyfrom(cur, &credit->cr_datum,
-				  sizeof credit->cr_datum);
-	return 0;
+	return rings_credit_encdec(credit, cur, M0_BUFVEC_ENCODE);
+}
+
+static int rings_credit_decode(struct m0_rm_credit *credit,
+			       struct m0_bufvec_cursor *cur)
+{
+	return rings_credit_encdec(credit, cur, M0_BUFVEC_DECODE);
 }
 
 static int rings_credit_copy(struct m0_rm_credit       *dest,
@@ -181,9 +191,21 @@ static int rings_credit_copy(struct m0_rm_credit       *dest,
 	return 0;
 }
 
+static void rings_initial_capital(struct m0_rm_credit *self)
+{
+	self->cr_datum = ALLRINGS;
+}
+
+
 static m0_bcount_t rings_credit_len(const struct m0_rm_credit *credit)
 {
-	return (m0_bcount_t) sizeof(uint64_t);
+	struct m0_xcode_obj datumobj;
+	struct m0_xcode_ctx ctx;
+
+	datumobj.xo_type = &M0_XT_U64;
+	datumobj.xo_ptr = (void *)&credit->cr_datum;
+	m0_xcode_ctx_init(&ctx, &datumobj);
+	return m0_xcode_length(&ctx);
 }
 
 static bool rings_is_subset(const struct m0_rm_credit *src,
@@ -208,17 +230,18 @@ static bool rings_conflicts(const struct m0_rm_credit *c0,
 }
 
 const struct m0_rm_credit_ops rings_credit_ops = {
-	.cro_intersects = rings_credit_intersects,
-	.cro_join	= rings_credit_join,
-	.cro_diff	= rings_credit_diff,
-	.cro_copy	= rings_credit_copy,
-	.cro_free	= rings_credit_free,
-	.cro_encode	= rings_credit_encode,
-	.cro_decode	= rings_credit_decode,
-	.cro_len	= rings_credit_len,
-	.cro_is_subset	= rings_is_subset,
-	.cro_disjoin	= rings_disjoin,
-	.cro_conflicts	= rings_conflicts,
+	.cro_intersects      = rings_credit_intersects,
+	.cro_join	     = rings_credit_join,
+	.cro_diff	     = rings_credit_diff,
+	.cro_copy	     = rings_credit_copy,
+	.cro_free	     = rings_credit_free,
+	.cro_encode	     = rings_credit_encode,
+	.cro_decode	     = rings_credit_decode,
+	.cro_len	     = rings_credit_len,
+	.cro_is_subset	     = rings_is_subset,
+	.cro_disjoin	     = rings_disjoin,
+	.cro_conflicts	     = rings_conflicts,
+	.cro_initial_capital = rings_initial_capital,
 };
 
 static void rings_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
@@ -234,6 +257,91 @@ const struct m0_rm_incoming_ops rings_incoming_ops = {
 	.rio_complete = rings_incoming_complete,
 	.rio_conflict = rings_incoming_conflict
 };
+
+static void rings_rtype_set(struct rm_ut_data *self)
+{
+	struct m0_rm_resource_type *rings_rtype;
+	int			    rc;
+
+	M0_ALLOC_PTR(rings_rtype);
+	M0_ASSERT(rings_rtype != NULL);
+	rings_rtype->rt_id = 0;
+	rings_rtype->rt_ops = &rings_rtype_ops;
+	rc = m0_rm_type_register(&self->rd_dom, rings_rtype);
+	M0_ASSERT(rc == 0);
+	self->rd_rt = rings_rtype;
+}
+
+static void rings_rtype_unset(struct rm_ut_data *self)
+{
+	m0_rm_type_deregister(self->rd_rt);
+	m0_free(self->rd_rt);
+	self->rd_rt = NULL;
+}
+
+static void rings_res_set(struct rm_ut_data *self)
+{
+	struct m0_rings *rings_res;
+
+	M0_ALLOC_PTR(rings_res);
+	M0_ASSERT(rings_res != NULL);
+	rings_res->rs_resource.r_ops = &rings_ops;
+	m0_rm_resource_add(self->rd_rt, &rings_res->rs_resource);
+	self->rd_res = &rings_res->rs_resource;
+}
+
+static void rings_res_unset(struct rm_ut_data *self)
+{
+	struct m0_rings *rings_res;
+
+	m0_rm_resource_del(self->rd_res);
+	rings_res = container_of(self->rd_res, struct m0_rings, rs_resource);
+	m0_free(rings_res);
+	self->rd_res = NULL;
+}
+
+static void rings_owner_set(struct rm_ut_data *self)
+{
+	struct m0_rm_owner *owner;
+
+	M0_ALLOC_PTR(owner);
+	M0_ASSERT(owner != NULL);
+	m0_rm_owner_init(owner, self->rd_res, NULL);
+	self->rd_owner = owner;
+}
+
+static void rings_owner_unset(struct rm_ut_data *self)
+{
+	int rc;
+
+	m0_rm_owner_windup(self->rd_owner);
+	rc = m0_rm_owner_timedwait(self->rd_owner, M0_BITS(ROS_FINAL),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	m0_rm_owner_fini(self->rd_owner);
+	m0_free(self->rd_owner);
+	self->rd_owner = NULL;
+}
+
+static void rings_datum_set(struct rm_ut_data *self)
+{
+	self->rd_credit.cr_datum = ALLRINGS;
+}
+
+const static struct rm_ut_data_ops rings_ut_data_ops = {
+	.rtype_set = rings_rtype_set,
+	.rtype_unset = rings_rtype_unset,
+	.resource_set = rings_res_set,
+	.resource_unset = rings_res_unset,
+	.owner_set = rings_owner_set,
+	.owner_unset = rings_owner_unset,
+	.credit_datum_set = rings_datum_set
+};
+
+void rings_utdata_ops_set(struct rm_ut_data *data)
+{
+	data->rd_ops = &rings_ut_data_ops;
+}
 
 /*
  *  Local variables:

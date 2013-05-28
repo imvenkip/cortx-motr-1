@@ -20,7 +20,6 @@
 
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -86,7 +85,8 @@ extern struct m0_sm_conf revoke_sm_conf;
  * Allocate and initialise remote request tracking structure.
  */
 static int rm_out_create(struct rm_out **out,
-			 struct m0_rm_incoming *in,
+			 enum m0_rm_outgoing_type otype,
+			 struct m0_rm_remote *other,
 			 struct m0_rm_credit *credit)
 {
 	struct rm_out *outreq;
@@ -101,14 +101,14 @@ static int rm_out_create(struct rm_out **out,
 		goto out;
 	}
 
-	rc = m0_rm_loan_init(&outreq->ou_req.rog_want, credit,
-			     in->rin_want.cr_owner->ro_creditor);
+	m0_rm_outgoing_init(&outreq->ou_req, otype);
+	rc = m0_rm_loan_init(&outreq->ou_req.rog_want, credit, other);
 	if (rc != 0) {
 		m0_free(outreq);
 		goto out;
 	}
 
-	m0_rm_outgoing_init(&outreq->ou_req, in->rin_type);
+	M0_ASSERT(outreq->ou_req.rog_want.rl_other != NULL);
 	*out = outreq;
 
 out:
@@ -225,20 +225,23 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 {
 	struct m0_rpc_session *session = NULL;
 	struct rm_out	      *outreq;
+	struct m0_rm_remote   *other;
 	int		       rc;
 
 	M0_ENTRY("sending request type: %d for incoming: %p credit value: %llu",
 		 otype, in, (long long unsigned) credit->cr_datum);
 	M0_PRE(M0_IN(otype, (M0_ROT_BORROW, M0_ROT_REVOKE)));
 
-	rc = rm_out_create(&outreq, in, credit);
+	other = otype == M0_ROT_BORROW ? in->rin_want.cr_owner->ro_creditor :
+					 loan->rl_other;
+
+	rc = rm_out_create(&outreq, otype, other, credit);
 	if (rc != 0)
 		goto out;
 
 	switch (otype) {
 	case M0_ROT_BORROW:
 		rc = borrow_fop_fill(outreq, in, credit);
-		session = in->rin_want.cr_owner->ro_creditor->rem_session;
 		outreq->ou_ast.sa_cb = &borrow_ast;
 		break;
 	case M0_ROT_REVOKE: {
@@ -283,14 +286,15 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
 			 outreq, session);
-	outreq->ou_fop.f_item.ri_session = session;
+	outreq->ou_fop.f_item.ri_session =
+		outreq->ou_req.rog_want.rl_other->rem_session;
 	outreq->ou_fop.f_item.ri_ops = &rm_request_rpc_ops;
-	rc = m0_rpc_post(&outreq->ou_fop.f_item);
-	M0_ASSERT(rc == 0);
+	m0_rpc_post(&outreq->ou_fop.f_item);
 
 out:
 	M0_RETURN(rc);
 }
+M0_EXPORTED(m0_rm_borrow_out);
 
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {

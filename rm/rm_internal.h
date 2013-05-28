@@ -29,6 +29,10 @@ enum {
 	RM_CREDIT_TIMEOUT = 60
 };
 
+enum m0_file_credit {
+	RM_FILE_LOCK = 1
+};
+
 /**
  * Created as a result of remote request which is either BORROW or REVOKE
  * (and CANCEL in future).

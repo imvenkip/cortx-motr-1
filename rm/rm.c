@@ -391,18 +391,6 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 }
 M0_EXPORTED(m0_rm_resource_encode);
 
-M0_INTERNAL void
-m0_rm_resource_initial_credit(const struct m0_rm_resource *resource,
-			      struct m0_rm_credit         *credit)
-{
-	M0_PRE(resource != NULL);
-	M0_PRE(credit != NULL);
-	M0_PRE(resource->r_ops != NULL);
-	M0_PRE(resource->r_ops->rop_initial_credit != NULL);
-
-	resource->r_ops->rop_initial_credit(resource, credit);
-}
-
 static void resource_get(struct m0_rm_resource *res)
 {
 	struct m0_rm_resource_type *rtype = res->r_type;
@@ -544,11 +532,13 @@ M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner)
 {
 	m0_sm_group_lock(owner_grp(owner));
 }
+M0_EXPORTED(m0_rm_owner_lock);
 
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner)
 {
 	m0_sm_group_unlock(owner_grp(owner));
 }
+M0_EXPORTED(m0_rm_owner_unlock);
 
 M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner    *owner,
 				  struct m0_rm_resource *res,
@@ -1150,6 +1140,7 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 		credit = pin->rp_credit;
 
 		pin_del(pin);
+		M0_ASSERT(credit_pin_nr(credit, M0_RPF_TRACK) == 0);
 		m0_rm_ur_tlist_move(&remove_list, credit);
 		if (!credit->cr_ops->cro_is_subset(credit, &in->rin_want)) {
 			/*
@@ -1177,7 +1168,6 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 		     m0_rm_ur_tlist_del(credit);
 		     m0_rm_credit_fini(credit);
 		     m0_free(credit);
-
 	} m0_tl_endfor;
 
 	m0_tl_for(m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
@@ -1206,7 +1196,6 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	 * Clear the credits cache and remove incoming credits from the cache.
 	 * If everything succeeds add loan to the sublet list.
 	 */
-
 	rc = remote_find(&debtor, rem_in, owner->ro_resource) ?:
 		m0_rm_loan_alloc(&loan, &in->rin_want, debtor);
 	rc = rc ?: cached_credits_remove(in);
@@ -1399,8 +1388,8 @@ M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in)
 
 	M0_ENTRY("owner: %p credit: %llu", owner,
 		 (long long unsigned) INCOMING_CREDIT(in));
-	incoming_release(in);
 	m0_rm_owner_lock(owner);
+	incoming_release(in);
 	incoming_surrender(in);
 	/*
 	 * Release of this credit may excite other waiting incoming-requests.
@@ -1598,6 +1587,7 @@ static void incoming_check(struct m0_rm_incoming *in)
 
 	M0_ENTRY();
 	M0_PRE(m0_rm_incoming_bob_check(in));
+
 	/*
 	 * This function is reentrant. An outgoing request might set
 	 * the processing error for the incoming structure. Check for the
@@ -1607,7 +1597,8 @@ static void incoming_check(struct m0_rm_incoming *in)
 	if (in->rin_rc == 0) {
 		m0_rm_credit_init(&rest, in->rin_want.cr_owner);
 		rc = m0_rm_credit_copy(&rest, &in->rin_want) ?:
-			incoming_check_with(in, &rest);
+		     incoming_check_with(in, &rest);
+		M0_ASSERT(ergo(rc >= 0, credit_is_empty(&rest)));
 		m0_rm_credit_fini(&rest);
 	} else
 		rc = in->rin_rc;
@@ -1633,10 +1624,16 @@ static void incoming_check(struct m0_rm_incoming *in)
 		 * partial failure (with part of the request failing)
 		 * of incoming request, it's necesary to check that it's
 		 * complete (and there are no outstanding outgoing requests
-		 * pending againt it).
+		 * pending againt it). On partial failure put the request in
+		 * RI_WAIT state.
 		 */
 		if (incoming_is_complete(in))
 			incoming_complete(in, rc);
+		else {
+			in->rin_rc = rc;
+			incoming_state_set(in, RI_WAIT);
+		}
+
 	}
 	M0_LEAVE();
 }
@@ -1743,6 +1740,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			 * @todo - Revoke entire loan?? rest could be subset
 			 * of r
 			 */
+			M0_ASSERT(!credit_is_empty(r));
 			rc = revoke_send(in, loan, r) ?: credit_diff(rest, r);
 			if (rc != 0)
 				M0_RETURN(rc);
@@ -1803,7 +1801,6 @@ static void incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%d -> %d]\n",
 			 in, in->rin_sm.sm_state,
 			 rc == 0 ? RI_SUCCESS : RI_FAILURE);
-	m0_sm_move(&in->rin_sm, rc, rc == 0 ? RI_SUCCESS : RI_FAILURE);
 	/*
 	 * incoming_release() might have moved the request into excited
 	 * state when the last tracking pin was removed, shun it back
@@ -1811,11 +1808,13 @@ static void incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	 */
 	m0_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_GROUND],
 			    &in->rin_want);
+	m0_sm_move(&in->rin_sm, rc, rc == 0 ? RI_SUCCESS : RI_FAILURE);
 	if (rc != 0) {
 		incoming_release(in);
 		m0_rm_ur_tlist_del(&in->rin_want);
 		M0_ASSERT(pi_tlist_is_empty(&in->rin_pins));
 	}
+	M0_ASSERT(incoming_invariant(in));
 	in->rin_ops->rio_complete(in, rc);
 	M0_POST(owner_invariant(owner));
 	M0_LEAVE();
@@ -1895,13 +1894,23 @@ static int revoke_send(struct m0_rm_incoming *in,
 		       struct m0_rm_loan     *loan,
 		       struct m0_rm_credit   *credit)
 {
-	int rc;
+	struct m0_rm_credit rest;
+	int                 rc;
 
 	M0_ENTRY("incoming: %p credit: %llu", in,
-		 (long long unsigned) credit->cr_datum);
-	rc = outgoing_check(in, M0_ROT_REVOKE, credit, loan->rl_other);
-	if (!credit_is_empty(credit) && rc == 0)
-		rc = m0_rm_request_out(M0_ROT_REVOKE, in, loan, credit);
+		 (long long unsigned)credit->cr_datum);
+
+	/*
+	 * Credit is part of sublet loan (sent from incoming_check_with()).
+	 * outgoing_check() destructively modifies outgoing credit. Hence,
+	 * make a copy.
+	 */
+	m0_rm_credit_init(&rest, in->rin_want.cr_owner);
+	rc = m0_rm_credit_copy(&rest, credit) ?:
+		outgoing_check(in, M0_ROT_REVOKE, &rest, loan->rl_other);
+	if (!credit_is_empty(&rest) && rc == 0)
+		rc = m0_rm_request_out(M0_ROT_REVOKE, in, loan, &rest);
+	m0_rm_credit_fini(&rest);
 	M0_RETURN(rc);
 }
 
@@ -1917,10 +1926,19 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 		 (long long unsigned) credit->cr_datum);
 	M0_PRE(in->rin_want.cr_owner->ro_creditor != NULL);
 
+	/*
+	 * Borrow sends the remaining credit request to the creditor. It's
+	 * ok if outgoing_check() modifies it. It goes well with
+	 * incoming_check_with() - which keeps on reducing the request set.
+	 */
 	rc = outgoing_check(in, M0_ROT_BORROW, credit,
-			    in->rin_want.cr_owner->ro_creditor);
+				in->rin_want.cr_owner->ro_creditor);
+	/*
+	 * Sends the entire credit request to the creditor. Empty the credit.
+	 */
 	if (!credit_is_empty(credit) && rc == 0)
-		rc = m0_rm_request_out(M0_ROT_BORROW, in, NULL, credit);
+		rc = m0_rm_request_out(M0_ROT_BORROW, in, NULL, credit) ?:
+			credit_diff(credit, credit);
 	M0_RETURN(rc);
 }
 
@@ -2225,6 +2243,8 @@ static void incoming_release(struct m0_rm_incoming *in)
 	struct m0_rm_owner  *o = in->rin_want.cr_owner;
 
 	M0_ENTRY("incoming: %p", in);
+	M0_PRE(ergo(in->rin_type == M0_RIT_LOCAL, incoming_invariant(in)));
+
 	m0_tl_for(pi, &in->rin_pins, kingpin) {
 		M0_ASSERT(m0_rm_pin_bob_check(kingpin));
 		if (kingpin->rp_flags & M0_RPF_PROTECT) {
@@ -2271,19 +2291,21 @@ static void pin_del(struct m0_rm_pin *pin)
 
 	in = pin->rp_incoming;
 	owner = in->rin_want.cr_owner;
+	M0_ASSERT(owner_smgrp_is_locked(owner));
 	pi_tlink_del_fini(pin);
 	pr_tlink_del_fini(pin);
-	m0_rm_pin_bob_fini(pin);
 	if (incoming_pin_nr(in, M0_RPF_TRACK) == 0 &&
 	    pin->rp_flags & M0_RPF_TRACK) {
 		/*
 		 * Last tracking pin removed, excite the request.
 		 */
 		M0_LOG(M0_INFO, "Exciting incoming: %p\n", in);
+		M0_ASSERT(incoming_state(in) == RI_WAIT);
 		m0_rm_ur_tlist_move(
 			&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 			&in->rin_want);
 	}
+	m0_rm_pin_bob_fini(pin);
 	m0_free(pin);
 	M0_LEAVE();
 }
@@ -2443,7 +2465,7 @@ M0_INTERNAL int
 m0_rm_credit_copy(struct m0_rm_credit *dst, const struct m0_rm_credit *src)
 {
 	M0_PRE(src != NULL);
-	M0_PRE(dst->cr_datum == 0);
+	M0_PRE(credit_is_empty(dst));
 
 	return src->cr_ops->cro_copy(dst, src);
 }
@@ -2456,8 +2478,8 @@ static bool credit_is_empty(const struct m0_rm_credit *credit)
 	return credit->cr_datum == 0;
 }
 
-M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
-				   struct m0_buf              *buf)
+M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
+				    struct m0_buf       *buf)
 {
 	struct m0_bufvec	datum_buf;
 	struct m0_bufvec_cursor cursor;
@@ -2503,7 +2525,7 @@ M0_EXPORTED(m0_rm_credit_decode);
 /** @} end of credit group */
 
 /**
- * @name Code to deal with remote owners
+ * @name remote Code to deal with remote owners
  *
  * @{
  */

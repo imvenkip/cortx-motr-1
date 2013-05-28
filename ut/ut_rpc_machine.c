@@ -21,6 +21,9 @@
 #include "ut/ut.h"
 #include "ut/ut_rpc_machine.h"
 
+extern int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+                                          struct m0_db_tx      *tx);
+
 enum {
 	UT_BUF_NR = 8,
 	UT_TM_NR  = 2,

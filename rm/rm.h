@@ -294,11 +294,10 @@ struct m0_rm_resource_ops {
 			        struct m0_rm_credit *credit);
 
 	void (*rop_resource_free)(struct m0_rm_resource *resource);
-	/**
-	 * Setup initial value of credit
-	 */
-	void (*rop_initial_credit)(const struct m0_rm_resource *resource,
-				   struct m0_rm_credit         *credit);
+};
+
+enum m0_res_type_id {
+	M0_RM_FLOCK_RT = 1
 };
 
 /**
@@ -386,7 +385,7 @@ struct m0_rm_resource_type_ops {
 	 * Serialise a resource into a buffer.
 	 */
 	int  (*rto_encode)(struct m0_bufvec_cursor *cur,
-			   struct m0_rm_resource *resource);
+			   const struct m0_rm_resource *resource);
 };
 
 /**
@@ -433,26 +432,30 @@ struct m0_rm_credit {
 	uint64_t                      cr_magix;
 };
 
+/**
+ * @note "self credit" in the comments below refers to the credit on which
+ * an operation is invoked.
+ */
 struct m0_rm_credit_ops {
 	/**
 	 * Called when the generic code is about to free a credit. Type specific
 	 * code releases any resources associated with the credit.
 	 */
-	void (*cro_free)(struct m0_rm_credit *droit);
+	void (*cro_free)(struct m0_rm_credit *self);
 	/**
-	 * Serialise a resource into a buffer.
+	 * Serialises a credit of a resource into a buffer.
 	 */
-	int  (*cro_encode)(const struct m0_rm_credit *credit,
+	int  (*cro_encode)(struct m0_rm_credit *self,
 			   struct m0_bufvec_cursor *cur);
 	/**
-	 * De-serialises the resource from a buffer.
+	 * De-serialises the credit of a resource from a buffer.
 	 */
-	int  (*cro_decode)(struct m0_rm_credit *credit,
+	int  (*cro_decode)(struct m0_rm_credit *self,
 			   struct m0_bufvec_cursor *cur);
 	/**
 	 * Return the size of the credit's data.
 	 */
-	m0_bcount_t (*cro_len) (const struct m0_rm_credit *credit);
+	m0_bcount_t (*cro_len) (const struct m0_rm_credit *self);
 
 	/** @name operations.
 	 *
@@ -463,8 +466,8 @@ struct m0_rm_credit_ops {
          */
         /** @{ */
         /**
-         * @retval True, iff c0 intersects with c1.
-	 * Credits intersect when there is some usage authorised by credit c0
+         * @retval True, iff 'self credit' intersects with c1.
+	 * Credits intersect when there is some usage authorised by credit self
 	 * and by credit c1.
 	 *
 	 * For example, a credit to read an extent [0, 100] (denoted R:[0, 100])
@@ -480,28 +483,29 @@ struct m0_rm_credit_ops {
 	 *
 	 *      - !intersects(A, 0)
 	 */
-        bool (*cro_intersects) (const struct m0_rm_credit *c0,
+        bool (*cro_intersects) (const struct m0_rm_credit *self,
                                 const struct m0_rm_credit *c1);
         /**
-         * @retval True if c0 is subset (or proper subset) of c1.
+         * @retval True if 'self credit' is subset (or proper subset) of c1.
 	 */
-        bool (*cro_is_subset) (const struct m0_rm_credit *c0,
+        bool (*cro_is_subset) (const struct m0_rm_credit *self,
                                const struct m0_rm_credit *c1);
         /**
-         * Adjoins c1 to c0, updating c0 in place to be the sum credit.
+         * Adjoins c1 to 'self credit', updating self in place to be the sum
+         * credit.
 	 */
-        int (*cro_join) (struct m0_rm_credit *c0,
+        int (*cro_join) (struct m0_rm_credit *self,
                           const struct m0_rm_credit *c1);
         /**
-         * Splits c0 into two parts - diff(c0,c1) and intersection(c0, c1)
-	 * Destructively updates c0 with diff(c0, c1) and updates
-	 * intersection with intersection of (c0, c1)
+         * Splits self into two parts - diff(self,c1) and intersection(self, c1)
+	 * Destructively updates 'self credit' with diff(self, c1) and updates
+	 * intersection with intersection of (self, c1)
 	 */
-        int (*cro_disjoin) (struct m0_rm_credit *c0,
+        int (*cro_disjoin) (struct m0_rm_credit *self,
                             const struct m0_rm_credit *c1,
 			    struct m0_rm_credit *intersection);
 	/**
-         * @retval True, iff c0 conflicts with c1.
+         * @retval True, iff 'self credit' conflicts with c1.
 	 * Credits conflict iff one of them authorises a usage incompatible with
 	 * another.
 	 *
@@ -518,11 +522,11 @@ struct m0_rm_credit_ops {
          *       it, a credit to write to a variable must always imply a credit
          *       to read it.
 	 */
-        bool (*cro_conflicts) (const struct m0_rm_credit *c0,
+        bool (*cro_conflicts) (const struct m0_rm_credit *self,
 			       const struct m0_rm_credit *c1);
         /** Difference between credits.
 	 *
-	 *  The difference is a part of c0 that doesn't intersect with c1.
+	 *  The difference is a part of self that doesn't intersect with c1.
 	 *
 	 *  For example, diff(RW:[50, 150], R:[0, 100]) == RW:[101, 150].
 	 *
@@ -558,16 +562,20 @@ struct m0_rm_credit_ops {
 	 *
 	 *       - intersects(A, B) iff meet(A, B) != 0.
 	 *
-	 *  This function destructively updates "c0" in place.
+	 *  This function destructively updates "self" in place.
          */
-        int  (*cro_diff)(struct m0_rm_credit *c0,
+        int  (*cro_diff)(struct m0_rm_credit *self,
 			 const struct m0_rm_credit *c1);
 	/** Creates a copy of "src" in "dst".
 	 *
 	 *  @pre dst is empty.
 	 */
         int  (*cro_copy)(struct m0_rm_credit *dst,
-			 const struct m0_rm_credit *src);
+			 const struct m0_rm_credit *self);
+	/**
+	 * Setup initial capital
+	 */
+	void (*cro_initial_capital)(struct m0_rm_credit *self);
         /** @} end of Credits operations. */
 };
 
@@ -1640,6 +1648,15 @@ M0_INTERNAL void m0_rm_owner_lock(struct m0_rm_owner *owner);
 M0_INTERNAL void m0_rm_owner_unlock(struct m0_rm_owner *owner);
 
 /**
+ * Locks state machine group of an owner
+ */
+void m0_rm_owner_lock(struct m0_rm_owner *owner);
+/**
+ * Unlocks state machine group of an owner
+ */
+void m0_rm_owner_unlock(struct m0_rm_owner *owner);
+
+/**
  * Initialises generic fields in struct m0_rm_credit.
  *
  * This is called by generic RM code to initialise an empty credit of any
@@ -1665,7 +1682,7 @@ M0_INTERNAL void m0_rm_credit_fini(struct m0_rm_credit *credit);
 M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 				struct m0_rm_credit **dest_credit);
 
-/**
+/*
  * Makes another copy of credit src.
  */
 M0_INTERNAL int
@@ -1731,8 +1748,8 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in);
 /**
  * Allocates suitably sized buffer and encode it into that buffer.
  */
-M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
-				   struct m0_buf *buf);
+M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
+				    struct m0_buf *buf);
 
 /**
  * Decodes a credit from its serialised presentation.
