@@ -146,6 +146,8 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
 	reqh->rh_fol             = reqh_args->rhia_fol;
 
+	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
+
 	result = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
 	if (result != 0)
 		return result;
@@ -243,6 +245,7 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_chan_fini_lock(&reqh->rh_sd_signal); /* deprecated */
 	m0_mutex_fini(&reqh->rh_mutex); /* deprecated */
+	m0_ha_domain_fini(&reqh->rh_hadom);
 }
 
 M0_INTERNAL void m0_reqhs_fini(void)

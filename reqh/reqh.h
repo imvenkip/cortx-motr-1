@@ -31,6 +31,7 @@
 #include "sm/sm.h"
 #include "fop/fom.h"
 #include "layout/layout.h"
+#include "ha/epoch.h"
 
 /**
    @defgroup reqh Request handler
@@ -167,6 +168,9 @@ struct m0_reqh {
 	 * Layout domain for this request handler.
 	 */
 	struct m0_layout_domain  rh_ldom;
+
+	/** HA domain which stores the epoch. */
+	struct m0_ha_domain      rh_hadom;
 
 	/**
 	    Lockers to store private data

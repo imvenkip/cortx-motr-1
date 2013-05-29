@@ -69,33 +69,14 @@
 #include "lib/types.h"
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
-#include "xcode/xcode_attr.h"
-struct m0_xcode_obj;
 struct m0_rpc_item;
 
 /* export */
-struct m0_ha_epoch;
 struct m0_ha_domain;
 struct m0_ha_epoch_monitor;
 
-/**
- * HA domain tracks HA epoch.
- *
- * Typically, an instance of HA domain is associated with each request handler.
- */
-struct m0_ha_domain {
-	/** Known epoch number. */
-	uint64_t         hdo_epoch;
-	/** Lock protecting epoch number changes and monitors list
-	    manipulations. */
-	struct m0_rwlock hdo_lock;
-	/**
-	 * List of monitors.
-	 *
-	 * @see m0_ha_epoch_monitor
-	 */
-	struct m0_tl     hdo_monitors;
-};
+M0_TL_DESCR_DECLARE(m0_ham, M0_EXTERN);
+M0_TL_DECLARE(m0_ham, M0_INTERNAL, struct m0_ha_epoch_monitor);
 
 /**
  * Epoch change monitor.
@@ -121,6 +102,26 @@ struct m0_ha_epoch_monitor {
 	/** Domain this monitor is registered with. */
 	struct m0_ha_domain *hem_domain;
 	uint64_t             hem_magix;
+};
+
+/**
+ * HA domain tracks HA epoch.
+ *
+ * Typically, an instance of HA domain is associated with each request handler.
+ */
+struct m0_ha_domain {
+	/** Known epoch number. */
+	uint64_t         hdo_epoch;
+	/** Lock protecting epoch number changes and monitors list
+	    manipulations. */
+	struct m0_rwlock hdo_lock;
+	/**
+	 * List of monitors.
+	 *
+	 * @see m0_ha_epoch_monitor
+	 */
+	struct m0_tl               hdo_monitors;
+	struct m0_ha_epoch_monitor hdo_default_mon;
 };
 
 /**
@@ -162,28 +163,6 @@ M0_EXTERN const uint64_t M0_HA_EPOCH_NONE;
 M0_INTERNAL void m0_ha_domain_init(struct m0_ha_domain *dom, uint64_t epoch);
 M0_INTERNAL void m0_ha_domain_fini(struct m0_ha_domain *dom);
 
-/**
- * Sets the epoch number in the outgoing item.
- *
- * This function is called by the rpc layer to set epoch number in outgoing rpc
- * items.
- *
- * @param obj - serialised representation of item.
- * @param epoch - epoch number to set.
- *
- * Returns +ve if the item doesn't contain a m0_ha_epoch field.
- */
-M0_INTERNAL int m0_ha_epoch_set(struct m0_xcode_obj *obj, uint64_t epoch);
-
-/**
- * Returns the epoch number from the incoming item.
- *
- * This is called by the rpc layer to extract epoch from incoming items.
- *
- * Returns +ve if the item doesn't contain a m0_ha_epoch field.
- */
-M0_INTERNAL int m0_ha_epoch_get(struct m0_xcode_obj *obj, uint64_t *epoch);
-
 M0_INTERNAL void m0_ha_domain_monitor_add(struct m0_ha_domain *dom,
 					struct m0_ha_epoch_monitor *mon);
 M0_INTERNAL void m0_ha_domain_monitor_del(struct m0_ha_domain *dom,
@@ -223,20 +202,10 @@ M0_INTERNAL uint64_t m0_ha_domain_get_write(struct m0_ha_domain *dom);
  */
 M0_INTERNAL void m0_ha_domain_put_write(struct m0_ha_domain *dom, uint64_t epoch);
 
-/**
- * On-wire representation of epoch number.
- *
- * Items that depend on epoch must include a field of this type.
- *
- * If an item contains multiple fields of this type, the first one (in the order
- * determined by m0_xcode_next()) is used by m0_ha_epoch_{get,set}().
- */
-struct m0_ha_epoch {
-	uint64_t he_num;
-} M0_XCA_RECORD;
-
 M0_INTERNAL int  m0_ha_global_init(void);
 M0_INTERNAL void m0_ha_global_fini(void);
+
+M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item);
 
 /** @} end of ha group */
 

@@ -1,6 +1,2 @@
-nobase_mero_include_HEADERS += ha/epoch.h ha/epoch_xc.h
-mero_libmero_la_SOURCES  += ha/epoch.c ha/epoch_xc.c
-
-XC_FILES   += ha/epoch_xc.h
-
-CLEANFILES += ha/epoch_xc.h ha/epoch_xc.c ha/epoch.gccxml
+nobase_mero_include_HEADERS += ha/epoch.h
+mero_libmero_la_SOURCES  += ha/epoch.c

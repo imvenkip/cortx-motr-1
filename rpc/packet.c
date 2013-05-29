@@ -28,6 +28,7 @@
 #include "mero/magic.h"
 #include "xcode/xcode.h"
 #include "rpc/rpc_internal.h"
+#include "reqh/reqh.h"
 
 /**
  * @addtogroup rpc
@@ -281,6 +282,8 @@ static int item_encode(struct m0_rpc_item       *item,
 {
 	struct m0_rpc_item_onwire_header ioh;
 	int                              rc;
+	struct m0_ha_domain             *ha_dom;
+	uint64_t                         epoch = M0_HA_EPOCH_NONE;
 
 	M0_ENTRY("item: %p cursor: %p", item, cursor);
 	M0_PRE(item != NULL && cursor != NULL);
@@ -288,8 +291,16 @@ static int item_encode(struct m0_rpc_item       *item,
 	       item->ri_type->rit_ops != NULL &&
 	       item->ri_type->rit_ops->rito_encode != NULL);
 
+	if (item->ri_rmachine != NULL && item->ri_rmachine->rm_reqh != NULL) {
+		ha_dom = &item->ri_rmachine->rm_reqh->rh_hadom;
+
+		epoch = m0_ha_domain_get_read(ha_dom);
+		m0_ha_domain_put_read(ha_dom);
+	}
+
 	ioh = (struct m0_rpc_item_onwire_header){
 		.ioh_opcode = item->ri_type->rit_opcode,
+		.ioh_ha_epoch  = epoch,
 		.ioh_magic  = M0_RPC_ITEM_MAGIC,
 	};
 
@@ -382,7 +393,13 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 	M0_ASSERT(item_type->rit_ops != NULL &&
 		  item_type->rit_ops->rito_decode != NULL);
 
-	return item_type->rit_ops->rito_decode(item_type, item_out, cursor);
+	rc = item_type->rit_ops->rito_decode(item_type, item_out, cursor);
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	(*item_out)->ri_ha_epoch = ioh.ioh_ha_epoch;
+
+	return 0;
 }
 
 M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,

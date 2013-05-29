@@ -31,6 +31,7 @@
 #include "lib/mutex.h"
 #include "net/net.h"              /* m0_net_domain */
 #include "rpc/rpc.h"
+#include "reqh/reqh.h"
 #include "pool/pool.h"            /* m0_pool */
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
@@ -414,8 +415,10 @@ struct m0t1fs_globals {
 	struct m0_cob_domain_id   g_cob_dom_id;
 	struct m0_net_domain      g_ndom;
 	struct m0_rpc_machine     g_rpc_machine;
+	struct m0_reqh            g_reqh;
 	struct m0_cob_domain      g_cob_dom;
 	struct m0_dbenv           g_dbenv;
+	struct m0_fol             g_fol;
 	struct m0_net_buffer_pool g_buffer_pool;
 	struct m0_layout_domain   g_layout_dom;
 };

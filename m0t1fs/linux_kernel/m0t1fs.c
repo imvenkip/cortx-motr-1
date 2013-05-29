@@ -213,25 +213,22 @@ static void m0t1fs_net_fini(void)
 
 static int m0t1fs_rpc_init(void)
 {
-	struct m0_dbenv           *dbenv;
-	struct m0_cob_domain      *cob_dom;
-	struct m0_cob_domain_id   *cob_dom_id;
-	struct m0_rpc_machine     *rpc_machine;
-	struct m0_net_domain      *ndom;
+	struct m0_dbenv           *dbenv       = &m0t1fs_globals.g_dbenv;
+	char                      *db_name     =  m0t1fs_globals.g_db_name;
+	struct m0_cob_domain      *cob_dom     = &m0t1fs_globals.g_cob_dom;
+	struct m0_cob_domain_id   *cob_dom_id  = &m0t1fs_globals.g_cob_dom_id;
+	struct m0_rpc_machine     *rpc_machine = &m0t1fs_globals.g_rpc_machine;
+	struct m0_reqh            *reqh        = &m0t1fs_globals.g_reqh;
+	struct m0_net_domain      *ndom        = &m0t1fs_globals.g_ndom;
+	const char                *laddr       =  m0t1fs_globals.g_laddr;
+	struct m0_net_buffer_pool *buffer_pool = &m0t1fs_globals.g_buffer_pool;
+	struct m0_fol             *fol         = &m0t1fs_globals.g_fol;
 	struct m0_net_transfer_mc *tm;
-	const char                *laddr;
-	char                      *db_name;
 	int                        rc;
-	struct m0_net_buffer_pool *buffer_pool;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
 
 	M0_ENTRY();
-
-	ndom        = &m0t1fs_globals.g_ndom;
-	laddr       =  m0t1fs_globals.g_laddr;
-	rpc_machine = &m0t1fs_globals.g_rpc_machine;
-	buffer_pool = &m0t1fs_globals.g_buffer_pool;
 
 	tms_nr	 = 1;
 	bufs_nr  = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
@@ -241,21 +238,23 @@ static int m0t1fs_rpc_init(void)
 	if (rc != 0)
 		goto pool_fini;
 
-	dbenv   = &m0t1fs_globals.g_dbenv;
-	db_name =  m0t1fs_globals.g_db_name;
-
 	rc = m0_dbenv_init(dbenv, db_name, 0);
 	if (rc != 0)
 		goto pool_fini;
-
-	cob_dom    = &m0t1fs_globals.g_cob_dom;
-	cob_dom_id = &m0t1fs_globals.g_cob_dom_id;
 
 	rc = m0_cob_domain_init(cob_dom, dbenv, cob_dom_id);
 	if (rc != 0)
 		goto dbenv_fini;
 
-	rc = m0_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
+	rc = M0_REQH_INIT(reqh,
+			  .rhia_dtm       = (void*)1,
+			  .rhia_db        = dbenv,
+			  .rhia_mdstore   = (void*)1,
+			  .rhia_fol       = fol,
+			  .rhia_svc       = (void*)1);
+	M0_ASSERT(rc == 0);
+	m0_reqh_start(reqh);
+	rc = m0_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, reqh,
 				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	if (rc != 0)
@@ -285,6 +284,8 @@ static void m0t1fs_rpc_fini(void)
 	M0_ENTRY();
 
 	m0_rpc_machine_fini(&m0t1fs_globals.g_rpc_machine);
+	m0_reqh_services_terminate(&m0t1fs_globals.g_reqh);
+	m0_reqh_fini(&m0t1fs_globals.g_reqh);
 	m0_cob_domain_fini(&m0t1fs_globals.g_cob_dom);
 	m0_dbenv_fini(&m0t1fs_globals.g_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&m0t1fs_globals.g_buffer_pool);

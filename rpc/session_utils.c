@@ -117,6 +117,10 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 
 	M0_ENTRY("item : %p", item);
 
+	rc = m0_ha_epoch_check(item);
+	if (rc != 0)
+		M0_RETURN(0);
+
 	if (item->ri_ops != NULL && item->ri_ops->rio_deliver != NULL)
 		rc = item->ri_ops->rio_deliver(item->ri_rmachine, item);
 	else

@@ -27,11 +27,12 @@
 #  include <stdio.h>          /* FILE */
 #  include "mero/setup.h"     /* m0_mero */
 #endif
-#include "rpc/rpc.h"
+#include "reqh/reqh.h"
 #include "db/db.h"            /* m0_dbenv */
 #include "cob/cob.h"          /* m0_cob_domain */
 #include "net/net.h"          /* m0_net_end_point */
 #include "net/buffer_pool.h"
+#include "rpc/rpc.h"
 
 struct m0_fop;
 struct m0_net_xprt;
@@ -153,6 +154,8 @@ struct m0_rpc_client_ctx {
 	 * They are initialised and filled by m0_rpc_client_start().
 	 */
 
+	struct m0_fol              rcx_fol;
+	struct m0_reqh             rcx_reqh;
 	struct m0_rpc_machine	   rcx_rpc_machine;
 	struct m0_rpc_conn	   rcx_connection;
 	struct m0_rpc_session	   rcx_session;

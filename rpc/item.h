@@ -170,6 +170,10 @@ struct m0_rpc_item {
 /* Public fields: write-once/read */
 
 	enum m0_rpc_item_priority	 ri_prio;
+
+	/** HA epoch transferred by the item. */
+	uint64_t                         ri_ha_epoch;
+
 	/** Absolute time after which formation should not delay sending
 	    the item.
 	 */

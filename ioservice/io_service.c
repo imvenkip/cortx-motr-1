@@ -252,7 +252,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 
 	reqh = service->rs_reqh;
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
-	m0_tlist_for(&m0_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
+	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
 		M0_ASSERT(m0_rpc_machine_bob_check(rpcmach));
 		struct m0_rios_buffer_pool *newbp;
 		bool                        bufpool_found = false;

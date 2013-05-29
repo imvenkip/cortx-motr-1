@@ -27,6 +27,7 @@
 #endif
 
 #include "lib/cdefs.h"
+#include "lib/misc.h"
 #include "lib/types.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -170,8 +171,20 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto err;
 
+	M0_SET0(&cctx->rcx_reqh);
+	rc = M0_REQH_INIT(&cctx->rcx_reqh,
+			  .rhia_dtm       = (void*)1,
+			  .rhia_db        = cctx->rcx_dbenv,
+			  .rhia_mdstore   = (void*)1,
+			  .rhia_fol       = &cctx->rcx_fol,
+			  .rhia_svc       = (void*)1);
+	if (rc != 0)
+		goto err;
+	m0_reqh_start(&cctx->rcx_reqh);
+
 	rc = m0_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
-				 cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
+				 cctx->rcx_net_dom, cctx->rcx_local_addr,
+				 &cctx->rcx_reqh,
 				 &cctx->rcx_buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 cctx->rcx_max_rpc_msg_size,
 				 cctx->rcx_recv_queue_min_length);
@@ -210,6 +223,8 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
 
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
+	m0_reqh_services_terminate(&cctx->rcx_reqh);
+	m0_reqh_fini(&cctx->rcx_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 	dbcob_fini(cctx);
 
