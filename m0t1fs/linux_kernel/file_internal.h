@@ -1195,7 +1195,7 @@ struct nw_xfer_request {
 
 	/**
 	 * Hash of target_ioreq objects. Helps to speed up the lookup
-	 * of target_ioreq objects based on a key 
+	 * of target_ioreq objects based on a key
 	 * (target_ioreq::ti_fid::f_container)
 	 */
 	struct m0_hashlist        nxr_tioreqs_hash;

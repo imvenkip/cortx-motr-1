@@ -271,12 +271,12 @@ M0_INTERNAL uint64_t m0_hashlist_length(const struct m0_hashlist *hlist);
 ({									    \
 	uint64_t cnt;							    \
 	typeof (hlist) hl = (hlist);					    \
- 									    \
+									    \
 	for (cnt = 0; cnt < hl->hl_bucket_nr; ++cnt)	{		    \
 		if (hl->hl_buckets[cnt] != NULL &&			    \
 		    (!(m0_hashbucket_forall(name, var, hl->hl_buckets[cnt], \
 					 ({ __VA_ARGS__ ; })))))	    \
-			break;					 	    \
+			break;						    \
 	}								    \
 	cnt == hl->hl_bucket_nr;					    \
 })
