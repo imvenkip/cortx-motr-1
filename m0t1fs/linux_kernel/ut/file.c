@@ -900,7 +900,7 @@ static void dgmode_readio_test(void)
 	ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(req, IRS_READING);
 	ti = m0_hashlist_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, 1);
-	
+
 	/*
 	 * Fake data structure members so that UT passes through
 	 * PRE checks unhurt.

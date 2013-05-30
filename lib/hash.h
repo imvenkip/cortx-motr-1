@@ -93,7 +93,7 @@
  *   m0_hashlist_init(&bar->b_foohash, hash_func, bucket_nr,
  *                    offsetof(struct foo, f_key, &foohash_tl);
  *
- * Now, foo objects can be added/removed to/from bar::b_foohash using 
+ * Now, foo objects can be added/removed to/from bar::b_foohash using
  * APIs like m0_hashlist_add() and m0_hashlist_del().
  *
  * Also, lookup through hash can be done using API like m0_hashlist_lookup().
@@ -270,14 +270,14 @@ M0_INTERNAL uint64_t m0_hashlist_length(const struct m0_hashlist *hlist);
 #define m0_hashlist_forall(name, var, hlist, ...)			    \
 ({									    \
 	uint64_t cnt;							    \
-	typeof (hlist) hl = (hlist);				 	    \
+	typeof (hlist) hl = (hlist);					    \
  									    \
- 	for (cnt = 0; cnt < hl->hl_bucket_nr; ++cnt)	{		    \
-		if (hl->hl_buckets[cnt] != NULL && 			    \
+	for (cnt = 0; cnt < hl->hl_bucket_nr; ++cnt)	{		    \
+		if (hl->hl_buckets[cnt] != NULL &&			    \
 		    (!(m0_hashbucket_forall(name, var, hl->hl_buckets[cnt], \
 					 ({ __VA_ARGS__ ; })))))	    \
- 			break;					 	    \
- 	}								    \
+			break;					 	    \
+	}								    \
 	cnt == hl->hl_bucket_nr;					    \
 })
 
@@ -291,7 +291,7 @@ M0_INTERNAL uint64_t m0_hashlist_length(const struct m0_hashlist *hlist);
 	uint64_t __cnt;							    \
 	typeof (hlist) hl = (hlist);					    \
 									    \
- 	for (__cnt = 0; __cnt < hl->hl_bucket_nr; ++__cnt) {		    \
+	for (__cnt = 0; __cnt < hl->hl_bucket_nr; ++__cnt) {		    \
 		if (hl->hl_buckets[__cnt] != NULL) {			    \
 			m0_tl_for(name, &hl->hl_buckets[__cnt]->hb_objects, \
 				  var)

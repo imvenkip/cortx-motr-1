@@ -87,7 +87,7 @@ static bool hashlist_invariant(const struct m0_hashlist *hlist)
 }
 
 M0_INTERNAL int m0_hashlist_init(struct m0_hashlist       *hlist,
-		   		  uint64_t (*hfunc)
+				 uint64_t (*hfunc)
 				 (const struct m0_hashlist *hlist,
 				  uint64_t                  key),
 				 uint64_t                  bucket_nr,
