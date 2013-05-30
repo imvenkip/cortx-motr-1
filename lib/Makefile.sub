@@ -41,6 +41,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/uuid.h \
                                lib/vec.h \
                                lib/vec_xc.h \
+			       lib/hash.h \
                                lib/user_space/getopts.h \
                                lib/user_space/misc.h \
                                lib/user_space/mutex.h \
@@ -90,6 +91,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/uuid.c \
                            lib/vec.c \
                            lib/vec_xc.c \
+			   lib/hash.c \
                            lib/user_space/finject_init.c \
                            lib/user_space/memory.c \
                            lib/user_space/processor.c \

@@ -30,7 +30,8 @@ m0mero_objects += lib/assert.o \
                   lib/uuid.o \
                   lib/vec.o \
                   lib/vec.o \
-                  lib/vec_xc.o
+                  lib/vec_xc.o \
+		  lib/hash.o
 
 m0mero_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/kassert.o \

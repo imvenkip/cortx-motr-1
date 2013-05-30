@@ -736,6 +736,14 @@ enum m0_magic_satchel {
 
 	/* m0_be_tx_group::tg_txs (codified bee)  */
 	M0_BE_TX_GROUP_MAGIC = 0x33c0d1f1edbee377,
+
+/* lib */
+	/* hashlist::hl_magic = invincibilis */
+	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,
+
+	/* hashbucket::hb_tioreqs::td_head_magic = desirability */
+	M0_LIB_HASHBUCKET_MAGIC = 0x33de512ab1111777,
+
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */
