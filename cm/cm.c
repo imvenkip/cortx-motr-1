@@ -570,9 +570,10 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 						   rmach, ex->ex_endpoint,
 						   CM_MAX_NR_RPC_IN_FLIGHT,
 						   CM_NR_SLOTS_PER_SESSION);
-			if (rc == 0)
+			if (rc == 0) {
 				proxy_tlist_add_tail(&cm->cm_proxies, pxy);
-			else
+				M0_CNT_INC(cm->cm_proxy_nr);
+			} else
 				m0_cm_proxy_fini(pxy);
 		}
 	} m0_tl_endfor;
@@ -839,23 +840,15 @@ M0_INTERNAL void m0_cm_continue(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_sw_update(struct m0_cm *cm)
 {
-	struct m0_cm_aggr_group *ag;
-	struct m0_cm_ag_id       id;
 	int                      rc = 0;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_SET0(&id);
 	if (m0_cm_has_more_data(cm)) {
-		if (m0_cm_proxy_nr(cm) > 0) {
-			ag = m0_cm_ag_hi(cm);
-			if (ag != NULL)
-				id = ag->cag_id;
-			/* Update the sliding window. */
-			rc = m0_cm_ag_advance(cm, &id);
-		}
+		if (cm->cm_proxy_nr > 0)
+			rc = m0_cm_ag_advance(cm);
 	}
 
 	M0_LEAVE("rc: %d", rc);

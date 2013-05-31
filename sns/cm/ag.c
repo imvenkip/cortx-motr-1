@@ -74,6 +74,8 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 	 * being finalised for a given aggregation group.
 	 */
 	if(sag->sag_acc_freed == sag->sag_fnr) {
+		if (ag->cag_has_incoming)
+			m0_sns_cm_normalize_reservation(ag->cag_cm, ag);
 		m0_cm_aggr_group_fini_and_progress(ag);
 		m0_free(sag->sag_fc);
 		m0_free(sag);
@@ -123,11 +125,15 @@ static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 static bool ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+	struct m0_sns_cm_cp *scp = cp2snscp(cp);
         uint64_t             nr_cps;
 
 	M0_PRE(ag != NULL && cp != NULL);
 
         if (ag->cag_has_incoming) {
+		/* Check if this is local accumulator. */
+		if (!scp->sc_is_acc)
+			return false;
                 nr_cps = m0_cm_cp_nr(cp);
                 return nr_cps == ag->cag_cp_global_nr - sag->sag_fnr;
         } else
@@ -206,8 +212,10 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, pl);
 	if (rc != 0)
 		goto cleanup_ag;
+	/* Initialise the accumulators. */
 	for (i = 0; i < sag->sag_fnr; ++i)
 		m0_sns_cm_acc_cp_init(&sag->sag_fc[i].fc_tgt_acc_cp, sag);
+	/* Acquire buffers and setup the accumulators. */
 	rc = m0_sns_cm_ag_setup(sag, pl);
 	if (rc != 0 && rc != -ENOBUFS)
 		goto cleanup_acc;

@@ -199,12 +199,31 @@ struct m0_cm {
 	 */
 	struct m0_tl                     cm_aggr_grps_in;
 
+	uint64_t                         cm_aggr_grps_in_nr;
+
+	/**
+	 * Saved aggregation group identifier for the last processed
+	 * aggregation group with the highest identifier in the sliding window.
+	 * This is mainly referred while advancing the sliding window.
+	 * This also resolves the issue, where an aggregation group with the
+	 * highest identifier in the sliding window was just finalised and
+	 * sliding window could not advance before that due to unavailability of
+	 * buffers. Thus in this case, there's a possibility of allocating an
+	 * aggregation group with the previously processed group identifier
+	 * during the later sliding window updates. Thus saving the highest
+	 * processed aggregation group identifier from the sliding window
+	 * avoids this situation.
+	 */
+	struct m0_cm_ag_id               cm_last_saved_sw_hi;
+
 	/**
 	 * List of aggregation groups having outgoing copy packets from this
 	 * copy machine replica.
 	 * @see struct m0_cm_aggr_group::cag_cm_out_linkage
 	 */
 	struct m0_tl                     cm_aggr_grps_out;
+
+	uint64_t                         cm_aggr_grps_out_nr;
 
 	/**
 	 * Counter to track number of ready fops received from other replicas.
@@ -219,6 +238,10 @@ struct m0_cm {
 	 * @see struct m0_cm_proxy::px_linkage
 	 */
 	struct m0_tl                     cm_proxies;
+
+	uint64_t                         cm_proxy_nr;
+
+	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
 };
 
@@ -262,7 +285,7 @@ struct m0_cm_ops {
 	 * the "id_next".
 	 */
 	int (*cmo_ag_next)(struct m0_cm *cm,
-			   const struct m0_cm_ag_id *id_curr,
+			   const struct m0_cm_ag_id id_curr,
 			   struct m0_cm_ag_id *id_next);
 
 	void (*cmo_complete) (struct m0_cm *cm);

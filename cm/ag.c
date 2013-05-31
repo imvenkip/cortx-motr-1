@@ -115,57 +115,69 @@ M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_cm       *cm;
-	struct m0_cm_ag_id  id;
 
 	M0_ENTRY();
 	M0_ASSERT(ag != NULL);
 
 	cm = ag->cag_cm;
-	id = ag->cag_id;
 	M0_ASSERT(m0_cm_is_locked(cm));
-	if (aggr_grps_in_tlink_is_in(ag))
+	if (aggr_grps_in_tlink_is_in(ag)) {
 		aggr_grps_in_tlist_del(ag);
+		M0_CNT_DEC(cm->cm_aggr_grps_in_nr);
+	}
 	aggr_grps_in_tlink_fini(ag);
-	if (aggr_grps_out_tlink_is_in(ag))
+	if (aggr_grps_out_tlink_is_in(ag)) {
 		aggr_grps_out_tlist_del(ag);
+		M0_CNT_DEC(cm->cm_aggr_grps_out_nr);
+	}
 	aggr_grps_out_tlink_fini(ag);
 	M0_POST(!aggr_grps_in_tlink_is_in(ag) &&
 		!aggr_grps_out_tlink_is_in(ag));
+	//if (ag->cag_layout != NULL)
+	//	m0_layout_put(ag->cag_layout);
 	m0_mutex_fini(&ag->cag_mutex);
-	if (ag->cag_layout != NULL)
-		m0_layout_put(ag->cag_layout);
 
 	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 {
-	struct m0_cm       *cm;
-	struct m0_cm_ag_id  id;
+	struct m0_cm             *cm;
+	struct m0_cm_ag_id        id;
+	struct m0_cm_aggr_group  *hi;
+	struct m0_cm_aggr_group  *lo;
+	bool                      has_data;
 
 	M0_ENTRY("ag: %p", ag);
 	M0_ASSERT(ag != NULL);
 
 	cm = ag->cag_cm;
-	id = ag->cag_id;
 	M0_ASSERT(m0_cm_is_locked(cm));
+	id = ag->cag_id;
+	hi = m0_cm_ag_hi(cm);
+	lo = m0_cm_ag_lo(cm);
 
-	M0_LOG(M0_FATAL, "aggr group fini: id [%lu] [%lu] [%lu] [%lu]",
-		  id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo);
+	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] [%d]",
+	       id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
+	       ag->cag_has_incoming);
+	if (lo != NULL && hi != NULL) {
+		M0_LOG(M0_FATAL, "lo [%lu] [%lu] [%lu] [%lu]",
+		       lo->cag_id.ai_hi.u_hi, lo->cag_id.ai_hi.u_lo,
+		       lo->cag_id.ai_lo.u_hi, lo->cag_id.ai_lo.u_lo);
+		M0_LOG(M0_FATAL, "hi [%lu] [%lu] [%lu] [%lu]",
+		       hi->cag_id.ai_hi.u_hi, hi->cag_id.ai_hi.u_lo,
+		       hi->cag_id.ai_lo.u_hi, hi->cag_id.ai_lo.u_lo);
+	}
+	m0_cm_sw_update(cm);
 	m0_cm_aggr_group_fini(ag);
-	if (m0_cm_has_more_data(cm)) {
-		if (m0_cm_proxy_nr(cm) > 0)
-			/* Update the sliding window. */
-			m0_cm_sw_update(cm);
-	} else if (aggr_grps_in_tlist_is_empty(&cm->cm_aggr_grps_in) &&
-		   aggr_grps_out_tlist_is_empty(&cm->cm_aggr_grps_out))
-		   cm->cm_ops->cmo_complete(cm);
+	has_data = m0_cm_has_more_data(cm);
+	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
+	    cm->cm_aggr_grps_out_nr == 0)
+		cm->cm_ops->cmo_complete(cm);
 
 	M0_LOG(M0_FATAL, "aggr group fini: in: [%lu] %p out: [%lu] %p",
-	       aggr_grps_in_tlist_length(&cm->cm_aggr_grps_in),
-	       &cm->cm_aggr_grps_in,
-	       aggr_grps_out_tlist_length(&cm->cm_aggr_grps_out),
-	       &cm->cm_aggr_grps_out);
+	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
+	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
 	M0_LEAVE();
 }
@@ -260,10 +272,13 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 	M0_LOG(M0_DEBUG, "aggr group add: id [%lu] [%lu] [%lu] [%lu] \
 	       has_incoming: [%d]", id.ai_hi.u_hi, id.ai_hi.u_lo,
 	       id.ai_lo.u_hi, id.ai_lo.u_lo, has_incoming);
-	if (has_incoming)
+	if (has_incoming) {
 		__aggr_group_add(ag, &aggr_grps_in_tl, &cm->cm_aggr_grps_in);
-	else
+		M0_CNT_INC(cm->cm_aggr_grps_in_nr);
+	} else {
 		__aggr_group_add(ag, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
+		M0_CNT_INC(cm->cm_aggr_grps_out_nr);
+	}
 }
 
 M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
@@ -271,20 +286,33 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 				       bool has_incoming,
 				       struct m0_cm_aggr_group **out)
 {
-	int rc;
+	int                      rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL && id != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_FATAL, "aggr group alloc: id [%lu] [%lu] [%lu] [%lu] \
+	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] \
 	       has_incoming:[%d]", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
+	M0_LOG(M0_FATAL, "last_saved_id [%lu] [%lu] [%lu] [%lu]",
+		cm->cm_last_saved_sw_hi.ai_hi.u_hi,
+		cm->cm_last_saved_sw_hi.ai_hi.u_lo,
+		cm->cm_last_saved_sw_hi.ai_lo.u_hi,
+		cm->cm_last_saved_sw_hi.ai_lo.u_lo);
 
 	rc = cm->cm_ops->cmo_ag_alloc(cm, id, has_incoming, out);
 	if (rc == 0 || rc == -ENOBUFS)
 		m0_cm_aggr_group_add(cm, *out, has_incoming);
 
+	/*
+	 * Save the HI incoming aggregation group identifier.
+	 * This is used mainly during sliding window update to advance the
+	 * window starting from the highest processed incoming aggregation
+	 * group identifier.
+	 */
+	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_last_saved_sw_hi, id) < 0)
+		cm->cm_last_saved_sw_hi = *id;
 	return rc;
 }
 
@@ -294,32 +322,34 @@ M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 	       aggr_grps_out_tlist_is_empty(&cm->cm_aggr_grps_out);
 }
 
-M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm,
-				 struct m0_cm_ag_id *curr)
+M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 {
 	int                      rc;
 	struct m0_cm_ag_id       next;
+	struct m0_cm_ag_id       id;
 	struct m0_cm_aggr_group *ag;
 
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_DEBUG, "group advance: id [%lu] [%lu] [%lu] [%lu]",
-	       curr->ai_hi.u_hi, curr->ai_hi.u_lo,
-	       curr->ai_lo.u_hi, curr->ai_lo.u_lo);
-
+	M0_SET0(&id);
 	M0_SET0(&next);
+	id = cm->cm_last_saved_sw_hi;
 	do {
-		rc = cm->cm_ops->cmo_ag_next(cm, curr, &next);
+		M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu]",
+		       id.ai_hi.u_hi, id.ai_hi.u_lo,
+			id.ai_lo.u_hi, id.ai_lo.u_lo);
+		rc = cm->cm_ops->cmo_ag_next(cm, id, &next);
 		if (rc == 0 && m0_cm_ag_id_is_set(&next)) {
 			ag = m0_cm_aggr_group_locate(cm, &next, true);
-			if (ag == NULL)
+			if (ag == NULL) {
 				rc = m0_cm_aggr_group_alloc(cm, &next,
 							    true, &ag);
-				M0_ASSERT(rc == 0);
-			*curr = next;
+				if (rc != 0)
+					break;
+			}
+			id = next;
 			M0_SET0(&next);
 		}
-
 	} while (rc == 0);
 
 	if (rc == -ENOSPC || rc == -ENOENT)

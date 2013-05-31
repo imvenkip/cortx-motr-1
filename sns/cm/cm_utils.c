@@ -104,6 +104,9 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 
 	M0_PRE(scm != NULL && fid != NULL && pl != NULL);
 
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
+	if (rc != 0)
+		return 0;
 	start = m0_sns_cm_ag_unit_start(scm->sc_op, pl);
 	end = m0_sns_cm_ag_unit_end(scm->sc_op, pl);
 	sa.sa_group = group;
@@ -111,15 +114,13 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		sa.sa_unit = i;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
-		rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
-		if (rc != 0)
-			return 0;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
 					  &cobfid);
 		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
 			M0_CNT_INC(nrlu);
 	}
+	m0_layout_instance_fini(&pi->pi_base);
 
 	return nrlu;
 }
@@ -351,7 +352,7 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 	uint64_t                     nr_cnts;
 
 	nr_cnt_per_ios = pw / nr_ios;
-	if (pw % nr_cnt_per_ios != 0)
+	if (pw % nr_ios != 0)
 		++nr_cnt_per_ios;
 	nr_cnts = nr_cnt_per_ios;
 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
@@ -431,12 +432,12 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 			sa.sa_group = id->ai_lo.u_lo;
 			sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl);
 			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
-			m0_layout_instance_fini(&pi->pi_base);
 			rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
 						  &cobfid);
 			if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
 				return true;
 		}
+		m0_layout_instance_fini(&pi->pi_base);
 	}
 
 	return false;

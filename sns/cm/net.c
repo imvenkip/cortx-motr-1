@@ -112,7 +112,9 @@ static void sw_update(struct m0_cm_ag_sw *sw, struct m0_cm_cp *cp,
 
 	fom = &cp->c_fom;
 	cm = cm_get(fom);
+	m0_cm_lock(cm);
 	proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
+	m0_cm_unlock(cm);
 	M0_PRE(proxy != NULL);
 	m0_cm_proxy_update(proxy, &sw->sw_lo, &sw->sw_hi);
 	cp->c_cm_proxy = proxy;
@@ -268,20 +270,21 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 	struct m0_cm_cp_fop     *cp_fop;
 	struct m0_fop           *rep_fop;
 	struct m0_sns_cpx_reply *sns_cpx_rep;
-	struct m0_cm_ag_sw       sw;
-	struct m0_net_end_point *ep;
 
         rep_item = req_item->ri_reply;
-        ep = rep_item->ri_session->s_conn->c_rpcchan->rc_destep;
 	rep_fop = m0_rpc_item_to_fop(rep_item);
 	sns_cpx_rep = m0_fop_data(rep_fop);
 	if (sns_cpx_rep->scr_cp_rep.cr_rc == 0) {
-		ag_id_copy(&sw.sw_lo, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
-		ag_id_copy(&sw.sw_hi, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
 		req_fop = m0_rpc_item_to_fop(req_item);
 		cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
 		cp = cp_fop->cf_cp;
-		sw_update(&sw, cp, ep);
+		/*
+		 * Save the copy packet reply FOP in the copy packet FOM for
+		 * later purpose to avoid any blocking operations in this
+		 * call back.
+		 * see m0_sns_cm_cp_send_wait().
+		 */
+		cp->c_fom.fo_rep_fop = rep_fop;
 		m0_fom_wakeup(&cp->c_fom);
 	}
 }
@@ -324,6 +327,12 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 	}
         sns_cp = cp2snscp(cp);
         fop = &cp_fop->cf_fop;
+	/*
+	 * Save the copy packet FOP in the copy packet FOM.
+	 * The reference taken by m0_fop_data_alloc() on the copy packet
+	 * FOP will be release during copy packet FOM fini.
+	 */
+	cp->c_fom.fo_fop = fop;
         m0_fop_init(fop, &m0_sns_cpx_fopt, NULL, cp_fop_release);
         rc = m0_fop_data_alloc(fop);
         if (rc  != 0)
@@ -379,7 +388,6 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         item->ri_deadline = 0;
 
         rc = m0_rpc_post(item);
-	m0_fop_put(fop);
 out:
         if (rc != 0) {
                 if (&cp->c_bulk != NULL)
@@ -393,16 +401,34 @@ out:
 
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 {
+	struct m0_sns_cpx_reply *sns_cpx_rep;
+	struct m0_net_end_point *ep;
+	struct m0_fop           *rep_fop;
+	struct m0_cm_ag_sw       sw;
+
+	M0_PRE(cp->c_fom.fo_fop != NULL && cp->c_fom.fo_rep_fop != NULL);
+
+	rep_fop = cp->c_fom.fo_rep_fop;
+        ep = rep_fop->f_item.ri_session->s_conn->c_rpcchan->rc_destep;
+	sns_cpx_rep = m0_fop_data(rep_fop);
+	ag_id_copy(&sw.sw_lo, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
+	ag_id_copy(&sw.sw_hi, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
+	sw_update(&sw, cp, ep);
+	/*
+	 * Remove the saved reply fop. SNS does not destroy it as it was not
+	 * created by SNS.
+	 * Put the reference on the request copy packet fop saved in
+	 * cp->c_fom->fo_fop.
+	 */
+	m0_fop_put(cp->c_fom.fo_fop);
+	cp->c_fom.fo_fop = NULL;
+	cp->c_fom.fo_rep_fop = NULL;
         m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
         return M0_FSO_WAIT;
 }
 
 M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool)
 {
-        struct m0_sns_cm_buf_pool *sns_bp = container_of(pool,
-                                        struct m0_sns_cm_buf_pool, sb_bp);
-
-        m0_chan_broadcast_lock(&sns_bp->sb_wait);
 }
 
 static int cp_buf_acquire(struct m0_cm_cp *cp)

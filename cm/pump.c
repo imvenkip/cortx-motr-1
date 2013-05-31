@@ -169,7 +169,6 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 		goto fail;
 	}
 	if (rc == M0_FSO_AGAIN) {
-		M0_ASSERT(m0_cm_cp_invariant(cp));
 		m0_cm_cp_enqueue(cm, cp);
 		pump_move(cp_pump, 0, CPP_ALLOC);
 	}

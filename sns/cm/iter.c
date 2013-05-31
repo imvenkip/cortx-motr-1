@@ -426,7 +426,7 @@ static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
 {
 	M0_PRE(scm != NULL && pl != NULL && id != NULL);
 
-	if (m0_cm_proxy_nr(&scm->sc_base) > 0)
+	if (scm->sc_base.cm_proxy_nr > 0)
 		return  m0_sns_cm_ag_is_relevant(scm, pl, id);
 
 	return false;
@@ -471,7 +471,6 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_cm_ag_id               agid;
 	struct m0_cm_aggr_group         *ag;
-	struct m0_cm_aggr_group         *ag_hi;
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_sns_cm_cp             *scp;
 	bool                             has_incoming = false;
@@ -495,13 +494,15 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		 * group was already processed and we proceed to next group.
 		 */
 		if (has_incoming) {
-			ag_hi = m0_cm_ag_hi(&scm->sc_base);
-			if (m0_cm_ag_id_cmp(&agid, &ag_hi->cag_id) < 0)
+			if (m0_cm_ag_id_cmp(&agid, &scm->sc_base.cm_last_saved_sw_hi) <= 0)
 				goto out;
 		}
 		if (has_incoming && !m0_sns_cm_has_space(&scm->sc_base, &agid,
-							 sfc->sfc_pdlayout))
-			return -ENOBUFS;
+							 sfc->sfc_pdlayout)) {
+			M0_LOG(M0_FATAL, "agid [%lu] [%lu] [%lu] [%lu]",
+				agid.ai_hi.u_hi, agid.ai_hi.u_lo, agid.ai_lo.u_hi, agid.ai_lo.u_lo);
+				return -ENOBUFS;
+		}
 		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
 					    has_incoming, &ag);
 		if (rc != 0) {

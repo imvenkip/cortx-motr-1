@@ -49,6 +49,8 @@ struct m0_sns_cm_cp {
 	 */
 	bool                   sc_is_local;
 
+	bool                   sc_is_acc;
+
 	/** Offset within the stob. */
 	m0_bindex_t            sc_index;
 

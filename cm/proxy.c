@@ -172,8 +172,8 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	m0_mutex_lock(&pxy->px_mutex);
 	pxy->px_sw.sw_lo = *lo;
 	pxy->px_sw.sw_hi = *hi;
-	M0_ASSERT(cm_proxy_invariant(pxy));
 	__wake_up_pending_cps(pxy);
+	M0_ASSERT(cm_proxy_invariant(pxy));
 	m0_mutex_unlock(&pxy->px_mutex);
 }
 
