@@ -133,8 +133,6 @@ M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 	aggr_grps_out_tlink_fini(ag);
 	M0_POST(!aggr_grps_in_tlink_is_in(ag) &&
 		!aggr_grps_out_tlink_is_in(ag));
-	//if (ag->cag_layout != NULL)
-	//	m0_layout_put(ag->cag_layout);
 	m0_mutex_fini(&ag->cag_mutex);
 
 	M0_LEAVE();
@@ -157,14 +155,14 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 
-	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] [%d]",
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%d]",
 	       id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
 	       ag->cag_has_incoming);
 	if (lo != NULL && hi != NULL) {
-		M0_LOG(M0_FATAL, "lo [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "lo [%lu] [%lu] [%lu] [%lu]",
 		       lo->cag_id.ai_hi.u_hi, lo->cag_id.ai_hi.u_lo,
 		       lo->cag_id.ai_lo.u_hi, lo->cag_id.ai_lo.u_lo);
-		M0_LOG(M0_FATAL, "hi [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "hi [%lu] [%lu] [%lu] [%lu]",
 		       hi->cag_id.ai_hi.u_hi, hi->cag_id.ai_hi.u_lo,
 		       hi->cag_id.ai_lo.u_hi, hi->cag_id.ai_lo.u_lo);
 	}
@@ -175,7 +173,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	    cm->cm_aggr_grps_out_nr == 0)
 		cm->cm_ops->cmo_complete(cm);
 
-	M0_LOG(M0_FATAL, "aggr group fini: in: [%lu] %p out: [%lu] %p",
+	M0_LOG(M0_DEBUG, "in: [%lu] %p out: [%lu] %p",
 	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
@@ -210,8 +208,8 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_DEBUG, "aggr group locate: id [%lu] [%lu] [%lu] [%lu] \
-	       has_incoming: %c", id->ai_hi.u_hi, id->ai_hi.u_lo,
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] \
+	       has_incoming: [%d]", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
 	ag = __aggr_group_locate(id, &aggr_grps_in_tl,
 			&cm->cm_aggr_grps_in);
@@ -269,7 +267,7 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 	M0_PRE(m0_cm_is_locked(cm));
 	M0_LEAVE();
 
-	M0_LOG(M0_DEBUG, "aggr group add: id [%lu] [%lu] [%lu] [%lu] \
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] \
 	       has_incoming: [%d]", id.ai_hi.u_hi, id.ai_hi.u_lo,
 	       id.ai_lo.u_hi, id.ai_lo.u_lo, has_incoming);
 	if (has_incoming) {
@@ -292,10 +290,10 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	M0_PRE(cm != NULL && id != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] \
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] \
 	       has_incoming:[%d]", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
-	M0_LOG(M0_FATAL, "last_saved_id [%lu] [%lu] [%lu] [%lu]",
+	M0_LOG(M0_DEBUG, "last_saved_id [%lu] [%lu] [%lu] [%lu]",
 		cm->cm_last_saved_sw_hi.ai_hi.u_hi,
 		cm->cm_last_saved_sw_hi.ai_hi.u_lo,
 		cm->cm_last_saved_sw_hi.ai_lo.u_hi,
@@ -335,7 +333,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 	M0_SET0(&next);
 	id = cm->cm_last_saved_sw_hi;
 	do {
-		M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu]",
 		       id.ai_hi.u_hi, id.ai_hi.u_lo,
 			id.ai_lo.u_hi, id.ai_lo.u_lo);
 		rc = cm->cm_ops->cmo_ag_next(cm, id, &next);

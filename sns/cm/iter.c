@@ -143,13 +143,6 @@ M0_INTERNAL struct m0_sns_cm *it2sns(struct m0_sns_cm_iter *it)
 	return container_of(it, struct m0_sns_cm, sc_it);
 }
 
-/*
-M0_INTERNAL uint64_t m0_sns_cm_iter_failures_nr(const struct m0_sns_cm_iter *it)
-{
-	return it->si_fc.sfc_group_nr_fail_units;
-}
-*/
-
 /**
  * Returns current iterator phase.
  */
@@ -499,9 +492,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		}
 		if (has_incoming && !m0_sns_cm_has_space(&scm->sc_base, &agid,
 							 sfc->sfc_pdlayout)) {
-			M0_LOG(M0_FATAL, "agid [%lu] [%lu] [%lu] [%lu]",
-				agid.ai_hi.u_hi, agid.ai_hi.u_lo, agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-				return -ENOBUFS;
+			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+			       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
+			       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
+			return -ENOBUFS;
 		}
 		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
 					    has_incoming, &ag);
