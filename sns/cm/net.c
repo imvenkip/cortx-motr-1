@@ -112,12 +112,15 @@ static void sw_update(struct m0_cm_ag_sw *sw, struct m0_cm_cp *cp,
 
 	fom = &cp->c_fom;
 	cm = cm_get(fom);
-	m0_cm_lock(cm);
-	proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
-	m0_cm_unlock(cm);
+	proxy = cp->c_cm_proxy;
+	if (proxy == NULL) {
+		m0_cm_lock(cm);
+		proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
+		m0_cm_unlock(cm);
+		cp->c_cm_proxy = proxy;
+	}
 	M0_PRE(proxy != NULL);
 	m0_cm_proxy_update(proxy, &sw->sw_lo, &sw->sw_hi);
-	cp->c_cm_proxy = proxy;
 }
 
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
@@ -265,7 +268,7 @@ out:
 static void cp_reply_received(struct m0_rpc_item *req_item)
 {
         struct m0_fop           *req_fop;
-        struct m0_cm_cp         *cp;
+        struct m0_sns_cm_cp     *scp;
 	struct m0_rpc_item      *rep_item;
 	struct m0_cm_cp_fop     *cp_fop;
 	struct m0_fop           *rep_fop;
@@ -277,15 +280,17 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 	if (sns_cpx_rep->scr_cp_rep.cr_rc == 0) {
 		req_fop = m0_rpc_item_to_fop(req_item);
 		cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
-		cp = cp_fop->cf_cp;
+		scp = cp2snscp(cp_fop->cf_cp);
 		/*
-		 * Save the copy packet reply FOP in the copy packet FOM for
-		 * later purpose to avoid any blocking operations in this
-		 * call back.
-		 * see m0_sns_cm_cp_send_wait().
+		 * Save the sliding window update from remote replica in the
+		 * sender side copy packet and update the proxy's sliding window
+		 * later to avoid awkward context in this call back.
 		 */
-		cp->c_fom.fo_rep_fop = rep_fop;
-		m0_fom_wakeup(&cp->c_fom);
+                ag_id_copy(&scp->sc_sw_update.sw_lo,
+			   &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
+                ag_id_copy(&scp->sc_sw_update.sw_hi,
+			   &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
+		m0_fom_wakeup(&scp->sc_base.c_fom);
 	}
 }
 
@@ -327,12 +332,6 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 	}
         sns_cp = cp2snscp(cp);
         fop = &cp_fop->cf_fop;
-	/*
-	 * Save the copy packet FOP in the copy packet FOM.
-	 * The reference taken by m0_fop_data_alloc() on the copy packet
-	 * FOP will be release during copy packet FOM fini.
-	 */
-	cp->c_fom.fo_fop = fop;
         m0_fop_init(fop, &m0_sns_cpx_fopt, NULL, cp_fop_release);
         rc = m0_fop_data_alloc(fop);
         if (rc  != 0)
@@ -388,6 +387,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         item->ri_deadline = 0;
 
         rc = m0_rpc_post(item);
+	m0_fop_put(fop);
 out:
         if (rc != 0) {
                 if (&cp->c_bulk != NULL)
@@ -401,28 +401,14 @@ out:
 
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 {
-	struct m0_sns_cpx_reply *sns_cpx_rep;
+	struct m0_sns_cm_cp     *scp;
 	struct m0_net_end_point *ep;
-	struct m0_fop           *rep_fop;
-	struct m0_cm_ag_sw       sw;
 
-	M0_PRE(cp->c_fom.fo_fop != NULL && cp->c_fom.fo_rep_fop != NULL);
+	M0_PRE(cp != NULL);
 
-	rep_fop = cp->c_fom.fo_rep_fop;
-        ep = rep_fop->f_item.ri_session->s_conn->c_rpcchan->rc_destep;
-	sns_cpx_rep = m0_fop_data(rep_fop);
-	ag_id_copy(&sw.sw_lo, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
-	ag_id_copy(&sw.sw_hi, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
-	sw_update(&sw, cp, ep);
-	/*
-	 * Remove the saved reply fop. SNS does not destroy it as it was not
-	 * created by SNS.
-	 * Put the reference on the request copy packet fop saved in
-	 * cp->c_fom->fo_fop.
-	 */
-	m0_fop_put(cp->c_fom.fo_fop);
-	cp->c_fom.fo_fop = NULL;
-	cp->c_fom.fo_rep_fop = NULL;
+	scp = cp2snscp(cp);
+	ep = cp->c_cm_proxy->px_conn.c_rpcchan->rc_destep;
+	sw_update(&scp->sc_sw_update, cp, ep);
         m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
         return M0_FSO_WAIT;
 }
