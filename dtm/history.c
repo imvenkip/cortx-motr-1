@@ -46,6 +46,7 @@ static m0_dtm_ver_t up_ver    (const struct m0_dtm_up *up);
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op, struct m0_queue *queue);
 static void sibling_redo(struct m0_dtm_history *history, struct m0_dtm_op *op);
+static void sibling_undo(struct m0_dtm_op *op);
 static const struct m0_dtm_update_ops ch_close_ops;
 static const struct m0_dtm_update_ops ch_noop_ops;
 
@@ -166,6 +167,25 @@ M0_INTERNAL void m0_dtm_history_redo(struct m0_dtm_history *history,
 	history_unlock(history);
 }
 
+M0_INTERNAL void m0_dtm_history_undo(struct m0_dtm_history *history,
+				     m0_dtm_ver_t upto)
+{
+	struct m0_dtm_up *up;
+
+	history_lock(history);
+	M0_PRE(m0_dtm_history_invariant(history));
+
+	up = hi_tlist_head(&history->h_hi.hi_ups);
+	while (up_ver(up) > upto) {
+		struct m0_dtm_up *prior = m0_dtm_up_prior(up);
+
+		sibling_undo(up->up_op);
+		up = prior;
+	}
+	M0_POST(m0_dtm_history_invariant(history));
+	history_unlock(history);
+}
+
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history)
 {
 	history_lock(history);
@@ -227,6 +247,27 @@ static void sibling_redo(struct m0_dtm_history *history, struct m0_dtm_op *op)
 		if (other->h_rem == rem && update->upd_body != NULL)
 			rem->re_ops->reo_redo(rem, update);
 	} up_endfor;
+}
+
+static void sibling_undo(struct m0_dtm_op *op)
+{
+	M0_PRE(m0_dtm_op_invariant(op));
+	up_for(op, up) {
+		struct m0_dtm_update  *update  = up_update(up);
+		struct m0_dtm_up      *prior   = m0_dtm_up_prior(up);
+		struct m0_dtm_history *history = UP_HISTORY(up);
+
+		M0_ASSERT(up == hi_tlist_head(&up->up_hi->hi_ups));
+		if (update->upd_ops->updo_undo != NULL)
+			update->upd_ops->updo_undo(update);
+		if (history->h_persistent == update)
+			history->h_persistent = up_update(prior);
+		if (history->h_max_ver == up->up_ver)
+			history->h_max_ver = prior->up_ver;
+		if (up->up_hi->hi_ver == up->up_ver)
+			up->up_hi->hi_ver = prior->up_ver;
+	} up_endfor;
+	m0_dtm_op_fini(op);
 }
 
 static m0_dtm_ver_t up_ver(const struct m0_dtm_up *up)

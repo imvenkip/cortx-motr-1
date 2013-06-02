@@ -326,10 +326,10 @@ static void up_insert(struct m0_dtm_up *up)
 static void up_del(struct m0_dtm_up *up)
 {
 	M0_PRE(m0_dtm_up_invariant(up));
-	M0_PRE(up->up_state <= M0_DOS_FUTURE);
+	M0_PRE(up->up_state < M0_DOS_STABLE);
 
-	if (up->up_state == M0_DOS_FUTURE)
-		hi_tlist_del(up);
+	if (hi_tlink_is_in(up))
+		hi_tlink_del_fini(up);
 }
 
 static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)

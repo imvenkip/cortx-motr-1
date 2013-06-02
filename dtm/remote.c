@@ -42,14 +42,15 @@
 enum rem_rpc_notification {
 	R_PERSISTENT = 1,
 	R_FIXED      = 2,
-	R_KNOWN      = 3
+	R_KNOWN      = 3,
+	R_UNDO       = 4
 };
 
 static const struct m0_dtm_remote_ops rem_rpc_ops;
 static const struct m0_dtm_remote_ops rem_local_ops;
 static void rem_rpc_notify(struct m0_dtm_remote *rem,
 			   const struct m0_dtm_history *history,
-			   enum rem_rpc_notification opcode);
+			   m0_dtm_ver_t ver, enum rem_rpc_notification opcode);
 static int rem_rpc_item_decode(const struct m0_rpc_item_type *item_type,
 			       struct m0_rpc_item **item_out,
 			       struct m0_bufvec_cursor *cur);
@@ -100,25 +101,32 @@ M0_INTERNAL void m0_dtm_rpc_remote_fini(struct m0_dtm_rpc_remote *remote)
 static void rem_rpc_persistent(struct m0_dtm_remote *rem,
 			       struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, R_PERSISTENT);
+	rem_rpc_notify(rem, history,
+		       update_ver(history->h_persistent), R_PERSISTENT);
 }
 
 static void rem_rpc_fixed(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, R_FIXED);
+	rem_rpc_notify(rem, history, 0, R_FIXED);
 }
 
 static void rem_rpc_known(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, R_KNOWN);
+	rem_rpc_notify(rem, history, history->h_hi.hi_ver, R_KNOWN);
 }
 
 static void rem_rpc_close(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history)
 {
 	M0_IMPOSSIBLE("Not yet.");
+}
+
+static void rem_rpc_undo(struct m0_dtm_remote *rem,
+			 struct m0_dtm_history *history, m0_dtm_ver_t upto)
+{
+	rem_rpc_notify(rem, history, upto, R_UNDO);
 }
 
 M0_EXTERN struct m0_rpc_session *m0_rpc_conn_session0(const struct m0_rpc_conn
@@ -144,21 +152,22 @@ static const struct m0_dtm_remote_ops rem_rpc_ops = {
 	.reo_fixed      = &rem_rpc_fixed,
 	.reo_known      = &rem_rpc_known,
 	.reo_close      = &rem_rpc_close,
-	.reo_redo       = &rem_rpc_redo
+	.reo_redo       = &rem_rpc_redo,
+	.reo_undo       = &rem_rpc_undo
 };
 
 static void notice_pack(struct m0_dtm_notice *notice,
 			const struct m0_dtm_history *history,
-			enum rem_rpc_notification opcode)
+			m0_dtm_ver_t ver, enum rem_rpc_notification opcode)
 {
 	notice->dno_opcode = opcode;
-	notice->dno_ver    = update_ver(history->h_persistent);
+	notice->dno_ver    = ver;
 	m0_dtm_history_pack(history, &notice->dno_id);
 }
 
 static void rem_rpc_notify(struct m0_dtm_remote *rem,
 			   const struct m0_dtm_history *history,
-			   enum rem_rpc_notification opcode)
+			   m0_dtm_ver_t ver, enum rem_rpc_notification opcode)
 {
 	struct m0_dtm_rpc_remote *rpr;
 	struct m0_fop            *fop;
@@ -169,7 +178,7 @@ static void rem_rpc_notify(struct m0_dtm_remote *rem,
 	if (fop != NULL) {
 		struct m0_rpc_item *item;
 
-		notice_pack(m0_fop_data(fop), history, opcode);
+		notice_pack(m0_fop_data(fop), history, ver, opcode);
 		item              = &fop->f_item;
 		item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 		item->ri_deadline = 0;
@@ -227,6 +236,9 @@ static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)
 		case R_KNOWN:
 			m0_dtm_history_redo(history, notice->dno_ver);
 			break;
+		case R_UNDO:
+			m0_dtm_history_undo(history, notice->dno_ver);
+			break;
 		default:
 			M0_LOG(M0_ERROR, "DTM notice: %i.", notice->dno_opcode);
 		}
@@ -281,30 +293,31 @@ M0_INTERNAL void m0_dtm_local_remote_fini(struct m0_dtm_local_remote *lre)
 
 static void rem_local_notify(struct m0_dtm_remote *rem,
 			     const struct m0_dtm_history *history,
-			     enum rem_rpc_notification opcode)
+			     m0_dtm_ver_t ver, enum rem_rpc_notification opcode)
 {
 	struct m0_dtm_notice notice;
 
-	notice_pack(&notice, history, opcode);
+	notice_pack(&notice, history, ver, opcode);
 	notice_deliver(&notice, HISTORY_DTM(&rem->re_fol.rfo_ch.ch_history));
 }
 
 static void rem_local_persistent(struct m0_dtm_remote *rem,
 				 struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, R_PERSISTENT);
+	rem_local_notify(rem, history,
+			 update_ver(history->h_persistent), R_PERSISTENT);
 }
 
 static void rem_local_fixed(struct m0_dtm_remote *rem,
 			    struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, R_FIXED);
+	rem_local_notify(rem, history, 0, R_FIXED);
 }
 
 static void rem_local_known(struct m0_dtm_remote *rem,
 			    struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, R_KNOWN);
+	rem_local_notify(rem, history, history->h_hi.hi_ver, R_KNOWN);
 }
 
 static void rem_local_redo(struct m0_dtm_remote *rem,
@@ -319,11 +332,19 @@ static void rem_local_redo(struct m0_dtm_remote *rem,
 		M0_LOG(M0_ERROR, "redo: %i.", result);
 }
 
+static void rem_local_undo(struct m0_dtm_remote *rem,
+			   struct m0_dtm_history *history, m0_dtm_ver_t upto)
+{
+	rem_local_notify(rem, history, upto, R_UNDO);
+}
+
+
 static const struct m0_dtm_remote_ops rem_local_ops = {
 	.reo_persistent = &rem_local_persistent,
 	.reo_fixed      = &rem_local_fixed,
 	.reo_known      = &rem_local_known,
-	.reo_redo       = &rem_local_redo
+	.reo_redo       = &rem_local_redo,
+	.reo_undo       = &rem_local_undo
 };
 
 #undef M0_TRACE_SUBSYSTEM
