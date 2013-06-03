@@ -573,6 +573,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 			if (rc == 0) {
 				proxy_tlist_add_tail(&cm->cm_proxies, pxy);
 				M0_CNT_INC(cm->cm_proxy_nr);
+				M0_LOG(M0_DEBUG, "Connected to %s", ex->ex_endpoint);
 			} else
 				m0_cm_proxy_fini(pxy);
 		}

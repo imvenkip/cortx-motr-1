@@ -554,6 +554,8 @@ static int cm_ready_post(struct m0_cm *cm)
         struct m0_cm_aggr_group *lo;
         struct m0_cm_aggr_group *hi;
         struct m0_rpc_machine   *rmach;
+	struct m0_cm_ag_id       id_lo;
+	struct m0_cm_ag_id       id_hi;
         const char              *ep;
         int                      rc;
 
@@ -565,24 +567,27 @@ static int cm_ready_post(struct m0_cm *cm)
         rc = m0_cm_sw_update(cm);
         if(rc != 0)
                 return rc;
+	M0_SET0(&id_lo);
+	M0_SET0(&id_hi);
         lo = m0_cm_ag_lo(cm);
         hi = m0_cm_ag_hi(cm);
-        if (lo != NULL && hi != NULL) {
-		ep = rmach->rm_tm.ntm_ep->nep_addr;
-                m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-                        struct m0_fop *fop = m0_sns_cm_ready_fop_fill(cm,
-					&lo->cag_id,
-                                        &hi->cag_id, ep);
-                        if (fop == NULL)
-                                return -ENOMEM;
-                        rc = m0_cm_ready_fop_post(fop, &pxy->px_conn);
-			m0_sm_group_lock(&rmach->rm_sm_grp);
-                        m0_fop_put(fop);
-			m0_sm_group_unlock(&rmach->rm_sm_grp);
-                        if (rc != 0)
-                                return rc;
-                } m0_tl_endfor;
-        }
+	if (lo != NULL && hi != NULL) {
+		id_lo = lo->cag_id;
+		id_hi = hi->cag_id;
+	}
+	ep = rmach->rm_tm.ntm_ep->nep_addr;
+	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		struct m0_fop *fop = m0_sns_cm_ready_fop_fill(cm,
+				&id_lo, &id_hi, ep);
+		if (fop == NULL)
+			return -ENOMEM;
+		rc = m0_cm_ready_fop_post(fop, &pxy->px_conn);
+		m0_sm_group_lock(&rmach->rm_sm_grp);
+		m0_fop_put(fop);
+		m0_sm_group_unlock(&rmach->rm_sm_grp);
+		if (rc != 0)
+			return rc;
+	} m0_tl_endfor;
 
         M0_LEAVE("rc: %d", rc);
         return rc;
@@ -600,10 +605,12 @@ static int cm_ready(struct m0_cm *cm)
 
 	bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
 					      SNS_INCOMING_BUF_NR);
+	M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
 	if (bufs_nr == 0)
 		return -ENOMEM;
 	bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
 					      SNS_OUTGOING_BUF_NR);
+	M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
 	/*
 	 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
 	 * successful, both the buffer pools (incoming and outgoing) will be

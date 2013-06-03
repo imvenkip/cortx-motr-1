@@ -419,7 +419,11 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 	struct m0_fid               fid;
 	struct m0_fid               cobfid;
 	size_t                      group_failures;
+	uint32_t                    i;
+	uint32_t                    N;
+	uint32_t                    K;
 	int                         rc;
+	bool                        result = false;
 
 	agid2fid(id,  &fid);
 
@@ -428,19 +432,23 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 		/* Firstly check if this group has any failed units. */
 		group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
 							  pi, id->ai_lo.u_lo);
-		if (group_failures > 0) {
-			sa.sa_group = id->ai_lo.u_lo;
-			sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
-			rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
-						  &cobfid);
-			if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
-				return true;
+		if (group_failures > 0 ) {
+			N = m0_pdclust_N(pl);
+			K = m0_pdclust_K(pl);
+			for (i = 0; i < K; ++i) {
+				sa.sa_group = id->ai_lo.u_lo;
+				sa.sa_unit = N + K + i;
+				m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
+				rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
+							  &cobfid);
+				if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
+					result = true;
+			}
 		}
 		m0_layout_instance_fini(&pi->pi_base);
 	}
 
-	return false;
+	return result;
 }
 
 #undef M0_TRACE_SUBSYSTEM
