@@ -91,18 +91,11 @@ M0_ADDB_RT_CNTR(m0_addb_rt_ios_wfom_sizes,  M0_ADDB_RECID_IOS_WFOM_SIZES,
 		KB(768));
 #undef KB
 
-#undef uS
-#undef mS
-#define uS(us) us
-#define mS(ms) uS(1000 * (ms))
 M0_ADDB_RT_CNTR(m0_addb_rt_ios_rfom_times,  M0_ADDB_RECID_IOS_RFOM_TIMES,
-		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
-		mS(100), mS(250), mS(500));
+		100, 200, 300, 400, 500, 600, 700, 800, 900);
+
 M0_ADDB_RT_CNTR(m0_addb_rt_ios_wfom_times,  M0_ADDB_RECID_IOS_WFOM_TIMES,
-		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
-		mS(100), mS(250), mS(500));
-#undef mS
-#undef uS
+		100, 200, 300, 400, 500, 600, 700, 800, 900);
 
 /* Data point record type for io service */
 M0_ADDB_RT_DP(m0_addb_rt_ios_rwfom_finish,
