@@ -453,8 +453,8 @@ static void sns_cm_bp_init(struct m0_sns_cm_buf_pool *sbp)
 
 static void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
 {
-        m0_chan_fini_lock(&sbp->sb_wait);
-        m0_mutex_fini(&sbp->sb_wait_mutex);
+	m0_chan_fini_lock(&sbp->sb_wait);
+	m0_mutex_fini(&sbp->sb_wait_mutex);
 }
 
 static int cm_setup(struct m0_cm *cm)
@@ -527,9 +527,9 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 }
 
 static int pm_event_setup_and_post(struct m0_poolmach *pm,
-                                   enum m0_pool_event_owner_type et,
-                                   uint32_t oid,
-                                   enum m0_pool_nd_state state)
+	                           enum m0_pool_event_owner_type et,
+	                           uint32_t oid,
+	                           enum m0_pool_nd_state state)
 {
 	struct m0_pool_event pme;
 
@@ -549,28 +549,29 @@ static int pm_state(struct m0_sns_cm *scm)
 
 static int cm_ready_post(struct m0_cm *cm)
 {
-        struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
-        struct m0_cm_proxy      *pxy;
-        struct m0_cm_aggr_group *lo;
-        struct m0_cm_aggr_group *hi;
-        struct m0_rpc_machine   *rmach;
+	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
+	struct m0_cm_proxy      *pxy;
+	struct m0_cm_aggr_group *lo;
+	struct m0_cm_aggr_group *hi;
+	struct m0_rpc_machine   *rmach;
 	struct m0_cm_ag_id       id_lo;
 	struct m0_cm_ag_id       id_hi;
-        const char              *ep;
-        int                      rc;
+	const char              *ep;
+	int                      rc;
 
-        M0_ENTRY("cm: %p", cm);
-        M0_PRE(cm != NULL);
-        M0_PRE(m0_cm_is_locked(cm));
+	M0_ENTRY("cm: %p", cm);
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
 
 	rmach = m0_cm_rpc_machine_find(reqh);
-        rc = m0_cm_sw_update(cm);
-        if(rc != 0)
-                return rc;
+	ep = rmach->rm_tm.ntm_ep->nep_addr;
+	rc = m0_cm_sw_update(cm);
+	if(rc != 0)
+	        return rc;
 	M0_SET0(&id_lo);
 	M0_SET0(&id_hi);
-        lo = m0_cm_ag_lo(cm);
-        hi = m0_cm_ag_hi(cm);
+	lo = m0_cm_ag_lo(cm);
+	hi = m0_cm_ag_hi(cm);
 	if (lo != NULL && hi != NULL) {
 		id_lo = lo->cag_id;
 		id_hi = hi->cag_id;
@@ -582,6 +583,8 @@ static int cm_ready_post(struct m0_cm *cm)
 		if (fop == NULL)
 			return -ENOMEM;
 		rc = m0_cm_ready_fop_post(fop, &pxy->px_conn);
+		M0_LOG(M0_DEBUG, "ready fop delivered to %s from %s: rc = %d",
+				 pxy->px_endpoint, ep, rc);
 		m0_sm_group_lock(&rmach->rm_sm_grp);
 		m0_fop_put(fop);
 		m0_sm_group_unlock(&rmach->rm_sm_grp);
@@ -589,8 +592,8 @@ static int cm_ready_post(struct m0_cm *cm)
 			return rc;
 	} m0_tl_endfor;
 
-        M0_LEAVE("rc: %d", rc);
-        return rc;
+	M0_LEAVE("rc: %d", rc);
+	return rc;
 }
 
 static int cm_ready(struct m0_cm *cm)
@@ -962,6 +965,7 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 				*id_next = ag_id;
 				return rc;
 			}
+			m0_layout_put(m0_pdl_to_layout(pl));
 		}
 		group = 0;
 		if (m0_fid_is_set(&fid_next) && sns_cm_fid_is_valid(&fid_next))

@@ -287,10 +287,11 @@ m0_sns_cm_fid2layout(struct m0_sns_cm *scm, struct m0_fid *gfid)
  * @note This may block.
  * @retval 0 on success, IT_WAIT for blocking operation
  */
-M0_INTERNAL int m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
-						 struct m0_fid *gfid,
-						 struct m0_pdclust_layout
-						 **layout, uint64_t *fsize)
+M0_INTERNAL int
+m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
+				 struct m0_fid *gfid,
+				 struct m0_pdclust_layout **layout,
+				 uint64_t *fsize)
 {
         struct m0_cob_attr        attr = { {0} };
         struct m0_layout_domain  *ldom;

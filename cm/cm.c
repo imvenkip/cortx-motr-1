@@ -559,9 +559,9 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 	M0_SET0(&ag_id0);
 	lep = rmach->rm_tm.ntm_ep->nep_addr;
 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ex) {
+		struct m0_cm_proxy *pxy;
 		if (strcmp(ex->ex_endpoint, lep) == 0)
 			continue;
-		struct m0_cm_proxy *pxy;
 		rc = m0_cm_proxy_alloc(0, &ag_id0, &ag_id0, ex->ex_endpoint,
 				       &pxy);
 		if (rc == 0) {
@@ -578,6 +578,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 				m0_cm_proxy_fini(pxy);
 		}
 	} m0_tl_endfor;
+	M0_LOG(M0_DEBUG, "Connected to its proxies from local ep %s", lep);
 	return rc;
 }
 

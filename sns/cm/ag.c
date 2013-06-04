@@ -77,6 +77,11 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 		if (ag->cag_has_incoming)
 			m0_sns_cm_normalize_reservation(ag->cag_cm, ag);
 		m0_cm_aggr_group_fini_and_progress(ag);
+		if (ag->cag_layout != NULL) {
+			m0_layout_put(ag->cag_layout);
+			ag->cag_layout = NULL;
+		}
+
 		m0_free(sag->sag_fc);
 		m0_free(sag);
 	}
@@ -176,16 +181,19 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	 *       iterator.
 	 */
 	it_gfid = &scm->sc_it.si_fc.sfc_gob_fid;
-	if (m0_fid_eq(&gfid, it_gfid) && scm->sc_it.si_fc.sfc_pdlayout != NULL)
+	if (m0_fid_eq(&gfid, it_gfid) && scm->sc_it.si_fc.sfc_pdlayout != NULL){
 		pl = scm->sc_it.si_fc.sfc_pdlayout;
-	else
+		m0_layout_get(m0_pdl_to_layout(pl));
+	} else
 		rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, &gfid, &pl,
 						      &fsize);
 	if (rc != 0)
 		return rc;
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
-	if (rc != 0)
+	if (rc != 0) {
+		m0_layout_put(m0_pdl_to_layout(pl));
 		return rc;
+	}
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo);
 	m0_layout_instance_fini(&pi->pi_base);
@@ -226,6 +234,7 @@ cleanup_acc:
 	for (i = 0; i < sag->sag_fnr; ++i)
 		m0_cm_cp_buf_release(&sag->sag_fc[i].fc_tgt_acc_cp.sc_base);
 cleanup_ag:
+	m0_layout_put(m0_pdl_to_layout(pl));
 	m0_cm_aggr_group_fini(&sag->sag_base);
 	m0_free(sag->sag_fc);
 	m0_free(sag);

@@ -183,6 +183,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(service != NULL);
 		cm = container_of(service, struct m0_cm, cm_service);
 		scm = cm2sns(cm);
+		M0_LOG(M0_DEBUG, "start state = %d", m0_fom_phase(fom));
 		switch(m0_fom_phase(fom)) {
 			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
@@ -205,6 +206,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_mutex_unlock(&scm->sc_wait_mutex);
 				m0_fom_phase_set(fom, TPH_START_WAIT);
 				rc = M0_FSO_AGAIN;
+				M0_LOG(M0_DEBUG, "got trigger: ready done");
 				break;
 			case TPH_START_WAIT:
 				m0_mutex_lock(&scm->sc_wait_mutex);

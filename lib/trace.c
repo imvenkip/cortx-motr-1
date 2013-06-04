@@ -21,9 +21,12 @@
 #ifdef __KERNEL__
 #include "lib/cdefs.h" /* CHAR_BIT */
 #include <linux/ctype.h> /* tolower */
+#include <linux/sched.h>
 #else
 #include <limits.h> /* CHAR_BIT */
 #include <ctype.h> /* tolower */
+#include <sys/types.h>
+#include <unistd.h>
 #endif
 
 #include "lib/errno.h"
@@ -555,8 +558,13 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	m0_trace_unpack_args(trh, args, buf);
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
-		m0_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
-				  "%15s:%-3i\n\t",
+		m0_console_printf("%5.5llu %8.8llu %15.15llu %5.5x %-18s %-7s "
+				  "%-20s %s:%-3i\n\t",
+#ifdef __KERNEL__
+				  (unsigned long long)current->pid,
+#else
+				  (unsigned long long)getpid(),
+#endif
 				  (unsigned long long)trh->trh_no,
 				  (unsigned long long)trh->trh_timestamp,
 				  (unsigned) (trh->trh_sp & 0xfffff),
@@ -565,8 +573,7 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 				  td->td_func, m0_short_file_name(td->td_file),
 				  td->td_line);
 	}
-
-	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
+	else if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
 		m0_console_printf("mero: %6s : [%s:%i:%s] ",
 				  m0_trace_level_name(td->td_level),
 				  m0_short_file_name(td->td_file),

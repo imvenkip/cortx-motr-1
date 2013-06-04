@@ -194,6 +194,7 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 	struct m0_fid            *gfid;
 	struct m0_pdclust_layout *pl = NULL;
 	int                       rc;
+	M0_ENTRY("it = %p", it);
 
 	M0_PRE(it != NULL);
 
@@ -211,7 +212,7 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 		it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	}
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 static bool unit_is_spare(const struct m0_pdclust_layout *pl, int unit)
@@ -264,6 +265,7 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 {
 	int             rc;
 	struct m0_db_tx tx;
+	M0_ENTRY("it = %p", it);
 
 	rc = m0_db_tx_init(&tx, it->si_dbenv, 0);
 	if (rc != 0)
@@ -275,7 +277,7 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
         else
                 m0_db_tx_abort(&tx);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -290,6 +292,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	struct m0_fid                   *fid = &sfc->sfc_gob_fid;
 	struct m0_fid                    fid_next = {0, 0};
 	int                              rc;
+	M0_ENTRY("it = %p", it);
 
 	/* Get current GOB fid saved in the iterator. */
 	do {
@@ -299,7 +302,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 			     m0_fid_eq(&fid_next, &M0_COB_SLASH_FID)));
 
 	if (rc == -ENOENT)
-		return -ENODATA;
+		M0_RETURN(-ENODATA);
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
 		*fid = fid_next;
@@ -315,13 +318,13 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 
 		rc = file_size_and_layout_fetch(it);
 		if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
-			return -ENODATA;
+			M0_RETURN(-ENODATA);
 		if (rc < 0)
-			return rc;
+			M0_RETURN(rc);
 
 		if (rc == IT_WAIT) {
 			iter_phase_set(it, ITPH_FID_NEXT_WAIT);
-			return rc;
+			M0_RETURN(rc);
 		}
 		pl = sfc->sfc_pdlayout;
 		rc = m0_sns_cm_fid_layout_instance(pl, &sfc->sfc_pi, fid);
@@ -332,7 +335,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 		}
 	}
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
@@ -372,6 +375,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_pdclust_src_addr      *sa;
 	uint64_t                         group;
 	uint32_t                         group_fnr;
+	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
 	sfc->sfc_groups_nr = m0_sns_cm_nr_groups(sfc->sfc_pdlayout,
@@ -396,7 +400,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 
 	iter_phase_set(it, ITPH_FID_NEXT);
 out:
-	return 0;
+	M0_RETURN(0);
 }
 
 static int iter_group_next_wait(struct m0_sns_cm_iter *it)
@@ -471,6 +475,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	uint64_t                         cp_data_seg_nr;
 	enum m0_sns_cm_op                op = scm->sc_op;
 	int                              rc = 0;
+	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
@@ -495,14 +500,14 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 			       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 			       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-			return -ENOBUFS;
+			M0_RETURN(-ENOBUFS);
 		}
 		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
 					    has_incoming, &ag);
 		if (rc != 0) {
 			if (rc == -ENOBUFS)
 				iter_phase_set(it, ITPH_AG_SETUP);
-			return rc;
+			M0_RETURN(rc);
 		}
 	}
 
@@ -521,14 +526,14 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
 					cp_data_seg_nr, sfc->sfc_sa.sa_unit - 1);
 		if (rc < 0)
-			return rc;
+			M0_RETURN(rc);
 
 		rc = M0_FSO_AGAIN;
 	}
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -549,6 +554,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_pdclust_src_addr      *sa;
 	uint32_t                         upg;
 	int                              rc = 0;
+	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
 	upg = sfc->sfc_upg;
@@ -559,7 +565,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		if (sa->sa_unit >= upg) {
 			++it->si_fc.sfc_sa.sa_group;
 			iter_phase_set(it, ITPH_GROUP_NEXT);
-			return 0;
+			M0_RETURN(0);
 		}
 		/*
 		 * Calculate COB fid corresponding to the unit and advance
@@ -576,7 +582,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -609,6 +615,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm *scm;
 	int               rc;
+	M0_ENTRY("cm = %p, cp = %p", cm, cp);
 
 	M0_PRE(cm != NULL && cp != NULL);
 
@@ -619,7 +626,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 		M0_ASSERT(iter_invariant(&scm->sc_it));
 	} while (rc == 0);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {

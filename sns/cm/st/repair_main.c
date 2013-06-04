@@ -46,8 +46,8 @@
 
 struct m0_mutex                 repair_wait_mutex;
 struct m0_chan                  repair_wait;
-int32_t                         srv_cnt;
-int32_t                         srv_rep_cnt;
+int32_t                         srv_cnt = 0;
+int32_t                         srv_rep_cnt = 0;
 extern struct m0_rpc_client_ctx cl_ctx;
 
 extern const char *cl_ep_addr;
@@ -119,10 +119,10 @@ int main(int argc, char *argv[])
 	m0_mutex_init(&repair_wait_mutex);
 	m0_chan_init(&repair_wait, &repair_wait_mutex);
 	m0_clink_init(&repair_clink, NULL);
-	M0_ALLOC_ARR(ctxs, srv_cnt - 1);
+	M0_ALLOC_ARR(ctxs, srv_cnt);
 	M0_ASSERT(ctxs != NULL);
-	for (i = 1; i < srv_cnt; ++i) {
-		rc = repair_rpc_ctx_init(&ctxs[i - 1], srv_ep_addr[i]);
+	for (i = 0; i < srv_cnt; ++i) {
+		rc = repair_rpc_ctx_init(&ctxs[i], srv_ep_addr[i]);
 		M0_ASSERT(rc == 0);
 	}
 	m0_mutex_lock(&repair_wait_mutex);
@@ -136,10 +136,7 @@ int main(int argc, char *argv[])
 		treq = m0_fop_data(fop);
 		treq->fdata = fdata;
 		treq->op = op;
-		if (i == 0)
-			session = &cl_ctx.rcx_session;
-		else
-			session = &ctxs[i - 1].ctx_session;
+		session = &ctxs[i].ctx_session;
 		rc = repair_rpc_post(fop, session,
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */);
@@ -151,7 +148,7 @@ int main(int argc, char *argv[])
 	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
 			(unsigned long)m0_time_nanoseconds(delta) * 100 /
 			M0_TIME_ONE_BILLION);
-	for (i = 0; i < srv_cnt - 1; ++i)
+	for (i = 0; i < srv_cnt; ++i)
 		repair_rpc_ctx_fini(&ctxs[i]);
 	repair_client_fini();
 	m0_sns_repair_trigger_fop_fini();

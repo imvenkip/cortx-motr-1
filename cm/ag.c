@@ -134,7 +134,6 @@ M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 	M0_POST(!aggr_grps_in_tlink_is_in(ag) &&
 		!aggr_grps_out_tlink_is_in(ag));
 	m0_mutex_fini(&ag->cag_mutex);
-
 	M0_LEAVE();
 }
 
@@ -155,17 +154,19 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 
-	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%d]",
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [has_incoming = %d]",
 	       id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
 	       ag->cag_has_incoming);
 	if (lo != NULL && hi != NULL) {
-		M0_LOG(M0_DEBUG, "lo [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "lo=%p [%lu] [%lu] [%lu] [%lu]", lo,
 		       lo->cag_id.ai_hi.u_hi, lo->cag_id.ai_hi.u_lo,
 		       lo->cag_id.ai_lo.u_hi, lo->cag_id.ai_lo.u_lo);
-		M0_LOG(M0_DEBUG, "hi [%lu] [%lu] [%lu] [%lu]",
+
+		M0_LOG(M0_DEBUG, "hi=%p [%lu] [%lu] [%lu] [%lu]", hi,
 		       hi->cag_id.ai_hi.u_hi, hi->cag_id.ai_hi.u_lo,
 		       hi->cag_id.ai_lo.u_hi, hi->cag_id.ai_lo.u_lo);
 	}
+
 	m0_cm_sw_update(cm);
 	m0_cm_aggr_group_fini(ag);
 	has_data = m0_cm_has_more_data(cm);

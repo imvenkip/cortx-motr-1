@@ -50,6 +50,12 @@ void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 }
 M0_EXPORTED(m0_panic);
 
+void m0_backtrace(void)
+{
+	m0_arch_backtrace();
+}
+M0_EXPORTED(m0_backtrace);
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of assert group */

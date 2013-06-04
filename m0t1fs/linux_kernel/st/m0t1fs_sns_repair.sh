@@ -38,10 +38,13 @@ sns_repair_test()
 	md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | tee  $MERO_M0T1FS_TEST_DIR/md5
 	md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
 	md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
-	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -U $unit_size -F $fail_device -n 3
-			-s 10240000 -s 10240000 -s 10240000 -N $NR_DATA -K $NR_PARITY -P $POOL_WIDTH
-                         -S ${lnet_nid}:${EP[0]}
-                         -C ${lnet_nid}:${SNS_CLI_EP}"
+
+	for ((i=1; i < ${#EP[*]}; i++)) ; do
+		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+	done
+
+	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -F $fail_device
+                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
 	if ! $trigger ; then

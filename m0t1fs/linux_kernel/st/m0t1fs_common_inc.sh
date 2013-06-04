@@ -29,8 +29,8 @@ MERO_TRACE_LEVEL=call+
 
 #user-space tracing parameters
 export M0_TRACE_IMMEDIATE_MASK='!all' # put your subsystem here
-#export M0_TRACE_LEVEL=debug+
-export M0_TRACE_PRINT_CONTEXT=short
+export M0_TRACE_LEVEL=debug+
+export M0_TRACE_PRINT_CONTEXT=full
 
 MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 
@@ -52,10 +52,11 @@ XPT=lnet
 
 # list of server end points
 EP=(
-    12345:33:101
-    12345:33:102
-    12345:33:103
-    12345:33:104
+    12345:33:101   # MDS  EP
+    12345:33:102   # IOS1 EP
+    12345:33:103   # IOS2 EP
+    12345:33:104   # IOS3 EP
+    12345:33:105   # IOS4 EP
 )
 
 SNS_CLI_EP="12345:33:301"

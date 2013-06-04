@@ -764,7 +764,15 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	req_fop_cob = &getattr->g_body;
 	req_fop_cob->b_tfid = *gfid;
 
+	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu",
+			 (unsigned long long)gfid->f_container,
+			 (unsigned long long)gfid->f_key);
+
 	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
+	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu rc:%d",
+			 (unsigned long long)gfid->f_container,
+			 (unsigned long long)gfid->f_key, rc);
+
 	if (rc == 0) {
 		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
 		getattr_rep = m0_fop_data(rep);
@@ -822,7 +830,11 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
 	layout->l_lid = lid;
 
+	M0_LOG(M0_DEBUG, "ios getlayout for %llu",
+			 (unsigned long long)lid);
 	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
+	M0_LOG(M0_DEBUG, "ios getlayout for %llu: rc %d",
+			 (unsigned long long)lid, rc);
 	if (rc == 0) {
 		struct m0_bufvec               bv;
 		struct m0_bufvec_cursor        cur;
