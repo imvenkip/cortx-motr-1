@@ -77,14 +77,16 @@ M0_INTERNAL int m0_localities_init(void)
 
 	m0_sm_group_init(&locs_grp);
 	locs_fallback.lo_grp = &locs_grp;
-	result = M0_THREAD_INIT(&locs_ast_thread, void *, NULL,
-				&locs_ast_handler, NULL, "fallback ast");
-	if (result == 0) {
-		locs_allocated = m0_processor_nr_max();
-		M0_ALLOC_ARR(locs, locs_allocated);
-		if (locs == NULL)
-			result = -ENOMEM;
-	}
+	locs_allocated = m0_processor_nr_max();
+	M0_ALLOC_ARR(locs, locs_allocated);
+	if (locs != NULL) {
+		result = M0_THREAD_INIT(&locs_ast_thread, void *, NULL,
+					&locs_ast_handler,
+					NULL, "fallback ast");
+		if (result != 0)
+			m0_free(locs);
+	} else
+		result = -ENOMEM;
 	return result;
 }
 
