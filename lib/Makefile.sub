@@ -20,6 +20,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
                                lib/finject.h \
                                lib/getopts.h \
                                lib/list.h \
+                               lib/locality.h \
                                lib/lockers.h \
                                lib/memory.h \
                                lib/misc.h \
@@ -72,6 +73,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/finject_internal.h \
                            lib/getopts.c \
                            lib/list.c \
+			   lib/locality.c \
                            lib/lockers.c \
                            lib/m0lib.c \
                            lib/misc.c \

@@ -47,6 +47,7 @@ extern void test_tlist(void);
 extern void test_trace(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
+extern void test_locality(void);
 
 const struct m0_test_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -65,6 +66,7 @@ const struct m0_test_suite libm0_ut = {
 #endif
 		{ "getopts",          test_getopts       },
 		{ "list",             test_list          },
+		{ "locality",         test_locality      },
 		{ "lockers",          test_lockers       },
 		{ "memory",           test_memory        },
 		{ "misc",             m0_test_misc	 },

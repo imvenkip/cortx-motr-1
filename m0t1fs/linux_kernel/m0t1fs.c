@@ -266,20 +266,23 @@ static int m0t1fs_rpc_init(void)
 			  .rhia_mdstore   = (void*)1,
 			  .rhia_fol       = fol,
 			  .rhia_svc       = (void*)1);
-	M0_ASSERT(rc == 0);
-	m0_reqh_start(reqh);
+	if (rc != 0)
+		goto cob_dom_fini;
 	rc = m0_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, reqh,
 				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	if (rc != 0)
-		goto cob_dom_fini;
+		goto reqh_fini;
 
+	m0_reqh_start(reqh);
 	tm = &rpc_machine->rm_tm;
 	M0_ASSERT(tm->ntm_recv_pool == buffer_pool);
 
 	M0_LEAVE("rc: %d", rc);
 	return 0;
 
+reqh_fini:
+	m0_reqh_fini(reqh);
 cob_dom_fini:
 	m0_cob_domain_fini(cob_dom);
 

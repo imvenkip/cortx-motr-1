@@ -22,6 +22,7 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/locality.h"
 #include "lib/processor.h"
 #include "lib/time.h"
 #include "lib/timer.h"
@@ -889,16 +890,19 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 
 	localities = dom->fd_localities;
 	for (cpu = 0; cpu < cpu_max; ++cpu) {
+		struct m0_fom_locality *loc;
+
 		if (!m0_bitmap_get(&onln_cpu_map, cpu))
 			continue;
-		localities[dom->fd_localities_nr].fl_dom = dom;
-		result = loc_init(&localities[dom->fd_localities_nr], cpu,
-				  cpu_max);
+		loc = &localities[dom->fd_localities_nr];
+		loc->fl_dom = dom;
+		result = loc_init(loc, cpu, cpu_max);
 		if (result != 0) {
 			m0_fom_domain_fini(dom);
 			break;
 		}
 		M0_CNT_INC(dom->fd_localities_nr);
+		m0_locality_set(cpu, &loc->fl_group);
 	}
 	m0_bitmap_fini(&onln_cpu_map);
 
