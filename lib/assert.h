@@ -49,6 +49,8 @@ M0_INTERNAL void m0_arch_panic(const char *expr, const char *func,
 			       const char *file, int lineno)
 	__attribute__((noreturn));
 
+void m0_backtrace(void);
+M0_INTERNAL void m0_arch_backtrace(void);
 
 /**
    A macro to assert that a condition is true. If condition is true, M0_ASSERT()

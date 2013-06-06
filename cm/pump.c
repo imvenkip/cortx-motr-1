@@ -134,6 +134,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 	struct m0_cm_cp  *cp;
 	struct m0_cm     *cm;
 	int               rc;
+	M0_ENTRY("pump = %p", cp_pump);
 
 	cp = cp_pump->p_cp;
 	cm = pump2cm(cp_pump);
@@ -156,20 +157,24 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 				 * No local data found corresponding to the
 				 * failure. So mark the operation as complete.
 				 */
-				if (m0_cm_aggr_group_tlists_are_empty(cm))
+				if (m0_cm_aggr_group_tlists_are_empty(cm)) {
 					cm->cm_ops->cmo_complete(cm);
+					M0_LOG(M0_DEBUG, "cm %p completed", cm);
+				}
 				pump_move(cp_pump, 0, CPP_COMPLETE);
-			} else
+				M0_LOG(M0_DEBUG, "pump moves to COMPLETE");
+			} else {
 				pump_move(cp_pump, 0, CPP_NOBUFS);
-
+				M0_LOG(M0_DEBUG, "pump moves to NOBUFS");
+			}
 			cp_pump->p_is_idle = true;
 			rc = M0_FSO_WAIT;
+			M0_LOG(M0_DEBUG, "Now pump is idle. WAIT");
 			goto out;
 		}
 		goto fail;
 	}
 	if (rc == M0_FSO_AGAIN) {
-		M0_ASSERT(m0_cm_cp_invariant(cp));
 		m0_cm_cp_enqueue(cm, cp);
 		pump_move(cp_pump, 0, CPP_ALLOC);
 	}
@@ -181,7 +186,7 @@ fail:
 	rc = M0_FSO_AGAIN;
 out:
 	m0_cm_unlock(cm);
-	return rc;
+	M0_RETURN(rc);
 }
 
 static int cpp_nobufs(struct m0_cm_cp_pump *cp_pump)
@@ -329,6 +334,7 @@ M0_INTERNAL void m0_cm_cp_pump_init(void)
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 {
 	struct m0_cm_cp_pump *cp_pump;
+	M0_ENTRY("cm = %p", cm);
 
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -338,22 +344,26 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh,
 		    cm->cm_service.rs_type);
 	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm)
 {
 	struct m0_cm_cp_pump *cp_pump;
+	M0_ENTRY("cm = %p", cm);
 
 	M0_PRE(m0_cm_is_locked(cm));
 
 	cp_pump = &cm->cm_cp_pump;
 	if (pump_is_idle(cp_pump))
 		pump_wakeup(cp_pump);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm)
 {
 	struct m0_cm_cp_pump *cp_pump;
+	M0_ENTRY("cm = %p", cm);
 
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -361,6 +371,7 @@ M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm)
 	M0_ASSERT(pump_is_idle(cp_pump));
 	cp_pump->p_shutdown = true;
 	m0_cm_cp_pump_wakeup(cm);
+	M0_LEAVE();
 }
 
 #undef M0_TRACE_SUBSYSTEM

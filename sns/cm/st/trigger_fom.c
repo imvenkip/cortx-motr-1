@@ -173,7 +173,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	struct trigger_fop          *treq;
 	struct trigger_rep_fop      *trep;
 	struct m0_clink              tclink;
-	uint64_t                     proxy_nr;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
@@ -184,6 +183,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(service != NULL);
 		cm = container_of(service, struct m0_cm, cm_service);
 		scm = cm2sns(cm);
+		M0_LOG(M0_DEBUG, "start state = %d", m0_fom_phase(fom));
 		switch(m0_fom_phase(fom)) {
 			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
@@ -196,10 +196,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_fom_block_enter(fom);
 				rc = m0_cm_ready(cm);
 				M0_ASSERT(rc == 0);
-				m0_cm_lock(cm);
-				proxy_nr = m0_cm_proxy_nr(cm);
-				m0_cm_unlock(cm);
-				if (proxy_nr > 0)
+				if (cm->cm_proxy_nr > 0)
 					/* Wait for READY phase to complete. */
 					m0_chan_wait(&tclink);
 
@@ -209,6 +206,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_mutex_unlock(&scm->sc_wait_mutex);
 				m0_fom_phase_set(fom, TPH_START_WAIT);
 				rc = M0_FSO_AGAIN;
+				M0_LOG(M0_DEBUG, "got trigger: ready done");
 				break;
 			case TPH_START_WAIT:
 				m0_mutex_lock(&scm->sc_wait_mutex);

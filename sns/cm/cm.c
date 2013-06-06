@@ -394,8 +394,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 7,
-	SNS_OUTGOING_BUF_NR = 1 << 7,
+	SNS_INCOMING_BUF_NR = 1 << 6,
+	SNS_OUTGOING_BUF_NR = 1 << 6,
 
 	/**
 	 * Currently m0t1fs uses default fid_start = 4, where 0 - 3 are reserved
@@ -453,8 +453,8 @@ static void sns_cm_bp_init(struct m0_sns_cm_buf_pool *sbp)
 
 static void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
 {
-        m0_chan_fini_lock(&sbp->sb_wait);
-        m0_mutex_fini(&sbp->sb_wait_mutex);
+	m0_chan_fini_lock(&sbp->sb_wait);
+	m0_mutex_fini(&sbp->sb_wait_mutex);
 }
 
 static int cm_setup(struct m0_cm *cm)
@@ -513,8 +513,8 @@ static int cm_setup(struct m0_cm *cm)
 	return rc;
 }
 
-static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
-				       size_t bufs_nr)
+M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
+						   size_t bufs_nr)
 {
 	size_t bnr;
 
@@ -527,9 +527,9 @@ static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
 }
 
 static int pm_event_setup_and_post(struct m0_poolmach *pm,
-                                   enum m0_pool_event_owner_type et,
-                                   uint32_t oid,
-                                   enum m0_pool_nd_state state)
+	                           enum m0_pool_event_owner_type et,
+	                           uint32_t oid,
+	                           enum m0_pool_nd_state state)
 {
 	struct m0_pool_event pme;
 
@@ -549,43 +549,51 @@ static int pm_state(struct m0_sns_cm *scm)
 
 static int cm_ready_post(struct m0_cm *cm)
 {
-        struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
-        struct m0_cm_proxy      *pxy;
-        struct m0_cm_aggr_group *lo;
-        struct m0_cm_aggr_group *hi;
-        struct m0_cm_ag_id       ag_id;
-        struct m0_rpc_machine   *rmach;
-        const char              *ep;
-        int                      rc;
+	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
+	struct m0_cm_proxy      *pxy;
+	struct m0_cm_aggr_group *lo;
+	struct m0_cm_aggr_group *hi;
+	struct m0_rpc_machine   *rmach;
+	struct m0_cm_ag_id       id_lo;
+	struct m0_cm_ag_id       id_hi;
+	const char              *ep;
+	int                      rc;
 
-        M0_ENTRY("cm: %p", cm);
-        M0_PRE(cm != NULL);
-        M0_PRE(m0_cm_is_locked(cm));
+	M0_ENTRY("cm: %p", cm);
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
 
 	rmach = m0_cm_rpc_machine_find(reqh);
-        M0_SET0(&ag_id);
-        rc = m0_cm_sw_update(cm);
-        if(rc != 0)
-                return rc;
-        lo = m0_cm_ag_lo(cm);
-        hi = m0_cm_ag_hi(cm);
-        if (lo != NULL && hi != NULL) {
-		ep = rmach->rm_tm.ntm_ep->nep_addr;
-                m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-                        struct m0_fop *fop = m0_sns_cm_ready_fop_fill(cm,
-					&lo->cag_id,
-                                        &hi->cag_id, ep);
-                        if (fop == NULL)
-                                return -ENOMEM;
-                        rc = m0_cm_ready_fop_post(fop, &pxy->px_conn);
-                        m0_fop_put(fop);
-                        if (rc != 0)
-                                return rc;
-                } m0_tl_endfor;
-        }
+	ep = rmach->rm_tm.ntm_ep->nep_addr;
+	rc = m0_cm_sw_update(cm);
+	if(rc != 0)
+	        return rc;
+	M0_SET0(&id_lo);
+	M0_SET0(&id_hi);
+	lo = m0_cm_ag_lo(cm);
+	hi = m0_cm_ag_hi(cm);
+	if (lo != NULL && hi != NULL) {
+		id_lo = lo->cag_id;
+		id_hi = hi->cag_id;
+	}
+	ep = rmach->rm_tm.ntm_ep->nep_addr;
+	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		struct m0_fop *fop = m0_sns_cm_ready_fop_fill(cm,
+				&id_lo, &id_hi, ep);
+		if (fop == NULL)
+			return -ENOMEM;
+		rc = m0_cm_ready_fop_post(fop, &pxy->px_conn);
+		M0_LOG(M0_DEBUG, "ready fop delivered to %s from %s: rc = %d",
+				 pxy->px_endpoint, ep, rc);
+		m0_sm_group_lock(&rmach->rm_sm_grp);
+		m0_fop_put(fop);
+		m0_sm_group_unlock(&rmach->rm_sm_grp);
+		if (rc != 0)
+			return rc;
+	} m0_tl_endfor;
 
-        M0_LEAVE("rc: %d", rc);
-        return rc;
+	M0_LEAVE("rc: %d", rc);
+	return rc;
 }
 
 static int cm_ready(struct m0_cm *cm)
@@ -598,12 +606,14 @@ static int cm_ready(struct m0_cm *cm)
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
-	bufs_nr = cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
-					   SNS_INCOMING_BUF_NR);
+	bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
+					      SNS_INCOMING_BUF_NR);
+	M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	bufs_nr = cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
-					   SNS_OUTGOING_BUF_NR);
+	bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
+					      SNS_OUTGOING_BUF_NR);
+	M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
 	/*
 	 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
 	 * successful, both the buffer pools (incoming and outgoing) will be
@@ -623,7 +633,7 @@ static int cm_ready(struct m0_cm *cm)
 		}
 	}
 
-	if (m0_cm_proxy_nr(cm) > 0)
+	if (cm->cm_proxy_nr > 0)
 		rc = cm_ready_post(cm);
 
 	M0_LEAVE();
@@ -716,6 +726,7 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 {
 	struct m0_net_buffer *buf;
 	struct m0_sns_cm     *scm = cm2sns(cp->c_ag->cag_cm);
+	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
 	size_t                colour;
 	uint32_t              seg_nr;
 	uint32_t              rem_bufs;
@@ -732,9 +743,44 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
 		M0_CNT_DEC(rem_bufs);
+		if (!scp->sc_is_local) {
+			if (scm->sc_ibp_reserved_nr > 0) {
+				M0_CNT_DEC(scm->sc_ibp_reserved_nr);
+			M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%lu]", cp->c_ag->cag_id.ai_hi.u_hi, cp->c_ag->cag_id.ai_hi.u_lo,
+			       cp->c_ag->cag_id.ai_lo.u_hi, cp->c_ag->cag_id.ai_lo.u_lo, scm->sc_ibp_reserved_nr);
+			}
+		}
 	}
 
 	return 0;
+}
+
+static void __buffer_pools_prune(struct m0_net_buffer_pool *bp, uint32_t buf_nr)
+{
+	M0_PRE(bp != NULL && buf_nr < bp->nbp_buf_nr);
+
+	m0_net_buffer_pool_lock(bp);
+	while (buf_nr > 0) {
+		m0_net_buffer_pool_prune(bp);
+		M0_CNT_DEC(buf_nr);
+	}
+	m0_net_buffer_pool_unlock(bp);
+
+}
+
+M0_INTERNAL void m0_sns_cm_buffer_pools_prune(struct m0_cm *cm)
+{
+	struct m0_sns_cm *scm;
+	uint32_t buf_nr;
+
+	M0_PRE(cm != NULL);
+
+	scm = cm2sns(cm);
+	if (scm->sc_ibp.sb_bp.nbp_buf_nr > SNS_INCOMING_BUF_NR &&
+		scm->sc_ibp.sb_bp.nbp_free > scm->sc_ibp_reserved_nr) {
+		buf_nr = scm->sc_ibp.sb_bp.nbp_free - (scm->sc_ibp_reserved_nr / 2);
+		__buffer_pools_prune(&scm->sc_ibp.sb_bp, buf_nr);
+	}
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
@@ -771,41 +817,43 @@ static int _fid_next(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	return rc;
 }
 
-M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-					  struct m0_pdclust_layout *pl,
-					  const struct m0_cm_ag_id *id)
-{
-	struct m0_sns_cm_iter      *it = &scm->sc_it;
-	struct m0_pdclust_src_addr  sa;
-	struct m0_pdclust_tgt_addr  ta;
-	struct m0_pdclust_instance *pi;
-	struct m0_fid               fid;
-	struct m0_fid               cobfid;
-	int                         rc;
-
-	agid2fid(id,  &fid);
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
-	if (rc == 0) {
-		sa.sa_group = id->ai_lo.u_lo;
-		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
-		m0_layout_instance_fini(&pi->pi_base);
-		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom, &cobfid);
-		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
-			return true;
-	}
-
-	return false;
-}
-
 static bool sns_cm_fid_is_valid(const struct m0_fid *fid)
 {
 	return fid->f_container >= 0 && fid->f_key >= SNS_COB_FID_START;
 }
 
+M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
+						 struct m0_cm_aggr_group *ag)
+{
+	struct m0_pdclust_layout *pl;
+	struct m0_sns_cm         *scm;
+	uint64_t                  nr_cp_bufs;
+	uint64_t                  cp_data_seg_nr;
+	uint32_t                  res_bufs;
+	uint64_t                  nr_acc_bufs;
+	uint64_t                  nr_incoming;
+	uint32_t                  dpupg;
+	uint32_t                  actual_freed = 0;
+
+	pl = m0_layout_to_pdl(ag->cag_layout);
+	scm = cm2sns(cm);
+	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
+	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
+	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
+	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
+	nr_incoming = dpupg - ag->cag_cp_local_nr;
+	res_bufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
+	if (res_bufs >= ag->cag_freed_cp_nr)
+		actual_freed = res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr - ag->cag_cp_local_nr));
+	if (actual_freed > 0)
+		scm->sc_ibp_reserved_nr -= actual_freed;
+}
+
 /**
  * Returns true iff the copy machine has enough space to receive all
  * the copy packets from the given relevant group "id".
+ * Reserves buffers from incoming buffer pool struct m0_sns_cm::sc_ibp
+ * corresponding to all the incoming copy packets.
  * e.g. sns repair copy machine checks if the incoming buffer pool has
  * enough free buffers to receive all the remote units corresponding
  * to a parity group.
@@ -817,11 +865,12 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	struct m0_fid             gfid;
 	uint64_t                  group;
 	uint64_t                  nr_cp_bufs;
-	uint64_t                  total_inbufs = 0;
+	uint64_t                  total_inbufs;
 	uint64_t                  cp_data_seg_nr;
 	uint64_t                  nr_acc_bufs;
-	uint64_t                  nr_incoming = 0;
+	uint64_t                  nr_incoming;
 	uint64_t                  nr_lu;
+	uint32_t                  dpupg;
 	bool                      result = false;
 
 	M0_PRE(cm != NULL && id != NULL && pl != NULL);
@@ -829,28 +878,52 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 
 	agid2fid(id, &gfid);
 	group = agid2group(id);
+	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
+	/*
+	 * Calculate number of buffers required for a copy packet.
+	 * This depends on the unit size and the max buffer size.
+	 */
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
+	/* Calculate number of buffers required for accumulator copy packets. */
 	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
+	/* Calculate number of incoming copy packets for this aggregation group. */
 	nr_lu = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
-	nr_incoming =  (m0_pdclust_N(pl) + m0_pdclust_K(pl)) -
-			(nr_lu + scm->sc_failures_nr);
-	M0_ASSERT(nr_incoming <= m0_pdclust_N(pl) + m0_pdclust_K(pl));
+	nr_incoming = dpupg - nr_lu;
+	M0_ASSERT(nr_incoming <= dpupg);
+	/*
+	 * Calculate total number of buffers required to be available for all
+	 * the incoming copy packets of this aggregation group.
+	 * Note: Here we simply reserve buffers corresponding to
+	 * N + K - failures - local data units copy packets. This may lead to
+	 * extra reservation of buffers as there's a possibility that a node
+	 * may host multiple outgoing units of the same aggregation group. In
+	 * this case the multiple outgoing units are transformed into single
+	 * copy packet by the sender. Thus receiver instead of receiving data
+	 * in multiple copy packets as expected, receives the data in a single
+	 * copy packet.
+	 * We normalize this extra buffer reservation later during the
+	 * aggregation group is finalised at the receiver.
+	 * see function sns_cm_normalize_reservation()
+	 */
 	total_inbufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
 	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-	if (total_inbufs + m0_pdclust_N(pl) > scm->sc_ibp.sb_bp.nbp_free)
-		goto out;
-	if (scm->sc_ibp.sb_bp.nbp_free - (total_inbufs + m0_pdclust_N(pl)) > 0)
-		result = true;
+	if (total_inbufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free) {
+		if (total_inbufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
+				goto out;
+	}
+	scm->sc_ibp_reserved_nr += total_inbufs;
+	result = true;
 out:
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
-        M0_LOG(M0_DEBUG, "free buffers in: %u out: %u", scm->sc_ibp.sb_bp.nbp_free,
-	       scm->sc_obp.sb_bp.nbp_free);
+	M0_LOG(M0_DEBUG, "free buffers in: [%u] out: [%u] \
+	       sc_ibp_reserved_nr: [%lu]", scm->sc_ibp.sb_bp.nbp_free,
+	       scm->sc_obp.sb_bp.nbp_free, scm->sc_ibp_reserved_nr);
 
 	return result;
 }
 
-static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
+static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 		      struct m0_cm_ag_id *id_next)
 {
 	struct m0_sns_cm         *scm = cm2sns(cm);
@@ -862,14 +935,14 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 	struct m0_cob_domain     *cdom = scm->sc_it.si_cob_dom;
 	uint64_t                  fsize;
 	uint64_t                  nr_gps = 0;
-	uint64_t                  group = agid2group(id_curr);
+	uint64_t                  group = agid2group(&id_curr);
 	uint64_t                  i;
 	int                       rc = 0;
 
-	M0_PRE(cm != NULL && id_curr != NULL);
+	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	agid2fid(id_curr, &fid_curr);
+	agid2fid(&id_curr, &fid_curr);
 	++group;
 	do {
 		if (sns_cm_fid_is_valid(&fid_curr)) {
@@ -882,8 +955,8 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 				m0_sns_cm_ag_agid_setup(&fid_curr, i, &ag_id);
 				if (!m0_sns_cm_ag_is_relevant(scm, pl, &ag_id))
 					continue;
-				if (!m0_sns_cm_has_space(cm, id_next, pl)) {
-					M0_SET0(id_next);
+				if (!m0_sns_cm_has_space(cm, &ag_id, pl)) {
+					M0_SET0(&ag_id);
 					m0_layout_put(m0_pdl_to_layout(pl));
 					return -ENOSPC;
 				}
@@ -892,6 +965,7 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 				*id_next = ag_id;
 				return rc;
 			}
+			m0_layout_put(m0_pdl_to_layout(pl));
 		}
 		group = 0;
 		if (m0_fid_is_set(&fid_next) && sns_cm_fid_is_valid(&fid_next))

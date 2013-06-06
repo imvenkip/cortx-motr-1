@@ -87,7 +87,65 @@ enum {
 	M0T1FS_ADDB_LOC_READVEC_ALLOC_BVEC_CNT  = 310,
 	M0T1FS_ADDB_LOC_READVEC_ALLOC_PAGEATTR  = 320,
 	M0T1FS_ADDB_LOC_READVEC_ALLOC_IVEC_FAIL = 330,
+
+	M0T1FS_ADDB_RECID_IO_FINISH             = 500,
+	M0T1FS_ADDB_RECID_COB_IO_FINISH         = 501,
+	M0T1FS_ADDB_RECID_ROOT_COB              = 502,
+	M0T1FS_ADDB_RECID_IOR_SIZES             = 503,
+	M0T1FS_ADDB_RECID_IOW_SIZES             = 504,
+	M0T1FS_ADDB_RECID_IOR_TIMES             = 505,
+	M0T1FS_ADDB_RECID_IOW_TIMES             = 506,
+	M0T1FS_ADDB_RECID_DGIOR_SIZES           = 507,
+	M0T1FS_ADDB_RECID_DGIOW_SIZES           = 508,
+	M0T1FS_ADDB_RECID_DGIOR_TIMES           = 509,
+	M0T1FS_ADDB_RECID_DGIOW_TIMES           = 510,
 };
+
+/* Total time required and size for IO */
+M0_ADDB_RT_DP(m0_addb_rt_m0t1fs_io_finish, M0T1FS_ADDB_RECID_IO_FINISH,
+	      "io_size" /* in bytes */, "time_ns");
+
+/* Time required and io size for each COB FID */
+M0_ADDB_RT_DP(m0_addb_rt_m0t1fs_cob_io_finish, M0T1FS_ADDB_RECID_COB_IO_FINISH,
+	      "cob_container", "cob_key",
+	      "io_size" /* in bytes (data + parity) */, "time_ns");
+
+/* m0t1fs root cob */
+M0_ADDB_RT_DP(m0_addb_rt_m0t1fs_root_cob, M0T1FS_ADDB_RECID_ROOT_COB,
+	      "cob_container", "cob_key");
+
+#undef KB
+#define KB(d) (d) << 10
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_ior_sizes,  M0T1FS_ADDB_RECID_IOR_SIZES,
+		KB(4), KB(16), KB(32), KB(64), KB(128), KB(256), KB(512),
+		KB(768));
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_iow_sizes,  M0T1FS_ADDB_RECID_IOW_SIZES,
+		KB(4), KB(16), KB(32), KB(64), KB(128), KB(256), KB(512),
+		KB(768));
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_dgior_sizes,  M0T1FS_ADDB_RECID_DGIOR_SIZES,
+		KB(4), KB(16), KB(32), KB(64), KB(128), KB(256), KB(512),
+		KB(768));
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_dgiow_sizes,  M0T1FS_ADDB_RECID_DGIOW_SIZES,
+		KB(4), KB(16), KB(32), KB(64), KB(128), KB(256), KB(512),
+		KB(768));
+#undef KB
+
+#undef uS
+#undef mS
+#define uS(us) us
+#define mS(ms) uS(1000 * (ms))
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_ior_times,  M0T1FS_ADDB_RECID_IOR_TIMES,
+		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
+		mS(100), mS(250), mS(500));
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_iow_times,  M0T1FS_ADDB_RECID_IOW_TIMES,
+		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
+		mS(100), mS(250), mS(500));
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_dgior_times,  M0T1FS_ADDB_RECID_DGIOR_TIMES,
+		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
+		mS(100), mS(250), mS(500));
+M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_dgiow_times,  M0T1FS_ADDB_RECID_DGIOW_TIMES,
+		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
+		mS(100), mS(250), mS(500));
 
 #endif /* __MERO_M0T1FS_M0T1FS_ADDB_H__ */
 

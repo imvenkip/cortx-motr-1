@@ -686,9 +686,9 @@ static void receiver_fini()
         m0_cm_lock(cm);
         m0_cm_proxy_del(cm, &recv_cm_proxy);
         m0_cm_unlock(cm);
+        m0_cm_stop(cm);
         m0_free(scm->sc_it.si_fdata);
 	m0_free(sns_ag.sag_fc);
-        m0_cm_stop(cm);
         cs_fini(&sctx);
 }
 
@@ -702,11 +702,11 @@ static void sender_fini()
         m0_cm_unlock(&sender_cm);
 	m0_cm_proxy_rpc_conn_close(&sender_cm_proxy);
         /* Fini the sender side. */
+        rc = m0_cm_stop(&sender_cm);
+        M0_UT_ASSERT(rc == 0);
         rc = m0_rpc_client_stop(&cctx);
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);
-        rc = m0_cm_stop(&sender_cm);
-        M0_UT_ASSERT(rc == 0);
 	m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
         m0_ios_poolmach_fini(sender_cm_service);
         m0_reqh_service_stop(sender_cm_service);
@@ -774,6 +774,7 @@ static void test_cp_send_recv_verify()
         s_sns_cp.sc_base.c_cm_proxy = &sender_cm_proxy;
         s_sns_cp.sc_sid = sid;
         s_sns_cp.sc_index = 0;
+	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
 	m0_cm_lock(&sender_cm);

@@ -124,6 +124,16 @@ struct m0_sns_cm {
 	 */
 	struct m0_sns_cm_buf_pool  sc_ibp;
 
+	/**
+	 * Maintains the reserve count for the buffers from the
+	 * m0_sns_cm::sc_ibp buffer pool for the incoming copy packets
+	 * corresponding to the aggregation groups in the
+	 * struct m0_cm::cm_aggr_grps_in list. This makes sure that the buffers
+	 * are available for all the incoming copy packets within the sliding
+	 * window.
+	 */
+	uint64_t                   sc_ibp_reserved_nr;
+
 	/** Buffer pool for outgoing copy packets. */
 	struct m0_sns_cm_buf_pool  sc_obp;
 
@@ -142,6 +152,9 @@ struct m0_sns_cm {
 M0_INTERNAL int m0_sns_cm_type_register(void);
 M0_INTERNAL void m0_sns_cm_type_deregister(void);
 
+M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
+                                                   size_t bufs_nr);
+M0_INTERNAL void m0_sns_cm_buffer_pools_prune(struct m0_cm *cm);
 M0_INTERNAL struct m0_net_buffer *m0_sns_cm_buffer_get(struct m0_net_buffer_pool
 						       *bp, size_t colour);
 M0_INTERNAL void m0_sns_cm_buffer_put(struct m0_net_buffer_pool *bp,
@@ -158,9 +171,11 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 
 M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool);
 
-M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
-                                          struct m0_pdclust_layout *pl,
-                                          const struct m0_cm_ag_id *id);
+M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
+                                         uint64_t data_seg_nr);
+
+M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
+						 struct m0_cm_aggr_group *ag);
 
 M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
 				     const struct m0_cm_ag_id *id,

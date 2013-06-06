@@ -75,7 +75,7 @@ enum {
 };
 
 /*
- * RPC ADDB record identifires.
+ * RPC ADDB record identifiers.
  */
 enum {
 	M0_ADDB_RECID_RPC_STATS_ITEMS = 1000,

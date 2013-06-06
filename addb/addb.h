@@ -681,6 +681,13 @@ struct m0_addb_sm_counter {
 	uint64_t                       asc_nr;
 };
 
+struct m0_addb_io_stats {
+	/** counter to track I/O sizes */
+	struct m0_addb_counter ais_sizes_cntr;
+	/** counter to track duration */
+	struct m0_addb_counter ais_times_cntr;
+};
+
 /**
    Initialize a state machine (SM) counter.
 
@@ -901,6 +908,10 @@ enum {
 	M0_ADDB_RPCSINK_TS_INIT_PAGES = 16,
 	M0_ADDB_RPCSINK_TS_MAX_PAGES  = 64,
 	M0_ADDB_RPCSINK_TS_PAGE_SIZE  = 4096,
+	/**
+	   Default statistics posting period.
+	 */
+	M0_ADDB_DEF_STAT_PERIOD_S     = 60,
 };
 
 /**

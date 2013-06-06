@@ -601,6 +601,8 @@ static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
 
+static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom);
+
 /**
  * I/O FOM operation vector.
  */
@@ -785,9 +787,9 @@ static bool m0_stob_io_desc_invariant(const struct m0_stob_io_desc *stobio_desc)
  */
 static void stobio_complete_cb(struct m0_fom_callback *cb)
 {
-	struct m0_fom            *fom = cb->fc_fom;
-	struct m0_io_fom_cob_rw  *fom_obj;
-	struct m0_stob_io_desc   *stio_desc;
+	struct m0_fom           *fom   = cb->fc_fom;
+	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_stob_io_desc  *stio_desc;
 
 	M0_PRE(m0_mutex_is_locked(&fom->fo_loc->fl_group.s_lock));
 
@@ -798,6 +800,10 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
         M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
+	M0_ADDB_POST(fom_to_addb_mc(fom), &m0_addb_rt_ios_desc_io_finish,
+		     M0_FOM_ADDB_CTX_VEC(fom), fom_obj->fcrw_curr_ivec_index,
+		     fom_obj->fcrw_req_count,
+		     m0_time_sub(m0_time_now(), fom_obj->fcrw_io_launch_time));
         if (fom_obj->fcrw_num_stobio_launched == 0) {
                 m0_fom_ready(fom);
         }
@@ -991,9 +997,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_PRE(m0_is_io_fop(fop));
 	M0_PRE(out != NULL);
 
-	/** @todo: Replace reqh's addb ctx with static ioservice module
-	 * context
-	 */
 	IOS_ALLOC_PTR(fom_obj, &m0_ios_addb_ctx, FOM_COB_RW_CREATE);
 	if (fom_obj == NULL) {
 		rc = -ENOMEM;
@@ -1125,7 +1128,11 @@ static int net_buffer_acquire(struct m0_fom *fom)
                      * pool non-empty signal.
                      */
                     bpdesc = container_of(fom_obj->fcrw_bp,
-                                        struct m0_rios_buffer_pool, rios_bp);
+					  struct m0_rios_buffer_pool, rios_bp);
+		    M0_ADDB_POST(fom_to_addb_mc(fom),
+				 &m0_addb_rt_ios_buffer_pool_low,
+				 M0_FOM_ADDB_CTX_VEC(fom));
+
                     m0_fom_wait_on(fom, &bpdesc->rios_bp_wait, &fom->fo_cb);
 
                     m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
@@ -1456,8 +1463,7 @@ static int io_launch(struct m0_fom *fom)
 		mem_ivec = &stio->si_stob;
 		wire_ivec =
 		rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
-		rc = indexvec_wire2mem(fom, &wire_ivec,
-                                                     mem_ivec, bshift);
+		rc = indexvec_wire2mem(fom, &wire_ivec, mem_ivec, bshift);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
@@ -1502,8 +1508,9 @@ static int io_launch(struct m0_fom *fom)
                 m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
                 m0_mutex_unlock(&stio->si_mutex);
 
+		fom_obj->fcrw_io_launch_time = m0_time_now();
                 rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
-                                       &fom->fo_tx, NULL);
+				       &fom->fo_tx, NULL);
                 if (rc != 0) {
                         m0_fom_callback_cancel(&stio_desc->siod_fcb);
                         /*
@@ -1584,6 +1591,10 @@ static int io_finish(struct m0_fom *fom)
                 }
         } m0_tl_endfor;
 
+	M0_ADDB_POST(fom_to_addb_mc(fom), &m0_addb_rt_ios_io_finish,
+		     M0_FOM_ADDB_CTX_VEC(fom), fom_obj->fcrw_count,
+		     m0_time_sub(m0_time_now(),
+				 fom_obj->fcrw_phase_start_time));
         m0_stob_put(fom_obj->fcrw_stob);
 
 	rc = fom_obj->fcrw_rc ?: rc;
@@ -1707,7 +1718,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	struct m0_net_buffer	  *nb;
 	struct m0_stob_io_desc	  *stio_desc;
 	struct m0_net_transfer_mc *tm;
-	struct m0_ios_rwfom_stats *stats;
+	struct m0_addb_io_stats   *stats;
 
 	M0_PRE(fom != NULL);
 
@@ -1762,13 +1773,14 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,
 			 &m0_addb_rt_ios_rwfom_finish,
 			 m0_fom_rc(fom), fom_obj->fcrw_count,
-			 (m0_time_now() - fom_obj->fcrw_fom_start_time) / 1000);
+			 m0_time_sub(m0_time_now(),
+				      fom_obj->fcrw_fom_start_time));
 
 	stats = &serv_obj->rios_rwfom_stats[m0_is_read_fop(fop)? 0 : 1];
-	m0_addb_counter_update(&stats->ifs_times_cntr, (uint64_t)
-			       (m0_time_now() - fom_obj->fcrw_fom_start_time)
-			       / 1000); /* uS */
-	m0_addb_counter_update(&stats->ifs_sizes_cntr,
+	m0_addb_counter_update(&stats->ais_times_cntr, (uint64_t)
+			       m0_time_sub(m0_time_now(),
+					   fom_obj->fcrw_fom_start_time));
+	m0_addb_counter_update(&stats->ais_sizes_cntr,
 			       (uint64_t) fom_obj->fcrw_count);
 
 	m0_fom_fini(fom);
@@ -1825,6 +1837,11 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom)
 	M0_PRE(fom->fo_fop != NULL);
 
 	return IOSERVICE_NAME;
+}
+
+static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom)
+{
+	return &fom->fo_service->rs_reqh->rh_addb_mc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

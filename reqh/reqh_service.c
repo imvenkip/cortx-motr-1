@@ -186,6 +186,7 @@ static void reqh_service_starting_common(struct m0_reqh *reqh,
 	 */
 	M0_ASSERT(m0_reqh_lockers_is_empty(reqh, key));
 	m0_reqh_lockers_set(reqh, key, service);
+	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, key);
 }
 
 static void reqh_service_failed_common(struct m0_reqh *reqh,

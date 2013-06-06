@@ -112,10 +112,15 @@ static void sw_update(struct m0_cm_ag_sw *sw, struct m0_cm_cp *cp,
 
 	fom = &cp->c_fom;
 	cm = cm_get(fom);
-	proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
+	proxy = cp->c_cm_proxy;
+	if (proxy == NULL) {
+		m0_cm_lock(cm);
+		proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
+		m0_cm_unlock(cm);
+		cp->c_cm_proxy = proxy;
+	}
 	M0_PRE(proxy != NULL);
 	m0_cm_proxy_update(proxy, &sw->sw_lo, &sw->sw_hi);
-	cp->c_cm_proxy = proxy;
 }
 
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
@@ -174,6 +179,10 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         struct m0_net_buffer    *nbuf;
         struct m0_cm_cp         *cp;
         struct m0_cm            *cm;
+        struct m0_net_domain    *ndom;
+        struct m0_rpc_session   *session;
+        uint32_t                 nbuf_seg_nr;
+        uint32_t                 tmp_seg_nr;
 	struct m0_cm_aggr_group *sw_lo_ag;
 	struct m0_cm_aggr_group *sw_hi_ag;
         uint32_t                 nb_idx = 0;
@@ -186,6 +195,11 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         M0_PRE(sns_cpx != NULL);
 
         cp = &sns_cp->sc_base;
+
+	m0_mutex_lock(&cp->c_cm_proxy->px_mutex);
+        session = &cp->c_cm_proxy->px_session;
+        ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+	m0_mutex_unlock(&cp->c_cm_proxy->px_mutex);
 
         sns_cpx->scx_sid.f_container = sns_cp->sc_sid.si_bits.u_hi;
         sns_cpx->scx_sid.f_key = sns_cp->sc_sid.si_bits.u_lo;
@@ -205,17 +219,19 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
                 goto out;
         }
 
+        tmp_seg_nr = cp->c_data_seg_nr;
         m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+                nbuf_seg_nr = min32(nbuf->nb_pool->nbp_seg_nr, tmp_seg_nr);
+                tmp_seg_nr -= nbuf_seg_nr;
                 rc = indexvec_prepare(&sns_cpx->scx_ivecs.
                                                cis_ivecs[nb_idx],
                                                offset,
-                                               cp->c_data_seg_nr,
+                                               nbuf_seg_nr,
                                                nbuf->nb_pool->nbp_seg_size);
                 if (rc != 0 )
                         goto cleanup;
 
-                offset += cp->c_data_seg_nr *
-                          nbuf->nb_pool->nbp_seg_size;
+                offset += nbuf_seg_nr * nbuf->nb_pool->nbp_seg_size;
                 M0_CNT_INC(nb_idx);
         } m0_tl_endfor;
         sns_cpx->scx_ivecs.cis_nr = nb_idx;
@@ -252,26 +268,29 @@ out:
 static void cp_reply_received(struct m0_rpc_item *req_item)
 {
         struct m0_fop           *req_fop;
-        struct m0_cm_cp         *cp;
+        struct m0_sns_cm_cp     *scp;
 	struct m0_rpc_item      *rep_item;
 	struct m0_cm_cp_fop     *cp_fop;
 	struct m0_fop           *rep_fop;
 	struct m0_sns_cpx_reply *sns_cpx_rep;
-	struct m0_cm_ag_sw       sw;
-	struct m0_net_end_point *ep;
 
         rep_item = req_item->ri_reply;
-        ep = rep_item->ri_session->s_conn->c_rpcchan->rc_destep;
 	rep_fop = m0_rpc_item_to_fop(rep_item);
 	sns_cpx_rep = m0_fop_data(rep_fop);
 	if (sns_cpx_rep->scr_cp_rep.cr_rc == 0) {
-		ag_id_copy(&sw.sw_lo, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
-		ag_id_copy(&sw.sw_hi, &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
 		req_fop = m0_rpc_item_to_fop(req_item);
 		cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
-		cp = cp_fop->cf_cp;
-		sw_update(&sw, cp, ep);
-		m0_fom_wakeup(&cp->c_fom);
+		scp = cp2snscp(cp_fop->cf_cp);
+		/*
+		 * Save the sliding window update from remote replica in the
+		 * sender side copy packet and update the proxy's sliding window
+		 * later to avoid awkward context in this call back.
+		 */
+                ag_id_copy(&scp->sc_sw_update.sw_lo,
+			   &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
+                ag_id_copy(&scp->sc_sw_update.sw_hi,
+			   &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
+		m0_fom_wakeup(&scp->sc_base.c_fom);
 	}
 }
 
@@ -293,6 +312,8 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         struct m0_rpc_bulk_buf *rbuf;
         struct m0_net_domain   *ndom;
         struct m0_net_buffer   *nbuf;
+	uint32_t                nbuf_seg_nr;
+	uint32_t                tmp_seg_nr;
         struct m0_rpc_session  *session;
 	struct m0_cm_cp_fop    *cp_fop;
         struct m0_fop          *fop;
@@ -329,14 +350,17 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 	m0_mutex_unlock(&cp->c_cm_proxy->px_mutex);
 
         offset = sns_cp->sc_index;
+	tmp_seg_nr = cp->c_data_seg_nr;
         m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
+		nbuf_seg_nr = min32(nbuf->nb_pool->nbp_seg_nr, tmp_seg_nr);
+		tmp_seg_nr -= nbuf_seg_nr;
                 rc = m0_rpc_bulk_buf_add(&cp->c_bulk,
-                                         cp->c_data_seg_nr,
+                                         nbuf_seg_nr,
                                          ndom, NULL, &rbuf);
                 if (rc != 0 || rbuf == NULL)
                         goto out;
 
-                for (i = 0; i < cp->c_data_seg_nr; ++i) {
+                for (i = 0; i < nbuf_seg_nr; ++i) {
                         rc = m0_rpc_bulk_buf_databuf_add(rbuf,
                                         nbuf->nb_buffer.ov_buf[i],
                                         nbuf->nb_buffer.ov_vec.v_count[i],
@@ -377,16 +401,20 @@ out:
 
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 {
+	struct m0_sns_cm_cp     *scp;
+	struct m0_net_end_point *ep;
+
+	M0_PRE(cp != NULL);
+
+	scp = cp2snscp(cp);
+	ep = cp->c_cm_proxy->px_conn.c_rpcchan->rc_destep;
+	sw_update(&scp->sc_sw_update, cp, ep);
         m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
         return M0_FSO_WAIT;
 }
 
 M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool)
 {
-        struct m0_sns_cm_buf_pool *sns_bp = container_of(pool,
-                                        struct m0_sns_cm_buf_pool, sb_bp);
-
-        m0_chan_broadcast_lock(&sns_bp->sb_wait);
 }
 
 static int cp_buf_acquire(struct m0_cm_cp *cp)

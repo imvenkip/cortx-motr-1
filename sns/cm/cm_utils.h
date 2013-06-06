@@ -139,6 +139,22 @@ M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
                                         struct m0_dbenv *dbenv,
                                         struct m0_cob_domain *cdom);
 
+M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
+					    struct m0_fid *gfid,
+					    struct m0_pdclust_layout *pl,
+					    struct m0_pdclust_instance *pi,
+					    uint64_t group);
+
+/**
+ * Returns true if the given aggregation group corresponding to the id is
+ * relevant. Thus if a node hosts the spare unit of the given aggregation group
+ * and which is not the failed unit of the group, the group is considered for
+ * the repair.
+ */
+M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
+					  struct m0_pdclust_layout *pl,
+					  const struct m0_cm_ag_id *id);
+
 /** @} endgroup SNSCM */
 
 /* __MERO_SNS_CM_UTILS_H__ */

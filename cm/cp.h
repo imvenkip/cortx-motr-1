@@ -204,8 +204,7 @@ struct m0_cm_cp {
 	struct m0_chan            c_reply_wait;
 	struct m0_mutex           c_reply_wait_mutex;
 
-	uint64_t		   c_magix;
-
+	uint64_t		  c_magix;
 };
 
 /**

@@ -622,7 +622,9 @@ M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 		m0_bitmap_fini(&cp->c_xform_cp_indices);
 	m0_chan_fini_lock(&cp->c_reply_wait);
 	m0_mutex_fini(&cp->c_reply_wait_mutex);
+	//m0_rpc_bulk_buflist_empty(&cp->c_bulk);
 	m0_rpc_bulk_fini(&cp->c_bulk);
+	proxy_cp_tlink_fini(cp);
 	m0_fom_fini(&cp->c_fom);
 	m0_cm_cp_bob_fini(cp);
 }
@@ -651,16 +653,16 @@ M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)
 
 M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
 {
-	struct m0_net_buffer      *nbuf;
 	struct m0_net_buffer_pool *nbp;
+	struct m0_net_buffer      *nbuf;
 	uint64_t                   colour;
 
 	m0_tl_for(cp_data_buf, &cp->c_buffers, nbuf) {
 		nbp = nbuf->nb_pool;
 		M0_ASSERT(nbp != NULL);
 		colour = cp->c_ops->co_home_loc_helper(cp) % nbp->nbp_colours_nr;
-		m0_cm_buffer_put(nbp, nbuf, colour);
 		cp_data_buf_tlink_del_fini(nbuf);
+		m0_cm_buffer_put(nbp, nbuf, M0_BUFFER_ANY_COLOUR);
 	} m0_tl_endfor;
 	cp_data_buf_tlist_fini(&cp->c_buffers);
 }

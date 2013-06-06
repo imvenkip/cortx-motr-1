@@ -52,6 +52,19 @@ enum {
 
 M0_EXTERN char *m0_debugger_args[4];
 
+void m0_arch_backtrace(void)
+{
+#ifdef HAVE_BACKTRACE
+	{
+		void *trace[BACKTRACE_DEPTH_MAX];
+		int nr;
+
+		nr = backtrace(trace, ARRAY_SIZE(trace));
+		backtrace_symbols_fd(trace, nr, 2);
+	}
+#endif
+}
+
 /**
    Simple user space panic function: issue diagnostics to the stderr, flush the
    stream, optionally print the backtrace and abort(3) the program.
@@ -68,15 +81,7 @@ void m0_arch_panic(const char *expr, const char *func,
 		expr, func, file, lineno, errno,
 		m0_failed_condition ?: "none");
 	fflush(stderr);
-#ifdef HAVE_BACKTRACE
-	{
-		void *trace[BACKTRACE_DEPTH_MAX];
-		int nr;
-
-		nr = backtrace(trace, ARRAY_SIZE(trace));
-		backtrace_symbols_fd(trace, nr, 2);
-	}
-#endif
+	m0_arch_backtrace();
 	if (m0_debugger_args[0] != NULL) {
 		int rc;
 

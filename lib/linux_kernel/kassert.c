@@ -29,6 +29,10 @@
 
 #include "lib/assert.h"           /* m0_failed_condition */
 
+void m0_arch_backtrace()
+{
+}
+
 void m0_arch_panic(const char *expr, const char *func,
 		   const char *file, int lineno)
 {

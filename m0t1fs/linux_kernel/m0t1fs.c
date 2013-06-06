@@ -97,6 +97,20 @@ M0_INTERNAL int m0t1fs_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_write);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0t1fs_addb_ctx, &m0_addb_ct_m0t1fs_mod,
 	                 &m0_addb_proc_ctx);
+#undef RT_REG
+#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_##n)
+	RT_REG(io_finish);
+	RT_REG(cob_io_finish);
+	RT_REG(root_cob);
+	RT_REG(ior_sizes);
+	RT_REG(iow_sizes);
+	RT_REG(ior_times);
+	RT_REG(iow_times);
+	RT_REG(dgior_sizes);
+	RT_REG(dgiow_sizes);
+	RT_REG(dgior_times);
+	RT_REG(dgiow_times);
+#undef RT_REG
 
 	m0t1fs_globals.g_laddr = local_addr;
 
@@ -252,20 +266,23 @@ static int m0t1fs_rpc_init(void)
 			  .rhia_mdstore   = (void*)1,
 			  .rhia_fol       = fol,
 			  .rhia_svc       = (void*)1);
-	M0_ASSERT(rc == 0);
-	m0_reqh_start(reqh);
+	if (rc != 0)
+		goto cob_dom_fini;
 	rc = m0_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, reqh,
 				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	if (rc != 0)
-		goto cob_dom_fini;
+		goto reqh_fini;
 
+	m0_reqh_start(reqh);
 	tm = &rpc_machine->rm_tm;
 	M0_ASSERT(tm->ntm_recv_pool == buffer_pool);
 
 	M0_LEAVE("rc: %d", rc);
 	return 0;
 
+reqh_fini:
+	m0_reqh_fini(reqh);
 cob_dom_fini:
 	m0_cob_domain_fini(cob_dom);
 

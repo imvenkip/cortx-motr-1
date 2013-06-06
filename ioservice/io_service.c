@@ -135,8 +135,7 @@ static void buffer_pool_not_empty(struct m0_net_buffer_pool *bp)
 	M0_PRE(bp != NULL);
 
         buffer_desc = container_of(bp, struct m0_rios_buffer_pool, rios_bp);
-
-	m0_chan_signal(&buffer_desc->rios_bp_wait);
+	m0_chan_broadcast(&buffer_desc->rios_bp_wait);
 }
 
 /**
@@ -190,11 +189,15 @@ M0_INTERNAL int m0_ios_register(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_ios_serv);
 	for (i = 0; i < ARRAY_SIZE(ios_rwfom_cntr_rts); ++i)
 		m0_addb_rec_type_register(ios_rwfom_cntr_rts[i]);
+
 #undef RT_REG
 #define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_ios_##n)
 	RT_REG(rwfom_finish);
 	RT_REG(ccfom_finish);
 	RT_REG(cdfom_finish);
+	RT_REG(io_finish);
+	RT_REG(desc_io_finish);
+	RT_REG(buffer_pool_low);
 #undef RT_REG
 
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_create_fom);
@@ -387,8 +390,8 @@ static int ios_allocate(struct m0_reqh_service **service,
 	for (i = 0, j = 0; i < ARRAY_SIZE(ios->rios_rwfom_stats); ++i) {
 #undef CNTR_INIT
 #define CNTR_INIT(_n)							\
-		m0_addb_counter_init(&ios->rios_rwfom_stats[i]	\
-				     .ifs_##_n##_cntr, ios_rwfom_cntr_rts[j++])
+		m0_addb_counter_init(&ios->rios_rwfom_stats[i]		\
+				     .ais_##_n##_cntr, ios_rwfom_cntr_rts[j++])
 		CNTR_INIT(sizes);
 		CNTR_INIT(times);
 #undef CNTR_INIT
@@ -426,7 +429,7 @@ static void ios_fini(struct m0_reqh_service *service)
 #undef CNTR_FINI
 #define CNTR_FINI(n)							\
 		m0_addb_counter_fini(&serv_obj->rios_rwfom_stats[i]	\
-				     .ifs_##n##_cntr)
+				     .ais_##n##_cntr)
 		CNTR_FINI(sizes);
 		CNTR_FINI(times);
 #undef CNTR_FINI
@@ -525,6 +528,8 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		}
 		m0_reqh_lockers_set(reqh, ios_cdom_key, cdom);
 
+		M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
+		       reqh, ios_cdom_key);
 		cdom_id.id = m0_rnd(1ULL << 47, &cid);
 		rc = m0_cob_domain_init(cdom, dbenv, &cdom_id);
 		if (rc != 0)
@@ -581,14 +586,14 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 	M0_ASSERT(m0_reqh_io_service_invariant(serv_obj));
 
 	for (i = 0; i < ARRAY_SIZE(serv_obj->rios_rwfom_stats); ++i) {
-		struct m0_ios_rwfom_stats *stats;
+		struct m0_addb_io_stats *stats;
 
 		stats = &serv_obj->rios_rwfom_stats[i];
 #undef CNTR_POST
 #define CNTR_POST(n)							\
-		if (m0_addb_counter_nr(&stats->ifs_##n##_cntr) > 0)	\
+		if (m0_addb_counter_nr(&stats->ais_##n##_cntr) > 0)	\
 			M0_ADDB_POST_CNTR(&reqh->rh_addb_mc, cv,	\
-					  &stats->ifs_##n##_cntr)
+					  &stats->ais_##n##_cntr)
 		CNTR_POST(sizes);
 		CNTR_POST(times);
 #undef CNTR_POST
@@ -658,6 +663,8 @@ static int ios_mds_conn_get_locked(struct m0_reqh *reqh,
 	*new = true;
 
 	m0_reqh_lockers_set(reqh, ios_mds_conn_key, *out);
+	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh,
+	       ios_mds_conn_key);
 	return 0;
 }
 
@@ -757,7 +764,15 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	req_fop_cob = &getattr->g_body;
 	req_fop_cob->b_tfid = *gfid;
 
+	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu",
+			 (unsigned long long)gfid->f_container,
+			 (unsigned long long)gfid->f_key);
+
 	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
+	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu rc:%d",
+			 (unsigned long long)gfid->f_container,
+			 (unsigned long long)gfid->f_key, rc);
+
 	if (rc == 0) {
 		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
 		getattr_rep = m0_fop_data(rep);
@@ -815,7 +830,11 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
 	layout->l_lid = lid;
 
+	M0_LOG(M0_DEBUG, "ios getlayout for %llu",
+			 (unsigned long long)lid);
 	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
+	M0_LOG(M0_DEBUG, "ios getlayout for %llu: rc %d",
+			 (unsigned long long)lid, rc);
 	if (rc == 0) {
 		struct m0_bufvec               bv;
 		struct m0_bufvec_cursor        cur;

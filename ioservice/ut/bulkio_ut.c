@@ -137,6 +137,10 @@ static int bulkio_server_write_fom_tick(struct m0_fom *fom)
 
 	phase0 = m0_fom_phase(fom);
 	rc = m0_io_fom_cob_rw_tick(fom);
+	if (m0_fom_rc(fom) != 0) {
+                M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
+		return rc;
+	}
 	switch (phase0) {
 	case M0_FOPH_IO_FOM_BUFFER_ACQUIRE :
 		M0_UT_ASSERT(M0_IN(m0_fom_phase(fom),
@@ -187,7 +191,10 @@ static int bulkio_server_read_fom_tick(struct m0_fom *fom)
 
 	phase0 = m0_fom_phase(fom);
 	rc = m0_io_fom_cob_rw_tick(fom);
-
+	if (m0_fom_rc(fom) != 0) {
+                M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
+		return rc;
+	}
 	switch (phase0) {
 	case M0_FOPH_IO_FOM_BUFFER_ACQUIRE :
                 M0_UT_ASSERT(M0_IN(m0_fom_phase(fom),

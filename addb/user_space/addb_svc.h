@@ -33,13 +33,6 @@
    @{
  */
 
-enum {
-	/**
-	   Default statistics posting period.
-	 */
-	M0_ADDB_SVC_DEF_STAT_PERIOD_S = 60
-};
-
 #define M0_ADDB_SVC_NAME  "addb"
 extern struct m0_reqh_service_type m0_addb_svc_type;
 

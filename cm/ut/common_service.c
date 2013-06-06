@@ -154,7 +154,7 @@ static int cm_ut_ag_alloc(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	return 0;
 }
 
-static int cm_ut_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
+static int cm_ut_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 			 struct m0_cm_ag_id *id_next)
 {
 	struct m0_fid       gfid = {0, 4};

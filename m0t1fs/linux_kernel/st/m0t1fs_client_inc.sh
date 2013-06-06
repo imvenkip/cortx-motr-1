@@ -22,24 +22,32 @@ mount_m0t1fs()
 
 	# prepare configuration data
 	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
-	IOS_NAMES='"ios1"'
-	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
 	for ((i=1; i < ${#EP[*]}; i++)); do
-	    IOS_NAME="\"ios$((i+1))\""
-	    IOS_NAMES="$IOS_NAMES, $IOS_NAME"
+	    IOS_NAME="\"ios$i\""
+
+	    if ((i == 1)); then
+	        IOS_NAMES="$IOS_NAME"
+	    else
+	        IOS_NAMES="$IOS_NAMES, $IOS_NAME"
+	    fi
+
 	    local ep=\"${server_nid}:${EP[$i]}\"
 	    IOS_OBJ="($IOS_NAME, {3| (2, [1: $ep], \"_\")})"
-	    IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+	    if ((i == 1)); then
+	        IOS_OBJS="$IOS_OBJ"
+	    else
+		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+	    fi
 	done
 
 	local CONF="`cat <<EOF
-[$((${#EP[*]} + 3)):
+[$((${#EP[*]} + 2)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
 	      [3: "pool_width=$POOL_WIDTH",
 		  "nr_data_units=$NR_DATA",
 		  "unit_size=$stride_size"],
-	      [$((${#EP[*]} + 1)): "mds", $IOS_NAMES])}),
+	      [${#EP[*]}: "mds", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
   $IOS_OBJS]
 EOF`"

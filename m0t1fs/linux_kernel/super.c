@@ -61,6 +61,25 @@ static const struct super_operations m0t1fs_super_operations = {
 	.drop_inode    = generic_delete_inode /* provided by linux kernel */
 };
 
+
+static struct m0_addb_rec_type *m0t1fs_io_cntr_rts[] = {
+	/* read[0] */
+	&m0_addb_rt_m0t1fs_ior_sizes,
+	&m0_addb_rt_m0t1fs_ior_times,
+	/* write[1] */
+	&m0_addb_rt_m0t1fs_iow_sizes,
+	&m0_addb_rt_m0t1fs_iow_times
+};
+
+static struct m0_addb_rec_type *m0t1fs_dgio_cntr_rts[] = {
+	/* degraded read[0] */
+	&m0_addb_rt_m0t1fs_dgior_sizes,
+	&m0_addb_rt_m0t1fs_dgior_times,
+	/* degraded write[1] */
+	&m0_addb_rt_m0t1fs_dgiow_sizes,
+	&m0_addb_rt_m0t1fs_dgiow_times
+};
+
 /**
  * tlist descriptor for list of m0t1fs_service_context objects placed
  * in m0t1fs_sb::csb_service_contexts list using sc_link.
@@ -622,6 +641,9 @@ static void ast_thread_stop(struct m0t1fs_sb *csb);
 
 static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 {
+	int i;
+	int j;
+
 	M0_ENTRY("csb = %p", csb);
 	M0_PRE(csb != NULL);
 
@@ -635,13 +657,52 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &csb->csb_addb_ctx,
 	                 &m0_addb_ct_m0t1fs_mountp, &m0t1fs_addb_ctx);
+
+#undef CNTR_INIT
+#define CNTR_INIT(_n) m0_addb_counter_init(&csb->csb_io_stats[i]	\
+				   .ais_##_n##_cntr, m0t1fs_io_cntr_rts[j++])
+
+	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_io_stats); ++i) {
+		CNTR_INIT(sizes);
+		CNTR_INIT(times);
+	}
+#undef CNTR_INIT
+
+#define CNTR_INIT(_n) m0_addb_counter_init(&csb->csb_dgio_stats[i]	\
+				   .ais_##_n##_cntr, m0t1fs_dgio_cntr_rts[j++])
+
+	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_dgio_stats); ++i) {
+		CNTR_INIT(sizes);
+		CNTR_INIT(times);
+	}
+#undef CNTR_INIT
+
 	M0_LEAVE();
 }
 
 static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 {
+	int i;
+	int j;
+
 	M0_ENTRY();
 	M0_PRE(csb != NULL);
+
+#undef CNTR_FINI
+#define CNTR_FINI(_n) m0_addb_counter_fini(&csb->csb_io_stats[i]	\
+					   .ais_##_n##_cntr)
+	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_io_stats); ++i) {
+		CNTR_FINI(sizes);
+		CNTR_FINI(times);
+	}
+#undef CNTR_FINI
+#define CNTR_FINI(_n) m0_addb_counter_fini(&csb->csb_dgio_stats[i]	\
+					   .ais_##_n##_cntr)
+	for (i = 0, j = 0; i < ARRAY_SIZE(csb->csb_dgio_stats); ++i) {
+		CNTR_FINI(sizes);
+		CNTR_FINI(times);
+	}
+#undef CNTR_FINI
 
 	m0_addb_ctx_fini(&csb->csb_addb_ctx);
 
@@ -650,7 +711,6 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 	svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
-
 	M0_LEAVE();
 }
 
@@ -983,6 +1043,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	int                       rc;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_statfs_rep *rep = NULL;
+	struct m0_addb_ctx *cv[] = { &csb->csb_addb_ctx, NULL };
 
 	M0_ENTRY();
 
@@ -995,6 +1056,9 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	M0_LOG(M0_DEBUG, "Got mdservice root fid [%llx:%llx]",
 	       rep->f_root.f_container, rep->f_root.f_key);
+
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_root_cob, cv,
+		     rep->f_root.f_container, rep->f_root.f_key);
 
 	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
 	if (IS_ERR(root_inode))

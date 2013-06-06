@@ -206,6 +206,8 @@ struct m0_io_fom_cob_rw {
 	int				 fcrw_rc;
 	/** fol record part representing operations in io sub-system. */
 	struct m0_fol_rec_part		 fcrw_fol_rec_part;
+	/** Time stamp when stob io request was launched */
+	m0_time_t                        fcrw_io_launch_time;
 };
 
 /**

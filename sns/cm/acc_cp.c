@@ -158,6 +158,7 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 
 	if (!sag->sag_base.cag_has_incoming)
 		scp->sc_is_local = true;
+	scp->sc_is_acc = true;
 	return m0_sns_cm_cp_setup(scp, tgt_cobfid, tgt_cob_index, data_seg_nr,
 				  ~0);
 }

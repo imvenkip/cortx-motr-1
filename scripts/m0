@@ -73,7 +73,7 @@ run_st() {
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 
     ## SNS repair
-    #$SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh"
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh"
 }
 
 dist_check() {

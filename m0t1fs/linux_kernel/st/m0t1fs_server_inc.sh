@@ -12,16 +12,17 @@ mero_service()
 
 	start() {
 		prepare
-		for ((i=0; i < ${#EP[*]}; i++)) ; do
+		for ((i=1; i < ${#EP[*]}; i++)) ; do
 			ios_eps="$ios_eps -i $XPT:${lnet_nid}:${EP[$i]} "
 		done
 
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
-			SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_CMSERVICE_NAME"
-			SNAME="-s $MERO_ADDBSERVICE_NAME $SNAME"
+			SNAME="-s $MERO_ADDBSERVICE_NAME"
 			if ((i == 0)); then
 				SNAME="-s $MERO_MDSERVICE_NAME $SNAME"
+			else
+				SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_CMSERVICE_NAME $SNAME"
 			fi
 
 			rm -rf $MERO_M0T1FS_TEST_DIR/d$i

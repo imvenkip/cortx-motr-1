@@ -71,6 +71,13 @@ enum {
 	M0_ADDB_RECID_IOS_CCFOM_FINISH,
 	/** Data point to record COB-delete FOM finish */
 	M0_ADDB_RECID_IOS_CDFOM_FINISH,
+	/** Data point record to post throughput of an IO request */
+	M0_ADDB_RECID_IOS_IO_FINISH,
+	/** Data point record to post throughput of an individual
+	 * descriptor in IO request */
+	M0_ADDB_RECID_IOS_DESC_IO_FINISH,
+	/** Data point record to convey buffer pool low condition */
+	M0_ADDB_RECID_IOS_BUFFER_POOL_LOW,
 };
 
 /** @todo adjust IOS counter histogram buckets */
@@ -84,23 +91,16 @@ M0_ADDB_RT_CNTR(m0_addb_rt_ios_wfom_sizes,  M0_ADDB_RECID_IOS_WFOM_SIZES,
 		KB(768));
 #undef KB
 
-#undef uS
-#undef mS
-#define uS(us) us
-#define mS(ms) uS(1000 * (ms))
 M0_ADDB_RT_CNTR(m0_addb_rt_ios_rfom_times,  M0_ADDB_RECID_IOS_RFOM_TIMES,
-		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
-		mS(100), mS(250), mS(500));
+		100, 200, 300, 400, 500, 600, 700, 800, 900);
+
 M0_ADDB_RT_CNTR(m0_addb_rt_ios_wfom_times,  M0_ADDB_RECID_IOS_WFOM_TIMES,
-		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
-		mS(100), mS(250), mS(500));
-#undef mS
-#undef uS
+		100, 200, 300, 400, 500, 600, 700, 800, 900);
 
 /* Data point record type for io service */
 M0_ADDB_RT_DP(m0_addb_rt_ios_rwfom_finish,
 	      M0_ADDB_RECID_IOS_RWFOM_FINISH,
-	      "return_code", "io_size", "turnaround_time" /* in usec */);
+	      "return_code", "io_size", "turnaround_time_ns");
 M0_ADDB_RT_DP(m0_addb_rt_ios_ccfom_finish,
 	      M0_ADDB_RECID_IOS_CCFOM_FINISH,
 	      "stob_id.hi", "stob_id.lo", "rc");
@@ -194,6 +194,18 @@ enum {
 
 extern struct m0_addb_ctx m0_ios_addb_ctx;
 
+/* Total time required and size for IO */
+M0_ADDB_RT_DP(m0_addb_rt_ios_io_finish, M0_ADDB_RECID_IOS_IO_FINISH,
+	      "io_size" /* in bytes */, "time" /* in nsec */);
+
+/* Time required and io size for each individual descriptors */
+M0_ADDB_RT_DP(m0_addb_rt_ios_desc_io_finish, M0_ADDB_RECID_IOS_DESC_IO_FINISH,
+	      "offset", "io_size" /* in bytes */, "time" /* in nsec */);
+
+/* Buffer pool is low */
+M0_ADDB_RT_DP(m0_addb_rt_ios_buffer_pool_low,
+	      M0_ADDB_RECID_IOS_BUFFER_POOL_LOW);
+
 /** @} */ /* end of IOS group */
 
 #endif /* __MERO_IOSERVICE_IO_SERVICE_ADDB_H__ */
@@ -207,4 +219,3 @@ extern struct m0_addb_ctx m0_ios_addb_ctx;
  *  scroll-step: 1
  *  End:
  */
-

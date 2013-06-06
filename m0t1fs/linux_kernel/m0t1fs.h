@@ -537,6 +537,12 @@ struct m0t1fs_sb {
 
 	/** Run-time addb context for each mount point */
 	struct m0_addb_ctx            csb_addb_ctx;
+
+	/** Read[0] and write[1] I/O request statistics */
+	struct m0_addb_io_stats       csb_io_stats[2];
+
+	/** Degraded mode Read[0] and write[1] I/O request statistics */
+	struct m0_addb_io_stats       csb_dgio_stats[2];
 };
 
 struct m0t1fs_filedata {

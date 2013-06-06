@@ -230,8 +230,7 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm);
  * group identifier an aggregation group is created and added to the
  * m0_cm::cm_aggr_group_in list.
  */
-M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm,
-				 struct m0_cm_ag_id *curr);
+M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm);
 
 M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm);
 

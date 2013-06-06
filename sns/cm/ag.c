@@ -74,7 +74,14 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 	 * being finalised for a given aggregation group.
 	 */
 	if(sag->sag_acc_freed == sag->sag_fnr) {
+		if (ag->cag_has_incoming)
+			m0_sns_cm_normalize_reservation(ag->cag_cm, ag);
 		m0_cm_aggr_group_fini_and_progress(ag);
+		if (ag->cag_layout != NULL) {
+			m0_layout_put(ag->cag_layout);
+			ag->cag_layout = NULL;
+		}
+
 		m0_free(sag->sag_fc);
 		m0_free(sag);
 	}
@@ -123,11 +130,15 @@ static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 static bool ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+	struct m0_sns_cm_cp *scp = cp2snscp(cp);
         uint64_t             nr_cps;
 
 	M0_PRE(ag != NULL && cp != NULL);
 
         if (ag->cag_has_incoming) {
+		/* Check if this is local accumulator. */
+		if (!scp->sc_is_acc)
+			return false;
                 nr_cps = m0_cm_cp_nr(cp);
                 return nr_cps == ag->cag_cp_global_nr - sag->sag_fnr;
         } else
@@ -145,41 +156,56 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 				   bool has_incoming,
 				   struct m0_cm_aggr_group **out)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_sns_cm_ag      *sag;
-	struct m0_fid             gfid;
-	struct m0_pdclust_layout *pl;
-	uint64_t                  fsize;
-	uint64_t                  f_nr;
-	struct m0_fid            *it_gfid;
-	int                       i;
-	int                       rc = 0;
+	struct m0_sns_cm           *scm = cm2sns(cm);
+	struct m0_sns_cm_ag        *sag;
+	struct m0_fid               gfid;
+	struct m0_pdclust_layout   *pl;
+	struct m0_pdclust_instance *pi;
+	uint64_t                    fsize;
+	uint64_t                    f_nr;
+	struct m0_fid              *it_gfid;
+	int                         i;
+	int                         rc = 0;
 
 	M0_ENTRY("scm: %p, ag id:%p", cm, id);
 	M0_PRE(cm != NULL && id != NULL && out != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &gfid);
+	/*
+	 * If m0_cm_aggr_group_alloc() is invoked in sns data iterator context,
+	 * the file size and layout are already fetched and saved in the data
+	 * iterator. So check if the iterator file identifier and group's file
+	 * identifier match, if yes, then extract the layout from the iterator.
+	 * @todo Interface to fetch the file size and layout from the sns data
+	 *       iterator.
+	 */
 	it_gfid = &scm->sc_it.si_fc.sfc_gob_fid;
-	if (m0_fid_eq(&gfid, it_gfid) && scm->sc_it.si_fc.sfc_pdlayout != NULL)
+	if (m0_fid_eq(&gfid, it_gfid) && scm->sc_it.si_fc.sfc_pdlayout != NULL){
 		pl = scm->sc_it.si_fc.sfc_pdlayout;
-	else
+		m0_layout_get(m0_pdl_to_layout(pl));
+	} else
 		rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, &gfid, &pl,
 						      &fsize);
 	if (rc != 0)
 		return rc;
-	/*
-	 * Allocate new aggregation group and add it to the
-	 * lexicographically sorted list of aggregation groups in the
-	 * sliding window.
-	 */
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
+	if (rc != 0) {
+		m0_layout_put(m0_pdl_to_layout(pl));
+		return rc;
+	}
+	/* calculate actual failed number of units in this group. */
+	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo);
+	m0_layout_instance_fini(&pi->pi_base);
+	M0_ASSERT(f_nr != 0);
+	if (f_nr == 0)
+		return -EINVAL;
+	/* Allocate new aggregation group. */
 	M0_ALLOC_PTR(sag);
 	if (sag == NULL) {
 		m0_layout_put(m0_pdl_to_layout(pl));
 		return -ENOMEM;
 	}
-	f_nr = m0_pdclust_K(pl);
-	M0_ASSERT(f_nr != 0);
 	M0_ALLOC_ARR(sag->sag_fc, f_nr);
 	if (sag->sag_fc == NULL) {
 		m0_layout_put(m0_pdl_to_layout(pl));
@@ -194,8 +220,10 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, pl);
 	if (rc != 0)
 		goto cleanup_ag;
+	/* Initialise the accumulators. */
 	for (i = 0; i < sag->sag_fnr; ++i)
 		m0_sns_cm_acc_cp_init(&sag->sag_fc[i].fc_tgt_acc_cp, sag);
+	/* Acquire buffers and setup the accumulators. */
 	rc = m0_sns_cm_ag_setup(sag, pl);
 	if (rc != 0 && rc != -ENOBUFS)
 		goto cleanup_acc;
@@ -206,6 +234,7 @@ cleanup_acc:
 	for (i = 0; i < sag->sag_fnr; ++i)
 		m0_cm_cp_buf_release(&sag->sag_fc[i].fc_tgt_acc_cp.sc_base);
 cleanup_ag:
+	m0_layout_put(m0_pdl_to_layout(pl));
 	m0_cm_aggr_group_fini(&sag->sag_base);
 	m0_free(sag->sag_fc);
 	m0_free(sag);

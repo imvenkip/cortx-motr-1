@@ -19,7 +19,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
-
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -77,10 +77,15 @@ static int sns_ready_fom_tick(struct m0_fom *fom)
 			return -EINVAL;
 		m0_cm_lock(cm);
 		cm_proxy = m0_cm_proxy_locate(cm, r_fop->scr_base.r_cm_ep.ep);
+		M0_ASSERT(cm_proxy != NULL);
 		m0_cm_proxy_update(cm_proxy, &r_fop->scr_base.r_sw.sw_lo,
 				   &r_fop->scr_base.r_sw.sw_hi);
 		M0_CNT_INC(cm->cm_ready_fops_recvd);
-		if (cm->cm_ready_fops_recvd == m0_cm_proxy_nr(cm))
+		M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
+				 r_fop->scr_base.r_cm_ep.ep,
+				 (int)cm->cm_ready_fops_recvd,
+				 (int)m0_cm_proxy_nr(cm));
+		if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr)
 			cm->cm_ops->cmo_complete(cm);
 		m0_cm_unlock(cm);
 		m0_fom_phase_set(fom, RPH_FINI);

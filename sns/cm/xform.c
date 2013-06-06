@@ -228,11 +228,13 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 */
 		if ((rc = m0_sns_cm_cob_is_local(&sns_ag->sag_fc[i].fc_tgt_cobfid,
 					   dbenv, cdom)) == 0) {
-			if (res_cp_bitmap_is_full(res_cp, sns_ag->sag_fnr))
+			if (res_cp_bitmap_is_full(res_cp, sns_ag->sag_fnr)) {
 				m0_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
+			}
 		} else if (rc == -ENOENT && ag->cag_cp_local_nr ==
-						ag->cag_transformed_cp_nr)
+						ag->cag_transformed_cp_nr) {
 			m0_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
+		}
 	}
 
 	/*
