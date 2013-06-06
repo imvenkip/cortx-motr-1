@@ -27,6 +27,7 @@
 #include "lib/list.h"
 #include "lib/refs.h"
 #include "lib/errno.h"
+#include "lib/checksum.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
@@ -81,6 +82,11 @@ struct m0_fop {
 	struct m0_fop_data  f_data;
 	struct m0_rpc_item  f_item;
 	void               *f_opaque;
+	/**
+	 *  Checksum object to be used for this fop.
+	 *  @Note : m0_cob is the other place under consideration.
+	 */
+	struct m0_di_checksum    f_csum;
 };
 
 /**

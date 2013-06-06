@@ -12,6 +12,8 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/cond.h \
                                lib/cookie.h \
                                lib/cookie_xc.h \
+                               lib/checksum.h \
+                               lib/checksum_xc.h \
                                lib/errno.h \
                                lib/ext.h \
 			       lib/ext_xc.h \
@@ -69,6 +71,8 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/cond.c \
                            lib/cookie.c \
                            lib/cookie_xc.c \
+                           lib/checksum.c \
+                           lib/checksum_xc.c \
                            lib/ext.c \
                            lib/ext_xc.c \
                            lib/finject.c \
@@ -112,6 +116,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
 
 XC_FILES += lib/buf_xc.h \
             lib/cookie_xc.h \
+            lib/checksum_xc.h \
             lib/vec_xc.h \
 	    lib/bitmap_xc.h \
 	    lib/types_xc.h \

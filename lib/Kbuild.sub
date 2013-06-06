@@ -7,6 +7,8 @@ m0mero_objects += lib/assert.o \
                   lib/buf.o \
                   lib/buf_xc.o \
                   lib/chan.o \
+                  lib/checksum.o \
+                  lib/checksum_xc.o \
                   lib/cond.o \
                   lib/cookie.o \
                   lib/cookie_xc.o \
