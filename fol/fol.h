@@ -71,7 +71,7 @@
 
    m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
    to initialize and finalize FOL part types.
-   FOL recors part types are registered in a global array of FOL record
+   FOL record part types are registered in a global array of FOL record
    parts using m0_fol_rec_part_type::rpt_index.
 
    After successful execution of updates on server side, in FOM generic phase
