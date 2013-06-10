@@ -33,7 +33,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
 #include "rm/rm.h"
-#include "rm/rm_internal.h"
+#include "rm/rm_addb.h"
 
 /*
  * Data structures.
@@ -95,7 +95,7 @@ static int rm_out_create(struct rm_out **out,
 	M0_ENTRY();
 	M0_PRE (out != NULL);
 
-	M0_ALLOC_PTR(outreq);
+	RM_ALLOC_PTR(outreq, RM_OUT_ALLOC, &m0_rm_addb_ctx);
 	if (outreq == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -110,7 +110,6 @@ static int rm_out_create(struct rm_out **out,
 
 	M0_ASSERT(outreq->ou_req.rog_want.rl_other != NULL);
 	*out = outreq;
-
 out:
 	M0_RETURN(rc);
 }

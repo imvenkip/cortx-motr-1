@@ -64,7 +64,7 @@ enum {
 	/* rpc_session */
 	M0_RPC_ADDB_LOC_SESSION_SLOT_TABLE_ALLOC_AND_INIT = 4010,
 	M0_RPC_ADDB_LOC_SESSION_ESTABLISH                 = 4020,
-	/* rpc_sesison_fop */
+	/* rpc_session_fop */
 	M0_RPC_ADDB_LOC_SESSION_FOP_CONN_ESTABLISH_ITEM_DECODE = 5010,
 	/* rpc_session_fom */
 	M0_RPC_ADDB_LOC_SESSION_FOM_CONN_ESTABLISH_TICK    = 6010,

@@ -24,7 +24,9 @@
 #include "lib/arith.h"
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
+
 #include "rm/file.h"
+#include "rm/rm_addb.h"
 
 /**
    @page FileLock Distributed File Lock DLD
@@ -285,7 +287,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 	M0_ENTRY();
 	M0_PRE(resource != NULL);
 
-	M0_ALLOC_PTR(fl);
+	RM_ALLOC_PTR(fl, FILE_ALLOC, &m0_rm_addb_ctx);
 	if (fl == NULL)
 		M0_RETURN(-ENOMEM);
 

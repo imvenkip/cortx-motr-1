@@ -27,11 +27,13 @@
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "fop/fom_generic.h"
+#include "rpc/service.h"
+
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
+#include "rm/rm_addb.h"
 #include "rm/rm_service.h"
 #include "rm/ut/rings.h"
-#include "rpc/service.h"
 
 /**
    @addtogroup rm
@@ -187,7 +189,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	M0_PRE(fop->f_type != NULL);
 	M0_PRE(out != NULL);
 
-	M0_ALLOC_PTR(rqfom);
+	RM_ALLOC_PTR(rqfom, REQ_FOM_ALLOC, &m0_rm_addb_ctx);
 	if (M0_FI_ENABLED("fom_alloc_failure")) {
 		m0_free(rqfom);
 		rqfom = NULL;
@@ -341,7 +343,8 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
 			m0_clink_add_lock(&service->rs_rev_conn_wait,
 					  &remote->rem_rev_sess_clink);
-			M0_ALLOC_PTR(remote->rem_session);
+			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
+				     &m0_rm_addb_ctx);
 			if (remote->rem_session == NULL)
 				M0_RETURN(-ENOMEM);
 			m0_rpc_service_reverse_session_get(
@@ -361,7 +364,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 {
 	struct m0_rm_fop_borrow     *bfop;
 	struct m0_rm_fop_revoke     *rfop;
-	struct m0_rm_fop_req	    *basefop;
+	struct m0_rm_fop_req	    *basefop = NULL;
 	struct m0_rm_incoming	    *in;
 	struct m0_rm_owner	    *owner;
 	struct rm_request_fom	    *rfom;

@@ -264,6 +264,27 @@ owner_grp(const struct m0_rm_owner *owner)
 	return &owner->ro_resource->r_type->rt_sm_grp;
 }
 
+extern struct m0_addb_ctx m0_rm_addb_ctx;
+
+/**
+ *  Resource Manager function failure macro using the global ADDB
+ *  machine to post.
+ *  @param rc Return code
+ *  @param loc Location code - one of the M0_RM_ADDB_LOC_ enumeration
+ *             constants suffixes from rm/rm_addb.h.
+ *  @param ctx Runtime context pointer
+ *  @pre rc < 0
+ */
+#define RM_ADDB_FUNCFAIL(rc, loc, ctx)					\
+	M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_RM_ADDB_LOC_##loc, rc, ctx)
+
+#define RM_ALLOC(ptr, len, loc, ctx)					\
+	M0_ALLOC_ADDB(ptr, len, &m0_addb_gmc, M0_RM_ADDB_LOC_##loc, ctx)
+#define RM_ALLOC_PTR(ptr, loc, ctx)					\
+	M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_RM_ADDB_LOC_##loc, ctx)
+#define RM_ALLOC_ARR(ptr, nr, loc, ctx)					\
+	M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_RM_ADDB_LOC_##loc, ctx)
+
 /** @} end of RM lists. */
 
 /* __MERO_RM_RM_INTERNAL_H__ */

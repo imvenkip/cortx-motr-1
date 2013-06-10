@@ -26,7 +26,7 @@
 #include "addb/addb.h"
 
 /**
-   @addtogroup reqh
+   @addtogroup io_foms
    @{
  */
 
@@ -148,7 +148,7 @@ M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_IOS_ADDB_LOC_##loc, ctx)
 
 /*
  ******************************************************************************
- * Request handler ADDB posting locations
+ * IO service ADDB posting locations
  ******************************************************************************
  */
 /** @todo Assign numbers to locations */

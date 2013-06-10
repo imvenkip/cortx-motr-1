@@ -300,6 +300,33 @@ enum m0_res_type_id {
 	M0_RM_FLOCK_RT = 1
 };
 
+struct rm_addb_req_stats {
+	/**
+	 * Number of borrow/revoke requests till
+	 * rm_addb_update_interval expires.
+	 */
+	uint32_t               rs_count;
+	/**
+	 * Counter to maintain number of borrow/revoke requests
+	 * per unit time.
+	 */
+	struct m0_addb_counter rs_nr;
+	/**
+	 * Counter to maintain average time required for
+	 * each borrow/revoke.
+	 */
+	struct m0_addb_counter rs_time;
+};
+
+struct rm_addb_stats {
+	struct rm_addb_req_stats as_req[2];
+	/**
+	 * Time for which credit was held
+	 * (Time between credit_get and credit_put)
+	 */
+	struct m0_addb_counter   as_credit_time;
+};
+
 /**
  * Resources are classified into disjoint types.
  *
@@ -320,6 +347,10 @@ enum m0_res_type_id {
 struct m0_rm_resource_type {
 	const struct m0_rm_resource_type_ops *rt_ops;
 	const char                           *rt_name;
+	/**
+	 * ADDB statistics for resource type.
+	 */
+	struct rm_addb_stats                  rt_addb_stats;
 	/**
 	 * A resource type identifier, globally unique within a cluster, used
 	 * to identify resource types on wire and storage.
@@ -414,6 +445,10 @@ struct m0_rm_resource_type_ops {
 struct m0_rm_credit {
 	struct m0_rm_owner            *cr_owner;
 	const struct m0_rm_credit_ops *cr_ops;
+	/**
+	 * Time when request for this credit acquisition was raised
+	 */
+	m0_time_t                      cr_get_time;
 	/**
 	 * resource type private field. By convention, 0 means "empty"
 	 * credit.
@@ -657,6 +692,7 @@ struct m0_rm_remote {
 	 * A resource for which the remote owner is represented.
 	 */
 	struct m0_rm_resource  *rem_resource;
+	/** Clink to wait till reverse session is established */
 	struct m0_clink         rem_rev_sess_clink;
 	struct m0_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
@@ -1309,6 +1345,8 @@ struct m0_rm_incoming {
 	 */
 	int				 rin_priority;
 	const struct m0_rm_incoming_ops *rin_ops;
+	/** Start time for this request */
+	m0_time_t                        rin_req_time;
 	uint64_t                         rin_magix;
 };
 

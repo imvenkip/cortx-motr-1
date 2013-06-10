@@ -15,7 +15,7 @@ mero_libmero_la_SOURCES     += rm/rm_fops.c \
 XC_FILES                    += rm/rm_fops_xc.h
 
 EXTRA_DIST		    += rm/rm_internal.h \
-                               rm/rmservice_addb.h
+                               rm/rm_addb.h
 
 CLEANFILES += rm/rm_fops_xc.h \
               rm/rm_fops_xc.c \
