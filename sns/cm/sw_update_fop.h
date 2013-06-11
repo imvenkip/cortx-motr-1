@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 03/07/2012
+ * Original creation date: 06/07/2013
  */
 
 #pragma once
@@ -27,6 +27,13 @@
 
 #include "cm/sw.h"
 #include "cm/sw_xc.h"
+
+/**
+   @defgroup SNSCMSW SNS sliding window
+   @ingroup SNSCM
+
+   @{
+ */
 
 struct m0_sns_cm_sw_update {
 	struct m0_cm_sw_update swu_base;
@@ -42,7 +49,7 @@ m0_sns_cm_sw_update_fop_alloc(struct m0_cm *cm,
 
 extern struct m0_fop_type m0_sns_cm_sw_update_fopt;
 
-/** @} CMREADY */
+/** @} SNSCMSW */
 
 #endif /* __MERO_SNS_CM_SW_UPDATE_FOP_H__ */
 /*

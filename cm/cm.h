@@ -361,6 +361,7 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"
  * fop. Internally invokes copy machine specific start routine.
+ * Starts pump FOM and arms struct m0_cm::cm_sw_broadcast_timer.
  * @pre cm != NULL && m0_cm_state_get(cm) == M0_CMS_IDLE
  * @post m0_cm_state_get(cm) == M0_CMS_ACTIVE
  */
@@ -369,11 +370,11 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm);
 /**
  * Stops copy machine operation.
  * Once operation completes successfully, copy machine performs required tasks,
- * (e.g. updating layouts, etc.) by invoking m0_cm_stop(), this transitions copy
- * machine back to M0_CMS_IDLE state. Copy machine invokes m0_cm_stop() also in
- * case of operational failure to broadcast STOP FOPs to its other replicas in
- * the pool, indicating failure. This is handled specific to the copy machine
- * type.
+ * (e.g. updating layouts, cleanup, etc.) by invoking m0_cm_stop(), this
+ * transitions copy machine back to M0_CMS_IDLE state. Copy machine invokes
+ * m0_cm_stop() also in case of operational failure to broadcast STOP FOPs to
+ * its other replicas in the pool, indicating failure. This is handled specific
+ * to the copy machine type.
  * @pre cm!= NULL && M0_IN(m0_cm_state_get(cm), (M0_CMS_ACTIVE))
  * @post M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_FAIL))
  */

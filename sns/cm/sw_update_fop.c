@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 03/07/2012
+ * Original creation date: 06/07/2013
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
@@ -31,6 +31,12 @@
 #include "cm/cm.h"
 #include "sns/cm/sw_update_fop.h"
 #include "sns/cm/sw_update_fop_xc.h"
+
+/**
+   @addtogroup SNSCMSW
+
+   @{
+ */
 
 struct m0_fop_type m0_sns_cm_sw_update_fopt;
 extern const struct m0_fom_type_ops m0_sns_cm_sw_update_fom_type_ops;
@@ -85,7 +91,7 @@ m0_sns_cm_sw_update_fop_alloc(struct m0_cm *cm,
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} CMREADY */
+/** @} SNSCMSW */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 03/08/2013
+ * Original creation date: 06/07/2013
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
@@ -37,7 +37,7 @@
 #include "sns/cm/sw_update_fom.h"
 
 /**
-   @addtogroup CMREADY
+   @addtogroup SNSCMSW
 
    @{
  */
@@ -168,7 +168,7 @@ const struct m0_fom_type_ops m0_sns_cm_sw_update_fom_type_ops = {
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} CMREADY */
+/** @} SNSCMSW */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

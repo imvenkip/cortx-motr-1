@@ -236,6 +236,10 @@
    Sliding window is typically initialised during copy machine startup i.e.
    M0_CMS_READY phase and updated during finalisation of a completed aggregation
    group (i.e. aggregation group for which all the copy packets are processed).
+   Every copy machine replica periodically broadcasts is local sliding window
+   to other remote replicas.
+   @see cm_sw_broadcast_timer_cb()
+   @see m0_cm_sw_remote_update()
 
    @subsection CMDLD-lspec-cm-stop Copy machine stop
    Once operation completes successfully, copy machine performs required tasks,
@@ -571,8 +575,6 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 						   CM_NR_SLOTS_PER_SESSION);
 			if (rc == 0) {
 				m0_cm_proxy_add(cm, pxy);
-				//proxy_tlist_add_tail(&cm->cm_proxies, pxy);
-				//M0_CNT_INC(cm->cm_proxy_nr);
 				M0_LOG(M0_DEBUG, "Connected to %s", ex->ex_endpoint);
 			} else
 				m0_cm_proxy_fini(pxy);
@@ -620,6 +622,13 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	return rc;
 }
 
+/*
+ * Broadcasts sliding window to remote replicas represented by corresponding
+ * struct m0_cm_proxy.
+ * This callback function is called when struct m0_cm::cm_sw_broadcast_timer
+ * expires.
+ * see m0_cm_start() for more details.
+ */
 static void cm_sw_broadcast_timer_cb(struct m0_sm_timer *timer)
 {
         struct m0_cm *cm;

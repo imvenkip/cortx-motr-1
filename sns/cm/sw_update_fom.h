@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 03/08/2013
+ * Original creation date: 06/07/2013
  */
 
 #pragma once
@@ -24,7 +24,7 @@
 #define __MERO_SNS_CM_SW_UPDATE_FOM_H__
 
 /**
-   @addtogroup CMREADY
+   @addtogroup SNSCMSW
 
    @{
  */
@@ -34,7 +34,7 @@ enum sns_cm_sw_update_phases {
 	SWUPH_FINI = M0_FOM_PHASE_FINISH,
 };
 
-/** @} CMREADY */
+/** @} SNSCMSW */
 
 #endif /* __MERO_SNS_CM_SW_UPDATE_FOM_H__ */
 /*

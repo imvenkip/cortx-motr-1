@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 03/07/2012
+ * Original creation date: 06/07/2013
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
@@ -30,6 +30,12 @@
 #include "cm/proxy.h"
 #include "cm/sw.h"
 #include "cm/cm.h"
+
+/**
+   @addtogroup CMSW
+
+   @{
+ */
 
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 			      const struct m0_cm_ag_id *lo,
