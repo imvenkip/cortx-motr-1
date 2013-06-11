@@ -236,7 +236,7 @@
    Sliding window is typically initialised during copy machine startup i.e.
    M0_CMS_READY phase and updated during finalisation of a completed aggregation
    group (i.e. aggregation group for which all the copy packets are processed).
-   Every copy machine replica periodically broadcasts is local sliding window
+   Every copy machine replica periodically broadcasts its local sliding window
    to other remote replicas.
    @see cm_sw_broadcast_timer_cb()
    @see m0_cm_sw_remote_update()

@@ -18,7 +18,10 @@
  * Original creation date: 02/27/2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/memory.h"
+#include "lib/trace.h"
+
 #include "rpc/rpclib.h"
 
 #include "cm/proxy.h"
