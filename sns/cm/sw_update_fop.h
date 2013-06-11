@@ -20,31 +20,31 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_CM_READY_FOP_H__
-#define __MERO_SNS_CM_READY_FOP_H__
+#ifndef __MERO_SNS_CM_SW_UPDATE_FOP_H__
+#define __MERO_SNS_CM_SW_UPDATE_FOP_H__
 
 #include "xcode/xcode_attr.h"
 
-#include "cm/ready_fop.h"
-#include "cm/ready_fop_xc.h"
+#include "cm/sw.h"
+#include "cm/sw_xc.h"
 
-struct m0_sns_cm_ready {
-	struct m0_cm_ready scr_base;
+struct m0_sns_cm_sw_update {
+	struct m0_cm_sw_update swu_base;
 }M0_XCA_RECORD;
 
-M0_INTERNAL int m0_sns_cm_ready_fop_init(void);
-M0_INTERNAL void m0_sns_cm_ready_fop_fini(void);
+M0_INTERNAL int m0_sns_cm_sw_update_fop_init(void);
+M0_INTERNAL void m0_sns_cm_sw_update_fop_fini(void);
 
-M0_INTERNAL struct m0_fop *m0_sns_cm_ready_fop_fill(struct m0_cm *cm,
-						    struct m0_cm_ag_id *id_lo,
-						    struct m0_cm_ag_id *id_hi,
-						    const char *cm_ep);
+M0_INTERNAL struct m0_fop *
+m0_sns_cm_sw_update_fop_alloc(struct m0_cm *cm,
+			      const struct m0_cm_sw *sw,
+			      const char *local_ep);
 
-extern struct m0_fop_type m0_sns_ready_fopt;
+extern struct m0_fop_type m0_sns_cm_sw_update_fopt;
 
 /** @} CMREADY */
 
-#endif /* __MERO_SNS_CM_READY_FOP_H__ */
+#endif /* __MERO_SNS_CM_SW_UPDATE_FOP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

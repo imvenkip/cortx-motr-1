@@ -46,7 +46,7 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
-#include "sns/cm/sns_ready_fop.h"
+#include "sns/cm/sw_update_fop.h"
 
 /**
   @page SNSCMDLD SNS copy machine DLD
@@ -547,55 +547,6 @@ static int pm_state(struct m0_sns_cm *scm)
 					  M0_PNDS_SNS_REBALANCING;
 }
 
-static int cm_ready_post(struct m0_cm *cm)
-{
-	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
-	struct m0_cm_proxy      *pxy;
-	struct m0_cm_aggr_group *lo;
-	struct m0_cm_aggr_group *hi;
-	struct m0_rpc_machine   *rmach;
-	struct m0_cm_ag_id       id_lo;
-	struct m0_cm_ag_id       id_hi;
-	const char              *ep;
-	int                      rc;
-
-	M0_ENTRY("cm: %p", cm);
-	M0_PRE(cm != NULL);
-	M0_PRE(m0_cm_is_locked(cm));
-
-	rmach = m0_cm_rpc_machine_find(reqh);
-	ep = rmach->rm_tm.ntm_ep->nep_addr;
-	rc = m0_cm_sw_update(cm);
-	if(rc != 0)
-	        return rc;
-	M0_SET0(&id_lo);
-	M0_SET0(&id_hi);
-	lo = m0_cm_ag_lo(cm);
-	hi = m0_cm_ag_hi(cm);
-	if (lo != NULL && hi != NULL) {
-		id_lo = lo->cag_id;
-		id_hi = hi->cag_id;
-	}
-	ep = rmach->rm_tm.ntm_ep->nep_addr;
-	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-		struct m0_fop *fop = m0_sns_cm_ready_fop_fill(cm,
-				&id_lo, &id_hi, ep);
-		if (fop == NULL)
-			return -ENOMEM;
-		rc = m0_cm_ready_fop_post(fop, &pxy->px_conn);
-		M0_LOG(M0_DEBUG, "ready fop delivered to %s from %s: rc = %d",
-				 pxy->px_endpoint, ep, rc);
-		m0_sm_group_lock(&rmach->rm_sm_grp);
-		m0_fop_put(fop);
-		m0_sm_group_unlock(&rmach->rm_sm_grp);
-		if (rc != 0)
-			return rc;
-	} m0_tl_endfor;
-
-	M0_LEAVE("rc: %d", rc);
-	return rc;
-}
-
 static int cm_ready(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
@@ -632,9 +583,6 @@ static int cm_ready(struct m0_cm *cm)
 				return rc;
 		}
 	}
-
-	if (cm->cm_proxy_nr > 0)
-		rc = cm_ready_post(cm);
 
 	M0_LEAVE();
 	return rc;
@@ -1009,15 +957,16 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 
 /** Copy machine operations. */
 const struct m0_cm_ops cm_ops = {
-	.cmo_setup         = cm_setup,
-	.cmo_ready         = cm_ready,
-	.cmo_start         = cm_start,
-	.cmo_ag_alloc      = m0_sns_cm_ag_alloc,
-	.cmo_cp_alloc      = cm_cp_alloc,
-	.cmo_data_next     = m0_sns_cm_iter_next,
-	.cmo_ag_next       = cm_ag_next,
-	.cmo_complete      = cm_complete,
-	.cmo_stop          = cm_stop,
+	.cmo_setup               = cm_setup,
+	.cmo_ready               = cm_ready,
+	.cmo_start               = cm_start,
+	.cmo_ag_alloc            = m0_sns_cm_ag_alloc,
+	.cmo_cp_alloc            = cm_cp_alloc,
+	.cmo_data_next           = m0_sns_cm_iter_next,
+	.cmo_ag_next             = cm_ag_next,
+	.cmo_sw_update_fop_alloc = m0_sns_cm_sw_update_fop_alloc,
+	.cmo_complete            = cm_complete,
+	.cmo_stop                = cm_stop,
 	.cmo_fini          = cm_fini
 };
 

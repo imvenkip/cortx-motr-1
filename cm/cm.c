@@ -51,10 +51,9 @@
 #include "cm/ag.h"
 #include "cm/cp.h"
 #include "cm/proxy.h"
+#include "cm/sw_xc.h"
 #include "cm/cp_onwire_xc.h"
 #include "cm/ag_xc.h"
-#include "cm/ready_fop.h"
-#include "cm/ready_fop_xc.h"
 
 /**
    @page CMDLD Copy Machine DLD
@@ -571,8 +570,9 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 						   CM_MAX_NR_RPC_IN_FLIGHT,
 						   CM_NR_SLOTS_PER_SESSION);
 			if (rc == 0) {
-				proxy_tlist_add_tail(&cm->cm_proxies, pxy);
-				M0_CNT_INC(cm->cm_proxy_nr);
+				m0_cm_proxy_add(cm, pxy);
+				//proxy_tlist_add_tail(&cm->cm_proxies, pxy);
+				//M0_CNT_INC(cm->cm_proxy_nr);
 				M0_LOG(M0_DEBUG, "Connected to %s", ex->ex_endpoint);
 			} else
 				m0_cm_proxy_fini(pxy);
@@ -608,6 +608,11 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
         rc = cm_replicas_connect(cm, rmach, reqh);
         if (rc == 0 || rc == -ENOENT)
 		rc = cm->cm_ops->cmo_ready(cm);
+	if (rc == 0) {
+		rc = m0_cm_sw_local_update(cm);
+		if(rc == 0)
+			rc = m0_cm_sw_remote_update(cm);
+	}
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
 
@@ -615,9 +620,27 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	return rc;
 }
 
+static void cm_sw_broadcast_timer_cb(struct m0_sm_timer *timer)
+{
+        struct m0_cm *cm;
+        m0_time_t     deadline;
+
+        cm = container_of(timer, struct m0_cm, cm_sw_broadcast_timer);
+	M0_ASSERT(m0_cm_invariant(cm));
+        M0_ASSERT(m0_cm_is_locked(cm));
+	m0_cm_sw_remote_update(cm);
+	deadline = m0_time(1, 0);
+	m0_sm_timer_fini(&cm->cm_sw_broadcast_timer);
+	m0_sm_timer_init(&cm->cm_sw_broadcast_timer);
+	m0_sm_timer_start(&cm->cm_sw_broadcast_timer,
+			  cm->cm_mach.sm_grp,
+			  cm_sw_broadcast_timer_cb, deadline);
+}
+
 M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 {
-	int	rc;
+	m0_time_t deadline;
+	int	  rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
@@ -630,8 +653,12 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, M0_CMS_ACTIVE, M0_CM_ERR_START);
 	/* Start pump FOM to create copy packets. */
-	if (rc == 0)
+	if (rc == 0) {
 		m0_cm_cp_pump_start(cm);
+		deadline = m0_time(1, 0);
+		m0_sm_timer_start(&cm->cm_sw_broadcast_timer, cm->cm_mach.sm_grp,
+				  cm_sw_broadcast_timer_cb, deadline);
+	}
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -686,7 +713,7 @@ static void cm_xc_init()
 {
 	m0_xc_ag_init();
 	m0_xc_cp_onwire_init();
-	m0_xc_ready_fop_init();
+	m0_xc_sw_init();
 }
 
 M0_INTERNAL int m0_cm_module_init(void)
@@ -711,7 +738,7 @@ static void cm_xc_fini()
 {
 	m0_xc_ag_fini();
 	m0_xc_cp_onwire_fini();
-	m0_xc_ready_fop_fini();
+	m0_xc_sw_fini();
 }
 
 M0_INTERNAL void m0_cm_module_fini(void)
@@ -763,6 +790,7 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	aggr_grps_in_tlist_init(&cm->cm_aggr_grps_in);
 	aggr_grps_out_tlist_init(&cm->cm_aggr_grps_out);
 	proxy_tlist_init(&cm->cm_proxies);
+	m0_sm_timer_init(&cm->cm_sw_broadcast_timer);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -786,6 +814,7 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	      (char *)cm->cm_type->ct_stype.rst_name,
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);
+	m0_sm_timer_fini(&cm->cm_sw_broadcast_timer);
 	m0_sm_fini(&cm->cm_mach);
 	m0_cm_unlock(cm);
 
@@ -838,23 +867,6 @@ M0_INTERNAL void m0_cm_continue(struct m0_cm *cm)
 	m0_cm_cp_pump_wakeup(cm);
 
 	M0_LEAVE();
-}
-
-M0_INTERNAL int m0_cm_sw_update(struct m0_cm *cm)
-{
-	int                      rc = 0;
-
-	M0_ENTRY("cm: %p", cm);
-	M0_PRE(cm != NULL);
-	M0_PRE(m0_cm_is_locked(cm));
-
-	if (m0_cm_has_more_data(cm)) {
-		if (cm->cm_proxy_nr > 0)
-			rc = m0_cm_ag_advance(cm);
-	}
-
-	M0_LEAVE("rc: %d", rc);
-	return rc;
 }
 
 M0_INTERNAL int m0_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)

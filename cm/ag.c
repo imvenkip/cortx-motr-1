@@ -34,6 +34,7 @@
 #include "layout/layout.h"
 #include "mero/magic.h"
 
+#include "cm/sw.h"
 #include "cm/proxy.h"
 #include "cm/ag.h"
 #include "cm/cm.h"
@@ -76,6 +77,18 @@ M0_INTERNAL int m0_cm_ag_id_cmp(const struct m0_cm_ag_id *id0,
 
 	return m0_uint128_cmp(&id0->ai_hi, &id1->ai_hi) ?:
 	       m0_uint128_cmp(&id0->ai_lo, &id1->ai_lo);
+}
+
+M0_INTERNAL void m0_cm_ag_id_copy(struct m0_cm_ag_id *dst,
+                                  const struct m0_cm_ag_id *src)
+{
+	M0_PRE(dst != NULL);
+	M0_PRE(src != NULL);
+
+	dst->ai_hi.u_hi = src->ai_hi.u_hi;
+	dst->ai_hi.u_lo = src->ai_hi.u_lo;
+	dst->ai_lo.u_hi = src->ai_lo.u_hi;
+	dst->ai_lo.u_lo = src->ai_lo.u_lo;
 }
 
 M0_INTERNAL bool m0_cm_ag_id_is_set(const struct m0_cm_ag_id *id)
@@ -154,20 +167,18 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 
-	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [has_incoming = %d]",
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%d]",
 	       id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
 	       ag->cag_has_incoming);
 	if (lo != NULL && hi != NULL) {
-		M0_LOG(M0_DEBUG, "lo=%p [%lu] [%lu] [%lu] [%lu]", lo,
+		M0_LOG(M0_DEBUG, "lo [%lu] [%lu] [%lu] [%lu]",
 		       lo->cag_id.ai_hi.u_hi, lo->cag_id.ai_hi.u_lo,
 		       lo->cag_id.ai_lo.u_hi, lo->cag_id.ai_lo.u_lo);
-
-		M0_LOG(M0_DEBUG, "hi=%p [%lu] [%lu] [%lu] [%lu]", hi,
+		M0_LOG(M0_DEBUG, "hi [%lu] [%lu] [%lu] [%lu]",
 		       hi->cag_id.ai_hi.u_hi, hi->cag_id.ai_hi.u_lo,
 		       hi->cag_id.ai_lo.u_hi, hi->cag_id.ai_lo.u_lo);
 	}
-
-	m0_cm_sw_update(cm);
+	m0_cm_sw_local_update(cm);
 	m0_cm_aggr_group_fini(ag);
 	has_data = m0_cm_has_more_data(cm);
 	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&

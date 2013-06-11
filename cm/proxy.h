@@ -26,7 +26,9 @@
 
 #include "rpc/conn.h"
 #include "rpc/session.h"
+#include "sm/sm.h"
 
+#include "cm/sw.h"
 #include "cm/ag.h"
 
 /**
@@ -46,7 +48,13 @@ struct m0_cm_proxy {
 	uint64_t               px_id;
 
 	/** Remote replica's sliding window. */
-	struct m0_cm_ag_sw     px_sw;
+	struct m0_cm_sw        px_sw;
+
+	/** Last local sliding window update sent to this replica. */
+	struct m0_cm_sw        px_last_sw_update_sent;
+
+	/** Back reference to local copy mahine. */
+	struct m0_cm          *px_cm;
 
 	struct m0_mutex        px_mutex;
 
@@ -88,6 +96,9 @@ M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi);
+
+M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
+					  struct m0_cm_sw *sw);
 
 M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp);

@@ -92,37 +92,6 @@ static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
         return seg_nr;
 }
 
-static void ag_id_copy(struct m0_cm_ag_id *dst, const struct m0_cm_ag_id *src)
-{
-        M0_PRE(dst != NULL);
-        M0_PRE(src != NULL);
-
-        dst->ai_hi.u_hi = src->ai_hi.u_hi;
-        dst->ai_hi.u_lo = src->ai_hi.u_lo;
-        dst->ai_lo.u_hi = src->ai_lo.u_hi;
-        dst->ai_lo.u_lo = src->ai_lo.u_lo;
-}
-
-static void sw_update(struct m0_cm_ag_sw *sw, struct m0_cm_cp *cp,
-		      struct m0_net_end_point *ep)
-{
-	struct m0_cm_proxy      *proxy;
-	struct m0_cm            *cm;
-	struct m0_fom           *fom;
-
-	fom = &cp->c_fom;
-	cm = cm_get(fom);
-	proxy = cp->c_cm_proxy;
-	if (proxy == NULL) {
-		m0_cm_lock(cm);
-		proxy = m0_cm_proxy_locate(cm, ep->nep_addr);
-		m0_cm_unlock(cm);
-		cp->c_cm_proxy = proxy;
-	}
-	M0_PRE(proxy != NULL);
-	m0_cm_proxy_update(proxy, &sw->sw_lo, &sw->sw_hi);
-}
-
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
 static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
                             struct m0_sns_cm_cp *sns_cp)
@@ -130,9 +99,6 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         struct m0_cm_ag_id       ag_id;
         struct m0_cm            *cm;
         struct m0_cm_aggr_group *ag;
-	struct m0_cm_ag_sw       sw;
-	struct m0_rpc_item      *item;
-	struct m0_net_end_point *ep;
 
         M0_PRE(sns_cp != NULL);
         M0_PRE(sns_cpx != NULL);
@@ -145,7 +111,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 
         sns_cp->sc_base.c_prio = sns_cpx->scx_cp.cpx_prio;
 
-        ag_id_copy(&ag_id, &sns_cpx->scx_cp.cpx_ag_id);
+        m0_cm_ag_id_copy(&ag_id, &sns_cpx->scx_cp.cpx_ag_id);
 
         cm = cm_get(&sns_cp->sc_base.c_fom);
         m0_cm_lock(cm);
@@ -163,13 +129,6 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         sns_cp->sc_base.c_buf_nr = 0;
         sns_cp->sc_base.c_data_seg_nr = seg_nr_get(sns_cpx,
                                                    sns_cpx->scx_ivecs.cis_nr);
-	/* Add sliding window information. */
-        ag_id_copy(&sw.sw_lo, &sns_cpx->scx_cp.cpx_sw.sw_lo);
-        ag_id_copy(&sw.sw_hi, &sns_cpx->scx_cp.cpx_sw.sw_hi);
-
-	item = m0_fop_to_rpc_item(sns_cp->sc_base.c_fom.fo_fop);
-	ep = item->ri_session->s_conn->c_rpcchan->rc_destep;
-	sw_update(&sw, &sns_cp->sc_base, ep);
 }
 
 /* Converts in-memory copy packet structure to onwire copy packet structure. */
@@ -178,13 +137,10 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
 {
         struct m0_net_buffer    *nbuf;
         struct m0_cm_cp         *cp;
-        struct m0_cm            *cm;
         struct m0_net_domain    *ndom;
         struct m0_rpc_session   *session;
         uint32_t                 nbuf_seg_nr;
         uint32_t                 tmp_seg_nr;
-	struct m0_cm_aggr_group *sw_lo_ag;
-	struct m0_cm_aggr_group *sw_hi_ag;
         uint32_t                 nb_idx = 0;
         uint32_t                 nb_cnt;
         uint64_t                 offset;
@@ -205,7 +161,7 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         sns_cpx->scx_sid.f_key = sns_cp->sc_sid.si_bits.u_lo;
         sns_cpx->scx_cp.cpx_prio = cp->c_prio;
         sns_cpx->scx_phase = M0_CCP_SEND;
-        ag_id_copy(&sns_cpx->scx_cp.cpx_ag_id, &cp->c_ag->cag_id);
+        m0_cm_ag_id_copy(&sns_cpx->scx_cp.cpx_ag_id, &cp->c_ag->cag_id);
         sns_cpx->scx_cp.cpx_ag_cp_idx = cp->c_ag_cp_idx;
         m0_bitmap_onwire_init(&sns_cpx->scx_cp.cpx_bm,
 			      cp->c_ag->cag_cp_global_nr);
@@ -244,16 +200,6 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
                 goto cleanup;
         }
 
-	/* Add sliding window information. */
-	cm = cm_get(&cp->c_fom);
-	m0_cm_lock(cm);
-	sw_lo_ag = m0_cm_ag_lo(cm);
-	sw_hi_ag = m0_cm_ag_hi(cm);
-	m0_cm_unlock(cm);
-	if (sw_lo_ag != NULL && sw_hi_ag != NULL) {
-		ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_lo, &sw_lo_ag->cag_id);
-		ag_id_copy(&sns_cpx->scx_cp.cpx_sw.sw_hi, &sw_hi_ag->cag_id);
-	}
         goto out;
 
 cleanup:
@@ -281,15 +227,6 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 		req_fop = m0_rpc_item_to_fop(req_item);
 		cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
 		scp = cp2snscp(cp_fop->cf_cp);
-		/*
-		 * Save the sliding window update from remote replica in the
-		 * sender side copy packet and update the proxy's sliding window
-		 * later to avoid awkward context in this call back.
-		 */
-                ag_id_copy(&scp->sc_sw_update.sw_lo,
-			   &sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo);
-                ag_id_copy(&scp->sc_sw_update.sw_hi,
-			   &sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi);
 		m0_fom_wakeup(&scp->sc_base.c_fom);
 	}
 }
@@ -403,12 +340,17 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp     *scp;
 	struct m0_net_end_point *ep;
+	struct m0_rpc_bulk      *rbulk = &cp->c_bulk;
 
 	M0_PRE(cp != NULL);
 
+	M0_LOG(M0_DEBUG, "rbulk rc: %d", rbulk->rb_rc);
+        m0_mutex_lock(&rbulk->rb_mutex);
+        M0_PRE(m0_list_is_empty(&rbulk->rb_buflist.t_head));
+        m0_mutex_unlock(&rbulk->rb_mutex);
+
 	scp = cp2snscp(cp);
 	ep = cp->c_cm_proxy->px_conn.c_rpcchan->rc_destep;
-	sw_update(&scp->sc_sw_update, cp, ep);
         m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
         return M0_FSO_WAIT;
 }
@@ -530,13 +472,8 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
 	sw_lo_ag = m0_cm_ag_lo(cm);
 	sw_hi_ag = m0_cm_ag_hi(cm);
 	m0_cm_unlock(cm);
-	if (sw_lo_ag != NULL && sw_hi_ag != NULL) {
-		ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_lo, &sw_lo_ag->cag_id);
-		ag_id_copy(&sns_cpx_rep->scr_cp_rep.cr_sw.sw_hi, &sw_hi_ag->cag_id);
-	}
         rc = m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &fop->f_item);
         m0_fop_put(fop);
-
 out:
         if (rc != 0) {
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);

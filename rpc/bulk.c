@@ -228,8 +228,8 @@ M0_INTERNAL void m0_rpc_bulk_fini(struct m0_rpc_bulk *rbulk)
 	M0_PRE(rbulk != NULL);
 	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_PRE(rpc_bulk_invariant(rbulk));
-	m0_mutex_unlock(&rbulk->rb_mutex);
 	M0_PRE(rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
+	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	m0_chan_fini_lock(&rbulk->rb_chan);
 	m0_mutex_fini(&rbulk->rb_mutex);

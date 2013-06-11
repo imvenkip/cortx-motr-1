@@ -31,6 +31,7 @@
 #include "sm/sm.h"	       /* struct m0_sm */
 #include "fop/fom.h"           /* struct m0_fom */
 
+#include "cm/sw.h"
 #include "cm/ag.h"
 #include "cm/pump.h"
 
@@ -241,6 +242,8 @@ struct m0_cm {
 
 	uint64_t                         cm_proxy_nr;
 
+	struct m0_sm_timer               cm_sw_broadcast_timer;
+
 	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
 };
@@ -287,6 +290,14 @@ struct m0_cm_ops {
 	int (*cmo_ag_next)(struct m0_cm *cm,
 			   const struct m0_cm_ag_id id_curr,
 			   struct m0_cm_ag_id *id_next);
+
+	/**
+	 * Allocates and returns the copy machine sepcific sliding window
+	 * update FOP.
+	 */
+	struct m0_fop *(*cmo_sw_update_fop_alloc)(struct m0_cm *cm,
+						  const struct m0_cm_sw *sw,
+						  const char *local_ep);
 
 	void (*cmo_complete) (struct m0_cm *cm);
 

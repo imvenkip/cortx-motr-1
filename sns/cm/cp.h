@@ -25,7 +25,7 @@
 #define __MERO_SNS_CM_CP_H__
 
 #include "stob/stob_id.h"
-#include "cm/ag.h" /* struct m0_cm_ag_sw */
+#include "cm/sw.h" /* struct m0_cm_sw */
 #include "cm/cp.h"
 
 /**
@@ -58,9 +58,6 @@ struct m0_sns_cm_cp {
 
 	/** Stob context. */
 	struct m0_stob        *sc_stob;
-
-	/** Updated sliding window from the remote replica. */
-	struct m0_cm_ag_sw     sc_sw_update;
 
 	/** FOL record part for storage objects. */
 	struct m0_fol_rec_part sc_fol_rec_part;

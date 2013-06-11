@@ -45,11 +45,6 @@ struct m0_cm_ag_id {
 	struct m0_uint128 ai_lo;
 } M0_XCA_RECORD;
 
-struct m0_cm_ag_sw {
-	struct m0_cm_ag_id     sw_lo;
-	struct m0_cm_ag_id     sw_hi;
-} M0_XCA_RECORD;
-
 /** Copy Machine Aggregation Group. */
 struct m0_cm_aggr_group {
 	/** Copy machine to which this aggregation group belongs. */
@@ -150,6 +145,9 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
  */
 M0_INTERNAL int m0_cm_ag_id_cmp(const struct m0_cm_ag_id *id0,
 				const struct m0_cm_ag_id *id1);
+
+M0_INTERNAL void m0_cm_ag_id_copy(struct m0_cm_ag_id *dst,
+				  const struct m0_cm_ag_id *src);
 
 M0_INTERNAL bool m0_cm_ag_id_is_set(const struct m0_cm_ag_id *id);
 

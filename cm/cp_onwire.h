@@ -29,6 +29,8 @@
 #include "ioservice/io_fops_xc.h"  /* m0_io_descs_xc */
 #include "cm/ag.h"                 /* m0_cm_ag_id */
 #include "cm/ag_xc.h"              /* m0_cm_ag_id_xc */
+#include "cm/sw.h"
+#include "cm/sw_xc.h"
 
 /** Onwire copy packet structure. */
 struct m0_cpx {
@@ -49,16 +51,11 @@ struct m0_cpx {
 
 	/** Network buffer descriptors corresponding to copy packet data. */
 	struct m0_io_descs        cpx_desc;
-
-	/** Sliding window information. */
-	struct m0_cm_ag_sw        cpx_sw;
 } M0_XCA_RECORD;
 
 /** Onwire copy packet reply. */
 struct m0_cpx_reply {
 	uint32_t           cr_rc;
-	/** Sliding window information. */
-	struct m0_cm_ag_sw cr_sw;
 } M0_XCA_RECORD;
 
 #endif /*  __MERO_CM_CP_ONWIRE_H__ */

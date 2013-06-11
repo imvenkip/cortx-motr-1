@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __MERO_CM_READY_FOP_H__
-#define __MERO_CM_READY_FOP_H__
+#ifndef __MERO_CM_SW_H__
+#define __MERO_CM_SW_H__
 
 #include "lib/types.h"
 
@@ -31,7 +31,7 @@
 #include "fop/fop.h"
 
 /**
-   @defgroup CMREADY copy machine ready fop
+   @defgroup CMSW copy machine sliding window
    @ingroup CM
 
    @{
@@ -39,24 +39,41 @@
 
 struct m0_rpc_conn;
 
-/** Sequence of file sizes to be repaired. */
-struct cm_endpoint {
+struct m0_cm_sw {
+	struct m0_cm_ag_id     sw_lo;
+	struct m0_cm_ag_id     sw_hi;
+} M0_XCA_RECORD;
+
+/** Copy machine replica's local endpoint. */
+struct m0_cm_local_ep {
 	uint32_t  ep_size;
 	char     *ep;
 } M0_XCA_SEQUENCE;
 
-struct m0_cm_ready {
-	struct cm_endpoint r_cm_ep;
-
+struct m0_cm_sw_update {
+	struct m0_cm_local_ep swu_cm_ep;
 	/** Replica's sliding window. */
-	struct m0_cm_ag_sw r_sw;
+	struct m0_cm_sw       swu_sw;
 }M0_XCA_RECORD;
 
-M0_INTERNAL int m0_cm_ready_fop_post(struct m0_fop *fop,
-				     const struct m0_rpc_conn *conn);
-/** @} CMREADY */
+M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
+			      const struct m0_cm_ag_id *lo,
+			      const struct m0_cm_ag_id *hi);
 
-#endif /* __MERO_CM_READY_FOP_H__ */
+M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
+			       const struct m0_cm_sw *src);
+
+M0_INTERNAL int m0_cm_sw_update_fop_post(struct m0_fop *fop,
+					 const struct m0_rpc_conn *conn,
+					 m0_time_t deadline);
+
+M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm);
+
+M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
+
+/** @} CMSW */
+
+#endif /* __MERO_CM_SW_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
