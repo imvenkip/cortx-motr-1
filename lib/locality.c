@@ -53,11 +53,15 @@ M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)
 	return loc->lo_grp != NULL ? loc : &locs_fallback;
 }
 
-M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_sm_group *grp)
+M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_locality *val)
 {
+	struct m0_locality *loc = &locs[id];
+
 	M0_PRE(id < locs_allocated);
-	if (locs[id].lo_grp == NULL)
-		locs[id].lo_grp = grp;
+	if (loc->lo_grp == NULL) {
+		M0_ASSERT(loc->lo_reqh == NULL);
+		*loc = *val;
+	}
 	locs_nr = max_check(locs_nr, id + 1);
 }
 

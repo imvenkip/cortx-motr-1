@@ -46,6 +46,7 @@
 #include "reqh/reqh.h"
 #include "lib/timer.h"
 #include "fid/fid.h"
+#include "fop/fom_simple.h"
 #include "fop/fom_generic.h"
 #include "mero/init.h"
 #include "lib/cookie.h"
@@ -126,6 +127,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
 #endif
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
+	/* fom-simple must go after reqh init */
+	{ &m0_fom_simples_init, &m0_fom_simples_fini, "fom-simple" },
 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */

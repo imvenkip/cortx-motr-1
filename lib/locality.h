@@ -33,6 +33,7 @@
 #include "lib/types.h"
 #include "lib/processor.h"
 struct m0_sm_group;
+struct m0_reqh;
 
 /* export */
 struct m0_locality;
@@ -51,6 +52,8 @@ struct m0_locality {
 	 * ASTs is serialised with state transitions of foms in this locality.
 	 */
 	struct m0_sm_group *lo_grp;
+	struct m0_reqh     *lo_reqh;
+	size_t              lo_idx;
 	/* Other fields might be added here. */
 };
 
@@ -74,7 +77,7 @@ M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value);
  *
  * This has effect only once per-core.
  */
-M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_sm_group *grp);
+M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_locality *val);
 
 M0_INTERNAL int  m0_localities_init(void);
 M0_INTERNAL void m0_localities_fini(void);

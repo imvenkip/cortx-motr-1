@@ -901,8 +901,11 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			m0_fom_domain_fini(dom);
 			break;
 		}
+		m0_locality_set(cpu, &(struct m0_locality){
+				.lo_grp  = &loc->fl_group,
+				.lo_reqh = dom->fd_reqh,
+				.lo_idx  = dom->fd_localities_nr });
 		M0_CNT_INC(dom->fd_localities_nr);
-		m0_locality_set(cpu, &loc->fl_group);
 	}
 	m0_bitmap_fini(&onln_cpu_map);
 

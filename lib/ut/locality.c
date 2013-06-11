@@ -21,12 +21,15 @@
 #include "db/db.h"
 #include "cob/cob.h"
 #include "reqh/reqh.h"
+#include "fop/fom.h"
+#include "fop/fom_simple.h"
 #include "lib/misc.h"           /* m0_forall */
 #include "lib/locality.h"
 #include "ut/ut.h"
 
 enum {
-	NR = 4096
+	NR = 4096,
+	X_VALUE = 6
 };
 
 static bool                 passed[NR];
@@ -38,6 +41,7 @@ static struct m0_dbenv      dbenv;
 static struct m0_cob_domain cob_dom;
 static struct m0_fol        fol;
 static struct m0_reqh       reqh;
+static struct m0_fom_simple s;
 
 
 static void _reqh_init(void)
@@ -80,11 +84,27 @@ static void _cb0(struct m0_sm_group *grp, struct m0_sm_ast *a)
 	m0_semaphore_up(&sem[idx]);
 }
 
+static int simple_tick(struct m0_fom *fom, int x, int *substate)
+{
+	static int expected = 0;
+
+	M0_UT_ASSERT(x == X_VALUE);
+	M0_UT_ASSERT(*substate == expected);
+
+	expected++;
+	if ((*substate)++ < NR)
+		return M0_FSO_AGAIN;
+	else {
+		m0_semaphore_up(&sem[0]);
+		return -1;
+	}
+}
+
 void test_locality(void)
 {
-	unsigned         i;
-	struct m0_bitmap online;
-	int              result;
+	unsigned             i;
+	struct m0_bitmap     online;
+	int                  result;
 
 	m0_mutex_init(&lock);
 	_reqh_init();
@@ -115,6 +135,10 @@ void test_locality(void)
 	M0_UT_ASSERT(m0_forall(j, ARRAY_SIZE(core),
 			       (core[j] != 0) == (j < online.b_nr &&
 						  m0_bitmap_get(&online, j))));
+
+	M0_FOM_SIMPLE_POST(&s, &reqh, &simple_tick, X_VALUE, 1);
+	m0_semaphore_down(&sem[0]);
+	M0_UT_ASSERT(s.si_substate == NR + 1);
 
 	for (i = 0; i < ARRAY_SIZE(sem); ++i)
 		m0_semaphore_fini(&sem[i]);
