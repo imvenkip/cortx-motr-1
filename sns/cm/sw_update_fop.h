@@ -42,10 +42,10 @@ struct m0_sns_cm_sw_update {
 M0_INTERNAL int m0_sns_cm_sw_update_fop_init(void);
 M0_INTERNAL void m0_sns_cm_sw_update_fop_fini(void);
 
-M0_INTERNAL struct m0_fop *
-m0_sns_cm_sw_update_fop_alloc(struct m0_cm *cm,
-			      const struct m0_cm_sw *sw,
-			      const char *local_ep);
+M0_INTERNAL int
+m0_sns_cm_sw_update_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
+			      void (*fop_release)(struct m0_ref *),
+			      const char *local_ep, const struct m0_cm_sw *sw);
 
 extern struct m0_fop_type m0_sns_cm_sw_update_fopt;
 

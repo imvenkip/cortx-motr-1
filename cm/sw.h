@@ -56,16 +56,15 @@ struct m0_cm_sw_update {
 	struct m0_cm_sw       swu_sw;
 }M0_XCA_RECORD;
 
+M0_INTERNAL int m0_cm_sw_update_init(struct m0_cm_sw_update *sw_update,
+				     const char *ep, const struct m0_cm_sw *sw);
+
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 			      const struct m0_cm_ag_id *lo,
 			      const struct m0_cm_ag_id *hi);
 
 M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 			       const struct m0_cm_sw *src);
-
-M0_INTERNAL int m0_cm_sw_update_fop_post(struct m0_fop *fop,
-					 const struct m0_rpc_conn *conn,
-					 m0_time_t deadline);
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm);
 

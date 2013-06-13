@@ -274,8 +274,11 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         fop = &cp_fop->cf_fop;
         m0_fop_init(fop, &m0_sns_cpx_fopt, NULL, cp_fop_release);
         rc = m0_fop_data_alloc(fop);
-        if (rc  != 0)
+        if (rc  != 0) {
+		m0_fop_fini(fop);
+		m0_free(cp_fop);
                 goto out;
+	}
 
         sns_cpx = m0_fop_data(fop);
         M0_PRE(sns_cpx != NULL);

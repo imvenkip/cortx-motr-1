@@ -53,6 +53,8 @@ struct m0_cm_proxy {
 	/** Last local sliding window update sent to this replica. */
 	struct m0_cm_sw        px_last_sw_update_sent;
 
+	struct m0_sm_ast       px_sw_update_ast;
+
 	/** Back reference to local copy mahine. */
 	struct m0_cm          *px_cm;
 
@@ -80,6 +82,19 @@ struct m0_cm_proxy {
 	uint64_t               px_magic;
 };
 
+/**
+ * Sliding window update fop context for a remote replica proxy.
+ * @see m0_cm_proxy_remote_update()
+ */
+struct m0_cm_proxy_sw_update_fop {
+	struct m0_fop       psu_fop;
+	/**
+	 * Remote copy machine replica proxy to which the sliding window
+	 * update FOP is to be sent (i.e. m0_cm_proxy_sw_update_fop::psu_fop).
+	 */
+	struct m0_cm_proxy *psu_proxy;
+};
+
 M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
 				  struct m0_cm_ag_id *lo,
 				  struct m0_cm_ag_id *hi,
@@ -96,6 +111,8 @@ M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi);
+
+M0_INTERNAL void m0_cm_proxy_sw_update_ast_post(struct m0_cm_proxy *proxy);
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 					  struct m0_cm_sw *sw);

@@ -306,10 +306,10 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	       has_incoming:[%d]", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
 	M0_LOG(M0_DEBUG, "last_saved_id [%lu] [%lu] [%lu] [%lu]",
-		cm->cm_last_saved_sw_hi.ai_hi.u_hi,
-		cm->cm_last_saved_sw_hi.ai_hi.u_lo,
-		cm->cm_last_saved_sw_hi.ai_lo.u_hi,
-		cm->cm_last_saved_sw_hi.ai_lo.u_lo);
+	       cm->cm_last_saved_sw_hi.ai_hi.u_hi,
+	       cm->cm_last_saved_sw_hi.ai_hi.u_lo,
+	       cm->cm_last_saved_sw_hi.ai_lo.u_hi,
+	       cm->cm_last_saved_sw_hi.ai_lo.u_lo);
 
 	rc = cm->cm_ops->cmo_ag_alloc(cm, id, has_incoming, out);
 	if (rc == 0 || rc == -ENOBUFS)
@@ -323,6 +323,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	 */
 	if (has_incoming && m0_cm_ag_id_cmp(&cm->cm_last_saved_sw_hi, id) < 0)
 		cm->cm_last_saved_sw_hi = *id;
+
 	return rc;
 }
 

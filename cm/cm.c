@@ -236,10 +236,9 @@
    Sliding window is typically initialised during copy machine startup i.e.
    M0_CMS_READY phase and updated during finalisation of a completed aggregation
    group (i.e. aggregation group for which all the copy packets are processed).
-   Every copy machine replica periodically broadcasts its local sliding window
-   to other remote replicas.
-   @see cm_sw_broadcast_timer_cb()
-   @see m0_cm_sw_remote_update()
+   Periodically, updated sliding window is communicated to remote replica.
+   @see m0_cm_proxy_sw_update_ast_post()
+   @see m0_cm_proxy_remote_update()
 
    @subsection CMDLD-lspec-cm-stop Copy machine stop
    Once operation completes successfully, copy machine performs required tasks,
@@ -622,33 +621,8 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	return rc;
 }
 
-/*
- * Broadcasts sliding window to remote replicas represented by corresponding
- * struct m0_cm_proxy.
- * This callback function is called when struct m0_cm::cm_sw_broadcast_timer
- * expires.
- * see m0_cm_start() for more details.
- */
-static void cm_sw_broadcast_timer_cb(struct m0_sm_timer *timer)
-{
-        struct m0_cm *cm;
-        m0_time_t     deadline;
-
-        cm = container_of(timer, struct m0_cm, cm_sw_broadcast_timer);
-	M0_ASSERT(m0_cm_invariant(cm));
-        M0_ASSERT(m0_cm_is_locked(cm));
-	m0_cm_sw_remote_update(cm);
-	deadline = m0_time(1, 0);
-	m0_sm_timer_fini(&cm->cm_sw_broadcast_timer);
-	m0_sm_timer_init(&cm->cm_sw_broadcast_timer);
-	m0_sm_timer_start(&cm->cm_sw_broadcast_timer,
-			  cm->cm_mach.sm_grp,
-			  cm_sw_broadcast_timer_cb, deadline);
-}
-
 M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 {
-	m0_time_t deadline;
 	int	  rc;
 
 	M0_ENTRY("cm: %p", cm);
@@ -662,12 +636,8 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, M0_CMS_ACTIVE, M0_CM_ERR_START);
 	/* Start pump FOM to create copy packets. */
-	if (rc == 0) {
+	if (rc == 0)
 		m0_cm_cp_pump_start(cm);
-		deadline = m0_time(1, 0);
-		m0_sm_timer_start(&cm->cm_sw_broadcast_timer, cm->cm_mach.sm_grp,
-				  cm_sw_broadcast_timer_cb, deadline);
-	}
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -799,7 +769,6 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	aggr_grps_in_tlist_init(&cm->cm_aggr_grps_in);
 	aggr_grps_out_tlist_init(&cm->cm_aggr_grps_out);
 	proxy_tlist_init(&cm->cm_proxies);
-	m0_sm_timer_init(&cm->cm_sw_broadcast_timer);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -823,7 +792,6 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	      (char *)cm->cm_type->ct_stype.rst_name,
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);
-	m0_sm_timer_fini(&cm->cm_sw_broadcast_timer);
 	m0_sm_fini(&cm->cm_mach);
 	m0_cm_unlock(cm);
 

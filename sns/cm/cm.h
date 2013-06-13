@@ -181,14 +181,6 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
 				     const struct m0_cm_ag_id *id,
                                      struct m0_pdclust_layout *pl);
 
-M0_INTERNAL int m0_sns_cm_ready_fop_post(struct m0_cm *cm,
-					 struct m0_cm_ag_id *id_lo,
-					 struct m0_cm_ag_id *id_hi,
-					 const char *ep,
-					 struct m0_rpc_machine *rmach,
-					 struct m0_rpc_conn *conn,
-					 m0_time_t deadline);
-
 /**
  * Returns state of SNS repair process with respect to @gfid.
  * @param gfid Input global fid for which SNS repair state has to

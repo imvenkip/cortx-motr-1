@@ -23,9 +23,11 @@
 #include "lib/trace.h"
 #include "lib/time.h"
 #include "lib/misc.h"
+#include "lib/memory.h"
 
 #include "fop/fop.h"
 #include "rpc/rpc.h"
+#include "mero/setup.h" /* CS_MAX_EP_ADDR_LEN */
 
 #include "cm/proxy.h"
 #include "cm/sw.h"
@@ -56,20 +58,19 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 	m0_cm_ag_id_copy(&dst->sw_hi, &src->sw_hi);
 }
 
-M0_INTERNAL int m0_cm_sw_update_fop_post(struct m0_fop *fop,
-					 const struct m0_rpc_conn *conn,
-					 m0_time_t deadline)
+M0_INTERNAL int m0_cm_sw_update_init(struct m0_cm_sw_update *sw_update,
+                                     const char *ep, const struct m0_cm_sw *sw)
 {
-      struct m0_rpc_item *item;
+	M0_PRE(sw_update != NULL && ep != NULL && sw != NULL);
 
-      M0_PRE(fop != NULL && conn != NULL);
+	m0_cm_sw_copy(&sw_update->swu_sw, sw);
+	sw_update->swu_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
+	M0_ALLOC_ARR(sw_update->swu_cm_ep.ep, CS_MAX_EP_ADDR_LEN);
+	if (sw_update->swu_cm_ep.ep == NULL )
+		return -ENOMEM;
+	strncpy(sw_update->swu_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
 
-      item              = m0_fop_to_rpc_item(fop);
-      item->ri_ops      = NULL;
-      item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
-      item->ri_deadline = deadline;
-
-      return m0_rpc_oneway_item_post(conn, item);
+	return 0;
 }
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)

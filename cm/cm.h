@@ -242,8 +242,6 @@ struct m0_cm {
 
 	uint64_t                         cm_proxy_nr;
 
-	struct m0_sm_timer               cm_sw_broadcast_timer;
-
 	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
 };
@@ -292,12 +290,13 @@ struct m0_cm_ops {
 			   struct m0_cm_ag_id *id_next);
 
 	/**
-	 * Allocates and returns the copy machine sepcific sliding window
-	 * update FOP.
+	 * Initialises the given fop with copy machine specific sliding window
+	 * update fop type and given information.
 	 */
-	struct m0_fop *(*cmo_sw_update_fop_alloc)(struct m0_cm *cm,
-						  const struct m0_cm_sw *sw,
-						  const char *local_ep);
+	int (*cmo_sw_update_fop_setup)(struct m0_cm *cm, struct m0_fop *fop,
+				       void (*fop_release)(struct m0_ref *),
+				       const char *local_ep,
+				       const struct m0_cm_sw *sw);
 
 	void (*cmo_complete) (struct m0_cm *cm);
 
@@ -361,7 +360,7 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"
  * fop. Internally invokes copy machine specific start routine.
- * Starts pump FOM and arms struct m0_cm::cm_sw_broadcast_timer.
+ * Starts pump FOM.
  * @pre cm != NULL && m0_cm_state_get(cm) == M0_CMS_IDLE
  * @post m0_cm_state_get(cm) == M0_CMS_ACTIVE
  */

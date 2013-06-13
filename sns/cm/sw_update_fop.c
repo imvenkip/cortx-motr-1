@@ -24,7 +24,6 @@
 #include "lib/string.h"
 
 #include "fop/fop.h"
-#include "mero/setup.h" /* CS_MAX_EP_ADDR_LEN */
 #include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"
 
@@ -62,31 +61,27 @@ M0_INTERNAL void m0_sns_cm_sw_update_fop_fini(void)
 	m0_xc_sw_update_fop_fini();
 }
 
-M0_INTERNAL struct m0_fop *
-m0_sns_cm_sw_update_fop_alloc(struct m0_cm *cm,
-			      const struct m0_cm_sw *sw,
-			      const char *local_ep)
+M0_INTERNAL int
+m0_sns_cm_sw_update_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
+			      void (*fop_release)(struct m0_ref *),
+			      const char *local_ep, const struct m0_cm_sw *sw)
 {
-	struct m0_fop              *fop;
 	struct m0_sns_cm_sw_update *swu_fop;
+	int                         rc = 0;
 
 	M0_PRE(cm != NULL && sw != NULL && local_ep != NULL);
 
-	fop = m0_fop_alloc(&m0_sns_cm_sw_update_fopt, NULL);
-	if (fop != NULL) {
-		swu_fop = m0_fop_data(fop);
-		m0_cm_sw_copy(&swu_fop->swu_base.swu_sw, sw);
-		swu_fop->swu_base.swu_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
-		M0_ALLOC_ARR(swu_fop->swu_base.swu_cm_ep.ep,
-				CS_MAX_EP_ADDR_LEN);
-		if (swu_fop->swu_base.swu_cm_ep.ep == NULL ) {
-			m0_fop_put(fop);
-			return NULL;
-		}
-		strncpy(swu_fop->swu_base.swu_cm_ep.ep, local_ep,
-				CS_MAX_EP_ADDR_LEN);
+	m0_fop_init(fop, &m0_sns_cm_sw_update_fopt, NULL, fop_release);
+        rc = m0_fop_data_alloc(fop);
+        if (rc  != 0) {
+		m0_fop_fini(fop);
+                return rc;
 	}
-	return fop;
+	swu_fop = m0_fop_data(fop);
+	rc = m0_cm_sw_update_init(&swu_fop->swu_base, local_ep, sw);
+	if (rc != 0 )
+		m0_fop_put(fop);
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

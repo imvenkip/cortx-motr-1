@@ -850,16 +850,11 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	 * copy packet by the sender. Thus receiver instead of receiving data
 	 * in multiple copy packets as expected, receives the data in a single
 	 * copy packet.
-	 * We normalize this extra buffer reservation later during the
-	 * aggregation group is finalised at the receiver.
-	 * see function sns_cm_normalize_reservation()
 	 */
 	total_inbufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
 	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-	if (total_inbufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free) {
-		if (total_inbufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
-				goto out;
-	}
+	if (total_inbufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
+		goto out;
 	scm->sc_ibp_reserved_nr += total_inbufs;
 	result = true;
 out:
@@ -964,10 +959,10 @@ const struct m0_cm_ops cm_ops = {
 	.cmo_cp_alloc            = cm_cp_alloc,
 	.cmo_data_next           = m0_sns_cm_iter_next,
 	.cmo_ag_next             = cm_ag_next,
-	.cmo_sw_update_fop_alloc = m0_sns_cm_sw_update_fop_alloc,
+	.cmo_sw_update_fop_setup = m0_sns_cm_sw_update_fop_setup,
 	.cmo_complete            = cm_complete,
 	.cmo_stop                = cm_stop,
-	.cmo_fini          = cm_fini
+	.cmo_fini                = cm_fini
 };
 
 #undef M0_TRACE_SUBSYSTEM
