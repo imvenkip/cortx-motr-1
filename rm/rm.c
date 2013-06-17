@@ -412,7 +412,14 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 	M0_PRE(res->r_type->rt_ops->rto_len != NULL);
 	M0_PRE(res->r_type->rt_ops->rto_encode != NULL);
 
-	buf->b_nob = res->r_type->rt_ops->rto_len(res);
+	/*
+	 * A resource type ID needs to be encoded before encoding resource
+	 * onto buffer; This is required because whenever a borrow request
+	 * reaches creditor, type needs to be identified to call type specific
+	 * decode function.
+	 */
+	buf->b_nob = sizeof res->r_type->rt_id +
+			res->r_type->rt_ops->rto_len(res);
 	RM_ALLOC(buf->b_addr, buf->b_nob, RESOURCE_BUF_ALLOC, &m0_rm_addb_ctx);
 	if (buf->b_addr == NULL)
 		return -ENOMEM;
@@ -422,6 +429,13 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 	datum_buf.ov_vec.v_count = &buf->b_nob;
 
 	m0_bufvec_cursor_init(&cursor, &datum_buf);
+
+	/*
+	 * Copy resource type ID first to buffer, followed by actual
+	 * resource description
+	 */
+	m0_bufvec_cursor_copyto(&cursor, (void *)&res->r_type->rt_id,
+				sizeof res->r_type->rt_id);
 	M0_RETURN(res->r_type->rt_ops->rto_encode(&cursor, res));
 }
 M0_EXPORTED(m0_rm_resource_encode);
@@ -1685,7 +1699,7 @@ static void incoming_check(struct m0_rm_incoming *in)
 	if (in->rin_rc == 0) {
 		m0_rm_credit_init(&rest, in->rin_want.cr_owner);
 		rc = m0_rm_credit_copy(&rest, &in->rin_want) ?:
-		     incoming_check_with(in, &rest);
+			incoming_check_with(in, &rest);
 		M0_ASSERT(ergo(rc >= 0, credit_is_empty(&rest)));
 		m0_rm_credit_fini(&rest);
 	} else

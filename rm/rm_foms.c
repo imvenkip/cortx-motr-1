@@ -284,6 +284,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 				    struct m0_rm_loan, rl_id);
 
 		M0_ASSERT(loan != NULL);
+		bfop->br_creditor_cookie = loan->rl_other->rem_cookie;
 		/*
 		 * Memory for the buffer is allocated by the function.
 		 */
@@ -479,8 +480,7 @@ static int request_pre_process(struct m0_fom *fom,
 	 */
 	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
 			      FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
-	M0_LEAVE();
-	return incoming_state(in) == RI_WAIT ? M0_FSO_WAIT : M0_FSO_AGAIN;
+	M0_RETURN(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT : M0_FSO_AGAIN);
 }
 
 static int request_post_process(struct m0_fom *fom)
@@ -535,8 +535,7 @@ static int request_fom_tick(struct m0_fom *fom,
 			M0_IMPOSSIBLE("Unrecognized RM FOM phase");
 			break;
 		}
-
-	}/* else - process RM phases */
+	}
 	M0_RETURN(rc);
 }
 

@@ -293,7 +293,6 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 out:
 	M0_RETURN(rc);
 }
-M0_EXPORTED(m0_rm_borrow_out);
 
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
@@ -324,6 +323,9 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		M0_ASSERT(borrow_reply != NULL);
 		bcredit = &outreq->ou_req.rog_want.rl_credit;
 		owner   = bcredit->cr_owner;
+		if (m0_cookie_is_null(owner->ro_creditor->rem_cookie))
+			owner->ro_creditor->rem_cookie =
+				borrow_reply->br_creditor_cookie;
 		/* Get the data for a credit from the FOP */
 		m0_buf_init(&buf, borrow_reply->br_credit.cr_opaque.b_addr,
 				  borrow_reply->br_credit.cr_opaque.b_nob);
@@ -456,18 +458,16 @@ M0_INTERNAL int m0_rm_fop_init(void)
 	m0_xc_cookie_init();
 	m0_xc_fom_generic_init();
 	m0_xc_rm_fops_init();
-#ifndef __KERNEL__
+
 	m0_sm_conf_extend(m0_generic_conf.scf_state, rm_req_phases,
 			  m0_generic_conf.scf_nr_states);
-#endif
+
 	return  M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_fopt,
 				 .name      = "Credit Borrow",
 				 .opcode    = M0_RM_FOP_BORROW,
 				 .xt        = m0_rm_fop_borrow_xc,
-#ifndef __KERNEL__
 				 .sm	    = &borrow_sm_conf,
 				 .fom_ops   = &rm_borrow_fom_type_ops,
-#endif
 				 .svc_type  = &m0_rms_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
 		M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_rep_fopt,
@@ -480,10 +480,8 @@ M0_INTERNAL int m0_rm_fop_init(void)
 				 .name      = "Credit Revoke",
 				 .opcode    = M0_RM_FOP_REVOKE,
 				 .xt        = m0_rm_fop_revoke_xc,
-#ifndef __KERNEL__
 				 .sm	    = &revoke_sm_conf,
 				 .fom_ops   = &rm_revoke_fom_type_ops,
-#endif
 				 .svc_type  = &m0_rms_type,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 }

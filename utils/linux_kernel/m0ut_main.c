@@ -48,6 +48,7 @@ extern const struct m0_test_suite packet_encdec_ut;
 extern const struct m0_test_suite reqh_service_ut;
 extern const struct m0_test_suite rpc_mc_ut;
 extern const struct m0_test_suite rpc_service_ut;
+extern const struct m0_test_suite rm_ut;
 extern const struct m0_test_suite session_ut;
 extern const struct m0_test_suite sm_ut;
 extern const struct m0_test_suite xcode_ut;
@@ -77,6 +78,7 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&layout_ut);
 	m0_ut_add(&packet_encdec_ut);
 	m0_ut_add(&reqh_service_ut);
+	m0_ut_add(&rm_ut);
 	m0_ut_add(&rpc_mc_ut);
 	m0_ut_add(&rpc_service_ut);
 	m0_ut_add(&session_ut);

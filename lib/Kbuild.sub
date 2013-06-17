@@ -9,6 +9,7 @@ m0mero_objects += lib/assert.o \
                   lib/chan.o \
                   lib/cond.o \
                   lib/cookie.o \
+                  lib/cookie_xc.o \
                   lib/ext.o \
                   lib/ext_xc.o \
                   lib/finject.o \

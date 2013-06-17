@@ -43,7 +43,7 @@
 
    @section FileLockDLD-fspec-ds Data Structures
 
-   The distributed mutex will the following data structure:
+   The distributed mutex will have the following data structure:
    - m0_file
      This holds generic RM resource, and fid.
 
@@ -76,7 +76,7 @@
 
 /** Distributed file lock */
 struct m0_file {
-	/** Id of the resource (i.e., fid) for which mutex is created */
+	/** Id of the resource (i.e. fid) for which mutex is created */
 	struct m0_fid         fi_fid;
 
 	/** Embed RM resource */
@@ -135,7 +135,7 @@ M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom);
 /**
  * De-registers the resource of type 'distributed mutex' from a resource domain.
  */
-M0_INTERNAL void m0_file_lock_type_deregister();
+M0_INTERNAL void m0_file_lock_type_deregister(void);
 
 /** @} end of FileLock */
 

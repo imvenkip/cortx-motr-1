@@ -102,6 +102,13 @@ struct m0_rm_fop_borrow_rep {
 	struct m0_rm_fop_loan       br_loan;
 	struct m0_rm_fop_credit     br_credit;
 	struct m0_buf               br_lvb;
+	/**
+	 * Whenever a borrow request is made with creditor cookie NULL,
+	 * A new owner is created on creditor side and this creditor is
+	 * assigned a new cookie. Next time borrower wants to make a new
+	 * request for resource, this cookie will be used.
+	 */
+	struct m0_cookie            br_creditor_cookie;
 } M0_XCA_RECORD;
 
 struct m0_rm_fop_revoke {

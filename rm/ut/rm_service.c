@@ -21,8 +21,8 @@
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_service.h"
+#include "rm/file.h"
 #include "rm/ut/rmut.h"
-#include "rm/ut/rings.h"
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"
 
@@ -55,7 +55,9 @@ static struct rm_context  *client_ctx  = &rm_ctx[SERVER_2];
 extern void rm_ctx_init(struct rm_context *rmctx);
 extern void rm_ctx_fini(struct rm_context *rmctx);
 extern void rm_connect(struct rm_context *src, const struct rm_context *dest);
-extern void rm_disconnect(struct rm_context *src, const struct rm_context *dest);
+extern void rm_disconnect(struct rm_context       *src,
+			  const struct rm_context *dest);
+extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
 
 enum {
 	RM_SERVICE_SVC_NR = 1,
@@ -107,6 +109,7 @@ static void rm_svc_server(const int tid)
 
 static void rm_client(const int tid)
 {
+	int                    rc;
 	struct m0_rm_incoming  in;
 	struct m0_rm_remote   *creditor;
 	struct m0_rm_resource *resource;
@@ -114,7 +117,12 @@ static void rm_client(const int tid)
 	/* Wait till server starts */
 	m0_chan_wait(&tests_clink[SERVER_1]);
 
-	rm_ctx_init(client_ctx);
+	m0_ut_rpc_mach_init_and_add(&client_ctx->rc_rmach_ctx);
+
+	m0_mutex_init(&client_ctx->rc_mutex);
+	m0_chan_init(&client_ctx->rc_chan, &client_ctx->rc_mutex);
+	m0_clink_init(&client_ctx->rc_clink, NULL);
+
 	/* Connect to end point of SERVER_1 */
 	rm_connect(client_ctx, server_ctx);
 
@@ -123,31 +131,28 @@ static void rm_client(const int tid)
 	M0_ALLOC_PTR(resource);
 	M0_UT_ASSERT(resource != NULL);
 
-	rings_utdata_ops_set(&rm_test_data);
+	flock_client_utdata_ops_set(&rm_test_data);
 	rm_utdata_init(&rm_test_data, OBJ_OWNER);
 
 	resource->r_type = rm_test_data.rd_rt;
-	resource->r_ops  = &rings_ops;
 
 	m0_rm_remote_init(creditor, resource);
 	creditor->rem_session              = &client_ctx->rc_sess[SERVER_1];
 	creditor->rem_cookie               = M0_COOKIE_NULL;
 	rm_test_data.rd_owner->ro_creditor = creditor;
 
-	m0_rm_incoming_init(&in, rm_test_data.rd_owner,
-			    M0_RIT_BORROW, RIP_NONE, RIF_MAY_BORROW);
-	in.rin_want.cr_datum = NENYA | DURIN;
-	in.rin_ops = &server2_incoming_ops;
-
-	m0_clink_add_lock(&client_ctx->rc_chan, &client_ctx->rc_clink);
-	m0_rm_credit_get(&in);
-	if (incoming_state(&in) == RI_WAIT)
-		m0_chan_wait(&client_ctx->rc_clink);
-	M0_UT_ASSERT(incoming_state(&in) == RI_SUCCESS);
+	m0_file_lock(rm_test_data.rd_owner, &in);
+	m0_rm_owner_lock(rm_test_data.rd_owner);
+	rc = m0_sm_timedwait(&in.rin_sm,
+			     M0_BITS(RI_SUCCESS, RI_FAILURE),
+			     M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(in.rin_rc == 0);
-	m0_clink_del_lock(&client_ctx->rc_clink);
-	m0_rm_credit_put(&in);
-	m0_rm_incoming_fini(&in);
+	M0_UT_ASSERT(incoming_state(&in) == RI_SUCCESS);
+
+	m0_rm_owner_unlock(rm_test_data.rd_owner);
+	m0_file_unlock(&in);
+
 	rm_disconnect(client_ctx, server_ctx);
 
 	/* Tell server to stop */
@@ -159,7 +164,11 @@ static void rm_client(const int tid)
 	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
 	m0_free(resource);
 	m0_free(creditor);
-	rm_ctx_fini(client_ctx);
+
+	m0_clink_fini(&client_ctx->rc_clink);
+	m0_chan_fini_lock(&client_ctx->rc_chan);
+	m0_mutex_fini(&client_ctx->rc_mutex);
+	m0_ut_rpc_mach_fini(&client_ctx->rc_rmach_ctx);
 }
 
 /*
@@ -176,7 +185,6 @@ static void rm_client(const int tid)
  * NULL; It now creates an owner for given resource type and grants this request
  * to client.
  */
-
 void rmsvc(void)
 {
 	int rc;

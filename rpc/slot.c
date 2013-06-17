@@ -582,7 +582,7 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 		 * Either it is a duplicate reply and its corresponding request
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
-		 * XXX This sutuation is not expected to arise during testing.
+		 * XXX This situation is not expected to arise during testing.
 		 *     When control reaches this point during testing it might
 		 *     be because of a possible bug. So assert.
 		 */

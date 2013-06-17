@@ -77,6 +77,7 @@ include $(src)/net/bulk_emulation/Kbuild.sub
 include $(src)/net/lnet/Kbuild.sub
 include $(src)/pool/Kbuild.sub
 include $(src)/reqh/Kbuild.sub
+include $(src)/rm/Kbuild.sub
 include $(src)/rpc/Kbuild.sub
 include $(src)/sm/Kbuild.sub
 include $(src)/sns/Kbuild.sub
@@ -99,11 +100,14 @@ utils/linux_kernel/m0ut-y = utils/linux_kernel/m0ut_main.o \
                                          m0t1fs/linux_kernel/file.o \
                                          net/bulk_emulation/mem_xprt_xo.o \
                                          net/lnet/lnet_main.o \
+                                         rm/rm_fops.o \
+                                         rm/rm_foms.o \
                               , $(m0mero_objects))
 
 m0ut_objects :=
 
 include $(src)/addb/ut/Kbuild.sub
+include $(src)/fop/ut/Kbuild.sub
 include $(src)/ioservice/ut/Kbuild.sub
 include $(src)/layout/ut/Kbuild.sub
 include $(src)/lib/ut/Kbuild.sub
@@ -113,6 +117,7 @@ include $(src)/net/bulk_emulation/ut/Kbuild.sub
 include $(src)/net/lnet/ut/Kbuild.sub
 include $(src)/net/test/ut/Kbuild.sub # TODO: factor out net-test into a separate module
 include $(src)/reqh/ut/Kbuild.sub
+include $(src)/rm/ut/Kbuild.sub
 include $(src)/rpc/ut/Kbuild.sub
 include $(src)/sm/ut/Kbuild.sub
 include $(src)/ut/Kbuild.sub

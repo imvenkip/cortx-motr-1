@@ -43,8 +43,7 @@
 #include "rm/rm_service.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
-#include "rm/ut/rings.h"
-#include "rm/ut/rings.c"
+#include "rm/file.h"
 
 M0_TL_DESCR_DEFINE(rmsvc_owner, "RM Service Owners", static, struct m0_rm_owner,
 		   ro_owner_linkage, ro_magix,
@@ -172,9 +171,7 @@ static void rms_fini(struct m0_reqh_service *service)
 
 static int rms_start(struct m0_reqh_service *service)
 {
-	int                         rc = 0;
-	struct m0_reqh_rm_service  *rms;
-	struct m0_rm_resource_type *rtype;
+	struct m0_reqh_rm_service *rms;
 
 	M0_PRE(service != NULL);
 	M0_ENTRY();
@@ -182,22 +179,15 @@ static int rms_start(struct m0_reqh_service *service)
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
 	m0_rm_domain_init(&rms->rms_dom);
-	RM_ALLOC_PTR(rtype, RESOURCE_TYPE_ALLOC, &m0_rm_addb_ctx);
-	if (rtype == NULL) {
-		rc = -ENOMEM;
-		goto err;
-	}
-	rc = m0_rm_type_register(&rms->rms_dom, rtype);
-	rtype->rt_ops = &rings_rtype_ops;
+
+	/** Register various resource types */
+	m0_file_lock_type_register(&rms->rms_dom);
+
 	M0_RETURN(0);
-err:
-	m0_rm_domain_fini(&rms->rms_dom);
-	M0_RETURN(rc);
 }
 
 static void rms_stop(struct m0_reqh_service *service)
 {
-	int                        i;
 	struct m0_reqh_rm_service *rms;
 	struct m0_rm_owner        *owner;
 	struct m0_rm_remote       *remote;
@@ -224,14 +214,7 @@ static void rms_stop(struct m0_reqh_service *service)
 		m0_free(owner);
 	} m0_tl_endfor;
 
-	for (i = 0; i < ARRAY_SIZE(rms->rms_dom.rd_types); ++i) {
-		struct m0_rm_resource_type *rtype = rms->rms_dom.rd_types[i];
-
-		if (rtype != NULL) {
-			m0_rm_type_deregister(rtype);
-			m0_free(rtype);
-		}
-	}
+	m0_file_lock_type_deregister();
 	m0_rm_domain_fini(&rms->rms_dom);
 
 	M0_LEAVE();

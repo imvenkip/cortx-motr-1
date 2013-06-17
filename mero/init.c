@@ -145,6 +145,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
+	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
 #else
@@ -154,9 +155,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
-	/**
-	 * @todo Start rmservice in kernel mode.
-	 */
 	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },

@@ -147,12 +147,13 @@
 static bool file_lock_equal(const struct m0_rm_resource *resource0,
 			    const struct m0_rm_resource *resource1);
 static m0_bcount_t file_lock_len(const struct m0_rm_resource *resource);
-static int file_lock_encode(struct m0_bufvec_cursor *cur,
+static int file_lock_encode(struct m0_bufvec_cursor     *cur,
 			    const struct m0_rm_resource *resource);
 static int file_lock_decode(struct m0_bufvec_cursor *cur,
-			    struct m0_rm_resource **resource);
+			    struct m0_rm_resource  **resource);
 static void file_lock_credit_init(struct m0_rm_resource *resource,
-				  struct m0_rm_credit *credit);
+				  struct m0_rm_credit   *credit);
+static void file_lock_resource_free(struct m0_rm_resource *resource);
 
 static void file_lock_incoming_complete(struct m0_rm_incoming *in, int32_t rc);
 static void file_lock_incoming_conflict(struct m0_rm_incoming *in);
@@ -161,22 +162,22 @@ static bool file_lock_cr_intersects(const struct m0_rm_credit *self,
 				    const struct m0_rm_credit *c1);
 static m0_bcount_t file_lock_cr_len(const struct m0_rm_credit *c0);
 
-static int file_lock_cr_join(struct m0_rm_credit *self,
+static int file_lock_cr_join(struct m0_rm_credit       *self,
 			     const struct m0_rm_credit *c1);
-static int file_lock_cr_disjoin(struct m0_rm_credit *self,
+static int file_lock_cr_disjoin(struct m0_rm_credit       *self,
 				const struct m0_rm_credit *c1,
-				struct m0_rm_credit *intersection);
-static int file_lock_cr_copy(struct m0_rm_credit *dest,
+				struct m0_rm_credit       *intersection);
+static int file_lock_cr_copy(struct m0_rm_credit       *dest,
 			     const struct m0_rm_credit *self);
-static int file_lock_cr_diff(struct m0_rm_credit *self,
+static int file_lock_cr_diff(struct m0_rm_credit       *self,
 			     const struct m0_rm_credit *c1);
 static bool file_lock_cr_conflicts(const struct m0_rm_credit *self,
 				   const struct m0_rm_credit *c1);
 static bool file_lock_cr_is_subset(const struct m0_rm_credit *self,
 				   const struct m0_rm_credit *c1);
-static int file_lock_cr_encode(struct m0_rm_credit *self,
+static int file_lock_cr_encode(struct m0_rm_credit     *self,
 			       struct m0_bufvec_cursor *cur);
-static int file_lock_cr_decode(struct m0_rm_credit *self,
+static int file_lock_cr_decode(struct m0_rm_credit     *self,
 			       struct m0_bufvec_cursor *cur);
 static void file_lock_cr_free(struct m0_rm_credit *self);
 static void file_lock_cr_initial_capital(struct m0_rm_credit *self);
@@ -193,7 +194,8 @@ const struct m0_rm_resource_type_ops file_lock_type_ops = {
 };
 
 const struct m0_rm_resource_ops file_lock_ops = {
-	.rop_credit_init = file_lock_credit_init
+	.rop_credit_init   = file_lock_credit_init,
+	.rop_resource_free = file_lock_resource_free,
 };
 
 const struct m0_rm_credit_ops file_lock_credit_ops = {
@@ -236,28 +238,35 @@ static m0_bcount_t file_lock_len(const struct m0_rm_resource *resource)
 	struct m0_file      *fl;
 	struct m0_xcode_obj  fidobj;
 	struct m0_xcode_ctx  ctx;
+	static m0_bcount_t   flock_len;
 
 	M0_ASSERT(resource != NULL);
 
-	fl = container_of(resource, struct m0_file, fi_res);
-	fidobj.xo_type = m0_fid_xc;
-	fidobj.xo_ptr = (void *)&fl->fi_fid;
-	m0_xcode_ctx_init(&ctx, &fidobj);
-	return m0_xcode_length(&ctx);
+	if (flock_len == 0) {
+		fl = container_of(resource, struct m0_file, fi_res);
+		fidobj.xo_type = m0_fid_xc;
+		fidobj.xo_ptr  = &fl->fi_fid;
+		m0_xcode_ctx_init(&ctx, &fidobj);
+		flock_len = m0_xcode_length(&ctx);
+		M0_ASSERT(flock_len > 0);
+	}
+
+	return flock_len;
 }
 
-static int file_lock_encdec(struct m0_file *file,
+static int file_lock_encdec(struct m0_file          *file,
 			    struct m0_bufvec_cursor *cur,
 			    enum m0_xcode_what what)
 {
 	M0_ENTRY();
 	M0_ASSERT(cur != NULL);
+
 	M0_RETURN(m0_xcode_encdec(&M0_XCODE_OBJ(m0_fid_xc, &file->fi_fid),
 				  cur, what));
 }
 
 /** Encode file_lock - ready to send over the wire */
-static int file_lock_encode(struct m0_bufvec_cursor *cur,
+static int file_lock_encode(struct m0_bufvec_cursor     *cur,
 			    const struct m0_rm_resource *resource)
 {
 	struct m0_file *fl;
@@ -273,7 +282,7 @@ static int file_lock_encode(struct m0_bufvec_cursor *cur,
 
 /** Decode file_lock - from the wire */
 static int file_lock_decode(struct m0_bufvec_cursor *cur,
-			    struct m0_rm_resource **resource)
+			    struct m0_rm_resource  **resource)
 {
 	struct m0_file *fl;
 	int             rc;
@@ -301,11 +310,19 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 
 /** Initialises credit (lock state) and ops vector for the file_lock */
 static void file_lock_credit_init(struct m0_rm_resource *resource,
-				  struct m0_rm_credit *credit)
+				  struct m0_rm_credit   *credit)
 {
 	M0_ASSERT(credit != NULL);
 	credit->cr_datum = 0;
 	credit->cr_ops = &file_lock_credit_ops;
+}
+
+static void file_lock_resource_free(struct m0_rm_resource *resource)
+{
+	struct m0_file *fl;
+
+	fl = container_of(resource, struct m0_file, fi_res);
+	m0_free(fl);
 }
 
 /** Lock request completion callback */
@@ -345,25 +362,25 @@ static m0_bcount_t file_lock_cr_len(const struct m0_rm_credit *c0)
 	M0_PRE(file_lock_credit_invariant(c0));
 
 	datumobj.xo_type = &M0_XT_U64;
-	datumobj.xo_ptr = (void *)&c0->cr_datum;
+	datumobj.xo_ptr  = (void *)&c0->cr_datum;
 	m0_xcode_ctx_init(&ctx, &datumobj);
 	return m0_xcode_length(&ctx);
 }
 
-static int file_lock_cr_join(struct m0_rm_credit *self,
+static int file_lock_cr_join(struct m0_rm_credit       *self,
 			     const struct m0_rm_credit *c1)
 {
 	return 0;
 }
 
-static int file_lock_cr_disjoin(struct m0_rm_credit *self,
+static int file_lock_cr_disjoin(struct m0_rm_credit       *self,
 				const struct m0_rm_credit *c1,
-				struct m0_rm_credit *intersection)
+				struct m0_rm_credit       *intersection)
 {
 	return -EPERM;
 }
 
-static int file_lock_cr_copy(struct m0_rm_credit *dest,
+static int file_lock_cr_copy(struct m0_rm_credit       *dest,
 			     const struct m0_rm_credit *self)
 {
 	M0_ASSERT(dest != NULL);
@@ -376,7 +393,7 @@ static int file_lock_cr_copy(struct m0_rm_credit *dest,
 	return 0;
 }
 
-static int file_lock_cr_diff(struct m0_rm_credit *self,
+static int file_lock_cr_diff(struct m0_rm_credit       *self,
 			     const struct m0_rm_credit *c1)
 {
 	M0_ASSERT(c1 != NULL);
@@ -406,24 +423,25 @@ static bool file_lock_cr_is_subset(const struct m0_rm_credit *self,
 	return self->cr_datum <= c1->cr_datum;
 }
 
-static int file_lock_cr_encdec(struct m0_rm_credit *self,
+static int file_lock_cr_encdec(struct m0_rm_credit     *self,
 			       struct m0_bufvec_cursor *cur,
 			       enum m0_xcode_what what)
 {
 	M0_ENTRY();
 	M0_ASSERT(cur != NULL);
+
 	M0_RETURN(m0_xcode_encdec(&M0_XCODE_OBJ(&M0_XT_U64, &self->cr_datum),
 				  cur, what));
 }
 
-static int file_lock_cr_encode(struct m0_rm_credit *self,
+static int file_lock_cr_encode(struct m0_rm_credit     *self,
 			       struct m0_bufvec_cursor *cur)
 {
 	M0_PRE(file_lock_credit_invariant(self));
 	return file_lock_cr_encdec(self, cur, M0_XCODE_ENCODE);
 }
 
-static int file_lock_cr_decode(struct m0_rm_credit *self,
+static int file_lock_cr_decode(struct m0_rm_credit     *self,
 			       struct m0_bufvec_cursor *cur)
 {
 	//M0_PRE(self->cr_datum == 0);
@@ -446,7 +464,7 @@ static void file_lock_cr_initial_capital(struct m0_rm_credit *self)
  * @addtogroup FileLock
  * @{
  */
-M0_INTERNAL void m0_file_init(struct m0_file *file,
+M0_INTERNAL void m0_file_init(struct m0_file      *file,
 			      const struct m0_fid *fid,
 			      struct m0_rm_domain *dom)
 {
@@ -464,8 +482,8 @@ M0_INTERNAL void m0_file_fini(struct m0_file *file)
 }
 M0_EXPORTED(m0_file_fini);
 
-M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner *owner,
-				    struct m0_file *file,
+M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner  *owner,
+				    struct m0_file      *file,
 				    struct m0_rm_remote *creditor)
 {
 	m0_rm_owner_init(owner, &file->fi_res, creditor);
@@ -478,7 +496,7 @@ M0_INTERNAL void m0_file_owner_fini(struct m0_rm_owner *owner)
 }
 M0_EXPORTED(m0_file_owner_fini);
 
-M0_INTERNAL void m0_file_lock(struct m0_rm_owner *owner,
+M0_INTERNAL void m0_file_lock(struct m0_rm_owner    *owner,
 			      struct m0_rm_incoming *req)
 {
 	M0_ENTRY();
@@ -510,7 +528,7 @@ M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom)
 }
 M0_EXPORTED(m0_file_lock_type_register);
 
-M0_INTERNAL void m0_file_lock_type_deregister()
+M0_INTERNAL void m0_file_lock_type_deregister(void)
 {
 	M0_ENTRY();
 	m0_rm_type_deregister(&flock_rt);
