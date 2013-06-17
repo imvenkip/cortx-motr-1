@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/cdefs.h"
+#include "lib/misc.h"
 
 #include "fid/fid.h"
 
@@ -31,6 +32,7 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
+#include "sns/cm/iter.h"
 
 /**
    @addtogroup SNSCMAG
@@ -60,6 +62,110 @@ M0_INTERNAL void m0_sns_cm_ag_agid_setup(const struct m0_fid *gob_fid, uint64_t 
         agid->ai_lo.u_lo = group;
 }
 
+static int incr_recover_failure_register(struct m0_sns_cm_ag *sag,
+					 struct m0_sns_cm *scm,
+					 const struct m0_fid *fid,
+					 struct m0_pdclust_layout *pl)
+{
+	struct m0_fid               cob_fid;
+	struct m0_cm_cp            *cp;
+	struct m0_net_buffer       *nbuf_head;
+        struct m0_pdclust_src_addr  sa;
+        struct m0_pdclust_tgt_addr  ta;
+        struct m0_pdclust_instance *pi;
+	uint64_t                    group;
+	uint64_t                    unit;
+	int                         start;
+	int                         end;
+	int                         rc;
+	int                         i;
+
+	M0_PRE(sag != NULL);
+	M0_PRE(scm != NULL);
+	M0_PRE(fid != NULL);
+	M0_PRE(pl != NULL);
+
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
+	if (rc != 0)
+		return rc;
+
+	group = agid2group(&sag->sag_base.cag_id);
+        sa.sa_group = group;
+        start = m0_sns_cm_ag_unit_start(scm->sc_op, pl);
+        end = m0_sns_cm_ag_unit_end(scm->sc_op, pl);
+
+	for (unit = start; unit < end; ++unit) {
+                M0_SET0(&ta);
+                M0_SET0(&cob_fid);
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cob_fid);
+		for (i = 0; i < scm->sc_failures_nr; ++i) {
+			if (cob_fid.f_container == scm->sc_it.si_fdata[i]) {
+				sag->sag_fc[i].fc_failed_idx = unit;
+				cp = &sag->sag_fc[i].fc_tgt_acc_cp.sc_base;
+				m0_cm_cp_bufvec_merge(cp);
+				nbuf_head = cp_data_buf_tlist_head(
+						&cp->c_buffers);
+				rc = m0_sns_ir_failure_register(
+						&nbuf_head->nb_buffer,
+						sag->sag_fc[i].fc_failed_idx,
+						&sag->sag_ir);
+				if (rc != 0)
+					goto out;
+			}
+		}
+	}
+out:
+	m0_layout_instance_fini(&pi->pi_base);
+	return rc;
+}
+
+static int incr_recover_init(struct m0_sns_cm_ag *sag, struct m0_sns_cm *scm,
+			     const struct m0_fid *fid,
+			     struct m0_pdclust_layout *pl)
+{
+	int rc;
+
+	M0_PRE(sag != NULL);
+	M0_PRE(scm != NULL);
+	M0_PRE(fid != NULL);
+	M0_PRE(pl != NULL);
+
+	rc = m0_parity_math_init(&sag->sag_math, m0_pdclust_N(pl),
+				 m0_pdclust_K(pl));
+	if (rc != 0)
+		return rc;
+
+	if (m0_pdclust_K(pl) == 1)
+		return 0;
+
+	rc = m0_sns_ir_init(&sag->sag_math, &sag->sag_ir);
+	if (rc != 0) {
+		m0_parity_math_fini(&sag->sag_math);
+		return rc;
+	}
+
+	rc = incr_recover_failure_register(sag, scm, fid, pl);
+	if (rc != 0)
+		goto err;
+
+	rc = m0_sns_ir_mat_compute(&sag->sag_ir);
+	if (rc != 0)
+		goto err;
+
+	goto out;
+err:
+	m0_sns_ir_fini(&sag->sag_ir);
+	m0_parity_math_fini(&sag->sag_math);
+out:
+	return rc;
+}
+
+static void incr_recover_fini(struct m0_sns_cm_ag *sag)
+{
+	m0_sns_ir_fini(&sag->sag_ir);
+	m0_parity_math_fini(&sag->sag_math);
+}
+
 static void ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag *sag;
@@ -76,6 +182,7 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 	if(sag->sag_acc_freed == sag->sag_fnr) {
 		if (ag->cag_has_incoming)
 			m0_sns_cm_normalize_reservation(ag->cag_cm, ag);
+		incr_recover_fini(sag);
 		m0_cm_aggr_group_fini_and_progress(ag);
 		if (ag->cag_layout != NULL) {
 			m0_layout_put(ag->cag_layout);
@@ -220,14 +327,19 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, pl);
 	if (rc != 0)
 		goto cleanup_ag;
+
 	/* Initialise the accumulators. */
-	for (i = 0; i < sag->sag_fnr; ++i)
+	for (i = 0; i < sag->sag_fnr; ++i) {
 		m0_sns_cm_acc_cp_init(&sag->sag_fc[i].fc_tgt_acc_cp, sag);
+		sag->sag_fc[i].fc_failed_idx = ~0;
+	}
+
 	/* Acquire buffers and setup the accumulators. */
 	rc = m0_sns_cm_ag_setup(sag, pl);
 	if (rc != 0 && rc != -ENOBUFS)
 		goto cleanup_acc;
 	*out = &sag->sag_base;
+
 	goto done;
 
 cleanup_acc:
@@ -246,10 +358,11 @@ done:
 M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *sag,
 				   struct m0_pdclust_layout *pl)
 {
-	struct m0_sns_cm    *scm = cm2sns(sag->sag_base.cag_cm);
-	int                  i;
-	int                  rc;
-	uint64_t             cp_data_seg_nr;
+	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
+	struct m0_fid     gfid;
+	int               i;
+	int               rc;
+	uint64_t          cp_data_seg_nr;
 
 	M0_PRE(sag != NULL);
 
@@ -263,7 +376,9 @@ M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *sag,
 			return rc;
 	}
 
-	return 0;
+	agid2fid(&sag->sag_base.cag_id, &gfid);
+	rc = incr_recover_init(sag, scm, &gfid, pl);
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

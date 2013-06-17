@@ -203,6 +203,55 @@ fail:
 
 	return -ENOMEM;
 }
+M0_EXPORTED(m0_bufvec_extend);
+
+M0_INTERNAL int m0_bufvec_merge(struct m0_bufvec *dst_bufvec,
+                                struct m0_bufvec *src_bufvec)
+{
+	uint32_t      i;
+	uint32_t      new_v_nr;
+	m0_bcount_t  *new_v_count;
+	void        **new_buf;
+
+	M0_PRE(dst_bufvec != NULL);
+	M0_PRE(src_bufvec != NULL);
+	M0_PRE(dst_bufvec->ov_buf != NULL);
+	M0_PRE(src_bufvec->ov_buf != NULL);
+	M0_PRE(dst_bufvec->ov_vec.v_nr > 0);
+	M0_PRE(src_bufvec->ov_vec.v_nr > 0);
+
+	new_v_nr = dst_bufvec->ov_vec.v_nr + src_bufvec->ov_vec.v_nr;
+	M0_ALLOC_ARR(new_v_count, new_v_nr);
+	if (new_v_count == NULL)
+		return -ENOMEM;
+
+	M0_ALLOC_ARR(new_buf, new_v_nr);
+	if (new_buf == NULL) {
+		m0_free(new_v_count);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < dst_bufvec->ov_vec.v_nr; ++i) {
+		new_v_count[i] = dst_bufvec->ov_vec.v_count[i];
+		new_buf[i] = dst_bufvec->ov_buf[i];
+	}
+
+	for (i = 0; i < src_bufvec->ov_vec.v_nr; ++i) {
+		new_v_count[dst_bufvec->ov_vec.v_nr + i] =
+			src_bufvec->ov_vec.v_count[i];
+		new_buf[dst_bufvec->ov_vec.v_nr + i] =
+			src_bufvec->ov_buf[i];
+	}
+
+	m0_free(dst_bufvec->ov_vec.v_count);
+	m0_free(dst_bufvec->ov_buf);
+	dst_bufvec->ov_vec.v_nr = new_v_nr;
+	dst_bufvec->ov_vec.v_count = new_v_count;
+	dst_bufvec->ov_buf = new_buf;
+
+	return 0;
+}
+M0_EXPORTED(m0_bufvec_merge);
 
 M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 					uint32_t num_segs,

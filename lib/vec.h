@@ -190,6 +190,24 @@ M0_INTERNAL int m0_bufvec_alloc(struct m0_bufvec *bufvec,
  */
 M0_INTERNAL int m0_bufvec_extend(struct m0_bufvec *bufvec,
 				 uint32_t num_segs);
+
+/**
+ * Merges the source bufvec to the destination bufvec.
+ * Assumes that all segments are of equal size.
+ * Does not allocate bufvec->ov_buf, but does pointer manipulation
+ * such that src_bufvec's ov_bufs are appended to dst_bufvec's ov_bufs.
+ * @pre num_segs > 0 for both source and destination bufvecs
+ * @pre seg_size > 0 for both source and destination bufvecs
+ * @pre ov_buf != NULL for both source and destination bufvecs
+ * @pre src_bufvec != NULL, dst_bufvec != NULL
+ *
+ * @param dst_bufvec Pointer to the destination buffer in which the new bufvec
+ *                   is to be merged.
+ * @param src_bufvec Pointer to the source buffer which is to be merged.
+ */
+M0_INTERNAL int m0_bufvec_merge(struct m0_bufvec *dst_bufvec,
+				struct m0_bufvec *src_bufvec);
+
 /**
    Allocates aligned memory as specified by shift value for a struct m0_bufvec.
    Currently in kernel mode it supports PAGE_SIZE alignment only.

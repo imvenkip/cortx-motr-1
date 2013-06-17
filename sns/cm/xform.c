@@ -19,15 +19,13 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#include "lib/bob.h"
-#include "lib/misc.h"
 #include "lib/trace.h"
+#include "lib/memory.h"
 
 #include "reqh/reqh.h"
 
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
-#include "sns/cm/cm.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/parity_math.h"
 
@@ -37,14 +35,38 @@
  */
 
 /**
- * Number of failed disks.
- * @todo Replace this with information received from trigger fop, once it is
- * implemented. This information will be fetched from each aggregation group.
- * Also, currently repair supports only single failure.
+ * Splits the merged bufvec into original form, where first bufvec
+ * no longer contains the metadata of all the bufvecs in the copy packet.
  */
-enum {
-	FAILURES_NR = 1
-};
+static int cp_bufvec_split(struct m0_cm_cp *cp)
+{
+	struct m0_net_buffer *nbuf_head;
+        uint32_t              new_v_nr;
+        m0_bcount_t          *new_v_count;
+	struct m0_bufvec     *bufvec;
+	struct m0_sns_cm_ag  *sag = ag2snsag(cp->c_ag);
+        uint32_t              i;
+
+	if (cp->c_buf_nr == 1 ||
+	    sag->sag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+		return 0;
+
+	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
+        new_v_nr = nbuf_head->nb_pool->nbp_seg_nr;
+        M0_ALLOC_ARR(new_v_count, new_v_nr);
+        if (new_v_count == NULL)
+                return -ENOMEM;
+
+	bufvec = &nbuf_head->nb_buffer;
+	for (i = 0; i < new_v_nr; ++i)
+		new_v_count[i] = bufvec->ov_vec.v_count[i];
+
+        m0_free(bufvec->ov_vec.v_count);
+        bufvec->ov_vec.v_nr = new_v_nr;
+        bufvec->ov_vec.v_count = new_v_count;
+
+        return 0;
+}
 
 /**
  * XORs the source and destination bufvecs and stores the output in
@@ -87,7 +109,7 @@ static void bufvec_xor(struct m0_bufvec *dst, struct m0_bufvec *src,
         }
 }
 
-static void bufvecs_xor(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
+static void cp_xor_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 {
 	struct m0_net_buffer      *src_nbuf;
 	struct m0_net_buffer      *dst_nbuf;
@@ -116,6 +138,29 @@ static void bufvecs_xor(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 		bufvec_xor(&dst_nbuf->nb_buffer, &src_nbuf->nb_buffer,
 			   buf_size);
 	}
+}
+
+static void cp_rs_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
+			  uint32_t failed_index)
+{
+	struct m0_net_buffer *nbuf_head;
+	struct m0_sns_cm_ag  *sag = ag2snsag(src_cp->c_ag);
+
+	nbuf_head = cp_data_buf_tlist_head(&src_cp->c_buffers);
+	m0_sns_ir_recover(&sag->sag_ir, &nbuf_head->nb_buffer,
+			  &src_cp->c_xform_cp_indices, failed_index);
+}
+
+static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
+			    uint32_t failed_index)
+{
+	struct m0_sns_cm_ag *sag = ag2snsag(src_cp->c_ag);
+
+	if (sag->sag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+		cp_xor_recover(dst_cp, src_cp);
+	else if (sag->sag_math.pmi_parity_algo ==
+			M0_PARITY_CAL_ALGO_REED_SOLOMON)
+		cp_rs_recover(dst_cp, src_cp, failed_index);
 }
 
 /**
@@ -148,6 +193,19 @@ static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
 		if (m0_bitmap_get(&src->c_xform_cp_indices, i))
 			m0_bitmap_set(&dst->c_xform_cp_indices, i, true);
 	}
+}
+
+static int res_cp_enqueue(struct m0_cm_cp *cp)
+{
+	int rc;
+
+	rc = cp_bufvec_split(cp);
+	if (rc != 0)
+		goto out;
+	m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp);
+
+out:
+	return rc;
 }
 
 /**
@@ -186,7 +244,8 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
         M0_LOG(M0_DEBUG, "xform: id [%lu] [%lu] [%lu] [%lu] local_cp_nr: [%lu]\
 	       transformed_cp_nr: [%lu] has_incoming: %d\n",
                id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
-	       ag->cag_cp_local_nr, ag->cag_transformed_cp_nr, ag->cag_has_incoming);
+	       ag->cag_cp_local_nr, ag->cag_transformed_cp_nr,
+	       ag->cag_has_incoming);
 
         dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
         cdom  = scm->sc_it.si_cob_dom;
@@ -196,53 +255,58 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 	if (!ag->cag_has_incoming)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
 
+	if (sns_ag->sag_math.pmi_parity_algo != M0_PARITY_CAL_ALGO_XOR) {
+		rc = m0_cm_cp_bufvec_merge(cp);
+		if (rc != 0)
+			goto out;
+	}
+
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
 		res_cp = &sns_ag->sag_fc[i].fc_tgt_acc_cp.sc_base;
-		bufvecs_xor(res_cp, cp);
-		/*
-		 * The resultant copy packet also includes partial
-		 * parity of itself. Hence set the bit value of its own
-		 * index in the transformation bitmap.
-		 */
-		if (cp->c_ag_cp_idx != ~0 && cp->c_ag_cp_idx <=
-							ag->cag_cp_global_nr)
-			m0_bitmap_set(&res_cp->c_xform_cp_indices,
-				      cp->c_ag_cp_idx, true);
+		cp_incr_recover(res_cp, cp, sns_ag->sag_fc[i].fc_failed_idx);
+
 		/*
 		 * Merge the bitmaps of incoming copy packet with the
-		 * resultant copy packet. This is needed in the incoming path,
-		 * where the incoming copy packet might be transformed copy
-		 * packet which has arrived from some remote node.
+		 * resultant copy packet.
 		 */
 		if (cp->c_xform_cp_indices.b_nr > 0)
 			res_cp_bitmap_merge(res_cp, cp);
 		/*
-		 *
-		 * If all copy packets are processed at this stage,
+		 * Check if all copy packets are processed at this stage,
 		 * For incoming path transformation can be marked as complete
-		 * iff bitmap of transformed copy packets "global" to aggregation
-		 * group is full.
-		 * For outgoing path, iff all "local" copy packets in aggregation
-		 * group are transformed, then transformation can be marked
-		 * complete.
+		 * iff bitmap of transformed copy packets "global" to
+		 * aggregation group is full.
+		 * For outgoing path, iff all "local" copy packets in
+		 * aggregation group are transformed, then transformation can
+		 * be marked complete.
 		 */
-		if ((rc = m0_sns_cm_cob_is_local(&sns_ag->sag_fc[i].fc_tgt_cobfid,
-					   dbenv, cdom)) == 0) {
+		if ((rc = m0_sns_cm_cob_is_local(
+					&sns_ag->sag_fc[i].fc_tgt_cobfid,
+					dbenv, cdom)) == 0) {
 			if (res_cp_bitmap_is_full(res_cp, sns_ag->sag_fnr)) {
-				m0_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
+				rc = res_cp_enqueue(res_cp);
+				if (rc != 0)
+					goto out;
 			}
 		} else if (rc == -ENOENT && ag->cag_cp_local_nr ==
 						ag->cag_transformed_cp_nr) {
-			m0_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
+			rc = res_cp_enqueue(res_cp);
+			if (rc != 0)
+				goto out;
 		}
 	}
 
+out:
 	/*
 	 * Once transformation is complete, transition copy packet fom to
 	 * M0_CCP_FINI since it is not needed anymore. This copy packet will
 	 * be freed during M0_CCP_FINI phase execution.
+	 * Since the buffers of this copy packet are released back to the
+	 * buffer pool, merged bufvec is split back to its original form
+	 * to be reused by other copy packets.
 	 */
-	m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
+	rc = cp_bufvec_split(cp);
+	m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
 	rc = M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);
 

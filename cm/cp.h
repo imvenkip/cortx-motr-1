@@ -275,6 +275,13 @@ M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp);
 
 M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp);
 
+/**
+ * If there are multiple network buffers associated with a copy packet,
+ * merges all corresponding bufvecs to the bufvec of first network buffer.
+ * This is required in order to use RS code APIs.
+ */
+M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp);
+
 M0_TL_DESCR_DECLARE(cp_data_buf, M0_EXTERN);
 M0_TL_DECLARE(cp_data_buf, M0_INTERNAL, struct m0_net_buffer);
 

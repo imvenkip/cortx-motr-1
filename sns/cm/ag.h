@@ -44,6 +44,10 @@ struct m0_sns_cm;
 struct m0_sns_cm_ag_failure_ctx {
 	/** Accumulator copy packet for this failure context. */
 	struct m0_sns_cm_cp          fc_tgt_acc_cp;
+
+	/** Index of the failed unit in aggregation group. */
+	uint32_t                     fc_failed_idx;
+
 	/*
 	 * cob fid containing the target unit for the aggregation
 	 * group.
@@ -59,23 +63,29 @@ struct m0_sns_cm_ag {
 	struct m0_cm_aggr_group          sag_base;
 
 	/** Total number of failure units in this aggregation group. */
-	uint64_t                         sag_fnr;
+	uint32_t                         sag_fnr;
 
 	/**
 	 * Number of accumulator copy packets finalised.
 	 * This should be equal to sag_fnr.
 	 */
-	uint64_t                         sag_acc_freed;
+	uint32_t                         sag_acc_freed;
 
 	/** If this aggregation group has local spare units on the replica. */
 	bool                             sag_is_relevant;
 
-	/*
+	/**
 	 * Accumulator copy packet, target unit cob id offset within the cob.
 	 * Number of failure contexts are equivalent to number of failures in
 	 * the aggregation group, i.e. m0_sns_cm_ag::sag_fnr.
 	 */
 	struct m0_sns_cm_ag_failure_ctx *sag_fc;
+
+	/** Parity math context required for incremental recovery algorithm. */
+	struct m0_parity_math            sag_math;
+
+	/** Incremental recovery context. */
+	struct m0_sns_ir                 sag_ir;
 };
 
 

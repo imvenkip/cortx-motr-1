@@ -681,6 +681,22 @@ M0_INTERNAL uint64_t m0_cm_cp_nr(struct m0_cm_cp *cp)
 	return cnt;
 }
 
+M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp)
+{
+	struct m0_net_buffer    *nbuf;
+	struct m0_net_buffer    *nbuf_head;
+	int                      rc;
+
+	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
+	nbuf = nbuf_head;
+	while ((nbuf = cp_data_buf_tlist_next(&cp->c_buffers, nbuf)) != NULL) {
+		rc = m0_bufvec_merge(&nbuf_head->nb_buffer, &nbuf->nb_buffer);
+		if (rc != 0)
+			return rc;
+	}
+	return 0;
+}
+
 /** @} end-of-CPDLD */
 
 /*

@@ -24,8 +24,6 @@
 #ifndef __MERO_SNS_CM_CP_H__
 #define __MERO_SNS_CM_CP_H__
 
-#include "lib/ext.h"
-
 #include "stob/stob_id.h"
 #include "cm/ag.h" /* struct m0_cm_ag_sw */
 #include "cm/cp.h"

@@ -18,57 +18,23 @@
  * Original creation date: 08/16/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "reqh/reqh.h"
+#include "ioservice/io_service.h"
 #include "mero/setup.h"
 #include "sns/cm/xform.c"
 #include "sns/cm/ut/cp_common.h"
-#include "ioservice/io_service.h"
 
 enum {
-	CP_SINGLE = 1,
-	CP_MULTI = 512,
-	SEG_NR = 16,
-	SEG_SIZE = 4096,
-	FAIL_NR = 1
+	SEG_NR                  = 16,
+	SEG_SIZE                = 4096,
+	BUF_NR                  = 2,
+	DATA_NR                 = 5,
+        PARITY_NR               = 2,
+	CP_SINGLE               = 1,
+	SINGLE_FAILURE          = 1,
+	MULTI_FAILURES          = 2,
+	SINGLE_FAIL_MULTI_CP_NR = 512,
+	MULTI_FAIL_MULTI_CP_NR  = 5,
 };
-
-static struct m0_reqh            *reqh;
-static struct m0_semaphore        sem;
-static int                        cp_fini_nr;
-static struct m0_net_buffer_pool  nbp;
-
-/* Global structures for single copy packet test. */
-static struct m0_sns_cm_ag             s_sag;
-static struct m0_sns_cm_ag_failure_ctx s_fc;
-static struct m0_cm_cp                 s_cp;
-static struct m0_net_buffer            s_buf;
-static struct m0_net_buffer            s_acc_buf;
-
-/* Global structures for multiple copy packet test. */
-static struct m0_sns_cm_ag             m_sag;
-static struct m0_sns_cm_ag_failure_ctx m_fc;
-static struct m0_cm_cp                 m_cp[CP_MULTI];
-static struct m0_net_buffer            m_buf[CP_MULTI];
-static struct m0_net_buffer            m_acc_buf;
-
-/* Global structures for testing bufvec xor correctness. */
-struct m0_bufvec src;
-struct m0_bufvec dst;
-struct m0_bufvec xor;
-
-struct m0_stob_domain   *stob_dom;
-static struct m0_dtx     tx;
-static struct m0_stob   *stob;
-static struct m0_cob_domain *cdom;
-
-static struct m0_cm            *cm;
-static struct m0_sns_cm        *scm;
-static struct m0_reqh_service  *scm_service;
-
 
 static struct m0_stob_id sid = {
         .si_bits = {
@@ -77,8 +43,52 @@ static struct m0_stob_id sid = {
         }
 };
 
+static struct m0_reqh            *reqh;
+static struct m0_cm              *cm;
+static struct m0_sns_cm          *scm;
+static struct m0_reqh_service    *scm_service;
+static struct m0_stob_domain     *stob_dom;
+static struct m0_stob            *stob;
+static struct m0_cob_domain      *cdom;
+static struct m0_dtx              tx;
+static struct m0_semaphore        sem;
+static struct m0_net_buffer_pool  nbp;
+
+/* Global structures for testing bufvec xor correctness. */
+static struct m0_bufvec src;
+static struct m0_bufvec dst;
+static struct m0_bufvec xor;
+
+/* Global structures for single copy packet test. */
+static struct m0_sns_cm_ag             s_sag;
+static struct m0_sns_cm_ag_failure_ctx s_fc[SINGLE_FAILURE];
+static struct m0_cm_cp                 s_cp;
+static struct m0_net_buffer            s_buf;
+static struct m0_net_buffer            s_acc_buf;
+
+/*
+ * Global structures for multiple copy packet test comprising of single
+ * failure.
+ */
+static struct m0_sns_cm_ag             m_sag;
+static struct m0_sns_cm_ag_failure_ctx m_fc[SINGLE_FAILURE];
+static struct m0_cm_cp                 m_cp[SINGLE_FAIL_MULTI_CP_NR];
+static struct m0_net_buffer            m_buf[SINGLE_FAIL_MULTI_CP_NR];
+static struct m0_net_buffer            m_acc_buf[SINGLE_FAILURE];
+
+/*
+ * Global structures for multiple copy packet test comprising of multiple
+ * failures.
+ */
+static struct m0_sns_cm_ag             n_sag;
+static struct m0_sns_cm_ag_failure_ctx n_fc[MULTI_FAILURES];
+static struct m0_cm_cp                 n_cp[MULTI_FAIL_MULTI_CP_NR];
+static struct m0_net_buffer            n_buf[MULTI_FAIL_MULTI_CP_NR][BUF_NR];
+static struct m0_net_buffer            n_acc_buf[MULTI_FAILURES][BUF_NR];
+
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
-                            uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx);
+                            uint64_t cont, struct m0_fid *gfid,
+			    uint32_t cob_idx);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
@@ -89,13 +99,22 @@ static const struct m0_cm_aggr_group_ops group_single_ops = {
 	.cago_local_cp_nr = &cp_single_get,
 };
 
-static uint64_t cp_multi_get(const struct m0_cm_aggr_group *ag)
+static uint64_t single_fail_multi_cp_get(const struct m0_cm_aggr_group *ag)
 {
-	return CP_MULTI;
+	return SINGLE_FAIL_MULTI_CP_NR;
 }
 
-static const struct m0_cm_aggr_group_ops group_multi_ops = {
-	.cago_local_cp_nr = &cp_multi_get,
+static const struct m0_cm_aggr_group_ops group_single_fail_multi_cp_ops = {
+	.cago_local_cp_nr = &single_fail_multi_cp_get,
+};
+
+static uint64_t multi_fail_multi_cp_get(const struct m0_cm_aggr_group *ag)
+{
+	return MULTI_FAIL_MULTI_CP_NR;
+}
+
+static const struct m0_cm_aggr_group_ops group_multi_fail_multi_cp_ops = {
+	.cago_local_cp_nr = &multi_fail_multi_cp_get,
 };
 
 static size_t dummy_fom_locality(const struct m0_fom *fom)
@@ -163,19 +182,9 @@ static void single_cp_fom_fini(struct m0_fom *fom)
 
 static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
-	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
-	struct m0_sns_cm_ag *sag = ag2snsag(cp->c_ag);
-	struct m0_cm_cp     *acc_cp = &sag->sag_fc[0].fc_tgt_acc_cp.sc_base;
+	struct m0_cm_cp     *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	/*
-	 * If the copy packet to be finalised is the resultant copy packet,
-	 * i.e. the last copy packet, check if it's corresponding bitmap
-	 * is full.
-	 */
-	if (cp_fini_nr == CP_MULTI + 1)
-		M0_UT_ASSERT(res_cp_bitmap_is_full(acc_cp, 1));
 	m0_cm_cp_fini(cp);
-	M0_CNT_INC(cp_fini_nr);
 }
 
 /* Over-ridden copy packet FOM ops. */
@@ -191,7 +200,6 @@ static struct m0_fom_ops acc_cp_fom_ops = {
 	.fo_tick          = dummy_acc_cp_fom_tick,
 	.fo_home_locality = dummy_fom_locality,
 	.fo_addb_init     = dummy_fom_addb_init
-
 };
 
 /* Over-ridden copy packet FOM ops. */
@@ -241,6 +249,44 @@ static void tgt_fid_cob_create()
         m0_dtx_done(&tx);
 }
 
+static void ag_prepare(struct m0_sns_cm_ag *sns_ag, int failure_nr,
+		       const struct m0_cm_aggr_group_ops *ag_ops,
+		       struct m0_sns_cm_ag_failure_ctx *fc)
+{
+	int i;
+
+	sns_ag->sag_base.cag_transformed_cp_nr = 0;
+	sns_ag->sag_fnr = failure_nr;
+	sns_ag->sag_base.cag_ops = ag_ops;
+	sns_ag->sag_base.cag_cp_local_nr =
+		sns_ag->sag_base.cag_ops->cago_local_cp_nr(&sns_ag->sag_base);
+	sns_ag->sag_base.cag_cp_global_nr = sns_ag->sag_base.cag_cp_local_nr +
+					    failure_nr;
+	for (i = 0; i < failure_nr; ++i) {
+		fc[i].fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
+		fc[i].fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
+	}
+	sns_ag->sag_fc = fc;
+}
+
+/* Tests the correctness of the bufvec_xor function. */
+static void test_bufvec_xor()
+{
+	bv_populate(&src, '4', SEG_NR, SEG_SIZE);
+	bv_populate(&dst, 'D', SEG_NR, SEG_SIZE);
+	/*
+	 * Actual result is anticipated and stored in new bufvec, which is
+	 * used for comparison with xor'ed output.
+	 * 4 XOR D = p
+	 */
+	bv_populate(&xor, 'p', SEG_NR, SEG_SIZE);
+	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
+	bv_compare(&dst, &xor, SEG_NR, SEG_SIZE);
+	bv_free(&src);
+	bv_free(&dst);
+	bv_free(&xor);
+}
+
 /*
  * Test to check that single copy packet is treated as passthrough by the
  * transformation function.
@@ -248,24 +294,15 @@ static void tgt_fid_cob_create()
 static void test_single_cp(void)
 {
 	m0_semaphore_init(&sem, 0);
-	s_sag.sag_base.cag_transformed_cp_nr = 0;
-	s_sag.sag_fnr = 1;
-	s_sag.sag_base.cag_ops = &group_single_ops;
-	s_sag.sag_base.cag_cp_local_nr =
-		s_sag.sag_base.cag_ops->cago_local_cp_nr(&s_sag.sag_base);
-	s_sag.sag_base.cag_cp_global_nr = s_sag.sag_base.cag_cp_local_nr +
-					  FAIL_NR;
+	ag_prepare(&s_sag, SINGLE_FAILURE, &group_single_ops, s_fc);
 	s_acc_buf.nb_pool = &nbp;
 	s_buf.nb_pool = &nbp;
 	cp_prepare(&s_cp, &s_buf, SEG_NR, SEG_SIZE, &s_sag, 'e',
 		   &single_cp_fom_ops, reqh, 0, false, NULL);
-	cp_prepare(&s_fc.fc_tgt_acc_cp.sc_base, &s_acc_buf, SEG_NR, SEG_SIZE,
-		   &s_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
-	m0_bitmap_init(&s_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
+	cp_prepare(&s_fc[0].fc_tgt_acc_cp.sc_base, &s_acc_buf, SEG_NR,
+		   SEG_SIZE, &s_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
+	m0_bitmap_init(&s_fc[0].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       s_sag.sag_base.cag_cp_global_nr);
-	s_fc.fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
-	s_fc.fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
-	s_sag.sag_fc = &s_fc;
 	m0_fom_queue(&s_cp.c_fom, reqh);
 
 	/* Wait till ast gets posted. */
@@ -280,8 +317,8 @@ static void test_single_cp(void)
 	 * These asserts ensure that the single copy packet has been treated
 	 * as passthrough.
 	 */
-	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == 1);
-	M0_UT_ASSERT(s_sag.sag_base.cag_cp_local_nr == 1);
+	M0_UT_ASSERT(s_sag.sag_base.cag_transformed_cp_nr == CP_SINGLE);
+	M0_UT_ASSERT(s_sag.sag_base.cag_cp_local_nr == CP_SINGLE);
 	m0_semaphore_fini(&sem);
 	bv_free(&s_buf.nb_buffer);
 	cp_buf_free(&s_sag);
@@ -289,32 +326,24 @@ static void test_single_cp(void)
 
 /*
  * Test to check that multiple copy packets are collected by the
- * transformation function.
+ * transformation function, in case of single failure.
  */
-static void test_multiple_cp(void)
+static void test_multi_cp_single_failure(void)
 {
 	int i;
 
 	m0_semaphore_init(&sem, 0);
-	m_sag.sag_base.cag_transformed_cp_nr = 0;
-	m_sag.sag_fnr = 1;
-	m_sag.sag_base.cag_ops = &group_multi_ops;
-	m_sag.sag_base.cag_cp_local_nr =
-		m_sag.sag_base.cag_ops->cago_local_cp_nr(&m_sag.sag_base);
-	m_sag.sag_base.cag_cp_global_nr = m_sag.sag_base.cag_cp_local_nr +
-					  FAIL_NR;
-	m_acc_buf.nb_pool = &nbp;
-	cp_prepare(&m_fc.fc_tgt_acc_cp.sc_base, &m_acc_buf, SEG_NR, SEG_SIZE,
-		   &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
-	m0_bitmap_init(&m_fc.fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
+	ag_prepare(&m_sag, SINGLE_FAILURE, &group_single_fail_multi_cp_ops,
+		   m_fc);
+	m_acc_buf[0].nb_pool = &nbp;
+	cp_prepare(&m_fc[0].fc_tgt_acc_cp.sc_base, &m_acc_buf[0], SEG_NR,
+		   SEG_SIZE, &m_sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
+	m0_bitmap_init(&m_fc[0].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       m_sag.sag_base.cag_cp_global_nr);
-	m_fc.fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
-	m_fc.fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
-	m_sag.sag_fc = &m_fc;
-	for (i = 0; i < CP_MULTI; ++i) {
+	for (i = 0; i < SINGLE_FAIL_MULTI_CP_NR; ++i) {
 		m_buf[i].nb_pool = &nbp;
-		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
-			   &multiple_cp_fom_ops, reqh, i, false, NULL);
+		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, &m_sag,
+			   'r', &multiple_cp_fom_ops, reqh, i, false, NULL);
 		m0_fom_queue(&m_cp[i].c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}
@@ -329,13 +358,156 @@ static void test_multiple_cp(void)
 	 * These asserts ensure that all the copy packets have been collected
 	 * by the transformation function.
 	 */
-	M0_UT_ASSERT(m_sag.sag_base.cag_transformed_cp_nr == CP_MULTI);
-	M0_UT_ASSERT(m_sag.sag_base.cag_cp_local_nr == CP_MULTI);
+	M0_UT_ASSERT(m_sag.sag_base.cag_transformed_cp_nr ==
+		     SINGLE_FAIL_MULTI_CP_NR);
+	M0_UT_ASSERT(m_sag.sag_base.cag_cp_local_nr == SINGLE_FAIL_MULTI_CP_NR);
 	m0_semaphore_fini(&sem);
-	for (i = 0; i < CP_MULTI; ++i)
+	for (i = 0; i < SINGLE_FAIL_MULTI_CP_NR; ++i)
 		bv_free(&m_buf[i].nb_buffer);
 
 	cp_buf_free(&m_sag);
+}
+
+static void rs_init()
+{
+	M0_UT_ASSERT(m0_parity_math_init(&n_sag.sag_math, DATA_NR,
+					 PARITY_NR) == 0);
+	M0_UT_ASSERT(m0_sns_ir_init(&n_sag.sag_math, &n_sag.sag_ir) == 0);
+}
+
+static void buffers_attach(struct m0_net_buffer *nb, struct m0_cm_cp *cp,
+			   char data)
+{
+	int i;
+
+        for (i = 1; i < BUF_NR; ++i) {
+                bv_populate(&nb[i].nb_buffer, data, SEG_NR, SEG_SIZE);
+                m0_cm_cp_buf_add(cp, &nb[i]);
+                nb[i].nb_pool = &nbp;
+                nb[i].nb_pool->nbp_seg_nr = SEG_NR;
+                nb[i].nb_pool->nbp_seg_size = SEG_SIZE;
+                nb[i].nb_pool->nbp_buf_nr = 1;
+        }
+}
+
+/*
+ * Creates a copy packet and queues it for execution.
+ */
+static void cp_multi_failures_post(char data, int cnt, int index)
+{
+	struct m0_net_buffer *nbuf;
+
+	n_buf[cnt][0].nb_pool = &nbp;
+	cp_prepare(&n_cp[cnt], &n_buf[cnt][0], SEG_NR, SEG_SIZE, &n_sag,
+		   data, &multiple_cp_fom_ops, reqh, index, false, NULL);
+	nbuf = cp_data_buf_tlist_head(&n_cp[cnt].c_buffers);
+	buffers_attach(n_buf[cnt], &n_cp[cnt], data);
+
+	n_cp[cnt].c_data_seg_nr = SEG_NR * BUF_NR;
+	m0_bitmap_init(&n_cp[cnt].c_xform_cp_indices,
+			n_sag.sag_base.cag_cp_global_nr);
+	m0_bitmap_set(&n_cp[cnt].c_xform_cp_indices, index, true);
+	m0_fom_queue(&n_cp[cnt].c_fom, reqh);
+	m0_semaphore_down(&sem);
+}
+
+/*
+ * Test to check that multiple copy packets are collected by the
+ * transformation function, in case of multiple failures.
+ */
+static void test_multi_cp_multi_failures(void)
+{
+	int                   i;
+	int                   j;
+	struct m0_net_buffer *nbuf;
+
+	m0_semaphore_init(&sem, 0);
+	ag_prepare(&n_sag, MULTI_FAILURES, &group_multi_fail_multi_cp_ops,
+		   n_fc);
+	for (i = 0; i < MULTI_FAILURES; ++i) {
+	       n_acc_buf[i][0].nb_pool = &nbp;
+	       cp_prepare(&n_fc[i].fc_tgt_acc_cp.sc_base, &n_acc_buf[i][0],
+			  SEG_NR, SEG_SIZE, &n_sag, 0, &acc_cp_fom_ops,
+			  reqh, 0, true, NULL);
+	       buffers_attach(n_acc_buf[i], &n_fc[i].fc_tgt_acc_cp.sc_base, 0);
+	       m0_bitmap_init(&n_fc[i].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
+			      n_sag.sag_base.cag_cp_global_nr);
+	       m0_cm_cp_bufvec_merge(&n_fc[i].fc_tgt_acc_cp.sc_base);
+	}
+
+	rs_init();
+
+	/*
+	 * The test case is illustrated as follows.
+	 * N = 5, K = 2
+	 *
+	 * According to RS encoding,
+	 * if d0 = 'r', d1 = 's', d2 = 't', d3 = 'u', d4 = 'v', then
+	 *    p1 = 'w' and p2 = 'p'
+	 * Consider,
+	 * D0 = BUF_NR buffers having data = 'r' (index in ag = 0)
+	 * D1 = FAILED                           (index in ag = 1)
+	 * D2 = BUF_NR buffers having data = 't' (index in ag = 2)
+	 * D3 = BUF_NR buffers having data = 'u' (index in ag = 3)
+	 * D4 = BUF_NR buffers having data = 'v' (index in ag = 4)
+	 * P1 = BUF_NR buffers having data = 'w' (index in ag = 5)
+	 * P2 = FAILED                           (index in ag = 6)
+	 *
+	 * In above case, after recovery, the accumulator buffers should have
+	 * recovered values of D1 and P2 respectively.
+	 */
+	M0_UT_ASSERT(m0_sns_ir_failure_register(&n_acc_buf[0][0].nb_buffer,
+						        1, &n_sag.sag_ir) == 0);
+	n_sag.sag_fc[0].fc_failed_idx = 1;
+	M0_UT_ASSERT(m0_sns_ir_failure_register(&n_acc_buf[1][0].nb_buffer,
+						        6, &n_sag.sag_ir) == 0);
+	n_sag.sag_fc[0].fc_failed_idx = 6;
+	M0_UT_ASSERT(m0_sns_ir_mat_compute(&n_sag.sag_ir) == 0);
+
+	cp_multi_failures_post('r', 0, 0);
+	cp_multi_failures_post('t', 1, 2);
+	cp_multi_failures_post('u', 2, 3);
+	cp_multi_failures_post('v', 3, 4);
+	cp_multi_failures_post('w', 4, 5);
+
+        /*
+         * Wait until the fom in the request handler locality runq is
+         * processed. This is required for further validity checks.
+         */
+        m0_reqh_fom_domain_idle_wait(reqh);
+
+	/* Verify that first accumulator contains recovered data for D1. */
+	bv_populate(&src, 's', SEG_NR, SEG_SIZE);
+	m0_tl_for(cp_data_buf, &n_sag.sag_fc[0].fc_tgt_acc_cp.sc_base.c_buffers,
+		  nbuf) {
+		bv_compare(&src, &nbuf->nb_buffer, SEG_NR, SEG_SIZE);
+	} m0_tl_endfor;
+	bv_free(&src);
+
+	/* Verify that first accumulator contains recovered data for P2. */
+	bv_populate(&src, 'p', SEG_NR, SEG_SIZE);
+	m0_tl_for(cp_data_buf, &n_sag.sag_fc[1].fc_tgt_acc_cp.sc_base.c_buffers,
+		  nbuf) {
+		bv_compare(&src, &nbuf->nb_buffer, SEG_NR, SEG_SIZE);
+	} m0_tl_endfor;
+	bv_free(&src);
+
+        /*
+         * These asserts ensure that all the copy packets have been collected
+         * by the transformation function.
+         */
+        m0_semaphore_fini(&sem);
+
+        for (i = 0; i < MULTI_FAIL_MULTI_CP_NR; ++i)
+		for (j = 0; j < BUF_NR; ++j)
+			bv_free(&n_buf[i][j].nb_buffer);
+        m0_sns_ir_fini(&n_sag.sag_ir);
+        m0_parity_math_fini(&n_sag.sag_math);
+
+        M0_UT_ASSERT(n_sag.sag_base.cag_transformed_cp_nr ==
+		     MULTI_FAIL_MULTI_CP_NR);
+        M0_UT_ASSERT(n_sag.sag_base.cag_cp_local_nr == MULTI_FAIL_MULTI_CP_NR);
+	cp_buf_free(&n_sag);
 }
 
 /*
@@ -370,32 +542,17 @@ static int xform_fini(void)
         return 0;
 }
 
-/* Tests the correctness of the bufvec_xor function. */
-static void test_bufvec_xor()
-{
-	bv_populate(&src, '4', SEG_NR, SEG_SIZE);
-	bv_populate(&dst, 'D', SEG_NR, SEG_SIZE);
-	/*
-	 * Actual result is anticipated and stored in new bufvec, which is
-	 * used for comparison with xor'ed output.
-	 * 4 XOR D = p
-	 */
-	bv_populate(&xor, 'p', SEG_NR, SEG_SIZE);
-	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
-	bv_compare(&dst, &xor, SEG_NR, SEG_SIZE);
-	bv_free(&src);
-	bv_free(&dst);
-	bv_free(&xor);
-}
-
 const struct m0_test_suite snscm_xform_ut = {
 	.ts_name = "snscm_xform-ut",
 	.ts_init = &xform_init,
 	.ts_fini = &xform_fini,
 	.ts_tests = {
-		{ "single_cp_passthrough", test_single_cp },
-		{ "multiple_cp_bufvec_xor", test_multiple_cp },
 		{ "bufvec_xor_correctness", test_bufvec_xor },
+		{ "single_cp_passthrough", test_single_cp },
+		{ "multi_cp_single_failure",
+			test_multi_cp_single_failure },
+		{ "multi_cp_multi_failures",
+			test_multi_cp_multi_failures },
 		{ NULL, NULL }
 	}
 };
