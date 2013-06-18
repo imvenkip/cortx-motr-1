@@ -480,11 +480,36 @@ static inline uint64_t target_offset(uint64_t		       frame,
 	       (gob_offset % layout_unit_size(play));
 }
 
-M0_TL_DESCR_DEFINE(tioreq_hash, "Hash of target_ioreq objects", static,
-		   struct target_ioreq, ti_link, ti_magic, M0_T1FS_TIOREQ_MAGIC,
-		   M0_LIB_HASHBUCKET_MAGIC);
+static uint64_t tioreqs_hash_func(const struct m0_htable *htable, void *k)
+{
+	uint64_t *key = (uint64_t *)k;
 
-M0_TL_DEFINE(tioreq_hash, static, struct target_ioreq);
+	return (*key) % htable->h_bucket_nr;
+}
+
+static void *tioreq_key_get(const struct m0_ht_descr *d,
+			    void                     *amb)
+{
+	struct target_ioreq *ti = (struct target_ioreq *)amb;
+
+	return (uint64_t *)(&ti->ti_fid.f_container);
+}
+
+static bool tioreq_key_eq(void *key1, void *key2)
+{
+	uint64_t *k1 = (uint64_t *)key1;
+	uint64_t *k2 = (uint64_t *)key2;
+
+	return (*k1) == (*k2);
+}
+
+M0_HT_DESCR_DEFINE(tioreqht, "Hash of target_ioreq objects", static,
+		   struct target_ioreq, ti_link, ti_magic,
+		   M0_T1FS_TIOREQ_MAGIC, M0_T1FS_TLIST_HEAD_MAGIC,
+		   uint64_t, ti_fid.f_container, tioreqs_hash_func,
+		   tioreq_key_get, tioreq_key_eq);
+
+M0_HT_DEFINE(tioreqht, static, struct target_ioreq, uint64_t);
 
 /* Finds out pargrp_iomap::pi_grpid from target index. */
 static inline uint64_t pargrp_id_find(m0_bindex_t index,
@@ -900,10 +925,12 @@ static bool io_request_invariant(const struct io_request *req)
 	       m0_fid_is_valid(file_to_fid(req->ir_file)) &&
 
 	       ergo(ioreq_sm_state(req) == IRS_READING,
-		    !m0_hashlist_is_empty(&req->ir_nwxfer.nxr_tioreqs_hash)) &&
+		    !tioreqht_htable_is_empty(&req->ir_nwxfer.
+			    nxr_tioreqs_hash)) &&
 
 	       ergo(ioreq_sm_state(req) == IRS_WRITING,
-		    !m0_hashlist_is_empty(&req->ir_nwxfer.nxr_tioreqs_hash)) &&
+		    !tioreqht_htable_is_empty(&req->ir_nwxfer.
+			    nxr_tioreqs_hash)) &&
 
 	       ergo(ioreq_sm_state(req) == IRS_WRITE_COMPLETE,
 		    req->ir_nwxfer.nxr_iofop_nr == 0) &&
@@ -931,13 +958,13 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 		    (xfer->nxr_iofop_nr == 0)) &&
 
 	       ergo(xfer->nxr_state == NXS_INFLIGHT,
-		    !m0_hashlist_is_empty(&xfer->nxr_tioreqs_hash)) &&
+		    !tioreqht_htable_is_empty(&xfer->nxr_tioreqs_hash)) &&
 
 	       ergo(xfer->nxr_state == NXS_COMPLETE,
 		    xfer->nxr_iofop_nr == 0) &&
 
-	       m0_hashlist_forall(tioreq_hash, tioreq, &xfer->nxr_tioreqs_hash,
-			          target_ioreq_invariant(tioreq));
+	       m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
+			       target_ioreq_invariant(tioreq));
 }
 
 static bool data_buf_invariant(const struct data_buf *db)
@@ -1020,11 +1047,6 @@ static bool pargrp_iomap_invariant_nr(const struct io_request *req)
 			 pargrp_iomap_invariant(req->ir_iomaps[i]));
 }
 
-static uint64_t tioreqs_hash_func(const struct m0_hashlist *hlist, uint64_t key)
-{
-	return key % hlist->hl_bucket_nr;
-}
-
 static void nw_xfer_request_init(struct nw_xfer_request *xfer)
 {
 	struct io_request        *req;
@@ -1042,11 +1064,8 @@ static void nw_xfer_request_init(struct nw_xfer_request *xfer)
 	xfer->nxr_ops	= &xfer_ops;
 
 	play = pdlayout_get(req);
-	xfer->nxr_rc = m0_hashlist_init(&xfer->nxr_tioreqs_hash,
-			tioreqs_hash_func, layout_n(play) + 2 * layout_k(play),
-			offsetof(struct target_ioreq, ti_fid) +
-			offsetof(struct m0_fid, f_container),
-			&tioreq_hash_tl);
+	xfer->nxr_rc = tioreqht_htable_init(&xfer->nxr_tioreqs_hash,
+				layout_n(play) + 2 * layout_k(play));
 
 	M0_POST_EX(nw_xfer_request_invariant(xfer));
 	M0_LEAVE();
@@ -1060,7 +1079,7 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 
 	xfer->nxr_ops = NULL;
 	nw_xfer_request_bob_fini(xfer);
-	m0_hashlist_fini(&xfer->nxr_tioreqs_hash);
+	tioreqht_htable_fini(&xfer->nxr_tioreqs_hash);
 	M0_LEAVE();
 }
 
@@ -2860,13 +2879,13 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 	M0_RETURN(0);
 err:
-	m0_hashlist_for(tioreq_hash, ti, &xfer->nxr_tioreqs_hash) {
-		m0_hashlist_del(&xfer->nxr_tioreqs_hash, ti);
+	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+		tioreqht_htable_del(&xfer->nxr_tioreqs_hash, ti);
 		target_ioreq_fini(ti);
 		m0_free(ti);
 		++iommstats.d_target_ioreq_nr;
 		ti = NULL;
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 	M0_RETERR(rc, "io_prepare failed");
 }
@@ -2927,7 +2946,7 @@ static int device_check(struct io_request *req)
 					   IRS_WRITE_COMPLETE)));
 	csb = file_to_sb(req->ir_file);
 
-	m0_hashlist_for (tioreq_hash, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
+	m0_htable_for (tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				              ti->ti_fid.f_container, &state);
 		if (rc != 0)
@@ -2937,7 +2956,7 @@ static int device_check(struct io_request *req)
 		if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
 			          M0_PNDS_SNS_REPAIRING)))
 			st_cnt++;
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 	/*
 	 * Since m0t1fs IO only supports XOR at the moment, max number of
@@ -3021,12 +3040,11 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 		 * Fops meant for failed devices are dropped in
 		 * nw_xfer_req_dispatch().
 		 */
-		m0_hashlist_for(tioreq_hash, ti,
-			     &req->ir_nwxfer.nxr_tioreqs_hash) {
+		m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 			ti->ti_databytes = 0;
 			ti->ti_parbytes  = 0;
 			ti->ti_rc        = 0;
-		} m0_hashlist_endfor;
+		} m0_htable_endfor;
 
 	} else {
 		/*
@@ -3118,7 +3136,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 			if (rc != 0)
 				break;
 		} m0_tl_endfor;
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 	if (rc != 0)
 		M0_RETERR(rc, "dgmode failed");
@@ -3146,19 +3164,19 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		 * Ergo, page counts in index and buffer vectors are reset.
 		 */
 
-		m0_hashlist_for(tioreq_hash, ti,
+		m0_htable_for(tioreqht, ti,
 			     &req->ir_nwxfer.nxr_tioreqs_hash) {
 			ti->ti_ivec.iv_vec.v_nr = 0;
-		} m0_hashlist_endfor;
+		} m0_htable_endfor;
 	}
 
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
 
-	m0_hashlist_for(tioreq_hash, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
+	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 		ti->ti_databytes = 0;
 		ti->ti_parbytes  = 0;
 		ti->ti_rc        = 0;
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 	/* Resets the status code before starting degraded mode read IO. */
 	if (req->ir_nwxfer.nxr_rc != 0)
@@ -3320,12 +3338,11 @@ static int ioreq_iosm_handle(struct io_request *req)
 		m0_bcount_t read_pages = 0;
 
 		rmw = true;
-		m0_hashlist_for(tioreq_hash, ti,
-			     &req->ir_nwxfer.nxr_tioreqs_hash) {
+		m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
 			for (seg = 0; seg < ti->ti_bufvec.ov_vec.v_nr; ++seg)
 				if (ti->ti_pageattrs[seg] & PA_READ)
 					++read_pages;
-		} m0_hashlist_endfor;
+		} m0_htable_endfor;
 
 		/* Read IO is issued only if byte count > 0. */
 		if (read_pages > 0) {
@@ -3501,8 +3518,8 @@ static void io_request_fini(struct io_request *req)
 	req->ir_ops    = NULL;
 	m0_indexvec_free(&req->ir_ivec);
 
-	m0_hashlist_for(tioreq_hash, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
-		m0_hashlist_del(&req->ir_nwxfer.nxr_tioreqs_hash, ti);
+	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
+		tioreqht_htable_del(&req->ir_nwxfer.nxr_tioreqs_hash, ti);
 		/*
 		 * All io_req_fop structures in list target_ioreq::ti_iofops
 		 * are already finalized in nw_xfer_req_complete().
@@ -3510,7 +3527,7 @@ static void io_request_fini(struct io_request *req)
 		target_ioreq_fini(ti);
 		m0_free(ti);
 		++iommstats.d_target_ioreq_nr;
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
 	M0_LEAVE();
@@ -3716,7 +3733,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_databytes = 0;
 
 	iofops_tlist_init(&ti->ti_iofops);
-	tioreq_hash_tlink_init(ti);
+	tioreqht_tlink_init(ti);
 	target_ioreq_bob_init(ti);
 
 	rc = m0_indexvec_alloc(&ti->ti_ivec, page_nr(size),
@@ -3769,7 +3786,7 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	M0_PRE_EX(target_ioreq_invariant(ti));
 
 	target_ioreq_bob_fini(ti);
-	tioreq_hash_tlink_fini(ti);
+	tioreqht_tlink_fini(ti);
 	iofops_tlist_fini(&ti->ti_iofops);
 	ti->ti_ops     = NULL;
 	ti->ti_session = NULL;
@@ -3801,7 +3818,7 @@ static struct target_ioreq *target_ioreq_locate(struct nw_xfer_request *xfer,
 	M0_PRE_EX(nw_xfer_request_invariant(xfer));
 	M0_PRE(fid != NULL);
 
-	ti = m0_hashlist_lookup(&xfer->nxr_tioreqs_hash, fid->f_container);
+	ti = tioreqht_htable_lookup(&xfer->nxr_tioreqs_hash, &fid->f_container);
 	M0_ASSERT(ergo(ti != NULL, m0_fid_cmp(fid, &ti->ti_fid) == 0));
 
 	M0_LEAVE();
@@ -3836,7 +3853,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 
 		rc = target_ioreq_init(ti, xfer, fid, session, size);
 		if (rc == 0) {
-			m0_hashlist_add(&xfer->nxr_tioreqs_hash, ti);
+			tioreqht_htable_add(&xfer->nxr_tioreqs_hash, ti);
 			M0_LOG(M0_INFO, "New target_ioreq added for fid "
 					"%llu:%llu", fid->f_container,
 					fid->f_key);
@@ -4647,7 +4664,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	                 &csb->csb_addb_ctx);
 	m0t1fs_fs_unlock(csb);
 
-	m0_hashlist_for(tioreq_hash, ti, &xfer->nxr_tioreqs_hash) {
+	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		if (ti->ti_state != M0_PNDS_ONLINE) {
 			M0_LOG(M0_INFO, "Skipped iofops prepare for fid"
 			       "%llu:%llu", ti->ti_fid.f_container,
@@ -4662,9 +4679,9 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
 		if (rc != 0)
 			M0_RETERR(rc, "parity fop failed");
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
-	m0_hashlist_for(tioreq_hash, ti, &xfer->nxr_tioreqs_hash) {
+	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 
 		/* Skips the target device if it is not online. */
 		if (ti->ti_state != M0_PNDS_ONLINE) {
@@ -4684,7 +4701,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 						csb_pending_io_nr);
 		} m0_tl_endfor;
 
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 out:
 	xfer->nxr_state = NXS_INFLIGHT;
@@ -4703,7 +4720,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	xfer->nxr_state = NXS_COMPLETE;
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
 
-	m0_hashlist_for(tioreq_hash, ti, &xfer->nxr_tioreqs_hash) {
+	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		struct io_req_fop *irfop;
 
 		/* Maintains only the first error encountered. */
@@ -4728,7 +4745,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			     ti->ti_fid.f_container, ti->ti_fid.f_key,
 			     ti->ti_databytes + ti->ti_parbytes,
 			     m0_time_sub(m0_time_now(), ti->ti_start_time));
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
 	M0_LOG(M0_INFO, "Number of bytes %s = %llu",
 	       ioreq_sm_state(req) == IRS_READ_COMPLETE ? "read" : "written",

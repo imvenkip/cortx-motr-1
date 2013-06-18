@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anand Vidwana <anand_vidwansa@xyratex.com>
+ * Original author: Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 05/21/2013
  */
 
@@ -24,221 +24,236 @@
  */
 
 #include "lib/bob.h"	/* m0_bob_type */
-#include "lib/hash.h"   /* m0_hashlist */
+#include "lib/hash.h"   /* m0_htable */
 #include "lib/errno.h"  /* Include appropriate errno.h header. */
 #include "lib/arith.h"	/* min64u() */
 #include "lib/memory.h" /* M0_ALLOC_ARR() */
+#include "lib/misc.h"	/* m0_forall() */
 
-static const struct m0_bob_type hashlist_bobtype;
-M0_BOB_DEFINE(static, &hashlist_bobtype, m0_hashlist);
+static const struct m0_bob_type htable_bobtype;
+M0_BOB_DEFINE(static, &htable_bobtype, m0_htable);
 
-static const struct m0_bob_type hashlist_bobtype = {
-	.bt_name         = "hashlist",
-	.bt_magix_offset = offsetof(struct m0_hashlist, hl_magic),
+static const struct m0_bob_type htable_bobtype = {
+	.bt_name         = "hashtable",
+	.bt_magix_offset = offsetof(struct m0_htable, h_magic),
 	.bt_magix        = M0_LIB_HASHLIST_MAGIC,
 	.bt_check        = NULL,
 };
 
-static bool hashlist_invariant(const struct m0_hashlist *hlist);
+static bool htable_invariant(const struct m0_ht_descr *d,
+			     const struct m0_htable   *htable);
 
-M0_INTERNAL int m0_hashbucket_alloc_init(struct m0_hashlist *hlist,
-				         uint64_t            bucket_id)
-{
-	M0_PRE(hlist != NULL);
-	M0_PRE(hlist->hl_buckets != NULL);
-	M0_PRE(hlist->hl_buckets[bucket_id] == NULL);
-
-	M0_ALLOC_PTR(hlist->hl_buckets[bucket_id]);
-	if (hlist->hl_buckets[bucket_id] == NULL)
-		return -ENOMEM;
-
-	hlist->hl_buckets[bucket_id]->hb_bucket_id = bucket_id;
-	m0_tlist_init(hlist->hl_tldescr,
-		      &hlist->hl_buckets[bucket_id]->hb_objects);
-	hlist->hl_buckets[bucket_id]->hb_hlist = hlist;
-	return 0;
-}
-
-M0_INTERNAL void m0_hashbucket_dealloc_fini(struct m0_hashbucket *bucket)
+M0_INTERNAL void m0_hbucket_init(const struct m0_ht_descr *d,
+				 struct m0_hbucket        *bucket)
 {
 	M0_PRE(bucket != NULL);
-	M0_PRE(bucket->hb_hlist != NULL);
+	M0_PRE(d != NULL);
+	M0_PRE(d->hd_tldescr != NULL);
 
-	bucket->hb_hlist->hl_buckets[bucket->hb_bucket_id] = NULL;
-	m0_tlist_fini(bucket->hb_hlist->hl_tldescr, &bucket->hb_objects);
-	bucket->hb_hlist = NULL;
-	m0_free(bucket);
+	m0_tlist_init(d->hd_tldescr, &bucket->hb_objects);
 }
 
-static uint64_t hashlist_key_get(const struct m0_hashlist *hlist,
-				 const void               *obj)
+M0_INTERNAL void m0_hbucket_fini(const struct m0_ht_descr *d,
+				 struct m0_hbucket        *bucket)
 {
-	return *(uint64_t *)(obj + hlist->hl_key_offset);
+	M0_PRE(bucket != NULL);
+	M0_PRE(d != NULL);
+	M0_PRE(d->hd_tldescr != NULL);
+
+	m0_tlist_fini(d->hd_tldescr, &bucket->hb_objects);
 }
 
-static bool hashlist_invariant(const struct m0_hashlist *hlist)
+M0_INTERNAL void *m0_htable_key(const struct m0_ht_descr *d,
+				void                     *amb)
+{
+	return d->hd_key(d, amb);
+}
+
+M0_INTERNAL bool m0_htable_key_eq(const struct m0_ht_descr *d,
+				  void                     *key1,
+				  void                     *key2)
+{
+	return d->hd_key_eq(key1, key2);
+}
+
+static inline uint64_t key_get(const struct m0_ht_descr *d,
+			       void                     *amb)
+{
+	uint64_t key = 0;
+
+	switch (d->hd_key_type) {
+	case M0_HT_KEY_U8 :
+		key = *(uint8_t *)m0_htable_key(d, amb);
+		break;
+	case M0_HT_KEY_U16:
+		key = *(uint16_t *)m0_htable_key(d, amb);
+		break;
+	case M0_HT_KEY_U32:
+		key = *(uint32_t *)m0_htable_key(d, amb);
+		break;
+	case M0_HT_KEY_U64:
+		key = *(uint64_t *)m0_htable_key(d, amb);
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid key type");
+	}
+	return key;
+}
+
+static bool hbucket_invariant(const struct m0_ht_descr *d,
+			      const struct m0_hbucket  *bucket,
+			      const struct m0_htable   *htable)
+{
+	uint64_t  index;
+	void     *amb;
+	uint64_t  key;
+
+	index = bucket - htable->h_buckets;
+
+	return
+		bucket != NULL &&
+		d != NULL &&
+		d->hd_tldescr != NULL &&
+		m0_hbucket_forall_ol (d->hd_tldescr, amb, bucket,
+			 ((void)(key = key_get(d, amb)), true) &&
+			 (index == d->hd_hash_func(htable, &key)));
+}
+
+static bool htable_invariant(const struct m0_ht_descr *d,
+			     const struct m0_htable   *htable)
 {
 	return
-		m0_hashlist_bob_check(hlist) &&
-		hlist->hl_bucket_nr >  0 &&
-		hlist->hl_hash_func != NULL &&
-		hlist->hl_buckets   != NULL &&
-		hlist->hl_tldescr   != NULL;
+		m0_htable_bob_check(htable) &&
+		htable->h_bucket_nr >  0 &&
+		htable->h_buckets   != NULL &&
+		m0_forall(i, htable->h_bucket_nr, hbucket_invariant(d,
+			  &htable->h_buckets[i], htable));
 }
 
-M0_INTERNAL int m0_hashlist_init(struct m0_hashlist       *hlist,
-				 uint64_t (*hfunc)
-				 (const struct m0_hashlist *hlist,
-				  uint64_t                  key),
-				 uint64_t                  bucket_nr,
-				 size_t                    key_offset,
-				 const struct m0_tl_descr *descr)
+M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,
+			       struct m0_htable         *htable,
+			       uint64_t                  bucket_nr)
 {
-	M0_PRE(hlist != NULL);
-	M0_PRE(hfunc != NULL);
+	uint64_t nr;
+
+	M0_PRE(htable != NULL);
+	M0_PRE(d != NULL);
 	M0_PRE(bucket_nr > 0);
-	M0_PRE(descr != NULL);
 
-	m0_hashlist_bob_init(hlist);
+	m0_htable_bob_init(htable);
 
-	/*
-	 * Number of buckets is determined based on minimum of
-	 * - number of objects to be stored.
-	 * - max number of buckets that can fit into M0_0VEC_ALIGN (4K)
-	 *   segment.
-	 * This helps in keeping buckets localized in one page while operating
-	 * in linux kernel.
-	 */
-	hlist->hl_key_offset = key_offset;
-	hlist->hl_hash_func  = hfunc;
-	hlist->hl_tldescr    = descr;
-	hlist->hl_bucket_nr  = min64u(bucket_nr, M0_0VEC_ALIGN /
-				      sizeof(struct m0_hashbucket *));
-	M0_ALLOC_ARR(hlist->hl_buckets, hlist->hl_bucket_nr);
-	if (hlist->hl_buckets == NULL)
+	htable->h_bucket_nr  = bucket_nr;
+	M0_ALLOC_ARR(htable->h_buckets, htable->h_bucket_nr);
+	if (htable->h_buckets == NULL)
 		return -ENOMEM;
 
-	M0_POST(hashlist_invariant(hlist));
+	for (nr = 0; nr < htable->h_bucket_nr; ++nr)
+		m0_hbucket_init(d, &htable->h_buckets[nr]);
+	M0_POST_EX(htable_invariant(d, htable));
 	return 0;
 }
 
-M0_INTERNAL int m0_hashlist_add(struct m0_hashlist *hlist, void *obj)
+M0_INTERNAL void m0_htable_add(const struct m0_ht_descr *d,
+			       struct m0_htable         *htable,
+			       void                     *amb)
 {
-	int      rc;
+	uint64_t key;
 	uint64_t bucket_id;
 
-	M0_PRE(hashlist_invariant(hlist));
-	M0_PRE(obj != NULL);
+	M0_PRE_EX(htable_invariant(d, htable));
+	M0_PRE(amb != NULL);
 
-	bucket_id = hlist->hl_hash_func(hlist, hashlist_key_get(hlist, obj));
+	key = key_get(d, amb);
+	bucket_id = d->hd_hash_func(htable, &key);
 
-	/*
-	 * Allocates and initializes the bucket if it is not
-	 * initialized already.
-	 */
-	if (hlist->hl_buckets[bucket_id] == NULL) {
-		rc = m0_hashbucket_alloc_init(hlist, bucket_id);
-		if (rc != 0)
-			return rc;
-	}
-	m0_tlist_add(hlist->hl_tldescr,
-		     &hlist->hl_buckets[bucket_id]->hb_objects, obj);
-	M0_POST(hashlist_invariant(hlist));
-	M0_POST(m0_tlink_is_in(hlist->hl_tldescr, obj));
-
-	return 0;
+	m0_tlist_add(d->hd_tldescr,
+		     &htable->h_buckets[bucket_id].hb_objects, amb);
+	M0_POST_EX(htable_invariant(d, htable));
+	M0_POST(m0_tlink_is_in(d->hd_tldescr, amb));
 }
 
-M0_INTERNAL void m0_hashlist_del(struct m0_hashlist *hlist, void *obj)
+M0_INTERNAL void m0_htable_del(const struct m0_ht_descr *d,
+			       struct m0_htable         *htable,
+			       void                     *amb)
 {
+	uint64_t key;
 	uint64_t bucket_id;
 
-	M0_PRE(hashlist_invariant(hlist));
-	M0_PRE(obj != NULL);
+	M0_PRE_EX(htable_invariant(d, htable));
+	M0_PRE(amb != NULL);
 
-	bucket_id = hlist->hl_hash_func(hlist, hashlist_key_get(hlist, obj));
+	key = key_get(d, amb);
+	bucket_id = d->hd_hash_func(htable, &key);
 
-	if (hlist->hl_buckets[bucket_id] == NULL)
-		return;
-	m0_tlist_del(hlist->hl_tldescr, obj);
+	m0_tlist_del(d->hd_tldescr, amb);
 
-	/* Finalizes and deallocates the bucket if it is empty. */
-	if (m0_tlist_is_empty(hlist->hl_tldescr,
-			      &hlist->hl_buckets[bucket_id]->hb_objects))
-		m0_hashbucket_dealloc_fini(hlist->hl_buckets[bucket_id]);
-
-	M0_POST(hashlist_invariant(hlist));
-	M0_POST(!m0_tlink_is_in(hlist->hl_tldescr, obj));
+	M0_POST_EX(htable_invariant(d, htable));
+	M0_POST(!m0_tlink_is_in(d->hd_tldescr, amb));
 }
 
-M0_INTERNAL void *m0_hashlist_lookup(const struct m0_hashlist *hlist,
-				     uint64_t                  key)
+M0_INTERNAL void *m0_htable_lookup(const struct m0_ht_descr *d,
+				   const struct m0_htable   *htable,
+				   void                     *key)
 {
-	void                 *scan;
-	uint64_t              bucket_id;
-	struct m0_hashbucket *bucket;
+	void     *scan;
+	uint64_t  k;
+	uint64_t  bucket_id;
 
-	M0_PRE(hashlist_invariant(hlist));
+	M0_PRE_EX(htable_invariant(d, htable));
 
-	bucket_id = hlist->hl_hash_func(hlist, key);
-	bucket    = hlist->hl_buckets[bucket_id];
-	if (bucket == NULL)
-		return NULL;
+	bucket_id = d->hd_hash_func(htable, key);
 
-	m0_tlist_for (hlist->hl_tldescr, &bucket->hb_objects, scan) {
-		if (hashlist_key_get(hlist, scan) == key)
+	m0_tlist_for (d->hd_tldescr, &htable->h_buckets[bucket_id].hb_objects,
+		      scan) {
+		k = key_get(d, scan);
+		if (m0_htable_key_eq(d, &k, key))
 			break;
 	} m0_tlist_endfor;
 
 	return scan;
 }
 
-M0_INTERNAL void m0_hashlist_fini(struct m0_hashlist *hlist)
-{
-	uint64_t              nr;
-	struct m0_hashbucket *bucket;
-
-	M0_PRE(hashlist_invariant(hlist));
-
-	for (nr = 0; nr < hlist->hl_bucket_nr; ++nr) {
-		bucket = hlist->hl_buckets[nr];
-		if (bucket != NULL)
-			m0_hashbucket_dealloc_fini(bucket);
-	}
-	m0_free(hlist->hl_buckets);
-	m0_hashlist_bob_fini(hlist);
-	hlist->hl_buckets   = NULL;
-	hlist->hl_bucket_nr = 0;
-	hlist->hl_tldescr   = NULL;
-	hlist->hl_hash_func = NULL;
-}
-
-M0_INTERNAL bool m0_hashlist_is_empty(const struct m0_hashlist *hlist)
+M0_INTERNAL void m0_htable_fini(const struct m0_ht_descr *d,
+				struct m0_htable         *htable)
 {
 	uint64_t nr;
 
-	M0_PRE(hashlist_invariant(hlist));
+	M0_PRE_EX(htable_invariant(d, htable));
 
-	for (nr = 0; nr < hlist->hl_bucket_nr; ++nr) {
-		if (hlist->hl_buckets[nr] != NULL &&
-		    !m0_tlist_is_empty(hlist->hl_tldescr,
-			    &hlist->hl_buckets[nr]->hb_objects))
-			break;
-	}
-	return nr == hlist->hl_bucket_nr;
+	for (nr = 0; nr < htable->h_bucket_nr; ++nr)
+		m0_hbucket_fini(d, &htable->h_buckets[nr]);
+	m0_free(htable->h_buckets);
+	m0_htable_bob_fini(htable);
+	htable->h_buckets   = NULL;
+	htable->h_bucket_nr = 0;
 }
 
-M0_INTERNAL uint64_t m0_hashlist_length(const struct m0_hashlist *hlist)
+M0_INTERNAL bool m0_htable_is_empty(const struct m0_ht_descr *d,
+				    const struct m0_htable   *htable)
+{
+	uint64_t nr;
+
+	M0_PRE_EX(htable_invariant(d, htable));
+
+	for (nr = 0; nr < htable->h_bucket_nr; ++nr) {
+		if (!m0_tlist_is_empty(d->hd_tldescr,
+				&htable->h_buckets[nr].hb_objects))
+			break;
+	}
+	return nr == htable->h_bucket_nr;
+}
+
+M0_INTERNAL uint64_t m0_htable_length(const struct m0_ht_descr *d,
+				      const struct m0_htable   *htable)
 {
 	uint64_t nr;
 	uint64_t len = 0;
 
-	M0_PRE(hashlist_invariant(hlist));
+	M0_PRE_EX(htable_invariant(d, htable));
 
-	for (nr = 0; nr < hlist->hl_bucket_nr; ++nr) {
-		if (hlist->hl_buckets[nr] != NULL)
-			len += m0_tlist_length(hlist->hl_tldescr,
-					&hlist->hl_buckets[nr]->hb_objects);
+	for (nr = 0; nr < htable->h_bucket_nr; ++nr) {
+		len += m0_tlist_length(d->hd_tldescr,
+				&htable->h_buckets[nr].hb_objects);
 	}
 	return len;
 }

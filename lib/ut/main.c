@@ -48,7 +48,7 @@ extern void test_trace(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_locality(void);
-extern void test_hash(void);
+extern void test_hashtable(void);
 
 const struct m0_test_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -84,7 +84,7 @@ const struct m0_test_suite libm0_ut = {
 		{ "uuid",             m0_test_lib_uuid   },
 		{ "vec",              test_vec           },
 		{ "zerovec",          test_zerovec       },
-		{ "hash",	      test_hash          },
+		{ "hash",	      test_hashtable     },
 		{ NULL,               NULL               }
 	}
 };

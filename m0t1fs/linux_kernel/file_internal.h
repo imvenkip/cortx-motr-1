@@ -1198,7 +1198,7 @@ struct nw_xfer_request {
 	 * of target_ioreq objects based on a key
 	 * (target_ioreq::ti_fid::f_container)
 	 */
-	struct m0_hashlist        nxr_tioreqs_hash;
+	struct m0_htable        nxr_tioreqs_hash;
 
         /**
          * Number of IO fops issued by all target_ioreq structures

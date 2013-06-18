@@ -348,7 +348,7 @@ static void ds_test(void)
 	ioreq_sm_state_set(&req, IRS_REQ_COMPLETE);
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
-	M0_UT_ASSERT(m0_hashlist_is_empty(&req.ir_nwxfer.nxr_tioreqs_hash));
+	M0_UT_ASSERT(tioreqht_htable_is_empty(&req.ir_nwxfer.nxr_tioreqs_hash));
 	io_request_fini(&req);
 	M0_UT_ASSERT(req.ir_file   == NULL);
 	M0_UT_ASSERT(req.ir_iovec  == NULL);
@@ -637,7 +637,8 @@ static void nw_xfer_ops_test(void)
 	/* Test for nw_xfer_tioreq_map. */
 	rc = nw_xfer_tioreq_map(&req.ir_nwxfer, &src, &tgt, &ti);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(!m0_hashlist_is_empty(&req.ir_nwxfer.nxr_tioreqs_hash));
+	M0_UT_ASSERT(!tioreqht_htable_is_empty(&req.ir_nwxfer.
+				nxr_tioreqs_hash));
 	M0_UT_ASSERT(ti->ti_ivec.iv_index != NULL);
 	M0_UT_ASSERT(ti->ti_ivec.iv_vec.v_count != NULL);
 	M0_UT_ASSERT(ti->ti_bufvec.ov_vec.v_count != NULL);
@@ -647,9 +648,9 @@ static void nw_xfer_ops_test(void)
 	/* Test for nw_xfer_io_distribute. */
 	rc = nw_xfer_io_distribute(&req.ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_hashlist_length(&req.ir_nwxfer.nxr_tioreqs_hash) ==
+	M0_UT_ASSERT(tioreqht_htable_length(&req.ir_nwxfer.nxr_tioreqs_hash) ==
 			LAY_P);
-	m0_hashlist_for(tioreq_hash, ti, &req.ir_nwxfer.nxr_tioreqs_hash) {
+	m0_htable_for(tioreqht, ti, &req.ir_nwxfer.nxr_tioreqs_hash) {
 		M0_UT_ASSERT(ti->ti_nwxfer == &req.ir_nwxfer);
 		M0_UT_ASSERT(ti->ti_ops != NULL);
 
@@ -659,11 +660,11 @@ static void nw_xfer_ops_test(void)
 			M0_UT_ASSERT(ti->ti_ivec.iv_vec.v_count[cnt] ==
 				     PAGE_CACHE_SIZE);
 		}
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
-	m0_hashlist_for(tioreq_hash, ti1, &req.ir_nwxfer.nxr_tioreqs_hash) {
-		m0_hashlist_del(&req.ir_nwxfer.nxr_tioreqs_hash, ti1);
-	} m0_hashlist_endfor;
+	m0_htable_for(tioreqht, ti1, &req.ir_nwxfer.nxr_tioreqs_hash) {
+		tioreqht_htable_del(&req.ir_nwxfer.nxr_tioreqs_hash, ti1);
+	} m0_htable_endfor;
 
 	ioreq_iomaps_destroy(&req);
 	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
@@ -851,6 +852,7 @@ static void dgmode_readio_test(void)
 	uint32_t                    row;
 	uint32_t                    col;
 	uint64_t                    pgcur = 0;
+	uint64_t                    key;
 	struct iovec                iovec_arr[DGMODE_IOVEC_NR];
 	struct m0_fop              *reply;
 	struct io_request          *req;
@@ -899,7 +901,8 @@ static void dgmode_readio_test(void)
 
 	ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(req, IRS_READING);
-	ti = m0_hashlist_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, 1);
+	key = 1;
+	ti = tioreqht_htable_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, &key);
 
 	/*
 	 * Fake data structure members so that UT passes through

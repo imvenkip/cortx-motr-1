@@ -14,20 +14,25 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anand Vidwana <anand_vidwansa@xyratex.com>
+ * Original author: Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 05/28/2013
  */
 
 #include "lib/bob.h"	/* m0_bob_type */
-#include "lib/hash.h"   /* m0_hashlist */
+#include "lib/hash.h"   /* m0_htable */
 #include "lib/errno.h"  /* Include appropriate errno.h header. */
 #include "ut/ut.h"	/* M0_UT_ASSERT() */
 
+/*
+ * Once upon a time, there was a hash in a bar, which consists of
+ * number of foos!
+ * And all foos shared their keys in order to enroll into the hash.
+ */
 struct bar {
 	/* Holds BAR_MAGIC. */
 	uint64_t           b_magic;
 	int                b_rc;
-	struct m0_hashlist b_hash;
+	struct m0_htable b_hash;
 };
 
 struct foo {
@@ -45,24 +50,44 @@ enum {
 	FOO_MAGIC = 0x911ea3a7096a96e5ULL,
 };
 
-static uint64_t hash_func(const struct m0_hashlist *hlist, uint64_t key)
-{
-	return key % hlist->hl_bucket_nr;
-}
-
-M0_TL_DESCR_DEFINE(foohash, "Hash of foos", static, struct foo,
-		   f_link, f_magic, FOO_MAGIC, BAR_MAGIC);
-M0_TL_DEFINE(foohash, static, struct foo);
-
 static struct foo foos[FOO_NR];
 static struct bar thebar;
 
-void test_hash(void)
+static uint64_t hash_func(const struct m0_htable *htable, void *k)
 {
-	int                   i;
-	int                   rc;
-	struct foo           *f;
-	struct m0_hashbucket *hb;
+	uint64_t *key  = (uint64_t *)k;
+
+	return (*key) % htable->h_bucket_nr;
+}
+
+static void *hash_key_get(const struct m0_ht_descr *d, void *obj)
+{
+	struct foo *amb = (struct foo *)obj;
+
+	return &(amb->f_hkey);
+}
+
+static bool key_eq(void *key1, void *key2)
+{
+	uint64_t *k1 = (uint64_t *)key1;
+	uint64_t *k2 = (uint64_t *)key2;
+
+	return (*k1) == (*k2);
+}
+
+M0_HT_DESCR_DEFINE(foohash, "Hash of fops", static, struct foo, f_link,
+		   f_magic, FOO_MAGIC, BAR_MAGIC,
+		   uint64_t, f_hkey, hash_func, hash_key_get, key_eq);
+
+M0_HT_DEFINE(foohash, static, struct foo, uint64_t);
+
+void test_hashtable(void)
+{
+	int                i;
+	int                rc;
+	uint64_t           key;
+	struct foo        *f;
+	struct m0_hbucket *hb;
 
 	for (i = 0; i < FOO_NR; ++i) {
 		foos[i].f_magic = FOO_MAGIC;
@@ -73,75 +98,66 @@ void test_hash(void)
 
 	thebar.b_magic = BAR_MAGIC;
 	thebar.b_rc    = 0;
-	rc = m0_hashlist_init(&thebar.b_hash, hash_func, BUCKET_NR,
-			      offsetof(struct foo, f_hkey), &foohash_tl);
+	rc = foohash_htable_init(&thebar.b_hash, BUCKET_NR);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(thebar.b_hash.hl_magic == M0_LIB_HASHLIST_MAGIC);
-	M0_UT_ASSERT(thebar.b_hash.hl_bucket_nr == BUCKET_NR);
-	M0_UT_ASSERT(thebar.b_hash.hl_buckets != NULL);
-	M0_UT_ASSERT(thebar.b_hash.hl_hash_func == hash_func);
+	M0_UT_ASSERT(thebar.b_hash.h_magic == M0_LIB_HASHLIST_MAGIC);
+	M0_UT_ASSERT(thebar.b_hash.h_bucket_nr == BUCKET_NR);
+	M0_UT_ASSERT(thebar.b_hash.h_buckets != NULL);
 
-	rc = m0_hashlist_add(&thebar.b_hash, &foos[0]);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_hashlist_length(&thebar.b_hash) == 1);
-	M0_UT_ASSERT(!m0_hashlist_is_empty(&thebar.b_hash));
-	M0_UT_ASSERT(m0_hashlist_lookup(&thebar.b_hash, 0) == &foos[0]);
-	M0_UT_ASSERT(m0_hashlist_lookup(&thebar.b_hash, 1) == NULL);
+	foohash_htable_add(&thebar.b_hash, &foos[0]);
+	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == 1);
+	M0_UT_ASSERT(!foohash_htable_is_empty(&thebar.b_hash));
+	key = 0;
+	M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash, &key) == &foos[0]);
+	key = 1;
+	M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash, &key) == NULL);
 
-	M0_UT_ASSERT(thebar.b_hash.hl_buckets[0] != NULL);
-	M0_UT_ASSERT(thebar.b_hash.hl_buckets[0]->hb_bucket_id == 0);
 	M0_UT_ASSERT(!m0_tlist_is_empty(&foohash_tl, &thebar.b_hash.
-				        hl_buckets[0]->hb_objects));
-	M0_UT_ASSERT(thebar.b_hash.hl_buckets[0]->hb_hlist == &thebar.b_hash);
+				        h_buckets[0].hb_objects));
 
-	m0_hashlist_del(&thebar.b_hash, &foos[0]);
-	M0_UT_ASSERT(m0_hashlist_is_empty(&thebar.b_hash));
-	M0_UT_ASSERT(m0_hashlist_length(&thebar.b_hash) == 0);
-	M0_UT_ASSERT(m0_hashlist_lookup(&thebar.b_hash, foos[0].f_hkey) == NULL);
-	M0_UT_ASSERT(thebar.b_hash.hl_buckets[0] == NULL);
+	foohash_htable_del(&thebar.b_hash, &foos[0]);
+	M0_UT_ASSERT(foohash_htable_is_empty(&thebar.b_hash));
+	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == 0);
+	M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash, &foos[0].f_hkey) ==
+		     NULL);
 
 	for (i = 0; i < FOO_NR; ++i) {
-		rc = m0_hashlist_add(&thebar.b_hash, &foos[i]);
-		M0_UT_ASSERT(rc == 0);
+		foohash_htable_add(&thebar.b_hash, &foos[i]);
 		M0_UT_ASSERT(m0_tlink_is_in(&foohash_tl, &foos[i]));
 	}
-	M0_UT_ASSERT(m0_hashlist_length(&thebar.b_hash) == FOO_NR);
+	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == FOO_NR);
 
 	for (i = 0; i < BUCKET_NR; ++i) {
-		hb = thebar.b_hash.hl_buckets[i];
-		M0_UT_ASSERT(hb != NULL);
-		M0_UT_ASSERT(hb->hb_bucket_id == i);
+		hb = &thebar.b_hash.h_buckets[i];
 		M0_UT_ASSERT(!m0_tlist_is_empty(&foohash_tl, &hb->hb_objects));
-		M0_UT_ASSERT(m0_hashbucket_forall(foohash, f, hb,
-			     f->f_hkey % BUCKET_NR == hb->hb_bucket_id));
+		M0_UT_ASSERT(m0_hbucket_forall(foohash, f, hb,
+			     f->f_hkey % BUCKET_NR == i));
 	}
-	M0_UT_ASSERT(m0_hashlist_forall(foohash, f, &thebar.b_hash,
+	M0_UT_ASSERT(m0_htable_forall(foohash, f, &thebar.b_hash,
 		     f->f_subject == 0));
 
-	m0_hashlist_for(foohash, f, &thebar.b_hash) {
+	m0_htable_for(foohash, f, &thebar.b_hash) {
 		f->f_subject = 1;
-	} m0_hashlist_endfor;
+	} m0_htable_endfor;
 
-	M0_UT_ASSERT(m0_hashlist_forall(foohash, f, &thebar.b_hash,
+	M0_UT_ASSERT(m0_htable_forall(foohash, f, &thebar.b_hash,
 		     f->f_subject == 1));
 
 	for (i = 0; i < FOO_NR; ++i) {
-		m0_hashlist_del(&thebar.b_hash, &foos[i]);
-		M0_UT_ASSERT(m0_hashlist_length(&thebar.b_hash) ==
+		foohash_htable_del(&thebar.b_hash, &foos[i]);
+		M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) ==
 			     FOO_NR - (i + 1));
-		M0_UT_ASSERT(m0_hashlist_lookup(&thebar.b_hash,
-					foos[i].f_hkey) == NULL);
+		M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash,
+					&foos[i].f_hkey) == NULL);
 		M0_UT_ASSERT(!m0_tlink_is_in(&foohash_tl, &foos[i]));
 	}
-	M0_UT_ASSERT(m0_hashlist_length(&thebar.b_hash) == 0);
-	M0_UT_ASSERT(m0_hashlist_is_empty(&thebar.b_hash));
+	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == 0);
+	M0_UT_ASSERT(foohash_htable_is_empty(&thebar.b_hash));
 
-	m0_hashlist_fini(&thebar.b_hash);
-	M0_UT_ASSERT(thebar.b_hash.hl_buckets   == NULL);
-	M0_UT_ASSERT(thebar.b_hash.hl_bucket_nr == 0);
-	M0_UT_ASSERT(thebar.b_hash.hl_magic     == 0);
-	M0_UT_ASSERT(thebar.b_hash.hl_tldescr   == NULL);
-	M0_UT_ASSERT(thebar.b_hash.hl_hash_func == NULL);
+	foohash_htable_fini(&thebar.b_hash);
+	M0_UT_ASSERT(thebar.b_hash.h_buckets   == NULL);
+	M0_UT_ASSERT(thebar.b_hash.h_bucket_nr == 0);
+	M0_UT_ASSERT(thebar.b_hash.h_magic     == 0);
 }
 
 /*
