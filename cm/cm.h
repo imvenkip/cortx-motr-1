@@ -293,7 +293,7 @@ struct m0_cm_ops {
 	 * Initialises the given fop with copy machine specific sliding window
 	 * update fop type and given information.
 	 */
-	int (*cmo_sw_update_fop_setup)(struct m0_cm *cm, struct m0_fop *fop,
+	int (*cmo_sw_onwire_fop_setup)(struct m0_cm *cm, struct m0_fop *fop,
 				       void (*fop_release)(struct m0_ref *),
 				       const char *local_ep,
 				       const struct m0_cm_sw *sw);
@@ -420,8 +420,6 @@ M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm);
 /** Copy machine state mutators & accessors */
 M0_INTERNAL void m0_cm_state_set(struct m0_cm *cm, enum m0_cm_state state);
 M0_INTERNAL enum m0_cm_state m0_cm_state_get(const struct m0_cm *cm);
-
-M0_INTERNAL int m0_cm_sw_update(struct m0_cm *cm);
 
 /**
  * Creates copy packets and adds aggregation groups to m0_cm::cm_aggr_grps,

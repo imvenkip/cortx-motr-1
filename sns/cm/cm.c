@@ -46,7 +46,7 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
-#include "sns/cm/sw_update_fop.h"
+#include "sns/cm/sw_onwire_fop.h"
 
 /**
   @page SNSCMDLD SNS copy machine DLD
@@ -959,7 +959,7 @@ const struct m0_cm_ops cm_ops = {
 	.cmo_cp_alloc            = cm_cp_alloc,
 	.cmo_data_next           = m0_sns_cm_iter_next,
 	.cmo_ag_next             = cm_ag_next,
-	.cmo_sw_update_fop_setup = m0_sns_cm_sw_update_fop_setup,
+	.cmo_sw_onwire_fop_setup = m0_sns_cm_sw_onwire_fop_setup,
 	.cmo_complete            = cm_complete,
 	.cmo_stop                = cm_stop,
 	.cmo_fini                = cm_fini

@@ -58,17 +58,17 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 	m0_cm_ag_id_copy(&dst->sw_hi, &src->sw_hi);
 }
 
-M0_INTERNAL int m0_cm_sw_update_init(struct m0_cm_sw_update *sw_update,
+M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
                                      const char *ep, const struct m0_cm_sw *sw)
 {
-	M0_PRE(sw_update != NULL && ep != NULL && sw != NULL);
+	M0_PRE(sw_onwire != NULL && ep != NULL && sw != NULL);
 
-	m0_cm_sw_copy(&sw_update->swu_sw, sw);
-	sw_update->swu_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
-	M0_ALLOC_ARR(sw_update->swu_cm_ep.ep, CS_MAX_EP_ADDR_LEN);
-	if (sw_update->swu_cm_ep.ep == NULL )
+	m0_cm_sw_copy(&sw_onwire->swo_sw, sw);
+	sw_onwire->swo_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
+	M0_ALLOC_ARR(sw_onwire->swo_cm_ep.ep, CS_MAX_EP_ADDR_LEN);
+	if (sw_onwire->swo_cm_ep.ep == NULL )
 		return -ENOMEM;
-	strncpy(sw_update->swu_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
+	strncpy(sw_onwire->swo_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
 
 	return 0;
 }
@@ -105,6 +105,10 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
         M0_SET0(&id_lo);
         M0_SET0(&id_hi);
         lo = m0_cm_ag_lo(cm);
+	/*
+	 * lo can be NULL mainly if the copy machine operation is just started
+	 * and sliding window is empty.
+	 */
         if (lo != NULL) {
                 id_lo = lo->cag_id;
                 id_hi = cm->cm_last_saved_sw_hi;
@@ -112,7 +116,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		if (m0_cm_ag_id_cmp(&id_hi,
-				    &pxy->px_last_sw_update_sent.sw_hi) > 0) {
+				    &pxy->px_last_sw_onwire_sent.sw_hi) > 0) {
 			rc = m0_cm_proxy_remote_update(pxy, &sw);
 			if (rc != 0)
 				break;

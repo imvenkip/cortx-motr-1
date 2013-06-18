@@ -36,7 +36,7 @@
 #include "sns/cm/cm.h"
 #include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
-#include "sns/cm/sw_update_fop.h"
+#include "sns/cm/sw_onwire_fop.h"
 
 /**
   @defgroup SNSCMSVC SNS copy machine service
@@ -120,7 +120,7 @@ static int svc_start(struct m0_reqh_service *service)
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm) ?: m0_sns_repair_trigger_fop_init() ?:
-	     m0_sns_cpx_init() ?: m0_sns_cm_sw_update_fop_init();
+	     m0_sns_cpx_init() ?: m0_sns_cm_sw_onwire_fop_init();
 
 	/* The following shows how to retrieve ioservice endpoints list.
 	 * Copy machine can establish connections to all ioservices,
@@ -159,7 +159,7 @@ static void svc_stop(struct m0_reqh_service *service)
 	m0_cm_fini(cm);
 	m0_sns_repair_trigger_fop_fini();
 	m0_sns_cpx_fini();
-	m0_sns_cm_sw_update_fop_fini();
+	m0_sns_cm_sw_onwire_fop_fini();
 
 	M0_LEAVE();
 }

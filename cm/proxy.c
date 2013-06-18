@@ -203,11 +203,11 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	M0_LEAVE();
 }
 
-static void proxy_sw_update_ast_cb(struct m0_sm_group *grp,
+static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 				   struct m0_sm_ast *ast)
 {
 	struct m0_cm_proxy      *proxy = container_of(ast, struct m0_cm_proxy,
-						      px_sw_update_ast);
+						      px_sw_onwire_ast);
 	struct m0_cm            *cm    = proxy->px_cm;
 	struct m0_cm_aggr_group *lo;
 	struct m0_cm_ag_id       id_lo;
@@ -227,10 +227,10 @@ static void proxy_sw_update_ast_cb(struct m0_sm_group *grp,
 	}
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	M0_LOG(M0_DEBUG, "proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
-	       proxy->px_last_sw_update_sent.sw_hi.ai_hi.u_hi,
-	       proxy->px_last_sw_update_sent.sw_hi.ai_hi.u_lo,
-	       proxy->px_last_sw_update_sent.sw_hi.ai_lo.u_hi,
-	       proxy->px_last_sw_update_sent.sw_hi.ai_lo.u_lo);
+	       proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_hi,
+	       proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_lo,
+	       proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_hi,
+	       proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_lo);
 	/*
 	 * Update the remote proxy if this copy machine has more data to
 	 * reconstruct and expects incoming copy packets or the id_hi is
@@ -238,41 +238,41 @@ static void proxy_sw_update_ast_cb(struct m0_sm_group *grp,
 	 * replica.
 	 */
 	if ((m0_cm_has_more_data(cm) && cm->cm_aggr_grps_in_nr > 0) ||
-	    m0_cm_ag_id_cmp(&id_hi, &proxy->px_last_sw_update_sent.sw_hi) > 0) {
+	    m0_cm_ag_id_cmp(&id_hi, &proxy->px_last_sw_onwire_sent.sw_hi) > 0) {
 		rc = m0_cm_proxy_remote_update(proxy, &sw);
 		M0_ASSERT(rc == 0);
 	}
 }
 
-M0_INTERNAL void m0_cm_proxy_sw_update_ast_post(struct m0_cm_proxy *proxy)
+static void proxy_sw_onwire_ast_post(struct m0_cm_proxy *proxy)
 {
 	M0_ENTRY("%p", proxy);
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
-	proxy->px_sw_update_ast.sa_cb = proxy_sw_update_ast_cb;
+	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
 	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
-	m0_sm_ast_post(proxy->px_cm->cm_mach.sm_grp, &proxy->px_sw_update_ast);
+	m0_sm_ast_post(proxy->px_cm->cm_mach.sm_grp, &proxy->px_sw_onwire_ast);
 	M0_LEAVE();
 }
 
-static void proxy_sw_update_item_sent_cb(struct m0_rpc_item *item)
+static void proxy_sw_onwire_item_sent_cb(struct m0_rpc_item *item)
 {
 	struct m0_fop                    *fop;
-	struct m0_cm_proxy_sw_update_fop *swu_fop;
+	struct m0_cm_proxy_sw_onwire *swu_fop;
 	struct m0_cm_proxy               *proxy;
 
 	fop = m0_rpc_item_to_fop(item);
-	swu_fop = container_of(fop, struct m0_cm_proxy_sw_update_fop, psu_fop);
-	proxy = swu_fop->psu_proxy;
+	swu_fop = container_of(fop, struct m0_cm_proxy_sw_onwire, pso_fop);
+	proxy = swu_fop->pso_proxy;
 	M0_ASSERT(cm_proxy_invariant(proxy));
-	m0_cm_proxy_sw_update_ast_post(proxy);
+	proxy_sw_onwire_ast_post(proxy);
 }
 
-const struct m0_rpc_item_ops proxy_sw_update_item_ops = {
-	.rio_sent = proxy_sw_update_item_sent_cb
+const struct m0_rpc_item_ops proxy_sw_onwire_item_ops = {
+	.rio_sent = proxy_sw_onwire_item_sent_cb
 };
 
-M0_INTERNAL int m0_cm_proxy_sw_update_fop_post(struct m0_fop *fop,
+M0_INTERNAL int m0_cm_proxy_sw_onwire_post(struct m0_fop *fop,
 					       const struct m0_rpc_conn *conn,
 					       m0_time_t deadline)
 {
@@ -282,7 +282,7 @@ M0_INTERNAL int m0_cm_proxy_sw_update_fop_post(struct m0_fop *fop,
 	M0_PRE(fop != NULL && conn != NULL);
 
 	item              = m0_fop_to_rpc_item(fop);
-	item->ri_ops      = &proxy_sw_update_item_ops;
+	item->ri_ops      = &proxy_sw_onwire_item_ops;
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
@@ -290,16 +290,16 @@ M0_INTERNAL int m0_cm_proxy_sw_update_fop_post(struct m0_fop *fop,
 	return m0_rpc_oneway_item_post(conn, item);
 }
 
-static void proxy_sw_update_fop_release(struct m0_ref *ref)
+static void proxy_sw_onwire_release(struct m0_ref *ref)
 {
-	struct m0_cm_proxy_sw_update_fop  *psu_fop;
+	struct m0_cm_proxy_sw_onwire  *pso_fop;
 	struct m0_fop                     *fop;
 
 	fop = container_of(ref, struct m0_fop, f_ref);
-	psu_fop = container_of(fop, struct m0_cm_proxy_sw_update_fop, psu_fop);
-	M0_ASSERT(psu_fop != NULL);
+	pso_fop = container_of(fop, struct m0_cm_proxy_sw_onwire, pso_fop);
+	M0_ASSERT(pso_fop != NULL);
 	m0_fop_fini(fop);
-	m0_free(psu_fop);
+	m0_free(pso_fop);
 }
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
@@ -308,7 +308,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	struct m0_cm                     *cm;
         struct m0_rpc_machine            *rmach;
         struct m0_rpc_conn               *conn;
-	struct m0_cm_proxy_sw_update_fop *update_fop;
+	struct m0_cm_proxy_sw_onwire *sw_fop;
 	struct m0_fop                    *fop;
         m0_time_t                         deadline;
         const char                       *ep;
@@ -319,36 +319,36 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	cm = proxy->px_cm;
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_ALLOC_PTR(update_fop);
-	if (update_fop == NULL)
+	M0_ALLOC_PTR(sw_fop);
+	if (sw_fop == NULL)
 		return -ENOMEM;
-	fop = &update_fop->psu_fop;
+	fop = &sw_fop->pso_fop;
         rmach = proxy->px_conn.c_rpc_machine;
         ep = rmach->rm_tm.ntm_ep->nep_addr;
         conn = &proxy->px_conn;
-        rc = cm->cm_ops->cmo_sw_update_fop_setup(cm, fop,
-						 proxy_sw_update_fop_release,
+        rc = cm->cm_ops->cmo_sw_onwire_fop_setup(cm, fop,
+						 proxy_sw_onwire_release,
 						 ep, sw);
         if (rc != 0) {
-		m0_free(update_fop);
+		m0_free(sw_fop);
                 return rc;
 	}
-	update_fop->psu_proxy = proxy;
+	sw_fop->pso_proxy = proxy;
         deadline = m0_time_from_now(1, 0);
 	M0_LOG(M0_DEBUG, "Sending to %s hi: [%lu] [%lu] [%lu] [%lu]",
 		proxy->px_endpoint, sw->sw_hi.ai_hi.u_hi, sw->sw_hi.ai_hi.u_lo,
 		sw->sw_hi.ai_lo.u_hi, sw->sw_hi.ai_lo.u_lo);
 	M0_LOG(M0_DEBUG, "proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
-		proxy->px_last_sw_update_sent.sw_hi.ai_hi.u_hi,
-		proxy->px_last_sw_update_sent.sw_hi.ai_hi.u_lo,
-		proxy->px_last_sw_update_sent.sw_hi.ai_lo.u_hi,
-		proxy->px_last_sw_update_sent.sw_hi.ai_lo.u_lo);
+		proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_hi,
+		proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_lo,
+		proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_hi,
+		proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_lo);
 
-        rc = m0_cm_proxy_sw_update_fop_post(fop, conn, deadline);
+        rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline);
         m0_sm_group_lock(&rmach->rm_sm_grp);
         m0_fop_put(fop);
         m0_sm_group_unlock(&rmach->rm_sm_grp);
-	m0_cm_sw_copy(&proxy->px_last_sw_update_sent, sw);
+	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
 
 	M0_LEAVE("%d", rc);
 	return rc;

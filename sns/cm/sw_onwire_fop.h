@@ -20,23 +20,38 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_CM_SW_UPDATE_FOM_H__
-#define __MERO_SNS_CM_SW_UPDATE_FOM_H__
+#ifndef __MERO_SNS_CM_SW_ONWIRE_FOP_H__
+#define __MERO_SNS_CM_SW_ONWIRE_FOP_H__
+
+#include "xcode/xcode_attr.h"
+
+#include "cm/sw.h"
+#include "cm/sw_xc.h"
 
 /**
-   @addtogroup SNSCMSW
+   @defgroup SNSCMSW SNS sliding window
+   @ingroup SNSCM
 
    @{
  */
 
-enum sns_cm_sw_update_phases {
-	SWUPH_START = M0_FOM_PHASE_INIT,
-	SWUPH_FINI = M0_FOM_PHASE_FINISH,
-};
+struct m0_sns_cm_sw_onwire {
+	struct m0_cm_sw_onwire swo_base;
+}M0_XCA_RECORD;
+
+M0_INTERNAL int m0_sns_cm_sw_onwire_fop_init(void);
+M0_INTERNAL void m0_sns_cm_sw_onwire_fop_fini(void);
+
+M0_INTERNAL int
+m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
+			      void (*fop_release)(struct m0_ref *),
+			      const char *local_ep, const struct m0_cm_sw *sw);
+
+extern struct m0_fop_type m0_sns_cm_sw_onwire_fopt;
 
 /** @} SNSCMSW */
 
-#endif /* __MERO_SNS_CM_SW_UPDATE_FOM_H__ */
+#endif /* __MERO_SNS_CM_SW_ONWIRE_FOP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

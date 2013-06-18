@@ -50,13 +50,18 @@ struct m0_cm_local_ep {
 	char     *ep;
 } M0_XCA_SEQUENCE;
 
-struct m0_cm_sw_update {
-	struct m0_cm_local_ep swu_cm_ep;
+/**
+ * Copy machine's sliding window update to be sent to a
+ * remote copy machine replica.
+ */
+struct m0_cm_sw_onwire {
+	/** Replica's local endpoint. */
+	struct m0_cm_local_ep swo_cm_ep;
 	/** Replica's sliding window. */
-	struct m0_cm_sw       swu_sw;
+	struct m0_cm_sw       swo_sw;
 }M0_XCA_RECORD;
 
-M0_INTERNAL int m0_cm_sw_update_init(struct m0_cm_sw_update *sw_update,
+M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
 				     const char *ep, const struct m0_cm_sw *sw);
 
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,

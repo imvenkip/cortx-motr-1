@@ -25,7 +25,6 @@
 #define __MERO_SNS_CM_CP_H__
 
 #include "stob/stob_id.h"
-#include "cm/sw.h" /* struct m0_cm_sw */
 #include "cm/cp.h"
 
 /**

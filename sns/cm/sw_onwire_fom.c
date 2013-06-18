@@ -33,8 +33,8 @@
 
 #include "cm/proxy.h"
 #include "cm/cm.h"
-#include "sns/cm/sw_update_fop.h"
-#include "sns/cm/sw_update_fom.h"
+#include "sns/cm/sw_onwire_fop.h"
+#include "sns/cm/sw_onwire_fom.h"
 
 /**
    @addtogroup SNSCMSW
@@ -42,49 +42,49 @@
    @{
  */
 
-static struct m0_sm_state_descr sw_update_fom_phases[] = {
-	[SWUPH_START] = {
+static struct m0_sm_state_descr sw_onwire_fom_phases[] = {
+	[SWOPH_START] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Start",
-		.sd_allowed   = M0_BITS(SWUPH_FINI)
+		.sd_allowed   = M0_BITS(SWOPH_FINI)
 	},
-	[SWUPH_FINI] = {
+	[SWOPH_FINI] = {
 		.sd_flags       = M0_SDF_TERMINAL,
 		.sd_name        = "Fini",
 		.sd_allowed     = 0
 	},
 };
 
-struct m0_sm_conf m0_sns_cm_sw_update_conf = {
+struct m0_sm_conf m0_sns_cm_sw_onwire_conf = {
 	.scf_name      = "SNS sw update phases",
-	.scf_nr_states = ARRAY_SIZE(sw_update_fom_phases),
-	.scf_state     = sw_update_fom_phases
+	.scf_nr_states = ARRAY_SIZE(sw_onwire_fom_phases),
+	.scf_state     = sw_onwire_fom_phases
 };
 
-static int sw_update_fom_tick(struct m0_fom *fom)
+static int sw_onwire_fom_tick(struct m0_fom *fom)
 {
 	struct m0_reqh_service     *service;
         struct m0_cm               *cm;
-        struct m0_sns_cm_sw_update *swu_fop;
+        struct m0_sns_cm_sw_onwire *swo_fop;
 	struct m0_cm_proxy         *cm_proxy;
 	const char                 *ep;
 
 	service = fom->fo_service;
 	switch (m0_fom_phase(fom)) {
-	case SWUPH_START:
-		swu_fop = m0_fop_data(fom->fo_fop);
+	case SWOPH_START:
+		swo_fop = m0_fop_data(fom->fo_fop);
 		cm = m0_cmsvc2cm(service);
 		if (cm == NULL)
 			return -EINVAL;
 		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu]",
-		       swu_fop->swu_base.swu_cm_ep.ep,
-		       swu_fop->swu_base.swu_sw.sw_hi.ai_hi.u_hi,
-		       swu_fop->swu_base.swu_sw.sw_hi.ai_hi.u_lo,
-		       swu_fop->swu_base.swu_sw.sw_hi.ai_lo.u_hi,
-		       swu_fop->swu_base.swu_sw.sw_hi.ai_lo.u_lo);
+		       swo_fop->swo_base.swo_cm_ep.ep,
+		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_hi,
+		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_lo,
+		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_hi,
+		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo);
 		m0_cm_lock(cm);
 		if (m0_cm_has_more_data(cm) || cm->cm_aggr_grps_out_nr > 0) {
-			ep = swu_fop->swu_base.swu_cm_ep.ep;
+			ep = swo_fop->swo_base.swo_cm_ep.ep;
 			cm_proxy = m0_cm_proxy_locate(cm, ep);
 			M0_ASSERT(cm_proxy != NULL);
 			M0_LOG(M0_DEBUG, "proxy hi: [%lu] [%lu] [%lu] [%lu]",
@@ -93,14 +93,14 @@ static int sw_update_fom_tick(struct m0_fom *fom)
 			       cm_proxy->px_sw.sw_hi.ai_lo.u_hi,
 			       cm_proxy->px_sw.sw_hi.ai_lo.u_lo);
 
-			if (m0_cm_ag_id_cmp(&swu_fop->swu_base.swu_sw.sw_hi,
+			if (m0_cm_ag_id_cmp(&swo_fop->swo_base.swo_sw.sw_hi,
 					    &cm_proxy->px_sw.sw_hi) > 0) {
-				m0_cm_proxy_update(cm_proxy, &swu_fop->swu_base.swu_sw.sw_lo,
-						   &swu_fop->swu_base.swu_sw.sw_hi);
+				m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
+						   &swo_fop->swo_base.swo_sw.sw_hi);
 			}
 			M0_CNT_INC(cm->cm_ready_fops_recvd);
 			M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
-					 swu_fop->swu_base.swu_cm_ep.ep,
+					 swo_fop->swo_base.swo_cm_ep.ep,
 					 (int)cm->cm_ready_fops_recvd,
 					 (int)m0_cm_proxy_nr(cm));
 			/* This check is for the READY phase completion only. */
@@ -108,7 +108,7 @@ static int sw_update_fom_tick(struct m0_fom *fom)
 				cm->cm_ops->cmo_complete(cm);
 		}
 		m0_cm_unlock(cm);
-		m0_fom_phase_set(fom, SWUPH_FINI);
+		m0_fom_phase_set(fom, SWOPH_FINI);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid fop");
@@ -118,7 +118,7 @@ static int sw_update_fom_tick(struct m0_fom *fom)
 	return M0_FSO_WAIT;
 }
 
-static void sw_update_fom_fini(struct m0_fom *fom)
+static void sw_onwire_fom_fini(struct m0_fom *fom)
 {
 	M0_PRE(fom != NULL);
 
@@ -126,24 +126,24 @@ static void sw_update_fom_fini(struct m0_fom *fom)
 	m0_free(fom);
 }
 
-static size_t sw_update_fom_home_locality(const struct m0_fom *fom)
+static size_t sw_onwire_fom_home_locality(const struct m0_fom *fom)
 {
 	return m0_fop_opcode(fom->fo_fop);
 }
 
-static void sw_update_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+static void sw_onwire_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
-static const struct m0_fom_ops sw_update_fom_ops = {
-	.fo_fini          = sw_update_fom_fini,
-	.fo_tick          = sw_update_fom_tick,
-	.fo_home_locality = sw_update_fom_home_locality,
-	.fo_addb_init     = sw_update_fom_addb_init
+static const struct m0_fom_ops sw_onwire_fom_ops = {
+	.fo_fini          = sw_onwire_fom_fini,
+	.fo_tick          = sw_onwire_fom_tick,
+	.fo_home_locality = sw_onwire_fom_home_locality,
+	.fo_addb_init     = sw_onwire_fom_addb_init
 };
 
-static int sw_update_fom_create(struct m0_fop *fop, struct m0_fom **out,
+static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,
 				struct m0_reqh *reqh)
 {
 	struct m0_fom          *fom;
@@ -155,15 +155,15 @@ static int sw_update_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	if (fom == NULL)
 		return -ENOMEM;
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &sw_update_fom_ops, fop,
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &sw_onwire_fom_ops, fop,
 		    NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
 
 	*out = fom;
 	return 0;
 }
 
-const struct m0_fom_type_ops m0_sns_cm_sw_update_fom_type_ops = {
-	.fto_create = sw_update_fom_create,
+const struct m0_fom_type_ops m0_sns_cm_sw_onwire_fom_type_ops = {
+	.fto_create = sw_onwire_fom_create,
 };
 
 #undef M0_TRACE_SUBSYSTEM

@@ -29,8 +29,6 @@
 #include "ioservice/io_fops_xc.h"  /* m0_io_descs_xc */
 #include "cm/ag.h"                 /* m0_cm_ag_id */
 #include "cm/ag_xc.h"              /* m0_cm_ag_id_xc */
-#include "cm/sw.h"
-#include "cm/sw_xc.h"
 
 /** Onwire copy packet structure. */
 struct m0_cpx {

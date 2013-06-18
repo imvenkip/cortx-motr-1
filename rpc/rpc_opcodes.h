@@ -187,7 +187,7 @@ enum M0_RPC_OPCODES {
 	M0_MGMT_SERVICE_UT_FAKE_FOP_OPCODE  = 104,
 
 	/*SNS sliding window update fop. */
-	M0_SNS_CM_SW_UPDATE_FOP_OPCODE      = 105
+	M0_SNS_CM_SW_ONWIRE_FOP_OPCODE      = 105
 };
 /** @} endgroup rpc_layer_core */
 
