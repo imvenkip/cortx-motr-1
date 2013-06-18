@@ -64,6 +64,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 #ifdef ENABLE_FAULT_INJECTION
 		{ "finject",       test_finject       },
 #endif
+		{ "hash",          test_hashtable     },
 		{ "list",          test_list          },
 		{ "locality",      test_locality      },
 		{ "lockers",       test_lockers       },
@@ -78,7 +79,6 @@ const struct m0_test_suite m0_klibm0_ut = {
 		{ "uuid",          m0_test_lib_uuid   },
 		{ "vec",           test_vec           },
 		{ "zerovec",       test_zerovec       },
-		{ "hash",          test_hashtable     },
 		{ NULL,            NULL               }
 	}
 };
