@@ -24,14 +24,15 @@
 #define __MERO_IOSERVICE_COB_FOMS_H__
 
 /**
- * Phases of m0_fom_cob_create state machine.
+ * Phases of cob create/delete state machine.
  */
-enum m0_fom_cob_create_phases {
+enum m0_fom_cob_operations_phases {
+	M0_FOPH_COB_OPS_PREPARE = M0_FOPH_NR + 1,
 	/**
-	 * Internally creates a stob, a cob and adds a record to
-	 * auxiliary database.
+	 * Internally creates/deletes a stob, a cob and adds/removes a record to
+	 * or from auxiliary database.
 	 */
-	M0_FOPH_CC_COB_CREATE = M0_FOPH_NR + 1,
+	M0_FOPH_COB_OPS_CREATE_DELETE
 };
 
 /**
@@ -53,16 +54,6 @@ struct m0_fom_cob_op {
 	struct m0_fol_rec_part   fco_fol_rec_part;
 };
 
-/**
- * Phases of m0_fom_cob_delete state machine.
- */
-enum m0_fom_cob_delete_phases {
-	/**
-	 * Internally deletes the cob, stob and removes the corresponding
-	 * record from auxiliary database.
-	 */
-	M0_FOPH_CD_COB_DEL = M0_FOPH_NR + 1,
-};
 
 M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 				  struct m0_reqh *reqh);

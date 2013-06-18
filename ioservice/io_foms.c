@@ -595,6 +595,7 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
 static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io);
 
 static int net_buffer_acquire(struct m0_fom *);
+static int io_prepare(struct m0_fom *);
 static int io_launch(struct m0_fom *);
 static int io_finish(struct m0_fom *);
 static int zero_copy_initiate(struct m0_fom *);
@@ -625,6 +626,9 @@ const struct m0_fom_type_ops io_fom_type_ops = {
  * @see DLD-bulk-server-lspec-state
  */
 static struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
+[M0_FOPH_IO_FOM_PREPARE] =
+{ M0_FOPH_IO_FOM_PREPARE, &io_prepare,
+  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io preparation", },
 
 [M0_FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { M0_FOPH_IO_FOM_BUFFER_ACQUIRE, &net_buffer_acquire,
@@ -660,6 +664,9 @@ static struct m0_io_fom_cob_rw_state_transition io_fom_read_st[] = {
  * @see DLD-bulk-server-lspec-state
  */
 static const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[] = {
+[M0_FOPH_IO_FOM_PREPARE] =
+{ M0_FOPH_IO_FOM_PREPARE, &io_prepare,
+  M0_FOPH_IO_FOM_BUFFER_ACQUIRE, 0, "io preparation", },
 
 [M0_FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { M0_FOPH_IO_FOM_BUFFER_ACQUIRE, &net_buffer_acquire,
@@ -693,6 +700,11 @@ static const struct m0_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 };
 
 struct m0_sm_state_descr io_phases[] = {
+	[M0_FOPH_IO_FOM_PREPARE] = {
+		.sd_name      = "IO Prepare",
+		.sd_allowed   = M0_BITS(M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+					M0_FOPH_FAILURE)
+	},
 	[M0_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
 		.sd_name      = "Network buffer acquire",
 		.sd_allowed   = M0_BITS(M0_FOPH_IO_STOB_INIT,
@@ -1042,6 +1054,83 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
         return rc;
 }
 
+/**
+ * Checks client and server pool machine version numbers.
+ * Checks target device state for cob fid.
+ */
+int ios__poolmach_check(struct m0_poolmach *poolmach,
+			struct m0_pool_version_numbers *cliv,
+			struct m0_fid *cob_fid)
+{
+	struct m0_pool_version_numbers curr;
+	enum m0_pool_nd_state          device_state = 0;
+	int                            rc;
+	M0_ENTRY();
+
+	m0_poolmach_current_version_get(poolmach, &curr);
+
+	/* Check the client version and server version before any processing */
+	if (m0_poolmach_version_before(cliv, &curr)) {
+		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
+
+		m0_poolmach_version_dump(cliv);
+		m0_poolmach_version_dump(&curr);
+		m0_poolmach_event_list_dump(poolmach);
+		m0_poolmach_device_state_dump(poolmach);
+		M0_RETURN(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
+	}
+
+	rc = m0_poolmach_device_state(poolmach, cob_fid->f_container,
+				      &device_state);
+	if ((rc != 0) || (device_state != M0_PNDS_ONLINE &&
+			  device_state != M0_PNDS_SNS_REPAIRED &&
+			  device_state != M0_PNDS_SNS_REBALANCED)) {
+		if (rc == 0) {
+			M0_LOG(M0_ERROR, "IO @ %lu:%lu on failed device: "
+					 "state = %d",
+					 cob_fid->f_container,
+					 cob_fid->f_key,
+					 device_state);
+			rc = -EIO;
+		}
+	}
+	M0_RETURN(rc);
+}
+
+static int io_prepare(struct m0_fom *fom)
+{
+	struct m0_fop_cob_rw           *rwfop;
+	struct m0_poolmach             *poolmach;
+	struct m0_reqh                 *reqh;
+	struct m0_fop_cob_rw_reply     *rwrep;
+	struct m0_pool_version_numbers *cliv;
+	int                             rc;
+
+	reqh = m0_fom_reqh(fom);
+	poolmach = m0_ios_poolmach_get(reqh);
+	rwfop = io_rw_get(fom->fo_fop);
+	rwrep = io_rw_rep_get(fom->fo_rep_fop);
+	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
+
+	M0_LOG(M0_DEBUG, "Preparing %s IO @ %lu:%lu",
+			 m0_is_read_fop(fom->fo_fop)? "Read": "Write",
+			 rwfop->crw_fid.f_container,
+			 rwfop->crw_fid.f_key);
+	/*
+	 * Dumps the state of SNS repair with respect to global fid
+	 * from IO fop.
+	 * The IO request has already acquired file level lock on
+	 * given global fid.
+	 */
+	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
+							   reqh);
+
+	rc = ios__poolmach_check(poolmach, cliv, &rwfop->crw_fid);
+	if (rc != 0)
+		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+
+	return M0_FSO_AGAIN;
+}
 /**
  * Acquire network buffers.
  * Gets as many network buffer as it can to process io request.
@@ -1620,17 +1709,14 @@ static int io_finish(struct m0_fom *fom)
 static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
 	int                                       rc = 0;
-	struct m0_fop_cob_rw                     *rwfop;
 	struct m0_io_fom_cob_rw                  *fom_obj;
 	struct m0_io_fom_cob_rw_state_transition  st = { M0_FOPH_FAILURE, NULL,
 							 M0_FOPH_FAILURE,
 							 M0_FOPH_FAILURE};
 	struct m0_poolmach                       *poolmach;
 	struct m0_reqh                           *reqh;
+	struct m0_fop_cob_rw                     *rwfop;
 	struct m0_fop_cob_rw_reply               *rwrep;
-	struct m0_pool_version_numbers           *cliv;
-	struct m0_pool_version_numbers            curr;
-
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1638,51 +1724,25 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
+	reqh = m0_fom_reqh(fom);
+	poolmach = m0_ios_poolmach_get(reqh);
+
 	/* first handle generic phase */
         if (m0_fom_phase(fom) < M0_FOPH_NR)
                 return m0_fom_tick_generic(fom);
 
-	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
-	m0_poolmach_current_version_get(poolmach, &curr);
-	rwfop = io_rw_get(fom->fo_fop);
-	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
-	rwrep = io_rw_rep_get(fom->fo_rep_fop);
+	st = m0_is_read_fop(fom->fo_fop) ?
+		io_fom_read_st[m0_fom_phase(fom)] :
+		io_fom_write_st[m0_fom_phase(fom)];
 
-	/*
-	 * Dumps the state of SNS repair with respect to global fid
-	 * from IO fop.
-	 * The IO request has already acquired file level lock on
-	 * given global fid.
-	 */
-	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
-							   reqh);
-
-	/* Check the client version and server version before any processing */
-	if (m0_poolmach_version_before(cliv, &curr)) {
-		rc = M0_FSO_AGAIN;
-		m0_fom_phase_move(fom,
-				  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
-				  M0_FOPH_FAILURE);
-		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
-
-		m0_poolmach_version_dump(cliv);
-		m0_poolmach_version_dump(&curr);
-		m0_poolmach_event_list_dump(poolmach);
-		m0_poolmach_device_state_dump(poolmach);
-	} else {
-
-		st = m0_is_read_fop(fom->fo_fop) ?
-			io_fom_read_st[m0_fom_phase(fom)] :
-			io_fom_write_st[m0_fom_phase(fom)];
-
-		rc = (*st.fcrw_st_state_function)(fom);
-	}
+	rc = (*st.fcrw_st_state_function)(fom);
 	M0_ASSERT(rc == M0_FSO_AGAIN || rc == M0_FSO_WAIT);
 
 	/* Set operation status in reply fop if FOM ends.*/
         if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
             m0_fom_phase(fom) == M0_FOPH_FAILURE) {
+		rwfop = io_rw_get(fom->fo_fop);
+		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count;
 		m0_ios_poolmach_version_updates_pack(poolmach,

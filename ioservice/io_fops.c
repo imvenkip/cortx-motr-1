@@ -201,9 +201,17 @@ extern const struct m0_fom_type_ops io_fom_type_ops;
 
 extern struct m0_sm_conf io_conf;
 extern struct m0_sm_state_descr io_phases[];
+extern struct m0_sm_conf cob_ops_conf;
+extern struct m0_sm_state_descr cob_ops_phases[];
 
 M0_INTERNAL int m0_ioservice_fop_init(void)
 {
+	struct m0_sm_conf *p_cob_ops_conf;
+#ifndef __KERNEL__
+	p_cob_ops_conf = &cob_ops_conf;
+#else
+	p_cob_ops_conf = &m0_generic_conf;
+#endif
 	m0_addb_ctx_type_register(&m0_addb_ct_ios_mod);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_ios_addb_ctx, &m0_addb_ct_ios_mod,
 			 &m0_addb_proc_ctx);
@@ -213,6 +221,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	m0_xc_io_fops_init();
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, io_phases,
+			  m0_generic_conf.scf_nr_states);
+	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
 			  m0_generic_conf.scf_nr_states);
 #endif
 	return  M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
@@ -260,7 +270,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = &m0_generic_conf) ?:
+				 .sm        = p_cob_ops_conf) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
 				 .name      = "Cob delete request",
 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
@@ -271,7 +281,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .fom_ops   = &cob_fom_type_ops,
 				 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = &m0_generic_conf) ?:
+				 .sm        = p_cob_ops_conf) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
 				 .name      = "Cob create or delete reply",
 				 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,

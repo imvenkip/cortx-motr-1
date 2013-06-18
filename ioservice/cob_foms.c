@@ -38,18 +38,15 @@
 #include "mero/setup.h"
 #include "ioservice/io_service_addb.h"
 #include "ioservice/io_service.h"
-#include "layout/pdclust.h"
-#include "layout/layout.h"
 
 /* Forward Declarations. */
 static void cc_fom_fini(struct m0_fom *fom);
-static int  cc_fom_tick(struct m0_fom *fom);
+static int  cob_ops_fom_tick(struct m0_fom *fom);
 static void cc_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static int  cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 static int  cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 
 static void cd_fom_fini(struct m0_fom *fom);
-static int  cd_fom_tick(struct m0_fom *fom);
 static void cd_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static int  cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
 static int  cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd);
@@ -65,10 +62,29 @@ enum {
 	CD_FOM_STOBIO_LAST_REFS = 1,
 };
 
+struct m0_sm_state_descr cob_ops_phases[] = {
+	[M0_FOPH_COB_OPS_PREPARE] = {
+		.sd_name      = "COB Create/Delete Prepare",
+		.sd_allowed   = M0_BITS(M0_FOPH_COB_OPS_CREATE_DELETE,
+					M0_FOPH_FAILURE)
+	},
+	[M0_FOPH_COB_OPS_CREATE_DELETE] = {
+		.sd_name      = "COB Create/Delete",
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
+	}
+};
+
+struct m0_sm_conf cob_ops_conf = {
+	.scf_name      = "COB create/delete phases",
+	.scf_nr_states = ARRAY_SIZE(cob_ops_phases),
+	.scf_state     = cob_ops_phases
+};
+
 /** Cob create fom ops. */
 static const struct m0_fom_ops cc_fom_ops = {
 	.fo_fini	  = cc_fom_fini,
-	.fo_tick	  = cc_fom_tick,
+	.fo_tick	  = cob_ops_fom_tick,
 	.fo_home_locality = cob_fom_locality_get,
 	.fo_addb_init     = cc_fom_addb_init
 };
@@ -81,7 +97,7 @@ const struct m0_fom_type_ops cob_fom_type_ops = {
 /** Cob delete fom ops. */
 static const struct m0_fom_ops cd_fom_ops = {
 	.fo_fini	  = cd_fom_fini,
-	.fo_tick	  = cd_fom_tick,
+	.fo_tick	  = cob_ops_fom_tick,
 	.fo_home_locality = cob_fom_locality_get,
 	.fo_addb_init     = cd_fom_addb_init
 };
@@ -201,16 +217,21 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_cob_idx = common->c_cob_idx;
 }
 
-static int cc_fom_tick(struct m0_fom *fom)
+/* defined in io_foms.c */
+extern int ios__poolmach_check(struct m0_poolmach *poolmach,
+			       struct m0_pool_version_numbers *cliv,
+			       struct m0_fid *cob_fid);
+
+static int cob_ops_fom_tick(struct m0_fom *fom)
 {
 	int                             rc;
-	struct m0_fom_cob_op           *cc;
+	struct m0_fom_cob_op           *cob_op;
 	struct m0_fop_cob_op_reply     *reply;
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
-	struct m0_pool_version_numbers *cliv;
-	struct m0_pool_version_numbers  curr;
-	struct m0_fop_cob_create       *fop;
+	struct m0_fop_cob_common       *common;
+	bool                            fop_is_create;
+	const char                     *ops;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_ops != NULL);
@@ -221,44 +242,59 @@ static int cc_fom_tick(struct m0_fom *fom)
 		return rc;
 	}
 
-	fop  = m0_fop_data(fom->fo_fop);
+	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
+	common = m0_cobfop_common_get(fom->fo_fop);
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
-	m0_poolmach_current_version_get(poolmach, &curr);
-	cliv = (struct m0_pool_version_numbers*)&fop->cc_common.c_version;
+	if (fop_is_create)
+		ops = "Create";
+	else
+		ops = "Delete";
 
-	/* Check the client version and server version before any processing */
-	if (m0_poolmach_version_before(cliv, &curr)) {
-		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
-		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
-		m0_poolmach_version_dump(cliv);
-		m0_poolmach_version_dump(&curr);
-		m0_poolmach_event_list_dump(poolmach);
-		m0_poolmach_device_state_dump(poolmach);
+	switch (m0_fom_phase(fom)) {
+	case M0_FOPH_COB_OPS_PREPARE: {
+		struct m0_pool_version_numbers *cliv;
+
+		M0_LOG(M0_DEBUG, "Cob %s operation prepare", ops);
+		cliv = (struct m0_pool_version_numbers*)&common->c_version;
+
+		rc = ios__poolmach_check(poolmach, cliv, &common->c_cobfid);
+		if (rc != 0) {
+			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+			goto pack;
+		}
+
+		m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
 		goto out;
 	}
-
-        M0_LOG(M0_DEBUG, "Cob operation started");
-	if (m0_fom_phase(fom) == M0_FOPH_CC_COB_CREATE) {
-		cc = cob_fom_get(fom);
-
-		rc = cc_stob_create(fom, cc) ?: cc_cob_create(fom, cc);
-	} else {
-		rc = -EINVAL;
+	case M0_FOPH_COB_OPS_CREATE_DELETE:
+		M0_LOG(M0_DEBUG, "Cob %s operation started", ops);
+		cob_op = cob_fom_get(fom);
+		if(fop_is_create) {
+			rc = cc_stob_create(fom, cob_op) ?:
+					cc_cob_create(fom, cob_op);
+		} else {
+			rc = cd_cob_delete(fom, cob_op) ?:
+					cd_stob_delete(fom, cob_op);
+		}
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	        M0_LOG(M0_DEBUG, "Cob %s operation finished with %d", ops, rc);
+		break;
+	default:
 		M0_IMPOSSIBLE("Invalid phase for cob create fom.");
+		rc = -EINVAL;
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	}
 
-out:
-        M0_LOG(M0_DEBUG, "Cob operation finished with %d", rc);
+pack:
 	reply = m0_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
 	m0_ios_poolmach_version_updates_pack(poolmach,
-					     &fop->cc_common.c_version,
+					     &common->c_version,
 					     &reply->cor_fv_version,
 					     &reply->cor_fv_updates);
-
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+out:
 	return M0_FSO_AGAIN;
 }
 
@@ -411,64 +447,6 @@ static void cd_fom_fini(struct m0_fom *fom)
 	m0_free(cfom);
 }
 
-static int cd_fom_tick(struct m0_fom *fom)
-{
-	int                             rc;
-	struct m0_fom_cob_op           *cd;
-	struct m0_fop_cob_op_reply     *reply;
-	struct m0_poolmach             *poolmach;
-	struct m0_reqh                 *reqh;
-	struct m0_pool_version_numbers *cliv;
-	struct m0_pool_version_numbers  curr;
-	struct m0_fop_cob_delete       *fop;
-
-	M0_PRE(fom != NULL);
-	M0_PRE(fom->fo_ops != NULL);
-	M0_PRE(fom->fo_type != NULL);
-
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		rc = m0_fom_tick_generic(fom);
-		return rc;
-	}
-
-	fop  = m0_fop_data(fom->fo_fop);
-	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
-	m0_poolmach_current_version_get(poolmach, &curr);
-	cliv = (struct m0_pool_version_numbers*)&fop->cd_common.c_version;
-
-	/* Check the client version and server version before any processing */
-	if (m0_poolmach_version_before(cliv, &curr)) {
-		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
-		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
-		m0_poolmach_version_dump(cliv);
-		m0_poolmach_version_dump(&curr);
-		m0_poolmach_event_list_dump(poolmach);
-		m0_poolmach_device_state_dump(poolmach);
-		goto out;
-	}
-
-	if (m0_fom_phase(fom) == M0_FOPH_CD_COB_DEL) {
-		cd = cob_fom_get(fom);
-
-		rc = cd_cob_delete(fom, cd) ?: cd_stob_delete(fom, cd);
-	} else {
-		rc = -EINVAL;
-		M0_IMPOSSIBLE("Invalid phase for cob delete fom.");
-	}
-
-out:
-	reply = m0_fop_data(fom->fo_rep_fop);
-	reply->cor_rc = rc;
-
-	m0_ios_poolmach_version_updates_pack(poolmach,
-					     &fop->cd_common.c_version,
-					     &reply->cor_fv_version,
-					     &reply->cor_fv_updates);
-
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
-}
 
 static void cd_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {

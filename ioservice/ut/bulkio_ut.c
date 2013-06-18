@@ -265,7 +265,8 @@ static void ut_io_fom_cob_rw_addb_init(struct m0_fom *fom,
 }
 
 enum fom_state_transition_tests {
-        TEST01 = M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+        TEST00 = M0_FOPH_IO_FOM_PREPARE,
+        TEST01,
         TEST02,
         TEST03,
         TEST07,
@@ -276,7 +277,7 @@ enum fom_state_transition_tests {
 static int                    i = 0;
 static struct m0_net_buffer  *nb_list[64];
 static struct m0_net_buffer_pool *buf_pool;
-static int next_test = TEST01;
+static int next_test = TEST00;
 
 static void empty_buffers_pool(uint32_t colour)
 {
@@ -383,6 +384,9 @@ static int check_write_fom_tick(struct m0_fom *fom)
                  */
                 rc = m0_io_fom_cob_rw_tick(fom);
 		next_test = m0_fom_phase(fom);
+        } else if (next_test == TEST00) {
+                rc = m0_io_fom_cob_rw_tick(fom);
+		next_test = TEST01;
         } else if (next_test == TEST01) {
                 /* Acquire all buffer pool buffer test some of cases. */
                 if (fom_obj->fcrw_bp == NULL)
@@ -731,6 +735,9 @@ static int check_read_fom_tick(struct m0_fom *fom)
                  */
                 rc = m0_io_fom_cob_rw_tick(fom);
 		next_test = m0_fom_phase(fom);
+        } else if (next_test == TEST00) {
+                rc = m0_io_fom_cob_rw_tick(fom);
+		next_test = TEST01;
         } else if (next_test == TEST01) {
                 /* Acquire all buffer pool buffer test some of cases. */
                 if (fom_obj->fcrw_bp == NULL)

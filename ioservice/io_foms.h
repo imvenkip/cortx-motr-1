@@ -215,7 +215,8 @@ struct m0_io_fom_cob_rw {
  * complete FOM and reqh infrastructure is in place.
  */
 enum m0_io_fom_cob_rw_phases {
-        M0_FOPH_IO_FOM_BUFFER_ACQUIRE = M0_FOPH_NR + 1,
+        M0_FOPH_IO_FOM_PREPARE = M0_FOPH_NR + 1,
+        M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
         M0_FOPH_IO_FOM_BUFFER_WAIT,
         M0_FOPH_IO_STOB_INIT,
         M0_FOPH_IO_STOB_WAIT,
