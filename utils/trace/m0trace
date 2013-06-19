@@ -568,8 +568,19 @@ sub prepare_input_file
          or $cli_option{input_file} =~ m/ \. (?: yml | yaml | log ) $ /xms
          or -T $cli_option{input_file} )
     {
-        $input_file = $cli_option{stream_mode} ? "<$cli_option{input_file}"
-                                               : $cli_option{input_file};
+        $input_file = "<$cli_option{input_file}";
+    }
+    elsif ( $cli_option{input_file} # compressed log files files like *.yml.gz
+                =~ m/ \. (?: yml | yaml | log ) \. (?<ztype> gz | bz2 ) $ /xms )
+    {
+        given ( $+{ztype} ) {
+            when ('gz') {
+                $input_file = "gunzip -c $cli_option{input_file} |";
+            }
+            when ('bz2') {
+                $input_file = "bunzip2 -c $cli_option{input_file} |";
+            }
+        }
     }
     else {
         my $m0tracedump = locate_m0tracedump();
@@ -726,11 +737,12 @@ see B<-i|--input> option.
 
 Input file name, if omitted then STDIN is used by default. If input comes from
 STDIN or input file has *.yml *.yaml or *.log extension, then it's assumed to be
-a text file in YAML format. Otherwise it's assumed to be a raw binary trace data
-and in this case it will be converted into YAML format first, with the help of
-B<m0tracedump> utility, which creates a temporary file in the current directory.
-Temporary file is not used if m0trace operates in "stream mode"(see
-B<-s|--stream-mode> option below).
+a text file in YAML format (it's possible to use compressed logs if filename has
+*.yml.gz or *.yml.bz2 extension). Otherwise it's assumed to be a raw binary
+trace data and in this case it will be converted into YAML format first, with
+the help of B<m0tracedump> utility, which creates a temporary file in the
+current directory.  Temporary file is not used if m0trace operates in "stream
+mode"(see B<-s|--stream-mode> option below).
 
 =item B<-o|--output=I<ofile>>
 
