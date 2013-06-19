@@ -205,6 +205,7 @@ use List::MoreUtils qw( any none );
 my %cli_option = (
     input_file  => '-', # STDIN by default
     output_file => '-', # STDOUT by default
+    use_pager   => 1,
     color       => 'auto',
     format      => 'short',
     level       => 'call+',
@@ -609,6 +610,7 @@ sub process_cli_options
         'i|input=s'      =>  \$cli_option{input_file},
         'o|output=s'     =>  \$cli_option{output_file},
         's|stream-mode'  =>  \$cli_option{stream_mode},
+        'pager!'         =>  \$cli_option{use_pager},
         'color=s'        =>  \$cli_option{color},
         'c'              =>  sub { $cli_option{color} = 'always' },
         'C'              =>  sub { $cli_option{color} = 'never' },
@@ -667,7 +669,14 @@ sub main
         @trace_records = @{ $yaml_data->{trace_records} }
     }
 
-    open my $output_file, ">$cli_option{output_file}";
+    my $output_file;
+
+    if ($cli_option{output_file} eq '-' and $cli_option{use_pager}) {
+        open $output_file, "| less -RSM";
+    }
+    else {
+        open $output_file, ">$cli_option{output_file}";
+    }
 
     for my $tr (@trace_records) {
         validate_trace_record($tr);
@@ -696,8 +705,9 @@ m0trace - display Mero trace logs in human friendly form
 =head1 SYNOPSIS
 
 m0trace [-i|--input <ifile>] [-o|--output <ofile>] [-s|--stream-mode]
-[-c|-C|--color=MODE] [-f|--format=FMT] [-L|--level=LVL] [-S|--subsys=SBS]
-[-F|--file=FL] [-U|--func=FUN] [-M|--msg=MSG] [-h|--help] [--usage] [--man]
+[--no-pager] [-c|-C|--color=MODE] [-f|--format=FMT] [-L|--level=LVL]
+[-S|--subsys=SBS] [-F|--file=FL] [-U|--func=FUN] [-M|--msg=MSG] [-h|--help]
+[--usage] [--man]
 
 =head1 DESCRIPTION
 
@@ -738,6 +748,10 @@ from STDIN and not from file.
 
 This option implies that YAML trace log was produces by B<m0tracedump> with
 B<-s> option.
+
+=item B<--no-pager>
+
+Don't use pager (less) to display results.
 
 =item B<--color=I<MODE>|-c|-C>
 
