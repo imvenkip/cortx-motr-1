@@ -26,7 +26,7 @@ modload || exit $?
 # default, to prevent cluttering of UT output with "fake" error messages,
 # generated while testing various error paths using fault injection;
 # this can be overridden with '-e' CLI option.
-export M0_TRACE_LEVEL='fatal+'
+export M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-'fatal+'}
 
 # $EXEC allows to reuse this script to execute different utilities which need
 # loaded mero modules prior to be run. For example, running utitiliy called `ub'
