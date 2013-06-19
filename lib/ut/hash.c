@@ -55,24 +55,24 @@ static struct bar thebar;
 
 static uint64_t hash_func(const struct m0_htable *htable, void *k)
 {
-	uint64_t *key  = (uint64_t *)k;
+	uint64_t *key  = k;
 
-	return (*key) % htable->h_bucket_nr;
+	return *key % htable->h_bucket_nr;
 }
 
 static void *hash_key_get(const struct m0_ht_descr *d, void *obj)
 {
-	struct foo *amb = (struct foo *)obj;
+	struct foo *amb = obj;
 
 	return &(amb->f_hkey);
 }
 
 static bool key_eq(void *key1, void *key2)
 {
-	uint64_t *k1 = (uint64_t *)key1;
-	uint64_t *k2 = (uint64_t *)key2;
+	uint64_t *k1 = key1;
+	uint64_t *k2 = key2;
 
-	return (*k1) == (*k2);
+	return *k1 == *k2;
 }
 
 M0_HT_DESCR_DEFINE(foohash, "Hash of fops", static, struct foo, f_link,

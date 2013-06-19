@@ -32,7 +32,7 @@
  * Hash table module provides a simple hash implementation built over
  * top of typed lists. @see tlist.
  *
- * Often, lookup for objects stored in simple tlists prove to be expensive
+ * Often, lookup for objects stored in simple tlists proves to be expensive
  * owing to lack of any efficient arrangement of objects in tlist.
  * Hash table provides a simple way to distribute objects in hash using a
  * key-value mechanism, which enhances lookup time of objects.
@@ -85,7 +85,8 @@
  *         uint64_t        f_hash_key;
  *
  *         ...
- *         // linkage into list of foo-s hanging off bar::b_foohash.
+ *         // linkage to keep foo structures as part of some list
+ *         // hash table.
  *         struct m0_tlink f_link;
  * };
  *
@@ -95,27 +96,27 @@
  *
  *   uint64_t hash_func(const struct m0_htable *htable, void *key)
  *   {
- *           uint64_t *k = (uint64_t *)key;
- *           return (*k) % bucket_nr;
+ *           uint64_t *k = key;
+ *           return *k % htable->h_bucket_nr;
  *   }
  *
  *   void *hash_key_get(const struct m0_ht_descr *d, void *amb))
  *   {
- *           struct foo *f = (struct foo *)amb;
+ *           struct foo *f = amb;
  *           return &(f->f_hash_key);
  *   }
  *
  *   void *hash_key_eq(void *key1, void *key2)
  *   {
- *           uint64_t *k1 = (uint64_t *)key1;
- *           uint64_t *k2 = (uint64_t *)key2;
- *           return (*k1) == (*k2);
+ *           uint64_t *k1 = key1;
+ *           uint64_t *k2 = key2;
+ *           return *k1 == *k2;
  *   }
  *
  * - Now define hash descriptor like this.
  *
  *   M0_HT_DESCR_DEFINE(foohash, "Hash of foo structures", static, struct foo,
- *                      f_link, FOO_MAGIC, BAR_MAGIC, uint64_t, f_hkey,
+ *                      f_link, FOO_MAGIC, BAR_MAGIC, uint64_t, f_hash_key,
  *                      hash_func, hash_key_get, hash_key_eq);
  *
  *   This will take care of defining tlist descriptor internally.
@@ -128,8 +129,9 @@
  *
  * - Now initialize the m0_htable like
  *
- *   m0_htable_init(&bar->b_foohash, hash_func, bucket_nr,
- *                     offsetof(struct foo, f_key, &foohash_tl);
+ *   m0_htable_init(&foohash_tl, &bar->b_foohash, bucket_nr);
+ *   OR
+ *   foohash_htable_init(&bar->b_foohash, bucket_nr);
  *
  * Now, foo objects can be added/removed to/from bar::b_foohash using
  * APIs like m0_htable_add() and m0_htable_del().
@@ -180,9 +182,6 @@ M0_INTERNAL void m0_hbucket_fini(const struct m0_ht_descr *d,
 /**
  * A simple hash data structure which helps to avoid the linear search
  * of whole list of objects.
- * However considering that linux kernel can not guarantee more than one
- * contiguous pages during memory allocation, the upper threshold of
- * number of buckets is limited by page_size / sizeof(m0_hbucket *).
  */
 struct m0_htable {
 	/** Magic value. Holds M0_LIB_HASHLIST_MAGIC.  */
@@ -257,19 +256,14 @@ M0_INTERNAL bool m0_htable_key_eq(const struct m0_ht_descr *d,
 /**
  * Initializes a hashtable.
  * @param bucket_nr Number of buckets that will be housed in this m0_htable.
- *        Max number of buckets has upper threshold of 512 buckets.
- * @param key_offset Offset of key field in ambient object.
- *        This key is used in operations like add, del, lookup &c.
  * @param hfunc Hash function used to calculate bucket id.
  * @param d tlist descriptor used for tlist in hash buckets.
  * @pre   htable != NULL &&
- *        hfunc  != NULL &&
  *        bucket_nr > 0    &&
  *        d != NULL.
- * @post htable->h_magic == M0_LIB_HASHLIST_MAGIC &&
- *       htable->h_bucket_nr > 0 &&
- *       htable->h_hash_func == hfunc &&
- *       htable->h_tldescr == d.
+ * @post  htable->h_magic == M0_LIB_HASHLIST_MAGIC &&
+ *        htable->h_bucket_nr > 0 &&
+ *        htable->h_buckets != NULL.
  */
 M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,
 			       struct m0_htable         *htable,
@@ -279,7 +273,8 @@ M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,
  * Finalizes a struct m0_htable.
  * @pre  htable != NULL &&
  *       htable->h_magic == M0_LIB_HASHLIST_MAGIC &&
- *       htable->h_buckets != NULL.
+ *       htable->h_buckets != NULL &&
+ *       d != NULL..
  * @post htable->buckets == NULL &&
  *       htable->bucket_nr == 0.
  */
@@ -290,7 +285,8 @@ M0_INTERNAL void m0_htable_fini(const struct m0_ht_descr *d,
  * Adds an object to hash table.
  * The key must be set in object at specified location in order to
  * identify the bucket.
- * @pre  htable != NULL &&
+ * @pre  d != NULL &&
+ *       htable != NULL &&
  *       amb    != NULL &&
  *       htable->h_buckets != NULL.
  */
@@ -302,7 +298,8 @@ M0_INTERNAL void m0_htable_add(const struct m0_ht_descr *d,
  * Removes an object from hash table.
  * The key must be set in object at specified location in order to
  * identify the bucket.
- * @pre htable != NULL &&
+ * @pre d != NULL &&
+ *      htable != NULL &&
  *      amb    != NULL &&
  *      htable->h_buckets != NULL.
  */
@@ -313,7 +310,9 @@ M0_INTERNAL void m0_htable_del(const struct m0_ht_descr *d,
 /**
  * Looks up if given object is present in hash table based on input key.
  * Returns ambient object on successful lookup, returns NULL otherwise.
- * @pre htable != NULL &&
+ * @pre d != NULL &&
+ *      key != NULL &&
+ *      htable != NULL &&
  *      htable->h_buckets != NULL.
  */
 M0_INTERNAL void *m0_htable_lookup(const struct m0_ht_descr *d,
