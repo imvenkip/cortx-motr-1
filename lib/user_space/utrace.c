@@ -258,6 +258,7 @@ void m0_trace_record_print_yaml(FILE *output_file,
 	td_fmt = stream_mode ? "---\n"
 			       "record_num: %" PRIu64 "\n"
 			       "timestamp:  %" PRIu64 "\n"
+			       "pid:        %u\n"
 			       "stack_addr: %" PRIx64 "\n"
 			       "subsystem:  %s\n"
 			       "level:      %s\n"
@@ -267,6 +268,7 @@ void m0_trace_record_print_yaml(FILE *output_file,
 
 			     : "  - record_num: %" PRIu64 "\n"
 			       "    timestamp:  %" PRIu64 "\n"
+			       "    pid:        %u\n"
 			       "    stack_addr: %" PRIx64 "\n"
 			       "    subsystem:  %s\n"
 			       "    level:      %s\n"
@@ -277,6 +279,7 @@ void m0_trace_record_print_yaml(FILE *output_file,
 	fprintf(output_file, td_fmt,
 			     trh->trh_no,
 			     trh->trh_timestamp,
+			     trh->trh_pid,
 			     /* TODO: add comment why mask is needed */
 			     (trh->trh_sp & 0xfffff),
 			     m0_trace_subsys_name(td->td_subsys),

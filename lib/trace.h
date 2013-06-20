@@ -290,6 +290,7 @@ struct m0_trace_rec_header {
 	uint64_t                     trh_timestamp;
 	const struct m0_trace_descr *trh_descr;
 	uint32_t                     trh_string_data_size;
+	pid_t                        trh_pid; /**< current PID */
 };
 
 /**

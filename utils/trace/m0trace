@@ -220,7 +220,7 @@ sub validate_trace_record
     my $tr = shift;
 
     my @required_fields = qw(
-        record_num timestamp stack_addr subsystem level func file line msg
+        record_num timestamp pid stack_addr subsystem level func file line msg
     );
 
     for my $field (@required_fields) {
@@ -392,6 +392,7 @@ my $format_placeholder = qr/
                                 t # \t
                                 N # record_Num
                                 T # Timestamp
+                                p # pid
                                 a # stack_Addr
                                 s # Subsystem
                                 l # Level
@@ -422,6 +423,9 @@ sub expand_format_placeholder
         }
         when ('%T') {
             return time_of($tr);
+        }
+        when ('%p') {
+            return "$tr->{pid}";
         }
         when ('%a') {
             return "$tr->{stack_addr}";
@@ -485,6 +489,7 @@ sub print_trace_record
                    . sprintf('%-18s  ', time_of($tr))
                    . sprintf('%-6s  ', $tr->{level})
                    . sprintf('%-10s  ', $tr->{subsystem})
+                   . sprintf('%-6s  ', $tr->{pid})
                    . "$tr->{stack_addr}  "
                    . "$tr->{func}  "
                    . "$tr->{file}:$tr->{line}"
@@ -804,6 +809,9 @@ string, which goes after a colon, and it may have the following placeholders:
 
 =item *
 %T:  Timestamp
+
+=item *
+%p:  pid
 
 =item *
 %a:  stack_Addr

@@ -21,12 +21,12 @@
 #ifdef __KERNEL__
 #include "lib/cdefs.h" /* CHAR_BIT */
 #include <linux/ctype.h> /* tolower */
-#include <linux/sched.h>
+#include <linux/sched.h> /* current->pid */
 #else
 #include <limits.h> /* CHAR_BIT */
 #include <ctype.h> /* tolower */
 #include <sys/types.h>
-#include <unistd.h>
+#include <unistd.h> /* getpid */
 #endif
 
 #include "lib/errno.h"
@@ -237,6 +237,11 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 
 	header                = m0_logbuf + pos_in_buf;
 	header->trh_magic     = 0;
+#ifdef __KERNEL__
+	header->trh_pid       = current->pid;
+#else
+	header->trh_pid       = getpid();
+#endif
 	header->trh_no        = pos;
 	header->trh_sp        = sp;
 	header->trh_timestamp = rdtsc();
@@ -558,13 +563,9 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	m0_trace_unpack_args(trh, args, buf);
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
-		m0_console_printf("%5.5llu %8.8llu %15.15llu %5.5x %-18s %-7s "
+		m0_console_printf("%5.5u %8.8llu %15.15llu %5.5x %-18s %-7s "
 				  "%-20s %s:%-3i\n\t",
-#ifdef __KERNEL__
-				  (unsigned long long)current->pid,
-#else
-				  (unsigned long long)getpid(),
-#endif
+				  trh->trh_pid,
 				  (unsigned long long)trh->trh_no,
 				  (unsigned long long)trh->trh_timestamp,
 				  (unsigned) (trh->trh_sp & 0xfffff),
@@ -573,7 +574,8 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 				  td->td_func, m0_short_file_name(td->td_file),
 				  td->td_line);
 	}
-	else if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
+
+	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
 		m0_console_printf("mero: %6s : [%s:%i:%s] ",
 				  m0_trace_level_name(td->td_level),
 				  m0_short_file_name(td->td_file),
@@ -582,7 +584,8 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 		 (m0_trace_print_context == M0_TRACE_PCTX_NONE &&
 		  (td->td_level == M0_CALL || td->td_level == M0_NOTICE)))
 		m0_console_printf("mero: %s: ", td->td_func);
-	else /* td->td_level == M0_TRACE_PCTX_NONE */
+	else /* td->td_level == M0_TRACE_PCTX_NONE
+		|| td->td_level == M0_TRACE_PCTX_FULL */
 		m0_console_printf("mero: ");
 
 	m0_console_printf(td->td_fmt, args[0], args[1], args[2], args[3],
