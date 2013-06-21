@@ -610,6 +610,8 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
         if (rc == 0 || rc == -ENOENT)
 		rc = cm->cm_ops->cmo_ready(cm);
 	if (rc == 0) {
+		cm->cm_ready_fops_recvd = 0;
+		M0_SET0(&cm->cm_last_saved_sw_hi);
 		rc = m0_cm_sw_local_update(cm);
 		if(rc == 0)
 			rc = m0_cm_sw_remote_update(cm);

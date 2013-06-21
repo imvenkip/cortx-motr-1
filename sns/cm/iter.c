@@ -45,25 +45,6 @@
 */
 
 enum {
-	/*
-	 * Temporary default layout identifier for SNS Repair copy machine.
-	 * @todo Remove this and fetch layout id as part of file attributes.
-	 */
-	SNS_DEFAULT_LAYOUT_ID = 0xAC1DF00D,
-	SNS_DEFAULT_NR_DATA_UNITS = 2,
-	SNS_DEFAULT_NR_PARITY_UNITS  = 1,
-	SNS_DEFAULT_POOL_WIDTH = SNS_DEFAULT_NR_DATA_UNITS +
-				 2 * SNS_DEFAULT_NR_PARITY_UNITS,
-	/*
-	 * XXX SNS_FILE_SIZE is temporary hard coded file size used for
-	 * sns repair. Eventually this should be retrieved a part of file
-	 * attributes, once set_attr() and get_attr() interfaces are
-	 * implemented.
-	 */
-	SNS_FILE_SIZE_DEFAULT = 1 << 16
-};
-
-enum {
         SNS_REPAIR_ITER_MAGIX = 0x33BAADF00DCAFE77,
 };
 
@@ -738,7 +719,7 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
 	if (rc == 0)
-		M0_SET0(&it->si_fc.sfc_gob_fid);
+		M0_SET0(&it->si_fc);
 
 	return rc;
 }

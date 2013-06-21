@@ -24,29 +24,24 @@
 
 #include <sys/stat.h>
 
-#include "ut/ut.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
+#include "lib/finject.h"
 
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
-#include "lib/finject.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h" /* m0_cob_alloc(), m0_cob_nskey_make(),
 				m0_cob_fabrec_make(), m0_cob_create */
-
 #include "fop/fom.h" /* M0_FSO_AGAIN, M0_FSO_WAIT */
 #include "ioservice/io_service.h"
-#include "sns/cm/ut/cp_common.h"
+#include "ioservice/io_device.h"
 
-#include "ioservice/io_service.h"
-#include "sns/cm/ut/cp_common.h"
 #include "sns/cm/cm.h"
-#include "sns/cm/cp.h"
-#include "sns/cm/ag.h"
+#include "sns/cm/ut/cp_common.h"
 
 enum {
 	ITER_UT_BUF_NR     = 1 << 8,
@@ -57,7 +52,7 @@ static struct m0_reqh   *reqh;
 static struct m0_reqh_service  *service;
 static struct m0_cm     *cm;
 static struct m0_sns_cm *scm;
-static struct m0_clink   sc_wait_clink;
+static uint64_t          fdata;
 
 static void service_start_success(void)
 {
@@ -86,10 +81,9 @@ static void service_start_failure(void)
 	M0_UT_ASSERT(rc != 0);
 }
 
-static void iter_setup(void)
+static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int         rc;
-	uint64_t    fdata = 0;
 
 	rc = sns_cm_ut_server_start();
 	M0_UT_ASSERT(rc == 0);
@@ -100,17 +94,15 @@ static void iter_setup(void)
 				       reqh);
 	M0_UT_ASSERT(service != NULL);
 
+	fdata = fd;
 	cm = container_of(service, struct m0_cm, cm_service);
+	cm->cm_pm = m0_ios_poolmach_get(reqh);
 	scm = cm2sns(cm);
-	scm->sc_op = SNS_REPAIR;
 	scm->sc_it.si_fdata = &fdata;
-	m0_mutex_lock(&scm->sc_wait_mutex);
-	m0_clink_init(&sc_wait_clink, NULL);
-	m0_clink_add(&scm->sc_wait, &sc_wait_clink);
-	m0_mutex_unlock(&scm->sc_wait_mutex);
-	rc = m0_cm_ready(cm);
+	scm->sc_op = op;
+	rc = cm->cm_ops->cmo_ready(cm);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cm_start(cm);
+	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -242,18 +234,15 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 	}
 }
 
-static int iter_run(uint64_t pool_width, uint64_t nr_files,
-		    uint64_t fdata, enum m0_sns_cm_op op)
+static int iter_run(uint64_t pool_width, uint64_t nr_files)
 {
 	struct m0_sns_cm_cp  scp;
 	struct m0_sns_cm_ag *sag;
 	int                  rc;
 	int                  i;
 
+	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
 	cobs_create(nr_files, pool_width);
-	/* Set fail device. */
-	scm->sc_it.si_fdata = &fdata;
-	scm->sc_op = op;
 	scm->sc_failures_nr = 1;
 	m0_cm_lock(cm);
 	do {
@@ -272,22 +261,21 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files,
 		}
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
+	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
 
 	return rc;
 }
 
 static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 {
+	int rc;
+
 	m0_cm_lock(cm);
 	/* Destroy previously created aggregation groups manually. */
 	ag_destroy();
+	rc = cm->cm_ops->cmo_stop(cm);
+	M0_UT_ASSERT(rc ==  0);
 	m0_cm_unlock(cm);
-	/* Wait for pump FOM to complete. */
-	m0_chan_wait(&sc_wait_clink);
-	m0_mutex_lock(&scm->sc_wait_mutex);
-	m0_clink_del(&sc_wait_clink);
-	m0_mutex_unlock(&scm->sc_wait_mutex);
-	m0_cm_stop(cm);
 	cobs_delete(nr_files, pool_width);
 	sns_cm_ut_server_stop();
 	/* Cleanup the old db files. Otherwise it messes */
@@ -298,10 +286,8 @@ static void iter_repair_single_file(void)
 {
 	int       rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(5, 1, 3, SNS_REPAIR);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REPAIR, 2);
+	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(1, 5);
 }
@@ -310,10 +296,8 @@ static void iter_repair_multi_file(void)
 {
 	int       rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, 2, 4, SNS_REPAIR);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REPAIR, 5);
+	rc = iter_run(10, 2);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(2, 10);
 }
@@ -322,10 +306,8 @@ static void iter_repair_large_file_with_large_unit_size(void)
 {
 	int       rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, 1, 4, SNS_REPAIR);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REPAIR, 9);
+	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(1, 10);
 }
@@ -334,10 +316,8 @@ static void iter_rebalance_single_file(void)
 {
 	int       rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(5, 1, 3, SNS_REBALANCE);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REBALANCE, 2);
+	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(1, 5);
 }
@@ -346,10 +326,8 @@ static void iter_rebalance_multi_file(void)
 {
 	int       rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, 2, 4, SNS_REBALANCE);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REBALANCE, 5);
+	rc = iter_run(10, 2);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(2, 10);
 }
@@ -358,10 +336,8 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 {
 	int       rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(10, 1, 4, SNS_REBALANCE);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REBALANCE, 9);
+	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(1, 10);
 }
@@ -370,10 +346,8 @@ static void iter_invalid_nr_cobs(void)
 {
 	int rc;
 
-	iter_setup();
-	m0_fi_enable("iter_fid_next", "layout_fetch_error_as_done");
-	rc = iter_run(3, 1, 2, SNS_REPAIR);
-	m0_fi_disable("iter_fid_next", "layout_fetch_error_as_done");
+	iter_setup(SNS_REPAIR, 7);
+	rc = iter_run(3, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(1, 3);
 }

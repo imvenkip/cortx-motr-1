@@ -551,30 +551,36 @@ static int cm_ready(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	int                    bufs_nr;
-	int                    rc;
+	int                    rc = 0;
 	int                    i;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
-	bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
-					      SNS_INCOMING_BUF_NR);
-	M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
-	if (bufs_nr == 0)
-		return -ENOMEM;
-	bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
-					      SNS_OUTGOING_BUF_NR);
-	M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
-	/*
-	 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
-	 * successful, both the buffer pools (incoming and outgoing) will be
-	 * finalised in cm_fini().
-	 */
-	if (bufs_nr == 0)
-		return -ENOMEM;
-
+	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
+	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
+							  SNS_INCOMING_BUF_NR);
+		M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
+		if (bufs_nr == 0)
+			return -ENOMEM;
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
+							  SNS_OUTGOING_BUF_NR);
+		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
+		/*
+		 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
+		 * successful, both the buffer pools (incoming and outgoing) will be
+		 * finalised in cm_fini().
+		 */
+		if (bufs_nr == 0)
+			return -ENOMEM;
+	}
 	if (scm->sc_op == SNS_REPAIR) {
-		M0_CNT_INC(scm->sc_failures_nr);
+		/*
+		 * TODO: Move accounting of failures to better place in-order to
+		 * handle multiple failures.
+		 */
+		scm->sc_failures_nr = 1;
 		for (i = 0; i < scm->sc_failures_nr; ++i) {
 			rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
 						     scm->sc_it.si_fdata[i],
@@ -592,14 +598,14 @@ static int cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	enum m0_pool_nd_state  state;
-	int                    rc = 0;
+	int                    rc;
 	int                    i;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
 	state = pm_state(scm);
-	m0_cm_continue(cm);
+	//m0_cm_continue(cm);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
 		rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
 					     scm->sc_it.si_fdata[i],

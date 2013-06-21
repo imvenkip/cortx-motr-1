@@ -21,6 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/misc.h"
 #include "lib/trace.h"
+#include "lib/finject.h"
 
 #include "cob/cob.h"
 #include "mero/setup.h"
@@ -35,6 +36,65 @@
 
    @{
  */
+
+/* Start of UT specific code. */
+enum {
+	SNS_DEFAULT_FILE_SIZE = 1 << 17,
+	SNS_DEFAULT_N = 3,
+	SNS_DEFAULT_K = 1,
+	SNS_DEFAULT_P = 10,
+	SNS_DEFAULT_UNIT_SIZE = 4096,
+	SNS_DEFAULT_LAYOUT_ID = 0xAC1DF00D
+};
+
+static int sns_cm_ut_file_size_layout_fetch(struct m0_cm *cm,
+					    struct m0_fid *gfid,
+					    struct m0_pdclust_layout **layout,
+					    uint64_t *fsize)
+{
+	struct m0_layout_linear_attr         lattr;
+	struct m0_pdclust_attr               plattr;
+	struct m0_layout                    *l = NULL;
+	struct m0_pdclust_layout            *pl = NULL;
+	struct m0_layout_linear_enum        *le;
+	struct m0_dbenv                     *dbenv;
+	struct m0_reqh                      *reqh;
+	uint64_t                             lid;
+	int                                  rc;
+
+	reqh = cm->cm_service.rs_reqh;
+	dbenv = reqh->rh_dbenv;
+	l = m0_layout_find(&reqh->rh_ldom, SNS_DEFAULT_LAYOUT_ID);
+	if (l != NULL) {
+		pl = m0_layout_to_pdl(l);
+		goto out;
+	}
+	lattr.lla_nr = SNS_DEFAULT_P;
+	lattr.lla_A  = 1;
+	lattr.lla_B  = 1;
+	rc = m0_linear_enum_build(&reqh->rh_ldom, &lattr, &le);
+	if (rc == 0) {
+		lid                 = SNS_DEFAULT_LAYOUT_ID;
+		plattr.pa_N         = SNS_DEFAULT_N;
+		plattr.pa_K         = SNS_DEFAULT_K;
+		plattr.pa_P         = SNS_DEFAULT_P;
+		plattr.pa_unit_size = SNS_DEFAULT_UNIT_SIZE;
+		m0_uint128_init(&plattr.pa_seed, "upjumpandpumpim,");
+		rc = m0_pdclust_build(&reqh->rh_ldom, lid, &plattr,
+				&le->lle_base, &pl);
+		if (rc != 0) {
+			m0_layout_enum_fini(&le->lle_base);
+			return rc;
+		}
+	}
+out:
+	*layout = pl;
+	*fsize = SNS_DEFAULT_FILE_SIZE;
+
+	return rc;
+}
+
+/* End of UT specific code. */
 
 M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
 				       struct m0_pdclust_instance *pi,
@@ -302,6 +362,10 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
 
         M0_PRE(cm != NULL && gfid != NULL && layout != NULL && fsize != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
+
+	/* Support for UT, avoids get/set attributes for COB. */
+	if (M0_FI_ENABLED("ut_layout_fsize_fetch"))
+		return sns_cm_ut_file_size_layout_fetch(cm, gfid, layout, fsize);
 
         ldom = &reqh->rh_ldom;
 
