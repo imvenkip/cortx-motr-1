@@ -34,6 +34,7 @@
 #include "lib/misc.h"        /* M0_SET_ARR0 */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
+#include "utils/linux_kernel/m0ctl_internal.h"
 
 
 /**
@@ -87,9 +88,6 @@
  *
  * @endverbatim
  */
-
-extern struct dentry  *dfs_root_dir;
-extern const char     dfs_root_name[];
 
 static struct dentry  *fi_stat_file;
 static struct dentry  *fi_ctl_file;

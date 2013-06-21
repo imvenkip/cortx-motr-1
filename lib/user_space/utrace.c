@@ -32,6 +32,7 @@
 #include "lib/types.h"
 #include "lib/arith.h"
 #include "lib/memory.h"
+#include "lib/string.h" /* m0_strdup */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
 
@@ -97,21 +98,6 @@ static int logbuf_map(uint32_t logbuf_size)
 	return -errno;
 }
 
-M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name)
-{
-	if (ctx_name != NULL) {
-		enum m0_trace_print_context ctx =
-			m0_trace_parse_trace_print_context(ctx_name);
-
-		if (ctx == M0_TRACE_PCTX_INVALID)
-			return -EINVAL;
-
-		m0_trace_print_context = ctx;
-	}
-
-	return 0;
-}
-
 M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask)
 {
 	if (mask != NULL) {
@@ -127,13 +113,13 @@ M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask)
 		if (errno != 0 || *endp != 0) {
 			unsigned long  m = 0;
 			int            rc;
-			char          *s = strdup(mask);
+			char          *s = m0_strdup(mask);
 
 			if (s == NULL)
 				return -ENOMEM;
 
 			rc = m0_trace_subsys_list_to_mask(s, &m);
-			free(s);
+			m0_free(s);
 
 			if (rc != 0)
 				return rc;
@@ -145,19 +131,8 @@ M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask)
 	return 0;
 }
 
-M0_INTERNAL int m0_trace_set_level(const char *level)
+M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size)
 {
-	if (level != NULL) {
-		char *s = strdup(level);
-		if (s == NULL)
-			return -ENOMEM;
-		m0_trace_level = m0_trace_parse_trace_level(s);
-		free(s);
-		if (m0_trace_level == M0_NONE)
-			return -EINVAL;
-	}
-
-	return 0;
 }
 
 M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val)
@@ -216,98 +191,6 @@ static unsigned align(FILE *file, unsigned align, unsigned pos)
 	return pos;
 }
 
-/*
- * escape any occurrence of single-quote characters (') inside string by
- * duplicating them, for example "it's a pen" becomes "it''s pen"
- */
-static int escape_yaml_str(char *str, size_t max_size)
-{
-	size_t   str_len    = strlen(str);
-	ssize_t  free_space = max_size - str_len;
-	char    *p          = str;;
-
-	if (free_space < 0)
-		return -EINVAL;
-
-	while ((p = strchr(p, '\'')) != NULL)
-	{
-		if (--free_space < 0)
-			return -ENOMEM;
-		memmove(p + 1, p, str_len - (p - str) + 1);
-		*p = '\'';
-		p += 2;
-	}
-
-	return 0;
-}
-
-M0_INTERNAL
-void m0_trace_record_print_yaml(FILE *output_file,
-				const struct m0_trace_rec_header *trh,
-				const void *buf,
-				bool stream_mode)
-{
-	const struct m0_trace_descr *td = trh->trh_descr;
-	m0_trace_rec_args_t          args;
-	const char                  *td_fmt;
-	static char                  msg_buf[32 * 1024]; /* 32 KB */
-	int                          rc;
-
-	m0_trace_unpack_args(trh, args, buf);
-
-	td_fmt = stream_mode ? "---\n"
-			       "record_num: %" PRIu64 "\n"
-			       "timestamp:  %" PRIu64 "\n"
-			       "pid:        %u\n"
-			       "stack_addr: %" PRIx64 "\n"
-			       "subsystem:  %s\n"
-			       "level:      %s\n"
-			       "func:       %s\n"
-			       "file:       %s\n"
-			       "line:       %u\n"
-
-			     : "  - record_num: %" PRIu64 "\n"
-			       "    timestamp:  %" PRIu64 "\n"
-			       "    pid:        %u\n"
-			       "    stack_addr: %" PRIx64 "\n"
-			       "    subsystem:  %s\n"
-			       "    level:      %s\n"
-			       "    func:       %s\n"
-			       "    file:       %s\n"
-			       "    line:       %u\n";
-
-	fprintf(output_file, td_fmt,
-			     trh->trh_no,
-			     trh->trh_timestamp,
-			     trh->trh_pid,
-			     /* TODO: add comment why mask is needed */
-			     (trh->trh_sp & 0xfffff),
-			     m0_trace_subsys_name(td->td_subsys),
-			     m0_trace_level_name(td->td_level),
-			     td->td_func,
-			     td->td_file,
-			     td->td_line);
-
-	if (stream_mode)
-		fprintf(output_file, "msg:        '");
-	else
-		fprintf(output_file, "    msg:        '");
-
-	rc = snprintf(msg_buf, sizeof msg_buf, td->td_fmt, args[0], args[1],
-		      args[2], args[3], args[4], args[5], args[6], args[7],
-		      args[8]);
-	if (rc > sizeof msg_buf)
-		warnx("'msg' is too big and has been truncated to %zu bytes",
-		      sizeof msg_buf);
-
-	rc = escape_yaml_str(msg_buf, sizeof msg_buf);
-	if (rc != 0)
-		warnx("Failed to escape single quote characters in msg: %s",
-		      msg_buf);
-
-	fprintf(output_file, "%s'\n", msg_buf);
-}
-
 /**
  * Parse log buffer from file.
  *
@@ -322,12 +205,14 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 	unsigned                     nr;
 	unsigned                     n2r;
 	int                          size;
+	char                         *buf;
+	static char                  yaml_buf[16 * 1024]; /* 16 KB */
+	int                          rc;
 
 	if (!yaml_stream_mode)
 		fprintf(output_file, "trace_records:\n");
 
 	while (!feof(trace_file)) {
-		char *buf;
 
 		/* At the beginning of a record */
 		pos = align(trace_file, M0_TRACE_REC_ALIGN, pos);
@@ -382,8 +267,13 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 		}
 		pos += nr;
 
-		m0_trace_record_print_yaml(output_file, &trh, buf,
-					   yaml_stream_mode);
+		rc = m0_trace_record_print_yaml(yaml_buf, sizeof yaml_buf, &trh,
+						buf, yaml_stream_mode);
+		if (rc == 0)
+			fprintf(output_file, "%s", yaml_buf);
+		else
+			warnx("Internal buffer is to small to hold trace"
+			      " record");
 		m0_free(buf);
 	}
 	return EX_OK;

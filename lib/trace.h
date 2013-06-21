@@ -183,6 +183,9 @@ do {                                                             \
 
 M0_INTERNAL int m0_trace_init(void);
 M0_INTERNAL void m0_trace_fini(void);
+M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask);
+M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name);
+M0_INTERNAL int m0_trace_set_level(const char *level);
 
 /**
  * The subsystems definitions.
@@ -286,6 +289,7 @@ struct m0_trace_rec_header {
 	uint64_t                     trh_timestamp;
 	const struct m0_trace_descr *trh_descr;
 	uint32_t                     trh_string_data_size;
+	uint32_t                     trh_record_size; /**< total record size */
 	pid_t                        trh_pid; /**< current PID */
 };
 
@@ -362,6 +366,11 @@ M0_INTERNAL void m0_trace_print_subsystems(void);
 __attribute__ ((format (printf, 1, 2)))
 M0_INTERNAL void m0_console_printf(const char *fmt, ...);
 M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list ap);
+
+M0_INTERNAL
+int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
+				const struct m0_trace_rec_header *trh,
+				const void *tr_body, bool yaml_stream_mode);
 
 /*
  * The code below abuses C preprocessor badly. Looking at it might be damaging

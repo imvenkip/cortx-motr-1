@@ -26,7 +26,8 @@
 M0_INTERNAL int
 m0_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
-M0_INTERNAL enum m0_trace_level m0_trace_parse_trace_level(char *str);
+M0_INTERNAL enum m0_trace_level
+m0_trace_parse_trace_level(char *str);
 
 M0_INTERNAL enum m0_trace_print_context
 m0_trace_parse_trace_print_context(const char *ctx_name);
@@ -47,6 +48,14 @@ typedef union m0_trace_rec_argument m0_trace_rec_args_t[M0_TRACE_ARGC_MAX];
 M0_INTERNAL void m0_trace_unpack_args(const struct m0_trace_rec_header *trh,
 				      m0_trace_rec_args_t args,
 				      const void *buf);
+
+M0_INTERNAL void *m0_trace_get_logbuf_addr(void);
+M0_INTERNAL uint32_t m0_trace_get_logbuf_size(void);
+M0_INTERNAL uint64_t m0_trace_get_logbuf_pos(void);
+
+M0_INTERNAL const struct m0_trace_rec_header *m0_trace_get_last_record(void);
+
+M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size);
 
 #endif /* __MERO_LIB_TRACE_INTERNAL_H__ */
 

@@ -20,12 +20,16 @@
 
 #include <linux/vmalloc.h>           /* vmalloc, vfree */
 #include <linux/kernel.h>            /* vprintk */
+#include <linux/jiffies.h>           /* time_in_range_open */
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h" /* m0_align */
+#include "lib/arith.h"  /* m0_align */
+#include "lib/memory.h" /* m0_free */
+#include "lib/string.h" /* m0_strdup */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
+#include "lib/linux_kernel/trace.h"
 
 /**
  * @addtogroup trace
@@ -54,99 +58,112 @@ MODULE_PARM_DESC(trace_print_context,
 		 " info, like subsystem, file, func, etc.; values:"
 		 " none, func, short, full");
 
-static int set_trace_immediate_mask(void)
+static struct m0_trace_stats stats;
+
+M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 {
 	int            rc;
-	char          *mask_str;
 	unsigned long  mask;
+	char          *mask_str_copy;
 
-	/* check if argument was specified for 'trace_immediate_mask' param */
-	if (trace_immediate_mask == NULL)
+	/* check if argument was specified for 'mask_str' param */
+	if (mask_str == NULL)
 		return 0;
 
-	/* first, check if 'trace_immediate_mask' contains a numeric bitmask */
-	rc = strict_strtoul(trace_immediate_mask, 0, &mask);
+	/* first, check if 'mask_str' contains a numeric bitmask */
+	rc = strict_strtoul(mask_str, 0, &mask);
 	if (rc == 0) {
 		m0_trace_immediate_mask = mask;
 		goto out;
 	}
 
 	/*
-	 * check if 'trace_immediate_mask' contains a comma-separated list of
-	 * valid subsystem names
+	 * if above strtoul() conversion has failed it means that mask_str
+	 * contains a comma-separated list of subsystem names
 	 */
-	mask_str = kstrdup(trace_immediate_mask, GFP_KERNEL);
-	if (mask_str == NULL)
+	mask_str_copy = m0_strdup(mask_str);
+	if (mask_str_copy == NULL)
 		return -ENOMEM;
-	rc = m0_trace_subsys_list_to_mask(mask_str, &mask);
-	kfree(mask_str);
+	rc = m0_trace_subsys_list_to_mask(mask_str_copy, &mask);
+	m0_free(mask_str_copy);
 
 	if (rc != 0)
 		return rc;
 
 	m0_trace_immediate_mask = mask;
 out:
-	pr_info("Mero trace immediate mask: 0x%lx\n",
-			m0_trace_immediate_mask);
-
+	pr_info("Mero trace immediate mask: 0x%lx\n", m0_trace_immediate_mask);
 	return 0;
 }
+M0_EXPORTED(m0_trace_set_immediate_mask);
 
-static int set_trace_level(void)
+M0_INTERNAL const struct m0_trace_stats *m0_trace_get_stats(void)
 {
-	char *level_str;
-
-	/* check if argument was specified for 'trace_level' param */
-	if (trace_level == NULL)
-		return 0;
-
-	level_str = kstrdup(trace_level, GFP_KERNEL);
-	if (level_str == NULL)
-		return -ENOMEM;
-
-	m0_trace_level = m0_trace_parse_trace_level(level_str);
-	kfree(level_str);
-
-	if (m0_trace_level == M0_NONE)
-		return -EINVAL;
-
-	pr_info("Mero trace level: %s\n", trace_level);
-
-	return 0;
+	return &stats;
 }
+M0_EXPORTED(m0_trace_get_stats);
 
-static int set_trace_print_context(void)
+M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size)
 {
-	enum m0_trace_print_context ctx;
+	static unsigned long prev_jiffies = INITIAL_JIFFIES;
+	static uint64_t      prev_logbuf_pos;
+	static uint64_t      prev_rec_total;
 
-	/* check if argument was specified for 'trace_print_context' param */
-	if (trace_print_context == NULL)
-		return 0;
+	if (prev_jiffies == INITIAL_JIFFIES) {
+		prev_jiffies = jiffies;
+		prev_logbuf_pos = 0;
+		prev_rec_total = 0;
+	}
 
-	ctx = m0_trace_parse_trace_print_context(trace_print_context);
-	if (ctx == M0_TRACE_PCTX_INVALID)
-		return -EINVAL;
+	if (rec_size > 0) {
+		m0_atomic64_inc(&stats.trs_rec_total);
+		stats.trs_avg_rec_size = (rec_size + stats.trs_avg_rec_size) / 2;
+		stats.trs_max_rec_size = max(rec_size, stats.trs_max_rec_size);
+	}
 
-	m0_trace_print_context = ctx;
+	if (time_after_eq(jiffies, prev_jiffies + HZ)) {
+		stats.trs_rec_per_sec =
+			m0_atomic64_get(&stats.trs_rec_total) - prev_rec_total;
+		stats.trs_bytes_per_sec =
+			m0_trace_get_logbuf_pos() - prev_logbuf_pos;
 
-	pr_info("Mero trace print context: %s\n", trace_print_context);
+		stats.trs_avg_rec_per_sec
+			= (stats.trs_rec_per_sec + stats.trs_avg_rec_per_sec) / 2;
+		stats.trs_avg_bytes_per_sec
+			= (stats.trs_bytes_per_sec + stats.trs_avg_bytes_per_sec) / 2;
 
-	return 0;
+		stats.trs_max_rec_per_sec
+			= max(stats.trs_rec_per_sec, stats.trs_max_rec_per_sec);
+		stats.trs_max_bytes_per_sec
+			= max(stats.trs_bytes_per_sec, stats.trs_max_bytes_per_sec);
+
+		prev_jiffies = jiffies;
+		prev_logbuf_pos = m0_trace_get_logbuf_pos();
+		prev_rec_total = m0_atomic64_get(&stats.trs_rec_total);
+	}
+}
+M0_EXPORTED(m0_trace_update_stats);
+
+M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
+{
+	vprintk(fmt, args);
 }
 
 M0_INTERNAL int m0_arch_trace_init(void)
 {
 	int rc;
 
-	rc = set_trace_immediate_mask();
+	m0_atomic64_set(&stats.trs_rec_total, 0);
+
+	rc = m0_trace_set_immediate_mask(trace_immediate_mask);
 	if (rc != 0)
 		return rc;
 
-	rc = set_trace_level();
+	rc = m0_trace_set_level(trace_level);
 	if (rc != 0)
 		return rc;
 
-	rc = set_trace_print_context();
+	rc = m0_trace_set_print_context(trace_print_context);
 	if (rc != 0)
 		return rc;
 
@@ -162,11 +179,6 @@ M0_INTERNAL int m0_arch_trace_init(void)
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
 	vfree(m0_logbuf);
-}
-
-M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
-{
-	vprintk(fmt, args);
 }
 
 /** @} end of trace group */
