@@ -254,11 +254,12 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = M0_TRACE_MAGIC;
 
-	if (M0_TRACE_IMMEDIATE_DEBUG &&
-	    (td->td_subsys & m0_trace_immediate_mask ||
-	     td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
-	    td->td_level & m0_trace_level)
+#ifdef ENABLE_IMMEDIATE_TRACE
+	if ( (td->td_subsys & m0_trace_immediate_mask ||
+	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
+	     td->td_level & m0_trace_level )
 		m0_trace_record_print(header, body_in_buf);
+#endif
 }
 M0_EXPORTED(m0_trace_allot);
 

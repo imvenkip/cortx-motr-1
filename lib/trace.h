@@ -259,12 +259,6 @@ extern unsigned int m0_trace_level;
  * Below is the internal implementation stuff.
  */
 
-#ifdef ENABLE_IMMEDIATE_TRACE
-#  define M0_TRACE_IMMEDIATE_DEBUG (1)
-#else
-#  define M0_TRACE_IMMEDIATE_DEBUG (0)
-#endif
-
 enum {
 	/** Default buffer size, the real buffer size is at m0_logbufsize */
 	M0_TRACE_BUFSIZE   = 1 << (10 + 12), /* 4MB */
