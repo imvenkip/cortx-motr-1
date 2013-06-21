@@ -20,24 +20,30 @@ sns_repair_test()
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=20k count=500 \
+	   of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=20k count=500 \
+	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=20k count=500 \
+	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
-	md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | tee  $MERO_M0T1FS_TEST_DIR/md5
-	md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
-	md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
+	md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | \
+		tee  $MERO_M0T1FS_TEST_DIR/md5
+	md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair | \
+		tee -a $MERO_M0T1FS_TEST_DIR/md5
+	md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair | \
+		tee -a $MERO_M0T1FS_TEST_DIR/md5
 
 	for ((i=1; i < ${#EP[*]}; i++)) ; do
 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
