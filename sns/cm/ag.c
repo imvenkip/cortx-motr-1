@@ -323,7 +323,7 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	sag->sag_base.cag_layout = m0_pdl_to_layout(pl);
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      &sns_cm_ag_ops);
-	sag->sag_base.cag_cp_global_nr = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(scm, pl);
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, pl);
 	if (rc != 0)
 		goto cleanup_ag;

@@ -83,7 +83,8 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_hi,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo);
 		m0_cm_lock(cm);
-		if (m0_cm_has_more_data(cm) || cm->cm_aggr_grps_out_nr > 0) {
+		if (m0_cm_is_ready(cm) && (m0_cm_has_more_data(cm) ||
+					   cm->cm_aggr_grps_out_nr > 0)) {
 			ep = swo_fop->swo_base.swo_cm_ep.ep;
 			cm_proxy = m0_cm_proxy_locate(cm, ep);
 			M0_ASSERT(cm_proxy != NULL);

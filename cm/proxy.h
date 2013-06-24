@@ -24,6 +24,8 @@
 #ifndef __MERO_CM_PROXY_H__
 #define __MERO_CM_PROXY_H__
 
+#include "lib/chan.h"
+
 #include "rpc/conn.h"
 #include "rpc/session.h"
 #include "sm/sm.h"
@@ -55,10 +57,22 @@ struct m0_cm_proxy {
 
 	struct m0_sm_ast       px_sw_onwire_ast;
 
-	/** Back reference to local copy mahine. */
-	struct m0_cm          *px_cm;
+	/** Total number of call backs executed for each remote update sent. */
+	uint64_t               px_nr_asts;
 
-	struct m0_mutex        px_mutex;
+	/** Total sliding window updates sent to this replica. */
+	uint64_t               px_nr_updates_sent;
+
+	/**
+	 * Channel to wait on before finalising this proxy to make sure all the
+	 * call backs are processed corresponding to all remote the updates sent.
+	 * @see m0_cm_proxy_fini_wait()
+	 */
+	struct m0_chan         px_signal;
+	struct m0_mutex        px_signal_mutex;
+
+	/** Back reference to local copy machine. */
+	struct m0_cm          *px_cm;
 
 	/**
 	 * Pending list of copy packets to be forwarded to the remote
@@ -66,6 +80,8 @@ struct m0_cm_proxy {
 	 * @see m0_cm_cp::c_proxy_linkage
 	 */
 	struct m0_tl           px_pending_cps;
+
+	struct m0_mutex        px_mutex;
 
 	struct m0_rpc_conn     px_conn;
 
@@ -126,6 +142,16 @@ M0_INTERNAL bool m0_cm_proxy_agid_is_in_sw(struct m0_cm_proxy *pxy,
 					   struct m0_cm_ag_id *id);
 
 M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy);
+
+/**
+ * Checks if m0_cm_proxy::px_nr_updates_sent == m0_cm_proxy::px_nr_asts, else
+ * waits on channel m0_cm_proxy::px_signal. Once all the call backs
+ * corresponding to the updates sent are processed m0_cm_proxy::px_signal is
+ * notified. This avoids invalid state of proxy during proxy finalisation.
+ * @see proxy_sw_onwire_ast_cb()
+ * @see m0_cm_proxies_fini()
+ */
+M0_INTERNAL void m0_cm_proxy_fini_wait(struct m0_cm_proxy *proxy);
 
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);

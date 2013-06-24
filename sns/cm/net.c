@@ -344,9 +344,9 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 	M0_PRE(cp != NULL);
 
 	M0_LOG(M0_DEBUG, "rbulk rc: %d", rbulk->rb_rc);
-        m0_mutex_lock(&rbulk->rb_mutex);
-        M0_PRE(m0_list_is_empty(&rbulk->rb_buflist.t_head));
-        m0_mutex_unlock(&rbulk->rb_mutex);
+        //m0_mutex_lock(&rbulk->rb_mutex);
+        //M0_PRE(m0_list_is_empty(&rbulk->rb_buflist.t_head));
+        //m0_mutex_unlock(&rbulk->rb_mutex);
 
 	scp = cp2snscp(cp);
 	ep = cp->c_cm_proxy->px_conn.c_rpcchan->rc_destep;

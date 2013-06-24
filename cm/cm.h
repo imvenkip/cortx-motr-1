@@ -357,6 +357,8 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm);
 
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 
+M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm);
+
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"
  * fop. Internally invokes copy machine specific start routine.

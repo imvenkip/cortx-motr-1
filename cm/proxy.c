@@ -43,6 +43,10 @@
    @{
  */
 
+enum {
+	PROXY_WAIT = 1
+};
+
 M0_TL_DESCR_DEFINE(proxy, "copy machine proxy", M0_INTERNAL,
 		   struct m0_cm_proxy, px_linkage, px_magic,
 		   CM_PROXY_LINK_MAGIC, CM_PROXY_HEAD_MAGIC);
@@ -97,6 +101,8 @@ M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
 	proxy_tlink_init(proxy);
 	m0_mutex_init(&proxy->px_mutex);
 	proxy_cp_tlist_init(&proxy->px_pending_cps);
+	m0_mutex_init(&proxy->px_signal_mutex);
+	m0_chan_init(&proxy->px_signal, &proxy->px_signal_mutex);
 	*pxy = proxy;
 	M0_POST(cm_proxy_invariant(*pxy));
 	return 0;
@@ -213,6 +219,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	struct m0_cm_ag_id       id_lo;
 	struct m0_cm_ag_id       id_hi;
 	struct m0_cm_sw          sw;
+	bool                     has_data;
 	int                      rc;
 
 	M0_ASSERT(cm_proxy_invariant(proxy));
@@ -226,22 +233,36 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		id_hi = cm->cm_last_saved_sw_hi;
 	}
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
-	M0_LOG(M0_DEBUG, "proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
+	M0_LOG(M0_DEBUG, "%s proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
+	       proxy->px_endpoint,
 	       proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_hi,
 	       proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_lo,
 	       proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_hi,
 	       proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_lo);
+
+	has_data = m0_cm_has_more_data(cm);
 	/*
 	 * Update the remote proxy if this copy machine has more data to
 	 * reconstruct and expects incoming copy packets or the id_hi is
 	 * greater than the last hi update sent to the remote copy machine
 	 * replica.
 	 */
-	if ((m0_cm_has_more_data(cm) && cm->cm_aggr_grps_in_nr > 0) ||
+	if ((has_data && cm->cm_aggr_grps_in_nr > 0) ||
 	    m0_cm_ag_id_cmp(&id_hi, &proxy->px_last_sw_onwire_sent.sw_hi) > 0) {
 		rc = m0_cm_proxy_remote_update(proxy, &sw);
 		M0_ASSERT(rc == 0);
 	}
+
+	M0_CNT_INC(proxy->px_nr_asts);
+	M0_LOG(M0_DEBUG, "nr_asts: %lu", proxy->px_nr_asts);
+	/*
+	 * If all the call backs corresponding to all the updates are complete,
+	 * then signal the proxy shut down channel to proceed with proxy
+	 * finalisation.
+	 */
+	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
+	    (proxy->px_nr_updates_sent == proxy->px_nr_asts))
+		m0_chan_signal_lock(&proxy->px_signal);
 }
 
 static void proxy_sw_onwire_ast_post(struct m0_cm_proxy *proxy)
@@ -250,16 +271,16 @@ static void proxy_sw_onwire_ast_post(struct m0_cm_proxy *proxy)
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
 	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
-	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
 	m0_sm_ast_post(proxy->px_cm->cm_mach.sm_grp, &proxy->px_sw_onwire_ast);
+	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
 	M0_LEAVE();
 }
 
 static void proxy_sw_onwire_item_sent_cb(struct m0_rpc_item *item)
 {
-	struct m0_fop                    *fop;
+	struct m0_fop                *fop;
 	struct m0_cm_proxy_sw_onwire *swu_fop;
-	struct m0_cm_proxy               *proxy;
+	struct m0_cm_proxy           *proxy;
 
 	fop = m0_rpc_item_to_fop(item);
 	swu_fop = container_of(fop, struct m0_cm_proxy_sw_onwire, pso_fop);
@@ -273,8 +294,8 @@ const struct m0_rpc_item_ops proxy_sw_onwire_item_ops = {
 };
 
 M0_INTERNAL int m0_cm_proxy_sw_onwire_post(struct m0_fop *fop,
-					       const struct m0_rpc_conn *conn,
-					       m0_time_t deadline)
+				           const struct m0_rpc_conn *conn,
+				           m0_time_t deadline)
 {
 	struct m0_rpc_item *item;
 
@@ -335,9 +356,6 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	}
 	sw_fop->pso_proxy = proxy;
         deadline = m0_time_from_now(1, 0);
-	M0_LOG(M0_DEBUG, "Sending to %s hi: [%lu] [%lu] [%lu] [%lu]",
-		proxy->px_endpoint, sw->sw_hi.ai_hi.u_hi, sw->sw_hi.ai_hi.u_lo,
-		sw->sw_hi.ai_lo.u_hi, sw->sw_hi.ai_lo.u_lo);
 	M0_LOG(M0_DEBUG, "proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
 		proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_hi,
 		proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_lo,
@@ -349,6 +367,11 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
         m0_fop_put(fop);
         m0_sm_group_unlock(&rmach->rm_sm_grp);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
+	M0_CNT_INC(proxy->px_nr_updates_sent);
+	M0_LOG(M0_DEBUG, "Sending to %s hi: [%lu] [%lu] [%lu] [%lu] \
+	       nr_updates: %lu", proxy->px_endpoint, sw->sw_hi.ai_hi.u_hi,
+	       sw->sw_hi.ai_hi.u_lo, sw->sw_hi.ai_lo.u_hi, sw->sw_hi.ai_lo.u_lo,
+	       proxy->px_nr_updates_sent);
 
 	M0_LEAVE("%d", rc);
 	return rc;
@@ -369,6 +392,26 @@ M0_INTERNAL void m0_cm_proxy_rpc_conn_close(struct m0_cm_proxy *pxy)
 	M0_LEAVE("%d", rc);
 }
 
+M0_INTERNAL void m0_cm_proxy_fini_wait(struct m0_cm_proxy *proxy)
+{
+	struct m0_clink  clink;
+	struct m0_cm    *cm = proxy->px_cm;
+
+	M0_PRE(m0_cm_is_locked(cm));
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&proxy->px_signal, &clink);
+
+	while (proxy->px_nr_updates_sent != proxy->px_nr_asts) {
+		/* Give chance to run asts. */
+		m0_cm_unlock(cm);
+		m0_cm_lock(cm);
+		m0_chan_timedwait(&clink, m0_time_from_now(PROXY_WAIT, 0));
+	}
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
+	M0_POST(m0_cm_is_locked(cm));
+}
+
 M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy)
 {
 	M0_ENTRY("%p", pxy);
@@ -380,6 +423,8 @@ M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy)
 	m0_cm_proxy_bob_fini(pxy);
 	m0_cm_proxy_rpc_conn_close(pxy);
 	m0_mutex_fini(&pxy->px_mutex);
+	m0_chan_fini_lock(&pxy->px_signal);
+	m0_mutex_fini(&pxy->px_signal_mutex);
 	M0_LEAVE();
 }
 

@@ -623,6 +623,13 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	return rc;
 }
 
+M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm)
+{
+	M0_PRE(m0_cm_is_locked(cm));
+
+	return M0_IN(m0_cm_state_get(cm), (M0_CMS_READY, M0_CMS_ACTIVE));
+}
+
 M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 {
 	int	  rc;
@@ -655,6 +662,7 @@ M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm)
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		m0_cm_proxy_fini_wait(pxy);
 		m0_cm_proxy_fini(pxy);
 		m0_free(pxy);
 	} m0_tl_endfor;
@@ -677,6 +685,8 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	 * before starting new restructuring operation.
 	 */
 	m0_cm_state_set(cm, M0_CMS_STOP);
+	m0_cm_unlock(cm);
+	m0_cm_lock(cm);
 	rc = cm->cm_ops->cmo_stop(cm);
 	if (rc == 0)
 		m0_cm_cp_pump_stop(cm);

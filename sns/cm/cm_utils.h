@@ -77,6 +77,9 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 						 uint64_t group);
 
 
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(struct m0_sns_cm *scm,
+						  struct m0_pdclust_layout *pl);
+
 /**
  * Builds layout instance for new GOB fid calculated in ITPH_FID_NEXT phase.
  * @see iter_fid_next()

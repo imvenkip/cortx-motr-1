@@ -185,6 +185,17 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	return nrlu;
 }
 
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(struct m0_sns_cm *scm,
+						  struct m0_pdclust_layout *pl)
+{
+	if (scm->sc_op == SNS_REPAIR)
+		return m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	else if (scm->sc_op == SNS_REBALANCE)
+		return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+
+	return ~0;
+}
+
 M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
 					      struct m0_pdclust_instance **pi,
 					      const struct m0_fid *fid)
