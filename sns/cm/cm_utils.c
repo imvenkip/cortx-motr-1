@@ -484,6 +484,103 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
 	return group_failures;
 }
 
+static bool ag_is_relevant_for_rebalance(struct m0_sns_cm *scm,
+					 struct m0_pdclust_layout *pl,
+					 struct m0_pdclust_instance *pi,
+				 struct m0_fid *gfid,
+				 uint64_t group)
+{
+        struct m0_sns_cm_iter      *it = &scm->sc_it;
+        struct m0_pdclust_src_addr  sa;
+        struct m0_pdclust_tgt_addr  ta;
+        struct m0_fid               cobfid;
+        uint32_t                    N;
+        uint32_t                    K;
+        uint32_t                    i;
+        bool                        result = false;
+	int                         rc;
+
+        N = m0_pdclust_N(pl);
+        K = m0_pdclust_K(pl);
+        for (i = 0; i < N + K; ++i) {
+                sa.sa_group = group;
+                sa.sa_unit = i;
+                m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
+                rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
+                                          &cobfid);
+                if (rc == 0 && m0_sns_cm_is_cob_failed(scm, &cobfid))
+                        result = true;
+        }
+
+        return result;
+}
+
+static bool ag_is_relevant_for_repair(struct m0_sns_cm *scm,
+                                      struct m0_pdclust_layout *pl,
+                                      struct m0_pdclust_instance *pi,
+                                      struct m0_fid *gfid,
+                                      uint64_t group)
+{
+        struct m0_sns_cm_iter      *it = &scm->sc_it;
+        struct m0_pdclust_src_addr  sa;
+        struct m0_pdclust_tgt_addr  ta;
+        struct m0_fid               cobfid;
+        uint32_t                    N;
+        uint32_t                    K;
+        uint32_t                    i;
+        bool                        result = false;
+	int                         rc;
+
+        N = m0_pdclust_N(pl);
+        K = m0_pdclust_K(pl);
+        for (i = 0; i < K; ++i) {
+                sa.sa_group = group;
+                sa.sa_unit = N + K + i;
+                m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
+                rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
+                                          &cobfid);
+                if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
+                        result = true;
+        }
+
+        return result;
+}
+
+M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
+                                          struct m0_pdclust_layout *pl,
+                                          const struct m0_cm_ag_id *id)
+{
+        struct m0_pdclust_instance *pi;
+        struct m0_fid               fid;
+        size_t                      group_failures;
+        uint64_t                    group;
+        int                         rc;
+        bool                        result = false;
+
+        agid2fid(id,  &fid);
+        rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
+        if (rc == 0) {
+                group = id->ai_lo.u_lo;
+                /* Firstly check if this group has any failed units. */
+                group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
+                                                          pi, group);
+                if (group_failures > 0 ) {
+                        if (scm->sc_op == SNS_REPAIR)
+                                result = ag_is_relevant_for_repair(scm, pl,
+                                                                   pi, &fid,
+                                                                   group);
+                        if (scm->sc_op == SNS_REBALANCE)
+                                result = ag_is_relevant_for_rebalance(scm, pl,
+                                                                      pi, &fid,
+                                                                      group);
+                }
+                m0_layout_instance_fini(&pi->pi_base);
+        }
+
+        return result;
+}
+
+/*
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                                           struct m0_pdclust_layout *pl,
                                           const struct m0_cm_ag_id *id)
@@ -504,8 +601,9 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 	agid2fid(id,  &fid);
 
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
-	if (rc == 0) {
+	if (rc == 0) {*/
 		/* Firstly check if this group has any failed units. */
+/*
 		group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
 							  pi, id->ai_lo.u_lo);
 		if (group_failures > 0 ) {
@@ -526,6 +624,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 
 	return result;
 }
+*/
 
 #undef M0_TRACE_SUBSYSTEM
 
