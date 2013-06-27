@@ -26,6 +26,8 @@
  */
 
 #include "lib/misc.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
 #include "mero/magic.h"
 #include "rpc/rpc_machine.h"
 #include "reqh/reqh.h"
@@ -120,6 +122,9 @@ M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)
 	int                              rc = 0;
 
 	ha_dom = &item->ri_rmachine->rm_reqh->rh_hadom;
+	M0_LOG(M0_DEBUG, "mine=%lu rcvd=%lu",
+				(unsigned long)ha_dom->hdo_epoch,
+				(unsigned long)item_epoch);
 	if (item_epoch == ha_dom->hdo_epoch)
 		return 0;
 
@@ -145,6 +150,9 @@ M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)
 		} else if (rc == M0_HEO_OK) {
 			break;
 		} else if (rc == M0_HEO_OBEY) {
+			M0_LOG(M0_DEBUG, "old=%lu new=%lu",
+						(unsigned long)epoch,
+						(unsigned long)item_epoch);
 			epoch = item_epoch;
 			break;
 		} else if (M0_IN(rc, (M0_HEO_DROP, M0_HEO_ERROR))) {
@@ -158,6 +166,8 @@ out:
 
 	return rc;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of ha group */
 

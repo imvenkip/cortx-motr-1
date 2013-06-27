@@ -291,13 +291,17 @@ static int item_encode(struct m0_rpc_item       *item,
 	       item->ri_type->rit_ops != NULL &&
 	       item->ri_type->rit_ops->rito_encode != NULL);
 
-	if (item->ri_rmachine != NULL && item->ri_rmachine->rm_reqh != NULL) {
+	if (item->ri_ha_epoch != M0_HA_EPOCH_NONE)
+		epoch = item->ri_ha_epoch;
+	else if (item->ri_rmachine != NULL &&
+		 item->ri_rmachine->rm_reqh != NULL) {
 		ha_dom = &item->ri_rmachine->rm_reqh->rh_hadom;
 
 		epoch = m0_ha_domain_get_read(ha_dom);
 		m0_ha_domain_put_read(ha_dom);
 	}
 
+	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)epoch);
 	ioh = (struct m0_rpc_item_onwire_header){
 		.ioh_opcode = item->ri_type->rit_opcode,
 		.ioh_ha_epoch  = epoch,
@@ -398,6 +402,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 		M0_RETURN(rc);
 
 	(*item_out)->ri_ha_epoch = ioh.ioh_ha_epoch;
+	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)ioh.ioh_ha_epoch);
 
 	return 0;
 }

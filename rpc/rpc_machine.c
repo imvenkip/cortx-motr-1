@@ -139,7 +139,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 {
 	int rc;
 
-	M0_ENTRY("machine: %p, com_dom: %p, net_dom: %p, ep_addr: %s"
+	M0_ENTRY("machine: %p, com_dom: %p, net_dom: %p, ep_addr: %s, "
 		 "reqh:%p", machine, dom, net_dom, (char *)ep_addr, reqh);
 	M0_PRE(dom	    != NULL);
 	M0_PRE(machine	    != NULL);

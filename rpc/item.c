@@ -27,6 +27,7 @@
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/finject.h"
+#include "ha/epoch.h"
 #include "mero/magic.h"
 #include "rpc/rpc_internal.h"
 
@@ -394,6 +395,7 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 
 	item->ri_type  = itype;
 	item->ri_magic = M0_RPC_ITEM_MAGIC;
+	item->ri_ha_epoch = M0_HA_EPOCH_NONE;
 
 	item->ri_resend_interval = m0_time(1, 0);
 	item->ri_nr_sent_max     = ~(uint64_t)0;
