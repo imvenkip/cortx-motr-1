@@ -51,7 +51,6 @@ struct m0_dtm_domain {
 
 struct m0_dtm_domain_cohort {
 	struct m0_dtm_object  dco_object;
-	struct m0_dtm_remote *dco_owner;
 };
 
 M0_INTERNAL int  m0_dtm_domain_init(struct m0_dtm_domain *dom, uint32_t nr);
