@@ -85,6 +85,7 @@ static bool grp_is_locked(const struct m0_sm_group *grp)
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	M0_PRE(ast->sa_cb != NULL);
+	M0_PRE(ast->sa_next == NULL);
 
 	do
 		ast->sa_next = grp->s_forkq;
@@ -106,6 +107,7 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 
 		if (ast == &eoq)
 			break;
+		M0_ASSERT(ast->sa_next != NULL);
 
 		ast->sa_next = NULL;
 		ast->sa_cb(grp, ast);

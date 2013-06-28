@@ -688,7 +688,10 @@ M0_INTERNAL void m0_sm_timeout_fini(struct m0_sm_timeout *to);
 M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to);
 
 /**
-   Posts an AST to a group.
+ * Posts an AST to a group.
+ *
+ * An AST must not be re-posted until its previous (already posted) execution
+ * completes.
  */
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
@@ -799,9 +802,7 @@ M0_INTERNAL void m0_sm_stats_post(struct m0_sm *mach,
 				  struct m0_addb_ctx **cv);
 
 /** @} end of sm group */
-
-/* __MERO_SM_SM_H__ */
-#endif
+#endif /* __MERO_SM_SM_H__ */
 
 /*
  *  Local variables:
