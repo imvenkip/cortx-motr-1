@@ -152,7 +152,7 @@ M0_INTERNAL uint64_t m0_gcd64(uint64_t p, uint64_t q);
 
 static inline bool m0_is_po2(uint64_t val)
 {
-	return !(val & (val - 1));
+	return (val & (val - 1)) == 0;
 }
 
 static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
