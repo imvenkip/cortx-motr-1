@@ -4,6 +4,6 @@ echo 'Resulting ELF image sizes:'
 
 size mero/.libs/libmero{,-altogether}.so mero/m0mero.ko 2>/dev/null \
 | sed -r -e 's/dec/total/' \
-         -e 's#mero/.libs/|mero/linux_kernel/##' \
+         -e 's#mero/.libs/|mero/##' \
 | cut -f5 --complement \
 | column -t
