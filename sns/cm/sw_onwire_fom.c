@@ -82,10 +82,19 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_lo,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_hi,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo);
-		m0_cm_lock(cm);
-		if (m0_cm_is_ready(cm) && (m0_cm_has_more_data(cm) ||
-					   cm->cm_aggr_grps_out_nr > 0)) {
+		/*
+		 * We do this check purposefully outside the cm lock to avoid
+		 * a dead lock situation on the cm lock while stopping the
+		 * operation. We can also afford to check this outside the lock
+		 * for 2 reasons,
+		 * 1) Same request handler locality is assigned to all the
+		 *    sw_onwire FOMs.
+		 * 2) Even if we miss an update, its okay as we'll receive
+		 *    another update shortly.
+		 */
+		if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0) {
 			ep = swo_fop->swo_base.swo_cm_ep.ep;
+			m0_cm_lock(cm);
 			cm_proxy = m0_cm_proxy_locate(cm, ep);
 			M0_ASSERT(cm_proxy != NULL);
 			M0_LOG(M0_DEBUG, "proxy hi: [%lu] [%lu] [%lu] [%lu]",
@@ -99,16 +108,18 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 				m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
 						   &swo_fop->swo_base.swo_sw.sw_hi);
 			}
-			M0_CNT_INC(cm->cm_ready_fops_recvd);
-			M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
-					 swo_fop->swo_base.swo_cm_ep.ep,
-					 (int)cm->cm_ready_fops_recvd,
-					 (int)m0_cm_proxy_nr(cm));
-			/* This check is for the READY phase completion only. */
-			if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr)
-				cm->cm_ops->cmo_complete(cm);
+			m0_cm_unlock(cm);
 		}
-		m0_cm_unlock(cm);
+		M0_CNT_INC(cm->cm_ready_fops_recvd);
+		M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
+				 swo_fop->swo_base.swo_cm_ep.ep,
+				 (int)cm->cm_ready_fops_recvd,
+				 (int)cm->cm_proxy_nr);
+		/* This check is for the READY phase completion only. */
+		if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr) {
+			M0_LOG(M0_DEBUG, "Ready done");
+			cm->cm_ops->cmo_complete(cm);
+		}
 		m0_fom_phase_set(fom, SWOPH_FINI);
 		break;
 	default:

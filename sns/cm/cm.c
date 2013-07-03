@@ -618,7 +618,6 @@ static int cm_start(struct m0_cm *cm)
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
 	state = pm_state(scm);
-	//m0_cm_continue(cm);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
 		rc = pm_event_setup_and_post(dbenv, cm->cm_pm,
 					     M0_POOL_DEVICE,
@@ -804,19 +803,20 @@ M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
 	uint32_t                  res_bufs;
 	uint64_t                  nr_acc_bufs;
 	uint64_t                  nr_incoming;
-	uint32_t                  dpupg;
+	uint32_t                  total_units;
 	uint32_t                  actual_freed = 0;
 
 	pl = m0_layout_to_pdl(ag->cag_layout);
 	scm = cm2sns(cm);
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
+	total_units = m0_sns_cm_ag_total_units(scm, pl);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
-	nr_incoming = dpupg - ag->cag_cp_local_nr;
+	nr_incoming = total_units - ag->cag_cp_local_nr;
 	res_bufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
 	if (res_bufs >= ag->cag_freed_cp_nr)
-		actual_freed = res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr - ag->cag_cp_local_nr));
+		actual_freed = res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr -
+							 ag->cag_cp_local_nr));
 	if (actual_freed > 0)
 		scm->sc_ibp_reserved_nr -= actual_freed;
 }
@@ -833,24 +833,24 @@ M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
 M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 				     struct m0_pdclust_layout *pl)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_fid             gfid;
-	uint64_t                  group;
-	uint64_t                  nr_cp_bufs;
-	uint64_t                  total_inbufs;
-	uint64_t                  cp_data_seg_nr;
-	uint64_t                  nr_acc_bufs;
-	uint64_t                  nr_incoming;
-	uint64_t                  nr_lu;
-	uint32_t                  dpupg;
-	bool                      result = false;
+	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_fid     gfid;
+	uint64_t          group;
+	uint64_t          nr_cp_bufs;
+	uint64_t          total_inbufs;
+	uint64_t          cp_data_seg_nr;
+	uint64_t          nr_acc_bufs;
+	uint64_t          nr_incoming;
+	uint64_t          nr_lu;
+	uint32_t          total_units;
+	bool              result = false;
 
 	M0_PRE(cm != NULL && id != NULL && pl != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &gfid);
 	group = agid2group(id);
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
+	total_units = m0_sns_cm_ag_total_units(scm, pl);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	/*
 	 * Calculate number of buffers required for a copy packet.
@@ -861,8 +861,9 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
 	/* Calculate number of incoming copy packets for this aggregation group. */
 	nr_lu = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
-	nr_incoming = dpupg - nr_lu;
-	M0_ASSERT(nr_incoming <= dpupg);
+	nr_incoming = total_units - nr_lu;
+	M0_LOG(M0_DEBUG, "nr_incoming: %lu", nr_incoming);
+	M0_ASSERT(nr_incoming <= total_units);
 	/*
 	 * Calculate total number of buffers required to be available for all
 	 * the incoming copy packets of this aggregation group.

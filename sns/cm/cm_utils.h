@@ -80,6 +80,10 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(struct m0_sns_cm *scm,
 						  struct m0_pdclust_layout *pl);
 
+M0_INTERNAL uint32_t m0_sns_cm_ag_total_units(const struct m0_sns_cm *scm,
+					      const struct m0_pdclust_layout
+					      *pl);
+
 /**
  * Builds layout instance for new GOB fid calculated in ITPH_FID_NEXT phase.
  * @see iter_fid_next()
@@ -157,6 +161,14 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 					  struct m0_pdclust_layout *pl,
 					  const struct m0_cm_ag_id *id);
+
+M0_INTERNAL bool m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
+					       uint64_t nr_cps_fini);
+
+M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag);
+
+M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
+						  int acc_idx);
 
 /** @} endgroup SNSCM */
 

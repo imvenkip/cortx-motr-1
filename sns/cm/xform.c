@@ -169,6 +169,7 @@ static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
  * Checks if the bitmap of resultant copy packet is full, i.e. bits
  * corresponding to all copy packets in an aggregation group are set.
  */
+/*
 static bool res_cp_bitmap_is_full(struct m0_cm_cp *cp, uint64_t fnr)
 {
 	int      i;
@@ -183,6 +184,7 @@ static bool res_cp_bitmap_is_full(struct m0_cm_cp *cp, uint64_t fnr)
 	return xform_cnt == cp->c_ag->cag_cp_global_nr - fnr ?
 			    true : false;
 }
+*/
 
 /** Merges the source bitmap to the destination bitmap. */
 static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
@@ -292,7 +294,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		if ((rc = m0_sns_cm_cob_is_local(
 					&sns_ag->sag_fc[i].fc_tgt_cobfid,
 					dbenv, cdom)) == 0) {
-			if (res_cp_bitmap_is_full(res_cp, sns_ag->sag_fnr)) {
+			if (m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
 				rc = res_cp_enqueue(res_cp);
 				if (rc != 0)
 					goto out;

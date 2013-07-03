@@ -255,7 +255,6 @@ static uint64_t ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 
 static bool ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
 	struct m0_sns_cm_cp *scp = cp2snscp(cp);
         uint64_t             nr_cps;
 
@@ -265,10 +264,10 @@ static bool ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
 		/* Check if this is local accumulator. */
 		if (!scp->sc_is_acc)
 			return false;
-                nr_cps = m0_cm_cp_nr(cp);
-                return nr_cps == ag->cag_cp_global_nr - sag->sag_fnr;
+		nr_cps = m0_cm_cp_nr(cp);
+		return m0_sns_cm_ag_relevant_is_done(ag, nr_cps);
         } else
-		return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
+		return m0_sns_cm_ag_local_is_done(ag);
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_ag_ops = {
@@ -343,6 +342,7 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      &sns_cm_ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(scm, pl);
+	/* Set the target cob fid of accumulators for this aggregation group. */
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, pl);
 	if (rc != 0)
 		goto cleanup_ag;

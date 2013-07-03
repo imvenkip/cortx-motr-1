@@ -310,6 +310,7 @@ M0_INTERNAL void m0_cm_type_deregister(struct m0_cm_type *cmt);
  * replica.
  */
 M0_INTERNAL void m0_cm_lock(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_trylock(struct m0_cm *cm);
 
 /** Releases the lock over a copy machine replica. */
 M0_INTERNAL void m0_cm_unlock(struct m0_cm *cm);
@@ -356,6 +357,7 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm);
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 
 M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm);
+M0_INTERNAL bool m0_cm_is_active(struct m0_cm *cm);
 
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"

@@ -206,7 +206,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_mutex_unlock(&scm->sc_wait_mutex);
 				m0_fom_phase_set(fom, TPH_START_WAIT);
 				rc = M0_FSO_AGAIN;
-				M0_LOG(M0_DEBUG, "got trigger: ready done");
+				M0_LOG(M0_FATAL, "got trigger: ready done");
 				break;
 			case TPH_START_WAIT:
 				m0_mutex_lock(&scm->sc_wait_mutex);
@@ -217,7 +217,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				M0_ASSERT(rc == 0);
 				m0_fom_phase_set(fom, TPH_STOP_WAIT);
 				rc = M0_FSO_WAIT;
-				M0_LOG(M0_DEBUG, "got trigger: start done");
+				M0_LOG(M0_FATAL, "got trigger: start done");
 				break;
 			case TPH_STOP_WAIT:
 				m0_fom_block_enter(fom);
@@ -234,7 +234,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_fom_block_leave(fom);
 				m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 				rc = M0_FSO_AGAIN;
-				M0_LOG(M0_DEBUG, "got trigger: wait done");
+				M0_LOG(M0_FATAL, "got trigger: wait done");
 				break;
 			default:
 				M0_IMPOSSIBLE("Invalid fop");
