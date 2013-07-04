@@ -2046,7 +2046,9 @@ static int nlx_core_init(void)
 
 	/* Init LNet with same PID as Lustre would use in case we are first. */
 	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
-	M0_ASSERT(rc >= 0);
+	if (rc < 0)
+		return rc;
+
 	m0_mutex_init(&nlx_kcore_mutex);
 	tms_tlist_init(&nlx_kcore_tms);
 
