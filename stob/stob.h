@@ -299,6 +299,15 @@ struct m0_stob_op {
 	   necessary.
 	 */
 	uint32_t (*sop_block_shift)(const struct m0_stob *stob);
+	/**  Returns a bitmask of supported block attributes.  */
+	uint64_t (*sop_battr_supported)(const struct m0_stob *stob);
+	/**
+	   Used to notify stob implementation about the set of block
+	   attributes which are actually used for the stob.
+	 */
+	void (*sop_battr_set)(const struct m0_stob *stob, const uint64_t *mask);
+	/**  Returns the mask of used block attributes. */
+	uint64_t (*sop_battr_get)(const struct m0_stob *stob);
 };
 
 /**
@@ -708,6 +717,19 @@ struct m0_stob_io {
 	uint32_t                    si_stob_magic;
 	/** FOL record part representing operations on storage object. */
 	struct m0_fol_rec_part	   *si_fol_rec_part;
+	/**
+	   A sequence of block attributes.
+	   Each element of this sequence is an array of N 64-bit values, where
+	   N is the number of block attributes used for this stob (i.e., number
+	   of 1-s in binary mask passed to ->sop_battr_set()).
+
+	   For write, elements of this sequence are associated with the
+	   matching written blocks.
+
+	   For read, the sequence is populated with the block attributes of
+	   read blocks.
+	 */
+	struct m0_bufvec si_battr;
 };
 
 struct m0_stob_io_op {

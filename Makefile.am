@@ -158,7 +158,7 @@ mero_libmero_la_CPPFLAGS  = -DM0_TARGET='libmero' $(AM_CPPFLAGS)
 mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
 mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                             @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ \
-			    @UUID_LIBS@
+			    @UUID_LIBS@ @ZLIBS@
 
 # install directory for public libmero headers
 mero_includedir             = $(includedir)/mero
@@ -182,6 +182,7 @@ include $(top_srcdir)/db/Makefile.sub
 include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
+include $(top_srcdir)/file/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/ha/Makefile.sub
@@ -233,6 +234,7 @@ include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
+include $(top_srcdir)/file/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub

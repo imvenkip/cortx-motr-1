@@ -26,8 +26,6 @@
 
 #include "fop/fop.h"
 #include "lib/types.h"
-#include "lib/checksum.h"            /* m0_di_checksum_data */
-#include "lib/checksum_xc.h"
 #include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"
 #include "net/net_otw_types.h"
@@ -36,6 +34,8 @@
 #include "addb/addb_wire_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
+#include "lib/buf.h"
+#include "lib/buf_xc.h"
 
 /**
    @page bulkclient-fspec Functional Specification for fop bulk client.
@@ -407,44 +407,41 @@ struct m0_fop_cob_writev_rep {
  */
 struct m0_fop_cob_rw {
 	/** Client known failure vector version number */
-	struct m0_fv_version       crw_version;
+	struct m0_fv_version      crw_version;
 
 	/**
 	 * File identifier for global file. This is needed during degraded
 	 * mode write IO when SNS repair subsystem is queried for status of
 	 * SNS repair process with respect to this global fid.
 	 */
-	struct m0_fid              crw_gfid;
+	struct m0_fid             crw_gfid;
 
 	/** File identifier of read/write request. */
-	struct m0_fid              crw_fid;
+	struct m0_fid             crw_fid;
 
 	/**
 	 * Net buf descriptors representing the m0_net_buffer containing
 	 * the IO buffers.
 	 */
-	struct m0_io_descs         crw_desc;
+	struct m0_io_descs        crw_desc;
 
 	/**
 	 * Index vectors representing the extent information for the
 	 * IO request.
 	 */
-	struct m0_io_indexvec_seq  crw_ivecs;
+	struct m0_io_indexvec_seq crw_ivecs;
 
 	/**
 	 * ADDB context identifier of the operation
 	 * exported by client and imported by server
 	 */
-	struct m0_addb_uint64_seq  crw_addb_ctx_id;
+	struct m0_addb_uint64_seq crw_addb_ctx_id;
 
 	/** Miscellaneous flags. */
-	uint64_t                   crw_flags;
+	uint64_t                  crw_flags;
 
-	/** Checksum values for the data. */
-	struct m0_di_checksum_data crw_csum_data;
-
-	/** Tag for each block. */
-	struct m0_di_tag	   crw_tag;
+	/** Checksum and tag values for the input data blocks. */
+	struct m0_buf		  crw_di_data;
 } M0_XCA_RECORD;
 
 /**

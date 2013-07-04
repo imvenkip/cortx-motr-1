@@ -39,7 +39,7 @@
 #include "ioservice/io_device.h"
 #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
-#include "rm/file.h"
+#include "file/file.h"
 #include "lib/hash.h"	    /* m0_htable */
 
 #include "m0t1fs/linux_kernel/file_internal.h"

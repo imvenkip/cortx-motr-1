@@ -43,7 +43,7 @@
 #include "rm/rm_service.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
-#include "rm/file.h"
+#include "file/file.h"
 
 M0_TL_DESCR_DEFINE(rmsvc_owner, "RM Service Owners", static, struct m0_rm_owner,
 		   ro_owner_linkage, ro_magix,

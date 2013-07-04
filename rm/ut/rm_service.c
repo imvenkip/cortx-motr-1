@@ -21,7 +21,7 @@
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_service.h"
-#include "rm/file.h"
+#include "file/file.h"
 #include "rm/ut/rmut.h"
 #include "rpc/rpclib.h"
 #include "ut/cs_service.h"
@@ -103,7 +103,7 @@ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
 	int                    rc;
 	struct m0_rm_incoming  in;
 
-	m0_file_init(file, fid, &rm_test_data.rd_dom);
+	m0_file_init(file, fid, &rm_test_data.rd_dom, 0);
 	m0_file_owner_init(owner, &m0_rm_no_group, file, NULL);
 	owner->ro_creditor = creditor;
 	m0_file_lock(owner, &in);

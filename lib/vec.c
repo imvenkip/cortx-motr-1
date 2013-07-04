@@ -85,7 +85,7 @@ static void m0_vec_cursor_normalize(struct m0_vec_cursor *cur)
 }
 
 M0_INTERNAL void m0_vec_cursor_init(struct m0_vec_cursor *cur,
-				    struct m0_vec *vec)
+				    const struct m0_vec *vec)
 {
 	cur->vc_vec    = vec;
 	cur->vc_seg    = 0;
@@ -404,7 +404,7 @@ M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec)
 }
 
 M0_INTERNAL void m0_bufvec_cursor_init(struct m0_bufvec_cursor *cur,
-				       struct m0_bufvec *bvec)
+				       const struct m0_bufvec *bvec)
 {
 	M0_PRE(cur != NULL);
 	M0_PRE(bvec != NULL &&

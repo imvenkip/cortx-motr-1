@@ -101,7 +101,7 @@ struct m0_vec_cursor {
    Cursor requires no special finalisation.
  */
 M0_INTERNAL void m0_vec_cursor_init(struct m0_vec_cursor *cur,
-				    struct m0_vec *vec);
+				    const struct m0_vec *vec);
 
 /**
    Move cursor count bytes further through the vector.
@@ -293,7 +293,7 @@ struct m0_bufvec_cursor {
    @param bvec Pointer to the struct m0_bufvec.
  */
 M0_INTERNAL void m0_bufvec_cursor_init(struct m0_bufvec_cursor *cur,
-				       struct m0_bufvec *bvec);
+				       const struct m0_bufvec *bvec);
 
 /**
    Advance the cursor "count" bytes further through the buffer vector.

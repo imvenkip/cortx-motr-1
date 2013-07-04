@@ -41,7 +41,7 @@
 #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "m0t1fs/m0t1fs_addb.h"
-#include "rm/file.h"
+#include "file/file.h"		  /* m0_file */
 
 /**
   @defgroup m0t1fs m0t1fs

@@ -111,7 +111,8 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 
 	rdom = m0t1fs_rmsvc_domain_get();
 	M0_ASSERT(rdom != NULL);
-	m0_file_init(&ci->ci_flock, fid, rdom);
+	/* @todo Get di type from configuration. */
+	m0_file_init(&ci->ci_flock, fid, rdom, M0_DI_CRC32_4K);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_no_group,
 			   &ci->ci_flock, NULL);

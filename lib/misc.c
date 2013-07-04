@@ -246,6 +246,33 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
 M0_INTERNAL const char *m0_failed_condition;
 M0_EXPORTED(m0_failed_condition);
 
+M0_INTERNAL uint32_t m0_start_of_bit_set(const uint64_t mask)
+{
+	uint32_t pos = 0;
+	uint64_t val = mask;
+
+	while (val != 0) {
+		if (val & 1)
+			break;
+		val = val >> 1;
+		pos++;
+	}
+	return pos;
+}
+
+M0_INTERNAL uint32_t m0_no_of_bits_set(const uint64_t mask)
+{
+	uint32_t count = 0;
+	uint64_t val = mask;
+
+	while (val != 0) {
+		if (val & 1)
+			count++;
+		val = val >> 1;
+	}
+	return count;
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

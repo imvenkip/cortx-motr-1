@@ -212,7 +212,7 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
   M0_TRACE_SUBSYS(CM,         8) \
   M0_TRACE_SUBSYS(COB,        9) \
   M0_TRACE_SUBSYS(CONF,      10) \
-  M0_TRACE_SUBSYS(DTM ,      11) \
+  M0_TRACE_SUBSYS(DTM,       11) \
   M0_TRACE_SUBSYS(EXTMAP,    12) \
   M0_TRACE_SUBSYS(FOP,       13) \
   M0_TRACE_SUBSYS(FORMATION, 14) \
@@ -231,7 +231,8 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
   M0_TRACE_SUBSYS(SNS,       27) \
   M0_TRACE_SUBSYS(SNSCM,     28) \
   M0_TRACE_SUBSYS(STOB,      28) \
-  M0_TRACE_SUBSYS(STATS,     30)
+  M0_TRACE_SUBSYS(STATS,     30) \
+  M0_TRACE_SUBSYS(FILE,      31)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

@@ -14,6 +14,7 @@ Detailed designs, ordered alphabetically by title:
 - @subpage conf "DLD of configuration caching" <!-- conf/obj.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema" <!-- cfg/cfg.h -->
 - @subpage dtm "Distributed transaction manager" <!-- dtm/dtm.h -->
+- @subpage data_integrity "Data integrity using checksum" <!-- lib/checksum.h -->
 - @subpage m0_long_lock-dld "FOM Long lock DLD" <!-- fop/fom_long_lock.h -->
 - <i>I/O Related</i>
   - @subpage DLD-bulk-server "DLD of Bulk Server" <!-- ioservice/io_foms.c -->

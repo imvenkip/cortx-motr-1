@@ -19,14 +19,15 @@
  */
 
 #undef M0_TRACE_SUBSYSTEM
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FILE
+
 #include "lib/trace.h"
+#include "file/file.h"
 #include "lib/arith.h"
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
-
-#include "rm/file.h"
 #include "rm/rm_addb.h"
+#include "file/file.h"
 
 /**
    @page FileLock Distributed File Lock DLD
@@ -465,11 +466,15 @@ static void file_lock_cr_initial_capital(struct m0_rm_credit *self)
  */
 M0_INTERNAL void m0_file_init(struct m0_file      *file,
 			      const struct m0_fid *fid,
-			      struct m0_rm_domain *dom)
+			      struct m0_rm_domain *dom,
+			      enum m0_di_types	   di_type)
 {
 	file->fi_res.r_ops = &file_lock_ops;
 	m0_fid_set(&file->fi_fid, fid->f_container, fid->f_key);
-	m0_rm_resource_add(dom->rd_types[M0_RM_FLOCK_RT], &file->fi_res);
+	if (dom != NULL)
+		m0_rm_resource_add(dom->rd_types[M0_RM_FLOCK_RT],
+				   &file->fi_res);
+	file->fi_di_ops = m0_di_ops_get(di_type);
 }
 M0_EXPORTED(m0_file_init);
 
@@ -478,6 +483,7 @@ M0_INTERNAL void m0_file_fini(struct m0_file *file)
 	m0_fid_set(&file->fi_fid, 0, 0);
 	m0_rm_resource_del(&file->fi_res);
 	file->fi_res.r_ops = NULL;
+	file->fi_di_ops = NULL;
 }
 M0_EXPORTED(m0_file_fini);
 
@@ -549,6 +555,8 @@ M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid)
 M0_EXPORTED(m0_file_lock_resource_is_added);
 
 /** @} end of FileLock */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

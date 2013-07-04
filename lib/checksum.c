@@ -19,107 +19,96 @@
  */
 
 #include "lib/assert.h"
+#include "lib/misc.h"                 /* IS_IN_ARRAY */
 #include "lib/checksum.h"
+#include "lib/crc.c"
 
 /**
-   @addtogroup checksum
+   @addtogroup data_integrity
 
    @{
  */
 
-enum {
-	DATA_BLK_SIZE_512 = 512,
-	DATA_BLK_SIZE_4K  = 4096,
-	CHECKSUM_SIZE_32  = 32,
-	CHECKSUM_SIZE_64  = 64,
-	CHECKSUM_SIZE_128 = 128,
-	CHECKSUM_SIZE_256 = 256,
-};
-
-M0_INTERNAL m0_bcount_t m0_di_data_blocksize(enum m0_di_type di_type)
-{
-	if (di_type == M0_DI_T10)
-		return DATA_BLK_SIZE_512;
-	else
-		return DATA_BLK_SIZE_4K;
-}
-
-static const struct m0_di_checksum_type *ctypes[M0_DI_CHECKSUM_NR];
-
-struct m0_di_checksum_type cksum_none;
+static struct m0_di_checksum_type *ctypes[M0_DI_CHECKSUM_NR];
 
 static m0_bcount_t checksum_none_data_len(void)
 {
-	return CHECKSUM_SIZE_32;
+	return 32;
 }
 
-static int checksum_none_compute(const struct m0_buf *data, uint32_t blk_size,
-				 struct m0_di_checksum *csum)
+static int checksum_none_compute(const struct m0_bufvec *data, uint64_t blk_size,
+				 const uint64_t mask, uint64_t element_size,
+				 const struct m0_bufvec *di_data)
 {
 	return 0;
+}
+
+static bool checksum_none_verify(const struct m0_bufvec *data, uint64_t blk_size,
+				 const uint64_t mask, uint64_t element_size,
+				 const struct m0_bufvec *di_data)
+{
+	/**
+	 * @todo Compute the checksum using checksum_none_compute() and compare
+	 * it with di_data for this checksum type.
+	 **/
+	return true;
 }
 
 const struct m0_di_checksum_type_ops cksum_none_ops = {
 	.checksum_data_len = checksum_none_data_len,
 	.checksum_compute  = checksum_none_compute,
+	.checksum_verify = checksum_none_verify,
 };
 
-M0_DI_CSUM_TYPE_DECLARE(cksum_none, "none", M0_DI_CHECKSUM_NONE,
-			&cksum_none_ops);
+static struct m0_di_checksum_type cksum_none = {
+	.cht_name = "none",
+	.cht_id   = M0_DI_CHECKSUM_NONE,
+	.cht_ops  = &cksum_none_ops,
+};
 
-M0_INTERNAL int m0_di_checksum_type_register(struct m0_di_checksum_type *ct)
+M0_INTERNAL void m0_di_checksum_type_register(struct m0_di_checksum_type *ct)
 {
 	M0_PRE(ct != NULL);
 	M0_PRE(ct->cht_id < M0_DI_CHECKSUM_NR);
+	M0_PRE(ctypes[ct->cht_id] == NULL);
 
 	ctypes[ct->cht_id] = ct;
-	return 0;
 }
 
 M0_INTERNAL void m0_di_checksum_type_deregister(struct m0_di_checksum_type *ct)
 {
 	M0_PRE(ct != NULL);
 	M0_PRE(ct->cht_id < M0_DI_CHECKSUM_NR);
+	M0_PRE(ctypes[ct->cht_id] == ct);
 
 	ctypes[ct->cht_id] = NULL;
 }
 
-M0_INTERNAL const struct m0_di_checksum_type *m0_di_checksum_type_lookup(
+M0_INTERNAL struct m0_di_checksum_type *m0_di_checksum_type_lookup(
 						uint64_t cid)
 {
 	M0_PRE(IS_IN_ARRAY(cid, ctypes));
+
 	return ctypes[cid];
 }
 
-M0_INTERNAL uint64_t m0_di_tag_compute(const struct m0_fid *gfid,
-				       const struct m0_fid *fid,
-				       uint64_t offset)
+M0_INTERNAL int m0_di_checksum_init(void)
 {
-	return NULL;
-}
+	int rc = 0;
 
-M0_INTERNAL bool m0_di_tag_verify(const uint64_t tag, const struct m0_fid *gfid,
-				  const struct m0_fid *fid, uint64_t offset)
-{
-
-	return true;
-}
-
-M0_INTERNAL int m0_data_integrity_init(void)
-{
-	int rc;
-
-	rc = m0_di_checksum_type_register(&cksum_none);
+	m0_di_checksum_type_register(&cksum_none);
+	m0_di_checksum_type_register(&cksum_crc32);
 	/** @todo Also register other checksum algorithm types. */
 	return rc;
 }
 
-M0_INTERNAL void m0_data_integrity_fini(void)
+M0_INTERNAL void m0_di_checksum_fini(void)
 {
 	m0_di_checksum_type_deregister(&cksum_none);
+	m0_di_checksum_type_deregister(&cksum_crc32);
 }
 
-/** @} end of checksum */
+/** @} end of data_integrity */
 
 /*
  *  Local variables:

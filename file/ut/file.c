@@ -31,7 +31,7 @@
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 #include "rm/rm_fops.h"
-#include "rm/file.h"
+#include "file/file.h"
 #include "rm/ut/rmut.h"
 
 /* Import */
@@ -92,7 +92,7 @@ static void fl_res_set(struct rm_ut_data *self)
 	M0_ALLOC_PTR(flock);
 	M0_UT_ASSERT(flock != NULL);
 	m0_fid_set(&fid, 1, 0);
-	m0_file_init(flock, &fid, &self->rd_dom);
+	m0_file_init(flock, &fid, &self->rd_dom, 0);
 	self->rd_res = &flock->fi_res;
 }
 

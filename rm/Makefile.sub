@@ -1,14 +1,12 @@
 nobase_mero_include_HEADERS += rm/rm.h \
 			       rm/rm_fops.h \
 			       rm/rm_foms.h \
-			       rm/file.h \
 			       rm/rm_fops_xc.h \
                                rm/rm_service.h
 
 mero_libmero_la_SOURCES     += rm/rm_fops.c \
 			       rm/rm.c \
 			       rm/rm_foms.c \
-			       rm/file.c \
 			       rm/rm_fops_xc.c \
                                rm/rm_service.c
 

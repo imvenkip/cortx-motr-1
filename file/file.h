@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __MERO_RM_FILE_H__
-#define __MERO_RM_FILE_H__
+#ifndef __MERO_FILE_H__
+#define __MERO_FILE_H__
 
 #include "lib/errno.h"
 #include "lib/misc.h"
@@ -29,6 +29,7 @@
 #include "fid/fid.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
+#include "file/di.h"
 
 /**
    @page FileLock Distributed File Lock DLD
@@ -44,7 +45,8 @@
 
    The distributed mutex will have the following data structure:
    - m0_file
-     This holds generic RM resource, and fid.
+     This holds generic RM resource, fid and data-integrity operations
+     supported for this file.
 
    @section FileLockDLD-fspec-sub Subroutines
 
@@ -75,11 +77,14 @@
 
 /** Distributed file lock */
 struct m0_file {
-	/** Id of the resource (i.e. fid) for which mutex is created */
-	struct m0_fid         fi_fid;
+	/** Id of the resource (i.e., fid) for which mutex is created */
+	struct m0_fid           fi_fid;
 
 	/** Embed RM resource */
-	struct m0_rm_resource fi_res;
+	struct m0_rm_resource   fi_res;
+
+	/* Data-integrity operations to be supported for this file. */
+	const struct m0_di_ops *fi_di_ops;
 };
 
 /**
@@ -88,10 +93,12 @@ struct m0_file {
  * @param file - a resource
  * @param fid - fid for the file-lock
  * @param dom - RM domain
+ * @param di_type - di operations to be supported for this file
  */
 M0_INTERNAL void m0_file_init(struct m0_file *file,
 			      const struct m0_fid *fid,
-			      struct m0_rm_domain *dom);
+			      struct m0_rm_domain *dom,
+			      enum m0_di_types	   di_type);
 
 /**
  * Finalises the file-lock resource.
@@ -145,7 +152,7 @@ M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid);
 
 /** @} end of FileLock */
 
-#endif /*  __MERO_RM_FILE_H__ */
+#endif /*  __MERO_FILE_H__ */
 
 /*
  *  Local variables:
