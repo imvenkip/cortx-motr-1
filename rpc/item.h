@@ -72,7 +72,7 @@ enum m0_rpc_item_state {
 	 * on the network.
 	 */
 	M0_RPC_ITEM_ENQUEUED,
-	/*
+	/**
 	 * Deadline of item is expired.
 	 * Item is in one of URGENT_* queues maintained by formation.
 	 * Formation should send the item as early as possible.
