@@ -185,6 +185,7 @@ static int fom_simple_service_allocate(struct m0_reqh_service **out,
 	M0_ALLOC_PTR(service);
 	if (service != NULL)
 		service->rs_ops = &fom_simple_service_ops;
+	*out = service;
 	return service != NULL ? 0 : -ENOMEM;
 }
 
