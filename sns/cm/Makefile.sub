@@ -25,7 +25,9 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
 				  sns/cm/net.c \
 				  sns/cm/sns_cp_onwire.c \
 				  sns/cm/sns_cp_onwire_xc.c \
-                                  sns/cm/cm_utils.c
+                                  sns/cm/cm_utils.c \
+                                  sns/cm/repair_helpers.c \
+                                  sns/cm/rebalance_helpers.c
 
 XC_FILES += sns/cm/sns_cp_onwire_xc.h sns/cm/sw_onwire_fop_xc.h
 

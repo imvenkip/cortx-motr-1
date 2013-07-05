@@ -19,6 +19,7 @@
  */
 
 #include "ioservice/io_service.h"
+#include "ioservice/io_device.h"
 #include "mero/setup.h"
 #include "sns/cm/xform.c"
 #include "sns/cm/ut/cp_common.h"
@@ -208,6 +209,18 @@ static struct m0_fom_ops multiple_cp_fom_ops = {
 	.fo_tick          = dummy_fom_tick,
 	.fo_home_locality = dummy_fom_locality,
 	.fo_addb_init     = dummy_fom_addb_init
+};
+
+static bool dummy_xform_ut_accumulator_is_full(const struct m0_sns_cm_ag *sag,
+					       int xform_cp_nr)
+{
+        uint64_t global_cp_nr = sag->sag_base.cag_cp_global_nr;
+
+        return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
+}
+
+const struct m0_sns_cm_helpers xform_ut_repair_helpers = {
+	.sch_ag_accumulator_is_full = dummy_xform_ut_accumulator_is_full
 };
 
 static void cp_buf_free(struct m0_sns_cm_ag *sag)
@@ -532,6 +545,7 @@ static int xform_init(void)
         M0_ASSERT(cm != NULL);
         scm = cm2sns(cm);
 	scm->sc_it.si_cob_dom = cdom;
+	scm->sc_helpers = &xform_ut_repair_helpers;
 
 	return 0;
 }

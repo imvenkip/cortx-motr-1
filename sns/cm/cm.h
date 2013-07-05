@@ -107,22 +107,94 @@ struct m0_sns_cm_buf_pool {
 	struct m0_mutex           sb_wait_mutex;
 };
 
+/**
+ * SNS copy machine helpers for different operations, viz. sns-repair,
+ * sns-rebalance, etc.
+ */
+struct m0_sns_cm_helpers {
+	/**
+	 * Returns number of total global units for a given aggregation group.
+	 */
+	uint64_t (*sch_ag_nr_global_units)(const struct m0_sns_cm *scm,
+					   const struct m0_pdclust_layout *pl);
+
+	/**
+	 * Returns maximum possible number of aggregation group units to be
+	 * received by this replica.
+	 */
+	uint64_t (*sch_ag_max_incoming_units)(const struct m0_sns_cm *scm,
+					      const struct m0_pdclust_layout
+					      *pl);
+
+	/**
+	 * Returns index of starting unit of the given aggregation group to
+	 * iterate upon.
+	 */
+	uint64_t (*sch_ag_unit_start)(const struct m0_pdclust_layout *pl);
+
+	/**
+	 * Returns index of final unit of the given aggregation group to
+	 * iterate upon.
+	 */
+	uint64_t (*sch_ag_unit_end)(const struct m0_pdclust_layout *pl);
+
+	/**
+	 * Returns index of target unit, viz. spare unit or failed data unit
+	 * within the given aggregation group.
+	 */
+	uint64_t (*sch_ag_target_unit)(struct m0_sns_cm_ag *sag,
+				       struct m0_pdclust_layout *pl,
+				       uint64_t fdata, uint64_t fidx);
+
+	/**
+	 * Returns true iff the given aggregation group has any incoming copy
+	 * packets from other replicas, else false.
+	 */
+	bool     (*sch_ag_is_relevant)(struct m0_sns_cm *scm,
+				       const struct m0_fid *gfid,
+				       uint64_t group,
+				       struct m0_pdclust_layout *pl,
+				       struct m0_pdclust_instance *pi);
+
+	/**
+	 * Returns true if the relevant aggregation group (i.e. aggregation
+	 * group with incoming copy packets.) processing is complete, else
+	 * false.
+	 */
+	bool     (*sch_ag_relevant_is_done)(const struct m0_sns_cm_ag *sag,
+					    uint64_t nr_cps_fini);
+
+	/**
+	 * Returns true if all the necessary copy packets are transformed or
+	 * accumulated into the aggregation group accumulator for a given
+	 * copy machine operation, viz. sns-repair or sns-rebalance.
+	 */
+	bool     (*sch_ag_accumulator_is_full)(const struct m0_sns_cm_ag *sag,
+					       int xform_cp_nr);
+};
+
 struct m0_sns_cm {
-	struct m0_cm		   sc_base;
+	struct m0_cm		        sc_base;
 
 	/** Operation that sns copy machine is going to execute. */
-	enum m0_sns_cm_op          sc_op;
+	enum m0_sns_cm_op               sc_op;
 
-	uint64_t                   sc_failures_nr;
+	/**
+	 * Helper functions implemented with respect to specific sns copy
+	 * machine operation, viz. repair or re-balance.
+	 */
+	const struct m0_sns_cm_helpers *sc_helpers;
+
+	uint64_t                        sc_failures_nr;
 
 	/** SNS copy machine data iterator. */
-	struct m0_sns_cm_iter      sc_it;
+	struct m0_sns_cm_iter           sc_it;
 
 	/**
 	 * Buffer pool for incoming copy packets, this is used by sliding
 	 * window.
 	 */
-	struct m0_sns_cm_buf_pool  sc_ibp;
+	struct m0_sns_cm_buf_pool       sc_ibp;
 
 	/**
 	 * Maintains the reserve count for the buffers from the
@@ -132,10 +204,10 @@ struct m0_sns_cm {
 	 * are available for all the incoming copy packets within the sliding
 	 * window.
 	 */
-	uint64_t                   sc_ibp_reserved_nr;
+	uint64_t                       sc_ibp_reserved_nr;
 
 	/** Buffer pool for outgoing copy packets. */
-	struct m0_sns_cm_buf_pool  sc_obp;
+	struct m0_sns_cm_buf_pool      sc_obp;
 
 	/**
 	 * Channel to wait upon before invoking m0_cm_start()/m0_cm_stop()

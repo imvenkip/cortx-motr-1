@@ -408,6 +408,8 @@ enum {
 
 extern struct m0_net_xprt m0_net_lnet_xprt;
 extern struct m0_cm_type  sns_cmt;
+extern const struct m0_sns_cm_helpers repair_helpers;
+extern const struct m0_sns_cm_helpers rebalance_helpers;
 
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm)
 {
@@ -570,6 +572,8 @@ static int cm_ready(struct m0_cm *cm)
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
+	scm->sc_helpers = scm->sc_op == SNS_REPAIR ? &repair_helpers :
+						     &rebalance_helpers;
 	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
 	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
 		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
@@ -803,16 +807,16 @@ M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
 	uint32_t                  res_bufs;
 	uint64_t                  nr_acc_bufs;
 	uint64_t                  nr_incoming;
-	uint32_t                  total_units;
+	uint32_t                  max_in_units;
 	uint32_t                  actual_freed = 0;
 
 	pl = m0_layout_to_pdl(ag->cag_layout);
 	scm = cm2sns(cm);
-	total_units = m0_sns_cm_ag_total_units(scm, pl);
+	max_in_units = m0_sns_cm_ag_max_incoming_units(scm, pl);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
-	nr_incoming = total_units - ag->cag_cp_local_nr;
+	nr_incoming = max_in_units - ag->cag_cp_local_nr;
 	res_bufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
 	if (res_bufs >= ag->cag_freed_cp_nr)
 		actual_freed = res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr -
@@ -842,7 +846,7 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	uint64_t          nr_acc_bufs;
 	uint64_t          nr_incoming;
 	uint64_t          nr_lu;
-	uint32_t          total_units;
+	uint32_t          max_in_units;
 	bool              result = false;
 
 	M0_PRE(cm != NULL && id != NULL && pl != NULL);
@@ -850,7 +854,7 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 
 	agid2fid(id, &gfid);
 	group = agid2group(id);
-	total_units = m0_sns_cm_ag_total_units(scm, pl);
+	max_in_units = m0_sns_cm_ag_max_incoming_units(scm, pl);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	/*
 	 * Calculate number of buffers required for a copy packet.
@@ -861,9 +865,9 @@ M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id 
 	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
 	/* Calculate number of incoming copy packets for this aggregation group. */
 	nr_lu = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
-	nr_incoming = total_units - nr_lu;
+	nr_incoming = max_in_units - nr_lu;
 	M0_LOG(M0_DEBUG, "nr_incoming: %lu", nr_incoming);
-	M0_ASSERT(nr_incoming <= total_units);
+	M0_ASSERT(nr_incoming <= max_in_units);
 	/*
 	 * Calculate total number of buffers required to be available for all
 	 * the incoming copy packets of this aggregation group.

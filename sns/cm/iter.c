@@ -387,7 +387,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 		if (group_fnr > 0){
 			sfc->sfc_sa.sa_group = group;
 			sfc->sfc_sa.sa_unit =
-				m0_sns_cm_ag_unit_start(scm->sc_op,
+				m0_sns_cm_ag_unit_start(scm,
 							sfc->sfc_pdlayout);
 			iter_phase_set(it, ITPH_COB_NEXT);
 			goto out;
@@ -613,18 +613,23 @@ static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
  */
 M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm *scm;
-	int               rc;
+	struct m0_sns_cm      *scm;
+	struct m0_sns_cm_iter *it;
+	int                    rc;
 	M0_ENTRY("cm = %p, cp = %p", cm, cp);
 
 	M0_PRE(cm != NULL && cp != NULL);
 
 	scm = cm2sns(cm);
-	scm->sc_it.si_cp = cp2snscp(cp);
+	it = &scm->sc_it;
+	it->si_cp = cp2snscp(cp);
 	do {
-		rc = iter_action[iter_phase(&scm->sc_it)](&scm->sc_it);
-		M0_ASSERT(iter_invariant(&scm->sc_it));
+		rc = iter_action[iter_phase(it)](it);
+		M0_ASSERT(iter_invariant(it));
 	} while (rc == 0);
+
+	if (rc == -ENODATA)
+		iter_phase_set(it, ITPH_IDLE);
 
 	M0_RETURN(rc);
 }
@@ -749,7 +754,8 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
-	iter_phase_set(it, ITPH_IDLE);
+	M0_PRE(iter_phase(it) == ITPH_IDLE);
+
 	m0_cob_ns_iter_fini(&it->si_cns_it);
 	layout_fini(it);
 }

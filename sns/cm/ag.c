@@ -92,8 +92,8 @@ static int incr_recover_failure_register(struct m0_sns_cm_ag *sag,
 
 	group = agid2group(&sag->sag_base.cag_id);
         sa.sa_group = group;
-        start = m0_sns_cm_ag_unit_start(scm->sc_op, pl);
-        end = m0_sns_cm_ag_unit_end(scm->sc_op, pl);
+        start = m0_sns_cm_ag_unit_start(scm, pl);
+        end = m0_sns_cm_ag_unit_end(scm, pl);
 
 	for (unit = start; unit < end; ++unit) {
                 M0_SET0(&ta);
@@ -276,6 +276,29 @@ static const struct m0_cm_aggr_group_ops sns_cm_ag_ops = {
 	.cago_local_cp_nr = ag_local_cp_nr
 };
 
+static int sns_cm_ag_failure_ctxs_setup(struct m0_sns_cm_ag *sag,
+					struct m0_pdclust_layout *pl)
+{
+	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
+	uint64_t          tgt_unit;
+	uint64_t          fidx;
+	int               rc = 0;
+
+	for (fidx = 0; fidx < sag->sag_fnr; ++fidx) {
+		tgt_unit = m0_sns_cm_ag_tgt_unit(sag, pl,
+						 scm->sc_it.si_fdata[fidx],
+						 fidx);
+		rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl,
+					       &sag->sag_fc[fidx].fc_tgt_cobfid);
+		if (rc != 0)
+			return rc;
+		sag->sag_fc[fidx].fc_tgt_cob_index =
+				m0_sns_cm_ag_unit2cobindex(sag, tgt_unit, pl);
+	}
+
+	return rc;
+}
+
 M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 				   const struct m0_cm_ag_id *id,
 				   bool has_incoming,
@@ -343,7 +366,7 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 			      &sns_cm_ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(scm, pl);
 	/* Set the target cob fid of accumulators for this aggregation group. */
-	rc = m0_sns_cm_ag_tgt_unit2cob(sag, pl);
+	rc = sns_cm_ag_failure_ctxs_setup(sag, pl);
 	if (rc != 0)
 		goto cleanup_ag;
 
