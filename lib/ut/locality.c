@@ -105,6 +105,7 @@ void test_locality(void)
 	unsigned             i;
 	struct m0_bitmap     online;
 	int                  result;
+	size_t               here;
 
 	m0_mutex_init(&lock);
 	_reqh_init();
@@ -113,13 +114,13 @@ void test_locality(void)
 		ast[i].sa_cb = &_cb0;
 	}
 
-	m0_sm_ast_post(m0_locality_here()->lo_grp, &ast[0]);
+	here = m0_locality_here()->lo_idx;
+	m0_sm_ast_post(m0_locality_get(here)->lo_grp, &ast[0]);
 	m0_semaphore_down(&sem[0]);
 	M0_UT_ASSERT(passed[0]);
 	passed[0] = false;
-	M0_UT_ASSERT(m0_forall(j, ARRAY_SIZE(core),
-			       core[j] == !!(j == m0_processor_id_get())));
-	core[m0_processor_id_get()] = 0;
+	M0_UT_ASSERT(m0_forall(j, ARRAY_SIZE(core), core[j] == !!(j == here)));
+	core[here] = 0;
 
 	for (i = 0; i < NR; ++i)
 		m0_sm_ast_post(m0_locality_get(i)->lo_grp, &ast[i]);
