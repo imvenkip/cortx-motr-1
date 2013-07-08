@@ -81,13 +81,12 @@ M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
         M0_PRE(cm != NULL);
         M0_PRE(m0_cm_is_locked(cm));
 
-        //if (m0_cm_has_more_data(cm)) {
-                if (cm->cm_proxy_nr > 0) {
-			if (m0_cm_is_active(cm) && !m0_cm_ag_id_is_set(&cm->cm_last_saved_sw_hi))
+	if (cm->cm_proxy_nr > 0) {
+		if (m0_cm_is_active(cm) &&
+		    !m0_cm_ag_id_is_set(&cm->cm_last_saved_sw_hi))
 				return rc;
-                        rc = m0_cm_ag_advance(cm);
-		}
-        //}
+		rc = m0_cm_ag_advance(cm);
+	}
 
         M0_LEAVE("rc: %d", rc);
         return rc;
