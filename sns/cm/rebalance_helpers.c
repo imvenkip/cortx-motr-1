@@ -78,7 +78,7 @@ static uint64_t rebalance_ag_target_unit(struct m0_sns_cm_ag *sag,
 			break;
 		}
 	}
-	m0_layout_instance_fini(&pi->pi_base);	
+	m0_layout_instance_fini(&pi->pi_base);
 
 	return tgt_unit;
 }
