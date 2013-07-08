@@ -109,9 +109,6 @@ static const char *trace_print_ctx_str[] = {
 	[M0_TRACE_PCTX_FULL]  = "full",
 };
 
-M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size);
-M0_INTERNAL void m0_arch_trace_fini(void);
-
 M0_INTERNAL int m0_trace_init(void)
 {
 	int rc;

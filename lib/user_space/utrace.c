@@ -82,6 +82,8 @@ static int logbuf_map(uint32_t logbuf_size)
 {
 	char buf[80];
 
+	M0_PRE((logbuf_size % m0_pagesize_get()) == 0);
+
 	sprintf(buf, "m0.trace.%u", (unsigned)getpid());
 	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
 		warn("open(\"%s\")", buf);
@@ -176,7 +178,8 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
-	munmap(m0_logbuf, m0_logbufsize);
+	if (m0_trace_use_mmapped_buffer())
+		munmap(m0_logbuf, m0_logbufsize);
 	close(logfd);
 }
 

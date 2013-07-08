@@ -23,6 +23,10 @@
 #ifndef __MERO_LIB_TRACE_INTERNAL_H__
 #define __MERO_LIB_TRACE_INTERNAL_H__
 
+M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size);
+
+M0_INTERNAL void m0_arch_trace_fini(void);
+
 M0_INTERNAL int
 m0_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 

@@ -40,23 +40,27 @@
  */
 
 static char *trace_immediate_mask;
-module_param(trace_immediate_mask, charp, 0644);
+module_param(trace_immediate_mask, charp, S_IRUGO);
 MODULE_PARM_DESC(trace_immediate_mask,
 		 " a bitmask or comma separated list of subsystem names"
 		 " of what should be printed immediately to console");
 
 static char *trace_level;
-module_param(trace_level, charp, 0644);
+module_param(trace_level, charp, S_IRUGO);
 MODULE_PARM_DESC(trace_level,
 		 " trace level: level[+][,level[+]] where level is one of"
 		 " call|debug|info|notice|warn|error|fatal");
 
 static char *trace_print_context;
-module_param(trace_print_context, charp, 0644);
+module_param(trace_print_context, charp, S_IRUGO);
 MODULE_PARM_DESC(trace_print_context,
 		 " controls whether to display additional trace point"
 		 " info, like subsystem, file, func, etc.; values:"
 		 " none, func, short, full");
+
+static unsigned int trace_buf_size = M0_TRACE_BUFSIZE;
+module_param(trace_buf_size, uint, S_IRUGO);
+MODULE_PARM_DESC(trace_buf_size, "size of trace buffer in bytes");
 
 static struct m0_trace_stats stats;
 
@@ -149,7 +153,7 @@ M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 	vprintk(fmt, args);
 }
 
-M0_INTERNAL int m0_arch_trace_init(void)
+M0_INTERNAL int m0_arch_trace_init(uint32_t default_logbuf_size)
 {
 	int rc;
 
@@ -167,11 +171,21 @@ M0_INTERNAL int m0_arch_trace_init(void)
 	if (rc != 0)
 		return rc;
 
-	m0_logbuf = vmalloc(m0_logbufsize);
-	if (m0_logbuf == NULL)
-		return -ENOMEM;
+	if (trace_buf_size == 0 || !m0_is_po2(trace_buf_size)) {
+		pr_err("mero: incorrect value for trace_buffer_size parameter,"
+		       " it can't be zero and should be a power of 2 value\n");
+		return -EINVAL;
+	}
 
-	pr_info("Mero trace buffer address: 0x%p\n", m0_logbuf);
+	m0_logbuf = vmalloc(trace_buf_size);
+	if (m0_logbuf == NULL) {
+		pr_err("mero: failed to allocate %u bytes for trace buffer\n",
+		       trace_buf_size);
+		return -ENOMEM;
+	}
+	m0_logbufsize = trace_buf_size;
+
+	pr_info("mero: trace buffer address: 0x%p\n", m0_logbuf);
 
 	return 0;
 }
