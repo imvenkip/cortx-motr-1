@@ -53,7 +53,7 @@ M0_TL_DEFINE(ft, static, struct m0_fop_type);
 
 static const char *fop_name(const struct m0_fop *fop)
 {
-	return fop->f_type->ft_name;
+	return fop->f_type != NULL ? fop->f_type->ft_name : "untyped";
 }
 
 static size_t fop_data_size(const struct m0_fop *fop)

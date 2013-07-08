@@ -150,8 +150,7 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 	 */
 	dummy_item = &fop->f_item;
 	dummy_item->ri_stage     = RPC_ITEM_STAGE_PAST_COMMITTED;
-	/* set ri_reply to some value. Doesn't matter what */
-	dummy_item->ri_reply     = dummy_item;
+	dummy_item->ri_reply     = NULL;
 
 	/*
 	 * XXX temporary value for lsn. This will be set to some proper value
@@ -586,7 +585,6 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 		 *     When control reaches this point during testing it might
 		 *     be because of a possible bug. So assert.
 		 */
-		M0_ASSERT(false);
 		M0_RETURN(-EPROTO);
 	}
 	rc = __slot_reply_received(slot, req, reply);

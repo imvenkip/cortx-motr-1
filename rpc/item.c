@@ -427,8 +427,16 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 
 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
 		m0_rpc_item_sm_fini(item);
-
+	if (item->ri_reply != NULL) {
+		m0_rpc_item_put(item->ri_reply);
+		item->ri_reply = NULL;
+	}
+	if (slot_item_tlink_is_in(item))
+		slot_item_tlist_del(item);
+	if (itemq_tlink_is_in(item))
+		m0_rpc_frm_remove_item(item->ri_frm, item);
 	sref->sr_ow = invalid_slot_ref;
+	sref->sr_slot = NULL;
 	slot_item_tlink_fini(item);
         m0_list_link_fini(&item->ri_unbound_link);
 	itemq_tlink_fini(item);
@@ -554,6 +562,7 @@ M0_INTERNAL void m0_rpc_item_sm_fini(struct m0_rpc_item *item)
 	M0_PRE(item != NULL);
 
 	m0_sm_fini(&item->ri_sm);
+	item->ri_sm.sm_state = M0_RPC_ITEM_UNINITIALISED;
 }
 
 M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
@@ -592,6 +601,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	item->ri_error = rc;
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
 	m0_rpc_item_stop_timer(item);
+	/* XXX ->rio_sent() can be called multiple times (due to cancel). */
 	if (m0_rpc_item_is_oneway(item) &&
 	    item->ri_ops != NULL && item->ri_ops->rio_sent != NULL) {
 		item->ri_ops->rio_sent(item);
@@ -626,6 +636,24 @@ int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)
 
 	M0_POST(ergo(rc == 0, item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED));
 	return rc;
+}
+
+void m0_rpc_item_delete(struct m0_rpc_item *item)
+{
+	struct m0_rpc_machine *mach = item->ri_rmachine;
+
+	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
+        m0_rpc_machine_lock(mach);
+	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_WAITING_IN_STREAM);
+	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_SENT);
+
+	if (!M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_FAILED,
+					  M0_RPC_ITEM_REPLIED))) {
+		m0_rpc_item_failed(item, -ECANCELED);
+		item->ri_error = 0;
+	}
+	m0_rpc_item_fini(item);
+        m0_rpc_machine_unlock(mach);
 }
 
 M0_INTERNAL struct m0_rpc_item *sm_to_item(struct m0_sm *mach)

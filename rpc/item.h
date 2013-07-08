@@ -344,6 +344,15 @@ int m0_rpc_item_timedwait(struct m0_rpc_item *item,
  */
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 			       m0_time_t timeout);
+/**
+   Deletes the item from all rpc queues and moves it to
+   M0_RPC_ITEM_UNINITIALISED state. The item can be posted immediately after
+   this function returns. When posted, the item gets new xid and is treated as a
+   completely different item.
+
+   If reply arrives for the original deleted item, it is ignored.
+ */
+void m0_rpc_item_delete(struct m0_rpc_item *item);
 
 /**
    For default implementations of these interfaces for fops
