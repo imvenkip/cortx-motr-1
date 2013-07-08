@@ -401,9 +401,9 @@ struct m0_fol_rec_part {
 	uint64_t			   rp_magic;
 	/**
 	 * As rp_data points to the in-memory record part during encoding,
-	 * rp_data is freed only when rp_flag is equals to M0_BUFVEC_DECODE.
+	 * rp_data is freed only when rp_flag is equals to M0_XCODE_DECODE.
 	 */
-	enum m0_bufvec_what		   rp_flag;
+	enum m0_xcode_what 		   rp_flag;
 };
 
 struct m0_fol_rec_part_type {

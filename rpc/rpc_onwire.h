@@ -89,23 +89,12 @@ struct m0_rpc_item_onwire_header {
 	uint32_t ioh_opcode;
 	/** HA epoch transferred by the item. */
 	uint64_t ioh_ha_epoch;
-
 	uint64_t ioh_magic;
 } M0_XCA_RECORD;
 
-M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
-					  struct m0_bufvec_cursor *cur);
-
-/**
-    Decodes the rpc item header into a bufvec
-    @param ioh RPC item header to be decoded
-    @param cur Current bufvec cursor position
-    @retval 0 (success)
-    @retval -errno  (failure)
-*/
-M0_INTERNAL int m0_rpc_item_header_decode(struct m0_bufvec_cursor *cur,
-					  struct m0_rpc_item_onwire_header
-					  *ioh);
+M0_INTERNAL int m0_rpc_item_header_encdec(struct m0_rpc_item_onwire_header *ioh,
+					  struct m0_bufvec_cursor *cur,
+					  enum m0_xcode_what what);
 
 /** @}  End of rpc group */
 

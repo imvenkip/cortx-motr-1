@@ -227,7 +227,7 @@ static int stobsink_mock_stob_io_launch(struct m0_stob_io *io)
 	addr = m0_stob_addr_open(io->si_user.ov_buf[0], bshift);
 	count = io->si_user.ov_vec.v_count[0] << bshift;
 	m0_bufvec_cursor_init(&cur, &out);
-	io->si_rc = stobsink_header_encdec(&head, &cur, M0_BUFVEC_ENCODE);
+	io->si_rc = stobsink_header_encdec(&head, &cur, M0_XCODE_ENCODE);
 	M0_UT_ASSERT(io->si_rc == 0);
 
 	if (nr == 0)
@@ -440,11 +440,11 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 		m0_bufvec_cursor_init(&cur, &pb->spb_buf);
 		eob = m0_bufvec_cursor_move(&cur, trl_offset);
 		M0_UT_ASSERT(!eob);
-		rc = stobsink_trailer_encdec(&trl, &cur, M0_BUFVEC_DECODE);
+		rc = stobsink_trailer_encdec(&trl, &cur, M0_XCODE_DECODE);
 		M0_UT_ASSERT(rc == 0);
 
 		m0_bufvec_cursor_init(&cur, &pb->spb_buf);
-		rc = stobsink_header_encdec(&head, &cur, M0_BUFVEC_DECODE);
+		rc = stobsink_header_encdec(&head, &cur, M0_XCODE_DECODE);
 		M0_UT_ASSERT(rc == 0); /* fail iff short buffer */
 		M0_UT_ASSERT(head.sh_seq_nr != 0);
 		M0_UT_ASSERT(head.sh_ver_nr == STOBSINK_XCODE_VER_NR);
@@ -454,7 +454,7 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 
 		for (j = 0; j < trl.st_rec_nr; ++j) {
 			r = NULL;
-			rc = addb_rec_encdec(&r, &cur, M0_BUFVEC_DECODE);
+			rc = addb_rec_encdec(&r, &cur, M0_XCODE_DECODE);
 			M0_UT_ASSERT(rc == 0);
 			M0_UT_ASSERT(r != NULL);
 			if (m0_addb_rec_is_ctx(r)) {

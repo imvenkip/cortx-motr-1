@@ -74,7 +74,7 @@ M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item);
 
 M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 				   struct m0_bufvec_cursor *cur,
-				   enum m0_bufvec_what what);
+				   enum m0_xcode_what  what);
 
 void m0_fop_item_get(struct m0_rpc_item *item);
 void m0_fop_item_put(struct m0_rpc_item *item);

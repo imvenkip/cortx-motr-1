@@ -46,7 +46,7 @@ m0_fop_item_type_default_encode(const struct m0_rpc_item_type *item_type,
 	M0_PRE(item != NULL);
 	M0_PRE(cur != NULL);
 
-	return m0_fop_item_encdec(item, cur, M0_BUFVEC_ENCODE);
+	return m0_fop_item_encdec(item, cur, M0_XCODE_ENCODE);
 }
 
 M0_INTERNAL int
@@ -77,7 +77,7 @@ m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
 
 	m0_fop_init(fop, ftype, NULL, m0_fop_release);
 	item = m0_fop_to_rpc_item(fop);
-	rc = m0_fop_item_encdec(item, cur, M0_BUFVEC_DECODE);
+	rc = m0_fop_item_encdec(item, cur, M0_XCODE_DECODE);
 	if (rc == 0)
 		*item_out = item;
 	else
@@ -92,7 +92,7 @@ m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
 */
 M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 				   struct m0_bufvec_cursor *cur,
-				   enum m0_bufvec_what what)
+				   enum m0_xcode_what what)
 {
 	M0_PRE(item != NULL);
 	M0_PRE(cur != NULL);

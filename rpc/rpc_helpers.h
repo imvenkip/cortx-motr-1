@@ -23,7 +23,7 @@
 #ifndef __MERO_RPC_HELPERS_H__
 #define __MERO_RPC_HELPERS_H__
 
-#include "lib/vec.h"  /* m0_bufvec_what */
+#include "xcode/xcode.h"  /* m0_xcode_what */
 
 struct m0_rpc_slot_ref;
 
@@ -41,7 +41,7 @@ struct m0_rpc_slot_ref;
 M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
 					struct m0_rpc_slot_ref *slot_refs,
 					int nr_slot_refs,
-					enum m0_bufvec_what what);
+					enum m0_xcode_what what);
 
 /** @} */
 

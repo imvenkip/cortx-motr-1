@@ -248,18 +248,12 @@ static m0_bcount_t file_lock_len(const struct m0_rm_resource *resource)
 
 static int file_lock_encdec(struct m0_file *file,
 			    struct m0_bufvec_cursor *cur,
-			    enum m0_bufvec_what what)
+			    enum m0_xcode_what what)
 {
-	struct m0_xcode_obj fidobj;
-	struct m0_xcode_ctx ctx;
-
 	M0_ENTRY();
 	M0_ASSERT(cur != NULL);
-
-	fidobj.xo_type = m0_fid_xc;
-	fidobj.xo_ptr = (void *)&file->fi_fid;
-
-	M0_RETURN(m0_xcode_encdec(&ctx, &fidobj, cur, what));
+	M0_RETURN(m0_xcode_encdec(&M0_XCODE_OBJ(m0_fid_xc, &file->fi_fid),
+				  cur, what));
 }
 
 /** Encode file_lock - ready to send over the wire */
@@ -273,7 +267,7 @@ static int file_lock_encode(struct m0_bufvec_cursor *cur,
 	M0_PRE(resource != NULL);
 
 	fl = container_of(resource, struct m0_file, fi_res);
-	rc = file_lock_encdec(fl, cur, M0_BUFVEC_ENCODE);
+	rc = file_lock_encdec(fl, cur, M0_XCODE_ENCODE);
 	M0_RETURN(rc);
 }
 
@@ -291,7 +285,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 	if (fl == NULL)
 		M0_RETURN(-ENOMEM);
 
-	rc = file_lock_encdec(fl, cur, M0_BUFVEC_DECODE);
+	rc = file_lock_encdec(fl, cur, M0_XCODE_DECODE);
 	if (rc == 0) {
 		fl->fi_res.r_ops = &file_lock_ops;
 		/*
@@ -414,31 +408,26 @@ static bool file_lock_cr_is_subset(const struct m0_rm_credit *self,
 
 static int file_lock_cr_encdec(struct m0_rm_credit *self,
 			       struct m0_bufvec_cursor *cur,
-			       enum m0_bufvec_what what)
+			       enum m0_xcode_what what)
 {
-	struct m0_xcode_obj datumobj;
-	struct m0_xcode_ctx ctx;
-
 	M0_ENTRY();
 	M0_ASSERT(cur != NULL);
-
-	datumobj.xo_type = &M0_XT_U64;
-	datumobj.xo_ptr = (void *)&self->cr_datum;
-	M0_RETURN(m0_xcode_encdec(&ctx, &datumobj, cur, what));
+	M0_RETURN(m0_xcode_encdec(&M0_XCODE_OBJ(&M0_XT_U64, &self->cr_datum),
+				  cur, what));
 }
 
 static int file_lock_cr_encode(struct m0_rm_credit *self,
 			       struct m0_bufvec_cursor *cur)
 {
 	M0_PRE(file_lock_credit_invariant(self));
-	return file_lock_cr_encdec(self, cur, M0_BUFVEC_ENCODE);
+	return file_lock_cr_encdec(self, cur, M0_XCODE_ENCODE);
 }
 
 static int file_lock_cr_decode(struct m0_rm_credit *self,
 			       struct m0_bufvec_cursor *cur)
 {
 	//M0_PRE(self->cr_datum == 0);
-	return file_lock_cr_encdec(self, cur, M0_BUFVEC_DECODE);
+	return file_lock_cr_encdec(self, cur, M0_XCODE_DECODE);
 }
 
 static void file_lock_cr_free(struct m0_rm_credit *self)

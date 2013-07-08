@@ -470,7 +470,7 @@ static bool stobsink_invariant(const struct stobsink *sink)
  */
 static int stobsink_header_encdec(struct m0_addb_seg_header *hdr,
 				  struct m0_bufvec_cursor   *cur,
-				  enum m0_bufvec_what        what)
+				  enum m0_xcode_what         what)
 {
 	struct m0_xcode_ctx ctx;
 	struct m0_xcode_obj obj = {
@@ -496,7 +496,7 @@ static int stobsink_header_encdec(struct m0_addb_seg_header *hdr,
  */
 static int stobsink_trailer_encdec(struct m0_addb_seg_trailer *trl,
 				   struct m0_bufvec_cursor    *cur,
-				   enum m0_bufvec_what         what)
+				   enum m0_xcode_what          what)
 {
 	struct m0_xcode_ctx ctx;
 	struct m0_xcode_obj obj = {
@@ -574,7 +574,7 @@ static int stobsink_header_read(struct stobsink *sink,
 			} else {
 				m0_bufvec_cursor_init(&cur, &pb->spb_buf);
 				rc = stobsink_header_encdec(header, &cur,
-							    M0_BUFVEC_DECODE);
+							    M0_XCODE_DECODE);
 				M0_ASSERT(rc == 0); /* fail iff short buffer */
 				/* AD stob returns zero filled block at EOF */
 				if (header->sh_seq_nr == 0 &&
@@ -793,7 +793,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	head.sh_seq_nr = sink->ss_seq_nr;
 	head.sh_ver_nr = STOBSINK_XCODE_VER_NR;
 	head.sh_segsize = sink->ss_segsize;
-	rc = stobsink_header_encdec(&head, &cur, M0_BUFVEC_ENCODE);
+	rc = stobsink_header_encdec(&head, &cur, M0_XCODE_ENCODE);
 	M0_ASSERT(rc == 0); /* only fails if not enough space to encode */
 
 	nr = sink->ss_segsize - sizeof head - sizeof trailer;
@@ -802,7 +802,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	trailer.st_seq_nr = sink->ss_seq_nr;
 	trailer.st_rec_nr = record_nr;
 	trailer.st_reserved = 0;
-	rc = stobsink_trailer_encdec(&trailer, &cur, M0_BUFVEC_ENCODE);
+	rc = stobsink_trailer_encdec(&trailer, &cur, M0_XCODE_ENCODE);
 	M0_ASSERT(rc == 0); /* only fails if not enough space to encode */
 	M0_ASSERT(m0_bufvec_cursor_move(&cur, 0));
 	pb->spb_io_iv_index = offset >> sink->ss_bshift;
@@ -1045,7 +1045,7 @@ static void stobsink_save(struct m0_addb_mc *mc, struct m0_addb_rec *rec)
 	if (sink->ss_current->spb_busy)
 		goto ret;
 
-	rc = addb_rec_encdec(&rec, &sink->ss_cur, M0_BUFVEC_ENCODE);
+	rc = addb_rec_encdec(&rec, &sink->ss_cur, M0_XCODE_ENCODE);
 	M0_ASSERT(rc == 0); /* only fails if not enough space to encode */
 	sink->ss_record_nr++;
 ret:

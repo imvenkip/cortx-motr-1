@@ -157,26 +157,22 @@ static void rings_credit_free(struct m0_rm_credit *credit)
 
 static int rings_credit_encdec(struct m0_rm_credit *credit,
 			       struct m0_bufvec_cursor *cur,
-			       enum m0_bufvec_what what)
+			       enum m0_xcode_what what)
 {
-	struct m0_xcode_obj datumobj;
-	struct m0_xcode_ctx ctx;
-
-	datumobj.xo_type = &M0_XT_U64;
-	datumobj.xo_ptr = (void *)&credit->cr_datum;
-	return m0_xcode_encdec(&ctx, &datumobj, cur, what);
+	return m0_xcode_encdec(&M0_XCODE_OBJ(&M0_XT_U64, &credit->cr_datum),
+			       cur, what);
 }
 
 static int rings_credit_encode(struct m0_rm_credit     *credit,
 			       struct m0_bufvec_cursor *cur)
 {
-	return rings_credit_encdec(credit, cur, M0_BUFVEC_ENCODE);
+	return rings_credit_encdec(credit, cur, M0_XCODE_ENCODE);
 }
 
 static int rings_credit_decode(struct m0_rm_credit *credit,
 			       struct m0_bufvec_cursor *cur)
 {
-	return rings_credit_encdec(credit, cur, M0_BUFVEC_DECODE);
+	return rings_credit_encdec(credit, cur, M0_XCODE_DECODE);
 }
 
 static int rings_credit_copy(struct m0_rm_credit       *dest,

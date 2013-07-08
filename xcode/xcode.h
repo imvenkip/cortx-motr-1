@@ -547,14 +547,18 @@ M0_INTERNAL int m0_xcode_encode(struct m0_xcode_ctx *ctx);
 /** Calculates the length of serialized representation. */
 M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx);
 
+enum m0_xcode_what {
+	M0_XCODE_ENCODE = 0,
+	M0_XCODE_DECODE = 1,
+};
+
 /**
     Initializes xcode context and encodes or decodes the xcode
     object in the cursor based on what value.
  */
-M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_ctx *ctx,
-				struct m0_xcode_obj *obj,
+M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,
-				enum m0_bufvec_what what);
+				enum m0_xcode_what  what);
 
 /** Initializes xcode context and returns the length of xcode object. */
 M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *ctx,

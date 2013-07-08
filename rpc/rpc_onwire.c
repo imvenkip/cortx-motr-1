@@ -36,88 +36,26 @@
 #define ITEM_HEAD_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
 #define SLOT_REF_XCODE_OBJ(ptr)  M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
 
-M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
-					  struct m0_bufvec_cursor *cur)
+M0_INTERNAL int m0_rpc_item_header_encdec(struct m0_rpc_item_onwire_header *ioh,
+					  struct m0_bufvec_cursor *cur,
+					  enum m0_xcode_what what)
 {
-	struct m0_xcode_ctx ctx;
-	int                 rc;
-
 	M0_ENTRY("item header: %p", ioh);
-	M0_PRE(cur != NULL);
-	M0_PRE(ioh != NULL);
-
-	m0_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(ioh));
-	ctx.xcx_buf   = *cur;
-	rc = m0_xcode_encode(&ctx);
-	if (rc == 0)
-		*cur = ctx.xcx_buf;
-	M0_RETURN(rc);
+	M0_RETURN(m0_xcode_encdec(&ITEM_HEAD_XCODE_OBJ(ioh), cur, what));
 }
 
-M0_INTERNAL int m0_rpc_item_header_decode(struct m0_bufvec_cursor *cur,
-					  struct m0_rpc_item_onwire_header *ioh)
+static int slot_ref_encdec(struct m0_rpc_onwire_slot_ref *osr,
+			   struct m0_bufvec_cursor       *cur,
+			   enum m0_xcode_what             what)
 {
-	struct m0_xcode_ctx ctx;
-	int                 rc;
-
-	M0_ENTRY();
-	M0_PRE(cur != NULL);
-	M0_PRE(ioh != NULL);
-
-	m0_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(NULL));
-	ctx.xcx_buf   = *cur;
-	ctx.xcx_alloc = m0_xcode_alloc;
-	rc = m0_xcode_decode(&ctx);
-	if (rc == 0) {
-		struct m0_rpc_item_onwire_header *ioh_decoded;
-
-		ioh_decoded = m0_xcode_ctx_top(&ctx);
-		*ioh = *ioh_decoded;
-		m0_xcode_free(&ITEM_HEAD_XCODE_OBJ(ioh_decoded));
-		*cur = ctx.xcx_buf;
-	}
-	M0_RETURN(rc);
+	M0_RETURN(m0_xcode_encdec(&SLOT_REF_XCODE_OBJ(osr), cur, what));
 }
 
-static int slot_ref_encode(struct m0_rpc_onwire_slot_ref *osr,
-			   struct m0_bufvec_cursor       *cur)
-
-{
-	struct m0_xcode_ctx ctx;
-	int                 rc;
-
-	M0_ENTRY();
-	m0_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(osr));
-	ctx.xcx_buf = *cur;
-	rc = m0_xcode_encode(&ctx);
-	*cur = ctx.xcx_buf;
-	M0_RETURN(rc);
-}
-
-static int slot_ref_decode(struct m0_bufvec_cursor       *cur,
-			   struct m0_rpc_onwire_slot_ref *osr)
-{
-	struct m0_xcode_ctx ctx;
-	int                 rc;
-
-	M0_ENTRY();
-	m0_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(NULL));
-	ctx.xcx_buf   = *cur;
-	ctx.xcx_alloc = m0_xcode_alloc;
-	rc = m0_xcode_decode(&ctx);
-	if (rc == 0) {
-		struct m0_rpc_onwire_slot_ref *osr_top = m0_xcode_ctx_top(&ctx);
-		*osr = *osr_top;
-		m0_xcode_free(&SLOT_REF_XCODE_OBJ(osr_top));
-	}
-	*cur = ctx.xcx_buf;
-	M0_RETURN(rc);
-}
 
 M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
 					struct m0_rpc_slot_ref *slot_refs,
 					int nr_slot_refs,
-					enum m0_bufvec_what what)
+					enum m0_xcode_what what)
 {
 	int i;
 	int rc = 0;
@@ -127,9 +65,7 @@ M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
 	M0_PRE(cur != NULL);
 
 	for (i = 0; i < nr_slot_refs; ++i) {
-		struct m0_rpc_onwire_slot_ref *x = &slot_refs[i].sr_ow;
-		rc = what == M0_BUFVEC_ENCODE ?
-			slot_ref_encode(x, cur) : slot_ref_decode(cur, x);
+		rc = slot_ref_encdec(&slot_refs[i].sr_ow, cur, what);
 		if (rc != 0)
 			break;
 	}

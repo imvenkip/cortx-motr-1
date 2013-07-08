@@ -37,11 +37,9 @@
 
 #define PACKHD_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_packet_onwire_header_xc, ptr)
 
-static int packet_header_encode(struct m0_rpc_packet_onwire_header *ph,
-				struct m0_bufvec_cursor            *cursor);
-
-static int packet_header_decode(struct m0_bufvec_cursor            *cursor,
-				struct m0_rpc_packet_onwire_header *ph);
+static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
+				struct m0_bufvec_cursor            *cursor,
+				enum m0_xcode_what                  what);
 
 static int item_encode(struct m0_rpc_item       *item,
 		       struct m0_bufvec_cursor  *cursor);
@@ -221,7 +219,7 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 	M0_PRE(m0_rpc_packet_invariant(packet) && cursor != NULL);
 	M0_PRE(!m0_rpc_packet_is_empty(packet));
 
-	rc = packet_header_encode(&packet->rp_ow, cursor);
+	rc = packet_header_encdec(&packet->rp_ow, cursor, M0_XCODE_ENCODE);
 	if (rc == 0) {
 		for_each_item_in_packet(item, packet) {
 			rc = item_encode(item, cursor);
@@ -235,46 +233,13 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 	M0_RETURN(rc);
 }
 
-static int packet_header_encode(struct m0_rpc_packet_onwire_header *ph,
-				struct m0_bufvec_cursor            *cursor)
+static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
+				struct m0_bufvec_cursor            *cursor,
+				enum m0_xcode_what                  what)
 
 {
-	struct m0_xcode_ctx ctx;
-	int                 rc;
-
 	M0_ENTRY();
-
-	m0_xcode_ctx_init(&ctx, &PACKHD_XCODE_OBJ(ph));
-	ctx.xcx_buf = *cursor;
-	rc = m0_xcode_encode(&ctx);
-	if (rc == 0)
-		*cursor = ctx.xcx_buf;
-
-	M0_RETURN(rc);
-}
-
-static int packet_header_decode(struct m0_bufvec_cursor            *cursor,
-				struct m0_rpc_packet_onwire_header *ph)
-{
-	struct m0_xcode_ctx ctx;
-	int                 rc;
-
-	M0_ENTRY();
-	M0_PRE(cursor != NULL && ph != NULL);
-
-	m0_xcode_ctx_init(&ctx, &PACKHD_XCODE_OBJ(NULL));
-	ctx.xcx_buf   = *cursor;
-	ctx.xcx_alloc = m0_xcode_alloc;
-
-	rc = m0_xcode_decode(&ctx);
-	if (rc == 0) {
-		*ph     = *(struct m0_rpc_packet_onwire_header *)
-				m0_xcode_ctx_top(&ctx);
-		*cursor = ctx.xcx_buf;
-		m0_xcode_free(&PACKHD_XCODE_OBJ(m0_xcode_ctx_top(&ctx)));
-	}
-
-	M0_RETURN(rc);
+	M0_RETURN(m0_xcode_encdec(&PACKHD_XCODE_OBJ(ph), cursor, what));
 }
 
 static int item_encode(struct m0_rpc_item       *item,
@@ -308,7 +273,7 @@ static int item_encode(struct m0_rpc_item       *item,
 		.ioh_magic  = M0_RPC_ITEM_MAGIC,
 	};
 
-	rc = m0_rpc_item_header_encode(&ioh, cursor);
+	rc = m0_rpc_item_header_encdec(&ioh, cursor, M0_XCODE_ENCODE);
 	if (rc == 0)
 		rc = item->ri_type->rit_ops->rito_encode(item->ri_type,
 							 item, cursor);
@@ -333,8 +298,8 @@ M0_INTERNAL int m0_rpc_packet_decode(struct m0_rpc_packet *p,
 	m0_bufvec_cursor_move(&cursor, off);
 	M0_ASSERT(M0_IS_8ALIGNED(m0_bufvec_cursor_addr(&cursor)));
 	rc = m0_rpc_packet_decode_using_cursor(p, &cursor, len);
-	M0_ASSERT(m0_bufvec_cursor_move(&cursor, 0) ||
-		  M0_IS_8ALIGNED(m0_bufvec_cursor_addr(&cursor)));
+	M0_ASSERT(ergo(rc == 0, m0_bufvec_cursor_move(&cursor, 0) ||
+		       M0_IS_8ALIGNED(m0_bufvec_cursor_addr(&cursor))));
 	M0_RETURN(rc);
 }
 
@@ -350,7 +315,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 	M0_ENTRY();
 	M0_PRE(m0_rpc_packet_invariant(p) && cursor != NULL);
 
-	rc = packet_header_decode(cursor, &poh);
+	rc = packet_header_encdec(&poh, cursor, M0_XCODE_DECODE);
 	if (rc != 0)
 		M0_RETURN(rc);
 	if (poh.poh_version != M0_RPC_VERSION_1 || poh.poh_nr_items == 0 ||
@@ -381,7 +346,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 	M0_ENTRY();
 	M0_PRE(cursor != NULL && item_out != NULL);
 
-	rc = m0_rpc_item_header_decode(cursor, &ioh);
+	rc = m0_rpc_item_header_encdec(&ioh, cursor, M0_XCODE_DECODE);
 	if (rc != 0)
 		M0_RETURN(rc);
 

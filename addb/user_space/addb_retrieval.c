@@ -224,7 +224,7 @@ static int addb_segsize_decode(struct m0_bufvec *buf)
 	int                       rc;
 
 	m0_bufvec_cursor_init(&cur, buf);
-	rc = stobsink_header_encdec(&header, &cur, M0_BUFVEC_DECODE);
+	rc = stobsink_header_encdec(&header, &cur, M0_XCODE_DECODE);
 	M0_ASSERT(rc == 0); /* fail iff short buffer */
 
 	/* AD stob returns zero filled block at EOF */
@@ -367,7 +367,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		}
 		m0_bufvec_cursor_init(cur, &si->ssi_tbuf);
 		m0_bufvec_cursor_move(cur, si->ssi_trlsize - sizeof trailer);
-		rc = stobsink_trailer_encdec(&trailer, cur, M0_BUFVEC_DECODE);
+		rc = stobsink_trailer_encdec(&trailer, cur, M0_XCODE_DECODE);
 		M0_ASSERT(rc == 0); /* fail iff short buffer */
 
 		/* now read the whole segment */
@@ -392,7 +392,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		}
 
 		m0_bufvec_cursor_init(cur, &si->ssi_base.asi_buf);
-		rc = stobsink_header_encdec(&header, cur, M0_BUFVEC_DECODE);
+		rc = stobsink_header_encdec(&header, cur, M0_XCODE_DECODE);
 		M0_ASSERT(rc == 0); /* fail iff short buffer */
 
 		/* AD stob returns zero filled block at EOF */
@@ -508,11 +508,11 @@ static int file_segment_iter_next(struct m0_addb_segment_iter *iter,
 		}
 		m0_bufvec_cursor_init(cur, &fi->fsi_base.asi_buf);
 		m0_bufvec_cursor_move(cur, offset);
-		rc = stobsink_trailer_encdec(&trailer, cur, M0_BUFVEC_DECODE);
+		rc = stobsink_trailer_encdec(&trailer, cur, M0_XCODE_DECODE);
 		M0_ASSERT(rc == 0); /* fail iff short buffer */
 
 		m0_bufvec_cursor_init(cur, &fi->fsi_base.asi_buf);
-		rc = stobsink_header_encdec(&header, cur, M0_BUFVEC_DECODE);
+		rc = stobsink_header_encdec(&header, cur, M0_XCODE_DECODE);
 		M0_ASSERT(rc == 0); /* fail iff short buffer */
 
 		if (header.sh_seq_nr == 0 ||
@@ -622,7 +622,7 @@ static int addb_cursor_next(struct m0_addb_cursor *cur,
 	}
 	if (rc == 0) {
 		rc = addb_rec_encdec(&cur->ac_rec, &cur->ac_cur,
-				     M0_BUFVEC_DECODE);
+				     M0_XCODE_DECODE);
 		if (rc != 0) {
 			addb_cursor_rec_free(cur);
 			cur->ac_rec_nr = 0;

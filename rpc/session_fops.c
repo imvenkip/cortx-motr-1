@@ -83,7 +83,7 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 	m0_fop_init(fop, &m0_rpc_fop_conn_establish_fopt, NULL,
 		    conn_establish_fop_release);
 
-	rc = m0_fop_item_encdec(&fop->f_item, cur, M0_BUFVEC_DECODE);
+	rc = m0_fop_item_encdec(&fop->f_item, cur, M0_XCODE_DECODE);
 	if (rc == 0)
 		*item = &fop->f_item;
 	else

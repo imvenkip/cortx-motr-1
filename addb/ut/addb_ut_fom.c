@@ -92,7 +92,6 @@ fill_global_array_with_last_posted_addb_rec(struct rpcsink *rsink)
 	struct m0_addb_ts_rec_header *rec_header;
 	struct m0_bufvec_cursor       cur;
 	struct m0_addb_ts_rec        *ts_rec;
-	struct m0_xcode_ctx           xctx;
 	struct m0_addb_rec           *rec;
 	struct m0_addb_rec           *out_rec;
 	struct m0_bufvec              bv;
@@ -115,9 +114,8 @@ fill_global_array_with_last_posted_addb_rec(struct rpcsink *rsink)
 	rc = addb_rec_seq_enc(rec, &cur, m0_addb_rec_xc);
 	M0_UT_ASSERT(rc == 0);
 	m0_bufvec_cursor_init(&cur, &bv);
-	rc = m0_xcode_encdec(&xctx, &M0_XCODE_OBJ(m0_addb_rec_xc,
-						  out_rec), &cur,
-			     M0_BUFVEC_DECODE);
+	rc = m0_xcode_encdec(&M0_XCODE_OBJ(m0_addb_rec_xc, out_rec), &cur,
+			     M0_XCODE_DECODE);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(out_rec != NULL);
 	m0_bufvec_free(&bv);

@@ -299,15 +299,15 @@ M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
 
 M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      struct m0_bufvec_cursor *cur,
-			      enum m0_bufvec_what      what)
+			      enum m0_xcode_what       what)
 {
-	int		     rc;
-	struct m0_xcode_ctx  xc_ctx;
+	int                 result;
+	struct m0_xcode_obj xo = M0_FOP_XCODE_OBJ(fop);
 
-	if (what == M0_BUFVEC_DECODE)
-		fop->f_data.fd_data = m0_alloc(fop->f_type->ft_xt->xct_sizeof);
-	rc = m0_xcode_encdec(&xc_ctx, &M0_FOP_XCODE_OBJ(fop), cur, what);
-	return rc;
+	result = m0_xcode_encdec(&xo, cur, what);
+	if (result == 0 && m0_fop_data(fop) == NULL)
+		fop->f_data.fd_data = xo.xo_ptr;
+	return result;
 }
 
 M0_INTERNAL struct m0_fop_type *m0_fop_type_find(uint32_t opcode)

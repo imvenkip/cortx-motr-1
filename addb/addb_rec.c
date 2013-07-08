@@ -20,7 +20,7 @@
 
 /* This file is designed to be included by addb/addb.c */
 
-#include "rpc/rpc_helpers.h" /* enum m0_bufvec_what */
+#include "rpc/rpc_helpers.h" /* m0_xcode_what */
 
 /**
    @addtogroup addb_pvt
@@ -189,8 +189,8 @@ static int addb_rec_seq_enc(void  *rs,
 }
 
 static typeof (m0_xcode_encode) * const addb_encdec_op[] = {
-	[M0_BUFVEC_ENCODE] = m0_xcode_encode,
-	[M0_BUFVEC_DECODE] = m0_xcode_decode,
+	[M0_XCODE_ENCODE] = m0_xcode_encode,
+	[M0_XCODE_DECODE] = m0_xcode_decode,
 };
 
 /**
@@ -202,7 +202,7 @@ static typeof (m0_xcode_encode) * const addb_encdec_op[] = {
  */
 static int addb_rec_encdec(struct m0_addb_rec     **rec,
 			   struct m0_bufvec_cursor *cur,
-			   enum m0_bufvec_what      what)
+			   enum m0_xcode_what       what)
 {
 	struct m0_xcode_ctx ctx;
 	struct m0_xcode_obj obj = {
@@ -211,7 +211,7 @@ static int addb_rec_encdec(struct m0_addb_rec     **rec,
 	int                 rc;
 
 	M0_PRE(rec != NULL && cur != NULL);
-	M0_PRE(ergo(what == M0_BUFVEC_ENCODE, *rec != NULL));
+	M0_PRE(ergo(what == M0_XCODE_ENCODE, *rec != NULL));
 
 	obj.xo_ptr = *rec;
 	m0_xcode_ctx_init(&ctx, &obj);
@@ -220,7 +220,7 @@ static int addb_rec_encdec(struct m0_addb_rec     **rec,
 
 	rc = addb_encdec_op[what](&ctx);
 	if (rc == 0) {
-		if (what == M0_BUFVEC_DECODE)
+		if (what == M0_XCODE_DECODE)
 			*rec = m0_xcode_ctx_top(&ctx);
 		*cur = ctx.xcx_buf;
 	}

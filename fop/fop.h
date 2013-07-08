@@ -319,7 +319,7 @@ M0_INTERNAL void m0_fops_fini(void);
 
 M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 			      struct m0_bufvec_cursor *cur,
-			      enum m0_bufvec_what      what);
+			      enum m0_xcode_what       what);
 
 M0_INTERNAL int m0_fop_xc_type(const struct m0_xcode_obj   *par,
 			       const struct m0_xcode_type **out);

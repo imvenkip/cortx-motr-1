@@ -219,7 +219,7 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
 	size_t                nob = 0;
 	void                **slot;
 
-	obj  = &m0_xcode_cursor_top(it)->s_obj;  /* an object being decoded */
+	obj = &m0_xcode_cursor_top(it)->s_obj;  /* an object being decoded */
 
 	slot = allocp(it, &nob);
 	if (nob != 0 && *slot == NULL) {
@@ -359,27 +359,23 @@ M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx)
 	return ctx_walk(ctx, XO_LEN);
 }
 
-M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_ctx *ctx,
-				struct m0_xcode_obj *obj,
+M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,
-				enum m0_bufvec_what what)
+				enum m0_xcode_what what)
 {
-	int result;
+	struct m0_xcode_ctx ctx;
+	int                 result;
 
-	M0_PRE(obj->xo_ptr != NULL);
+	m0_xcode_ctx_init(&ctx, obj);
+	ctx.xcx_buf   = *cur;
+	ctx.xcx_alloc = m0_xcode_alloc;
 
-	m0_xcode_ctx_init(ctx, obj);
-	ctx->xcx_buf   = *cur;
-	ctx->xcx_alloc = m0_xcode_alloc;
-
-	result = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(ctx) :
-					    m0_xcode_decode(ctx);
+	result = what == M0_XCODE_ENCODE ? m0_xcode_encode(&ctx) :
+					   m0_xcode_decode(&ctx);
 	if (result == 0) {
-		*cur = ctx->xcx_buf;
-		if (what == M0_BUFVEC_DECODE) {
-			memcpy(obj->xo_ptr, m0_xcode_ctx_top(ctx),
-			       obj->xo_type->xct_sizeof);
-		}
+		*cur = ctx.xcx_buf;
+		if (obj->xo_ptr == NULL)
+			obj->xo_ptr = m0_xcode_ctx_top(&ctx);
 	}
 	return result;
 }
