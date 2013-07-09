@@ -356,8 +356,9 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
  *        will be copied into pool machine state, and it can
  *        be used or released by caller after call.
  */
-M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
-					  struct m0_pool_event *event);
+M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
+					  struct m0_pool_event *event,
+					  struct m0_db_tx      *tx);
 
 /**
  * Query the state changes between the "from" and "to" version.

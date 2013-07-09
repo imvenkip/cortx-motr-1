@@ -1142,6 +1142,7 @@ static void cobfoms_fv_updates(void)
 	struct m0_reqh      *reqh;
 	struct m0_poolmach  *pm;
 	struct m0_pool_event event;
+	struct m0_db_tx      tx;
 	int rc;
 
 	event.pe_type  = M0_POOL_DEVICE;
@@ -1151,11 +1152,15 @@ static void cobfoms_fv_updates(void)
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
+	rc = m0_db_tx_init(&tx, reqh->rh_dbenv, 0);
+	M0_UT_ASSERT(rc == 0);
+
 	pm = m0_ios_poolmach_get(reqh);
 	M0_UT_ASSERT(pm != NULL);
 
-	rc = m0_poolmach_state_transit(pm, &event);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	M0_UT_ASSERT(rc == 0);
+	m0_db_tx_commit(&tx);
 
 	cobfoms_send_internal(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt,
 			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,

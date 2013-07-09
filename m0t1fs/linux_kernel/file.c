@@ -4506,7 +4506,7 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	while (i < reply_updates->fvu_count) {
 		event = (struct m0_pool_event*)&reply_updates->fvu_events[i];
 		m0_poolmach_event_dump(event);
-		m0_poolmach_state_transit(csb->csb_pool.po_mach, event);
+		m0_poolmach_state_transit(csb->csb_pool.po_mach, event, NULL);
 		i++;
 	}
 	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");

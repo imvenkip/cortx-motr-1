@@ -526,19 +526,31 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 	return bnr;
 }
 
-static int pm_event_setup_and_post(struct m0_poolmach *pm,
+static int pm_event_setup_and_post(struct m0_dbenv *dbenv,
+				   struct m0_poolmach *pm,
 	                           enum m0_pool_event_owner_type et,
 	                           uint32_t oid,
 	                           enum m0_pool_nd_state state)
 {
 	struct m0_pool_event pme;
+	struct m0_db_tx      tx;
+	int                  rc;
+
+	rc = m0_db_tx_init(&tx, dbenv, 0);
+	if (rc != 0)
+		return rc;
 
 	M0_SET0(&pme);
 	pme.pe_type  = et;
 	pme.pe_index = oid;
 	pme.pe_state = state;
+	rc = m0_poolmach_state_transit(pm, &pme, &tx);
 
-	return m0_poolmach_state_transit(pm, &pme);
+	if (rc == 0)
+		m0_db_tx_commit(&tx);
+	else
+		m0_db_tx_abort(&tx);
+	return rc;
 }
 
 static int pm_state(struct m0_sns_cm *scm)
@@ -551,8 +563,6 @@ static int cm_ready(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	int                    bufs_nr;
-	int                    rc = 0;
-	int                    i;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
@@ -581,22 +591,16 @@ static int cm_ready(struct m0_cm *cm)
 		 * handle multiple failures.
 		 */
 		scm->sc_failures_nr = 1;
-		for (i = 0; i < scm->sc_failures_nr; ++i) {
-			rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
-						     scm->sc_it.si_fdata[i],
-						     M0_PNDS_FAILED);
-			if (rc != 0)
-				return rc;
-		}
 	}
 
 	M0_LEAVE();
-	return rc;
+	return 0;
 }
 
 static int cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
+	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
 	enum m0_pool_nd_state  state;
 	int                    rc;
 	int                    i;
@@ -607,7 +611,8 @@ static int cm_start(struct m0_cm *cm)
 	state = pm_state(scm);
 	//m0_cm_continue(cm);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+		rc = pm_event_setup_and_post(dbenv, cm->cm_pm,
+					     M0_POOL_DEVICE,
 					     scm->sc_it.si_fdata[i],
 					     state);
 	}
@@ -620,19 +625,17 @@ static int cm_start(struct m0_cm *cm)
 
 static int cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm;
+	struct m0_sns_cm      *scm = cm2sns(cm);;
+	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
 	enum m0_pool_nd_state  pm_state;
 	int                    i;
 
-	M0_PRE(cm != NULL);
-
-	scm = cm2sns(cm);
 	M0_ASSERT(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
 					      M0_PNDS_SNS_REBALANCED;
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
+		pm_event_setup_and_post(dbenv, cm->cm_pm, M0_POOL_DEVICE,
 					scm->sc_it.si_fdata[i], pm_state);
 	}
 

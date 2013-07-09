@@ -1634,6 +1634,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_fop		   *rfop;
 	struct m0_fop_cob_rw_reply *rw_reply;
 	int			    rc;
+	struct m0_db_tx             tx;
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
@@ -1642,11 +1643,15 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
+	rc = m0_db_tx_init(&tx, reqh->rh_dbenv, 0);
+	M0_UT_ASSERT(rc == 0);
+
 	pm = m0_ios_poolmach_get(reqh);
 	M0_UT_ASSERT(pm != NULL);
 
-	rc = m0_poolmach_state_transit(pm, &event);
+	rc = m0_poolmach_state_transit(pm, &event, &tx);
 	M0_UT_ASSERT(rc == 0);
+	m0_db_tx_commit(&tx);
 
 	/* This is just a test to detect failure vector mismatch on server
 	 * side. No need to prepare a full write request, e.g. buffer.

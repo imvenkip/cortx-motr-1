@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "stob/stob.h"
 #include "pool/pool.h"
+#include "pool/pool_fops.h"
 #include "lib/misc.h"
 
 /**
@@ -91,6 +92,13 @@
    nodes are persistent and identical.
 
    HA component broadcasts every event to all the pool machines in the cluster
+   using m0poolmach utility. HA components can also use m0poolmach utility to
+   query the current status of pool machine.
+
+   HA component or Administrator may trigger SNS repair and/or SNS rebalance
+   operation using m0repair utility. HA component or Administrator decide
+   when to trigger these operations upon various conditions, like failure
+   type, the elapsed time from failure detected, etc.
 
    <hr>
    @section pool_mach_store_replica-lspec Logical Specification
@@ -228,11 +236,18 @@ M0_INTERNAL void m0_pool_put(struct m0_pool *pool, struct m0_stob_id *id)
 
 M0_INTERNAL int m0_pools_init(void)
 {
+#ifndef __KERNEL__
+	return m0_poolmach_fop_init();
+#else
 	return 0;
+#endif
 }
 
 M0_INTERNAL void m0_pools_fini(void)
 {
+#ifndef __KERNEL__
+	m0_poolmach_fop_fini();
+#endif
 }
 
 M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_pool_version_numbers
@@ -371,15 +386,15 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
  *       |                                            v
  *       +------------------<-------------------------+
  */
-M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
-					  struct m0_pool_event *event)
+M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
+					  struct m0_pool_event *event,
+					  struct m0_db_tx      *tx)
 {
 	struct m0_poolmach_state   *pm_state;
 	struct m0_pool_spare_usage *spare_array;
 	struct m0_pool_event_link  *event_link;
 	enum m0_pool_nd_state       old_state = M0_PNDS_FAILED;
 	int                         rc = 0;
-	struct m0_db_tx             local_tx;
 	int                         i;
 
 	M0_PRE(pm != NULL);
@@ -533,17 +548,10 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
 
 	if (pm->pm_dbenv != NULL) {
 		/* This poolmach is on server. Update to persistent storage. */
-		rc = m0_db_tx_init(&local_tx, pm->pm_dbenv, 0);
-		if (rc == 0) {
-			rc = m0_poolmach_store(pm, &local_tx);
-			if (rc == 0)
-				rc = m0_poolmach_event_store(pm, &local_tx,
-							     event_link);
-			if (rc == 0)
-				rc = m0_db_tx_commit(&local_tx);
-			else
-				m0_db_tx_abort(&local_tx);
-		}
+		M0_ASSERT(tx != NULL);
+		rc = m0_poolmach_store(pm, tx);
+		if (rc == 0)
+			rc = m0_poolmach_event_store(pm, tx, event_link);
 	}
 
 out_unlock:

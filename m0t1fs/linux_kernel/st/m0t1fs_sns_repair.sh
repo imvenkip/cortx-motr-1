@@ -49,6 +49,17 @@ sns_repair_test()
 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
 	done
 
+####### Set Failure device
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I $fail_device -s 1
+                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+	echo $poolmach
+
+	if ! $poolmach ; then
+		echo "m0poolmach failed"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return 1
+	fi
+
 	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -F $fail_device
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
@@ -60,6 +71,17 @@ sns_repair_test()
 		echo "SNS Repair done."
 		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
 		rc=$?
+	fi
+
+####### Query device state
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device
+                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+	echo $poolmach
+
+	if ! $poolmach ; then
+		echo "m0poolmach failed"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return 1
 	fi
 
 	unmount_and_clean &>> $MERO_TEST_LOGFILE

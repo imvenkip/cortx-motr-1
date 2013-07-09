@@ -1532,7 +1532,8 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		while (i < reply->cor_fv_updates.fvu_count) {
 			event = &reply->cor_fv_updates.fvu_events[i];
 			m0_poolmach_state_transit(csb->csb_pool.po_mach,
-						  (struct m0_pool_event*)event);
+						  (struct m0_pool_event*)event,
+						  NULL);
 			i++;
 		}
 	} else

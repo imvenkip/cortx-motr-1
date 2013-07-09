@@ -613,6 +613,14 @@ console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
 include $(top_srcdir)/console/bin/Makefile.sub
 
 #
+# pool
+#
+
+bin_PROGRAMS             += pool/m0poolmach
+pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
+pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
+
+#
 # addb/dump
 #
 

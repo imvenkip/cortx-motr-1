@@ -118,7 +118,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_dtm_init,         &m0_dtm_fini,         "dtm" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
-	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	/* fops must be initialised before network, because network build fop
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
@@ -149,6 +148,7 @@ struct init_fini_call subsystem[] = {
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
 #else
+	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
