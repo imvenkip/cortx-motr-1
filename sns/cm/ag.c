@@ -28,6 +28,7 @@
 
 #include "fid/fid.h"
 
+#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
@@ -169,9 +170,17 @@ static void incr_recover_fini(struct m0_sns_cm_ag *sag)
 static void ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag *sag;
+        struct m0_cm        *cm;
+        struct m0_sns_cm    *scm;
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL && ag->cag_layout != NULL);
+
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
+		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
+		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
+		     ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo);
+
 
 	sag = ag2snsag(ag);
 	M0_CNT_INC(sag->sag_acc_freed);
@@ -192,6 +201,16 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 		m0_free(sag->sag_fc);
 		m0_free(sag);
 	}
+        cm = ag->cag_cm;
+        M0_ASSERT(cm != NULL);
+        scm = cm2sns(cm);
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
+		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
+		     scm->sc_ibp.sb_bp.nbp_buf_nr,
+		     scm->sc_obp.sb_bp.nbp_buf_nr,
+		     scm->sc_ibp.sb_bp.nbp_free,
+		     scm->sc_obp.sb_bp.nbp_free);
+
 	M0_LEAVE();
 }
 
@@ -308,12 +327,12 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	if (f_nr == 0)
 		return -EINVAL;
 	/* Allocate new aggregation group. */
-	M0_ALLOC_PTR(sag);
+	SNS_ALLOC_PTR(sag, &m0_sns_ag_addb_ctx, AG_ALLOC);
 	if (sag == NULL) {
 		m0_layout_put(m0_pdl_to_layout(pl));
 		return -ENOMEM;
 	}
-	M0_ALLOC_ARR(sag->sag_fc, f_nr);
+	SNS_ALLOC_ARR(sag->sag_fc, f_nr, &m0_sns_ag_addb_ctx, AG_FAIL_CTX);
 	if (sag->sag_fc == NULL) {
 		m0_layout_put(m0_pdl_to_layout(pl));
 		m0_free(sag);
@@ -339,6 +358,11 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	if (rc != 0 && rc != -ENOBUFS)
 		goto cleanup_acc;
 	*out = &sag->sag_base;
+
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
+		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
+		     id->ai_hi.u_hi, id->ai_hi.u_lo,
+		     id->ai_lo.u_hi, id->ai_lo.u_lo);
 
 	goto done;
 

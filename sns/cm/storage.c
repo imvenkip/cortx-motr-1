@@ -44,7 +44,7 @@ static int ivec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
 
 	M0_PRE(iv != NULL);
 
-	rc = m0_indexvec_alloc(iv, seg_nr, ctx, M0_ADDB_CTXID_SNS_REPAIR_SERV);
+	rc = m0_indexvec_alloc(iv, seg_nr, ctx, M0_ADDB_CTXID_SNS_CM);
 	if (rc != 0)
 		return rc;
 
@@ -69,11 +69,13 @@ static int bufvec_prepare(struct m0_bufvec *obuf, struct m0_tl *cp_buffers_head,
 	M0_PRE(!cp_data_buf_tlist_is_empty(cp_buffers_head));
 
 	obuf->ov_vec.v_nr = data_seg_nr;
-	M0_ALLOC_ARR(obuf->ov_vec.v_count, data_seg_nr);
+	SNS_ALLOC_ARR(obuf->ov_vec.v_count, data_seg_nr, &m0_sns_cp_addb_ctx,
+		      CP_STORAGE_OV_VEC);
 	if (obuf->ov_vec.v_count == NULL)
 		return -ENOMEM;
 
-	M0_ALLOC_ARR(obuf->ov_buf, data_seg_nr);
+	SNS_ALLOC_ARR(obuf->ov_buf, data_seg_nr, &m0_sns_cp_addb_ctx,
+		      CP_STORAGE_OV_BUF);
 	if (obuf->ov_buf == NULL) {
 		m0_free(obuf->ov_vec.v_count);
 		return -ENOMEM;
@@ -151,6 +153,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	stobid = &sns_cp->sc_sid;
 	stio = &sns_cp->sc_stio;
 	dom = m0_cs_stob_domain_find(reqh, stobid);
+	m0_sns_cm_cp_addb_log(cp);
 
 	if (dom == NULL) {
 		rc = -EINVAL;
@@ -202,6 +205,7 @@ err_stio:
 	m0_stob_put(stob);
 out:
 	if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_IO);
 		m0_fom_phase_move(cp_fom, rc, M0_CCP_FINI);
 		m0_dtx_done(&cp_fom->fo_tx);
 		rc = M0_FSO_WAIT;
@@ -239,6 +243,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 
 	m0_dtx_done(&cp->c_fom.fo_tx);
 	if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_STIO);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
 		return M0_FSO_WAIT;
 	}

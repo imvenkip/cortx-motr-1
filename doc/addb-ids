@@ -38,9 +38,11 @@ value          enum                    variable  name              file
 300-399                                                            conf/conf_addb.h
    300 M0_ADDB_CTXID_CONF_MOD          m0_addb_ct_conf_mod
    301 M0_ADDB_CTXID_CONF_SERV         m0_addb_ct_conf_serv
-400-499                                                            sns/repair/addb.h
+400-499                                                            sns/sns_addb.h
    400 M0_ADDB_CTXID_SNS_MOD           m0_addb_ct_sns_mod
-   401 M0_ADDB_CTXID_SNS_REPAIR_SERV   m0_addb_ct_sns_repair_serv
+   401 M0_ADDB_CTXID_SNS_CM            m0_addb_ct_sns_cm
+   402 M0_ADDB_CTXID_SNS_AG            m0_addb_ct_sns_ag
+   403 M0_ADDB_CTXID_SNS_CP            m0_addb_ct_sns_cp
 500-599							           m0t1fs/m0t1fs_addb.h
    500 M0_ADDB_CTXID_M0T1FS_MOD        m0_addb_ct_m0t1fs_mod
    501 M0_ADDB_CTXID_M0T1FS_MOUNTP     m0_addb_ct_m0t1fs_mountp
@@ -122,7 +124,16 @@ value            enum                 variable name         file
    109 M0_ADDB_RECID_IOS_BUFFER_POOL_LOW m0_addb_rt_ios_buffer_pool_low
 200-299                                                            mdservice/mdservice_addb.h
 300-399                                                            conf/conf_addb.h
-400-499                                                            sns/repair/addb.h
+400-499                                                            sns/sns_addb.h
+   400 M0_ADDB_RECID_SNS_CM_BUF_NR       m0_addb_rt_sns_cm_buf_nr
+   401 M0_ADDB_RECID_SNS_AG_ALLOC        m0_addb_rt_sns_ag_alloc
+   402 M0_ADDB_RECID_SNS_AG_FINI         m0_addb_rt_sns_ag_fini
+   403 M0_ADDB_RECID_SNS_SW_UPDATE       m0_addb_rt_sns_sw_update
+   404 M0_ADDB_RECID_SNS_ITER_NEXT_GFID  m0_addb_rt_sns_iter_next_gfid
+   405 M0_ADDB_RECID_SNS_AG_INFO         m0_addb_rt_sns_ag_info
+   406 M0_ADDB_RECID_SNS_CP_INFO         m0_addb_rt_sns_cp_info
+   407 M0_ADDB_RECID_SNS_REPAIR_INFO     m0_addb_rt_sns_repair_info
+   408 M0_ADDB_RECID_SNS_REPAIR_PROGRESS m0_addb_rt_sns_repair_progress
 500-599							           m0t1fs/m0t1fs_addb.h
    500 M0T1FS_ADDB_RECID_IO_FINISH       m0_addb_rt_m0t1fs_io_finish
    501 M0T1FS_ADDB_RECID_COB_IO_FINISH   m0_addb_rt_m0t1fs_cob_io_finish

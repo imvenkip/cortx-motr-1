@@ -33,6 +33,7 @@
 #include "ioservice/io_service.h"
 
 #include "cm/proxy.h"
+#include "sns/sns_addb.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
@@ -191,6 +192,8 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 		 */
 		it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
 		it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+		it->si_total_fsize += it->si_fc.sfc_fsize;
+		M0_CNT_INC(it->si_total_files);
 	}
 
 	M0_RETURN(rc);
@@ -253,11 +256,17 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 		return rc;
 
 	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
-        if (rc == 0)
+        if (rc == 0) {
+		M0_ADDB_POST(&m0_addb_gmc,
+			     &m0_addb_rt_sns_iter_next_gfid,
+			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
+			     fid_next->f_container, fid_next->f_key);
                 m0_db_tx_commit(&tx);
-        else
+	}
+        else {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_FID_NEXT);
                 m0_db_tx_abort(&tx);
-
+	}
 	M0_RETURN(rc);
 }
 
@@ -364,6 +373,12 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	sa = &sfc->sfc_sa;
 	for (group = sa->sa_group; group < sfc->sfc_groups_nr; ++group) {
 		group_fnr = 0;
+
+		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_progress,
+			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
+			     scm->sc_it.si_total_files, group + 1,
+			     sfc->sfc_groups_nr);
+
 		if (__group_skip(it, group))
 			continue;
 		group_fnr = m0_sns_cm_ag_failures_nr(scm, &sfc->sfc_gob_fid,
@@ -695,10 +710,14 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	cm = &scm->sc_base;
 	it->si_dbenv = cm->cm_service.rs_reqh->rh_dbenv;
         rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
-        if (rc != 0)
+        if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_CDOM_GET);
                 return rc;
+	}
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
+	it->si_total_fsize = 0;
+	it->si_total_files = 0;
 
 	return rc;
 }

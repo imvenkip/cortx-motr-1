@@ -25,6 +25,7 @@
 #include "rpc/rpclib.h"
 
 #include "cm/proxy.h"
+#include "sns/sns_addb.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/sns_cp_onwire.h"
@@ -61,7 +62,8 @@ static int indexvec_prepare(struct m0_io_indexvec *iv, m0_bindex_t idx,
 
         M0_PRE(iv != NULL);
 
-        M0_ALLOC_ARR(iv->ci_iosegs, seg_nr);
+	SNS_ALLOC_ARR(iv->ci_iosegs, seg_nr, &m0_sns_cp_addb_ctx,
+		      CP_INDEXVEC_PREPARE);
         if (iv->ci_iosegs == NULL) {
                 m0_free(iv);
                 return -ENOMEM;
@@ -165,7 +167,8 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
 
         offset = sns_cp->sc_index;
         nb_cnt = cp->c_buf_nr;
-        M0_ALLOC_ARR(sns_cpx->scx_ivecs.cis_ivecs, nb_cnt);
+        SNS_ALLOC_ARR(sns_cpx->scx_ivecs.cis_ivecs, nb_cnt, &m0_sns_cp_addb_ctx,
+		      CP_TO_CPX_IVEC);
         if (sns_cpx->scx_ivecs.cis_ivecs == NULL) {
                 rc = -ENOMEM;
                 goto out;
@@ -189,8 +192,9 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
         sns_cpx->scx_ivecs.cis_nr = nb_idx;
         sns_cpx->scx_cp.cpx_desc.id_nr = nb_idx;
 
-        M0_ALLOC_ARR(sns_cpx->scx_cp.cpx_desc.id_descs,
-                     sns_cpx->scx_cp.cpx_desc.id_nr);
+        SNS_ALLOC_ARR(sns_cpx->scx_cp.cpx_desc.id_descs,
+                      sns_cpx->scx_cp.cpx_desc.id_nr, &m0_sns_cp_addb_ctx,
+		      CP_TO_CPX_DESC);
         if (sns_cpx->scx_cp.cpx_desc.id_descs == NULL) {
                 rc = -ENOMEM;
                 goto cleanup;
@@ -258,7 +262,9 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
         M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_SEND);
         M0_PRE(cp->c_cm_proxy != NULL);
 
-	M0_ALLOC_PTR(cp_fop);
+	m0_sns_cm_cp_addb_log(cp);
+
+	SNS_ALLOC_PTR(cp_fop, &m0_sns_cp_addb_ctx, CP_SEND_FOP);
 	if (cp_fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -326,6 +332,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 	m0_fop_put(fop);
 out:
         if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_SEND);
                 if (&cp->c_bulk != NULL)
                         m0_rpc_bulk_buflist_empty(&cp->c_bulk);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
@@ -344,9 +351,6 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 	M0_PRE(cp != NULL);
 
 	M0_LOG(M0_DEBUG, "rbulk rc: %d", rbulk->rb_rc);
-        //m0_mutex_lock(&rbulk->rb_mutex);
-        //M0_PRE(m0_list_is_empty(&rbulk->rb_buflist.t_head));
-        //m0_mutex_unlock(&rbulk->rb_mutex);
 
 	scp = cp2snscp(cp);
 	ep = cp->c_cm_proxy->px_conn.c_rpcchan->rc_destep;
@@ -431,9 +435,10 @@ M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
         }
 
 out:
-        if (rc != 0)
+        if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_RECV_INIT);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-        else
+	} else
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_RECV_WAIT);
         return M0_FSO_WAIT;
 }
@@ -450,6 +455,7 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
 
         M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_RECV_WAIT);
 
+	m0_sns_cm_cp_addb_log(cp);
         rbulk = &cp->c_bulk;
 
         m0_mutex_lock(&rbulk->rb_mutex);
@@ -475,6 +481,7 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
         m0_fop_put(fop);
 out:
         if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_RECV_WAIT);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
                 return M0_FSO_WAIT;
         }

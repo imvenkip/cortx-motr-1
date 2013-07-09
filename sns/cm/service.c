@@ -31,12 +31,13 @@
 #include "lib/finject.h"
 
 #include "reqh/reqh_service.h"
-#include "sns/sns_addb.h"
 #include "sns/cm/st/trigger_fop.h"
 #include "sns/cm/cm.h"
 #include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
 #include "sns/cm/sw_onwire_fop.h"
+
+#include "sns/sns_addb.h"
 
 /**
   @defgroup SNSCMSVC SNS copy machine service
@@ -65,10 +66,15 @@ static const struct m0_reqh_service_ops svc_ops = {
 	.rso_fini  = svc_fini
 };
 
-M0_CM_TYPE_DECLARE(sns, &svc_type_ops, "sns_cm",
-		   &m0_addb_ct_sns_repair_serv);
+extern struct m0_addb_ctx_type m0_addb_ct_sns_cm;
+
+M0_CM_TYPE_DECLARE(sns, &svc_type_ops, "sns_cm", &m0_addb_ct_sns_cm);
 
 extern const struct m0_cm_ops cm_ops;
+struct m0_addb_ctx m0_sns_mod_addb_ctx;
+struct m0_addb_ctx m0_sns_cm_addb_ctx;
+struct m0_addb_ctx m0_sns_ag_addb_ctx;
+struct m0_addb_ctx m0_sns_cp_addb_ctx;
 
 /**
  * Allocates and initialises SNS copy machine.
@@ -104,6 +110,16 @@ static int svc_allocate(struct m0_reqh_service **service,
 	M0_RETURN(rc);
 }
 
+static void addb_init()
+{
+        M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_sns_mod_addb_ctx,
+                         &m0_addb_ct_sns_mod, &m0_addb_proc_ctx);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_sns_ag_addb_ctx,
+			 &m0_addb_ct_sns_ag, &m0_sns_mod_addb_ctx);
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_sns_cp_addb_ctx,
+			 &m0_addb_ct_sns_cp, &m0_sns_ag_addb_ctx);
+}
+
 /**
  * Registers SNS copy machine specific FOP types.
  */
@@ -117,6 +133,8 @@ static int svc_start(struct m0_reqh_service *service)
 
 	M0_ENTRY("service: %p", service);
 	M0_PRE(service != NULL);
+
+	addb_init();
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm) ?: m0_sns_repair_trigger_fop_init() ?:

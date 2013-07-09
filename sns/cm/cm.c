@@ -41,6 +41,7 @@
 #include "cob/ns_iter.h"
 #include "cm/proxy.h"
 
+#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
@@ -427,7 +428,7 @@ static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)
 {
 	struct m0_sns_cm_cp *scp;
 
-	M0_ALLOC_PTR(scp);
+	SNS_ALLOC_PTR(scp, &m0_sns_mod_addb_ctx, CP_ALLOC);
 	if (scp == NULL)
 		return NULL;
 	scp->sc_base.c_ops = &m0_sns_cm_cp_ops;
@@ -500,6 +501,8 @@ static int cm_setup(struct m0_cm *cm)
 	}
 
 	if (rc == 0) {
+		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
+			     M0_ADDB_CTX_VEC(&m0_sns_cp_addb_ctx), 0, 0, 0, 0);
 		rc = m0_sns_cm_iter_init(&scm->sc_it);
 		if (rc != 0)
 			return rc;
@@ -579,11 +582,17 @@ static int cm_ready(struct m0_cm *cm)
 		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
 		/*
 		 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
-		 * successful, both the buffer pools (incoming and outgoing) will be
-		 * finalised in cm_fini().
+		 * successful, both the buffer pools (incoming and outgoing)
+		 * will be finalised in cm_fini().
 		 */
 		if (bufs_nr == 0)
 			return -ENOMEM;
+                M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
+                             M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
+			     scm->sc_ibp.sb_bp.nbp_buf_nr,
+			     scm->sc_obp.sb_bp.nbp_buf_nr,
+			     scm->sc_ibp.sb_bp.nbp_free,
+			     scm->sc_obp.sb_bp.nbp_free);
 	}
 	if (scm->sc_op == SNS_REPAIR) {
 		/*
@@ -619,6 +628,7 @@ static int cm_start(struct m0_cm *cm)
 
 	rc = m0_sns_cm_iter_start(&scm->sc_it);
 
+	scm->sc_start_time = m0_time_now();
 	M0_LEAVE();
 	return rc;
 }
@@ -639,6 +649,11 @@ static int cm_stop(struct m0_cm *cm)
 					scm->sc_it.si_fdata[i], pm_state);
 	}
 
+	scm->sc_stop_time = m0_time_now();
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,
+		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
+		     m0_time_sub(scm->sc_stop_time,scm->sc_start_time),
+		     scm->sc_it.si_total_fsize);
 	return 0;
 }
 

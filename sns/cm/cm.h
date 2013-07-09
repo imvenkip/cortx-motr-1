@@ -147,6 +147,17 @@ struct m0_sns_cm {
 	 */
 	struct m0_chan             sc_wait;
 	struct m0_mutex            sc_wait_mutex;
+
+	/**
+	 * Start time for sns copy machine. This is recorded when the ready fop
+	 * arrives to the sns copy machine replica.
+	 */
+	m0_time_t                  sc_start_time;
+	/**
+	 * Stop time for sns copy machine. This is recorded when repair is
+	 * completed.
+	 */
+	m0_time_t                  sc_stop_time;
 };
 
 M0_INTERNAL int m0_sns_cm_type_register(void);

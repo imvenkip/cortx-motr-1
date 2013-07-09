@@ -24,6 +24,7 @@
 
 #include "reqh/reqh.h"
 
+#include "sns/sns_addb.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/cm_utils.h"
@@ -53,7 +54,8 @@ static int cp_bufvec_split(struct m0_cm_cp *cp)
 
 	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
         new_v_nr = nbuf_head->nb_pool->nbp_seg_nr;
-        M0_ALLOC_ARR(new_v_count, new_v_nr);
+        SNS_ALLOC_ARR(new_v_count, new_v_nr, &m0_sns_cp_addb_ctx,
+		      CP_XFORM_BUFVEC);
         if (new_v_count == NULL)
                 return -ENOMEM;
 
@@ -200,11 +202,15 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 	int rc;
 
 	rc = cp_bufvec_split(cp);
-	if (rc != 0)
+	if (rc != 0) {
+		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
+				  CP_XFORM_BUFVEC_SPLIT);
 		goto out;
+	}
 	m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp);
 
 out:
+	m0_sns_cm_cp_addb_log(cp);
 	return rc;
 }
 
@@ -257,8 +263,11 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 
 	if (sns_ag->sag_math.pmi_parity_algo != M0_PARITY_CAL_ALGO_XOR) {
 		rc = m0_cm_cp_bufvec_merge(cp);
-		if (rc != 0)
+		if (rc != 0) {
+			SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
+					  CP_XFORM_BUFVEC_MERGE);
 			goto out;
+		}
 	}
 
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {

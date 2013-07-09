@@ -127,6 +127,18 @@ struct m0_sns_cm_iter {
 	/** Cob fid namespace iterator. */
 	struct m0_cob_fid_ns_iter        si_cns_it;
 
+	/**
+	 * Total size of all files which the iterator has scanned. This
+	 * is required to record in addb message.
+	 */
+	size_t                           si_total_fsize;
+
+	/**
+	 * Total number of files which the iterator has scanned. This is
+	 * required to record in addb message.
+	 */
+	uint64_t                         si_total_files;
+
 	uint64_t                         si_magix;
 };
 

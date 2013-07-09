@@ -116,6 +116,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   uint64_t stob_offset,
 				   uint64_t data_seg_nr,
 				   uint64_t ag_cp_idx);
+M0_INTERNAL void m0_sns_cm_cp_addb_log(const struct m0_cm_cp *cp);
 
 /** @} SNSCMCP */
 #endif /* __MERO_SNS_CM_CP_H__ */

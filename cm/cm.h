@@ -153,8 +153,6 @@ enum {
 struct m0_cm_type {
 	/** Service type corresponding to this copy machine type. */
 	struct m0_reqh_service_type   ct_stype;
-	/** ADDB ct for this cm type */
-	struct m0_addb_ctx_type      *ct_addb_ct;
 	/** Linkage into the list of copy machine types (struct m0_tl cmtypes)*/
 	struct m0_tlink               ct_linkage;
 	uint64_t                      ct_magix;

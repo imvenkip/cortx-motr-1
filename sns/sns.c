@@ -17,16 +17,32 @@
  * Original creation date: 03/30/2010
  */
 
-#undef M0_ADDB_CT_CREATE_DEFINITION
-#define M0_ADDB_CT_CREATE_DEFINITION
 #include "sns/sns_addb.h"
 #include "sns/sns.h"
 #include "sns/cm/cm.h"
 
 M0_INTERNAL int m0_sns_init()
 {
-	m0_addb_ctx_type_register(&m0_addb_ct_sns_mod);
-	m0_addb_ctx_type_register(&m0_addb_ct_sns_repair_serv);
+#undef CT_REG
+#define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_sns_##n)
+        CT_REG(mod);
+        CT_REG(cm);
+        CT_REG(ag);
+        CT_REG(cp);
+#undef CT_REG
+#undef RT_REG
+#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_sns_##n)
+        RT_REG(cm_buf_nr);
+        RT_REG(ag_alloc);
+        RT_REG(ag_fini);
+        RT_REG(sw_update);
+        RT_REG(iter_next_gfid);
+        RT_REG(ag_info);
+        RT_REG(cp_info);
+	RT_REG(repair_info);
+	RT_REG(repair_progress);
+#undef RT_REG
+
 	return m0_sns_cm_type_register();
 }
 

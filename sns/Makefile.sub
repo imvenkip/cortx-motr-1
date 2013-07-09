@@ -6,6 +6,7 @@ nobase_mero_include_HEADERS += sns/ls_solve.h \
 				  sns/sns_addb.h
 
 mero_libmero_la_SOURCES  += sns/sns.c \
+                                  sns/sns_addb.c \
                                   sns/ls_solve.c \
                                   sns/matvec.c \
                                   sns/parity_math.c \

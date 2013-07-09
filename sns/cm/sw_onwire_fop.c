@@ -28,6 +28,7 @@
 #include "rpc/rpc_opcodes.h"
 
 #include "cm/cm.h"
+#include "sns/sns_addb.h"
 #include "sns/cm/sw_onwire_fop.h"
 #include "sns/cm/sw_onwire_fop_xc.h"
 
@@ -71,8 +72,16 @@ m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 
 	M0_PRE(cm != NULL && sw != NULL && local_ep != NULL);
 
+	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_sw_update,
+		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
+		     sw->sw_lo.ai_hi.u_hi, sw->sw_lo.ai_hi.u_lo,
+		     sw->sw_lo.ai_lo.u_hi, sw->sw_lo.ai_lo.u_lo,
+		     sw->sw_hi.ai_hi.u_hi, sw->sw_hi.ai_hi.u_lo,
+		     sw->sw_hi.ai_lo.u_hi, sw->sw_hi.ai_lo.u_lo);
+
+
 	m0_fop_init(fop, &m0_sns_cm_sw_onwire_fopt, NULL, fop_release);
-        rc = m0_fop_data_alloc(fop);
+	rc = m0_fop_data_alloc(fop);
         if (rc  != 0) {
 		m0_fop_fini(fop);
                 return rc;
