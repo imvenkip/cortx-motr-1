@@ -23,7 +23,7 @@
 extern void m0_be_ut_seg_init_fini(void);
 extern void m0_be_ut_seg_create_destroy(void);
 extern void m0_be_ut_seg_open_close(void);
-extern void m0_be_ut_seg_write(void);
+extern void m0_be_ut_seg_io(void);
 
 extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
@@ -97,45 +97,18 @@ const struct m0_test_suite be_ut = {
 		{ "seg-init",         m0_be_ut_seg_init_fini        },
 		{ "seg-create",       m0_be_ut_seg_create_destroy   },
 		{ "seg-open",         m0_be_ut_seg_open_close       },
-#if 0 /* XXX FIXME
-       * be-ut:seg-write test fails from time to time. We don't want this
-       * to happen in origin/master.
-       */
-		{ "seg-write",        m0_be_ut_seg_write            },
-#endif
+		{ "seg-io",           m0_be_ut_seg_io               },
+		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
+		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
+		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
+		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
 		{ "reg_d_tree",       m0_be_ut_reg_d_tree           },
 		{ "regmap-simple",    m0_be_ut_regmap_simple        },
 		{ "regmap-random",    m0_be_ut_regmap_random        },
 		{ "reg_area-simple",  m0_be_ut_reg_area_simple      },
 		{ "reg_area-random",  m0_be_ut_reg_area_random      },
-#if 0 /* XXX FIXME
-       * A test calling m0_be_ut_h_fini() may fail on
-       * m0_net__buf_invariant(). When it does, the stack trace is
-       *
-       *     nlx_tm_ev_worker
-       *      \_ nlx_xo_bev_deliver_all
-       *          \_ nlx_xo_core_bev_to_net_bev
-       *              \_ m0_net__buffer_invariant
-       *
-       * Immediate cause [net/lnet/lnet_tm.c:291]:
-       * lcbev->cbe_buffer_id is 0, hence nb == NULL,
-       * m0_net__buffer_invariant(nb) returns false, and M0_ASSERT() fails.
-       *
-       * The root cause remains unknown. I do not know why struct
-       * nlx_core_buffer_event, pointed to by `lcbev', is zeroed.
-       *
-       * I disable unit tests that call m0_be_ut_h_{init,fini}() in order
-       * to land BE without any harm to master branch.
-       *
-       *  --vvv
-       */
-		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
-		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
-		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
-		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
 		{ "tx-simple",        m0_be_ut_tx_simple            },
 		{ "btree",            m0_be_ut_btree_simple         },
-#endif
 		{ "io",               m0_be_ut_io                   },
 		{ "log_stor-reserve", m0_be_ut_log_stor_reserve     },
 		{ "log_stor-io",      m0_be_ut_log_stor_io          },

@@ -19,20 +19,18 @@
  */
 
 #include "be/seg.h"		/* m0_be_seg */
-#include "be/tx_regmap.h"	/* m0_be_reg_area */
-#include "be/tx_credit.h"	/* M0_BE_TX_CREDIT */
+
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
-#include "lib/misc.h"		/* M0_BITS */
+
+enum {
+	BE_UT_SEG_IO_ITER = 0x400,
+	BE_UT_SEG_IO_OFFS = 0x10000,
+	BE_UT_SEG_IO_SIZE = 0x10000,
+};
 
 static struct m0_be_ut_h be_ut_seg_h;
-static m0_bindex_t off = 256; /* slightly after the segment header */
-static char buf[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-static struct m0_be_reg_d area[] = {
-	{ .rd_reg = { .br_size =  8 }, .rd_buf = &buf[ 0] },
-	{ .rd_reg = { .br_size =  8 }, .rd_buf = &buf[ 8] },
-	{ .rd_reg = { .br_size = 16 }, .rd_buf = &buf[16] },
-};
+static unsigned		 be_ut_seg_seed;
 
 M0_INTERNAL void m0_be_ut_seg_init_fini(void)
 {
@@ -40,40 +38,6 @@ M0_INTERNAL void m0_be_ut_seg_init_fini(void)
 	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
 	m0_be_ut_seg_finalize(&be_ut_seg_h, true);
 	m0_be_ut_seg_storage_fini();
-}
-
-static void seg_write(struct m0_be_seg *seg)
-{
-	struct m0_be_reg_area ra;
-	struct m0_be_op	      op;
-	int		      i;
-	int		      rc;
-
-	m0_be_op_init(&op);
-
-	/* copy buf to the segment */
-	memcpy((char *) seg->bs_addr + off, buf, ARRAY_SIZE(buf));
-
-	for (i = 0; i < ARRAY_SIZE(area); ++i) {
-		area[i].rd_buf	       = NULL;
-		area[i].rd_reg.br_addr = (char *) seg->bs_addr + off + i*8;
-		area[i].rd_reg.br_seg  = seg;
-	}
-
-	rc = m0_be_reg_area_init(&ra, &M0_BE_TX_CREDIT(ARRAY_SIZE(area),
-						       ARRAY_SIZE(buf)));
-	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < ARRAY_SIZE(area); ++i)
-		m0_be_reg_area_capture(&ra, &area[i]);
-	m0_be_seg_write_simple(seg, &op, &ra);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-
-	m0_be_reg_area_fini(&ra);
-	m0_be_op_fini(&op);
-
-	for (i = 0; i < ARRAY_SIZE(area); ++i)
-		area[i].rd_buf = &buf[i*8];
 }
 
 M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
@@ -88,27 +52,62 @@ M0_INTERNAL void m0_be_ut_seg_open_close(void)
 	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
 }
 
-M0_INTERNAL void m0_be_ut_seg_write(void)
+static void be_ut_seg_rand_reg(struct m0_be_reg *reg,
+			       void *seg_addr,
+			       m0_bindex_t *offset,
+			       m0_bcount_t *size)
 {
-	int rc;
-	int i;
+	*size	= rand_r(&be_ut_seg_seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
+	*offset = rand_r(&be_ut_seg_seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
+	reg->br_addr = (char *) seg_addr + BE_UT_SEG_IO_OFFS + *offset;
+	reg->br_size = *size;
+}
 
+M0_INTERNAL void m0_be_ut_seg_io(void)
+{
+	struct m0_be_seg *seg;
+	struct m0_be_reg  reg;
+	struct m0_be_reg  reg_check;
+	m0_bindex_t	  offset;
+	m0_bcount_t	  size;
+	static char	  pre[BE_UT_SEG_IO_SIZE];
+	static char	  post[BE_UT_SEG_IO_SIZE];
+	static char	  rand[BE_UT_SEG_IO_SIZE];
+	int		  rc;
+	int		  i;
+	int		  j;
+	int		  cmp;
+
+	be_ut_seg_seed = 0;
 	m0_be_ut_seg_create_open(&be_ut_seg_h);
-	seg_write(&be_ut_seg_h.buh_seg);
-	m0_be_seg_close(&be_ut_seg_h.buh_seg);
-	rc = m0_be_seg_destroy(&be_ut_seg_h.buh_seg);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_ut_seg_finalize(&be_ut_seg_h, false);
+	seg = &be_ut_seg_h.buh_seg;
+	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
+			      (char *) seg->bs_addr + BE_UT_SEG_IO_OFFS);
+	for (i = 0; i < BE_UT_SEG_IO_ITER; ++i) {
+		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size);
+		reg.br_seg = seg;
+		for (j = 0; j < reg.br_size; ++j)
+			rand[j] = rand_r(&be_ut_seg_seed) & 0xFF;
 
+		/* write */
+		rc = m0_be_seg__read(&reg_check, pre);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_be_seg__write(&reg, rand);
+		M0_UT_ASSERT(rc == 0);
+		/* and read to check if it was written */
+		rc = m0_be_seg__read(&reg_check, post);
+		/* reload segment to test I/O operations in open()/close() */
+		m0_be_ut_h_seg_reload(&be_ut_seg_h);
+		M0_UT_ASSERT(rc == 0);
 
-	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
-	rc = m0_be_seg_open(&be_ut_seg_h.buh_seg);
-	M0_ASSERT(rc == 0);
+		for (j = 0; j < size; ++j)
+			pre[j + offset] = rand[j];
 
-	for (i = 0; i < ARRAY_SIZE(area); ++i)
-		M0_UT_ASSERT(memcmp(area[i].rd_buf,
-				    area[i].rd_reg.br_addr,
-				    area[i].rd_reg.br_size) == 0);
-
+		M0_CASSERT(ARRAY_SIZE(pre) == ARRAY_SIZE(post));
+		cmp = memcmp(pre, post, ARRAY_SIZE(pre));
+		M0_UT_ASSERT(cmp == 0);
+		cmp = memcmp(post, reg_check.br_addr, reg_check.br_size);
+		M0_UT_ASSERT(cmp == 0);
+	}
 	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
 }

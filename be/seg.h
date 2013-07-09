@@ -53,43 +53,43 @@ struct m0_be_seg {
 	struct m0_be_allocator bs_allocator;
 	struct m0_be          *bs_be;
 	int                    bs_state;
-	uint32_t               bs_bshift;  /* STOB block shift */
+	uint32_t               bs_bshift;  /* XXX remove it. STOB block shift */
 	uint32_t               bs_pgshift; /* seg page shift */
 	m0_bcount_t           *bs_pgmap;
 	m0_bcount_t            bs_pgnr;
 };
 
-M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg);
 
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be *be);
-
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg);
+M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg);
 
 /** Opens existing stob, reads segment header from it, etc. */
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg);
-
 M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg);
 
 /** Creates the segment of specified size on the storage. */
 M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size);
-
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg);
+
+M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
+
+M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
+					 void *addr);
+
+M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg, const char *name,
+					void **out);
+M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg, const char *name,
+					void *value);
+M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name);
 
 struct m0_be_reg {
 	struct m0_be_seg *br_seg;
 	m0_bcount_t       br_size;
 	void             *br_addr;
 };
-
-M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg, const char *name,
-					void **out);
-
-M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg, const char *name,
-					void *value);
-
-M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name);
 
 #define M0_BE_REG(seg, size, addr) \
 	((struct m0_be_reg) {      \
@@ -99,16 +99,7 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name);
 
 #define M0_BE_REG_PTR(seg, ptr)	M0_BE_REG((seg), sizeof *(ptr), (ptr))
 
-M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
-
-M0_INTERNAL int m0_be_seg_write(struct m0_be_seg *seg,
-				void *regd_tree,
-				struct m0_be_op *op);
-
-M0_INTERNAL int m0_be_seg_bufvec_build(struct m0_be_seg *seg,
-				       void *regd_tree,
-				       struct m0_indexvec *iv,
-				       struct m0_bufvec *bv);
+M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg);
 
 M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
 				 const struct m0_be_reg *r2);
@@ -119,12 +110,6 @@ M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
  */
 M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
 
-#define M0_BE_PTR_GET(seg, op, ptr) \
-	m0_be_reg_get(M0_BE_REG_PTR((seg), (ptr)), (op))
-
-#define M0_BE_ARR_GET(seg, op, arr, nr) \
-	m0_be_reg_get(M0_BE_REG((seg), (sizeof arr[0]) * (nr), (arr)), (op))
-
 /**
  * XXX DOCUMENTME
  *
@@ -132,13 +117,19 @@ M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
  */
 M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg);
 
-#define M0_BE_PTR_GET_FAST(seg, ptr) \
-	m0_be_reg_get_fast(M0_BE_REG_PTR((seg), (ptr)))
-
 /**
  * @pre m0_be__reg_is_pinned(reg)
  */
 M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg);
+
+#define M0_BE_PTR_GET(seg, op, ptr) \
+	m0_be_reg_get(M0_BE_REG_PTR((seg), (ptr)), (op))
+
+#define M0_BE_ARR_GET(seg, op, arr, nr) \
+	m0_be_reg_get(M0_BE_REG((seg), (sizeof arr[0]) * (nr), (arr)), (op))
+
+#define M0_BE_PTR_GET_FAST(seg, ptr) \
+	m0_be_reg_get_fast(M0_BE_REG_PTR((seg), (ptr)))
 
 #define M0_BE_PTR_PUT(seg, ptr) \
 	m0_be_reg_put(M0_BE_REG((seg), (sizeof *ptr), (ptr)))
@@ -148,15 +139,14 @@ M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg);
 
 M0_INTERNAL bool m0_be__reg_invariant(const struct m0_be_reg *reg);
 
-M0_INTERNAL int m0_be__reg_read(struct m0_be_seg *seg,
-				struct m0_be_op *op,
-				struct m0_be_reg *regs,
-				m0_bcount_t nr);
-
-M0_INTERNAL int m0_be__reg_write(struct m0_be_seg *seg,
-				 struct m0_be_op *op,
-				 struct m0_be_reg *regs,
-				 m0_bcount_t nr);
+/*
+ * XXX Synchronous operations.
+ * m0_be_io and m0_be_op should be be added if necessary.
+ */
+M0_INTERNAL int m0_be_seg__read(struct m0_be_reg *reg, void *dst);
+M0_INTERNAL int m0_be_seg__write(struct m0_be_reg *reg, void *src);
+M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg);
+M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg);
 
 /**
  * Simple segment write implementation which has to be removed ASAP.

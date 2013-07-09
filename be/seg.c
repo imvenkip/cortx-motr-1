@@ -38,79 +38,31 @@
 #define BE_SEG_HEADER_OFFSET  (0ULL)
 
 
-static int stob_io_single_write(void *buf, m0_bcount_t bufsize,
-				struct m0_stob *stob, m0_bindex_t offs,
-				uint32_t bshift)
-{
-	m0_bcount_t       wrcnt[1];  /* sectors counts */
-	m0_bindex_t       wroffs[1]; /* offsets */
-	void             *bufpk[1];  /* "packed" addresses */
-	struct m0_stob_io io;
-	struct m0_clink   clink;
-	int               rc;
-
-	/* Set up io struct for reading. */
-	m0_stob_io_init(&io);
-	wrcnt[0]                  = (bufsize + (1 << bshift) - 1) >> bshift;
-	bufpk[0]                  = m0_stob_addr_pack(buf, bshift);
-	io.si_flags               = 0;
-	io.si_opcode              = SIO_WRITE;
-	io.si_user.ov_buf         = bufpk;
-	io.si_user.ov_vec.v_nr    = 1;
-	io.si_user.ov_vec.v_count = wrcnt;
-	wroffs[0]                 = (m0_bindex_t)
-				    m0_stob_addr_pack((void *)offs,
-						      bshift);
-	io.si_stob.iv_index       = wroffs;
-	io.si_stob.iv_vec.v_nr    = 1;
-	io.si_stob.iv_vec.v_count = wrcnt;
-	io.si_fol_rec_part        = (void *)1;
-
-	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&io.si_wait, &clink);
-	rc = m0_stob_io_launch(&io, stob, NULL, NULL);
-	if (rc == 0) {
-		m0_chan_wait(&clink);
-		rc = io.si_rc;
-	}
-	m0_clink_del_lock(&clink);
-	m0_clink_fini(&clink);
-	m0_stob_io_fini(&io);
-
-	return rc;
-}
-
 static int
 seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 {
-	uint32_t              st_block_shift;
-	size_t                st_block_size;
-	struct m0_be_seg_hdr *hdrbuf;      /* seg hdr buffer */
-	m0_bcount_t           hdrblocks;   /* number of sectors */
+	struct m0_be_seg_hdr *hdrbuf;
+	struct m0_be_reg      hdr_reg;
 	int                   rc;
 
-	/* Allocate buffer for segment header. */
-	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
-	st_block_size = 1 << st_block_shift;
-	hdrblocks = (sizeof(*hdrbuf) + st_block_size - 1) / st_block_size;
-	hdrbuf = m0_alloc_aligned(hdrblocks * st_block_size, st_block_shift);
-	if (hdrbuf == NULL)
-		return -ENOMEM;
+	M0_PRE(addr != NULL);
+	M0_PRE(size > 0);
 
-	/* Write segment header to storage. */
-	hdrbuf->bh_addr = addr;
-	hdrbuf->bh_size = size;
-	M0_ASSERT(hdrbuf->bh_addr != NULL);
-	M0_ASSERT(m0_addr_is_aligned(hdrbuf->bh_addr, st_block_shift));
-	rc = stob_io_single_write(hdrbuf, sizeof(*hdrbuf), seg->bs_stob,
-				  BE_SEG_HEADER_OFFSET, st_block_shift);
-	m0_free(hdrbuf);
-
-	if (rc == 0) {
+	M0_ALLOC_PTR(hdrbuf);
+	if (hdrbuf != NULL) {
+		hdrbuf->bh_addr = addr;
+		hdrbuf->bh_size = size;
 		seg->bs_addr = addr;
 		seg->bs_size = size;
-	}
 
+		hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
+				    (char *) addr + BE_SEG_HEADER_OFFSET);
+		rc = m0_be_seg__write(&hdr_reg, hdrbuf);
+
+		m0_free(hdrbuf);
+	} else {
+		rc = -ENOMEM;
+	}
 	return rc;
 }
 
@@ -165,57 +117,18 @@ M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg)
 
 bool m0_be__reg_invariant(const struct m0_be_reg *reg)
 {
-	return reg != NULL && reg->br_seg != NULL && reg->br_size > 0 &&
-		reg->br_addr != NULL && m0_be__seg_invariant(reg->br_seg) &&
-		reg->br_addr >= reg->br_seg->bs_addr && reg->br_addr +
-		reg->br_size <= reg->br_seg->bs_addr + reg->br_seg->bs_size;
-}
-
-static int stob_io_single_read(void *buf, m0_bcount_t bufsize,
-			       struct m0_stob *stob,
-			       m0_bindex_t offs, uint32_t bshift)
-{
-	m0_bcount_t       rdcnt[1];    /* sectors counts */
-	m0_bindex_t       rdoffs[1];   /* offsets */
-	void             *rdbufpk[1];  /* "packed" addresses */
-	struct m0_stob_io io;
-	struct m0_clink   clink;
-	int               rc;
-
-	/* Set up io struct for reading. */
-	m0_stob_io_init(&io);
-	rdcnt[0]                  = (bufsize + (1 << bshift) - 1) >> bshift;
-	rdbufpk[0]                = m0_stob_addr_pack(buf, bshift);
-	io.si_flags               = 0;
-	io.si_opcode              = SIO_READ;
-	io.si_user.ov_buf         = rdbufpk;
-	io.si_user.ov_vec.v_nr    = 1;
-	io.si_user.ov_vec.v_count = rdcnt;
-	rdoffs[0]                 = (m0_bindex_t)
-				    m0_stob_addr_pack((void *)offs, bshift);
-	io.si_stob.iv_index       = rdoffs;
-	io.si_stob.iv_vec.v_nr    = 1;
-	io.si_stob.iv_vec.v_count = rdcnt;
-
-	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&io.si_wait, &clink);
-	rc = m0_stob_io_launch(&io, stob, NULL, NULL);
-	if (rc == 0) {
-		m0_chan_wait(&clink);
-		rc = io.si_rc;
-	}
-	m0_clink_del_lock(&clink);
-	m0_clink_fini(&clink);
-	m0_stob_io_fini(&io);
-
-	return rc;
+	return reg != NULL && reg->br_seg != NULL &&
+		reg->br_size > 0 && reg->br_addr != NULL &&
+		m0_be_seg_contains(reg->br_seg, reg->br_addr) &&
+		m0_be_seg_contains(reg->br_seg,
+				   (char *) reg->br_addr + reg->br_size - 1);
 }
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
 	int                   rc;
 	struct m0_be_seg_hdr *hdrbuf;      /* seg hdr buffer */
-	m0_bcount_t           hdrblocks;   /* number of sectors */
+	struct m0_be_reg      hdr_reg;
 	void                 *seg_addr0;
 	m0_bcount_t           seg_size;
 	m0_bcount_t           i;
@@ -226,15 +139,18 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	if (seg->bs_pgshift < seg->bs_bshift) {
 		seg->bs_pgshift = seg->bs_bshift;
 	}
-	hdrblocks = (sizeof(*hdrbuf) + (1 << seg->bs_bshift) - 1) >>
-		seg->bs_bshift;
-	hdrbuf = m0_alloc_aligned(hdrblocks << seg->bs_bshift, seg->bs_pgshift);
+	M0_ALLOC_PTR(hdrbuf);
 	if (hdrbuf == NULL)
 		return -ENOMEM;
 
 	/* Read segment header from storage. */
-	rc = stob_io_single_read(hdrbuf, sizeof(*hdrbuf), seg->bs_stob,
-				 BE_SEG_HEADER_OFFSET, seg->bs_bshift);
+	seg->bs_addr = BE_SEG_DEFAULT_ADDR;
+	/* XXX */
+	seg->bs_size = 1ULL << 48;
+	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
+			    (char *) BE_SEG_DEFAULT_ADDR +
+			    BE_SEG_HEADER_OFFSET);
+	rc = m0_be_seg__read(&hdr_reg, hdrbuf);
 	if (rc == 0) {
 		seg_addr0 = hdrbuf->bh_addr;
 		seg_size  = hdrbuf->bh_size;
@@ -263,15 +179,13 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	M0_ASSERT(p == seg_addr0);
 
 	/* Read whole segment from storage. */
-	rc = stob_io_single_read(seg_addr0, seg_size, seg->bs_stob,
-				 0, seg->bs_bshift);
+	rc = m0_be_seg__read(&M0_BE_REG(seg, seg_size, seg_addr0), seg_addr0);
 	if (rc == 0) {
 		seg->bs_state = M0_BSS_OPENED;
 		for (i = 0; i < seg->bs_pgnr; i++)
 			seg->bs_pgmap[i] |= M0_BE_SEG_PG_PRESENT;
-
-		seg->bs_addr = seg_addr0;
 		seg->bs_size = seg_size;
+		seg->bs_addr = seg_addr0;
 	}
 	return rc;
 }
@@ -294,38 +208,6 @@ static inline m0_bcount_t be_seg_blkno(const struct m0_be_seg *seg, void *addr)
 {
 	return (addr - seg->bs_addr) >> seg->bs_bshift;
 }
-
-#if 0
-/* temporary by max */
-static void iovec_prepare(struct m0_be_seg *seg, struct m0_be_reg_d *area,
-			  m0_bindex_t nr, struct m0_indexvec *iv,
-			  struct m0_bufvec *bv)
-{
-	int i;
-
-	M0_PRE(seg->bs_bshift == 0);
-
-	M0_ALLOC_ARR(bv->ov_vec.v_count, nr);
-	M0_ALLOC_ARR(bv->ov_buf, nr);
-
-	M0_ALLOC_ARR(iv->iv_vec.v_count, nr);
-	M0_ALLOC_ARR(iv->iv_index, nr);
-
-	M0_ASSERT(bv->ov_vec.v_count != NULL && bv->ov_buf   != NULL);
-	M0_ASSERT(iv->iv_vec.v_count != NULL && iv->iv_index != NULL);
-
-	bv->ov_vec.v_nr = nr;
-	iv->iv_vec.v_nr = nr;
-
-	for (i = 0; i < nr; ++i) {
-		bv->ov_vec.v_count[i] = area[i].rd_reg.br_size;
-		bv->ov_buf[i]	      = area[i].rd_buf;
-
-		iv->iv_vec.v_count[i] = area[i].rd_reg.br_size;
-		iv->iv_index[i]       = be_seg_blkno(seg, area[i].rd_reg.br_addr);
-	}
-}
-#endif
 
 /** @todo XXX replace it. copy-pasted from above */
 static void iovec_prepare2(struct m0_be_seg *seg, struct m0_be_reg_area *area,
@@ -407,108 +289,6 @@ M0_INTERNAL void m0_be_seg_write_simple(struct m0_be_seg *seg,
 	rc = m0_stob_io_launch(io, seg->bs_stob, NULL, NULL);
 }
 
-M0_INTERNAL int
-m0_be_seg_write(struct m0_be_seg *seg, void *regd_tree, struct m0_be_op *op)
-{
-	struct m0_stob_io  *io;
-	struct m0_clink    *clink;
-	int                 rc;
-
-	M0_PRE(m0_be__seg_invariant(seg) && op != NULL);
-
-	/* Set up op, clink and io structs for SEGIO write. */
-	op->bo_utype        = M0_BOP_SEGIO;
-	clink               = &op->bo_u.u_segio.si_clink;
-	io                  = &op->bo_u.u_segio.si_stobio;
-	m0_clink_init(clink, &be_seg_stobio_cb);
-	m0_stob_io_init(io);
-	io->si_flags        = 0;
-	io->si_opcode       = SIO_WRITE;
-	io->si_fol_rec_part = (void *)1;
-
-	/* Allocate and fill counts, buffers and indexes arrays. */
-	rc = m0_be_seg_bufvec_build(seg, regd_tree, &io->si_stob,
-				    &io->si_user);
-	if (rc != 0) {
-		op->bo_sm.sm_rc = rc;
-		m0_sm_state_set(&op->bo_sm, M0_BOS_FAILURE);
-		return rc;
-	}
-
-	/* Add clink and start STOB i/o. */
-	m0_clink_add_lock(&io->si_wait, clink);
-	rc = m0_stob_io_launch(io, seg->bs_stob, NULL, NULL);
-	if (rc == 0)
-		m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
-	return rc;
-}
-
-M0_INTERNAL int m0_be_seg_bufvec_build(struct m0_be_seg *seg,
-				       void *regd_tree,
-				       struct m0_indexvec *iv,
-				       struct m0_bufvec *bv)
-{
-	m0_bcount_t reg_nr;
-	m0_bcount_t i;
-
-	M0_PRE(m0_be__seg_invariant(seg));
-	M0_PRE(iv != NULL && bv != NULL);
-
-	/* Count number of reg_d records in the tree. */
-	void reg_cnt(const void *p, const VISIT which, const int depth)
-	{
-		if (which == postorder || which == leaf)
-			reg_nr++;
-	}
-	reg_nr = 0;
-	twalk(regd_tree, &reg_cnt);
-
-	/* Allocate buf/index and count arrays in the provided
-	 * bufvec and indexvec stuctures. */
-	bv->ov_vec.v_nr    = reg_nr;
-	bv->ov_vec.v_count = M0_ALLOC_ARR(bv->ov_vec.v_count, reg_nr);
-	if (bv->ov_vec.v_count == NULL)
-		return -ENOMEM;
-	bv->ov_buf         = M0_ALLOC_ARR(bv->ov_buf, reg_nr);
-	if (bv->ov_buf == NULL) {
-		m0_free(bv->ov_vec.v_count);
-		return -ENOMEM;
-	}
-	iv->iv_index       = M0_ALLOC_ARR(iv->iv_index, reg_nr);
-	if (iv->iv_index == NULL) {
-		m0_free(bv->ov_buf);
-		m0_free(bv->ov_vec.v_count);
-		return -ENOMEM;
-	}
-	iv->iv_vec         = bv->ov_vec;
-
-	/* Fill count and buf/index arrays. */
-	i = 0;
-	void reg_fillvec(const void *p, const VISIT which, const int depth)
-	{
-		struct m0_be_regdtree_node *n =
-			(struct m0_be_regdtree_node *)p;
-		struct m0_be_reg_d         *r = n->bn_reg_d;
-		if (which == postorder || which == leaf) {
-			/* fill iv->iv_index[i], bv->ov_buf[i] and
-			 * iv->iv_vec.v_count[i]/bv->ov_vec.v_count[i]. */
-			m0_bcount_t b0;
-			M0_ASSERT(m0_addr_is_aligned(r->rd_buf,
-						     seg->bs_bshift));
-			b0 = be_seg_blkno(seg, r->rd_reg.br_addr);
-			bv->ov_vec.v_count[i] =
-				be_seg_blkno(seg, r->rd_reg.br_addr +
-					     r->rd_reg.br_size - 1) - b0 + 1;
-			bv->ov_buf[i] = m0_stob_addr_pack(r->rd_buf,
-							  seg->bs_bshift);
-			iv->iv_index[i] = b0;
-		}
-	}
-	twalk(regd_tree, &reg_fillvec);
-	return 0;
-}
-
-
 M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op)
 {
 	m0_bcount_t n;
@@ -573,34 +353,22 @@ M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg)
 	return true;
 }
 
-M0_INTERNAL int m0_be__reg_read(struct m0_be_seg *seg, struct m0_be_op *op,
-				struct m0_be_reg *regs, m0_bcount_t nr)
-{
-	return -1; /*XXX*/
-}
-
-M0_INTERNAL int m0_be__reg_write(struct m0_be_seg *seg, struct m0_be_op *op,
-				 struct m0_be_reg *regs, m0_bcount_t nr)
-{
-	return -1; /*XXX*/
-}
-
 M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg, const char *name,
 				      void **out)
 {
 	*out = NULL;
-	return -ENOENT;
+	return -ENOSYS;
 }
 
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg, const char *name,
 				      void *value)
 {
-	return 0;
+	return -ENOSYS;
 }
 
 M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name)
 {
-	return 0;
+	return -ENOSYS;
 }
 
 M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
@@ -614,6 +382,65 @@ M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
 	return r1->br_seg == r2->br_seg &&
 	       r1->br_size == r2->br_size &&
 	       r1->br_addr == r2->br_addr;
+}
+
+M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
+					 void *addr)
+{
+	M0_PRE(m0_be_seg_contains(seg, addr));
+	return (char *) addr - (char *) seg->bs_addr;
+}
+
+M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)
+{
+	return m0_be_seg_offset(reg->br_seg, reg->br_addr);
+}
+
+static int be_seg__io(struct m0_be_reg *reg,
+		      void *ptr,
+		      enum m0_stob_io_opcode opcode)
+{
+	struct m0_be_io io;
+	struct m0_be_op op;
+	int		rc;
+
+	M0_PRE(m0_be__reg_invariant(reg));
+	m0_be_op_init(&op);
+	rc = m0_be_io_init(&io, reg->br_seg->bs_stob,
+			   &M0_BE_TX_CREDIT(1, reg->br_size));
+	if (rc == 0) {
+		m0_be_io_add(&io, ptr, m0_be_reg_offset(reg), reg->br_size);
+		m0_be_io_configure(&io, opcode);
+		rc = m0_be_io_launch(&io, &op);
+		if (rc == 0) {
+			m0_be_op_wait(&op);
+			M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		}
+		m0_be_io_fini(&io);
+	}
+	m0_be_op_fini(&op);
+
+	return rc;
+}
+
+M0_INTERNAL int m0_be_seg__read(struct m0_be_reg *reg, void *dst)
+{
+	return be_seg__io(reg, dst, SIO_READ);
+}
+
+M0_INTERNAL int m0_be_seg__write(struct m0_be_reg *reg, void *src)
+{
+	return be_seg__io(reg, src, SIO_WRITE);
+}
+
+M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg)
+{
+	return m0_be_seg__read(reg, reg->br_addr);
+}
+
+M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg)
+{
+	return m0_be_seg__write(reg, reg->br_addr);
 }
 
 /** @} end of be group */
