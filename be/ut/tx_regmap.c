@@ -630,8 +630,8 @@ static void be_ut_reg_area_get(void)
 	struct m0_be_reg_d *rd;
 
 	be_ut_reg_area_reset(false);
-	for (rd = m0_be_regmap_first(&be_ut_ra_reg_area.bra_map); rd != NULL;
-	     rd = m0_be_regmap_next(&be_ut_ra_reg_area.bra_map, rd)) {
+	for (rd = m0_be_reg_area_first(&be_ut_ra_reg_area); rd != NULL;
+	     rd = m0_be_reg_area_next(&be_ut_ra_reg_area, rd)) {
 		be_ut_reg_area_fill(rd);
 	}
 }
@@ -661,9 +661,9 @@ static void be_ut_reg_area_check(bool do_insert, struct m0_be_reg_d *rd)
 	} else {
 		begin = (char *) rd->rd_reg.br_addr - &be_ut_ra_reg[0];
 		end   = begin + rd->rd_reg.br_size;
-		for (rdi = m0_be_regmap_first(&be_ut_ra_reg_area.bra_map);
+		for (rdi = m0_be_reg_area_first(&be_ut_ra_reg_area);
 		     rdi != NULL;
-		     rdi = m0_be_regmap_next(&be_ut_ra_reg_area.bra_map, rdi)) {
+		     rdi = m0_be_reg_area_next(&be_ut_ra_reg_area, rdi)) {
 			ibegin = (char *) rdi->rd_reg.br_addr -
 				 &be_ut_ra_reg[0];
 			iend   = ibegin + rdi->rd_reg.br_size;

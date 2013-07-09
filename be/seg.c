@@ -352,8 +352,8 @@ static void iovec_prepare2(struct m0_be_seg *seg, struct m0_be_reg_area *area,
 	iv->iv_vec.v_nr = nr;
 
 	i = 0;
-	for (rd = m0_be_regmap_first(&area->bra_map); rd != NULL;
-	     rd = m0_be_regmap_next(&area->bra_map, rd)) {
+	for (rd = m0_be_reg_area_first(area); rd != NULL;
+	     rd = m0_be_reg_area_next(area, rd)) {
 		bv->ov_vec.v_count[i] = rd->rd_reg.br_size;
 		bv->ov_buf[i]	      = rd->rd_buf;
 

@@ -26,6 +26,8 @@
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 
 struct m0_ext;
+struct m0_be_op;
+struct m0_be_io;
 
 /**
  * @defgroup be
@@ -183,6 +185,11 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 					const struct m0_be_reg_d *rd);
 M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
 					  const struct m0_be_reg_d *rd);
+
+M0_INTERNAL struct m0_be_reg_d *
+m0_be_reg_area_first(struct m0_be_reg_area *ra);
+M0_INTERNAL struct m0_be_reg_d *
+m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_REGMAP_H__ */

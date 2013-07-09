@@ -564,6 +564,18 @@ M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
 	M0_POST(m0_be_reg_area__invariant(ra));
 }
 
+M0_INTERNAL struct m0_be_reg_d *
+m0_be_reg_area_first(struct m0_be_reg_area *ra)
+{
+	return m0_be_regmap_first(&ra->bra_map);
+}
+
+M0_INTERNAL struct m0_be_reg_d *
+m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev)
+{
+	return m0_be_regmap_next(&ra->bra_map, prev);
+}
+
 /** @} end of be group */
 
 /*

@@ -199,8 +199,8 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 		ge = &go->go_entry[i++];
 		ge->ge_reg.rs_reg = &go->go_reg[go->go_reg_nr];
 		j = 0;
-		for (rd = m0_be_regmap_first(&area->bra_map); rd != NULL;
-		     rd = m0_be_regmap_next(&area->bra_map, rd)) {
+		for (rd = m0_be_reg_area_first(area); rd != NULL;
+		     rd = m0_be_reg_area_next(area, rd)) {
 			ge->ge_reg.rs_reg[j].rh_lsn    = 0xABC;
 			ge->ge_reg.rs_reg[j].rh_offset =
 				(uintptr_t) rd->rd_reg.br_addr;
@@ -224,8 +224,8 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 		M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_reg[i]);
 	m0_tl_for(grp, &group->tg_txs, tx) {
 		area = &tx->t_reg_area;
-		for (rd = m0_be_regmap_first(&area->bra_map); rd != NULL;
-		     rd = m0_be_regmap_next(&area->bra_map, rd)) {
+		for (rd = m0_be_reg_area_first(area); rd != NULL;
+		     rd = m0_be_reg_area_next(area, rd)) {
 			m0_be_log_stor_io_add(&lsi,
 					      rd->rd_buf, rd->rd_reg.br_size);
 		}

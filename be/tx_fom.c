@@ -465,7 +465,7 @@ static int placing_tick(struct m0_fom *fom)
 
 	/* perform IO */
 	area = &tx->t_reg_area;
-	seg = m0_be_regmap_first(&area->bra_map)->rd_reg.br_seg;
+	seg = m0_be_reg_area_first(area)->rd_reg.br_seg;
 	m0_be_op_init(op);
 	m0_be_seg_write_simple(seg, op, area);
 
