@@ -261,18 +261,18 @@ static int item_encode(struct m0_rpc_item       *item,
 	else if (item->ri_rmachine != NULL &&
 		 item->ri_rmachine->rm_reqh != NULL) {
 		ha_dom = &item->ri_rmachine->rm_reqh->rh_hadom;
-
-		epoch = m0_ha_domain_get_read(ha_dom);
-		m0_ha_domain_put_read(ha_dom);
+		epoch = ha_dom->hdo_epoch;
 	}
 
 	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)epoch);
 	ioh = (struct m0_rpc_item_onwire_header){
-		.ioh_opcode = item->ri_type->rit_opcode,
-		.ioh_ha_epoch  = epoch,
-		.ioh_magic  = M0_RPC_ITEM_MAGIC,
+		.ioh_opcode   = item->ri_type->rit_opcode,
+		.ioh_flags    = item->ri_flags,
+		.ioh_ha_epoch = epoch,
+		.ioh_magic    = M0_RPC_ITEM_MAGIC,
 	};
-
+	if (item->ri_nr_sent > 0)
+		ioh.ioh_flags |= M0_RIF_DUP;
 	rc = m0_rpc_item_header_encdec(&ioh, cursor, M0_XCODE_ENCODE);
 	if (rc == 0)
 		rc = item->ri_type->rit_ops->rito_encode(item->ri_type,
@@ -367,6 +367,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 		M0_RETURN(rc);
 
 	(*item_out)->ri_ha_epoch = ioh.ioh_ha_epoch;
+	(*item_out)->ri_flags    = ioh.ioh_flags;
 	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)ioh.ioh_ha_epoch);
 
 	return 0;

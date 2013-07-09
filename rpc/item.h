@@ -185,6 +185,13 @@ struct m0_rpc_item {
 	struct m0_rpc_session		*ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
+	/**
+	 * Item flags. A bitmask of values from enum m0_rpc_item_flags.
+	 *
+	 * This field is packed in item header when the item is sent and copied
+	 * back in this field on receiver.
+	 */
+	uint32_t                         ri_flags;
 
 /* Public fields: read only */
 
@@ -251,6 +258,19 @@ struct m0_rpc_item {
 	struct m0_rpc_frm               *ri_frm;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
+};
+
+enum m0_rpc_item_flags {
+	/**
+	 * Item is being sent not for the first time.
+	 *
+	 * RPC sets this field internally, when the item is resent.
+	 */
+	M0_RIF_DUP  = 1 << 0,
+	/**
+	 * Item is being sent as part of DTM redo.
+	 */
+	M0_RIF_REDO = 1 << 1
 };
 
 struct m0_rpc_item_ops {

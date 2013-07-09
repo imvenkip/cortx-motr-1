@@ -85,8 +85,10 @@ struct m0_rpc_packet_onwire_header {
 } M0_XCA_RECORD;
 
 struct m0_rpc_item_onwire_header {
-	/* Item opcode */
+	/** Item opcode */
 	uint32_t ioh_opcode;
+	/** Item flags, taken from enum m0_rpc_item_flags. */
+	uint32_t ioh_flags;
 	/** HA epoch transferred by the item. */
 	uint64_t ioh_ha_epoch;
 	uint64_t ioh_magic;
