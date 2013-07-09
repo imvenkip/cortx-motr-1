@@ -167,7 +167,7 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 	M0_PRE(part != NULL);
 
 	arp = part->rp_data;
-	old_data = &arp->arp_seg.ps_old_data[0];
+	old_data = arp->arp_seg.ps_old_data;
 
 	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
 	adom = domain2ad(dom);
@@ -175,7 +175,7 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
 		rc = m0_emap_lookup(&adom->ad_adata, tx,
 				    &old_data[i].ee_pre,
-				    old_data[i].ee_ext.e_start,
+				     old_data[i].ee_ext.e_start,
 				    &it) ?:
 		     m0_emap_extent_update(&it, &old_data[i]);
 		m0_emap_close(&it);

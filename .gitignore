@@ -111,6 +111,18 @@ gmon.out
 *.log
 
 #
+# Tools files
+#
+/cachegrind.out.*
+/callgrind.out.*
+/massif.out.*
+
+#
+# Core files
+#
+/core.*
+
+#
 # Generated documentation
 #
 doc/html/

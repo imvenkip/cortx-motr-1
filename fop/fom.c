@@ -423,8 +423,8 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 
 M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 {
-	struct m0_fom_domain		  *dom;
-	size_t				   loc_idx;
+	struct m0_fom_domain *dom;
+	size_t                loc_idx;
 
 	M0_PRE(reqh != NULL);
 	M0_PRE(fom != NULL);

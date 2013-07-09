@@ -481,7 +481,7 @@ sub gen_xc_c_type_struct_decl
 {
     my @items = @_;
 
-    my $xcode;
+    my $xcode = "";
 
     for my $item (@items) {
         $xcode .= $item->{'scope'} . 'struct m0_xcode_type *' . $item->{'name'} . "_xc;\n";
@@ -515,7 +515,7 @@ sub gen_xc_c_helper_type_struct_def
 {
     my @items = @_;
 
-    my $xcode;
+    my $xcode = "";
 
     for my $item (@items) {
 
@@ -553,7 +553,7 @@ sub gen_xc_c_compiletime_checks
 {
     my @items = @_;
 
-    my $xcode;
+    my $xcode = "";
 
     for my $item (@items) {
 

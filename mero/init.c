@@ -56,6 +56,7 @@
 #  include "mero/linux_kernel/dummy_init_fini.h"
 #  include "net/test/initfini.h"	/* m0_net_test_init */
 #else
+#  include "be/tx_service.h"    /* m0_be_txs_register */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "conf/addb.h"        /* m0_conf_addb_init */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
@@ -148,10 +149,12 @@ struct init_fini_call subsystem[] = {
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
 #else
-	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
+	{ &m0_backend_init,     &m0_backend_fini,     "be" },
+	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	/**
 	 * @todo Start rmservice in kernel mode.
 	 */

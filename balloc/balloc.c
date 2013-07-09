@@ -1874,7 +1874,7 @@ out:
    specified memory limitation.	 This is a configurable parameter, or default
    value will be chosen based on system memory.
 
-   @param ctxt balloc operation context environment.
+   @param ctx balloc operation context environment.
    @param req allocate request which includes all parameters.
    @return 0 means success.
 	   Result allocated blocks are again stored in "req":
@@ -1883,7 +1883,7 @@ out:
 	   Upon failure, non-zero error number is returned.
  */
 static
-int balloc_allocate_internal(struct m0_balloc *mero,
+int balloc_allocate_internal(struct m0_balloc *ctx,
 			     struct m0_db_tx *tx,
 			     struct m0_balloc_allocate_req *req)
 {
@@ -1892,7 +1892,7 @@ int balloc_allocate_internal(struct m0_balloc *mero,
 	M0_ENTRY();
 
 	while (req->bar_len &&
-	       !balloc_claim_free_blocks(mero, req->bar_len)) {
+	       !balloc_claim_free_blocks(ctx, req->bar_len)) {
 		req->bar_len = req->bar_len >> 1;
 	}
 	if (req->bar_len == 0) {
@@ -1900,7 +1900,7 @@ int balloc_allocate_internal(struct m0_balloc *mero,
 		goto out;
 	}
 
-	balloc_init_ac(&bac, mero, tx, req);
+	balloc_init_ac(&bac, ctx, tx, req);
 
 	/* Step 1. query the pre-allocation */
 	if (!balloc_use_prealloc(&bac)) {
@@ -1923,17 +1923,17 @@ out:
 /**
    Free multiple blocks owned by some object to free space.
 
-   @param ctxt balloc operation context environment.
+   @param ctx balloc operation context environment.
    @param req block free request which includes all parameters.
    @return 0 means success. Upon failure, non-zero error number is returned.
  */
-static int balloc_free_internal(struct m0_balloc *mero,
+static int balloc_free_internal(struct m0_balloc *ctx,
 				struct m0_db_tx *tx,
 				struct m0_balloc_free_req *req)
 {
 	struct m0_ext			 fex;
 	struct m0_balloc_group_info	*grp;
-	struct m0_balloc_super_block	*sb = &mero->cb_sb;
+	struct m0_balloc_super_block	*sb = &ctx->cb_sb;
 	m0_bcount_t			 group;
 	m0_bindex_t			 start, off;
 	m0_bcount_t			 len, step;
@@ -1943,25 +1943,25 @@ static int balloc_free_internal(struct m0_balloc *mero,
 	start = req->bfr_physical;
 	len = req->bfr_len;
 
-	group = balloc_bn2gn(start + len, mero);
+	group = balloc_bn2gn(start + len, ctx);
 	M0_LOG(M0_DEBUG, "start=0x%llx, len=0x%llx, start_group=%llu, "
 		"end_group=%llu, group count=%llu\n",
 		(unsigned long long)start,
 		(unsigned long long)len,
-		(unsigned long long)balloc_bn2gn(start, mero),
-		(unsigned long long)balloc_bn2gn(start + len, mero),
+		(unsigned long long)balloc_bn2gn(start, ctx),
+		(unsigned long long)balloc_bn2gn(start + len, ctx),
 		(unsigned long long)sb->bsb_groupcount
 		);
 	if (group > sb->bsb_groupcount)
 		return -EINVAL;
 
 	while (rc == 0 && len > 0) {
-		group = balloc_bn2gn(start, mero);
+		group = balloc_bn2gn(start, ctx);
 
-		grp = m0_balloc_gn2info(mero, group);
+		grp = m0_balloc_gn2info(ctx, group);
 		m0_balloc_lock_group(grp);
 
-		rc = m0_balloc_load_extents(mero, grp, tx);
+		rc = m0_balloc_load_extents(ctx, grp, tx);
 		if (rc != 0) {
 			m0_balloc_unlock_group(grp);
 			goto out;
@@ -1975,7 +1975,7 @@ static int balloc_free_internal(struct m0_balloc *mero,
 
 		fex.e_start = start;
 		fex.e_end   = start + step;
-		rc = balloc_update_db(mero, tx, grp,
+		rc = balloc_update_db(ctx, tx, grp,
 					 &fex, M0_BALLOC_FREE);
 		m0_balloc_release_extents(grp);
 		m0_balloc_unlock_group(grp);
@@ -1991,12 +1991,12 @@ out:
 /**
    Discard the pre-allocation for object.
 
-   @param ctxt balloc operation context environment.
+   @param ctx balloc operation context environment.
    @param req discard request which includes all parameters.
    @return 0 means success. Upon failure, non-zero error number is returned.
  */
 __attribute__((unused))
-static int balloc_discard_prealloc(struct m0_balloc *mero,
+static int balloc_discard_prealloc(struct m0_balloc *ctx,
 				   struct m0_balloc_discard_req *req)
 {
 	return 0;
@@ -2008,15 +2008,15 @@ static int balloc_discard_prealloc(struct m0_balloc *mero,
    This function may be used by fsck or some other tools to modify the
    allocation status directly.
 
-   @param ctxt balloc operation context environment.
+   @param ctx balloc operation context environment.
    @param alloc true to make the specifed extent as allocated, otherwise make
 	  the extent as free.
    @param ext user supplied extent to check.
    @return 0 means success. Upon failure, non-zero error number is returned.
  */
 __attribute__((unused))
-static int balloc_enforce(struct m0_balloc *mero, bool alloc,
-			  struct m0_ext *ex)
+static int balloc_enforce(struct m0_balloc *ctx, bool alloc,
+			  struct m0_ext *ext)
 {
 	return 0;
 }
@@ -2025,12 +2025,12 @@ static int balloc_enforce(struct m0_balloc *mero, bool alloc,
 /**
    Query the allocation status.
 
-   @param ctxt balloc operation context environment.
+   @param ctx balloc operation context environment.
    @param ext user supplied extent to check.
    @return true if the extent is fully allocated. Otherwise, false is returned.
  */
 __attribute__((unused))
-static bool balloc_query(struct m0_balloc *mero, struct m0_ext *ex)
+static bool balloc_query(struct m0_balloc *ctx, struct m0_ext *ext)
 {
 
 	return false;

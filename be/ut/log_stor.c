@@ -1,0 +1,237 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 4-Jul-2013
+ */
+
+#include "be/log_stor.h"
+#include "be/be.h"
+
+#include "lib/misc.h"		/* M0_SET0 */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
+
+#include <stdlib.h>		/* rand_r */
+
+enum {
+	BE_UT_LOG_STOR_SIZE  = 0x100,
+	BE_UT_LOG_STOR_STEP  = 0xF,
+	BE_UT_LOG_STOR_ITER  = 0x200,
+	BE_UT_LOG_STOR_CR_NR = 0x7,
+};
+
+static char	   be_ut_log_stor_pre[BE_UT_LOG_STOR_SIZE];
+static char	   be_ut_log_stor_post[BE_UT_LOG_STOR_SIZE];
+static unsigned	   be_ut_log_stor_seed;
+static m0_bindex_t be_ut_log_stor_pos;
+
+/* this random may have non-uniform distribution */
+static int be_ut_log_stor_rand(int mod)
+{
+	return rand_r(&be_ut_log_stor_seed) % mod;
+}
+
+static void be_ut_log_stor_io_read(struct m0_be_log_stor *ls,
+				   char *buf,
+				   m0_bcount_t size)
+{
+	struct m0_be_io bio;
+	struct m0_be_op op;
+	int		rc;
+
+	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT(1, size));
+	m0_be_io_add(&bio, buf, 0, size);
+	m0_be_io_configure(&bio, SIO_READ);
+
+	m0_be_op_init(&op);
+	m0_be_io_launch(&bio, &op);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	m0_be_op_fini(&op);
+
+	m0_be_io_fini(&bio);
+}
+
+static void be_ut_log_stor_rand_cr(struct m0_be_tx_credit *cr,
+				   m0_bcount_t size)
+{
+	m0_bcount_t i;
+	int	    buf[BE_UT_LOG_STOR_SIZE];
+
+	M0_CASSERT(BE_UT_LOG_STOR_CR_NR <= ARRAY_SIZE(buf));
+
+	m0_be_tx_credit_init(cr);
+	for (i = 0; i < size; ++i)
+		++buf[be_ut_log_stor_rand(BE_UT_LOG_STOR_CR_NR)];
+	for (i = 0; i < BE_UT_LOG_STOR_CR_NR; ++i)
+		if (buf[i] != 0)
+			m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, buf[i]));
+	/* wrap credit */
+	m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, 0));
+}
+
+static void be_ut_log_stor_io_write_sync(struct m0_be_io *bio)
+{
+	struct m0_be_op op;
+	int		rc;
+
+	m0_be_op_init(&op);
+	m0_be_io_configure(bio, SIO_WRITE);
+	rc = m0_be_io_launch(bio, &op);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_op_fini(&op);
+}
+
+static void be_ut_log_stor_io_check(struct m0_be_log_stor *ls, m0_bcount_t size)
+{
+	struct m0_be_log_stor_io lsi;
+	struct m0_be_tx_credit	 io_cr_log;
+	struct m0_be_tx_credit	 io_cr_log_cblock;
+	struct m0_be_io		 io_log;
+	struct m0_be_io		 io_log_cblock;
+	m0_bcount_t		 cblock_size;
+	m0_bcount_t		 data_size;
+	int			 cmp;
+	int			 rc;
+	int			 i;
+	char			 rbuf[BE_UT_LOG_STOR_SIZE];
+
+	M0_PRE(size <= ARRAY_SIZE(rbuf));
+
+	for (i = 0; i < size; ++i)
+		rbuf[i] = be_ut_log_stor_rand(0x100);
+
+	cblock_size = be_ut_log_stor_rand(size - 1) + 1;
+	data_size   = size - cblock_size;
+	M0_ASSERT(cblock_size > 0);
+	M0_ASSERT(data_size > 0);
+
+	be_ut_log_stor_rand_cr(&io_cr_log, data_size);
+	m0_be_log_stor_cblock_io_credit(&io_cr_log_cblock, cblock_size);
+
+	rc = m0_be_io_init(&io_log, ls->ls_stob, &io_cr_log);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_io_init(&io_log_cblock, ls->ls_stob, &io_cr_log_cblock);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_log_stor_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
+
+	/* save */
+	be_ut_log_stor_io_read(ls, be_ut_log_stor_pre,
+			       ARRAY_SIZE(be_ut_log_stor_pre));
+	/* log storage io */
+	m0_be_log_stor_io_add(&lsi, rbuf, data_size);
+	m0_be_log_stor_io_add_cblock(&lsi, &rbuf[data_size], cblock_size);
+	m0_be_log_stor_io_sort(&lsi);
+	m0_be_log_stor_io_fini(&lsi);
+	be_ut_log_stor_io_write_sync(&io_log);
+	be_ut_log_stor_io_write_sync(&io_log_cblock);
+	/* do operation in saved memory representation of the log storage */
+	for (i = 0; i < size; ++i) {
+		be_ut_log_stor_pre[(be_ut_log_stor_pos + i) %
+				   BE_UT_LOG_STOR_SIZE] = rbuf[i];
+	}
+	be_ut_log_stor_pos += size;
+	/* check if it was done in log */
+	be_ut_log_stor_io_read(ls, be_ut_log_stor_post,
+			       ARRAY_SIZE(be_ut_log_stor_post));
+	cmp = memcmp(be_ut_log_stor_pre, be_ut_log_stor_post, size);
+	M0_UT_ASSERT(cmp == 0);
+
+	m0_be_io_fini(&io_log_cblock);
+	m0_be_io_fini(&io_log);
+}
+
+static void be_ut_log_stor_io_check_nop(struct m0_be_log_stor *ls,
+					m0_bcount_t size)
+{
+	struct m0_be_log_stor_io lsi;
+	struct m0_be_io		 io_log;
+	struct m0_be_io		 io_log_cblock;
+
+	m0_be_log_stor_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
+	m0_be_log_stor_io_fini(&lsi);
+}
+
+static void be_ut_log_stor(bool fake_io)
+{
+	struct m0_be_log_stor ls;
+	const m0_bcount_t     log_size = BE_UT_LOG_STOR_SIZE;
+	m0_bcount_t	      used;
+	m0_bcount_t	      step;
+	int		      rc;
+	int		      i;
+
+	M0_SET0(&ls);
+	m0_be_log_stor_init(&ls);
+
+	rc = m0_be_log_stor_create(&ls, log_size);
+	M0_UT_ASSERT(rc == 0);
+
+	used = 0;
+	be_ut_log_stor_seed = 0;
+	be_ut_log_stor_pos = 0;
+	for (step = 2; step <= BE_UT_LOG_STOR_STEP; ++step) {
+		for (i = 0; i < BE_UT_LOG_STOR_ITER; ++i) {
+			M0_UT_ASSERT(0 <= used && used <= BE_UT_LOG_STOR_SIZE);
+			if (used + step <= log_size) {
+				rc = m0_be_log_stor_reserve(&ls, step);
+				M0_UT_ASSERT(rc == 0);
+				used += step;
+				if (fake_io) {
+					be_ut_log_stor_io_check_nop(&ls, step);
+				} else {
+					be_ut_log_stor_io_check(&ls, step);
+				}
+			} else {
+				rc = m0_be_log_stor_reserve(&ls, step);
+				M0_UT_ASSERT(rc != 0);
+				m0_be_log_stor_discard(&ls, step);
+				used -= step;
+			}
+		}
+	}
+	m0_be_log_stor_discard(&ls, used);
+
+	m0_be_log_stor_destroy(&ls);
+	m0_be_log_stor_fini(&ls);
+}
+
+void m0_be_ut_log_stor_reserve(void)
+{
+	be_ut_log_stor(true);
+}
+
+void m0_be_ut_log_stor_io(void)
+{
+	be_ut_log_stor(false);
+}
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

@@ -194,32 +194,33 @@ M0_INTERNAL void m0_trace_fini(void);
  * Please keep the lower list sorted.
  */
 #define M0_TRACE_SUBSYSTEMS      \
-  M0_TRACE_SUBSYS(OTHER,     0)  \
-  M0_TRACE_SUBSYS(LIB,       1)  \
-  M0_TRACE_SUBSYS(UT,        2)  \
-                                 \
-  M0_TRACE_SUBSYS(ADDB,      3)  \
-  M0_TRACE_SUBSYS(BALLOC,    4)  \
-  M0_TRACE_SUBSYS(CM,        5)  \
-  M0_TRACE_SUBSYS(COB,       6)  \
-  M0_TRACE_SUBSYS(CONF,      7)  \
-  M0_TRACE_SUBSYS(FOP,       8)  \
-  M0_TRACE_SUBSYS(FORMATION, 9)  \
-  M0_TRACE_SUBSYS(IOSERVICE, 10) \
-  M0_TRACE_SUBSYS(LAYOUT,    11) \
-  M0_TRACE_SUBSYS(LNET,      12) \
-  M0_TRACE_SUBSYS(M0D,       13) \
-  M0_TRACE_SUBSYS(M0T1FS,    14) \
-  M0_TRACE_SUBSYS(MEMORY,    15) \
-  M0_TRACE_SUBSYS(MGMT,      16) \
-  M0_TRACE_SUBSYS(NET,       17) \
-  M0_TRACE_SUBSYS(POOL,      18) \
-  M0_TRACE_SUBSYS(RM,        19) \
-  M0_TRACE_SUBSYS(RPC,       20) \
-  M0_TRACE_SUBSYS(SNS,       21) \
-  M0_TRACE_SUBSYS(SNSCM,     22) \
-  M0_TRACE_SUBSYS(STOB,      23) \
-  M0_TRACE_SUBSYS(SM,        24)
+  M0_TRACE_SUBSYS(OTHER,      0) \
+  M0_TRACE_SUBSYS(LIB,        1) \
+  M0_TRACE_SUBSYS(UT,         2) \
+				 \
+  M0_TRACE_SUBSYS(ADDB,       3) \
+  M0_TRACE_SUBSYS(BALLOC,     4) \
+  M0_TRACE_SUBSYS(BE,         5) \
+  M0_TRACE_SUBSYS(CM,         6) \
+  M0_TRACE_SUBSYS(COB,        7) \
+  M0_TRACE_SUBSYS(CONF,       8) \
+  M0_TRACE_SUBSYS(FOP,        9) \
+  M0_TRACE_SUBSYS(FORMATION, 10) \
+  M0_TRACE_SUBSYS(IOSERVICE, 11) \
+  M0_TRACE_SUBSYS(LAYOUT,    12) \
+  M0_TRACE_SUBSYS(LNET,      13) \
+  M0_TRACE_SUBSYS(M0D,       14) \
+  M0_TRACE_SUBSYS(M0T1FS,    15) \
+  M0_TRACE_SUBSYS(MEMORY,    16) \
+  M0_TRACE_SUBSYS(MGMT,      17) \
+  M0_TRACE_SUBSYS(NET,       18) \
+  M0_TRACE_SUBSYS(POOL,      19) \
+  M0_TRACE_SUBSYS(RM,        20) \
+  M0_TRACE_SUBSYS(RPC,       21) \
+  M0_TRACE_SUBSYS(SM,        22) \
+  M0_TRACE_SUBSYS(SNS,       23) \
+  M0_TRACE_SUBSYS(SNSCM,     24) \
+  M0_TRACE_SUBSYS(STOB,      25)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

@@ -322,7 +322,7 @@ automatically adds some constructs, which are required by Mero coding style
 (like copyright, author and creation date, include guards, emacs config, etc.)
 
 User name and email are taken from `git config user.name` and
-`git config user.email` output. Waring is printed if any of those variables is
+`git config user.email` output. Warning is printed if any of those variables is
 not defined.
 
 =head1 ARGUMENTS

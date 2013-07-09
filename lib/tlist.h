@@ -221,6 +221,8 @@ struct m0_tl_descr {
 	    operations.
 	 */
 	uint64_t    td_head_magic;
+	/** Size of the ambient object. */
+	size_t      td_container_size;
 };
 
 #define M0_TL_DESCR(name, ambient_type, link_field, link_magic_field,	\
@@ -230,7 +232,8 @@ struct m0_tl_descr {
 	.td_link_offset       = offsetof(ambient_type, link_field),	\
 	.td_link_magic_offset = offsetof(ambient_type, link_magic_field), \
 	.td_link_magic        = link_magic,				\
-	.td_head_magic        = head_magic				\
+	.td_head_magic        = head_magic,				\
+	.td_container_size    = sizeof(ambient_type)			\
 };									\
 									\
 M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(ambient_type, link_field),	\
@@ -250,6 +253,8 @@ struct m0_tl {
 	uint64_t       t_magic;
 	/** Underlying m0_list. */
 	struct m0_list t_head;
+	/** Unsafe flag is set when not all nodes are present in memory. */
+	bool           t_unsafe;
 };
 
 /**
@@ -430,6 +435,8 @@ do {									\
 /**
  * Returns a conjunction (logical AND) of an expression evaluated for each list
  * element.
+ *
+ * @note This is not the macro you are interested in. Look at m0_tl_forall().
  *
  * Declares a void pointer variable named "var" in a new scope and evaluates
  * user-supplied expression (the last argument) with "var" iterated over

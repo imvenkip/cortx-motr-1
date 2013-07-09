@@ -43,6 +43,7 @@ static void *amb(const struct m0_tl_descr *d, struct m0_list_link *link);
 M0_INTERNAL void m0_tlist_init(const struct m0_tl_descr *d, struct m0_tl *list)
 {
 	list->t_magic = d->td_head_magic;
+	list->t_unsafe = false;  /* normally tlist is safe. */
 	m0_list_init(&list->t_head);
 	M0_INVARIANT_EX(m0_tlist_invariant(d, list));
 }
@@ -225,10 +226,14 @@ M0_INTERNAL bool m0_tlist_invariant(const struct m0_tl_descr *d,
 
 	if (list->t_magic != d->td_head_magic)
 		return false;
-	if ((head->ll_next == head) != (head->ll_prev == head))
+	if ((list->t_head.l_head == head) != (list->t_head.l_tail == head))
 		return false;
 
-	for (scan = head->ll_next; scan != head; scan = scan->ll_next) {
+	/* If list isn't completely loaded from STOB, do not scan. */
+	if (list->t_unsafe)
+		return true;
+
+	for (scan = list->t_head.l_head; scan != head; scan = scan->ll_next) {
 		if (scan->ll_next->ll_prev != scan ||
 		    scan->ll_prev->ll_next != scan)
 			return false;

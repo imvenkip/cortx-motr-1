@@ -37,6 +37,15 @@ M0_INTERNAL bool m0_ext_is_in(const struct m0_ext *ext, m0_bindex_t index)
 	return ext->e_start <= index && index < ext->e_end;
 }
 
+M0_INTERNAL bool m0_ext_are_overlapping(const struct m0_ext *e0,
+					const struct m0_ext *e1)
+{
+	struct m0_ext i;
+
+	m0_ext_intersection(e0, e1, &i);
+	return m0_ext_is_valid(&i);
+}
+
 M0_INTERNAL bool m0_ext_is_partof(const struct m0_ext *super,
 				  const struct m0_ext *sub)
 {

@@ -732,7 +732,6 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 
 M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach);
 
-
 /**
  * Initialises state machine configuration.
  *

@@ -23,6 +23,8 @@
 #ifndef __MERO_STOB_LINUX_H__
 #define __MERO_STOB_LINUX_H__
 
+#include "stob/stob.h"	/* m0_stob_domain */
+
 /**
    @defgroup stoblinux Storage object based on Linux specific file system
    and block device interfaces.

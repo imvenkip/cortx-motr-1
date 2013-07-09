@@ -38,6 +38,7 @@ extern const struct m0_test_suite ad_ut;
 extern const struct m0_test_suite addb_ut;
 extern const struct m0_test_suite adieu_ut;
 extern const struct m0_test_suite balloc_ut;
+extern const struct m0_test_suite be_ut;
 extern const struct m0_test_suite buffer_pool_ut;
 extern const struct m0_test_suite bulkio_client_ut;
 extern const struct m0_test_suite bulkio_server_ut;
@@ -103,6 +104,7 @@ void add_uts(void)
 	m0_ut_add(&ad_ut);
 	m0_ut_add(&adieu_ut);
 	m0_ut_add(&balloc_ut);
+	m0_ut_add(&be_ut);
 	m0_ut_add(&buffer_pool_ut);
 	m0_ut_add(&bulkio_client_ut);
 	m0_ut_add(&bulkio_server_ut);
