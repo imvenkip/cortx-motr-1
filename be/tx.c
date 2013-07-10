@@ -21,8 +21,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
-#include <search.h>            /* tsearch */
-
 #include "lib/errno.h"
 #include "lib/misc.h"          /* m0_forall */
 #include "lib/cdefs.h"         /* ARRAY_SIZE */
@@ -179,7 +177,6 @@ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
 	M0_PRE(tx_is_locked(tx));
 
 	m0_be_tx_credit_add(&tx->t_prepared, credit);
-	tx->t_payload_size = tx->t_prepared.tc_reg_size;
 
 	M0_POST(m0_be__tx_invariant(tx));
 	M0_LEAVE();
@@ -368,11 +365,6 @@ m0_be_tx_uncapture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 {
 	struct m0_be_tx_engine *eng = tx_engine(tx);
-#if 0
-	struct m0_be_tx_credit  t_used;
-	m0_bcount_t             used;
-	m0_bcount_t             prepared;
-#endif
 
 	M0_ENTRY();
 	M0_PRE(m0_be__tx_invariant(tx));
@@ -380,30 +372,10 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 	M0_PRE(tx_is_locked(tx));
 
 	tx_engine_lock(eng);
-	M0_PRE(m0_be__tx_engine_invariant(eng));
-
-	eng->te_inmem = tx;
 	m0_be__tx_state_set(tx, M0_BTS_CLOSED);
-
-#if 0
-	/* XXX: ABilenko commented this */
-	/* tx_engine_got_closed(eng, tx); */
-	(void) tx_engine_got_closed;
-
-	m0_be_reg_area_used(&tx->t_reg_area, &t_used);
-	prepared = tx_prepared_log_size(tx);
-	used     = tx_log_size(tx, &t_used, tx->t_leader);
-
-	M0_ASSERT(used <= prepared);
-	M0_ASSERT(eng->te_reserved + used >= prepared);
-	/*
-	 * Release excessive (prepared, but not used) space back into the log.
-	 */
-	eng->te_reserved -= prepared - used;
-#endif
 	tx_engine_got_space(eng);
-
 	tx_engine_unlock(eng);
+
 	M0_LEAVE();
 }
 
@@ -437,17 +409,20 @@ M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx)
 
 static void tx_engine_got_space(struct m0_be_tx_engine *eng)
 {
-	struct m0_be_tx *head;
-	int		 rc;
+	struct m0_be_tx *tx;
+	int              rc;
 
 	M0_PRE(m0_be__tx_engine_invariant(eng));
-	while ((head = eng_tlist_head(&eng->te_txs[M0_BTS_OPENING])) != NULL &&
-	       rc == 0) {
-		rc = m0_be_log_reserve_tx(&tx_engine(head)->te_log,
-					  &head->t_prepared);
+
+	m0_tl_for(eng, &eng->te_txs[M0_BTS_OPENING], tx) {
+		rc = m0_be_log_reserve_tx(&tx_engine(tx)->te_log,
+					  &tx->t_prepared);
 		if (rc == 0)
-			m0_be__tx_state_set(head, M0_BTS_ACTIVE);
-	}
+			m0_be__tx_state_set(tx, M0_BTS_ACTIVE);
+		else
+			break;
+	} m0_tl_endfor;
+
 	M0_POST(m0_be__tx_engine_invariant(eng));
 }
 
@@ -575,18 +550,14 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
 {
 	struct m0_be_tx *prev = NULL;
 
-	return true || ( /* XXX RESTOREME */
+	return true || /* XXX RESTOREME */
 		m0_forall(i, M0_BTS_NR,
 			  m0_tl_forall(eng, t, &engine->te_txs[i],
 				       m0_be__tx_invariant(t) &&
 				       ergo(prev != NULL && prev->t_lsn != 0,
 					    t->t_lsn != 0 &&
 					    prev->t_lsn > t->t_lsn) &&
-				       (prev = t, true))) &&
-		engine->te_start->t_lsn <= engine->te_placed->t_lsn &&
-		engine->te_placed->t_lsn <= engine->te_logged->t_lsn &&
-		engine->te_logged->t_lsn <= engine->te_submitted->t_lsn &&
-		engine->te_submitted->t_lsn <= engine->te_inmem->t_lsn);
+				       (prev = t, true)));
 }
 
 M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)

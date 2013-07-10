@@ -36,31 +36,6 @@
  * @{
  */
 
-#define XXX_MOCK_IO 0
-#if XXX_MOCK_IO /* XXX <<<<<<< */
-#  include "lib/thread.h"
-#  include "lib/mutex.h"
-#  include "lib/chan.h"
-#  include <unistd.h>
-
-static struct m0_thread g_thread;
-static void mock_io(struct m0_be_op *op)
-{
-        M0_LOG(M0_DEBUG, "mock IO started");
-        sleep(3);
-        M0_LOG(M0_DEBUG, "mock IO ended");
-
-	M0_SET0(&g_thread); /* XXX Leak yourself! */
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
-}
-
-M0_UNUSED static void _arm_io(struct m0_be_op *op)
-{
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-	M0_THREAD_INIT(&g_thread, struct m0_be_op *, NULL, &mock_io, op, "X");
-}
-#endif /* XXX >>>>>>> */
-
 static struct tx_group_fom *tx_group_fom(const struct m0_fom *fom);
 static void tx_group_fom_fini(struct m0_fom *fom);
 
@@ -381,7 +356,6 @@ static int open_tick(struct m0_fom *fom)
 static int logging_tick(struct m0_fom *fom)
 {
 	struct tx_group_fom   *m  = tx_group_fom(fom);
-	struct m0_be_tx_engine *eng = m->tgf_engine;
 	struct m0_be_tx_group *gr = tx_group(m);
 	struct m0_be_op       *op = &m->tgf_op;
 
@@ -391,16 +365,12 @@ static int logging_tick(struct m0_fom *fom)
 			    m0_be__tx_state(tx) == M0_BTS_GROUPED));
 
 	m0_be_op_init(op);
-#if XXX_MOCK_IO
-	_arm_io(op);
-#else
 	/*
 	 * Launch the 1st log IO: tx_group and, when the log is wrapped,
 	 * log header.
 	 */
-	/* m0_be_log_payload_prepare(&eng->te_log_X, gr); */
-	m0_be_log_submit(&eng->te_log, op, gr);
-#endif
+	m0_be_log_submit(&m->tgf_engine->te_log, op, gr);
+
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_COMMITTING);
 }
@@ -408,7 +378,6 @@ static int logging_tick(struct m0_fom *fom)
 static int committing_tick(struct m0_fom *fom)
 {
 	struct tx_group_fom   *m  = tx_group_fom(fom);
-	struct m0_be_tx_engine *eng = m->tgf_engine;
 	struct m0_be_tx_group *gr = tx_group(m);
 	struct m0_be_op       *op = &m->tgf_op;
 
@@ -418,15 +387,10 @@ static int committing_tick(struct m0_fom *fom)
 	M0_ENTRY();
 
 	m0_be_op_init(op);
-#if XXX_MOCK_IO
-	_arm_io(op);
-#else
 	/*
 	 * Launch the 2nd log IO: commit block.
 	 */
-	/* m0_be_log_commit_block_prepare(&eng->te_log_X, gr); */
-	m0_be_log_commit(&eng->te_log, op, gr);
-#endif
+	m0_be_log_commit(&m->tgf_engine->te_log, op, gr);
 
 	/* Next state (TGS_PLACING) uses this pointer. */
 	m->tgf_tx_to_place = grp_tlist_head(&gr->tg_txs);
@@ -540,8 +504,8 @@ static void tx_group_populate(struct m0_be_tx_group *group,
 
 	m0_rwlock_read_lock(&engine->te_lock);
 	m0_tl_for(eng, &engine->te_txs[M0_BTS_CLOSED], tx) {
-		if (false /* XXX TODO: size of group + size of tx >=
-			   * threshold */) {
+		if (false /* XXX TODO: credit of group + credit of tx >=
+			   * max credit of group (threshold) */) {
 			*full = true;
 			break;
 		}

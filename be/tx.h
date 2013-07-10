@@ -277,15 +277,6 @@ struct m0_be_tx_engine {
 	/** Transactional group. (Currently there is only one.) */
 	struct m0_be_tx_group te_group;
 
-	/*
-	 * Various interesting positions in the log. XXX Probably not needed.
-	 */
-	struct m0_be_tx      *te_start;
-	struct m0_be_tx      *te_placed;
-	struct m0_be_tx      *te_logged;
-	struct m0_be_tx      *te_submitted;
-	struct m0_be_tx      *te_inmem;
-
 	/**
 	 * Total space reserved for active transactions.
 	 *
