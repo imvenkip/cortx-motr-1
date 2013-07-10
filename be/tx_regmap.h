@@ -35,11 +35,25 @@ struct m0_be_io;
  * @{
  */
 
+/**
+ * Region in a transaction-private memory buffer.
+ *
+ * When a memory region is captured in a transaction, the contents of this
+ * region, i.e., new values placed in the memory by the user, are copied in
+ * a transaction-private memory buffer.
+ */
 struct m0_be_reg_d {
-	/** region's transaction */
-	struct m0_be_tx  *rd_tx;
-	struct m0_be_reg  rd_reg;
-	void             *rd_buf;
+	/**
+	 * The region in a segment, which the captured data is copied from.
+	 */
+	struct m0_be_reg rd_reg;
+	/**
+	 * The address within transaction-private memory buffer, which the
+	 * data is copied to.
+	 */
+	void            *rd_buf;
+
+	struct m0_be_tx *rd_tx; /* XXX DELETEME */
 };
 
 #define M0_BE_REG_D_CREDIT(rd) M0_BE_TX_CREDIT(1, (rd)->rd_reg.br_size)

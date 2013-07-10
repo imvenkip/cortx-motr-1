@@ -42,7 +42,14 @@
 
 M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd)
 {
-	return rd->rd_reg.br_addr != NULL && rd->rd_reg.br_size > 0;
+#if 0 /* XXX USEME */
+	/* XXX Could we also check that rd->rd_buf belongs
+	 * transaction-private memory buffer? */
+	return m0_be__reg_invariant(&rd->rd_reg);
+#else
+	const struct m0_be_reg *reg = &rd->rd_reg;
+	return reg->br_addr != NULL && reg->br_size > 0;
+#endif
 }
 
 M0_INTERNAL bool m0_be_reg_d_is_in(const struct m0_be_reg_d *rd, void *ptr)
