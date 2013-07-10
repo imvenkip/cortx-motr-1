@@ -40,7 +40,16 @@ static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
 
 static int service_start(struct m0_rpc_server_ctx *sctx)
 {
-	return m0_net_xprt_init(g_xprt) ?: m0_rpc_server_start(sctx);
+	int rc;
+
+	rc = m0_net_xprt_init(g_xprt);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_rpc_server_start(sctx);
+	if (rc != 0)
+		m0_net_xprt_fini(g_xprt);
+	return rc;
 }
 
 static void service_stop(struct m0_rpc_server_ctx *sctx)
