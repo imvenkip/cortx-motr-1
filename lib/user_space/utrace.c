@@ -28,8 +28,8 @@
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
 #include <limits.h>   /* CHAR_BIT */
-#include <inttypes.h> /* PRIu64 */
 
+#include "lib/types.h"
 #include "lib/arith.h"
 #include "lib/memory.h"
 #include "lib/trace.h"

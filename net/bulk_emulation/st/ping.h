@@ -24,11 +24,8 @@
 #ifndef __MERO_NET_BULK_MEM_PING_H__
 #define __MERO_NET_BULK_MEM_PING_H__
 
-#if !defined(__KERNEL__)
-#include <inttypes.h>     /* PRId64 */
-#endif
-
 #include "lib/bitmap.h"
+#include "lib/types.h"
 
 struct ping_ctx;
 struct ping_ops {
@@ -76,7 +73,6 @@ enum {
 
 /* Debug printf macro */
 #ifdef __KERNEL__
-#define PRId64 "lld" /* from <inttypes.h> */
 #define PING_ERR(fmt, ...) printk(KERN_ERR fmt , ## __VA_ARGS__)
 #else
 #include <stdio.h>

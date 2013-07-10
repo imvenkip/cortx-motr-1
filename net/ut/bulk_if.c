@@ -19,6 +19,7 @@
  * Original creation date: 04/06/2010
  */
 
+#include "lib/types.h"
 #include "lib/arith.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -37,7 +38,6 @@ static void make_desc(struct m0_net_buf_desc *desc);
 
 #if 0
 #define KPRN(fmt,...) printk(KERN_ERR fmt, ## __VA_ARGS__)
-#define PRId64 "lld" /* from <inttypes.h> */
 #else
 #define KPRN(fmt,...)
 #endif
