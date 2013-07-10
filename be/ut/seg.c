@@ -89,23 +89,30 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		for (j = 0; j < reg.br_size; ++j)
 			rand[j] = rand_r(&be_ut_seg_seed) & 0xFF;
 
-		/* write */
+		/* read segment before write operation */
 		rc = m0_be_seg__read(&reg_check, pre);
 		M0_UT_ASSERT(rc == 0);
+		/* write */
 		rc = m0_be_seg__write(&reg, rand);
 		M0_UT_ASSERT(rc == 0);
 		/* and read to check if it was written */
 		rc = m0_be_seg__read(&reg_check, post);
 		/* reload segment to test I/O operations in open()/close() */
-		m0_be_ut_h_seg_reload(&be_ut_seg_h);
+		m0_be_seg_close(seg);
+		rc = m0_be_seg_open(seg);
 		M0_UT_ASSERT(rc == 0);
 
 		for (j = 0; j < size; ++j)
 			pre[j + offset] = rand[j];
 
 		M0_CASSERT(ARRAY_SIZE(pre) == ARRAY_SIZE(post));
+		/*
+		 * check if data was written to stob
+		 * just after write operation
+		 */
 		cmp = memcmp(pre, post, ARRAY_SIZE(pre));
 		M0_UT_ASSERT(cmp == 0);
+		/* compare segment contents before and after reload */
 		cmp = memcmp(post, reg_check.br_addr, reg_check.br_size);
 		M0_UT_ASSERT(cmp == 0);
 	}
