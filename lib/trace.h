@@ -27,10 +27,12 @@
 
 #include "lib/types.h"
 #include "lib/arith.h"
+#include "lib/atomic.h"
 #include "mero/magic.h"  /* M0_TRACE_DESCR_MAGIC */
 
 #ifndef __KERNEL__
-#  include "lib/user_space/trace.h"
+#include "lib/user_space/trace.h"
+#include <sys/user.h>    /* PAGE_SIZE */
 #endif
 
 /**
@@ -85,13 +87,13 @@
 
    Parsing occurs in the following situations:
 
-       - @todo synchronously when a record is produced, or
+       - synchronously when a record is produced, or
 
-       - @todo asynchronously by a background thread, or
+       - asynchronously by a background thread, or
 
        - after the process (including a kernel) that generated records
          crashed. To this end the cyclic buffer is backed up by a memory mapped
-         file.
+         file (only for user space processes).
 
    <b>Implementation</b>
 
@@ -265,13 +267,65 @@ extern unsigned int m0_trace_level;
 enum {
 	/** Default buffer size, the real buffer size is at m0_logbufsize */
 	M0_TRACE_BUFSIZE   = 1 << (10 + 12), /* 4MB */
+	/** Size, reserved for trace buffer header */
+	M0_TRACE_BUF_HEADER_SIZE = PAGE_SIZE,
 	/** Alignment for trace records in trace buffer */
 	M0_TRACE_REC_ALIGN = 8, /* word size on x86_64 */
 };
+M0_BASSERT(M0_TRACE_BUF_HEADER_SIZE % PAGE_SIZE == 0);
 
-extern void      *m0_logbuf;      /**< Trace buffer pointer */
-extern uint32_t   m0_logbufsize;  /**< The real buffer size */
+extern struct m0_trace_buf_header *m0_logbuf_header; /**< Trace buffer header pointer */
+extern void      *m0_logbuf;        /**< Trace buffer pointer */
+extern uint32_t   m0_logbufsize;    /**< The real buffer size */
 
+enum m0_trace_buf_type {
+	M0_TRACE_BUF_KERNEL = 1,
+	M0_TRACE_BUF_USER   = 2,
+};
+
+/**
+ * Trace buffer header structure
+ *
+ * It's placed at the beginning of a trace buffer in a reserved area of
+ * M0_TRACE_BUF_HEADER_SIZE size.
+ */
+struct m0_trace_buf_header {
+	union {
+		struct {
+			/* XXX: don't change fields order */
+			/* XXX: new fields should be added to the end */
+
+			uint64_t                tbh_magic;
+			/**
+			 * Size, reserved for trace buffer header (NOTICE: not a
+			 * size of this structure). Effectively, this is an
+			 * offset within trace file, starting from which actual
+			 * trace records begin.
+			 */
+			uint32_t                tbh_header_size;
+			/** Trace buffer size */
+			uint32_t                tbh_buf_size;
+			/** enum m0_trace_buf_type */
+			uint32_t                tbh_buf_type;
+			/**
+			 * Current position in trace buffer, @see comments in
+			 * m0_trace_allot()
+			 */
+			struct m0_atomic64      tbh_cur_pos;
+			/** Record counter */
+			struct m0_atomic64      tbh_rec_cnt;
+			/** Address of special trace magic symbol */
+			const void             *tbh_magic_sym_addr;
+			/**
+			 * Address of loaded m0mero.ko module (used only for
+			 * kernel trace)
+			 */
+			const void             *tbh_module_core_addr;
+		};
+		char    tbh_header_area[M0_TRACE_BUF_HEADER_SIZE];
+	};
+};
+M0_BASSERT(sizeof (struct m0_trace_buf_header) == M0_TRACE_BUF_HEADER_SIZE);
 
 /**
  * Record header structure
@@ -283,9 +337,12 @@ extern uint32_t   m0_logbufsize;  /**< The real buffer size */
  * - pointer to record description in the program file
  */
 struct m0_trace_rec_header {
+	/* XXX: don't change fields order */
+	/* XXX: new fields should be added to the end */
 	uint64_t                     trh_magic;
 	uint64_t                     trh_sp; /**< stack pointer */
 	uint64_t                     trh_no; /**< record # */
+	uint64_t                     trh_pos; /**< abs record pos in logbuf */
 	uint64_t                     trh_timestamp;
 	const struct m0_trace_descr *trh_descr;
 	uint32_t                     trh_string_data_size;

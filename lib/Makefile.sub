@@ -136,6 +136,7 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/time.h \
               lib/linux_kernel/timer.c \
               lib/linux_kernel/timer.h \
+              lib/linux_kernel/trace.h \
               lib/linux_kernel/types.h \
               lib/linux_kernel/vec.h \
               lib/linux_kernel/ut/main.c

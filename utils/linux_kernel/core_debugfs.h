@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,31 +14,19 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Andriy Tkachuk <Andriy_Tkachuk@xyratex.com>
- * Original creation date: 01/30/2012
+ * Original author: Dima Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 7-Aug-2013
  */
 
 #pragma once
 
-#ifndef __MERO_LIB_USERSP_TRACE_H__
-#define __MERO_LIB_USERSP_TRACE_H__
+#ifndef __MERO_UTILS_LINUX_KERNEL_CORE_DEBUGFS_H__
+#define __MERO_UTILS_LINUX_KERNEL_CORE_DEBUGFS_H__
 
-#include <stdio.h>  /* FILE */
+int core_dfs_init(void);
+void core_dfs_cleanup(void);
 
-/**
-   @defgroup trace Tracing.
-
-   User-space specific declarations.
-
- */
-
-M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
-			       bool stream_mode, const char *m0mero_ko_path);
-
-M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val);
-
-/** @} end of trace group */
-#endif /* __MERO_LIB_USERSP_TRACE_H__ */
+#endif /* __MERO_UTILS_LINUX_KERNEL_CORE_DEBUGFS_H__ */
 
 /*
  *  Local variables:
@@ -48,4 +36,7 @@ M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val);
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

@@ -21,13 +21,15 @@
 #include <string.h>   /* memset, strlen */
 #include <errno.h>
 #include <err.h>
-#include <sysexits.h>
+#include <sysexits.h> /* EX_* exit codes (EX_OSERR, EX_SOFTWARE) */
 #include <stdio.h>
 #include <stdlib.h>   /* getenv, strtoul */
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
+#include <sys/stat.h> /* fstat */
 #include <limits.h>   /* CHAR_BIT */
+#include <stddef.h>   /* ptrdiff_t */
 
 #include "lib/types.h"
 #include "lib/arith.h"
@@ -35,6 +37,7 @@
 #include "lib/string.h" /* m0_strdup */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
+#include "lib/cookie.h" /* m0_addr_is_sane */
 
 #include "mero/magic.h"
 
@@ -80,21 +83,29 @@ static int randvspace_check()
 
 static int logbuf_map(uint32_t logbuf_size)
 {
-	char buf[80];
+	char     buf[80];
+	uint32_t trace_area_size = M0_TRACE_BUF_HEADER_SIZE + logbuf_size;
 
-	M0_PRE((logbuf_size % m0_pagesize_get()) == 0);
+	struct m0_trace_area *trace_area;
 
-	sprintf(buf, "m0.trace.%u", (unsigned)getpid());
-	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1)
+	M0_PRE((trace_area_size % m0_pagesize_get()) == 0);
+
+	sprintf(buf, "m0trace.%u", (unsigned)getpid());
+
+	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC, 0700)) == -1) {
 		warn("open(\"%s\")", buf);
-	else if ((errno = posix_fallocate(logfd, 0, logbuf_size)) != 0)
-		warn("fallocate(\"%s\", %u)", buf, logbuf_size);
-	else if ((m0_logbuf = mmap(NULL, logbuf_size, PROT_WRITE,
-                                   MAP_SHARED, logfd, 0)) == MAP_FAILED)
+	} else if ((errno = posix_fallocate(logfd, 0, trace_area_size)) != 0) {
+		warn("fallocate(\"%s\", %u)", buf, trace_area_size);
+	} else if ((trace_area = mmap(NULL, trace_area_size, PROT_WRITE,
+				      MAP_SHARED, logfd, 0)) == MAP_FAILED)
+	{
 		warn("mmap(\"%s\")", buf);
-	else {
+	} else {
+		m0_logbuf_header = &trace_area->ta_header;
+		m0_logbuf = trace_area->ta_buf;
 		m0_logbufsize = logbuf_size;
-		memset(m0_logbuf, 0, m0_logbufsize);
+		memset(trace_area, 0, trace_area_size);
+		m0_trace_buf_header_init();
 	}
 
 	return -errno;
@@ -133,7 +144,7 @@ M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask)
 	return 0;
 }
 
-M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size)
+M0_INTERNAL void m0_trace_stats_update(uint32_t rec_size)
 {
 }
 
@@ -179,10 +190,15 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
 	if (m0_trace_use_mmapped_buffer())
-		munmap(m0_logbuf, m0_logbufsize);
+		munmap(m0_logbuf_header,
+		       M0_TRACE_BUF_HEADER_SIZE + m0_logbufsize);
 	close(logfd);
 }
 
+M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
+{
+	tbh->tbh_buf_type = M0_TRACE_BUF_USER;
+}
 
 static unsigned align(FILE *file, unsigned align, unsigned pos)
 {
@@ -194,23 +210,140 @@ static unsigned align(FILE *file, unsigned align, unsigned pos)
 	return pos;
 }
 
+static const struct m0_trace_buf_header *read_trace_buf_header(FILE *trace_file)
+{
+	const struct m0_trace_buf_header *tb_header;
+
+	static char buf[M0_TRACE_BUF_HEADER_SIZE];
+	size_t     n;
+
+	n = fread(buf, 1, sizeof buf, trace_file);
+	if (n != sizeof buf) {
+		warnx("failed to read trace header (got %zu bytes instead of"
+		      " %zu bytes)\n", n, sizeof buf);
+		return NULL;
+	}
+
+	tb_header = (const struct m0_trace_buf_header *)buf;
+
+	if (tb_header->tbh_magic != M0_TRACE_BUF_HEADER_MAGIC) {
+		warnx("invalid trace header MAGIC value\n");
+		return NULL;
+	}
+
+	if (tb_header->tbh_header_size != M0_TRACE_BUF_HEADER_SIZE)
+		warnx("trace header has different size: expected=%u, actual=%u",
+		      M0_TRACE_BUF_HEADER_SIZE, tb_header->tbh_header_size);
+
+	return tb_header;
+}
+
+static int mmap_m0mero_ko(const char *m0mero_ko_path, void **ko_addr)
+{
+	int         rc;
+	int         kofd;
+	struct stat ko_stat;
+
+	kofd = open(m0mero_ko_path, O_RDONLY);
+	if (kofd == -1) {
+		warn("failed to open '%s' file", m0mero_ko_path);
+		return EX_NOINPUT;
+	}
+
+	rc = fstat(kofd, &ko_stat);
+	if (rc != 0) {
+		warn("failed to get stat info for '%s' file",
+		     m0mero_ko_path);
+		return EX_OSERR;
+	}
+
+	*ko_addr = mmap(NULL, ko_stat.st_size, PROT_READ, MAP_PRIVATE,
+		        kofd, 0);
+	if (*ko_addr == MAP_FAILED) {
+		warn("failed to mmap '%s' file", m0mero_ko_path);
+		return EX_OSERR;
+	}
+
+	return 0;
+}
+
+static int calc_trace_descr_offset(const struct m0_trace_buf_header *tbh,
+				   const char *m0mero_ko_path,
+				   ptrdiff_t *td_offset)
+{
+	if (tbh->tbh_buf_type == M0_TRACE_BUF_USER) {
+		*td_offset = (char*)m0_trace_magic_sym_addr_get() -
+			     (char*)tbh->tbh_magic_sym_addr;
+	} else if (tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL) {
+		int       rc;
+		void     *ko_addr;
+		off_t     msym_file_offset;
+		uint64_t *msym;
+
+		msym_file_offset = (char*)tbh->tbh_magic_sym_addr -
+				   (char*)tbh->tbh_module_core_addr;
+
+		rc = mmap_m0mero_ko(m0mero_ko_path, &ko_addr);
+		if (rc != 0)
+			return rc;
+
+		msym = (uint64_t*)((char*)ko_addr + msym_file_offset);
+		if (*msym != M0_TRACE_MAGIC) {
+			warnx("invalid trace magic symbol value in '%s' file at"
+			      " offset 0x%lx: 0x%lx (expected 0x%lx)",
+			      m0mero_ko_path, msym_file_offset, *msym,
+			      M0_TRACE_MAGIC);
+			return EX_DATAERR;
+		}
+
+		*td_offset = (char*)msym - (char*)tbh->tbh_magic_sym_addr;
+	} else {
+		return EX_DATAERR;
+	}
+
+	return 0;
+}
+
+static void patch_trace_descr(struct m0_trace_descr *td, ptrdiff_t offset)
+{
+	td->td_fmt    = (char*)td->td_fmt + offset;
+	td->td_func   = (char*)td->td_func + offset;
+	td->td_file   = (char*)td->td_file + offset;
+	td->td_offset = (typeof (td->td_offset))((char*)td->td_offset + offset);
+	td->td_sizeof = (typeof (td->td_sizeof))((char*)td->td_sizeof + offset);
+	td->td_isstr  = (typeof (td->td_isstr))((char*)td->td_isstr + offset);
+}
+
 /**
  * Parse log buffer from file.
  *
  * Returns sysexits.h error codes.
  */
 M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
-			       bool yaml_stream_mode)
+			       bool yaml_stream_mode, const char *m0mero_ko_path)
 {
-	struct m0_trace_rec_header   trh;
-	const struct m0_trace_descr *td;
-	unsigned                     pos = 0;
-	unsigned                     nr;
-	unsigned                     n2r;
-	int                          size;
-	char                         *buf;
-	static char                  yaml_buf[16 * 1024]; /* 16 KB */
-	int                          rc;
+	const struct m0_trace_buf_header *tbh;
+	struct m0_trace_rec_header        trh;
+	struct m0_trace_descr            *td;
+	struct m0_trace_descr             patched_td;
+
+	int        rc;
+	ptrdiff_t  td_offset = 0;
+	unsigned   pos = 0;
+	unsigned   nr;
+	unsigned   n2r;
+	int        size;
+	char      *buf;
+
+	static char  yaml_buf[16 * 1024]; /* 16 KB */
+
+	tbh = read_trace_buf_header(trace_file);
+	if (tbh == NULL)
+		return EX_DATAERR;
+
+	rc = calc_trace_descr_offset(tbh, m0mero_ko_path, &td_offset);
+	if (rc != 0)
+		return rc;
 
 	if (!yaml_stream_mode)
 		fprintf(output_file, "trace_records:\n");
@@ -247,17 +380,27 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 		}
 		pos += nr;
 
-		td   = trh.trh_descr;
+		td = (struct m0_trace_descr*)((char*)trh.trh_descr + td_offset);
+		if (!m0_addr_is_sane((const uint64_t *)td)) {
+			warnx("Warning: skipping non-existing trace"
+			      " descriptor %p (orig %p)", td, trh.trh_descr);
+			continue;
+		}
+
 		if (td->td_magic != M0_TRACE_DESCR_MAGIC) {
 			warnx("Invalid trace descriptor (most probably input"
 			      " trace log was produced by different version of"
 			      " Mero)");
 			return EX_TEMPFAIL;
 		}
+
+		patched_td = *td;
+		patch_trace_descr(&patched_td, td_offset);
+		trh.trh_descr = &patched_td;
 		size = m0_align(td->td_size + trh.trh_string_data_size,
 				M0_TRACE_REC_ALIGN);
 
-		buf  = m0_alloc(size);
+		buf = m0_alloc(size);
 		if (buf == NULL) {
 			warn("Failed to allocate %i bytes of memory", size);
 			return EX_TEMPFAIL;

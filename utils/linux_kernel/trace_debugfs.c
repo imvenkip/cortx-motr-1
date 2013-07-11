@@ -19,14 +19,15 @@
  */
 
 #include <linux/kernel.h>    /* pr_info */
-
 #include <linux/debugfs.h>   /* debugfs_create_dir */
 #include <linux/module.h>    /* THIS_MODULE */
-#include <linux/seq_file.h>  /* seq_read */
 #include <linux/uaccess.h>   /* strncpy_from_user */
 #include <linux/string.h>    /* strncmp */
 #include <linux/ctype.h>     /* isprint */
 #include <linux/delay.h>     /* msleep */
+#include <linux/mm.h>
+#include <linux/vmalloc.h>
+#include <linux/poll.h>      /* poll_table */
 
 #include "lib/mutex.h"       /* m0_mutex */
 #include "lib/time.h"        /* m0_time_now */
@@ -35,6 +36,7 @@
 #include "lib/trace_internal.h"
 #include "lib/linux_kernel/trace.h"
 #include "utils/linux_kernel/m0ctl_internal.h"
+#include "utils/linux_kernel/trace_debugfs.h"
 
 
 /**
@@ -44,7 +46,7 @@
  */
 
 static struct dentry  *trc_dir;
-static const char     trc_dir_name[] = "trace";
+static const char      trc_dir_name[] = "trace";
 
 
 typedef int (*trc_write_actor_t)(const char *level_str);
@@ -148,8 +150,9 @@ static ssize_t trc_immediate_mask_read(struct file *file, char __user *ubuf,
 	return simple_read_from_buffer(ubuf, ubuf_size, ppos, buf, ret_size);
 }
 
-static ssize_t trc_immediate_mask_write(struct file *file, const char __user *ubuf,
-			       size_t ubuf_size, loff_t *ppos)
+static ssize_t trc_immediate_mask_write(struct file *file,
+					const char __user *ubuf,
+					size_t ubuf_size, loff_t *ppos)
 {
 	return trc_write_helper(file, ubuf, ubuf_size, ppos,
 				m0_trace_set_immediate_mask);
@@ -372,9 +375,9 @@ static ssize_t trc_stat_read(struct file *file, char __user *ubuf,
 
 	buf[0] = '\0';
 
-	m0_trace_update_stats(0);
-	logbuf_pos        = m0_trace_get_logbuf_pos();
-	logbuf_size       = m0_trace_get_logbuf_size();
+	m0_trace_stats_update(0);
+	logbuf_pos        = m0_trace_logbuf_pos_get();
+	logbuf_size       = m0_trace_logbuf_size_get();
 	total_rec_num     = m0_atomic64_get(&stats->trs_rec_total);
 	rec_per_sec       = stats->trs_rec_per_sec;
 	bytes_per_sec     = stats->trs_bytes_per_sec;
@@ -388,51 +391,62 @@ static ssize_t trc_stat_read(struct file *file, char __user *ubuf,
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "buffer address:       0x%p\n",
-			     m0_trace_get_logbuf_addr());
+			     m0_trace_logbuf_get());
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "buffer size:          %-12u  %s\n",
 			     logbuf_size, bytes_to_human_str(logbuf_size));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "buffer abs pos:       %-12llu  %s\n",
 			     logbuf_pos, bytes_to_human_str(logbuf_pos));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "total rec num:        %-12llu  %s\n",
 			     total_rec_num, bytes_to_human_str(total_rec_num));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "records per sec:      %-12u  %s\n",
 			     rec_per_sec, bytes_to_human_str(rec_per_sec));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "bytes per sec:        %-12u  %s\n",
 			     bytes_per_sec, bytes_to_human_str(bytes_per_sec));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "avg records per sec:  %-12u  %s\n",
 			     avg_rec_per_sec,
 			     bytes_to_human_str(avg_rec_per_sec));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "avg bytes per sec:    %-12u  %s\n",
 			     avg_bytes_per_sec,
 			     bytes_to_human_str(avg_bytes_per_sec));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "max records per sec:  %-12u  %s\n",
 			     max_rec_per_sec,
 			     bytes_to_human_str(max_rec_per_sec));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "max bytes per sec:    %-12u  %s\n",
 			     max_bytes_per_sec,
 			     bytes_to_human_str(max_bytes_per_sec));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "avg record size:      %-12u  %s\n",
 			     avg_rec_size, bytes_to_human_str(avg_rec_size));
+
 	buf_used += snprintf(buf + buf_used,
 			     buf_used >= buf_size ? 0 : buf_size - buf_used,
 			     "max record size:      %-12u  %s\n",
@@ -478,12 +492,12 @@ static int trc_records_release(struct inode *i, struct file *f)
 static const struct m0_trace_rec_header*
 find_next_recornd(const struct m0_trace_rec_header *curtrh)
 {
-	char *begptr = (char*)m0_trace_get_logbuf_addr();
-	char *endptr = begptr + m0_trace_get_logbuf_size();
-	char *curptr = begptr +
-			m0_trace_get_logbuf_pos() % m0_trace_get_logbuf_size();
+	const char *begptr = (char*)m0_trace_logbuf_get();
+	const char *endptr = begptr + m0_trace_logbuf_size_get();
+	const char *curptr = begptr + m0_trace_logbuf_pos_get() %
+				      m0_trace_logbuf_size_get();
 
-	char *p = (char*)curtrh + curtrh->trh_record_size;
+	const char *p = (char*)curtrh + curtrh->trh_record_size;
 
 	if (p > curptr) {
 		for (; p < endptr; p += M0_TRACE_REC_ALIGN)
@@ -514,7 +528,7 @@ static ssize_t trc_records_read(struct file *file, char __user *ubuf,
 
 	while (true) {
 		if (trc_records_last_trh == NULL)
-			trh = m0_trace_get_last_record();
+			trh = m0_trace_last_record_get();
 		else
 			trh = find_next_recornd(trc_records_last_trh);
 
@@ -551,6 +565,124 @@ static const struct file_operations trc_records_fops = {
 	.read     = trc_records_read,
 };
 
+/******************************* buffer **************************************/
+
+static bool trc_buffer_is_opened = false;
+static const struct m0_trace_rec_header *trc_buffer_last_trh;
+
+static int trc_buffer_open(struct inode *i, struct file *f)
+{
+	if (trc_buffer_is_opened)
+		return -EBUSY;
+
+	trc_buffer_is_opened = true;
+	trc_buffer_last_trh = NULL;
+
+	return 0;
+}
+
+static int trc_buffer_release(struct inode *i, struct file *f)
+{
+	trc_buffer_is_opened = false;
+	return 0;
+}
+
+static ssize_t trc_buffer_read(struct file *file, char __user *ubuf,
+			        size_t ubuf_size, loff_t *ppos)
+{
+	const void *logbuf_header = m0_trace_logbuf_header_get();
+	uint32_t    logbuf_size = M0_TRACE_BUF_HEADER_SIZE +
+				  m0_trace_logbuf_size_get();
+
+	return simple_read_from_buffer(ubuf, ubuf_size, ppos, logbuf_header,
+				       logbuf_size);
+}
+
+static void trc_buffer_mmap_close(struct vm_area_struct *vma)
+{
+}
+
+static int trc_buffer_mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	const void  *logbuf_header = m0_trace_logbuf_header_get();
+	pgoff_t      pgoff = vmf->pgoff;
+	struct page *page;
+
+	page = vmalloc_to_page(logbuf_header + (pgoff << PAGE_SHIFT));
+	if (!page)
+		return VM_FAULT_SIGBUS;
+
+	get_page(page);
+	vmf->page = page;
+
+	return 0;
+}
+
+static const struct vm_operations_struct trc_buffer_mmap_ops = {
+	.fault = trc_buffer_mmap_fault,
+	.close = trc_buffer_mmap_close,
+};
+
+static int trc_buffer_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	unsigned long  length = vma->vm_end - vma->vm_start;
+	uint32_t       logbuf_size = M0_TRACE_BUF_HEADER_SIZE +
+				     m0_trace_logbuf_size_get();
+
+	if (length + (vma->vm_pgoff << PAGE_SHIFT) > logbuf_size)
+		return -EINVAL;
+
+	vma->vm_ops = &trc_buffer_mmap_ops;
+	vma->vm_flags |= VM_DONTEXPAND;
+
+	return 0;
+}
+
+static unsigned int trc_buffer_poll(struct file *filp, poll_table *pt)
+{
+	long            rc;
+	const char     *curpos;
+	const uint32_t  idle_timeo = 100; /* in msec */
+
+	static uint32_t    timeo;
+	static const char *oldpos;
+
+	curpos = (char*)m0_trace_logbuf_get() +
+			m0_trace_logbuf_pos_get() % m0_trace_logbuf_size_get();
+
+	/* init static vars */
+	if (oldpos == NULL) {
+		oldpos = curpos;
+		timeo = idle_timeo;
+	}
+
+	while (curpos == oldpos) {
+		rc = msleep_interruptible(timeo);
+		if (rc != 0)
+			/* got a signal, return "no data" */
+			return 0;
+
+		curpos = (char*)m0_trace_logbuf_get() +
+			 m0_trace_logbuf_pos_get() % m0_trace_logbuf_size_get();
+
+		if (++timeo > idle_timeo)
+			timeo = idle_timeo;
+	}
+	oldpos = curpos;
+	timeo /= 2;
+
+	return (unsigned int)(POLLIN | POLLRDNORM);
+}
+
+static const struct file_operations trc_buffer_fops = {
+	.owner    = THIS_MODULE,
+	.open     = trc_buffer_open,
+	.release  = trc_buffer_release,
+	.read     = trc_buffer_read,
+	.mmap     = trc_buffer_mmap,
+	.poll     = trc_buffer_poll,
+};
+
 /******************************* init/fini ************************************/
 
 int trc_dfs_init(void)
@@ -565,6 +697,8 @@ int trc_dfs_init(void)
 	static const char  trc_stat_name[] = "stat";
 	struct dentry     *trc_records_file;
 	static const char  trc_records_name[] = "records";
+	struct dentry     *trc_buffer_file;
+	static const char  trc_buffer_name[] = "buffer";
 	int                rc = 0;
 
 	trc_dir = debugfs_create_dir(trc_dir_name, dfs_root_dir);
@@ -624,6 +758,17 @@ int trc_dfs_init(void)
 		pr_err(KBUILD_MODNAME ": failed to create debugfs file"
 			" '%s/%s/%s'\n", dfs_root_name, trc_dir_name,
 			trc_records_name);
+		rc = -EPERM;
+		goto err;
+	}
+
+	trc_buffer_file = debugfs_create_file(trc_buffer_name, S_IRUSR,
+					      trc_dir, NULL,
+					      &trc_buffer_fops);
+	if (trc_buffer_file == NULL) {
+		pr_err(KBUILD_MODNAME ": failed to create debugfs file"
+			" '%s/%s/%s'\n", dfs_root_name, trc_dir_name,
+			trc_buffer_name);
 		rc = -EPERM;
 		goto err;
 	}

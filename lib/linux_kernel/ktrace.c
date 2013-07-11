@@ -30,6 +30,7 @@
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
 #include "lib/linux_kernel/trace.h"
+#include "mero/linux_kernel/module.h"
 
 /**
  * @addtogroup trace
@@ -76,10 +77,8 @@ M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 
 	/* first, check if 'mask_str' contains a numeric bitmask */
 	rc = strict_strtoul(mask_str, 0, &mask);
-	if (rc == 0) {
-		m0_trace_immediate_mask = mask;
-		goto out;
-	}
+	if (rc == 0)
+		goto set_mask;
 
 	/*
 	 * if above strtoul() conversion has failed it means that mask_str
@@ -88,15 +87,16 @@ M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 	mask_str_copy = m0_strdup(mask_str);
 	if (mask_str_copy == NULL)
 		return -ENOMEM;
+
 	rc = m0_trace_subsys_list_to_mask(mask_str_copy, &mask);
 	m0_free(mask_str_copy);
-
 	if (rc != 0)
 		return rc;
 
+set_mask:
 	m0_trace_immediate_mask = mask;
-out:
 	pr_info("Mero trace immediate mask: 0x%lx\n", m0_trace_immediate_mask);
+
 	return 0;
 }
 M0_EXPORTED(m0_trace_set_immediate_mask);
@@ -107,7 +107,7 @@ M0_INTERNAL const struct m0_trace_stats *m0_trace_get_stats(void)
 }
 M0_EXPORTED(m0_trace_get_stats);
 
-M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size)
+M0_INTERNAL void m0_trace_stats_update(uint32_t rec_size)
 {
 	static unsigned long prev_jiffies = INITIAL_JIFFIES;
 	static uint64_t      prev_logbuf_pos;
@@ -129,7 +129,7 @@ M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size)
 		stats.trs_rec_per_sec =
 			m0_atomic64_get(&stats.trs_rec_total) - prev_rec_total;
 		stats.trs_bytes_per_sec =
-			m0_trace_get_logbuf_pos() - prev_logbuf_pos;
+			m0_trace_logbuf_pos_get() - prev_logbuf_pos;
 
 		stats.trs_avg_rec_per_sec
 			= (stats.trs_rec_per_sec + stats.trs_avg_rec_per_sec) / 2;
@@ -142,20 +142,21 @@ M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size)
 			= max(stats.trs_bytes_per_sec, stats.trs_max_bytes_per_sec);
 
 		prev_jiffies = jiffies;
-		prev_logbuf_pos = m0_trace_get_logbuf_pos();
+		prev_logbuf_pos = m0_trace_logbuf_pos_get();
 		prev_rec_total = m0_atomic64_get(&stats.trs_rec_total);
 	}
 }
-M0_EXPORTED(m0_trace_update_stats);
+M0_EXPORTED(m0_trace_stats_update);
 
 M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
 {
 	vprintk(fmt, args);
 }
 
-M0_INTERNAL int m0_arch_trace_init(uint32_t default_logbuf_size)
+M0_INTERNAL int m0_arch_trace_init(uint32_t default_trace_buf_size)
 {
-	int rc;
+	int                   rc;
+	struct m0_trace_area *trace_area;
 
 	m0_atomic64_set(&stats.trs_rec_total, 0);
 
@@ -171,19 +172,26 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t default_logbuf_size)
 	if (rc != 0)
 		return rc;
 
-	if (trace_buf_size == 0 || !m0_is_po2(trace_buf_size)) {
+	if (trace_buf_size == 0 || !m0_is_po2(trace_buf_size) ||
+	    trace_buf_size % PAGE_SIZE != 0)
+	{
 		pr_err("mero: incorrect value for trace_buffer_size parameter,"
-		       " it can't be zero and should be a power of 2 value\n");
+		       " it can't be zero, should be a power of 2 and a"
+		       " multiple of PAGE_SIZE value\n");
 		return -EINVAL;
 	}
 
-	m0_logbuf = vmalloc(trace_buf_size);
-	if (m0_logbuf == NULL) {
+	trace_area = vzalloc(M0_TRACE_BUF_HEADER_SIZE + trace_buf_size);
+	if (trace_area == NULL) {
 		pr_err("mero: failed to allocate %u bytes for trace buffer\n",
 		       trace_buf_size);
 		return -ENOMEM;
 	}
+	m0_logbuf_header = &trace_area->ta_header;
+	m0_logbuf = trace_area->ta_buf;
 	m0_logbufsize = trace_buf_size;
+
+	m0_trace_buf_header_init();
 
 	pr_info("mero: trace buffer address: 0x%p\n", m0_logbuf);
 
@@ -192,7 +200,15 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t default_logbuf_size)
 
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
-	vfree(m0_logbuf);
+	vfree(m0_logbuf_header);
+}
+
+M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
+{
+	const struct module *m = m0_mero_ko_get_module();
+
+	tbh->tbh_buf_type = M0_TRACE_BUF_KERNEL;
+	tbh->tbh_module_core_addr = m->module_core;
 }
 
 /** @} end of trace group */

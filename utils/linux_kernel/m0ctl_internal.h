@@ -32,7 +32,7 @@
  */
 
 extern struct dentry  *dfs_root_dir;
-extern const char     dfs_root_name[];
+extern const char      dfs_root_name[];
 
 
 /** @} end of m0ctl group */

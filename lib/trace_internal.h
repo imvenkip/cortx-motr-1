@@ -23,6 +23,14 @@
 #ifndef __MERO_LIB_TRACE_INTERNAL_H__
 #define __MERO_LIB_TRACE_INTERNAL_H__
 
+#include "lib/trace.h"  /* m0_trace_buf_header */
+
+
+struct m0_trace_area {
+	struct m0_trace_buf_header ta_header;
+	char                       ta_buf[0];
+};
+
 M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size);
 
 M0_INTERNAL void m0_arch_trace_fini(void);
@@ -30,11 +38,10 @@ M0_INTERNAL void m0_arch_trace_fini(void);
 M0_INTERNAL int
 m0_trace_subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
-M0_INTERNAL enum m0_trace_level
-m0_trace_parse_trace_level(char *str);
+M0_INTERNAL enum m0_trace_level m0_trace_level_parse(char *str);
 
 M0_INTERNAL enum m0_trace_print_context
-m0_trace_parse_trace_print_context(const char *ctx_name);
+m0_trace_print_context_parse(const char *ctx_name);
 
 M0_INTERNAL const char *m0_trace_level_name(enum m0_trace_level level);
 
@@ -49,17 +56,23 @@ union m0_trace_rec_argument {
 
 typedef union m0_trace_rec_argument m0_trace_rec_args_t[M0_TRACE_ARGC_MAX];
 
-M0_INTERNAL void m0_trace_unpack_args(const struct m0_trace_rec_header *trh,
+M0_INTERNAL void m0_trace_args_unpack(const struct m0_trace_rec_header *trh,
 				      m0_trace_rec_args_t args,
 				      const void *buf);
 
-M0_INTERNAL void *m0_trace_get_logbuf_addr(void);
-M0_INTERNAL uint32_t m0_trace_get_logbuf_size(void);
-M0_INTERNAL uint64_t m0_trace_get_logbuf_pos(void);
+M0_INTERNAL const struct m0_trace_buf_header *m0_trace_logbuf_header_get(void);
+M0_INTERNAL const void *m0_trace_logbuf_get(void);
+M0_INTERNAL uint32_t m0_trace_logbuf_size_get(void);
+M0_INTERNAL uint64_t m0_trace_logbuf_pos_get(void);
+M0_INTERNAL const void *m0_trace_magic_sym_addr_get(void);
+M0_INTERNAL const char *m0_trace_magic_sym_name_get(void);
 
-M0_INTERNAL const struct m0_trace_rec_header *m0_trace_get_last_record(void);
+M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void);
 
-M0_INTERNAL void m0_trace_update_stats(uint32_t rec_size);
+M0_INTERNAL void m0_trace_stats_update(uint32_t rec_size);
+
+M0_INTERNAL void m0_trace_buf_header_init(void);
+M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh);
 
 #endif /* __MERO_LIB_TRACE_INTERNAL_H__ */
 

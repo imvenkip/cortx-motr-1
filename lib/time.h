@@ -35,7 +35,10 @@
 
 typedef uint64_t m0_time_t;
 
-enum { M0_TIME_ONE_BILLION = 1000000000ULL };
+enum {
+	M0_TIME_ONE_BILLION = 1000000000ULL,
+	M0_TIME_ONE_MSEC    = M0_TIME_ONE_BILLION / 1000,
+};
 
 /** The largest time that is never reached in system life. */
 extern const m0_time_t M0_TIME_NEVER;
