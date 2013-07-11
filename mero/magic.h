@@ -118,19 +118,33 @@ enum m0_magic_satchel {
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */
 	M0_BALLOC_SB_MAGIC = 0x33b1e55edba10c77,
 
-/* be */
-	/* XXX TODO generate it. be_alloc_chunk::bac_magic0 */
-	M0_BE_ALLOC_MAGIC0 = 0x330123456789AB77,
-	/* XXX TODO generate it. be_alloc_chunk::bac_magic1 */
-	M0_BE_ALLOC_MAGIC1 = 0x33BA987654321077,
-	/* XXX TODO generate it. m0_be_allocator_header::bah_chunks */
-	M0_BE_ALLOC_ALL_MAGIC = 0x3300112233445577,
-	/* XXX TODO generate it. be_alloc_chunk::bac_magic */
-	M0_BE_ALLOC_ALL_LINK_MAGIC = 0x3355443322110077,
-	/* XXX TODO generate it. m0_be_allocator_header::bah_free */
-	M0_BE_ALLOC_FREE_MAGIC = 0x3300001111222277,
-	/* XXX TODO generate it. be_alloc_chunk::bac_magic_free */
-	M0_BE_ALLOC_FREE_LINK_MAGIC = 0x3322221111000077,
+/* BE */
+	/* m0_be_tx::t_magic (I feel good) */
+	M0_BE_TX_MAGIC = 0x331fee190000d177,
+
+	/* m0_be_tx_engine::te_txs[] (lifeless gel)  */
+	M0_BE_TX_ENGINE_MAGIC = 0x3311fe1e556e1277,
+
+	/* m0_be_tx_group::tg_txs (codified bee)  */
+	M0_BE_TX_GROUP_MAGIC = 0x33c0d1f1edbee377,
+
+	/* be_alloc_chunk::bac_magic0 (eloise laiose) */
+	M0_BE_ALLOC_MAGIC0 = 0xe1015e1a105e,
+
+	/* be_alloc_chunk::bac_magic1 (codices bad id) */
+	M0_BE_ALLOC_MAGIC1 = 0xc0d1ce5bad1d,
+
+	/* m0_be_allocator_header::bah_chunks (alcaaba solod) */
+	M0_BE_ALLOC_ALL_MAGIC = 0xa1caaba5010d,
+
+	/* be_alloc_chunk::bac_magic (official feis) */
+	M0_BE_ALLOC_ALL_LINK_MAGIC = 0x0ff1c1a1fe15,
+
+	/* m0_be_allocator_header::bah_free (cascadia aloe) */
+	M0_BE_ALLOC_FREE_MAGIC = 0xca5cad1aa10e,
+
+	/* be_alloc_chunk::bac_magic_free (edifice faded) */
+	M0_BE_ALLOC_FREE_LINK_MAGIC = 0xed1f1cefaded,
 
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
@@ -720,16 +734,6 @@ enum m0_magic_satchel {
 
 	/* m0_trace_descr::td_magic (badass coders) */
 	M0_TRACE_DESCR_MAGIC = 0x33bada55c0de2577,
-
-/* BE */
-	/* m0_be_tx::t_magic (I feel good) */
-	M0_BE_TX_MAGIC = 0x331fee190000d177,
-
-	/* m0_be_tx_engine::te_txs[] (lifeless gel)  */
-	M0_BE_TX_ENGINE_MAGIC = 0x3311fe1e556e1277,
-
-	/* m0_be_tx_group::tg_txs (codified bee)  */
-	M0_BE_TX_GROUP_MAGIC = 0x33c0d1f1edbee377,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */
