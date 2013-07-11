@@ -85,8 +85,20 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		/*
 		 * We do this check purposefully outside the cm lock to avoid
 		 * a dead lock situation on the cm lock while stopping the
-		 * operation. We can also afford to check this outside the lock
-		 * for 2 reasons,
+		 * operation.
+		 * Situation:
+		 * 1) m0_cm_stop() is called with m0_cm_lock() held.
+		 * 2) m0_cm_stop() invokes m0_cm_proxy_fini() for each
+		 *    m0_cm_proxy. This tries to terminate the rpc connections
+		 *    and sessions of the proxy with the corresponding remote
+		 *    replica.
+		 * 3) Now if sw_onwire_fom is in process at the same time, it'll
+		 *    have to wait for the m0_cm_lock(). This will cause the
+		 *    termination of rpc connection to wait as it tries to prune
+		 *    the rpc items list, and one of the references taken on the
+		 *    sw_onwire_fop are held by this FOM, which is not release
+		 *    until the FOM is finalised. This causes the deadlock.
+		 * We can afford to check this outside the lock as,
 		 * 1) Same request handler locality is assigned to all the
 		 *    sw_onwire FOMs.
 		 * 2) Even if we miss an update, its okay as we'll receive
