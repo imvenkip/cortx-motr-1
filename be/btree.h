@@ -89,17 +89,12 @@ struct m0_be_btree_kv_ops {
  * ------------------------------------------------------------------ */
 
 /**
- * Initalises internal structures of @tree and sets its root node to @root.
- * @root has to point on data lying inside @seg mapping.
- * In case when root == NULL, following m0_be_btree_create() sets tree root.
- *
- * @param root[in] root node of the tree stored in the m0_be_segment. If root is
- *                 NULL following m0_be_btree_create() call will create new root
+ * Initalises internal structures of @tree like mutexes, @ops, lying in virtual
+ * memory of the program and not in mmaped() segment memory.
  */
 M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 				  struct m0_be_seg   *seg,
-				  const struct m0_be_btree_kv_ops *ops,
-				  struct m0_be_bnode *root);
+				  const struct m0_be_btree_kv_ops *ops);
 
 /**
  * Finalizes in-memory structures of btree. Doesn't touch segment on the disk.

@@ -129,8 +129,9 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
 		{ "tx-simple",        m0_be_ut_tx_simple            },
-		{ "btree",            m0_be_ut_btree_simple         },
 #endif
+		{ "btree",            m0_be_ut_btree_simple         },
+
 		{ "io",               m0_be_ut_io                   },
 		{ "log_stor-reserve", m0_be_ut_log_stor_reserve     },
 		{ "log_stor-io",      m0_be_ut_log_stor_io          },

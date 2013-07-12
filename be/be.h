@@ -95,8 +95,8 @@ struct m0_be_op {
 			/* XXX to be defined in btree.c */
 			unsigned int               t_op;
 			const struct m0_buf       *t_in;
-			struct m0_buf             *t_out;
-			struct m0_buf             *t_out2;
+			struct m0_buf              t_out;
+			struct m0_buf              t_out2;
 			struct m0_be_btree_anchor *t_anchor;
 		} u_btree;
 	} bo_u;
