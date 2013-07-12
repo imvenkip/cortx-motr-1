@@ -37,41 +37,15 @@ struct m0_be_tx_credit;
  */
 
 struct m0_be_list {
-	struct m0_tl              bl_list;
 	const struct m0_tl_descr *bl_descr;
+	struct m0_tl              bl_list;
 	struct m0_be_seg         *bl_seg;
 };
 
-/**
- * Creates and captures a new list in pre-allocated segment space.
- *
- * @pre m0_be_pinned(&M0_BE_REG(list->bl_seg, sizeof *list, list))
- */
-M0_INTERNAL void m0_be_list_create(const struct m0_tl_descr *d,
-				   struct m0_be_list *list,
-				   struct m0_be_tx *tx);
-
-M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
-				    struct m0_be_tx *tx);
-
-/**
- * Pins the head and first `nelems' of the list, loading them from disk
- * storage if necessary.
- */
-M0_INTERNAL void m0_be_list_get(const struct m0_be_list *list,
-				m0_bcount_t nelems,
-				struct m0_be_op *op);
-
-M0_INTERNAL void m0_be_list_put(const struct m0_be_list *list,
-				m0_bcount_t nelems);
-
-M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
-				 struct m0_be_seg *seg);
-
-M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list);
-
 /** List operations that modify memory. */
 enum m0_be_list_op {
+	M0_BLO_CREATE,
+	M0_BLO_DESTROY,
 	M0_BLO_INSERT,
 	M0_BLO_DELETE,
 	M0_BLO_MOVE,
@@ -79,26 +53,75 @@ enum m0_be_list_op {
 };
 
 /**
- * Calculates the credit needed to perform `nr' list operations of type
- * `optype' and adds this credit to `accum'.
- *
- * @see m0_be_tx_prep()
+ * Calculates the credit needed to perform @nr list operations of type
+ * @optype and adds this credit to @accum.
  */
 M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
-				   enum m0_be_list_op optype,
-				   m0_bcount_t nr,
-				   struct m0_be_tx_credit *accum);
+				   enum m0_be_list_op       optype,
+				   m0_bcount_t		    nr,
+				   struct m0_be_tx_credit  *accum);
 
-/**
- * Captures (origin - left)-th .. (origin + right)-th elements of the list.
- *
- * @see m0_be_tx_capture()
- */
-M0_INTERNAL void m0_be_list_capture(const struct m0_be_list *list,
-				    struct m0_be_tx *tx,
-				    const struct m0_tlink *origin,
-				    m0_bcount_t left,
-				    m0_bcount_t right);
+/* -------------------------------------------------------------------------
+ * Construction/Destruction:
+ * ------------------------------------------------------------------------- */
+M0_INTERNAL void m0_be_list_init(struct m0_be_list        *list,
+				 const struct m0_tl_descr *desc,
+				 struct m0_be_seg         *seg);
+
+M0_INTERNAL void m0_be_list_fini(struct m0_be_list    *list);
+
+M0_INTERNAL void m0_be_list_create(struct m0_be_list        **list,
+				   const struct m0_tl_descr  *desc,
+				   struct m0_be_seg          *seg,
+				   struct m0_be_op           *op,
+				   struct m0_be_tx           *tx);
+
+M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
+				    struct m0_be_op   *op,
+				    struct m0_be_tx   *tx);
+
+/* -------------------------------------------------------------------------
+ * Iteration interfaces:
+ * ------------------------------------------------------------------------- */
+
+M0_INTERNAL void *m0_be_list_tail(struct m0_be_list *list, struct m0_be_op *op);
+M0_INTERNAL void *m0_be_list_head(struct m0_be_list *list, struct m0_be_op *op);
+M0_INTERNAL void *m0_be_list_prev(struct m0_be_list *list, struct m0_be_op *op,
+				  const void *obj);
+M0_INTERNAL void *m0_be_list_next(struct m0_be_list *list, struct m0_be_op *op,
+				  const void *obj);
+
+/* -------------------------------------------------------------------------
+ * Modification interfaces:
+ * ------------------------------------------------------------------------- */
+
+M0_INTERNAL void          m0_be_list_add(struct m0_be_list *list,
+					 struct m0_be_op   *op,
+					 struct m0_be_tx   *tx,
+					 void              *obj);
+
+M0_INTERNAL void    m0_be_list_add_after(struct m0_be_list *list,
+					 struct m0_be_op   *op,
+					 struct m0_be_tx   *tx,
+					 void              *obj,
+					 void              *new);
+
+M0_INTERNAL void   m0_be_list_add_before(struct m0_be_list *list,
+					 struct m0_be_op   *op,
+					 struct m0_be_tx   *tx,
+					 void              *obj,
+					 void              *new);
+
+M0_INTERNAL void     m0_be_list_add_tail(struct m0_be_list *list,
+					 struct m0_be_op   *op,
+					 struct m0_be_tx   *tx,
+					 void              *obj);
+
+M0_INTERNAL void          m0_be_list_del(struct m0_be_list *list,
+					 struct m0_be_op   *op,
+					 struct m0_be_tx   *tx,
+					 void              *obj);
+
 
 /** @} end of be group */
 #endif /* __MERO_BE_LIST_H__ */

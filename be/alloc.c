@@ -747,9 +747,9 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 	h->bah_size = free_space;
 	h->bah_addr = (void *) ((uintptr_t) a->ba_seg->bs_addr + overhead);
 
-	m0_be_list_init(&h->bah_chunks, a->ba_seg);
+	/* m0_be_list_init(&h->bah_chunks, a->ba_seg); */
 	chunks_all_tlist_init_c(a, tx, &h->bah_chunks.bl_list);
-	m0_be_list_init(&h->bah_free, a->ba_seg);
+	/* m0_be_list_init(&h->bah_free, a->ba_seg); */
 	chunks_free_tlist_init_c(a, tx, &h->bah_free.bl_list);
 
 	h->bah_stats = (struct m0_be_allocator_stats) {
@@ -784,9 +784,9 @@ M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
 	be_alloc_chunk_del_fini(a, tx, c);
 
 	chunks_free_tlist_fini_c(a, tx, &h->bah_free.bl_list);
-	m0_be_list_fini(&h->bah_free);
+	/* m0_be_list_fini(&h->bah_free); */
 	chunks_all_tlist_fini_c(a, tx, &h->bah_chunks.bl_list);
-	m0_be_list_fini(&h->bah_chunks);
+	/* m0_be_list_fini(&h->bah_chunks); */
 
 	m0_mutex_unlock(&a->ba_lock);
 	/** @todo PUT_PTR h */

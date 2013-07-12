@@ -44,6 +44,7 @@ extern void m0_be_ut_log_stor_io(void);
 extern void m0_be_ut_log(void);
 extern void m0_be_ut_group_ondisk(void);
 extern void m0_be_ut_btree_simple(void);
+extern void m0_be_ut_list_api(void);
 
 extern struct m0_sm_group ut__txs_sm_group;
 
@@ -131,6 +132,7 @@ const struct m0_test_suite be_ut = {
 		{ "tx-simple",        m0_be_ut_tx_simple            },
 #endif
 		{ "btree",            m0_be_ut_btree_simple         },
+		{ "list",             m0_be_ut_list_api             },
 
 		{ "io",               m0_be_ut_io                   },
 		{ "log_stor-reserve", m0_be_ut_log_stor_reserve     },
