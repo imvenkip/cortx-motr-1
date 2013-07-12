@@ -14,32 +14,30 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
  * Original creation date: 29-May-2013
  */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
+#include "be/list.h"
+#include "be/alloc.h"
+#include "be/seg.h"
+#include "be/tx_credit.h"
+#include "be/be.h"  /* m0_be_op_state */
 
 /**
  * @addtogroup be
  *
  * @{
  */
-#undef M0_TRACE_SUBSYSTEM
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
-#include "lib/trace.h"
-#include "lib/memory.h"
-#include "be/alloc.h"
-#include "be/list.h"
-#include "be/seg.h"
-#include "be/be.h"
-#include "be/tx.h"
 
-enum {
-	ALLOC_SHIFT = 0,
-};
+enum { ALLOC_SHIFT = 0 };
 
 M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 				   enum m0_be_list_op       optype,
-				   m0_bcount_t		    nr,
+				   m0_bcount_t              nr,
 				   struct m0_be_tx_credit  *accum)
 {
 	struct m0_be_allocator *a = &list->bl_seg->bs_allocator;
@@ -47,7 +45,7 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 
 	m0_be_tx_credit_init(&cred);
 
-	switch(optype) {
+	switch (optype) {
 	case M0_BLO_CREATE:
 	case M0_BLO_DESTROY:
 		m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(*list),
@@ -134,10 +132,10 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
 	M0_BE_TX_CAPTURE_PTR(seg, tx, list);
 }
 
-/* This function has to be reimplemented using m0_be_op */
+/* XXX TODO: This function has to be reimplemented using m0_be_op */
 static void *list_side(struct m0_be_list *list, struct m0_be_op *op,
-		       void* (*side)(const struct m0_tl_descr *d,
-				       const struct m0_tl *list))
+		       void *(*side)(const struct m0_tl_descr *d,
+				     const struct m0_tl *list))
 {
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 
@@ -203,12 +201,12 @@ static void neighborhood(struct m0_be_list *list, void *obj,
 					    oprev + d->td_link_offset);
 }
 
-/* captures changed regions in the list */
+/** Captures changed regions in the list. */
 static void affected_capture(struct m0_be_list *list,
 			     struct m0_be_tx   *tx,
 			     void              *obj)
 {
-	struct m0_be_seg *seg   = list->bl_seg;
+	struct m0_be_seg *seg = list->bl_seg;
 	struct m0_tlink  *curr;
 	struct m0_tlink  *next;
 	struct m0_tlink  *prev;
@@ -238,18 +236,18 @@ static void be_list_add(struct m0_be_list *list,
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
-M0_INTERNAL void          m0_be_list_add(struct m0_be_list *list,
-					 struct m0_be_op   *op,
-					 struct m0_be_tx   *tx,
-					 void              *obj)
+M0_INTERNAL void m0_be_list_add(struct m0_be_list *list,
+				struct m0_be_op   *op,
+				struct m0_be_tx   *tx,
+				void              *obj)
 {
 	be_list_add(list, op, tx, obj, m0_tlist_add);
 }
 
-M0_INTERNAL void     m0_be_list_add_tail(struct m0_be_list *list,
-					 struct m0_be_op   *op,
-					 struct m0_be_tx   *tx,
-					 void              *obj)
+M0_INTERNAL void m0_be_list_add_tail(struct m0_be_list *list,
+				     struct m0_be_op   *op,
+				     struct m0_be_tx   *tx,
+				     void              *obj)
 {
 	be_list_add(list, op, tx, obj, m0_tlist_add_tail);
 }
@@ -260,8 +258,7 @@ static void be_list_add_pos(struct m0_be_list *list,
 			    void              *obj,
 			    void              *new,
 			    void             (*add)(const struct m0_tl_descr *d,
-						    void *obj,
-						    void *new))
+						    void *obj, void *new))
 {
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 
@@ -271,28 +268,28 @@ static void be_list_add_pos(struct m0_be_list *list,
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
-M0_INTERNAL void    m0_be_list_add_after(struct m0_be_list *list,
-					 struct m0_be_op   *op,
-					 struct m0_be_tx   *tx,
-					 void              *obj,
-					 void              *new)
+M0_INTERNAL void m0_be_list_add_after(struct m0_be_list *list,
+				      struct m0_be_op   *op,
+				      struct m0_be_tx   *tx,
+				      void              *obj,
+				      void              *new)
 {
 	be_list_add_pos(list, op, tx, obj, new, m0_tlist_add_after);
 }
 
-M0_INTERNAL void   m0_be_list_add_before(struct m0_be_list *list,
-					 struct m0_be_op   *op,
-					 struct m0_be_tx   *tx,
-					 void              *obj,
-					 void              *new)
+M0_INTERNAL void m0_be_list_add_before(struct m0_be_list *list,
+				       struct m0_be_op   *op,
+				       struct m0_be_tx   *tx,
+				       void              *obj,
+				       void              *new)
 {
 	be_list_add_pos(list, op, tx, obj, new, m0_tlist_add_before);
 }
 
-M0_INTERNAL void          m0_be_list_del(struct m0_be_list *list,
-					 struct m0_be_op   *op,
-					 struct m0_be_tx   *tx,
-					 void              *obj)
+M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
+				struct m0_be_op   *op,
+				struct m0_be_tx   *tx,
+				void              *obj)
 {
 	struct m0_tlink *next;
 	struct m0_tlink *prev;
@@ -314,14 +311,9 @@ M0_INTERNAL void          m0_be_list_del(struct m0_be_list *list,
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
-
-
-#undef M0_TRACE_SUBSYSTEM
-
-/* -------------------------------------------------------------------------
- * XXX: old
- * ------------------------------------------------------------------------- */
-#if 0 /* old be_list */
+
+/* ---------------------------------------------------------------- */
+#if 0 /* XXX DELETEME <<<<<<< old be_list */
 M0_INTERNAL void
 m0_be_list_create(const struct m0_tl_descr *d,
 		  struct m0_be_list *list,
@@ -501,9 +493,10 @@ M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
 	list->bl_seg = seg;
 }
 M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list) {}
-#endif /* old be_list */
+#endif /* XXX DELETEME >>>>>>> old be_list */
 
 /** @} end of be group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

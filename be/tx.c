@@ -607,7 +607,7 @@ static int done_st_in(struct m0_sm *mach)
 	return -1;
 }
 
-/** @} struct of be group */
+/** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
 
 /*
