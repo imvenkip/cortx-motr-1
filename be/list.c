@@ -47,8 +47,11 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 
 	switch (optype) {
 	case M0_BLO_CREATE:
-	case M0_BLO_DESTROY:
 		m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(*list),
+				       ALLOC_SHIFT, &cred);
+		break;
+	case M0_BLO_DESTROY:
+		m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(*list),
 				       ALLOC_SHIFT, &cred);
 		break;
 	case M0_BLO_INSERT:
