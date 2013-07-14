@@ -909,12 +909,6 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 	return 0;
 }
 
-static inline bool key_found(struct m0_be_btree *btree, const void *kv0,
-			     const void *kv1, bool slant)
-{
-	return (slant && key_lt(btree, kv0, kv1)) || key_eq(btree, kv0, kv1);
-}
-
 /**
  * Function used to get the node containing the given key
  * @param btree The btree to be searched
@@ -941,7 +935,7 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
 
 		/*  If we find such key return the key-value pair */
 		if (i < node->b_nr_active &&
-		    key_found(btree, key_val, node->b_key_vals[i]->key, slant)) {
+		    key_eq(btree, key_val, node->b_key_vals[i]->key)) {
 			kp.p_node = node;
 			kp.p_index = i;
 			return kp;
@@ -949,6 +943,10 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
 		/*  If the node is leaf and if we did not find the key */
 		/*  return NULL */
 		if (node->b_leaf) {
+			if (slant) {
+				kp.p_node = node;
+				kp.p_index = i;
+			}
 			return kp;
 		}
 		/*  To got a child node */

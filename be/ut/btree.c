@@ -285,6 +285,9 @@ static void cursor_test(struct m0_be_btree *tree)
 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&cursor.bc_op), (M0_BOS_SUCCESS,
 							   M0_BOS_FAILURE)));
 	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+	/* make sure we are on the right position */
+	M0_UT_ASSERT(strcmp(key.b_addr, "075") == 0 &&
+		     strcmp(val.b_addr, key.b_addr) == 0);
 
 	do {
 		v = atoi(key.b_addr);
