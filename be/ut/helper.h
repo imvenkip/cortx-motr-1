@@ -57,8 +57,6 @@ struct m0_be_ut_h {
 	struct m0_be_allocator	*buh_a;
 	/** transaction ID counter */
 	uint64_t		 buh_tid;
-	/** net xprt for rpc server */
-	struct m0_net_xprt	*buh_xprt;
 	/** rpc server for reqh */
 	struct m0_rpc_server_ctx buh_rpc_svc;
 	/** reqh */

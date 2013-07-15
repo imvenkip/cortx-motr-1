@@ -44,6 +44,29 @@ static struct m0_stob_id be_ut_h_stob_id = {
 	.si_bits = M0_UINT128(0, BE_UT_H_STOB_ID)
 };
 
+static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
+
+/* XXX Code duplication! The same code exists in conf/ut/confc.c. */
+static int service_start(struct m0_rpc_server_ctx *sctx)
+{
+	int rc;
+
+	rc = m0_net_xprt_init(g_xprt);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_rpc_server_start(sctx);
+	if (rc != 0)
+		m0_net_xprt_fini(g_xprt);
+	return rc;
+}
+
+static void service_stop(struct m0_rpc_server_ctx *sctx)
+{
+	m0_rpc_server_stop(sctx);
+	m0_net_xprt_fini(g_xprt);
+}
+
 void m0_be_ut_seg_storage_fini(void)
 {
 	int rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
@@ -127,28 +150,25 @@ void m0_be_ut_seg_close_destroy(struct m0_be_ut_h *h)
 
 void m0_be_ut_h_init(struct m0_be_ut_h *h)
 {
-	int		rc;
+	int                      rc;
 #define NAME(ext) "be-tx-ut" ext
-	char *argv[] = {
+	char                    *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", NAME("-addb.stob"), "-w", "10",
 		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service",
 	};
 	struct m0_rpc_server_ctx tx_svc = {
-		.rsx_xprts            = &h->buh_xprt,
-		.rsx_xprts_nr         = 1,
-		.rsx_argv             = argv,
-		.rsx_argc             = ARRAY_SIZE(argv),
-		.rsx_service_types    = NULL,
-		.rsx_service_types_nr = 0,
-		.rsx_log_file_name    = NAME(".log")
+		.rsx_xprts         = &g_xprt,
+		.rsx_xprts_nr      = 1,
+		.rsx_argv          = argv,
+		.rsx_argc          = ARRAY_SIZE(argv),
+		.rsx_log_file_name = NAME(".log")
 	};
 #undef NAME
 
-	*h = (struct m0_be_ut_h){ .buh_xprt = &m0_net_lnet_xprt };
+	*h = (struct m0_be_ut_h){ .buh_rpc_svc = tx_svc };
 
-	h->buh_rpc_svc = tx_svc;
-	rc = m0_rpc_server_start(&h->buh_rpc_svc);
+	rc = service_start(&h->buh_rpc_svc);
 	M0_ASSERT(rc == 0);
 
 	h->buh_reqh = m0_mero_to_rmach(&h->buh_rpc_svc.rsx_mero_ctx)->rm_reqh;
@@ -170,7 +190,7 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 void m0_be_ut_h_fini(struct m0_be_ut_h *h)
 {
 	m0_be_tx_engine_stop(&h->buh_be.b_tx_engine);
-	m0_rpc_server_stop(&h->buh_rpc_svc);
+	service_stop(&h->buh_rpc_svc);
 	/*
 	 * Allocator and segment should be finalised _after_ reqh.
 	 * Max knows why.
