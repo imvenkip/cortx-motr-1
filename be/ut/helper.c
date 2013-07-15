@@ -163,7 +163,7 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 	rc = m0_be_allocator_init(h->buh_a, &h->buh_seg);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_be_allocator_create(h->buh_a, NULL);
+	rc = m0_be_allocator_create(h->buh_a, NULL /* XXX FIXME */);
 	M0_ASSERT(rc == 0);
 }
 
@@ -171,10 +171,16 @@ void m0_be_ut_h_fini(struct m0_be_ut_h *h)
 {
 	m0_be_tx_engine_stop(&h->buh_be.b_tx_engine);
 	m0_rpc_server_stop(&h->buh_rpc_svc);
-
+	/*
+	 * Allocator and segment should be finalised _after_ reqh.
+	 * Max knows why.
+	 */
 	m0_be_fini(&h->buh_be);
-
-	/* finalize allocator and segment after the reqh */
+#if 0 /* XXX FIXME: m0_be_allocator_{create,destroy}() need a transaction.
+       * Max knows what to do about it. */
+	rc = m0_be_allocator_destroy(h->buh_a, NULL);
+	M0_ASSERT(rc == 0);
+#endif
 	m0_be_allocator_fini(h->buh_a);
 	m0_be_ut_seg_close_destroy(h);
 }
