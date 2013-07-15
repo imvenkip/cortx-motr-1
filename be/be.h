@@ -98,6 +98,7 @@ struct m0_be_op {
 			struct m0_buf              t_out;
 			struct m0_buf              t_out2;
 			struct m0_be_btree_anchor *t_anchor;
+			int                        t_rc;
 		} u_btree;
 	} bo_u;
 };
