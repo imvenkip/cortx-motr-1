@@ -150,9 +150,11 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
 
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
+	m0_be_op_init(&bt_op);
 	m0_be_btree_create(&map->em_mapping, tx, &bt_op);
 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
 	op->bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
 
 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
 }
@@ -164,9 +166,11 @@ M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
 	struct m0_be_op     bt_op;
 
 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+	m0_be_op_init(&bt_op);
 	m0_be_btree_destroy(&map->em_mapping, tx, &bt_op);
 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
 	op->bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
 }
 
 M0_INTERNAL struct m0_be_emap_seg *
@@ -262,9 +266,11 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 	m0_sm_state_set(it_sm(it), M0_BOS_ACTIVE);
 
+	m0_be_op_init(&bt_op);
 	m0_be_btree_delete(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf);
 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
 	it_sm(it)->sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
 
 	if (it_sm(it)->sm_rc == 0) {
 		if (m0_ext_length(&it->ec_seg.ee_ext) < delta) {
@@ -453,11 +459,13 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 
+	m0_be_op_init(&bt_op);
 	m0_be_btree_insert(&map->em_mapping, tx, &bt_op, &map->em_key_buf,
 						     &map->em_val_buf);
 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
-
 	op->bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
+
 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
 }
 
@@ -472,10 +480,12 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 
 	map->em_key.ek_prefix = *prefix;
 	map->em_key.ek_offset = 1;
-	m0_be_btree_delete(&map->em_mapping, tx, op, &map->em_key_buf);
+	m0_be_op_init(&bt_op);
+	m0_be_btree_delete(&map->em_mapping, tx, &bt_op, &map->em_key_buf);
 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
-
 	op->bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
+
 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
 }
 
@@ -535,24 +545,25 @@ M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
 					 m0_bcount_t             nr,
 					 struct m0_be_tx_credit *accum)
 {
-	enum m0_be_btree_op bt_optype;
-
 	M0_PRE(M0_IN(optype, (M0_BEO_CREATE, M0_BEO_DESTROY, M0_BEO_INSERT,
 			      M0_BEO_DELETE, M0_BEO_UPDATE,
 			      M0_BEO_MERGE, M0_BEO_SPLIT, M0_BEO_PASTE)));
 
 	switch (optype) {
 	case M0_BEO_CREATE:
-		bt_optype = M0_BBO_CREATE;
+		m0_be_btree_credit(&map->em_mapping, M0_BBO_CREATE, nr, accum);
+		break;
 	case M0_BEO_DESTROY:
-		bt_optype = M0_BBO_DESTROY;
+		m0_be_btree_credit(&map->em_mapping, M0_BBO_DESTROY, nr, accum);
+		break;
 	case M0_BEO_INSERT:
-		bt_optype = M0_BBO_INSERT;
+		m0_be_btree_credit(&map->em_mapping, M0_BBO_INSERT, nr, accum);
+		break;
 	case M0_BEO_DELETE:
-		bt_optype = M0_BBO_DELETE;
+		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, nr, accum);
+		break;
 	case M0_BEO_UPDATE:
-		bt_optype = M0_BBO_UPDATE;
-		m0_be_btree_credit(&map->em_mapping, bt_optype, nr, accum);
+		m0_be_btree_credit(&map->em_mapping, M0_BBO_UPDATE, nr, accum);
 		break;
 	case M0_BEO_MERGE:
 		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, nr, accum);
@@ -627,10 +638,14 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
 
+	m0_be_op_init(&bt_op);
 	btree_func(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf,
 							&it->ec_recbuf);
 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
-	return (it_sm(it)->sm_rc = bt_op.bo_sm.sm_rc);
+	it_sm(it)->sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
+
+	return it_sm(it)->sm_rc;
 }
 
 static bool
@@ -814,9 +829,11 @@ be_emap_split(struct m0_be_emap_cursor *it,
 	m0_bcount_t     count;
 	struct m0_be_op bt_op;
 
+	m0_be_op_init(&bt_op);
 	m0_be_btree_delete(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf);
 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
 	it_sm(it)->sm_rc = bt_op.bo_sm.sm_rc;
+	m0_be_op_fini(&bt_op);
 	if (it_sm(it)->sm_rc == 0) {
 		for (i = 0; i < vec->iv_vec.v_nr; ++i) {
 			count = vec->iv_vec.v_count[i];

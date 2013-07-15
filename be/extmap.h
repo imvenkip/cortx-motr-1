@@ -136,6 +136,7 @@ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map);
 
     @param db - data-base environment used for persistency and transactional
     support.
+    @note m0_be_emap_init() should be called before this routine.
  */
 M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 				   struct m0_be_tx   *tx,
