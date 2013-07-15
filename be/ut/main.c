@@ -91,7 +91,6 @@ static int _fini(void)
 	return 0;
 }
 
-/* NI == not implemented */
 const struct m0_test_suite be_ut = {
 	.ts_name = "be-ut",
 	.ts_init = _init,
@@ -106,7 +105,7 @@ const struct m0_test_suite be_ut = {
 		{ "regmap-random",    m0_be_ut_regmap_random        },
 		{ "reg_area-simple",  m0_be_ut_reg_area_simple      },
 		{ "reg_area-random",  m0_be_ut_reg_area_random      },
-		{ "reg_area-merge",   m0_be_ut_reg_area_merge	    },
+		{ "reg_area-merge",   m0_be_ut_reg_area_merge       },
 #if 0 /* XXX FIXME
        * A test calling m0_be_ut_h_fini() may fail on
        * m0_net__buf_invariant(). When it does, the stack trace is
@@ -136,10 +135,10 @@ const struct m0_test_suite be_ut = {
 #endif
 		{ "btree",            m0_be_ut_btree_simple         },
 		{ "list",             m0_be_ut_list_api             },
-		{ "io-NI",            m0_be_ut_io                   },
+		{ "io (XXX NOOP)",    m0_be_ut_io                   },
 		{ "log_stor-reserve", m0_be_ut_log_stor_reserve     },
 		{ "log_stor-io",      m0_be_ut_log_stor_io          },
-		{ "log-NI",           m0_be_ut_log                  },
+		{ "log (XXX NOOP)",   m0_be_ut_log                  },
 		{ "group_ondisk",     m0_be_ut_group_ondisk         },
 		{ NULL, NULL }
 	}
