@@ -31,33 +31,6 @@
  * @{
  */
 
-struct tx_group_header {
-	uint64_t gh_lsn;
-	uint64_t gh_size;
-	uint64_t gh_tx_nr;
-	uint64_t gh_magic;
-} M0_XCA_RECORD;
-
-struct tx_group_commit_block {
-	uint64_t gc_lsn;
-	uint64_t gc_size;
-	uint64_t gc_tx_nr;
-	uint64_t gc_magic;
-} M0_XCA_RECORD;
-
-struct tx_reg_header {
-	uint64_t rh_seg_id;
-	uint64_t rh_offset;
-	uint64_t rh_size;
-	uint64_t rh_lsn;
-} M0_XCA_RECORD;
-
-struct tx_reg_sequence {
-	uint64_t              rs_nr;
-	struct tx_reg_header *rs_reg;
-} M0_XCA_SEQUENCE;
-
-
 
 /** @} end of be group */
 

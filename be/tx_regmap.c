@@ -21,12 +21,15 @@
 #include "be/tx_regmap.h"
 
 #include "be/tx.h"
+#include "be/io.h"
 
 #include "lib/ext.h"    /* m0_ext */
 #include "lib/errno.h"  /* ENOMEM */
 #include "lib/memory.h"	/* m0_alloc */
 #include "lib/assert.h"	/* M0_POST */
 #include "lib/misc.h"	/* M0_SET0 */
+
+#include <stdio.h>	/* XXX DELETEME */
 
 /**
  * @addtogroup be
@@ -119,7 +122,7 @@ static m0_bcount_t be_reg_d_size(const struct m0_be_reg_d *rd)
 static bool be_rdt_rd_is_in(const struct m0_be_reg_d_tree *rdt,
 			    const struct m0_be_reg_d *rd)
 {
-	return &rdt->brt_r[0] <= rd && rd <= &rdt->brt_r[rdt->brt_size];
+	return &rdt->brt_r[0] <= rd && rd < &rdt->brt_r[rdt->brt_size];
 }
 
 M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max)
@@ -251,6 +254,16 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 
 	M0_POST(m0_be_rdt__invariant(rdt));
 	return index == m0_be_rdt_size(rdt) ? NULL : &rdt->brt_r[index];
+}
+
+M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt)
+{
+	M0_PRE(m0_be_rdt__invariant(rdt));
+
+	rdt->brt_size = 0;
+
+	M0_POST(m0_be_rdt_size(rdt) == 0);
+	M0_POST(m0_be_rdt__invariant(rdt));
 }
 
 M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
@@ -422,27 +435,40 @@ M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm)
 	return m0_be_rdt_size(&rm->br_rdt);
 }
 
+M0_INTERNAL void m0_be_regmap_reset(struct m0_be_regmap *rm)
+{
+	m0_be_rdt_reset(&rm->br_rdt);
+}
+
 #undef REGD_EXT
 
+static struct m0_be_regmap_callbacks be_reg_area_copy_cb;
 static struct m0_be_regmap_callbacks be_reg_area_cb;
 
 M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
-				    const struct m0_be_tx_credit *prepared)
+				    const struct m0_be_tx_credit *prepared,
+				    bool data_copy)
 {
-	int rc;
+	struct m0_be_regmap_callbacks *cb;
+	int			       rc;
 
-	ra->bra_area_used = 0;
-	ra->bra_prepared  = *prepared;
-	m0_be_tx_credit_init(&ra->bra_captured);
+	*ra = (struct m0_be_reg_area) {
+		.bra_data_copy = data_copy,
+		.bra_area      = NULL,
+		.bra_area_used = 0,
+		.bra_prepared  = *prepared,
+		.bra_captured  = M0_BE_TX_CREDIT(0, 0),
+	};
 
-	M0_ALLOC_ARR(ra->bra_area, ra->bra_prepared.tc_reg_size);
-	if (ra->bra_area == NULL) {
-		rc = -ENOMEM;
-	} else {
-		rc = m0_be_regmap_init(&ra->bra_map, &be_reg_area_cb, ra,
-				       ra->bra_prepared.tc_reg_nr);
-		if (rc != 0)
+	cb = data_copy ? &be_reg_area_copy_cb : &be_reg_area_cb;
+	rc = m0_be_regmap_init(&ra->bra_map, cb, ra,
+			       ra->bra_prepared.tc_reg_nr);
+	if (rc == 0 && data_copy) {
+		M0_ALLOC_ARR(ra->bra_area, ra->bra_prepared.tc_reg_size);
+		if (ra->bra_area == NULL) {
 			m0_be_regmap_fini(&ra->bra_map);
+			rc = -ENOMEM;
+		}
 	}
 	M0_POST(ergo(rc == 0, m0_be_reg_area__invariant(ra)));
 	return rc;
@@ -458,7 +484,7 @@ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
 {
 	return m0_be_regmap__invariant(&ra->bra_map) &&
-	       ra->bra_area != NULL &&
+	       equi(ra->bra_data_copy, ra->bra_area != NULL) &&
 	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size &&
 	       m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared);
 }
@@ -499,7 +525,7 @@ static void *be_reg_area_alloc(struct m0_be_reg_area *ra, m0_bcount_t size)
 	return ptr;
 }
 
-static void be_reg_area_add_cb(void *data, struct m0_be_reg_d *rd)
+static void be_reg_area_add_copy_cb(void *data, struct m0_be_reg_d *rd)
 {
 	struct m0_be_reg_area *ra = data;
 
@@ -510,11 +536,33 @@ static void be_reg_area_add_cb(void *data, struct m0_be_reg_d *rd)
 	be_reg_d_cpy(rd->rd_buf, rd);
 }
 
+static void be_reg_area_add_cb(void *data, struct m0_be_reg_d *rd)
+{
+	M0_PRE(rd->rd_buf != NULL);
+}
+
 static void be_reg_area_del_cb(void *data, const struct m0_be_reg_d *rd)
 {
 	/* do nothing */
 }
 
+static void be_reg_area_cpy_copy_cb(void *data,
+				    const struct m0_be_reg_d *super,
+				    const struct m0_be_reg_d *rd)
+{
+	m0_bcount_t rd_offset;
+
+	M0_PRE(m0_be_reg_d__invariant(rd));
+	M0_PRE(be_reg_d_is_partof(super, rd));
+	M0_PRE(super->rd_buf != NULL);
+	M0_PRE(rd->rd_buf == NULL);
+
+	rd_offset = (char *) rd->rd_reg.br_addr -
+		    (char *) super->rd_reg.br_addr;
+	be_reg_d_cpy((char *) super->rd_buf + rd_offset, rd);
+}
+
+/* XXX copy-paste from be_reg_area_cpy_copy_cb() */
 static void be_reg_area_cpy_cb(void *data,
 			       const struct m0_be_reg_d *super,
 			       const struct m0_be_reg_d *rd)
@@ -523,10 +571,13 @@ static void be_reg_area_cpy_cb(void *data,
 
 	M0_PRE(m0_be_reg_d__invariant(rd));
 	M0_PRE(be_reg_d_is_partof(super, rd));
+	M0_PRE(super->rd_buf != NULL);
+	M0_PRE(rd->rd_buf != NULL);
 
 	rd_offset = (char *) rd->rd_reg.br_addr -
 		    (char *) super->rd_reg.br_addr;
-	be_reg_d_cpy((char *) super->rd_buf + rd_offset, rd);
+	memcpy((char *) super->rd_buf + rd_offset,
+	       rd->rd_buf, rd->rd_reg.br_size);
 }
 
 static void be_reg_area_cut_cb(void *data,
@@ -536,6 +587,13 @@ static void be_reg_area_cut_cb(void *data,
 {
 	rd->rd_buf = (char *) rd->rd_buf + cut_at_start;
 }
+
+static struct m0_be_regmap_callbacks be_reg_area_copy_cb = {
+	.brc_add = be_reg_area_add_copy_cb,
+	.brc_del = be_reg_area_del_cb,
+	.brc_cpy = be_reg_area_cpy_copy_cb,
+	.brc_cut = be_reg_area_cut_cb,
+};
 
 static struct m0_be_regmap_callbacks be_reg_area_cb = {
 	.brc_add = be_reg_area_add_cb,
@@ -571,6 +629,27 @@ M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
 	M0_POST(m0_be_reg_area__invariant(ra));
 }
 
+M0_INTERNAL void m0_be_reg_area_merge_in(struct m0_be_reg_area *ra,
+					 struct m0_be_reg_area *src)
+{
+	struct m0_be_reg_d *rd;
+
+	M0_BE_REG_AREA_FORALL(src, rd) {
+		m0_be_reg_area_capture(ra, rd);
+	}
+}
+
+M0_INTERNAL void m0_be_reg_area_reset(struct m0_be_reg_area *ra)
+{
+	M0_PRE(m0_be_reg_area__invariant(ra));
+
+	m0_be_regmap_reset(&ra->bra_map);
+	ra->bra_area_used = 0;
+	m0_be_tx_credit_init(&ra->bra_captured);
+
+	M0_POST(m0_be_reg_area__invariant(ra));
+}
+
 M0_INTERNAL struct m0_be_reg_d *
 m0_be_reg_area_first(struct m0_be_reg_area *ra)
 {
@@ -581,6 +660,28 @@ M0_INTERNAL struct m0_be_reg_d *
 m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev)
 {
 	return m0_be_regmap_next(&ra->bra_map, prev);
+}
+
+M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
+				       struct m0_be_io *io)
+{
+	struct m0_be_reg_d *rd;
+	struct m0_be_seg   *seg;
+
+	M0_PRE(m0_be_reg_area__invariant(ra));
+
+	seg = NULL;
+	M0_BE_REG_AREA_FORALL(ra, rd) {
+		M0_ASSERT(ergo(seg != NULL, seg == rd->rd_reg.br_seg));
+		m0_be_io_add(io, rd->rd_buf, m0_be_reg_offset(&rd->rd_reg),
+			     rd->rd_reg.br_size);
+		seg = rd->rd_reg.br_seg;
+		/* XXX temporary hack. FIXME ASAP */
+		if (seg != NULL)
+			io->bio_stob = seg->bs_stob;
+	}
+
+	M0_POST(m0_be_reg_area__invariant(ra));
 }
 
 /** @} end of be group */

@@ -50,6 +50,7 @@ void m0_be_ut_tx_simple(void)
 	 */
 	m0_be_ut_h_tx_init(&tx, &h);
 	m0_be_allocator_credit(h.buh_a, M0_BAO_ALLOC, sizeof *p, 0, &cred);
+	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT(1, sizeof *p));
 
 	m0_sm_group_lock(&ut__txs_sm_group);
 
@@ -80,6 +81,10 @@ void m0_be_ut_tx_simple(void)
 	M0_LOG(M0_DEBUG, "Transaction has reached M0_BTS_PLACED");
 
 	/* XXX TODO: m0_be_tx_stable(tx) */
+	/*
+	m0_be_tx_stable(&tx);
+	m0_be_tx_fini(&tx);
+	*/
 
 	m0_sm_group_unlock(&ut__txs_sm_group);
 

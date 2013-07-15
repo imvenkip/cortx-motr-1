@@ -130,6 +130,7 @@ M0_INTERNAL void m0_be_io_configure(struct m0_be_io *bio,
 				    enum m0_stob_io_opcode opcode)
 {
 	bio->bio_io.si_opcode = opcode;
+	/* XXX */
 	bio->bio_io.si_fol_rec_part = (void *) 1;
 }
 
@@ -143,6 +144,11 @@ static bool be_io_cb(struct m0_clink *link)
 	op->bo_sm.sm_rc = io->si_rc;
 	m0_be_op_state_set(op,
 			   io->si_rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+	/* XXX add fsync() to linux stob fd
+	 * stob2linux
+	 * fd
+	 * fsync()
+	 */
 	return io->si_rc == 0;
 }
 

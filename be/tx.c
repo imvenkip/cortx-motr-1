@@ -192,7 +192,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_PRE(m0_be__tx_state(tx) == M0_BTS_PREPARE);
 	M0_PRE(tx_is_locked(tx));
 
-	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared);
+	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
 	if (rc == 0) {
 		rc = m0_be_log_reserve_tx(&eng->te_log, &tx->t_prepared);
 		if (rc == 0) {
@@ -605,6 +605,11 @@ static int done_st_in(struct m0_sm *mach)
 		tx->t_discarded(tx);
 	M0_LEAVE();
 	return -1;
+}
+
+M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx)
+{
+	return &tx->t_reg_area;
 }
 
 /** @} end of be group */

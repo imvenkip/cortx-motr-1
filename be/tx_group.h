@@ -89,6 +89,11 @@ M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
 M0_INTERNAL void tx_group_open(struct m0_be_tx_engine *eng,
 				struct m0_be_tx_group *gr);
 
+#define M0_BE_TX_GROUP_TX_FORALL(group, tx) \
+	m0_tl_for(grp, &(group)->tg_txs, (tx))
+
+#define M0_BE_TX_GROUP_TX_ENDFOR m0_tl_endfor
+
 M0_TL_DESCR_DECLARE(grp, M0_EXTERN);
 M0_TL_DECLARE(grp, M0_INTERNAL, struct m0_be_tx);
 

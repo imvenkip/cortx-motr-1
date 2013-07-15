@@ -431,6 +431,8 @@ M0_INTERNAL void m0_be__tx_state_set(struct m0_be_tx *tx,
 				     enum m0_be_tx_state state);
 M0_INTERNAL enum m0_be_tx_state m0_be__tx_state(const struct m0_be_tx *tx);
 
+M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
+
 /**
  * Posts an AST that will move transaction's state machine to
  * M0_BTS_GROUPED state and decrement provided reference counter.

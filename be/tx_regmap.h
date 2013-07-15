@@ -159,6 +159,8 @@ M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
 M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 					      const struct m0_be_reg_d *rd);
 
+M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt);
+
 M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
 				  struct m0_be_regmap_callbacks *rm_cb,
 				  void *rm_cb_data,
@@ -177,9 +179,11 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_next(struct m0_be_regmap *rm,
 						  struct m0_be_reg_d *prev);
 M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm);
 
+M0_INTERNAL void m0_be_regmap_reset(struct m0_be_regmap *rm);
 
 struct m0_be_reg_area {
 	struct m0_be_regmap    bra_map;
+	bool		       bra_data_copy;
 	char		      *bra_area;
 	m0_bcount_t	       bra_area_used;
 	struct m0_be_tx_credit bra_prepared;
@@ -187,7 +191,8 @@ struct m0_be_reg_area {
 };
 
 M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
-				    const struct m0_be_tx_credit *prepared);
+				    const struct m0_be_tx_credit *prepared,
+				    bool data_copy);
 M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra);
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra);
 M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
@@ -200,10 +205,22 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
 					  const struct m0_be_reg_d *rd);
 
-M0_INTERNAL struct m0_be_reg_d *
-m0_be_reg_area_first(struct m0_be_reg_area *ra);
+M0_INTERNAL void m0_be_reg_area_merge_in(struct m0_be_reg_area *ra,
+					 struct m0_be_reg_area *src);
+
+M0_INTERNAL void m0_be_reg_area_reset(struct m0_be_reg_area *ra);
+
+M0_INTERNAL struct m0_be_reg_d *m0_be_reg_area_first(struct m0_be_reg_area *ra);
 M0_INTERNAL struct m0_be_reg_d *
 m0_be_reg_area_next(struct m0_be_reg_area *ra, struct m0_be_reg_d *prev);
+
+#define M0_BE_REG_AREA_FORALL(ra, rd)			\
+	for ((rd) = m0_be_reg_area_first(ra);		\
+	     (rd) != NULL;				\
+	     (rd) = m0_be_reg_area_next((ra), (rd)))
+
+M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
+				       struct m0_be_io *io);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_REGMAP_H__ */

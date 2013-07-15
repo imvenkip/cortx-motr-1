@@ -20,12 +20,14 @@
 
 #include "be/tx_regmap.h"
 
-#include "ut/ut.h"	/* M0_UT_ASSERT */
-#include "lib/cdefs.h"	/* ARRAY_SIZE */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
+#include "lib/cdefs.h"		/* ARRAY_SIZE */
 
-#include <stdio.h>	/* fflush */
-#include <stdlib.h>	/* rand_r */
-#include <string.h>	/* memcpy */
+#include "be/ut/helper.c"	/* m0_be_ut_h */
+
+#include <stdio.h>		/* fflush */
+#include <stdlib.h>		/* rand_r */
+#include <string.h>		/* memcpy */
 
 /*
 #define LOGD(...) printf(__VA_ARGS__)
@@ -563,13 +565,27 @@ enum {
 	BE_UT_RA_R_SIZE  = 0x10,
 	BE_UT_RA_SIZE	 = 0x20,
 	BE_UT_RA_ITER	 = 0x10000,
+	BE_UT_RA_OFFS	 = 0x10000,
 };
 
-static struct m0_be_reg_area be_ut_ra_reg_area;
-static char		     be_ut_ra_save[BE_UT_RA_SIZE];
-static char		     be_ut_ra_data[BE_UT_RA_SIZE];
-static char		     be_ut_ra_reg[BE_UT_RA_SIZE];
-static unsigned		     be_ut_ra_rand_seed;
+static struct m0_be_reg_area  be_ut_ra_reg_area;
+static struct m0_be_ut_h      be_ut_ra_h;
+static struct m0_be_seg      *be_ut_ra_seg;
+static unsigned		      be_ut_ra_rand_seed;
+static char		      be_ut_ra_save[BE_UT_RA_SIZE];
+static char		      be_ut_ra_data[BE_UT_RA_SIZE];
+static char		      be_ut_ra_reg[BE_UT_RA_SIZE];
+
+static m0_bindex_t be_ut_reg_area_addr2offs(void *addr)
+{
+	return (char *) addr - (char *) be_ut_ra_seg->bs_addr - BE_UT_RA_OFFS;
+}
+
+static void *be_ut_reg_area_offs2addr(m0_bindex_t offs)
+{
+	return (void *) (uintptr_t) be_ut_ra_seg->bs_addr +
+	       BE_UT_RA_OFFS + offs;
+}
 
 static void be_ut_reg_area_reset(bool reset_save)
 {
@@ -588,7 +604,7 @@ static void be_ut_reg_area_init(m0_bindex_t nr)
 	int		       rc;
 
 	prepared = M0_BE_TX_CREDIT(nr, nr * BE_UT_RA_R_SIZE);
-	rc = m0_be_reg_area_init(&be_ut_ra_reg_area, &prepared);
+	rc = m0_be_reg_area_init(&be_ut_ra_reg_area, &prepared, true);
 	M0_UT_ASSERT(rc == 0);
 	be_ut_reg_area_reset(true);
 }
@@ -600,9 +616,8 @@ static void be_ut_reg_area_fini(void)
 
 static void be_ut_reg_area_fill(struct m0_be_reg_d *rd)
 {
-	uintptr_t  begin = (uintptr_t)
-			   ((char *) rd->rd_reg.br_addr - &be_ut_ra_reg[0]);
-	uintptr_t  end = begin + rd->rd_reg.br_size;
+	uintptr_t  begin = be_ut_reg_area_addr2offs(rd->rd_reg.br_addr);
+	uintptr_t  end	 = begin + rd->rd_reg.br_size;
 
 	M0_PRE(0 <= begin && begin <  BE_UT_RA_SIZE);
 	M0_PRE(0 <= end   && end   <= BE_UT_RA_SIZE);
@@ -614,9 +629,8 @@ static void be_ut_reg_area_fill(struct m0_be_reg_d *rd)
 /* XXX copy-paste from be_ut_reg_area_fill() */
 static void be_ut_reg_area_fill_save(struct m0_be_reg_d *rd)
 {
-	uintptr_t  begin = (uintptr_t)
-			   ((char *) rd->rd_reg.br_addr - &be_ut_ra_reg[0]);
-	uintptr_t  end = begin + rd->rd_reg.br_size;
+	uintptr_t  begin = be_ut_reg_area_addr2offs(rd->rd_reg.br_addr);
+	uintptr_t  end	 = begin + rd->rd_reg.br_size;
 
 	M0_PRE(0 <= begin && begin <  BE_UT_RA_SIZE);
 	M0_PRE(0 <= end   && end   <= BE_UT_RA_SIZE);
@@ -651,27 +665,26 @@ static void be_ut_reg_area_check(bool do_insert, struct m0_be_reg_d *rd)
 {
 	struct m0_be_reg_d *rdi;
 	int		    cmp;
-	m0_bcount_t	    begin;
-	m0_bcount_t	    end;
-	m0_bcount_t	    ibegin;
-	m0_bcount_t	    iend;
+	m0_bindex_t	    begin;
+	m0_bindex_t	    end;
+	m0_bindex_t	    ibegin;
+	m0_bindex_t	    iend;
 
 	if (do_insert) {
 		be_ut_reg_area_fill_save(rd);
 	} else {
-		begin = (char *) rd->rd_reg.br_addr - &be_ut_ra_reg[0];
+		begin = be_ut_reg_area_addr2offs(rd->rd_reg.br_addr);
 		end   = begin + rd->rd_reg.br_size;
 		for (rdi = m0_be_reg_area_first(&be_ut_ra_reg_area);
 		     rdi != NULL;
 		     rdi = m0_be_reg_area_next(&be_ut_ra_reg_area, rdi)) {
-			ibegin = (char *) rdi->rd_reg.br_addr -
-				 &be_ut_ra_reg[0];
+			ibegin = be_ut_reg_area_addr2offs(rdi->rd_reg.br_addr);
 			iend   = ibegin + rdi->rd_reg.br_size;
 			if (ibegin < begin && end < iend)
 				break;
 		}
 		if (rdi == NULL) {
-			begin = (char *) rd->rd_reg.br_addr - &be_ut_ra_reg[0];
+			begin = be_ut_reg_area_addr2offs(rd->rd_reg.br_addr);
 			bzero(&be_ut_ra_save[begin], rd->rd_reg.br_size);
 		}
 	}
@@ -710,11 +723,13 @@ static void be_ut_reg_area_do(m0_bcount_t begin, m0_bcount_t end,
 
 	/** XXX TODO check other fields of m0_be_reg_d */
 	rd = (struct m0_be_reg_d ) {
-		.rd_reg = M0_BE_REG(NULL, end - begin, &be_ut_ra_reg[begin]),
+		.rd_reg = M0_BE_REG(be_ut_ra_seg, end - begin,
+				    be_ut_reg_area_offs2addr(begin)),
 	};
 
 	if (do_insert) {
 		be_ut_reg_area_rand();
+		memcpy(rd.rd_reg.br_addr, be_ut_ra_reg, rd.rd_reg.br_size);
 		m0_be_reg_area_capture(&be_ut_ra_reg_area, &rd);
 	} else {
 		m0_be_reg_area_uncapture(&be_ut_ra_reg_area, &rd);
@@ -732,6 +747,9 @@ void m0_be_ut_reg_area_simple(void)
 	m0_bindex_t		     nr;
 	int			     i;
 	int			     j;
+
+	m0_be_ut_seg_create_open(&be_ut_ra_h);
+	be_ut_ra_seg = &be_ut_ra_h.buh_seg;
 
 	be_ut_ra_rand_seed = 0;
 	for (i = 0; i < ARRAY_SIZE(be_ut_test_regs); ++i) {
@@ -754,6 +772,8 @@ void m0_be_ut_reg_area_simple(void)
 		}
 		be_ut_reg_area_fini();
 	}
+
+	m0_be_ut_seg_close_destroy(&be_ut_ra_h);
 }
 
 /* XXX FIXME copy-paste from m0_be_ut_regmap_random */
@@ -765,6 +785,9 @@ void m0_be_ut_reg_area_random(void)
 	unsigned    seed = 0;
 	int	    do_insert;
 
+	m0_be_ut_seg_create_open(&be_ut_ra_h);
+	be_ut_ra_seg = &be_ut_ra_h.buh_seg;
+
 	be_ut_reg_area_init(BE_UT_RA_ITER);
 	for (i = 0; i < BE_UT_RA_ITER; ++i) {
 		begin = rand_r(&seed) % (BE_UT_REGMAP_LEN -
@@ -775,6 +798,246 @@ void m0_be_ut_reg_area_random(void)
 		be_ut_reg_area_size_length_check(0, 0, false);
 	}
 	be_ut_reg_area_fini();
+	m0_be_ut_seg_close_destroy(&be_ut_ra_h);
+}
+
+/* backend UT reg area merge. R == region */
+enum {
+	BE_UT_RA_MERGE_R_SIZE_MIN  = 1,
+	BE_UT_RA_MERGE_R_SIZE_MAX  = 4,
+	BE_UT_RA_MERGE_R_SPACE_MIN = 0,
+	BE_UT_RA_MERGE_R_SPACE_MAX = 2,
+	BE_UT_RA_MERGE_R_NR_MAX	   = 5,
+	BE_UT_RA_MERGE_SEG_OFFSET  = 0x10000,
+	BE_UT_RA_MERGE_SIZE_TOTAL  = 16,
+	BE_UT_RA_MERGE_NR	   = 0x100,
+	BE_UT_RA_MERGE_ITER	   = 0x100,
+};
+
+/* #define BE_UT_RA_MERGE_DEBUG */
+
+static struct m0_be_ut_h  be_ut_ra_merge_h;
+static struct m0_be_seg  *be_ut_ra_merge_seg;
+static unsigned		  be_ut_ra_merge_seed;
+static unsigned char	  be_ut_ra_merge_pre[BE_UT_RA_MERGE_SIZE_TOTAL];
+static unsigned char	  be_ut_ra_merged[BE_UT_RA_MERGE_SIZE_TOTAL];
+static unsigned char	  be_ut_ra_merge_post[BE_UT_RA_MERGE_SIZE_TOTAL];
+
+/* get random number in range [min, max] */
+static unsigned be_ut_reg_area_merge_rand(unsigned min, unsigned max)
+{
+	return rand_r(&be_ut_ra_merge_seed) % (max - min + 1) + min;
+}
+
+static m0_bindex_t be_ut_reg_area_merge_addr2offs(void *addr)
+{
+	return (uintptr_t) addr - BE_UT_RA_MERGE_SEG_OFFSET -
+	       (uintptr_t) be_ut_ra_merge_seg->bs_addr;
+}
+
+static void *be_ut_reg_area_merge_offs2addr(m0_bindex_t offs)
+{
+	return (char *) be_ut_ra_merge_seg->bs_addr +
+		BE_UT_RA_MERGE_SEG_OFFSET + offs;
+}
+
+static void be_ut_reg_area_merge_ra_add(struct m0_be_reg_area *ra,
+					m0_bindex_t begin,
+					m0_bcount_t size,
+					void *buf)
+{
+	void *addr = be_ut_reg_area_merge_offs2addr(begin);
+
+	memcpy(addr, buf, size);
+	struct m0_be_reg_d rd = {
+		.rd_reg = M0_BE_REG(be_ut_ra_merge_seg, size, addr),
+		.rd_buf = NULL,
+	};
+	m0_be_reg_area_capture(ra, &rd);
+}
+
+/* this function is the most tricky part of reg_area merge UT */
+static void be_ut_reg_area_merge_rand_ra(struct m0_be_reg_area *ra)
+{
+	static unsigned char random[BE_UT_RA_MERGE_SIZE_TOTAL];
+	m0_bindex_t	     pos = 0;
+	m0_bindex_t	     begin;
+	m0_bcount_t	     size;
+	int		     i;
+	int		     nr;
+
+	pos = 0;
+	nr = 0;
+	while (pos < BE_UT_RA_MERGE_SIZE_TOTAL &&
+	       nr < BE_UT_RA_MERGE_R_NR_MAX) {
+		begin = pos;
+		size = be_ut_reg_area_merge_rand(BE_UT_RA_MERGE_R_SIZE_MIN,
+						 BE_UT_RA_MERGE_R_SIZE_MAX);
+		for (i = 0; i < size; ++i)
+			random[i] = be_ut_reg_area_merge_rand(1, 0xFF);
+		if (begin + size < BE_UT_RA_MERGE_SIZE_TOTAL)
+			be_ut_reg_area_merge_ra_add(ra, begin, size, random);
+
+		pos += size;
+		/* skip some space after the region */
+		size = be_ut_reg_area_merge_rand(BE_UT_RA_MERGE_R_SPACE_MIN,
+						 BE_UT_RA_MERGE_R_SPACE_MAX);
+		pos += size;
+		++nr;
+	}
+}
+
+static void be_ut_reg_area_arr_copy(unsigned char *arr,
+				    m0_bcount_t arr_size,
+				    struct m0_be_reg_area *ra,
+				    bool clear_arr)
+{
+	struct m0_be_reg_d *rd;
+	m0_bindex_t	    index;
+	m0_bcount_t	    size;
+	int		    i;
+
+	if (clear_arr)
+		memset(arr, 0, arr_size);
+
+	M0_BE_REG_AREA_FORALL(ra, rd) {
+		index = be_ut_reg_area_merge_addr2offs(rd->rd_reg.br_addr);
+		size  = rd->rd_reg.br_size;
+		M0_UT_ASSERT(index >= 0);
+		M0_UT_ASSERT(size > 0);
+		/* it might be integer overflow in (index + size) expression */
+		M0_UT_ASSERT(index	  < arr_size);
+		M0_UT_ASSERT(size	  < arr_size);
+		M0_UT_ASSERT(index + size < arr_size);
+		memcpy(&arr[index], rd->rd_buf, size);
+		for (i = 0; i < size; ++i)
+			M0_UT_ASSERT(arr[index + i] != 0);
+	};
+}
+
+static void be_ut_reg_area_merge_pre(struct m0_be_reg_area *ra)
+{
+#if BE_UT_RA_MERGE_DEBUG
+	int i;
+#endif
+
+	be_ut_reg_area_arr_copy(be_ut_ra_merge_pre,
+				ARRAY_SIZE(be_ut_ra_merge_pre), ra, true);
+#if BE_UT_RA_MERGE_DEBUG
+	printf("merge_pre:  ");
+	for (i = 0; i < ARRAY_SIZE(be_ut_ra_merge_pre); ++i)
+		printf("%4.u", (unsigned) be_ut_ra_merge_pre[i]);
+	printf("\n");
+#endif
+}
+
+static void be_ut_reg_area_merge_in(struct m0_be_reg_area *ra)
+{
+	int i;
+
+	memcpy(be_ut_ra_merged, be_ut_ra_merge_pre,
+	       ARRAY_SIZE(be_ut_ra_merged));
+	be_ut_reg_area_arr_copy(be_ut_ra_merged, ARRAY_SIZE(be_ut_ra_merged),
+				ra, false);
+#if BE_UT_RA_MERGE_DEBUG
+	printf("merged:     ");
+	for (i = 0; i < ARRAY_SIZE(be_ut_ra_merged); ++i)
+		printf("%4.u", (unsigned) be_ut_ra_merged[i]);
+	printf("\n");
+#endif
+	for (i = 0; i < ARRAY_SIZE(be_ut_ra_merged); ++i) {
+		M0_UT_ASSERT(ergo(be_ut_ra_merge_pre[i] != 0,
+				  be_ut_ra_merged[i] != 0));
+	}
+}
+
+static void be_ut_reg_area_merge_post(struct m0_be_reg_area *ra)
+{
+	int cmp;
+#if BE_UT_RA_MERGE_DEBUG
+	int i;
+#endif
+
+	be_ut_reg_area_arr_copy(be_ut_ra_merge_post,
+				ARRAY_SIZE(be_ut_ra_merge_post), ra, true);
+#if BE_UT_RA_MERGE_DEBUG
+	printf("merge_post: ");
+	for (i = 0; i < ARRAY_SIZE(be_ut_ra_merge_post); ++i)
+		printf("%4.u", (unsigned) be_ut_ra_merge_post[i]);
+	printf("\n\n");
+#endif
+	/*
+	 * check if arrays merge is equal to merge using
+	 * m0_be_reg_area_merge_in().
+	 */
+	cmp = memcmp(be_ut_ra_merged, be_ut_ra_merge_post,
+		     ARRAY_SIZE(be_ut_ra_merged));
+	M0_UT_ASSERT(cmp == 0);
+}
+
+void m0_be_ut_reg_area_merge(void)
+{
+	static struct m0_be_reg_area ra;
+	static struct m0_be_reg_area mra[BE_UT_RA_MERGE_NR]; /* merge ra */
+	struct m0_be_tx_credit	     prepared_mra;
+	struct m0_be_tx_credit	     prepared_ra;
+#if BE_UT_RA_MERGE_DEBUG
+	unsigned char		     mra_arr[BE_UT_RA_MERGE_SIZE_TOTAL];
+	int			     k;
+#endif
+	int			     i;
+	int			     j;
+	int			     rc;
+
+	m0_be_ut_seg_create_open(&be_ut_ra_merge_h);
+	be_ut_ra_merge_seg = &be_ut_ra_merge_h.buh_seg;
+
+	prepared_mra = M0_BE_TX_CREDIT(BE_UT_RA_MERGE_R_NR_MAX,
+				       BE_UT_RA_MERGE_SIZE_TOTAL);
+	prepared_ra  = M0_BE_TX_CREDIT(BE_UT_RA_MERGE_R_NR_MAX *
+				       BE_UT_RA_MERGE_NR,
+				       BE_UT_RA_MERGE_SIZE_TOTAL *
+				       BE_UT_RA_MERGE_NR);
+	rc = m0_be_reg_area_init(&ra, &prepared_ra, false);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < ARRAY_SIZE(mra); ++i) {
+		m0_be_reg_area_init(&mra[i], &prepared_mra, true);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	be_ut_ra_merge_seed = 0;
+	for (j = 0; j < BE_UT_RA_MERGE_ITER; ++j) {
+		/* reset all data structures */
+		m0_be_reg_area_reset(&ra);
+		for (i = 0; i < ARRAY_SIZE(mra); ++i)
+			m0_be_reg_area_reset(&mra[i]);
+		/* create random reg_areas */
+		for (i = 0; i < ARRAY_SIZE(mra); ++i)
+			be_ut_reg_area_merge_rand_ra(&mra[i]);
+		/* merge it with ra */
+		for (i = 0; i < ARRAY_SIZE(mra); ++i) {
+#if BE_UT_RA_MERGE_DEBUG
+			printf("i = %d\n", i);
+			be_ut_reg_area_arr_copy(mra_arr, ARRAY_SIZE(mra_arr),
+						&mra[i], true);
+			printf("mra_arr:    ");
+			for (k = 0; k < ARRAY_SIZE(mra_arr); ++k)
+				printf("%4.u", (unsigned) mra_arr[k]);
+			printf("\n");
+#endif
+
+			be_ut_reg_area_merge_pre(&ra);
+			m0_be_reg_area_merge_in(&ra, &mra[i]);
+			be_ut_reg_area_merge_in(&mra[i]);
+			be_ut_reg_area_merge_post(&ra);
+		}
+	}
+
+	m0_be_reg_area_fini(&ra);
+	for (i = 0; i < ARRAY_SIZE(mra); ++i)
+		m0_be_reg_area_fini(&mra[i]);
+
+	m0_be_ut_seg_close_destroy(&be_ut_ra_merge_h);
 }
 
 /*

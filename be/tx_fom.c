@@ -369,6 +369,7 @@ static int logging_tick(struct m0_fom *fom)
 	 * Launch the 1st log IO: tx_group and, when the log is wrapped,
 	 * log header.
 	 */
+	m0_be_group_ondisk_reset(&gr->tg_od); /* XXX MOVEME ASAP */
 	m0_be_log_submit(&m->tgf_engine->te_log, op, gr);
 
 	M0_LEAVE();
@@ -406,8 +407,6 @@ static int placing_tick(struct m0_fom *fom)
 	struct m0_be_tx_group *gr = tx_group(m);
 	struct m0_be_op       *op = &m->tgf_op;
 	struct m0_be_tx       *tx;
-	struct m0_be_seg      *seg;
-	struct m0_be_reg_area *area;
 
 	M0_ENTRY();
 	M0_PRE(!grp_tlist_is_empty(&gr->tg_txs));
@@ -428,10 +427,8 @@ static int placing_tick(struct m0_fom *fom)
 	}
 
 	/* perform IO */
-	area = &tx->t_reg_area;
-	seg = m0_be_reg_area_first(area)->rd_reg.br_seg;
 	m0_be_op_init(op);
-	m0_be_seg_write_simple(seg, op, area);
+	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 
 	if (tx->t_persistent != NULL)
 		tx->t_persistent(tx);

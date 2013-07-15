@@ -52,8 +52,6 @@ void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
 			    &M0_BE_TX_CREDIT_TYPE(struct tx_group_header));
 	m0_be_tx_credit_add(io_tx,
 			    &M0_BE_TX_CREDIT_TYPE(struct tx_group_entry));
-	m0_be_tx_credit_add(io_tx,
-			    &M0_BE_TX_CREDIT_TYPE(struct tx_reg_sequence));
 	m0_be_tx_credit_mac(io_tx, &M0_BE_TX_CREDIT_TYPE(struct tx_reg_header),
 			    prepared->tc_reg_nr);
 	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT_TYPE(struct
@@ -94,6 +92,7 @@ M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 	int		       rc1;
 	int		       rc2;
 	int		       rc3;
+	int		       rc4;
 
 	M0_ENTRY();
 
@@ -109,14 +108,18 @@ M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 			    &credit_log_cblock);
 	rc3 = m0_be_io_init(&go->go_io_seg, log_stob, size_max);
 
+	rc4 = m0_be_reg_area_init(&go->go_area, size_max, false);
+
 	if (go->go_entry == NULL || go->go_reg == NULL ||
-	    rc1 != 0 || rc2 != 0 || rc3 != 0) {
+	    rc1 != 0 || rc2 != 0 || rc3 != 0 || rc4 != 0) {
 		if (rc1 == 0)
 			m0_be_io_fini(&go->go_io_log);
 		if (rc2 == 0)
 			m0_be_io_fini(&go->go_io_log_cblock);
 		if (rc3 == 0)
 			m0_be_io_fini(&go->go_io_seg);
+		if (rc4 == 0)
+			m0_be_reg_area_fini(&go->go_area);
 		be_group_ondisk_free(go);
 		rc = -ENOMEM;
 	} else {
@@ -132,12 +135,21 @@ M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go)
 	m0_be_io_fini(&go->go_io_log);
 	m0_be_io_fini(&go->go_io_log_cblock);
 	m0_be_io_fini(&go->go_io_seg);
+	m0_be_reg_area_fini(&go->go_area);
 	be_group_ondisk_free(go);
 }
 
 M0_INTERNAL bool m0_be_group_ondisk__invariant(struct m0_be_group_ondisk *go)
 {
 	return true;
+}
+
+M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go)
+{
+	m0_be_io_reset(&go->go_io_log);
+	m0_be_io_reset(&go->go_io_log_cblock);
+	m0_be_io_reset(&go->go_io_seg);
+	m0_be_reg_area_reset(&go->go_area);
 }
 
 M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
@@ -176,68 +188,60 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	struct m0_be_log_stor_io lsi;
 	struct m0_be_tx_credit	 reg_cr;
 	struct m0_be_tx_credit	 io_cr;
-	struct m0_be_reg_area	*area;
-	struct tx_group_entry	*ge;
 	struct m0_be_reg_d	*rd;
 	struct m0_be_tx		*tx;
 	int			 i;
-	int			 j;
-	size_t			 tx_nr;
+	uint64_t		 tx_nr;
+	uint64_t		 reg_nr;
+
 
 	m0_be_group_ondisk_reserved(go, group, &reg_cr, &tx_nr);
 	m0_be_group_ondisk_io_reserved(go, group, &io_cr);
-	m0_be_log_stor_io_init(&lsi, &log->lg_stor,
-			       &go->go_io_log, &go->go_io_log_cblock,
-			       io_cr.tc_reg_size);
+	m0_be_log_stor_io_init(&lsi, &log->lg_stor, &go->go_io_log,
+			       &go->go_io_log_cblock, io_cr.tc_reg_size);
 
-	go->go_header.gh_tx_nr = tx_nr;
+	/* merge transactions reg_area */
+	tx_nr = 0;
+	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
+		m0_be_reg_area_merge_in(&go->go_area, m0_be_tx__reg_area(tx));
+		++tx_nr;
+	} M0_BE_TX_GROUP_TX_ENDFOR;
 
-	i = 0;
-	go->go_reg_nr = 0;
-	m0_tl_for(grp, &group->tg_txs, tx) {
-		area = &tx->t_reg_area;
-		ge = &go->go_entry[i++];
-		ge->ge_reg.rs_reg = &go->go_reg[go->go_reg_nr];
-		j = 0;
-		for (rd = m0_be_reg_area_first(area); rd != NULL;
-		     rd = m0_be_reg_area_next(area, rd)) {
-			ge->ge_reg.rs_reg[j].rh_lsn    = 0xABC;
-			ge->ge_reg.rs_reg[j].rh_offset =
-				(uintptr_t) rd->rd_reg.br_addr;
-			ge->ge_reg.rs_reg[j].rh_size   = rd->rd_reg.br_size;
-			ge->ge_reg.rs_reg[j].rh_seg_id = 0xDEF;
-			++j;
-			++go->go_reg_nr;
-			M0_ASSERT(go->go_reg_nr <= reg_cr.tc_reg_nr);
-		}
-		ge->ge_reg.rs_nr = j;
-	} m0_tl_endfor;
+	reg_nr = 0;
+	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
+		go->go_reg[reg_nr] = (struct tx_reg_header) {
+			.rh_lsn    = 0xABC,	/* XXX */
+			.rh_offset = (uintptr_t) rd->rd_reg.br_addr,
+			.rh_size   = rd->rd_reg.br_size,
+			.rh_seg_id = 0xDEF,	/* XXX */
+		};
+		++reg_nr;
+		M0_ASSERT(reg_nr <= reg_cr.tc_reg_nr);
+	}
 
-	go->go_cblock.gc_tx_nr = tx_nr;
+	go->go_header.gh_tx_nr	= tx_nr;
+	go->go_header.gh_reg_nr = reg_nr;
 
-	/* write to log */
+	/* add to log io */
 	M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_header);
-
 	for (i = 0; i < go->go_header.gh_tx_nr; ++i)
 		M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_entry[i]);
-	for (i = 0; i < go->go_reg_nr; ++i)
+	for (i = 0; i < go->go_header.gh_reg_nr; ++i)
 		M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_reg[i]);
-	m0_tl_for(grp, &group->tg_txs, tx) {
-		area = &tx->t_reg_area;
-		for (rd = m0_be_reg_area_first(area); rd != NULL;
-		     rd = m0_be_reg_area_next(area, rd)) {
-			m0_be_log_stor_io_add(&lsi,
-					      rd->rd_buf, rd->rd_reg.br_size);
-		}
-	} m0_tl_endfor;
-
-	m0_be_log_stor_io_add_cblock(&lsi,
-				     &go->go_cblock, sizeof(go->go_cblock));
+	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
+		m0_be_log_stor_io_add(&lsi, rd->rd_buf, rd->rd_reg.br_size);
+	}
+	m0_be_log_stor_io_add_cblock(&lsi, &go->go_cblock,
+				     sizeof(go->go_cblock));
 	m0_be_log_stor_io_sort(&lsi);
 	m0_be_log_stor_io_fini(&lsi);
 
+	/* add to seg io */
+	m0_be_reg_area_io_add(&go->go_area, &go->go_io_seg);
+
 	m0_be_io_configure(&go->go_io_log, SIO_WRITE);
 	m0_be_io_configure(&go->go_io_log_cblock, SIO_WRITE);
+	m0_be_io_configure(&go->go_io_seg, SIO_WRITE);
 }
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM

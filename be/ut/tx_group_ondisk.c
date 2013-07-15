@@ -133,7 +133,7 @@ void m0_be_ut_group_ondisk(void)
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		tx_credit = M0_BE_TX_CREDIT(i+1, 10*(i+1));
 		rc = m0_be_reg_area_init(&but_group_ondisk_tx[i].t_reg_area,
-					 &tx_credit);
+					 &tx_credit, true);
 		m0_be_tx_credit_add(&gr_credit, &tx_credit);
 		M0_UT_ASSERT(rc == 0);
 		grp_tlink_init(&but_group_ondisk_tx[i]);
@@ -144,7 +144,8 @@ void m0_be_ut_group_ondisk(void)
 				.rd_tx	= &but_group_ondisk_tx[i],
 				.rd_buf = NULL,
 				.rd_reg = M0_BE_REG(&hseg.buh_seg, i+2,
-						    &hseg.buh_seg.bs_addr +
+						    (char *)
+						    hseg.buh_seg.bs_addr +
 						    i*100 + j*10)
 			};
 			m0_be_reg_area_capture(&but_group_ondisk_tx[i].
@@ -180,6 +181,7 @@ void m0_be_ut_group_ondisk(void)
 		}
 		for (j = 0; j < tx_reserved; ++j)
 			grp_tlist_del(&but_group_ondisk_tx[j]);
+		m0_be_group_ondisk_reset(&but_group_ondisk_gr.tg_od);
 	}
 	for (i = 0; i < groups_logged; ++i)
 		be_ut_group_ondisk_log_discard();

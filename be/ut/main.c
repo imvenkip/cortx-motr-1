@@ -35,6 +35,7 @@ extern void m0_be_ut_regmap_simple(void);
 extern void m0_be_ut_regmap_random(void);
 extern void m0_be_ut_reg_area_simple(void);
 extern void m0_be_ut_reg_area_random(void);
+extern void m0_be_ut_reg_area_merge(void);
 
 extern void m0_be_ut_tx_simple(void);
 
@@ -90,11 +91,12 @@ static int _fini(void)
 	return 0;
 }
 
+/* NI == not implemented */
 const struct m0_test_suite be_ut = {
 	.ts_name = "be-ut",
 	.ts_init = _init,
 	.ts_fini = _fini,
-	.ts_tests = { /* XXX TODO: sort the tests alphabetically */
+	.ts_tests = {
 		{ "seg-init",         m0_be_ut_seg_init_fini        },
 		{ "seg-create",       m0_be_ut_seg_create_destroy   },
 		{ "seg-open",         m0_be_ut_seg_open_close       },
@@ -104,6 +106,7 @@ const struct m0_test_suite be_ut = {
 		{ "regmap-random",    m0_be_ut_regmap_random        },
 		{ "reg_area-simple",  m0_be_ut_reg_area_simple      },
 		{ "reg_area-random",  m0_be_ut_reg_area_random      },
+		{ "reg_area-merge",   m0_be_ut_reg_area_merge	    },
 #if 0 /* XXX FIXME
        * A test calling m0_be_ut_h_fini() may fail on
        * m0_net__buf_invariant(). When it does, the stack trace is
@@ -133,11 +136,10 @@ const struct m0_test_suite be_ut = {
 #endif
 		{ "btree",            m0_be_ut_btree_simple         },
 		{ "list",             m0_be_ut_list_api             },
-
-		{ "io",               m0_be_ut_io                   },
+		{ "io-NI",            m0_be_ut_io                   },
 		{ "log_stor-reserve", m0_be_ut_log_stor_reserve     },
 		{ "log_stor-io",      m0_be_ut_log_stor_io          },
-		{ "log",              m0_be_ut_log                  },
+		{ "log-NI",           m0_be_ut_log                  },
 		{ "group_ondisk",     m0_be_ut_group_ondisk         },
 		{ NULL, NULL }
 	}
