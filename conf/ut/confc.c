@@ -366,13 +366,11 @@ static void test_confc_net(void)
 		"-c", M0_CONF_UT_PATH("conf-str.txt")
 	};
 	struct m0_rpc_server_ctx confd = {
-		.rsx_xprts            = &g_xprt,
-		.rsx_xprts_nr         = 1,
-		.rsx_argv             = argv,
-		.rsx_argc             = ARRAY_SIZE(argv),
-		.rsx_service_types    = NULL,
-		.rsx_service_types_nr = 0,
-		.rsx_log_file_name    = NAME(".log")
+		.rsx_xprts         = &g_xprt,
+		.rsx_xprts_nr      = 1,
+		.rsx_argv          = argv,
+		.rsx_argc          = ARRAY_SIZE(argv),
+		.rsx_log_file_name = NAME(".log")
 	};
 #undef NAME
 
