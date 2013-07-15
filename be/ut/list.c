@@ -17,9 +17,9 @@
  * Original creation date: 30-May-2013
  */
 
-#undef M0_TRACE_SUBSYSTEM
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
+
 #include "lib/misc.h"
 #include "ut/ut.h"
 #include "be/ut/helper.h"
@@ -29,8 +29,8 @@
  * Descriptors and stuff
  * ------------------------------------------------------------------------- */
 enum {
-	TEST_MAGIC        = 0x331fefefefefe177,
-	TEST_LINK_MAGIC   = 0x331acacacacac277,
+	TEST_MAGIC      = 0x331fefefefefe177,
+	TEST_LINK_MAGIC = 0x331acacacacac277
 };
 
 struct test {

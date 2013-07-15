@@ -18,6 +18,9 @@
  * Original creation date: 5-Jun-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
 #include "be/ut/helper.h"
 #include "be/tx_fom.h"
 
@@ -151,13 +154,13 @@ void m0_be_ut_seg_close_destroy(struct m0_be_ut_h *h)
 void m0_be_ut_h_init(struct m0_be_ut_h *h)
 {
 	int                      rc;
-#define NAME(ext) "be-tx-ut" ext
+#define NAME(ext) "be-ut" ext
 	char                    *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
-		"-S", NAME(".stob"), "-A", NAME("-addb.stob"), "-w", "10",
-		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service",
+		"-S", NAME(".stob"), "-A", NAME("_addb.stob"), "-w", "10",
+		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service"
 	};
-	struct m0_rpc_server_ctx tx_svc = {
+	struct m0_rpc_server_ctx sctx = {
 		.rsx_xprts         = &g_xprt,
 		.rsx_xprts_nr      = 1,
 		.rsx_argv          = argv,
@@ -166,7 +169,7 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 	};
 #undef NAME
 
-	*h = (struct m0_be_ut_h){ .buh_rpc_svc = tx_svc };
+	*h = (struct m0_be_ut_h){ .buh_rpc_svc = sctx };
 
 	rc = service_start(&h->buh_rpc_svc);
 	M0_ASSERT(rc == 0);
@@ -227,6 +230,8 @@ void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 	m0_be_tx_init(tx, ++h->buh_tid, &h->buh_be, &ut__txs_sm_group,
 		      be_ut_h_persistent, be_ut_h_discarded, true, NULL, NULL);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

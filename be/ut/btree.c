@@ -17,7 +17,7 @@
  * Original creation date: 12-Jun-2013
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
 #include "be/tx_fom.h"
