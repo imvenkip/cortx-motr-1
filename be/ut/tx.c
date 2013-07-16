@@ -213,7 +213,6 @@ void m0_be_ut_tx_several(void)
 		M0_UT_ASSERT(memcmp(x->data, &x->captured, x->size) == 0);
 	}
 
-	/** XXX TODO m0_be_free() */
 	m0_be_ut_h_fini(&h);
 }
 
