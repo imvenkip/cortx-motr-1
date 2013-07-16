@@ -502,7 +502,6 @@ static void _ast_tx_state_set(struct m0_sm_group *grp M0_UNUSED,
 	struct m0_be_tx *tx = container_of(ast, struct m0_be_tx, t_ast);
 
 	M0_ENTRY();
-	M0_PRE(!tx->t_group->tg_opened);
 
 	m0_be__tx_state_set(tx, state);
 	m0_ref_put(ast->sa_datum);
