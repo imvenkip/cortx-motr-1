@@ -167,8 +167,6 @@ struct tx_group_fom {
 	/**
 	 * The number of transactions that have been added to the tx_group
 	 * but have not switched to M0_BTS_GROUPED state yet.
-	 *
-	 * XXX FIXME: Merge several reg_area-s into one indexvec.
 	 */
 	struct m0_ref           tgf_nr_ungrouped;
 	struct m0_semaphore     tgf_started;
@@ -415,19 +413,13 @@ static int placing_tick(struct m0_fom *fom)
 static int placed_tick(struct m0_fom *fom)
 {
 	struct m0_be_tx             *tx;
-	struct tx_group_fom         *m = tx_group_fom(fom);
-	const struct m0_be_tx_group *gr = tx_group(m);
+	const struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
 
 	M0_ENTRY();
 
-	m0_ref_init(&m->tgf_nr_ungrouped, grp_tlist_length(&gr->tg_txs),
-		    fom_wake);
 	M0_LOG(M0_DEBUG, "Posting \"Get placed!\" AST(s)");
 	m0_tl_for(grp, &gr->tg_txs, tx) {
-		m0_be__tx_state_post(tx, M0_BTS_PLACED, &m->tgf_nr_ungrouped);
-	} m0_tl_endfor;
-
-	m0_tl_for(grp, &gr->tg_txs, tx) {
+		m0_be__tx_state_post(tx, M0_BTS_PLACED, NULL);
 		if (tx->t_persistent != NULL)
 			tx->t_persistent(tx);
 		tx->t_group = NULL;
@@ -435,6 +427,7 @@ static int placed_tick(struct m0_fom *fom)
 	} m0_tl_endfor;
 
 	m0_fom_phase_set(fom, TGS_STABLE);
+
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }

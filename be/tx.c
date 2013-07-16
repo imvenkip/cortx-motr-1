@@ -472,7 +472,6 @@ static void _tx_placed(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
 	m0_be__tx_state_set(container_of(ast, struct m0_be_tx, t_ast),
 			    M0_BTS_PLACED);
-	m0_ref_put(ast->sa_datum);
 }
 
 M0_INTERNAL void m0_be__tx_state_post(struct m0_be_tx    *tx,
@@ -500,6 +499,7 @@ M0_INTERNAL void m0_be__tx_state_post(struct m0_be_tx    *tx,
 	 * implementation should post an AST to tx's sm_group.
 	 */
 	M0_PRE(M0_IN(to, (M0_BTS_GROUPED, M0_BTS_PLACED)));
+	M0_PRE((to == M0_BTS_PLACED) == (ref == NULL));
 
 	tx->t_ast.sa_cb = to == M0_BTS_GROUPED ? _tx_grouped : _tx_placed;
 	tx->t_ast.sa_datum = ref;
