@@ -105,7 +105,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
 
-	m0_be_op_init(&op);
 	m0_be_tx_credit_init(&cred);
 	m0_be_tx_credit_init(&insert_cred);
 	m0_be_tx_credit_init(&create_cred);
