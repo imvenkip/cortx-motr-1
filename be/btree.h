@@ -75,10 +75,16 @@ enum m0_be_btree_op {
  * Operations user has to define for the keys and values sored in the tree.
  */
 struct m0_be_btree_kv_ops {
-	/** Returns the key size */
+	/**
+	 * Returns the key size.
+	 * @param key pointer to the key, if NULL - returns max key size.
+	 */
         m0_bcount_t   (*ko_ksize)   (const void *key);
-	/** Returns the value size */
-        m0_bcount_t   (*ko_vsize)   (const void *data);
+	/**
+	 * Returns the value size.
+	 * @param val pointer to the value, if NULL - return max value size.
+	 */
+        m0_bcount_t   (*ko_vsize)   (const void *val);
 	/** @return 1 if key0 > key1, -1 if key0 < key2, 0 if key0 == key2 */
         int           (*ko_compare) (const void *key0, const void *key1);
 };

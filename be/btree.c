@@ -1202,6 +1202,12 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
 	case M0_BBO_DESTROY:
 		break;
 	case M0_BBO_INSERT:
+		m0_be_allocator_credit(a, M0_BAO_ALLOC,
+				       tree->bb_ops->ko_ksize(NULL),
+				       BTREE_ALLOC_SHIFT, accum);
+		m0_be_allocator_credit(a, M0_BAO_ALLOC,
+				       tree->bb_ops->ko_vsize(NULL),
+				       BTREE_ALLOC_SHIFT, accum);
 	case M0_BBO_DELETE:
 	case M0_BBO_UPDATE:
 	default:
