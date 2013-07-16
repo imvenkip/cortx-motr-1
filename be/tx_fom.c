@@ -334,7 +334,8 @@ static int open_tick(struct m0_fom *fom)
 			    fom_wake);
 		M0_LOG(M0_DEBUG, "Posting \"Get grouped!\" AST(s)");
 		m0_tl_for(grp, &gr->tg_txs, tx) {
-			m0_be__tx_group_post(tx, &m->tgf_nr_ungrouped);
+			m0_be__tx_state_post(tx, M0_BTS_GROUPED,
+					     &m->tgf_nr_ungrouped);
 		} m0_tl_endfor;
 
 		m0_fom_phase_set(fom, TGS_LOGGING);
@@ -426,7 +427,7 @@ static int placed_tick(struct m0_fom *fom)
 		    fom_wake);
 	M0_LOG(M0_DEBUG, "Posting \"Get placed!\" AST(s)");
 	m0_tl_for(grp, &gr->tg_txs, tx) {
-		m0_be__tx_placed_post(tx, &m->tgf_nr_ungrouped);
+		m0_be__tx_state_post(tx, M0_BTS_PLACED, &m->tgf_nr_ungrouped);
 	} m0_tl_endfor;
 
 	m0_tl_for(grp, &gr->tg_txs, tx) {
