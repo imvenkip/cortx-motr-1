@@ -49,7 +49,8 @@ void m0_be_ut_tx_simple(void)
 	 * Init transaction and its credits
 	 */
 	m0_be_ut_h_tx_init(&tx, &h);
-	m0_be_allocator_credit(h.buh_a, M0_BAO_ALLOC, sizeof *p, 0, &cred);
+	m0_be_allocator_credit(h.buh_allocator, M0_BAO_ALLOC, sizeof *p, 0,
+			       &cred);
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT(1, sizeof *p));
 
 	m0_sm_group_lock(&ut__txs_sm_group);
@@ -62,7 +63,7 @@ void m0_be_ut_tx_simple(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "Transaction has reached M0_BTS_ACTIVE");
 
-	p = m0_be_alloc(h.buh_a, &tx, &op, sizeof *p, 0);
+	p = m0_be_alloc(h.buh_allocator, &tx, &op, sizeof *p, 0);
 	M0_UT_ASSERT(p != NULL);
 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 						 M0_BOS_FAILURE)));

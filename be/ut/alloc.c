@@ -86,14 +86,15 @@ static void be_ut_alloc_thread(int index)
 		if (p == NULL) {
 			size = (rand_r(&seed) % BE_UT_ALLOC_SIZE) + 1;
 			shift = rand_r(&seed) % BE_UT_ALLOC_SHIFT;
-			p = m0_be_alloc(be_ut_alloc_h.buh_a, NULL, &op,
+			p = m0_be_alloc(be_ut_alloc_h.buh_allocator, NULL, &op,
 					/* XXX */ size, shift);
 			M0_UT_ASSERT(p != NULL);
 			M0_UT_ASSERT(m0_addr_is_aligned(p, shift));
 			if (p != NULL)
 				memset(p, 0xFF, size);
 		} else {
-			m0_be_free(be_ut_alloc_h.buh_a, NULL, &op, /* XXX */ p);
+			m0_be_free(be_ut_alloc_h.buh_allocator, NULL, &op,
+				   /*XXX*/ p);
 			p = NULL;
 		}
 		m0_be_op_fini(&op);
@@ -101,8 +102,8 @@ static void be_ut_alloc_thread(int index)
 	}
 	for (i = 0; i < BE_UT_ALLOC_PTR_NR; ++i) {
 		m0_be_op_init(&op);
-		m0_be_free(be_ut_alloc_h.buh_a, NULL, &op, /* XXX */
-			   ts->ats_ptr[i]);
+		m0_be_free(be_ut_alloc_h.buh_allocator, NULL, &op,
+			   /*XXX*/ ts->ats_ptr[i]);
 		m0_be_op_fini(&op);
 	}
 }
