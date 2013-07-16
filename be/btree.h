@@ -193,6 +193,7 @@ M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
  */
 M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
 						 m0_bcount_t             nr,
+						 m0_bcount_t             vsize,
 						 struct m0_be_tx_credit *accum);
 
 /**
