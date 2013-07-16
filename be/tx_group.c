@@ -48,7 +48,6 @@ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 	gr->tg_lsn = 0ULL;
 	m0_be_tx_credit_init(&gr->tg_used);
 	grp_tlist_init(&gr->tg_txs);
-	gr->tg_opened = false; /* XXX because tx_fom.c:open_tick() */
 	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob,
 				     20, &M0_BE_TX_CREDIT(200000, 1ULL << 25));
 	M0_ASSERT(rc == 0);
@@ -136,22 +135,7 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 	 * finalised.
 	 */
 
-	/* XXX TODO ... */
-
-	gr->tg_opened = false;
-	/* m0_fom_wakeup(eng->te_fom); */
-
-	M0_LEAVE();
-}
-
-M0_INTERNAL void
-tx_group_open(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
-{
-	M0_ENTRY();
-	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
-
-	gr->tg_opened = true;
-	gr->tg_fom = eng->te_fom;
+	/* XXX TODO? */
 
 	M0_LEAVE();
 }

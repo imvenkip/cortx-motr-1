@@ -314,11 +314,8 @@ static int open_tick(struct m0_fom *fom)
 	struct m0_be_tx        *tx;
 	int                     rc;
 
-	M0_ENTRY("tx_group is %s", gr->tg_opened ? "opened" : "closed");
+	M0_ENTRY();
 	M0_PRE(!m->tgf_full);
-
-	if (!gr->tg_opened && grp_tlist_is_empty(&gr->tg_txs))
-		tx_group_open(eng, gr);
 
 	tx_group_populate(gr, eng, &m->tgf_full);
 
