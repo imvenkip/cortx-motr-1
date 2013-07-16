@@ -75,16 +75,10 @@ enum m0_be_btree_op {
  * Operations user has to define for the keys and values sored in the tree.
  */
 struct m0_be_btree_kv_ops {
-	/**
-	 * Returns the key size.
-	 * @param key pointer to the key, if NULL - returns max key size.
-	 */
+	/** Returns the key size */
         m0_bcount_t   (*ko_ksize)   (const void *key);
-	/**
-	 * Returns the value size.
-	 * @param val pointer to the value, if NULL - return max value size.
-	 */
-        m0_bcount_t   (*ko_vsize)   (const void *val);
+	/** Returns the value size */
+        m0_bcount_t   (*ko_vsize)   (const void *data);
 	/** @return 1 if key0 > key1, -1 if key0 < key2, 0 if key0 == key2 */
         int           (*ko_compare) (const void *key0, const void *key1);
 };
@@ -140,16 +134,66 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 
 /**
  * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform an operation over the @tree.
+ * m0_be_tx_credit, is needed to perform the create operation over the @tree.
  * Function updates @accum structure which is an input for m0_be_tx_prep().
  *
- * @param optype operation type over the tree.
  * @param nr     number of @optype operations.
  */
-M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
-				    enum m0_be_btree_op optype,
-				    m0_bcount_t nr,
-				    struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the create operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ */
+M0_INTERNAL void m0_be_btree_destroy_credit(const struct m0_be_btree *tree,
+					    m0_bcount_t               nr,
+					    struct m0_be_tx_credit   *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the insert operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ * @param ksize  key data size.
+ * @param vsize  value data size.
+ */
+M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the delete operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ * @param ksize  key data size.
+ * @param vsize  value data size.
+ */
+M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the update operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ */
+M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 struct m0_be_tx_credit *accum);
 
 /**
  * Inserts @key and @value into btree. Operation is asynchronous.

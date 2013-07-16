@@ -1178,16 +1178,10 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
-M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
-				    enum m0_be_btree_op optype,
-				    m0_bcount_t nr,
-				    struct m0_be_tx_credit *accum)
+static void btree_alloc_credit(const struct m0_be_btree     *tree,
+				     struct m0_be_tx_credit *accum)
 {
-	uint32_t height;
 	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
-
-	M0_PRE(M0_IN(optype, (M0_BBO_CREATE, M0_BBO_DESTROY, M0_BBO_INSERT,
-			      M0_BBO_DELETE, M0_BBO_UPDATE)));
 
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(struct m0_be_bnode),
 			       BTREE_ALLOC_SHIFT, accum);
@@ -1196,25 +1190,70 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, KV_SIZE,
 			       BTREE_ALLOC_SHIFT, accum);
 
-	switch (optype) {
-	case M0_BBO_CREATE:
-		break;
-	case M0_BBO_DESTROY:
-		break;
-	case M0_BBO_INSERT:
-		m0_be_allocator_credit(a, M0_BAO_ALLOC,
-				       tree->bb_ops->ko_ksize(NULL),
-				       BTREE_ALLOC_SHIFT, accum);
-		m0_be_allocator_credit(a, M0_BAO_ALLOC,
-				       tree->bb_ops->ko_vsize(NULL),
-				       BTREE_ALLOC_SHIFT, accum);
-	case M0_BBO_DELETE:
-	case M0_BBO_UPDATE:
-	default:
-		/* XXX */
-		height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
-		m0_be_tx_credit_mul(accum, 2*height + 1);
-	}
+}
+
+/* XXX */
+static void btree_credit(const struct m0_be_btree     *tree,
+			       struct m0_be_tx_credit *accum)
+{
+	uint32_t height;
+
+	height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
+	m0_be_tx_credit_mul(accum, 2*height + 1);
+}
+
+M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+
+	btree_alloc_credit(tree, accum);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC,
+			       ksize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC,
+			       vsize, BTREE_ALLOC_SHIFT, accum);
+	btree_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+
+	btree_alloc_credit(tree, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE,
+			       ksize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE,
+			       vsize, BTREE_ALLOC_SHIFT, accum);
+	btree_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 struct m0_be_tx_credit *accum)
+{
+	btree_alloc_credit(tree, accum);
+	btree_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 struct m0_be_tx_credit *accum)
+{
+	btree_alloc_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_destroy_credit(const struct m0_be_btree     *tree,
+						  m0_bcount_t             nr,
+						  struct m0_be_tx_credit *accum)
+{
+	btree_alloc_credit(tree, accum);
 }
 
 M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
