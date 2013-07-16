@@ -50,6 +50,8 @@ static bool resource_type_invariant(const struct m0_rm_resource_type *rt);
 
 static void owner_balance          (struct m0_rm_owner *o);
 static bool owner_invariant        (struct m0_rm_owner *owner);
+static int  owner_credit_remove    (struct m0_rm_credit *credit,
+				    struct m0_tl *list);
 
 static void pin_del                (struct m0_rm_pin *pin);
 static bool owner_invariant_state  (const struct m0_rm_owner *owner,
@@ -78,6 +80,7 @@ static int  outgoing_check         (struct m0_rm_incoming *in,
 static int  revoke_send            (struct m0_rm_incoming *in,
 				    struct m0_rm_loan *loan,
 				    struct m0_rm_credit *credit);
+static int  cancel_send            (struct m0_rm_loan *loan);
 static int  borrow_send            (struct m0_rm_incoming *in,
 				    struct m0_rm_credit *credit);
 static bool credit_eq               (const struct m0_rm_credit *c0,
@@ -243,7 +246,7 @@ resource_find(const struct m0_rm_resource_type *rt,
 
 	M0_PRE(rt->rt_ops->rto_eq != NULL);
 
-	m0_tl_for(res, (struct m0_tl *)&rt->rt_resources, scan) {
+	m0_tl_for (res, (struct m0_tl *)&rt->rt_resources, scan) {
 		M0_ASSERT(m0_rm_resource_bob_check(scan));
 		if (rt->rt_ops->rto_eq(res, scan))
 			break;
@@ -688,31 +691,33 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 }
 M0_EXPORTED(m0_rm_owner_selfadd);
 
-static bool owner_is_idle (struct m0_rm_owner *o)
+static bool owner_is_idle(struct m0_rm_owner *o)
 {
 	return m0_forall(i, ARRAY_SIZE(o->ro_incoming),
-			 m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
-			   m0_rm_ur_tlist_is_empty(&o->ro_incoming[i][j])));
+		 m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
+			   m0_rm_ur_tlist_is_empty(&o->ro_incoming[i][j]))) &&
+		m0_forall(k, ARRAY_SIZE(o->ro_outgoing),
+			  m0_rm_ur_tlist_is_empty(&o->ro_outgoing[k]));
 }
 
-static void owner_liquidate(struct m0_rm_owner *owner)
+static void owner_liquidate(struct m0_rm_owner *o)
 {
 	struct m0_rm_credit   *credit;
 	struct m0_rm_loan     *loan;
 	struct m0_rm_incoming *in;
 	int		       rc = 0;
 
-	M0_ENTRY("owner: %p", owner);
+	M0_ENTRY("owner: %p", o);
 	/*
 	 * While processing the queues, if -ENOMEM or other error occurs
 	 * then the owner will be in a limbo. A force cleanup remains one of
 	 * the options.
 	 */
-	m0_tl_for(m0_rm_ur, &owner->ro_sublet, credit) {
+	m0_tl_for (m0_rm_ur, &o->ro_sublet, credit) {
 		RM_ALLOC_PTR(in, INCOMING_ALLOC, &m0_rm_addb_ctx);
 		if (in == NULL)
 			break;
-		m0_rm_incoming_init(in, owner, M0_RIT_LOCAL,
+		m0_rm_incoming_init(in, o, M0_RIT_LOCAL,
 				    RIP_NONE, RIF_MAY_REVOKE);
 		in->rin_priority = 0;
 		in->rin_ops = &windup_incoming_ops;
@@ -729,25 +734,23 @@ static void owner_liquidate(struct m0_rm_owner *owner)
 		rc = m0_rm_credit_copy(&in->rin_want, credit);
 		if (rc == 0) {
 			m0_rm_ur_tlist_add(
-			    &owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+			    &o->ro_incoming[in->rin_priority][OQS_EXCITED],
 			    &in->rin_want);
 		} else
 			break;
 	} m0_tl_endfor;
 
-	m0_tl_for(m0_rm_ur, &owner->ro_borrowed, credit) {
+	m0_tl_for (m0_rm_ur, &o->ro_borrowed, credit) {
 		M0_ASSERT(m0_rm_credit_bob_check(credit));
 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
 		if (loan->rl_id == M0_RM_LOAN_SELF_ID) {
 			m0_rm_ur_tlist_del(credit);
 			m0_rm_loan_fini(loan);
 			m0_free(loan);
-		} else {
-			/* @todo - pending cancel implementation */
-			/* cancel_send(in, loan) */
-		}
+		} else
+			cancel_send(loan);
 	} m0_tl_endfor;
-	owner_balance(owner);
+	owner_balance(o);
 	M0_LEAVE();
 }
 
@@ -784,11 +787,11 @@ M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner)
 
 	M0_ENTRY("owner: %p", owner);
 	M0_PRE(owner_invariant(owner));
-	M0_PRE(owner->ro_creditor == NULL);
 	M0_PRE(M0_IN(owner_state(owner), (ROS_FINAL, ROS_INSOLVENT)));
 
 	RM_OWNER_LISTS_FOR(owner, m0_rm_ur_tlist_fini);
 	owner->ro_resource = NULL;
+	owner->ro_creditor = NULL;
 	resource_put(res);
 
 	M0_LEAVE();
@@ -1083,7 +1086,7 @@ static int remote_find(struct m0_rm_remote          **rem,
 	M0_PRE(res != NULL);
 	M0_PRE(cookie != NULL);
 
-	m0_tl_for(m0_remotes, &res->r_remote, other) {
+	m0_tl_for (m0_remotes, &res->r_remote, other) {
 		M0_ASSERT(other->rem_resource == res &&
 			  m0_rm_remote_bob_check(other));
 		if (other->rem_cookie.co_addr == cookie->co_addr &&
@@ -1182,7 +1185,7 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 
 	m0_rm_ur_tlist_init(&diff_list);
 	m0_rm_ur_tlist_init(&remove_list);
-	m0_tl_for(pi, &in->rin_pins, pin) {
+	m0_tl_for (pi, &in->rin_pins, pin) {
 		M0_ASSERT(m0_rm_pin_bob_check(pin));
 		M0_ASSERT(pin->rp_flags == M0_RPF_PROTECT);
 		credit = pin->rp_credit;
@@ -1217,8 +1220,8 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 		     m0_free(credit);
 	}
 
-	m0_tl_for(m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
-	     m0_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED], credit);
+	m0_tl_for (m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
+		m0_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED], credit);
 	} m0_tl_endfor;
 
 	m0_rm_ur_tlist_fini(&diff_list);
@@ -1349,7 +1352,7 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 	/*
 	 * Remove the loan from borrowed list.
 	 */
-	m0_tl_for(m0_rm_ur, &owner->ro_borrowed, credit) {
+	m0_tl_for (m0_rm_ur, &owner->ro_borrowed, credit) {
 		rvk_loan = bob_of(credit, struct m0_rm_loan,
 				  rl_credit, &loan_bob);
 		if (rvk_loan->rl_cookie.co_addr == cookie->co_addr &&
@@ -1527,7 +1530,7 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 		goto out;
 
 	m0_rm_ur_tlist_init(&transfers);
-	m0_tl_for(pi, &in->rin_pins, pin) {
+	m0_tl_for (pi, &in->rin_pins, pin) {
 		M0_ASSERT(pin->rp_flags == M0_RPF_PROTECT);
 		credit = pin->rp_credit;
 		M0_ASSERT(credit != NULL);
@@ -1593,8 +1596,8 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 	 * them back OWOS_CACHED list.
 	 */
 	ltype = rc ? OWOS_CACHED : OWOS_HELD;
-	m0_tl_for(m0_rm_ur, &transfers, credit) {
-	     m0_rm_ur_tlist_move(&owner->ro_owned[ltype], credit);
+	m0_tl_for (m0_rm_ur, &transfers, credit) {
+		m0_rm_ur_tlist_move(&owner->ro_owned[ltype], credit);
 	} m0_tl_endfor;
 
 	m0_rm_ur_tlist_fini(&transfers);
@@ -1622,7 +1625,7 @@ static void owner_balance(struct m0_rm_owner *o)
 	M0_ENTRY();
 	do {
 		todo = false;
-		m0_tl_for(m0_rm_ur, &o->ro_outgoing[OQS_EXCITED], credit) {
+		m0_tl_for (m0_rm_ur, &o->ro_outgoing[OQS_EXCITED], credit) {
 			M0_ASSERT(m0_rm_credit_bob_check(credit));
 			todo = true;
 			out = bob_of(credit, struct m0_rm_outgoing,
@@ -1635,7 +1638,7 @@ static void owner_balance(struct m0_rm_owner *o)
 			 * Removing of pins might excite incoming requests
 			 * waiting for outgoing request completion.
 			 */
-			m0_tl_for(pr, &credit->cr_pins, pin) {
+			m0_tl_for (pr, &credit->cr_pins, pin) {
 				M0_ASSERT(m0_rm_pin_bob_check(pin));
 				M0_ASSERT(pin->rp_flags == M0_RPF_TRACK);
 				/*
@@ -1651,14 +1654,13 @@ static void owner_balance(struct m0_rm_owner *o)
 			m0_rm_ur_tlink_del_fini(credit);
 		} m0_tl_endfor;
 		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; --prio) {
-			m0_tl_for(m0_rm_ur,
-				  &o->ro_incoming[prio][OQS_EXCITED], credit) {
+			m0_tl_for (m0_rm_ur,
+				   &o->ro_incoming[prio][OQS_EXCITED], credit) {
 				todo = true;
 				in = bob_of(credit, struct m0_rm_incoming,
 					    rin_want, &incoming_bob);
 				/*
-				 * All waits completed, go to CHECK
-				 * state.
+				 * All waits completed, go to CHECK state.
 				 */
 				m0_rm_ur_tlist_move(
 					&o->ro_incoming[prio][OQS_GROUND],
@@ -1796,7 +1798,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	 * 1. Scan owned lists first. Check for "local" wait/try conditions.
 	 */
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
-		m0_tl_for(m0_rm_ur, &o->ro_owned[i], r) {
+		m0_tl_for (m0_rm_ur, &o->ro_owned[i], r) {
 			M0_ASSERT(m0_rm_credit_bob_check(r));
 			if (!credit_intersects(r, want))
 				continue;
@@ -1821,7 +1823,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 	 *    sublet list.
 	 */
 	if (!credit_is_empty(rest)) {
-		m0_tl_for(m0_rm_ur, &o->ro_sublet, r) {
+		m0_tl_for (m0_rm_ur, &o->ro_sublet, r) {
 			M0_ASSERT(m0_rm_credit_bob_check(r));
 			if (!credit_intersects(r, rest))
 				continue;
@@ -1969,7 +1971,7 @@ static int outgoing_check(struct m0_rm_incoming    *in,
 
 	M0_ENTRY();
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
-		m0_tl_for(m0_rm_ur, &owner->ro_outgoing[i], scan) {
+		m0_tl_for (m0_rm_ur, &owner->ro_outgoing[i], scan) {
 			M0_ASSERT(m0_rm_credit_bob_check(scan));
 			out = bob_of(scan, struct m0_rm_outgoing,
 				     rog_want.rl_credit, &outgoing_bob);
@@ -2050,10 +2052,24 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
+/**
+ * Returns the loan to the creditor
+ */
+static int cancel_send(struct m0_rm_loan *loan)
 {
-	struct m0_rm_owner  *owner = credit->cr_owner;
-	struct m0_rm_credit *sublet;
+	int rc;
+
+	M0_ENTRY("credit: %llu", (long long unsigned)
+		 loan->rl_credit.cr_datum);
+	M0_PRE(loan->rl_other != NULL);
+
+	rc = m0_rm_request_out(M0_ROT_CANCEL, NULL, loan, &loan->rl_credit);
+	M0_RETURN(rc);
+}
+
+static int owner_credit_remove(struct m0_rm_credit *credit, struct m0_tl *list)
+{
+	struct m0_rm_credit *cr;
 	struct m0_rm_loan   *loan;
 	struct m0_rm_loan   *remnant_loan;
 	struct m0_tl	     diff_list;
@@ -2066,10 +2082,10 @@ M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
 
 	m0_rm_ur_tlist_init(&diff_list);
 	m0_rm_ur_tlist_init(&remove_list);
-	m0_tl_for(m0_rm_ur, &owner->ro_sublet, sublet) {
-		m0_rm_ur_tlist_move(&remove_list, sublet);
-		if (!credit->cr_ops->cro_is_subset(sublet, credit)) {
-			loan = bob_of(sublet, struct m0_rm_loan, rl_credit,
+	m0_tl_for (m0_rm_ur, list, cr) {
+		m0_rm_ur_tlist_move(&remove_list, cr);
+		if (!credit->cr_ops->cro_is_subset(cr, credit)) {
+			loan = bob_of(cr, struct m0_rm_loan, rl_credit,
 				      &loan_bob);
 			/* Get diff(loan->rl_credit, credit) */
 			rc = remnant_loan_get(loan, credit, &remnant_loan);
@@ -2089,13 +2105,33 @@ M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
 		m0_free(loan);
 	}
 
-	m0_tl_for(m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
-	     m0_rm_ur_tlist_move(&owner->ro_sublet, credit);
+	m0_tl_for (m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
+		m0_rm_ur_tlist_move(list, credit);
 	} m0_tl_endfor;
 
 	m0_rm_ur_tlist_fini(&diff_list);
 	m0_rm_ur_tlist_fini(&remove_list);
 	M0_RETURN(rc);
+}
+
+int _sublet_remove(struct m0_rm_credit *credit)
+{
+	struct m0_rm_owner *owner;
+
+	M0_PRE(credit != NULL);
+	owner = credit->cr_owner;
+
+	return owner_credit_remove(credit, &owner->ro_sublet);
+}
+
+int _borrowed_remove(struct m0_rm_credit *credit)
+{
+	struct m0_rm_owner  *owner;
+
+	M0_PRE(credit != NULL);
+	owner  = credit->cr_owner;
+
+	return owner_credit_remove(credit, &owner->ro_borrowed);
 }
 
 /** @} end of Owner state machine group */
@@ -2255,18 +2291,18 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 
 	/* Calculate credit */
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		m0_tl_for(m0_rm_ur, &owner->ro_owned[i], credit) {
+		m0_tl_for (m0_rm_ur, &owner->ro_owned[i], credit) {
 			if(credit->cr_ops->cro_join(&is->is_credit, credit))
 				return false;
 		} m0_tl_endfor;
 	}
-	m0_tl_for(m0_rm_ur, &owner->ro_sublet, credit) {
+	m0_tl_for (m0_rm_ur, &owner->ro_sublet, credit) {
 		if(credit->cr_ops->cro_join(&is->is_credit, credit))
 			return false;
 	} m0_tl_endfor;
 
 	/* Calculate debit */
-	m0_tl_for(m0_rm_ur, &owner->ro_borrowed, credit) {
+	m0_tl_for (m0_rm_ur, &owner->ro_borrowed, credit) {
 		if(credit->cr_ops->cro_join(&is->is_debit, credit))
 			return false;
 	} m0_tl_endfor;
@@ -2311,7 +2347,7 @@ static int credit_pin_nr(const struct m0_rm_credit *credit, uint32_t flags)
 	int		  nr = 0;
 	struct m0_rm_pin *pin;
 
-	m0_tl_for(pr, &credit->cr_pins, pin) {
+	m0_tl_for (pr, &credit->cr_pins, pin) {
 		M0_ASSERT(m0_rm_pin_bob_check(pin));
 		if (pin->rp_flags & flags)
 			++nr;
@@ -2329,7 +2365,7 @@ static int incoming_pin_nr(const struct m0_rm_incoming *in, uint32_t flags)
 	struct m0_rm_pin *pin;
 
 	nr = 0;
-	m0_tl_for(pi, &in->rin_pins, pin) {
+	m0_tl_for (pi, &in->rin_pins, pin) {
 		M0_ASSERT(m0_rm_pin_bob_check(pin));
 		if (pin->rp_flags & flags)
 			++nr;
@@ -2351,7 +2387,7 @@ static void incoming_release(struct m0_rm_incoming *in)
 	M0_ENTRY("incoming: %p", in);
 	M0_PRE(ergo(in->rin_type == M0_RIT_LOCAL, incoming_invariant(in)));
 
-	m0_tl_for(pi, &in->rin_pins, kingpin) {
+	m0_tl_for (pi, &in->rin_pins, kingpin) {
 		M0_ASSERT(m0_rm_pin_bob_check(kingpin));
 		if (kingpin->rp_flags & M0_RPF_PROTECT) {
 			credit = kingpin->rp_credit;
@@ -2369,7 +2405,7 @@ static void incoming_release(struct m0_rm_incoming *in)
 				 * I think we are introducing "thundering herd"
 				 * problem here.
 				 */
-				m0_tl_for(pr, &credit->cr_pins, pin) {
+				m0_tl_for (pr, &credit->cr_pins, pin) {
 					M0_ASSERT(m0_rm_pin_bob_check(pin));
 					if (pin->rp_flags & M0_RPF_TRACK)
 						pin_del(pin);
@@ -2432,7 +2468,7 @@ int pin_add(struct m0_rm_incoming *in,
 	 * It may end up adding mutiple pins for the same credit. Hence, check
 	 * before adding the pin.
 	 */
-	m0_tl_for(pi, &in->rin_pins, pin) {
+	m0_tl_for (pi, &in->rin_pins, pin) {
 		M0_ASSERT(pin->rp_incoming == in);
 		if (pin->rp_credit == credit) {
 			M0_LOG(M0_DEBUG, "pins exists for credit: %p\n",
@@ -2746,7 +2782,7 @@ M0_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
 
 	/* Search for resource having resource id equal to remote id */
 	m0_mutex_lock(&rtype->rt_lock);
-	m0_tl_for(res, &rtype->rt_resources, res) {
+	m0_tl_for (res, &rtype->rt_resources, res) {
 		if (rtype->rt_ops->rto_is(res, other->rem_id)) {
 			other->rem_resource = res;
 			break;

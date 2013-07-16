@@ -33,7 +33,6 @@
 #include "rm/rm_foms.h"
 #include "rm/rm_addb.h"
 #include "rm/rm_service.h"
-#include "rm/ut/rings.h"
 
 /**
    @addtogroup rm
@@ -46,18 +45,28 @@
 /**
  * Forward declaration
  */
-static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out,
-			     struct m0_reqh *reqh);
-static void borrow_fom_fini(struct m0_fom *fom);
-static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out,
-			     struct m0_reqh *reqh);
-static void revoke_fom_fini(struct m0_fom *fom);
-static int borrow_fom_tick(struct m0_fom *);
-static int revoke_fom_tick(struct m0_fom *);
+static int   borrow_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			       struct m0_reqh *reqh);
+static void   borrow_fom_fini(struct m0_fom *fom);
+static int    revoke_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				struct m0_reqh *reqh);
+static void   revoke_fom_fini(struct m0_fom *fom);
+static int    cancel_fom_create(struct m0_fop *fop, struct m0_fom **out,
+				struct m0_reqh *reqh);
+static void   cancel_fom_fini(struct m0_fom *fom);
+static int    borrow_fom_tick(struct m0_fom *);
+static int    revoke_fom_tick(struct m0_fom *);
+static int    cancel_fom_tick(struct m0_fom *);
 static size_t locality(const struct m0_fom *fom);
 
 static void remote_incoming_complete(struct m0_rm_incoming *in, int32_t rc);
 static void remote_incoming_conflict(struct m0_rm_incoming *in);
+
+enum fop_request_type {
+	FRT_BORROW = M0_RIT_BORROW,
+	FRT_REVOKE = M0_RIT_REVOKE,
+	FRT_CANCEL,
+};
 
 /*
  * As part of of incoming_complete(), call remote_incoming complete.
@@ -105,6 +114,21 @@ const struct m0_fom_type_ops rm_revoke_fom_type_ops = {
 	.fto_create = revoke_fom_create,
 };
 
+/*
+ * Cancel FOM ops.
+ */
+static struct m0_fom_ops rm_fom_cancel_ops = {
+	.fo_addb_init     = rm_fom_addb_init,
+	.fo_fini          = cancel_fom_fini,
+	.fo_tick          = cancel_fom_tick,
+	.fo_home_locality = locality,
+};
+
+const struct m0_fom_type_ops rm_cancel_fom_type_ops = {
+	.fto_create = cancel_fom_create,
+};
+
+
 struct m0_sm_state_descr rm_req_phases[] = {
 	[FOPH_RM_REQ_START] = {
 		.sd_name      = "RM Request Begin",
@@ -128,8 +152,8 @@ struct m0_sm_conf borrow_sm_conf = {
 	.scf_state     = rm_req_phases
 };
 
-struct m0_sm_conf revoke_sm_conf = {
-	.scf_name      = "Revoke FOM conf",
+struct m0_sm_conf canoke_sm_conf = {
+	.scf_name      = "Canoke FOM conf",
 	.scf_nr_states = ARRAY_SIZE(rm_req_phases),
 	.scf_state     = rm_req_phases
 };
@@ -146,10 +170,10 @@ static void remote_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_ASSERT(M0_IN(phase, (FOPH_RM_REQ_START, FOPH_RM_REQ_WAIT)));
 
 	switch (in->rin_type) {
-	case M0_RIT_BORROW:
+	case FRT_BORROW:
 		rc = rc ?: m0_rm_borrow_commit(rem_in);
 		break;
-	case M0_RIT_REVOKE:
+	case FRT_REVOKE:
 		rc = rc ?: m0_rm_revoke_commit(rem_in);
 		break;
 	default:
@@ -198,13 +222,17 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 		M0_RETURN(-ENOMEM);
 
 	switch (type) {
-	case M0_RIT_BORROW:
+	case FRT_BORROW:
 		fopt = &m0_rm_fop_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
 		break;
-	case M0_RIT_REVOKE:
+	case FRT_REVOKE:
 		fopt = &m0_fop_generic_reply_fopt;
 		fom_ops = &rm_fom_revoke_ops;
+		break;
+	case FRT_CANCEL:
+		fopt = &m0_fop_generic_reply_fopt;
+		fom_ops = &rm_fom_cancel_ops;
 		break;
 	default:
 		M0_IMPOSSIBLE("Unrecognised RM request");
@@ -271,7 +299,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	switch (type) {
-	case M0_RIT_BORROW:
+	case FRT_BORROW:
 		bfop = m0_fop_data(fom->fo_rep_fop);
 		bfop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
 
@@ -309,11 +337,12 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
 
 	switch (type) {
-	case M0_RIT_BORROW:
+	case FRT_BORROW:
 		bfop = m0_fop_data(fom->fo_rep_fop);
 		rfop = &bfop->br_rc;
 		break;
-	case M0_RIT_REVOKE:
+	case FRT_REVOKE:
+	case FRT_CANCEL:
 		rfop = m0_fop_data(fom->fo_rep_fop);
 		break;
 	default:
@@ -357,29 +386,28 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 	M0_RETURN(0);
 }
 
-
 /*
  * Build an remote-incoming structure using remote request information.
  */
 static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 {
-	struct m0_rm_fop_borrow     *bfop;
-	struct m0_rm_fop_revoke     *rfop;
-	struct m0_rm_fop_req	    *basefop = NULL;
-	struct m0_rm_incoming	    *in;
-	struct m0_rm_owner	    *owner;
-	struct rm_request_fom	    *rfom;
-	struct m0_buf		    *buf;
-	enum m0_rm_incoming_policy   policy;
-	uint64_t		     flags;
-	int			     rc = 0;
+	struct m0_rm_fop_borrow    *bfop;
+	struct m0_rm_fop_revoke    *rfop;
+	struct m0_rm_fop_req	   *basefop = NULL;
+	struct m0_rm_incoming	   *in;
+	struct m0_rm_owner	   *owner;
+	struct rm_request_fom	   *rfom;
+	struct m0_buf		   *buf;
+	enum m0_rm_incoming_policy  policy;
+	uint64_t		    flags;
+	int			    rc = 0;
 
 	M0_ENTRY("prepare remote incoming request for fom: %p request: %d",
 		 fom, type);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	switch (type) {
-	case M0_RIT_BORROW:
+	case FRT_BORROW:
 		bfop = m0_fop_data(fom->fo_fop);
 		basefop = &bfop->bo_base;
 		/* Remote owner (requester) cookie */
@@ -392,20 +420,19 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
 		break;
 
-	case M0_RIT_REVOKE:
+	case FRT_REVOKE:
 		rfop = m0_fop_data(fom->fo_fop);
-		basefop = &rfop->rr_base;
+		basefop = &rfop->fr_base;
 		/*
 		 * Populate the owner cookie for debtor (local)
 		 * This server is debtor; hence it received REVOKE request.
 		 * This is used later by locality().
 		 */
 		rfom->rf_in.ri_owner_cookie = basefop->rrq_owner.ow_cookie;
-
 		/*
 		 * Populate the loan cookie.
 		 */
-		rfom->rf_in.ri_loan_cookie = rfop->rr_loan.lo_cookie;
+		rfom->rf_in.ri_loan_cookie = rfop->fr_loan.lo_cookie;
 		break;
 
 	default:
@@ -424,7 +451,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	 */
 	if (owner == NULL) {
 		/* Owner cannot be NULL for a revoke request */
-		M0_ASSERT(type != M0_RIT_REVOKE);
+		M0_ASSERT(type != FRT_REVOKE);
 		M0_ALLOC_PTR(owner);
 		if (owner == NULL)
 			M0_RETURN(-ENOMEM);
@@ -479,7 +506,7 @@ static int request_pre_process(struct m0_fom *fom,
 	 * queue otherwise proceed with the next (finish) phase.
 	 */
 	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
-			      FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
+			 FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
 	M0_RETURN(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT : M0_FSO_AGAIN);
 }
 
@@ -510,7 +537,7 @@ static int request_post_process(struct m0_fom *fom)
 	M0_RETURN(M0_FSO_AGAIN);
 }
 
-static int request_fom_tick(struct m0_fom *fom,
+static int request_fom_tick(struct m0_fom           *fom,
 			    enum m0_rm_incoming_type type)
 {
 	int rc = 0;
@@ -548,7 +575,7 @@ static int request_fom_tick(struct m0_fom *fom,
  */
 static int borrow_fom_tick(struct m0_fom *fom)
 {
-	return request_fom_tick(fom, M0_RIT_BORROW);
+	return request_fom_tick(fom, FRT_BORROW);
 }
 
 /**
@@ -562,7 +589,39 @@ static int borrow_fom_tick(struct m0_fom *fom)
  */
 static int revoke_fom_tick(struct m0_fom *fom)
 {
-	return request_fom_tick(fom, M0_RIT_REVOKE);
+	return request_fom_tick(fom, FRT_REVOKE);
+}
+
+static int cancel_fom_tick(struct m0_fom *fom)
+{
+	struct m0_rm_fop_cancel *cfop;
+	struct rm_request_fom	*rfom;
+	struct m0_rm_loan       *loan;
+	struct m0_clink         *clink;
+	int			 rc = 0;
+
+	if (m0_fom_phase(fom) < M0_FOPH_NR)
+		rc = m0_fom_tick_generic(fom);
+	else {
+		cfop = m0_fop_data(fom->fo_fop);
+		rfom = container_of(fom, struct rm_request_fom, rf_fom);
+
+		loan = m0_cookie_of(&cfop->fc_loan.lo_cookie,
+				    struct m0_rm_loan, rl_id);
+		M0_ASSERT(loan != NULL);
+		M0_ASSERT(loan->rl_other != NULL);
+		clink = &loan->rl_other->rem_rev_sess_clink;
+		if (m0_clink_is_armed(clink)) {
+			m0_clink_del_lock(clink);
+			m0_clink_fini(clink);
+		}
+		rc = _sublet_remove(&loan->rl_credit);
+
+		m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
+		reply_err_set(FRT_CANCEL, fom, rc);
+		rc = M0_FSO_AGAIN;
+	}
+	M0_RETURN(rc);
 }
 
 /*
@@ -571,7 +630,7 @@ static int revoke_fom_tick(struct m0_fom *fom)
 static int borrow_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			     struct m0_reqh *reqh)
 {
-	return request_fom_create(M0_RIT_BORROW, fop, out, reqh);
+	return request_fom_create(FRT_BORROW, fop, out, reqh);
 }
 
 /*
@@ -588,13 +647,30 @@ static void borrow_fom_fini(struct m0_fom *fom)
 static int revoke_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			     struct m0_reqh *reqh)
 {
-	return request_fom_create(M0_RIT_REVOKE, fop, out, reqh);
+	return request_fom_create(FRT_REVOKE, fop, out, reqh);
 }
 
 /*
  * A revoke FOM destructor.
  */
 static void revoke_fom_fini(struct m0_fom *fom)
+{
+	request_fom_fini(fom);
+}
+
+/*
+ * A cancel FOM constructor.
+ */
+static int cancel_fom_create(struct m0_fop *fop, struct m0_fom **out,
+			     struct m0_reqh *reqh)
+{
+	return request_fom_create(FRT_CANCEL, fop, out, reqh);
+}
+
+/*
+ * A cancel FOM destructor.
+ */
+static void cancel_fom_fini(struct m0_fom *fom)
 {
 	request_fom_fini(fom);
 }

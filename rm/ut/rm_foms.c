@@ -438,15 +438,15 @@ static void rvk_fop_populate(struct m0_fom *fom)
 	rvk_fop = m0_fop_data(fom->fo_fop);
 	M0_UT_ASSERT(rvk_fop != NULL);
 
-	rvk_fop->rr_base.rrq_policy = RIP_NONE;
-	rvk_fop->rr_base.rrq_flags = RIF_LOCAL_WAIT;
+	rvk_fop->fr_base.rrq_policy = RIP_NONE;
+	rvk_fop->fr_base.rrq_flags = RIF_LOCAL_WAIT;
 
 	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
 	credit.cr_datum = VILYA;
-	m0_rm_credit_encode(&credit, &rvk_fop->rr_base.rrq_credit.cr_opaque);
+	m0_rm_credit_encode(&credit, &rvk_fop->fr_base.rrq_credit.cr_opaque);
 
-	m0_cookie_init(&rvk_fop->rr_loan.lo_cookie, &test_loan->rl_id);
-	m0_cookie_init(&rvk_fop->rr_base.rrq_owner.ow_cookie,
+	m0_cookie_init(&rvk_fop->fr_loan.lo_cookie, &test_loan->rl_id);
+	m0_cookie_init(&rvk_fop->fr_base.rrq_owner.ow_cookie,
 		       &rm_test_data.rd_owner->ro_id);
 	m0_rm_credit_fini(&credit);
 }
@@ -522,7 +522,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	m0_rm_owner_unlock(rm_test_data.rd_owner);
 	rvk_fop = m0_fop_data(fom->fo_fop);
 	M0_UT_ASSERT(rvk_fop != NULL);
-	m0_buf_free(&rvk_fop->rr_base.rrq_credit.cr_opaque);
+	m0_buf_free(&rvk_fop->fr_base.rrq_credit.cr_opaque);
 }
 
 /*

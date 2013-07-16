@@ -453,18 +453,18 @@ struct m0_rm_credit {
 	 * resource type private field. By convention, 0 means "empty"
 	 * credit.
 	 */
-	uint64_t                      cr_datum;
+	uint64_t                       cr_datum;
 	/**
 	 * Linkage of a credit (and the corresponding loan, if applicable) to a
 	 * list hanging off m0_rm_owner.
 	 */
-	struct m0_tlink               cr_linkage;
+	struct m0_tlink                cr_linkage;
 	/**
 	 * A list of pins, linked through m0_rm_pins::rp_credit, stuck into this
 	 * credit.
 	 */
-	struct m0_tl                  cr_pins;
-	uint64_t                      cr_magix;
+	struct m0_tl                   cr_pins;
+	uint64_t                       cr_magix;
 };
 
 /**
@@ -1514,12 +1514,12 @@ enum m0_rm_pin_flags {
  */
 struct m0_rm_pin {
 	uint32_t               rp_flags;
-	struct m0_rm_credit    *rp_credit;
+	struct m0_rm_credit   *rp_credit;
 	/** An incoming request that stuck this pin. */
 	struct m0_rm_incoming *rp_incoming;
 	/**
 	 * Linkage into a list of all pins for a credit, hanging off
-	 *  m0_rm_credit::cr_pins.
+	 * m0_rm_credit::cr_pins.
 	 */
 	struct m0_tlink        rp_credit_linkage;
 	/**

@@ -55,7 +55,7 @@ static struct rm_context  *client_ctx  = &rm_ctx[SERVER_2];
 extern void rm_ctx_init(struct rm_context *rmctx);
 extern void rm_ctx_fini(struct rm_context *rmctx);
 extern void rm_connect(struct rm_context *src, const struct rm_context *dest);
-extern void rm_disconnect(struct rm_context       *src,
+extern void rm_disconnect(struct rm_context *src,
 			  const struct rm_context *dest);
 extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
 
@@ -113,6 +113,10 @@ static void rm_client(const int tid)
 	struct m0_rm_incoming  in;
 	struct m0_rm_remote   *creditor;
 	struct m0_rm_resource *resource;
+	struct m0_rm_owner     owner1;
+	struct m0_file         file1;
+	struct m0_file         file2;
+	struct m0_fid          fids[] = {{0, 1}, {0, 2}};
 
 	/* Wait till server starts */
 	m0_chan_wait(&tests_clink[SERVER_1]);
@@ -132,17 +136,24 @@ static void rm_client(const int tid)
 	M0_UT_ASSERT(resource != NULL);
 
 	flock_client_utdata_ops_set(&rm_test_data);
-	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+	rm_utdata_init(&rm_test_data, OBJ_RES);
 
 	resource->r_type = rm_test_data.rd_rt;
 
 	m0_rm_remote_init(creditor, resource);
 	creditor->rem_session              = &client_ctx->rc_sess[SERVER_1];
 	creditor->rem_cookie               = M0_COOKIE_NULL;
-	rm_test_data.rd_owner->ro_creditor = creditor;
 
-	m0_file_lock(rm_test_data.rd_owner, &in);
-	m0_rm_owner_lock(rm_test_data.rd_owner);
+	/*
+	 * Test for Cancel
+	 * We perform resource owner_finalisation on debtor before rm-service
+	 * shuts down. This results in sending cancel request to rm-service.
+	 */
+	m0_file_init(&file1, &fids[0], &rm_test_data.rd_dom);
+	m0_file_owner_init(&owner1, &file1, NULL);
+	owner1.ro_creditor = creditor;
+	m0_file_lock(&owner1, &in);
+	m0_rm_owner_lock(&owner1);
 	rc = m0_sm_timedwait(&in.rin_sm,
 			     M0_BITS(RI_SUCCESS, RI_FAILURE),
 			     M0_TIME_NEVER);
@@ -150,7 +161,33 @@ static void rm_client(const int tid)
 	M0_UT_ASSERT(in.rin_rc == 0);
 	M0_UT_ASSERT(incoming_state(&in) == RI_SUCCESS);
 
-	m0_rm_owner_unlock(rm_test_data.rd_owner);
+	m0_rm_owner_unlock(&owner1);
+	m0_file_unlock(&in);
+	m0_rm_owner_windup(&owner1);
+	rc = m0_rm_owner_timedwait(&owner1, M0_BITS(ROS_FINAL), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_file_owner_fini(&owner1);
+	m0_file_fini(&file1);
+
+	/*
+	 * Test for Revoke
+	 * We disconnect from server and stop the rm-service before
+	 * performing resource owner finalisation on debtor. In this case
+	 * server sends revoke request for file resource.
+	 */
+	m0_file_init(&file2, &fids[1], &rm_test_data.rd_dom);
+	m0_file_owner_init(&owner1, &file2, NULL);
+	owner1.ro_creditor = creditor;
+	m0_file_lock(&owner1, &in);
+	m0_rm_owner_lock(&owner1);
+	rc = m0_sm_timedwait(&in.rin_sm,
+			     M0_BITS(RI_SUCCESS, RI_FAILURE),
+			     M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(in.rin_rc == 0);
+	M0_UT_ASSERT(incoming_state(&in) == RI_SUCCESS);
+
+	m0_rm_owner_unlock(&owner1);
 	m0_file_unlock(&in);
 
 	rm_disconnect(client_ctx, server_ctx);
@@ -159,9 +196,15 @@ static void rm_client(const int tid)
 	m0_chan_signal_lock(&rr_tests_chan);
 	/* Wait for server to stop */
 	m0_chan_wait(&tests_clink[SERVER_1]);
+
+	m0_rm_owner_windup(&owner1);
+	rc = m0_rm_owner_timedwait(&owner1, M0_BITS(ROS_FINAL), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_file_owner_fini(&owner1);
+	m0_file_fini(&file2);
+	rm_utdata_fini(&rm_test_data, OBJ_RES);
+
 	m0_rm_remote_fini(creditor);
-	rm_test_data.rd_owner->ro_creditor = NULL;
-	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
 	m0_free(resource);
 	m0_free(creditor);
 
