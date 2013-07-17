@@ -187,34 +187,21 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 			    INSERT_SIZE);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
-		m0_be_op_init(&op);
-		m0_buf_init(&val, m0_be_alloc(a, tx, &op, INSERT_SIZE, 0),
-			    INSERT_SIZE);
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-							 M0_BOS_FAILURE)));
-		m0_be_op_init(&op);
-
 		sprintf(key.b_addr, "%03d", i);
-		sprintf(val.b_addr, "%03d", i);
 		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
 						INSERT_SIZE, key.b_addr));
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						INSERT_SIZE, val.b_addr));
 
-		M0_SET0(&anchor);
+		anchor.ba_value.b_nob = INSERT_SIZE;
+		m0_be_op_init(&op);
 		m0_be_btree_insert_inplace(tree, tx, &op, &key, &anchor);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 
 		/* update kv */
-		*((void**)anchor.ba_value.b_addr) = val.b_addr;
-		anchor.ba_value.b_nob = INSERT_SIZE;
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						 sizeof(void*),
-						 (void**)anchor.ba_value.b_addr));
+		sprintf(anchor.ba_value.b_addr, "%03d", i);
 
 		m0_be_op_init(&op);
-		m0_be_btree_release(tree, &op, &anchor);
+		m0_be_btree_release(tree, tx, &op, &anchor);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 	}
@@ -350,7 +337,7 @@ static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 			M0_UT_ASSERT(strcmp(k, val.b_addr) == 0);
 
 		m0_be_op_init(&op);
-		m0_be_btree_release(tree, &op, &anchor);
+		m0_be_btree_release(tree, NULL, &op, &anchor);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 	}

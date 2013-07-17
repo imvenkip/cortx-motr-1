@@ -220,7 +220,7 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
- * Updates @key and @value into btree. Operation is asynchronous.
+ * Updates the @value at the @key in btree. Operation is asynchronous.
  *
  * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
@@ -233,7 +233,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
- * Deletes @key and @value from btree. Operation is asynchronous.
+ * Deletes the entry by the given @key from btree. Operation is asynchronous.
  *
  * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
@@ -281,11 +281,12 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
  * ------------------------------------------------------------------ */
 
 /**
- * Btree anchor, used to perform btree inplace operations in which neither keys
- * nor values are not being copied.
+ * Btree anchor, used to perform btree inplace operations in which
+ * values are not being copied and the ->bb_lock is not released
+ * until m0_be_btree_release() is called.
  *
  * In cases, when data in m0_be_btree_anchor::ba_value is updated,
- * m0_be_btree_release() has to capture the region data lies in.
+ * m0_be_btree_release() will capture the region data lies in.
  */
 struct m0_be_btree_anchor {
 	 /**
@@ -300,24 +301,20 @@ struct m0_be_btree_anchor {
 
 /**
  * Updates @value looked up by given @key in btree. Operation is asynchronous.
- * User can either use existing @value buffer and copy inserted data there or
- * allocate his own. The last assumes that both @value buffer and node buffer
- * in which key is inserted has to be captured prior to this call.
+ * User provides the size of the value buffer that will be updated
+ * via @anchor->ba_value.b_nob and gets the ready memory buffer
+ * via @anchor->ba_value.b_addr.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert, note0 - note2.
  *
- * Note3: m0_be_btree::bb_lock is being held inside this function. To do this,
- * user has to set @anchor::ba_write and lock will be held for write if it's
- * true and for read otherwize.
- *
- * Note3: Neither given @key nor @value is copied or allocated in the tree after
- * this call.
- *
  * Usage:
  *
+ * anchor->ba_value.b_nob = new_value_size;
  * m0_be_btree_update_inplace(tree, tx, op, key, anchor);
  * M0_ASSERT(m0_be_op_wait(op) == 0); // wait for the completion...
- * update(anchor->ba_value.b_addr, anchor->ba_value.b_nob);
+ * update(anchor->ba_value.b_addr);
  * m0_be_btree_release(tree, anchor);
  * ...
  * m0_be_tx_close(tx);
@@ -356,8 +353,9 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
  * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
  */
-M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
-				     struct m0_be_op *op,
+M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
+				     struct m0_be_tx                 *tx,
+				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor);
 
 
