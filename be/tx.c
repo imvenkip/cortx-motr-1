@@ -181,26 +181,34 @@ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
 	M0_LEAVE();
 }
 
+static int tx_reserve(struct m0_be_tx *tx)
+{
+	int rc;
+	M0_ENTRY();
+
+	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	rc = m0_be_log_reserve_tx(&tx_engine(tx)->te_log, &tx->t_prepared);
+	if (rc != 0)
+		m0_be_reg_area_fini(&tx->t_reg_area);
+	M0_RETURN(rc);
+}
+
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 {
-	struct m0_be_tx_engine *eng = tx_engine(tx);
-	int			rc;
+	int rc;
 
 	M0_ENTRY();
 	M0_PRE(m0_be__tx_invariant(tx));
 	M0_PRE(m0_be__tx_state(tx) == M0_BTS_PREPARE);
 	M0_PRE(tx_is_locked(tx));
 
-	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
-	if (rc == 0) {
-		rc = m0_be_log_reserve_tx(&eng->te_log, &tx->t_prepared);
-		if (rc == 0) {
-			m0_be__tx_state_set(tx, M0_BTS_ACTIVE);
-		} else {
-			m0_be_reg_area_fini(&tx->t_reg_area);
-		}
-	}
-	if (rc != 0)
+	rc = tx_reserve(tx);
+	if (rc == 0)
+		m0_be__tx_state_set(tx, M0_BTS_ACTIVE);
+	else
 		tx_fail(tx, rc);
 
 	M0_POST(m0_be__tx_invariant(tx));
