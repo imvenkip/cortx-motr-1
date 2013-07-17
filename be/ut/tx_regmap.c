@@ -279,7 +279,7 @@ static unsigned		   be_ut_rm_data[BE_UT_REGMAP_LEN];
 static unsigned		   be_ut_rm_reg[BE_UT_REGMAP_LEN];
 static unsigned		   be_ut_rm_data_copy[BE_UT_REGMAP_LEN];
 static unsigned		   be_ut_rm_iteration;
-static void		  *be_ut_rm_cb_data = (void *) 42;
+static void		  *be_ut_rm_ops_data = (void *) 42;
 
 static void be_ut_rm_fill2(uintptr_t addr, m0_bcount_t size, unsigned value,
 			   bool fill_reg)
@@ -307,37 +307,34 @@ static void be_ut_rm_fill(const struct m0_be_reg_d *rd, unsigned value,
 		       rd->rd_reg.br_size, value, fill_reg);
 }
 
-static void be_ut_rm_add_cb(void *data, struct m0_be_reg_d *rd)
+static void be_ut_regmap_add(void *data, struct m0_be_reg_d *rd)
 {
-	M0_PRE(data == be_ut_rm_cb_data);
+	M0_PRE(data == be_ut_rm_ops_data);
 	be_ut_rm_fill(rd, be_ut_rm_iteration, true);
 }
 
-static void be_ut_rm_del_cb(void *data, const struct m0_be_reg_d *rd)
+static void be_ut_regmap_del(void *data, const struct m0_be_reg_d *rd)
 {
-	M0_PRE(data == be_ut_rm_cb_data);
+	M0_PRE(data == be_ut_rm_ops_data);
 	be_ut_rm_fill(rd, be_ut_rm_unused, true);
 }
 
-static void be_ut_rm_cpy_cb(void *data,
-			    const struct m0_be_reg_d *super,
-			    const struct m0_be_reg_d *rd)
+static void be_ut_regmap_cpy(void *data, const struct m0_be_reg_d *super,
+			     const struct m0_be_reg_d *rd)
 {
-	M0_PRE(data == be_ut_rm_cb_data);
+	M0_PRE(data == be_ut_rm_ops_data);
 	be_ut_rm_fill(rd, be_ut_rm_unused, false);
 	be_ut_rm_fill(rd, be_ut_rm_iteration, false);
 }
 
-static void be_ut_rm_cut_cb(void *data,
-			    struct m0_be_reg_d *rd,
-			    m0_bcount_t cut_at_start,
-			    m0_bcount_t cut_at_end)
+static void be_ut_regmap_cut(void *data, struct m0_be_reg_d *rd,
+			    m0_bcount_t cut_at_start, m0_bcount_t cut_at_end)
 {
 	m0_bcount_t size;
 	uintptr_t   addr;
 
 	M0_PRE(m0_be_reg_d__invariant(rd));
-	M0_PRE(data == be_ut_rm_cb_data);
+	M0_PRE(data == be_ut_rm_ops_data);
 
 	size = rd->rd_reg.br_size;
 	addr = (uintptr_t) rd->rd_reg.br_addr;
@@ -351,11 +348,11 @@ static void be_ut_rm_cut_cb(void *data,
 	}
 }
 
-static struct m0_be_regmap_callbacks be_ut_rm_cb = {
-	.brc_add = be_ut_rm_add_cb,
-	.brc_del = be_ut_rm_del_cb,
-	.brc_cpy = be_ut_rm_cpy_cb,
-	.brc_cut = be_ut_rm_cut_cb,
+static struct m0_be_regmap_ops be_ut_regmap_ops = {
+	.rmo_add = be_ut_regmap_add,
+	.rmo_del = be_ut_regmap_del,
+	.rmo_cpy = be_ut_regmap_cpy,
+	.rmo_cut = be_ut_regmap_cut
 };
 
 static void be_ut_regmap_init(void)
@@ -363,8 +360,8 @@ static void be_ut_regmap_init(void)
 	int rc;
 	int i;
 
-	rc = m0_be_regmap_init(&be_ut_rm_regmap, &be_ut_rm_cb,
-			       be_ut_rm_cb_data, BE_UT_REGMAP_ITER);
+	rc = m0_be_regmap_init(&be_ut_rm_regmap, &be_ut_regmap_ops,
+			       be_ut_rm_ops_data, BE_UT_REGMAP_ITER);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < BE_UT_REGMAP_LEN; ++i) {
 		be_ut_rm_data[i] = be_ut_rm_unused;
@@ -1025,7 +1022,6 @@ void m0_be_ut_reg_area_merge(void)
 				printf("%4.u", (unsigned) mra_arr[k]);
 			printf("\n");
 #endif
-
 			be_ut_reg_area_merge_pre(&ra);
 			m0_be_reg_area_merge_in(&ra, &mra[i]);
 			be_ut_reg_area_merge_in(&mra[i]);

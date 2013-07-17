@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original author: Maxim Medved <maxim_medved@xyratex.com>
  * Original creation date: 17-Jun-2013
  */
 
@@ -65,22 +65,19 @@ struct m0_be_reg_d_tree {
 	struct m0_be_reg_d *brt_r;
 };
 
-struct m0_be_regmap_callbacks {
-	void (*brc_add)(void *data, struct m0_be_reg_d *rd);
-	void (*brc_del)(void *data, const struct m0_be_reg_d *rd);
-	void (*brc_cpy)(void *data,
-			const struct m0_be_reg_d *super,
+struct m0_be_regmap_ops {
+	void (*rmo_add)(void *data, struct m0_be_reg_d *rd);
+	void (*rmo_del)(void *data, const struct m0_be_reg_d *rd);
+	void (*rmo_cpy)(void *data, const struct m0_be_reg_d *super,
 			const struct m0_be_reg_d *rd);
-	void (*brc_cut)(void *data,
-			struct m0_be_reg_d *rd,
-			m0_bcount_t cut_at_start,
-			m0_bcount_t cut_at_end);
+	void (*rmo_cut)(void *data, struct m0_be_reg_d *rd,
+			m0_bcount_t cut_at_start, m0_bcount_t cut_at_end);
 };
 
 struct m0_be_regmap {
-	struct m0_be_reg_d_tree	      br_rdt;
-	struct m0_be_regmap_callbacks br_cb;
-	void			     *br_cb_data;
+	struct m0_be_reg_d_tree br_rdt;
+	void                   *br_ops_data;
+	struct m0_be_regmap_ops br_ops;
 };
 
 /**
@@ -162,9 +159,8 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt);
 
 M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
-				  struct m0_be_regmap_callbacks *rm_cb,
-				  void *rm_cb_data,
-				  size_t size_max);
+				  struct m0_be_regmap_ops *ops,
+				  void *ops_data, size_t size_max);
 M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm);
 M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm);
 
