@@ -20,8 +20,8 @@
  */
 
 #pragma once
-#ifndef __MERO_BE_TX_FOM_H__
-#define __MERO_BE_TX_FOM_H__
+#ifndef __MERO_BE_TX_GROUP_FOM_H__
+#define __MERO_BE_TX_GROUP_FOM_H__
 
 struct m0_be_tx_engine;
 struct m0_reqh;
@@ -36,7 +36,7 @@ M0_INTERNAL int m0_be_tx_engine_start(struct m0_be_tx_engine *engine,
 M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine);
 
 /** @} end of be group */
-#endif /* __MERO_BE_TX_FOM_H__ */
+#endif /* __MERO_BE_TX_GROUP_FOM_H__ */
 
 /*
  *  Local variables:

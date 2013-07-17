@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __MERO_BE_LOG_STOR_H__
-#define __MERO_BE_LOG_STOR_H__
+#ifndef __MERO_BE_LOG_STORE_H__
+#define __MERO_BE_LOG_STORE_H__
 
 
 #include "lib/types.h"		/* m0_bcount_t */
@@ -115,7 +115,7 @@ M0_INTERNAL bool m0_be_log_store_io__invariant(struct m0_be_log_store_io *lsi);
 
 /** @} end of be group */
 
-#endif /* __MERO_BE_LOG_STOR_H__ */
+#endif /* __MERO_BE_LOG_STORE_H__ */
 
 
 /*
