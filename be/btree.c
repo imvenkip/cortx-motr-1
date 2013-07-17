@@ -1366,7 +1366,8 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 				    const struct m0_buf *key,
 				    struct m0_buf *dest_value)
 {
-	struct bt_key_val *kv;
+	struct bt_key_val	*kv;
+	m0_bcount_t		 vsize;
 
 	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1376,12 +1377,12 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_read_lock(&btree->bb_lock);
 
-	M0_SET0(dest_value);
 	kv = btree_search(btree, key->b_addr);
 	if (kv != NULL) {
-		m0_buf_copy(dest_value, &(const struct m0_buf)
-			    M0_BUF_INIT(btree->bb_ops->ko_vsize(kv->val),
-					kv->val));
+		vsize = btree->bb_ops->ko_vsize(kv->val);
+		if (vsize < dest_value->b_nob)
+			dest_value->b_nob = vsize;
+		memcpy(dest_value->b_addr, kv->val, dest_value->b_nob);
 	} else
 		op->bo_u.u_btree.t_rc = -ENOENT;
 

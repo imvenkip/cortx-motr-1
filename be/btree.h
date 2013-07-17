@@ -222,6 +222,8 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 /**
  * Updates @key and @value into btree. Operation is asynchronous.
  *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
+ *
  * @see m0_be_btree_insert()
  */
 M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
@@ -233,6 +235,8 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 /**
  * Deletes @key and @value from btree. Operation is asynchronous.
  *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
+ *
  * @see m0_be_btree_insert()
  */
 M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
@@ -241,7 +245,10 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    const struct m0_buf *key);
 
 /**
- * Looks up for a @dest_value for the given @key.
+ * Looks up for a @dest_value by the given @key in btree.
+ * The result is copied into provided @dest_value buffer.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_create() regarding @op structure "mission".
  */
@@ -335,6 +342,8 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
 
 /**
  * Looks up a value stored in the @tree by the given @key.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_update_inplace()
  */
