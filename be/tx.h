@@ -23,7 +23,6 @@
 #define __MERO_BE_TX_H__
 
 #include "be/log.h"
-#include "be/tx_log.h"
 #include "be/tx_group.h"
 #include "be/tx_regmap.h"
 
