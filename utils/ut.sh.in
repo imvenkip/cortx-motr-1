@@ -35,6 +35,11 @@ EXEC=`echo ${0##*/} | sed 's/\.sh$//'`
 
 if test x$enable_rpm = xyes; then
     $EXEC "$@"
+elif test x$1 = x-d ;then
+    shift
+    unset MERO_DEBUGGER
+    gdb -x @abs_top_srcdir@/.gdbinit \
+	--args @abs_top_srcdir@/utils/.libs/lt-$EXEC "$@"
 else
     @abs_top_srcdir@/utils/$EXEC "$@"
 fi
