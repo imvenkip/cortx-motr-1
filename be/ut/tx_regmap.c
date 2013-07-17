@@ -339,16 +339,15 @@ static void be_ut_regmap_cut(void *data, struct m0_be_reg_d *rd,
 	size = rd->rd_reg.br_size;
 	addr = (uintptr_t) rd->rd_reg.br_addr;
 
-	if (cut_at_start != 0) {
+	if (cut_at_start != 0)
 		be_ut_rm_fill2(addr, cut_at_start, be_ut_rm_unused, true);
-	}
-	if (cut_at_end != 0) {
+
+	if (cut_at_end != 0)
 		be_ut_rm_fill2(addr + size - cut_at_end, cut_at_end,
 			       be_ut_rm_unused, true);
-	}
 }
 
-static struct m0_be_regmap_ops be_ut_regmap_ops = {
+static const struct m0_be_regmap_ops be_ut_regmap_ops = {
 	.rmo_add = be_ut_regmap_add,
 	.rmo_del = be_ut_regmap_del,
 	.rmo_cpy = be_ut_regmap_cpy,

@@ -265,13 +265,13 @@ M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt)
 }
 
 M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
-				  struct m0_be_regmap_ops *ops,
+				  const struct m0_be_regmap_ops *ops,
 				  void *ops_data, size_t size_max)
 {
 	int rc;
 
 	rc = m0_be_rdt_init(&rm->br_rdt, size_max);
-	rm->br_ops = *ops;
+	rm->br_ops = ops;
 	rm->br_ops_data = ops_data;
 
 	M0_POST(ergo(rc == 0, m0_be_regmap__invariant(rm)));
@@ -306,7 +306,7 @@ static void be_regmap_del_all_completely_covered(struct m0_be_regmap *rm,
 
 	/* delete all coverted regions */
 	while (rdi != NULL && be_reg_d_is_partof(rd, rdi)) {
-		rm->br_ops.rmo_del(rm->br_ops_data, rdi);
+		rm->br_ops->rmo_del(rm->br_ops_data, rdi);
 		rdi = m0_be_rdt_del(&rm->br_rdt, rdi);
 	}
 }
@@ -355,7 +355,7 @@ static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
 
 	r = &rd->rd_reg;
 
-	rm->br_ops.rmo_cut(rm->br_ops_data, rd, cut_start, cut_end);
+	rm->br_ops->rmo_cut(rm->br_ops_data, rd, cut_start, cut_end);
 
 	r->br_size -= cut_start;
 	r->br_addr = (char *) r->br_addr + cut_start;
@@ -378,11 +378,11 @@ M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
 	rdi = be_regmap_super(rm, rd);
 	if (rdi != NULL) {
 		/* old region completely absorbs the new */
-		rm->br_ops.rmo_cpy(rm->br_ops_data, rdi, rd);
+		rm->br_ops->rmo_cpy(rm->br_ops_data, rdi, rd);
 	} else {
 		m0_be_regmap_del(rm, rd);
 		rd_copy = *rd;
-		rm->br_ops.rmo_add(rm->br_ops_data, &rd_copy);
+		rm->br_ops->rmo_add(rm->br_ops_data, &rd_copy);
 		m0_be_rdt_ins(&rm->br_rdt, &rd_copy);
 	}
 
@@ -440,14 +440,14 @@ M0_INTERNAL void m0_be_regmap_reset(struct m0_be_regmap *rm)
 
 #undef REGD_EXT
 
-static struct m0_be_regmap_ops be_reg_area_copy_ops;
-static struct m0_be_regmap_ops be_reg_area_ops;
+static const struct m0_be_regmap_ops be_reg_area_copy_ops;
+static const struct m0_be_regmap_ops be_reg_area_ops;
 
 M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 				    const struct m0_be_tx_credit *prepared,
 				    bool data_copy)
 {
-	struct m0_be_regmap_ops *ops =
+	const struct m0_be_regmap_ops *ops =
 		data_copy ? &be_reg_area_copy_ops : &be_reg_area_ops;
 	int rc;
 
@@ -580,14 +580,14 @@ static void be_reg_area_cut(void *data, struct m0_be_reg_d *rd,
 	rd->rd_buf = (char *) rd->rd_buf + cut_at_start;
 }
 
-static struct m0_be_regmap_ops be_reg_area_copy_ops = {
+static const struct m0_be_regmap_ops be_reg_area_copy_ops = {
 	.rmo_add = be_reg_area_add_copy,
 	.rmo_del = be_reg_area_del,
 	.rmo_cpy = be_reg_area_cpy_copy,
 	.rmo_cut = be_reg_area_cut
 };
 
-static struct m0_be_regmap_ops be_reg_area_ops = {
+static const struct m0_be_regmap_ops be_reg_area_ops = {
 	.rmo_add = be_reg_area_add,
 	.rmo_del = be_reg_area_del,
 	.rmo_cpy = be_reg_area_cpy,

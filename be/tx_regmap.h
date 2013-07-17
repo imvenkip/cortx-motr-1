@@ -75,9 +75,9 @@ struct m0_be_regmap_ops {
 };
 
 struct m0_be_regmap {
-	struct m0_be_reg_d_tree br_rdt;
-	void                   *br_ops_data;
-	struct m0_be_regmap_ops br_ops;
+	struct m0_be_reg_d_tree        br_rdt;
+	const struct m0_be_regmap_ops *br_ops;
+	void                          *br_ops_data;
 };
 
 /**
@@ -159,7 +159,7 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 M0_INTERNAL void m0_be_rdt_reset(struct m0_be_reg_d_tree *rdt);
 
 M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
-				  struct m0_be_regmap_ops *ops,
+				  const struct m0_be_regmap_ops *ops,
 				  void *ops_data, size_t size_max);
 M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm);
 M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm);
