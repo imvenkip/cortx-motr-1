@@ -59,10 +59,8 @@ enum { SHIFT = 0 };
 static void
 transact(struct x *x, struct m0_be_allocator *allocator, struct m0_be_seg *seg)
 {
-	struct m0_be_op op;
-	int             rc;
+	int rc;
 
-	m0_be_op_init(&op);
 	m0_be_tx_prep(&x->tx, &x->cred);
 
 	/* Open transaction synchronously. */
@@ -71,10 +69,16 @@ transact(struct x *x, struct m0_be_allocator *allocator, struct m0_be_seg *seg)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Allocate memory. */
-	x->data = m0_be_alloc(allocator, &x->tx, &op, x->size, SHIFT);
-	M0_UT_ASSERT(x->data != NULL);
-	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-						 M0_BOS_FAILURE)));
+	{
+		struct m0_be_op op;
+
+		m0_be_op_init(&op);
+		x->data = m0_be_alloc(allocator, &x->tx, &op, x->size, SHIFT);
+		M0_UT_ASSERT(x->data != NULL);
+		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+							 M0_BOS_FAILURE)));
+		m0_be_op_fini(&op);
+	}
 
 	/* Dirty the memory. */
 	M0_CASSERT(sizeof(struct m0_uint128) != sizeof(int));
@@ -90,7 +94,6 @@ transact(struct x *x, struct m0_be_allocator *allocator, struct m0_be_seg *seg)
 	memset(x->data, 0, x->size);
 
 	m0_be_tx_close(&x->tx);
-	m0_be_op_fini(&op);
 }
 
 /**
