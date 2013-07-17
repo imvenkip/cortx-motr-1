@@ -22,7 +22,7 @@
 #include "lib/trace.h"
 
 #include "be/ut/helper.h"
-#include "be/tx_fom.h"
+#include "be/tx_group_fom.h"
 
 #include "stob/stob.h"	/* m0_stob_id */
 #include "stob/linux.h"	/* m0_linux_stob_domain_locate */

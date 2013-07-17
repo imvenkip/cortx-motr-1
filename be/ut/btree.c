@@ -20,7 +20,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "be/tx_fom.h"
+#include "be/tx_group_fom.h"
 #include "be/btree.h"
 #include "lib/types.h"     /* m0_uint128_eq */
 #include "lib/misc.h"      /* M0_BITS, M0_IN */
