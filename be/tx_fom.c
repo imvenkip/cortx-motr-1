@@ -139,7 +139,7 @@ static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
 	_S(TGS_OPEN,       0, M0_BITS(TGS_OPEN, TGS_LOGGING, TGS_FINISH)),
 	_S(TGS_LOGGING,    0, M0_BITS(TGS_COMMITTING)),
 	_S(TGS_COMMITTING, 0, M0_BITS(TGS_PLACING)),
-	_S(TGS_PLACING,    0, M0_BITS(TGS_PLACING, TGS_PLACED)),
+	_S(TGS_PLACING,    0, M0_BITS(TGS_PLACED)),
 	_S(TGS_PLACED,     0, M0_BITS(TGS_PLACED, TGS_STABLE, TGS_FINISH)),
 	_S(TGS_STABLE,     0, M0_BITS(TGS_OPEN))
 #undef _S
@@ -167,11 +167,8 @@ struct tx_group_fom {
 	/**
 	 * The number of transactions that have been added to the tx_group
 	 * but have not switched to M0_BTS_GROUPED state yet.
-	 *
-	 * XXX FIXME: Merge several reg_area-s into one indexvec.
 	 */
 	struct m0_ref           tgf_nr_ungrouped;
-	struct m0_be_tx        *tgf_tx_to_place;
 	struct m0_semaphore     tgf_started;
 };
 
@@ -315,11 +312,8 @@ static int open_tick(struct m0_fom *fom)
 	struct m0_be_tx        *tx;
 	int                     rc;
 
-	M0_ENTRY("tx_group is %s", gr->tg_opened ? "opened" : "closed");
+	M0_ENTRY();
 	M0_PRE(!m->tgf_full);
-
-	if (!gr->tg_opened && grp_tlist_is_empty(&gr->tg_txs))
-		tx_group_open(eng, gr);
 
 	tx_group_populate(gr, eng, &m->tgf_full);
 
@@ -335,7 +329,8 @@ static int open_tick(struct m0_fom *fom)
 			    fom_wake);
 		M0_LOG(M0_DEBUG, "Posting \"Get grouped!\" AST(s)");
 		m0_tl_for(grp, &gr->tg_txs, tx) {
-			m0_be__tx_group_post(tx, &m->tgf_nr_ungrouped);
+			m0_be__tx_state_post(tx, M0_BTS_GROUPED,
+					     &m->tgf_nr_ungrouped);
 		} m0_tl_endfor;
 
 		m0_fom_phase_set(fom, TGS_LOGGING);
@@ -393,10 +388,6 @@ static int committing_tick(struct m0_fom *fom)
 	 */
 	m0_be_log_commit(&m->tgf_engine->te_log, op, gr);
 
-	/* Next state (TGS_PLACING) uses this pointer. */
-	m->tgf_tx_to_place = grp_tlist_head(&gr->tg_txs);
-
-	M0_POST(m->tgf_tx_to_place != NULL);
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_PLACING);
 }
@@ -406,55 +397,37 @@ static int placing_tick(struct m0_fom *fom)
 	struct tx_group_fom   *m  = tx_group_fom(fom);
 	struct m0_be_tx_group *gr = tx_group(m);
 	struct m0_be_op       *op = &m->tgf_op;
-	struct m0_be_tx       *tx;
 
 	M0_ENTRY();
 	M0_PRE(!grp_tlist_is_empty(&gr->tg_txs));
 	/* XXX TODO: M0_PRE() that tx is working with the same segment. */
 
-	tx = m->tgf_tx_to_place;
-	if (tx == NULL) {
-		m0_ref_init(&m->tgf_nr_ungrouped, grp_tlist_length(&gr->tg_txs),
-			    fom_wake);
-		M0_LOG(M0_DEBUG, "Posting \"Get placed!\" AST(s)");
-		m0_tl_for(grp, &gr->tg_txs, tx) {
-			m0_be__tx_placed_post(tx, &m->tgf_nr_ungrouped);
-		} m0_tl_endfor;
-
-		m0_fom_phase_set(fom, TGS_PLACED);
-		M0_LEAVE();
-		return M0_FSO_WAIT;
-	}
-
 	/* perform IO */
 	m0_be_op_init(op);
 	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 
-	if (tx->t_persistent != NULL)
-		tx->t_persistent(tx);
-	m->tgf_tx_to_place = grp_tlist_next(&gr->tg_txs, tx);
-
 	M0_LEAVE();
-	return m0_be_op_tick_ret(op, fom, TGS_PLACING);
+	return m0_be_op_tick_ret(op, fom, TGS_PLACED);
 }
 
 static int placed_tick(struct m0_fom *fom)
 {
 	struct m0_be_tx             *tx;
-	struct tx_group_fom         *m = tx_group_fom(fom);
-	const struct m0_be_tx_group *gr = tx_group(m);
+	const struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
 
 	M0_ENTRY();
-	M0_PRE(m->tgf_tx_to_place == NULL);
-	M0_PRE(m0_tl_forall(grp, tx, &gr->tg_txs,
-			    m0_be__tx_state(tx) == M0_BTS_PLACED));
 
+	M0_LOG(M0_DEBUG, "Posting \"Get placed!\" AST(s)");
 	m0_tl_for(grp, &gr->tg_txs, tx) {
+		m0_be__tx_state_post(tx, M0_BTS_PLACED, NULL);
+		if (tx->t_persistent != NULL)
+			tx->t_persistent(tx);
 		tx->t_group = NULL;
 		grp_tlist_del(tx);
 	} m0_tl_endfor;
 
 	m0_fom_phase_set(fom, TGS_STABLE);
+
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }

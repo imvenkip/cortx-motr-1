@@ -918,7 +918,6 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
 {
 	struct node_pos kp = { .p_node = NULL };
-	void *key_val = key;
 	struct m0_be_bnode *node;
 	unsigned int i = 0;
 
@@ -929,13 +928,13 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
 		/*  Find the index of the key greater than or equal */
 		/*  to the key that we would like to search */
 		while (i < node->b_nr_active &&
-		       key_gt(btree, key_val, node->b_key_vals[i]->key)) {
+		       key_gt(btree, key, node->b_key_vals[i]->key)) {
 			i++;
 		}
 
 		/*  If we find such key return the key-value pair */
 		if (i < node->b_nr_active &&
-		    key_eq(btree, key_val, node->b_key_vals[i]->key)) {
+		    key_eq(btree, key, node->b_key_vals[i]->key)) {
 			kp.p_node = node;
 			kp.p_index = i;
 			return kp;
@@ -1178,16 +1177,10 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
-M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
-				    enum m0_be_btree_op optype,
-				    m0_bcount_t nr,
-				    struct m0_be_tx_credit *accum)
+static void btree_alloc_credit(const struct m0_be_btree     *tree,
+				     struct m0_be_tx_credit *accum)
 {
-	uint32_t height;
 	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
-
-	M0_PRE(M0_IN(optype, (M0_BBO_CREATE, M0_BBO_DESTROY, M0_BBO_INSERT,
-			      M0_BBO_DELETE, M0_BBO_UPDATE)));
 
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(struct m0_be_bnode),
 			       BTREE_ALLOC_SHIFT, accum);
@@ -1196,19 +1189,81 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, KV_SIZE,
 			       BTREE_ALLOC_SHIFT, accum);
 
-	switch (optype) {
-	case M0_BBO_CREATE:
-		break;
-	case M0_BBO_DESTROY:
-		break;
-	case M0_BBO_INSERT:
-	case M0_BBO_DELETE:
-	case M0_BBO_UPDATE:
-	default:
-		/* XXX */
-		height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
-		m0_be_tx_credit_mul(accum, 2*height + 1);
-	}
+}
+
+/* XXX */
+static void btree_credit(const struct m0_be_btree     *tree,
+			       struct m0_be_tx_credit *accum)
+{
+	uint32_t height;
+
+	height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
+	m0_be_tx_credit_mul(accum, 2*height + 1);
+}
+
+M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT(1, ksize + vsize);;
+
+	btree_alloc_credit(tree, accum);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC,
+			       ksize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC,
+			       vsize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_tx_credit_add(accum, &credit);
+	btree_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+
+	btree_alloc_credit(tree, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE,
+			       ksize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE,
+			       vsize, BTREE_ALLOC_SHIFT, accum);
+	btree_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT(1, vsize +
+						sizeof(struct bt_key_val));
+	btree_alloc_credit(tree, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE,
+			       vsize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC,
+			       vsize, BTREE_ALLOC_SHIFT, accum);
+	m0_be_tx_credit_add(accum, &credit);
+	btree_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 struct m0_be_tx_credit *accum)
+{
+	btree_alloc_credit(tree, accum);
+}
+
+M0_INTERNAL void m0_be_btree_destroy_credit(const struct m0_be_btree     *tree,
+						  m0_bcount_t             nr,
+						  struct m0_be_tx_credit *accum)
+{
+	btree_alloc_credit(tree, accum);
 }
 
 M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
@@ -1217,7 +1272,9 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *key,
 				    const struct m0_buf *val)
 {
-	struct bt_key_val *kv; /* XXX: update credit accounting */
+	void			*key_data;
+	void			*val_data;
+	struct bt_key_val	*kv; /* XXX: update credit accounting */
 
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1229,10 +1286,16 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_write_lock(&tree->bb_lock);
 
+	key_data = mem_alloc(tree, tx, key->b_nob);
+	val_data = mem_alloc(tree, tx, val->b_nob);
 	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
-	kv->key = key->b_addr;
-	kv->val = val->b_addr;
+	memcpy(key_data, key->b_addr, key->b_nob);
+	memcpy(val_data, val->b_addr, val->b_nob);
+	kv->key = key_data;
+	kv->val = val_data;
 	mem_update(tree, tx, kv, sizeof(struct bt_key_val));
+	mem_update(tree, tx, key_data, key->b_nob);
+	mem_update(tree, tx, val_data, val->b_nob);
 
 	btree_insert_key(tree, tx, kv);
 
@@ -1260,10 +1323,16 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
 
 	kv = btree_search(btree, key->b_addr);
 	if (kv != NULL) {
-		mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
-		kv->val = val->b_addr;
-		mem_update(btree, tx, kv, sizeof(struct bt_key_val));
-	}
+		if (val->b_nob > btree->bb_ops->ko_vsize(kv->val)) {
+			mem_free(btree, tx, kv->val,
+					btree->bb_ops->ko_vsize(kv->val));
+			kv->val = mem_alloc(btree, tx, val->b_nob);
+			mem_update(btree, tx, kv, sizeof(struct bt_key_val));
+		}
+		memcpy(kv->val, val->b_addr, val->b_nob);
+		mem_update(btree, tx, kv->val, val->b_nob);
+	} else
+		op->bo_u.u_btree.t_rc = -ENOENT;
 
 	m0_rwlock_write_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
@@ -1285,6 +1354,8 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 	m0_rwlock_write_lock(&tree->bb_lock);
 
 	rc = btree_delete_key(tree, tx, tree->bb_root, key->b_addr);
+	if (rc != 0)
+		op->bo_u.u_btree.t_rc = -ENOENT;
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
@@ -1295,7 +1366,8 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 				    const struct m0_buf *key,
 				    struct m0_buf *dest_value)
 {
-	struct bt_key_val *kv;
+	struct bt_key_val	*kv;
+	m0_bcount_t		 vsize;
 
 	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1305,12 +1377,12 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_read_lock(&btree->bb_lock);
 
-	M0_SET0(dest_value);
 	kv = btree_search(btree, key->b_addr);
 	if (kv != NULL) {
-		m0_buf_copy(dest_value, &(const struct m0_buf)
-			    M0_BUF_INIT(btree->bb_ops->ko_vsize(kv->val),
-					kv->val));
+		vsize = btree->bb_ops->ko_vsize(kv->val);
+		if (vsize < dest_value->b_nob)
+			dest_value->b_nob = vsize;
+		memcpy(dest_value->b_addr, kv->val, dest_value->b_nob);
 	} else
 		op->bo_u.u_btree.t_rc = -ENOENT;
 
@@ -1387,10 +1459,15 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *btree,
 	anchor->ba_write = true;
 	kv = btree_search(btree, key->b_addr);
 	if (kv != NULL) {
-		mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
-		anchor->ba_value.b_addr = &kv->val;
-		anchor->ba_value.b_nob = 0; /* this should be updated by the user */
-	}
+		if (anchor->ba_value.b_nob > btree->bb_ops->ko_vsize(kv->val)) {
+			mem_free(btree, tx, kv->val,
+					btree->bb_ops->ko_vsize(kv->val));
+			kv->val = mem_alloc(btree, tx, anchor->ba_value.b_nob);
+			mem_update(btree, tx, kv, sizeof(struct bt_key_val));
+		}
+		anchor->ba_value.b_addr = kv->val;
+	} else
+		op->bo_u.u_btree.t_rc = -ENOENT;
 
 	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
 }
@@ -1401,7 +1478,9 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 					    const struct m0_buf       *key,
 					    struct m0_be_btree_anchor *anchor)
 {
-	struct bt_key_val *kv; /* XXX: update credit accounting */
+	void			*key_data;
+	void			*val_data;
+	struct bt_key_val	*kv; /* XXX: update credit accounting */
 
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1412,18 +1491,19 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_write_lock(&tree->bb_lock);
 
+	key_data = mem_alloc(tree, tx, key->b_nob);
+	val_data = mem_alloc(tree, tx, anchor->ba_value.b_nob);
 	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
-	kv->key = key->b_addr;
-	kv->val = NULL;
+	kv->key = key_data;
+	kv->val = val_data;
+	memcpy(key_data, key->b_addr, key->b_nob);
 	mem_update(tree, tx, kv, sizeof(struct bt_key_val));
+	mem_update(tree, tx, key_data, key->b_nob);
+	anchor->ba_value.b_addr = val_data;
 
 	btree_insert_key(tree, tx, kv);
 
 	anchor->ba_write = true;
-
-	/* this should be update by the user */
-	anchor->ba_value.b_addr = &kv->val;
-	anchor->ba_value.b_nob = 0;
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
@@ -1455,15 +1535,21 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
 }
 
 M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
+				     struct m0_be_tx                 *tx,
 				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor)
 {
 	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+	M0_PRE(ergo(anchor->ba_write, tx != NULL));
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
-	anchor->ba_write ? m0_rwlock_read_unlock(&btree->bb_lock) :
+	if (anchor->ba_write) {
+		mem_update(btree, tx, anchor->ba_value.b_addr,
+				      anchor->ba_value.b_nob);
 		m0_rwlock_write_unlock(&btree->bb_lock);
+	} else
+		m0_rwlock_read_unlock(&btree->bb_lock);
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }

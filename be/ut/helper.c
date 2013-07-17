@@ -182,11 +182,11 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 	M0_ASSERT(rc == 0);
 
 	m0_be_ut_seg_create_open(h);
-	h->buh_a = &h->buh_seg.bs_allocator;
-	rc = m0_be_allocator_init(h->buh_a, &h->buh_seg);
+	h->buh_allocator = &h->buh_seg.bs_allocator;
+	rc = m0_be_allocator_init(h->buh_allocator, &h->buh_seg);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_be_allocator_create(h->buh_a, NULL /* XXX FIXME */);
+	rc = m0_be_allocator_create(h->buh_allocator, NULL /* XXX FIXME */);
 	M0_ASSERT(rc == 0);
 }
 
@@ -201,10 +201,10 @@ void m0_be_ut_h_fini(struct m0_be_ut_h *h)
 	m0_be_fini(&h->buh_be);
 #if 0 /* XXX FIXME: m0_be_allocator_{create,destroy}() need a transaction.
        * Max knows what to do about it. */
-	rc = m0_be_allocator_destroy(h->buh_a, NULL);
+	rc = m0_be_allocator_destroy(h->buh_allocator, NULL);
 	M0_ASSERT(rc == 0);
 #endif
-	m0_be_allocator_fini(h->buh_a);
+	m0_be_allocator_fini(h->buh_allocator);
 	m0_be_ut_seg_close_destroy(h);
 }
 

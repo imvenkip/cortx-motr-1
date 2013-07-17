@@ -54,7 +54,7 @@ struct m0_be_ut_h {
 	 * Added to increase readability of UT.
 	 * Initialized in m0_be_ut_h_init().
 	 */
-	struct m0_be_allocator	*buh_a;
+	struct m0_be_allocator	*buh_allocator;
 	/** transaction ID counter */
 	uint64_t		 buh_tid;
 	/** rpc server for reqh */

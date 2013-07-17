@@ -134,16 +134,67 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 
 /**
  * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform an operation over the @tree.
+ * m0_be_tx_credit, is needed to perform the create operation over the @tree.
  * Function updates @accum structure which is an input for m0_be_tx_prep().
  *
- * @param optype operation type over the tree.
  * @param nr     number of @optype operations.
  */
-M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
-				    enum m0_be_btree_op optype,
-				    m0_bcount_t nr,
-				    struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the create operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ */
+M0_INTERNAL void m0_be_btree_destroy_credit(const struct m0_be_btree *tree,
+					    m0_bcount_t               nr,
+					    struct m0_be_tx_credit   *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the insert operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ * @param ksize  key data size.
+ * @param vsize  value data size.
+ */
+M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the delete operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ * @param ksize  key data size.
+ * @param vsize  value data size.
+ */
+M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             ksize,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the update operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     number of @optype operations.
+ */
+M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
+						 m0_bcount_t             nr,
+						 m0_bcount_t             vsize,
+						 struct m0_be_tx_credit *accum);
 
 /**
  * Inserts @key and @value into btree. Operation is asynchronous.
@@ -169,7 +220,9 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
- * Updates @key and @value into btree. Operation is asynchronous.
+ * Updates the @value at the @key in btree. Operation is asynchronous.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert()
  */
@@ -180,7 +233,9 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
- * Deletes @key and @value from btree. Operation is asynchronous.
+ * Deletes the entry by the given @key from btree. Operation is asynchronous.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert()
  */
@@ -190,7 +245,10 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    const struct m0_buf *key);
 
 /**
- * Looks up for a @dest_value for the given @key.
+ * Looks up for a @dest_value by the given @key in btree.
+ * The result is copied into provided @dest_value buffer.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_create() regarding @op structure "mission".
  */
@@ -223,11 +281,12 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
  * ------------------------------------------------------------------ */
 
 /**
- * Btree anchor, used to perform btree inplace operations in which neither keys
- * nor values are not being copied.
+ * Btree anchor, used to perform btree inplace operations in which
+ * values are not being copied and the ->bb_lock is not released
+ * until m0_be_btree_release() is called.
  *
  * In cases, when data in m0_be_btree_anchor::ba_value is updated,
- * m0_be_btree_release() has to capture the region data lies in.
+ * m0_be_btree_release() will capture the region data lies in.
  */
 struct m0_be_btree_anchor {
 	 /**
@@ -242,24 +301,20 @@ struct m0_be_btree_anchor {
 
 /**
  * Updates @value looked up by given @key in btree. Operation is asynchronous.
- * User can either use existing @value buffer and copy inserted data there or
- * allocate his own. The last assumes that both @value buffer and node buffer
- * in which key is inserted has to be captured prior to this call.
+ * User provides the size of the value buffer that will be updated
+ * via @anchor->ba_value.b_nob and gets the ready memory buffer
+ * via @anchor->ba_value.b_addr.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert, note0 - note2.
  *
- * Note3: m0_be_btree::bb_lock is being held inside this function. To do this,
- * user has to set @anchor::ba_write and lock will be held for write if it's
- * true and for read otherwize.
- *
- * Note3: Neither given @key nor @value is copied or allocated in the tree after
- * this call.
- *
  * Usage:
  *
+ * anchor->ba_value.b_nob = new_value_size;
  * m0_be_btree_update_inplace(tree, tx, op, key, anchor);
  * M0_ASSERT(m0_be_op_wait(op) == 0); // wait for the completion...
- * update(anchor->ba_value.b_addr, anchor->ba_value.b_nob);
+ * update(anchor->ba_value.b_addr);
  * m0_be_btree_release(tree, anchor);
  * ...
  * m0_be_tx_close(tx);
@@ -285,6 +340,8 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
 /**
  * Looks up a value stored in the @tree by the given @key.
  *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
+ *
  * @see m0_be_btree_update_inplace()
  */
 M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
@@ -296,8 +353,9 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
  * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
  */
-M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
-				     struct m0_be_op *op,
+M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
+				     struct m0_be_tx                 *tx,
+				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor);
 
 

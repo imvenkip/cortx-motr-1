@@ -62,16 +62,12 @@ struct m0_be_tx;
 struct m0_be_tx_group {
 	/** lsn of transaction group header in the log. */
 	m0_bindex_t               tg_lsn;
-	bool                      tg_opened;
 
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit    tg_used;
 
 	/** List of transactions in the group. */
 	struct m0_tl              tg_txs;
-
-	/** fom which processes current group */
-	struct m0_fom            *tg_fom;
 
 	/** XXX DOCUMENTME */
 	struct m0_be_group_ondisk tg_od;
@@ -86,8 +82,7 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
 			      struct m0_be_tx *tx);
 M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
 				struct m0_be_tx_group *gr);
-M0_INTERNAL void tx_group_open(struct m0_be_tx_engine *eng,
-				struct m0_be_tx_group *gr);
+/* Note the absence of tx_group_open(). */
 
 #define M0_BE_TX_GROUP_TX_FORALL(group, tx) \
 	m0_tl_for(grp, &(group)->tg_txs, (tx))

@@ -86,8 +86,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	struct m0_be_btree_anchor anchor;
 	struct m0_be_allocator   *a;
 	struct m0_be_tx_credit    insert_cred;
-	struct m0_be_tx_credit    create_cred;
-	struct m0_be_tx_credit    tree_cred;
 	struct m0_be_tx_credit    cred;
 	struct m0_be_btree       *tree;
 	struct m0_be_op           op;
@@ -107,8 +105,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 
 	m0_be_tx_credit_init(&cred);
 	m0_be_tx_credit_init(&insert_cred);
-	m0_be_tx_credit_init(&create_cred);
-	m0_be_tx_credit_init(&tree_cred);
 
 	/*
 	 * Init transaction and its credits
@@ -119,19 +115,18 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	{ /* XXX: should calculate these credits not for dummy tree,
 	   but for allocated below. This needs at least two transactions. */
 		struct m0_be_btree t = { .bb_seg = &h->buh_seg };
-		m0_be_btree_credit(&t, M0_BBO_CREATE, 1, &create_cred);
-		m0_be_btree_credit(&t, M0_BBO_INSERT, 1, &insert_cred);
+		m0_be_btree_create_credit(&t, 1, &cred);
+		m0_be_btree_insert_credit(&t, 1, INSERT_SIZE, INSERT_SIZE,
+						&insert_cred);
 	}
 
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, INSERT_SIZE, 0, &insert_cred);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, INSERT_SIZE, 0, &insert_cred);
 	m0_be_tx_credit_mul(&insert_cred, INSERT_COUNT);
 
-	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *tree, 0, &tree_cred);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *tree, 0, &cred);
 
-	m0_be_tx_credit_add(&cred, &tree_cred);
 	m0_be_tx_credit_add(&cred, &insert_cred);
-	m0_be_tx_credit_add(&cred, &create_cred);
 
 
 	m0_sm_group_lock(&ut__txs_sm_group);
@@ -191,34 +186,21 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 			    INSERT_SIZE);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
-		m0_be_op_init(&op);
-		m0_buf_init(&val, m0_be_alloc(a, tx, &op, INSERT_SIZE, 0),
-			    INSERT_SIZE);
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-							 M0_BOS_FAILURE)));
-		m0_be_op_init(&op);
-
 		sprintf(key.b_addr, "%03d", i);
-		sprintf(val.b_addr, "%03d", i);
 		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
 						INSERT_SIZE, key.b_addr));
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						INSERT_SIZE, val.b_addr));
 
-		M0_SET0(&anchor);
+		anchor.ba_value.b_nob = INSERT_SIZE;
+		m0_be_op_init(&op);
 		m0_be_btree_insert_inplace(tree, tx, &op, &key, &anchor);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 
 		/* update kv */
-		*((void**)anchor.ba_value.b_addr) = val.b_addr;
-		anchor.ba_value.b_nob = INSERT_SIZE;
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						 sizeof(void*),
-						 (void**)anchor.ba_value.b_addr));
+		sprintf(anchor.ba_value.b_addr, "%03d", i);
 
 		m0_be_op_init(&op);
-		m0_be_btree_release(tree, &op, &anchor);
+		m0_be_btree_release(tree, tx, &op, &anchor);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 	}
@@ -309,15 +291,17 @@ static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 	struct m0_buf             val;
 	struct m0_be_op           op;
 	struct m0_be_btree_anchor anchor;
-	char kv[4];
+	char k[4];
+	char v[4];
 	int i;
 
 	m0_be_btree_init(tree, &h->buh_seg, &kv_ops);
 
 	/* lookup */
 	for (i = 0; i < INSERT_COUNT; ++i) {
-		sprintf(kv, "%03d", i);
-		m0_buf_init(&key, kv, ARRAY_SIZE(kv));
+		sprintf(k, "%03d", i);
+		m0_buf_init(&key, k, ARRAY_SIZE(k));
+		m0_buf_init(&val, v, ARRAY_SIZE(v));
 
 		m0_be_op_init(&op);
 		m0_be_btree_lookup(tree, &op, &key, &val);
@@ -325,20 +309,18 @@ static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 							 M0_BOS_FAILURE)));
 
 		if (INSERT_COUNT/4 <= i && i < INSERT_COUNT*3/4)
-			M0_UT_ASSERT(val.b_addr == NULL && val.b_nob  == 0);
+			M0_UT_ASSERT(op.bo_u.u_btree.t_rc == -ENOENT);
 		else if (i == 99)
-			M0_UT_ASSERT(strcmp("XYZ", val.b_addr) == 0);
+			M0_UT_ASSERT(strcmp("XYZ", v) == 0);
 		else
-			M0_UT_ASSERT(strcmp(kv, val.b_addr) == 0);
-
-		m0_buf_free(&val);
+			M0_UT_ASSERT(strcmp(k, v) == 0);
 	}
 
 	/* lookup inplace */
 	for (i = 0; i < INSERT_COUNT; ++i) {
 		M0_SET0(&anchor);
-		sprintf(kv, "%03d", i);
-		m0_buf_init(&key, kv, ARRAY_SIZE(kv));
+		sprintf(k, "%03d", i);
+		m0_buf_init(&key, k, ARRAY_SIZE(k));
 
 		m0_be_op_init(&op);
 		m0_be_btree_lookup_inplace(tree, &op, &key, &anchor);
@@ -351,10 +333,10 @@ static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 		else if (i == 99)
 			M0_UT_ASSERT(strcmp("XYZ", val.b_addr) == 0);
 		else
-			M0_UT_ASSERT(strcmp(kv, val.b_addr) == 0);
+			M0_UT_ASSERT(strcmp(k, val.b_addr) == 0);
 
 		m0_be_op_init(&op);
-		m0_be_btree_release(tree, &op, &anchor);
+		m0_be_btree_release(tree, NULL, &op, &anchor);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 	}

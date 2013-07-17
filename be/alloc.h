@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original author: Maxim Medved <maxim_medved@xyratex.com>
  * Original creation date: 29-May-2013
  */
 
@@ -23,10 +23,9 @@
 #define __MERO_BE_ALLOC_H__
 
 #include "lib/types.h"  /* m0_bcount_t */
-#include "lib/mutex.h"	/* m0_mutex */
+#include "lib/mutex.h"
 
-#include "be/list.h"	/* m0_be_list */
-
+struct m0_be_op;
 struct m0_be_seg;
 struct m0_be_tx;
 struct m0_be_tx_credit;
