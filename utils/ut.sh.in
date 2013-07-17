@@ -38,6 +38,13 @@ if test x$enable_rpm = xyes; then
 elif test x$1 = x-d ;then
     shift
     unset MERO_DEBUGGER
+    BINARY=@abs_top_srcdir@/utils/.libs/lt-$EXEC
+    if [ ! -x $BINARY ] ;then
+	#
+	# Create the binary first by running the wrapper.
+	#
+	@abs_top_srcdir@/utils/$EXEC -h >/dev/null 2>/dev/null
+    fi
     gdb -x @abs_top_srcdir@/.gdbinit \
 	--args @abs_top_srcdir@/utils/.libs/lt-$EXEC "$@"
 else
