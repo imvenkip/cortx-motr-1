@@ -18,7 +18,7 @@
  * Original creation date: 4-Jul-2013
  */
 
-#include "be/log_stor.h"
+#include "be/log_store.h"
 #include "be/be.h"
 
 #include "lib/misc.h"		/* M0_SET0 */
@@ -33,18 +33,18 @@ enum {
 	BE_UT_LOG_STOR_CR_NR = 0x7,
 };
 
-static char	   be_ut_log_stor_pre[BE_UT_LOG_STOR_SIZE];
-static char	   be_ut_log_stor_post[BE_UT_LOG_STOR_SIZE];
-static unsigned	   be_ut_log_stor_seed;
-static m0_bindex_t be_ut_log_stor_pos;
+static char	   be_ut_log_store_pre[BE_UT_LOG_STOR_SIZE];
+static char	   be_ut_log_store_post[BE_UT_LOG_STOR_SIZE];
+static unsigned	   be_ut_log_store_seed;
+static m0_bindex_t be_ut_log_store_pos;
 
 /* this random may have non-uniform distribution */
-static int be_ut_log_stor_rand(int mod)
+static int be_ut_log_store_rand(int mod)
 {
-	return rand_r(&be_ut_log_stor_seed) % mod;
+	return rand_r(&be_ut_log_store_seed) % mod;
 }
 
-static void be_ut_log_stor_io_read(struct m0_be_log_stor *ls,
+static void be_ut_log_store_io_read(struct m0_be_log_store *ls,
 				   char *buf,
 				   m0_bcount_t size)
 {
@@ -66,7 +66,7 @@ static void be_ut_log_stor_io_read(struct m0_be_log_stor *ls,
 	m0_be_io_fini(&bio);
 }
 
-static void be_ut_log_stor_rand_cr(struct m0_be_tx_credit *cr,
+static void be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr,
 				   m0_bcount_t size)
 {
 	m0_bcount_t i;
@@ -76,7 +76,7 @@ static void be_ut_log_stor_rand_cr(struct m0_be_tx_credit *cr,
 
 	m0_be_tx_credit_init(cr);
 	for (i = 0; i < size; ++i)
-		++buf[be_ut_log_stor_rand(BE_UT_LOG_STOR_CR_NR)];
+		++buf[be_ut_log_store_rand(BE_UT_LOG_STOR_CR_NR)];
 	for (i = 0; i < BE_UT_LOG_STOR_CR_NR; ++i)
 		if (buf[i] != 0)
 			m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, buf[i]));
@@ -84,7 +84,7 @@ static void be_ut_log_stor_rand_cr(struct m0_be_tx_credit *cr,
 	m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, 0));
 }
 
-static void be_ut_log_stor_io_write_sync(struct m0_be_io *bio)
+static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)
 {
 	struct m0_be_op op;
 	int		rc;
@@ -98,9 +98,9 @@ static void be_ut_log_stor_io_write_sync(struct m0_be_io *bio)
 	m0_be_op_fini(&op);
 }
 
-static void be_ut_log_stor_io_check(struct m0_be_log_stor *ls, m0_bcount_t size)
+static void be_ut_log_store_io_check(struct m0_be_log_store *ls, m0_bcount_t size)
 {
-	struct m0_be_log_stor_io lsi;
+	struct m0_be_log_store_io lsi;
 	struct m0_be_tx_credit	 io_cr_log;
 	struct m0_be_tx_credit	 io_cr_log_cblock;
 	struct m0_be_io		 io_log;
@@ -115,63 +115,63 @@ static void be_ut_log_stor_io_check(struct m0_be_log_stor *ls, m0_bcount_t size)
 	M0_PRE(size <= ARRAY_SIZE(rbuf));
 
 	for (i = 0; i < size; ++i)
-		rbuf[i] = be_ut_log_stor_rand(0x100);
+		rbuf[i] = be_ut_log_store_rand(0x100);
 
-	cblock_size = be_ut_log_stor_rand(size - 1) + 1;
+	cblock_size = be_ut_log_store_rand(size - 1) + 1;
 	data_size   = size - cblock_size;
 	M0_ASSERT(cblock_size > 0);
 	M0_ASSERT(data_size > 0);
 
-	be_ut_log_stor_rand_cr(&io_cr_log, data_size);
-	m0_be_log_stor_cblock_io_credit(&io_cr_log_cblock, cblock_size);
+	be_ut_log_store_rand_cr(&io_cr_log, data_size);
+	m0_be_log_store_cblock_io_credit(&io_cr_log_cblock, cblock_size);
 
 	rc = m0_be_io_init(&io_log, ls->ls_stob, &io_cr_log);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_be_io_init(&io_log_cblock, ls->ls_stob, &io_cr_log_cblock);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_be_log_stor_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
+	m0_be_log_store_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
 
 	/* save */
-	be_ut_log_stor_io_read(ls, be_ut_log_stor_pre,
-			       ARRAY_SIZE(be_ut_log_stor_pre));
+	be_ut_log_store_io_read(ls, be_ut_log_store_pre,
+			       ARRAY_SIZE(be_ut_log_store_pre));
 	/* log storage io */
-	m0_be_log_stor_io_add(&lsi, rbuf, data_size);
-	m0_be_log_stor_io_add_cblock(&lsi, &rbuf[data_size], cblock_size);
-	m0_be_log_stor_io_sort(&lsi);
-	m0_be_log_stor_io_fini(&lsi);
-	be_ut_log_stor_io_write_sync(&io_log);
-	be_ut_log_stor_io_write_sync(&io_log_cblock);
+	m0_be_log_store_io_add(&lsi, rbuf, data_size);
+	m0_be_log_store_io_add_cblock(&lsi, &rbuf[data_size], cblock_size);
+	m0_be_log_store_io_sort(&lsi);
+	m0_be_log_store_io_fini(&lsi);
+	be_ut_log_store_io_write_sync(&io_log);
+	be_ut_log_store_io_write_sync(&io_log_cblock);
 	/* do operation in saved memory representation of the log storage */
 	for (i = 0; i < size; ++i) {
-		be_ut_log_stor_pre[(be_ut_log_stor_pos + i) %
+		be_ut_log_store_pre[(be_ut_log_store_pos + i) %
 				   BE_UT_LOG_STOR_SIZE] = rbuf[i];
 	}
-	be_ut_log_stor_pos += size;
+	be_ut_log_store_pos += size;
 	/* check if it was done in log */
-	be_ut_log_stor_io_read(ls, be_ut_log_stor_post,
-			       ARRAY_SIZE(be_ut_log_stor_post));
-	cmp = memcmp(be_ut_log_stor_pre, be_ut_log_stor_post, size);
+	be_ut_log_store_io_read(ls, be_ut_log_store_post,
+			       ARRAY_SIZE(be_ut_log_store_post));
+	cmp = memcmp(be_ut_log_store_pre, be_ut_log_store_post, size);
 	M0_UT_ASSERT(cmp == 0);
 
 	m0_be_io_fini(&io_log_cblock);
 	m0_be_io_fini(&io_log);
 }
 
-static void be_ut_log_stor_io_check_nop(struct m0_be_log_stor *ls,
+static void be_ut_log_store_io_check_nop(struct m0_be_log_store *ls,
 					m0_bcount_t size)
 {
-	struct m0_be_log_stor_io lsi;
+	struct m0_be_log_store_io lsi;
 	struct m0_be_io		 io_log;
 	struct m0_be_io		 io_log_cblock;
 
-	m0_be_log_stor_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
-	m0_be_log_stor_io_fini(&lsi);
+	m0_be_log_store_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
+	m0_be_log_store_io_fini(&lsi);
 }
 
-static void be_ut_log_stor(bool fake_io)
+static void be_ut_log_store(bool fake_io)
 {
-	struct m0_be_log_stor ls;
+	struct m0_be_log_store ls;
 	const m0_bcount_t     log_size = BE_UT_LOG_STOR_SIZE;
 	m0_bcount_t	      used;
 	m0_bcount_t	      step;
@@ -179,48 +179,48 @@ static void be_ut_log_stor(bool fake_io)
 	int		      i;
 
 	M0_SET0(&ls);
-	m0_be_log_stor_init(&ls);
+	m0_be_log_store_init(&ls);
 
-	rc = m0_be_log_stor_create(&ls, log_size);
+	rc = m0_be_log_store_create(&ls, log_size);
 	M0_UT_ASSERT(rc == 0);
 
 	used = 0;
-	be_ut_log_stor_seed = 0;
-	be_ut_log_stor_pos = 0;
+	be_ut_log_store_seed = 0;
+	be_ut_log_store_pos = 0;
 	for (step = 2; step <= BE_UT_LOG_STOR_STEP; ++step) {
 		for (i = 0; i < BE_UT_LOG_STOR_ITER; ++i) {
 			M0_UT_ASSERT(0 <= used && used <= BE_UT_LOG_STOR_SIZE);
 			if (used + step <= log_size) {
-				rc = m0_be_log_stor_reserve(&ls, step);
+				rc = m0_be_log_store_reserve(&ls, step);
 				M0_UT_ASSERT(rc == 0);
 				used += step;
 				if (fake_io) {
-					be_ut_log_stor_io_check_nop(&ls, step);
+					be_ut_log_store_io_check_nop(&ls, step);
 				} else {
-					be_ut_log_stor_io_check(&ls, step);
+					be_ut_log_store_io_check(&ls, step);
 				}
 			} else {
-				rc = m0_be_log_stor_reserve(&ls, step);
+				rc = m0_be_log_store_reserve(&ls, step);
 				M0_UT_ASSERT(rc != 0);
-				m0_be_log_stor_discard(&ls, step);
+				m0_be_log_store_discard(&ls, step);
 				used -= step;
 			}
 		}
 	}
-	m0_be_log_stor_discard(&ls, used);
+	m0_be_log_store_discard(&ls, used);
 
-	m0_be_log_stor_destroy(&ls);
-	m0_be_log_stor_fini(&ls);
+	m0_be_log_store_destroy(&ls);
+	m0_be_log_store_fini(&ls);
 }
 
-void m0_be_ut_log_stor_reserve(void)
+void m0_be_ut_log_store_reserve(void)
 {
-	be_ut_log_stor(true);
+	be_ut_log_store(true);
 }
 
-void m0_be_ut_log_stor_io(void)
+void m0_be_ut_log_store_io(void)
 {
-	be_ut_log_stor(false);
+	be_ut_log_store(false);
 }
 
 /*

@@ -183,7 +183,7 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 					      struct m0_be_tx_group *group,
 					      struct m0_be_log *log)
 {
-	struct m0_be_log_stor_io lsi;
+	struct m0_be_log_store_io lsi;
 	struct m0_be_tx_credit   reg_cr;
 	struct m0_be_tx_credit   io_cr;
 	struct m0_be_reg_d      *rd;
@@ -198,7 +198,7 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 #if 1 /* XXX TODO: implement m0_be_group_ondisk_reset() and use it instead */
 	m0_be_io_reset(&go->go_io_seg);
 #endif
-	m0_be_log_stor_io_init(&lsi, &log->lg_stor, &go->go_io_log,
+	m0_be_log_store_io_init(&lsi, &log->lg_stor, &go->go_io_log,
 			       &go->go_io_log_cblock, io_cr.tc_reg_size);
 
 	/* merge transactions reg_area */
@@ -230,12 +230,12 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	for (i = 0; i < go->go_header.gh_reg_nr; ++i)
 		M0_BE_LOG_STOR_IO_ADD_PTR(&lsi, &go->go_reg[i]);
 	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
-		m0_be_log_stor_io_add(&lsi, rd->rd_buf, rd->rd_reg.br_size);
+		m0_be_log_store_io_add(&lsi, rd->rd_buf, rd->rd_reg.br_size);
 	}
-	m0_be_log_stor_io_add_cblock(&lsi, &go->go_cblock,
+	m0_be_log_store_io_add_cblock(&lsi, &go->go_cblock,
 				     sizeof(go->go_cblock));
-	m0_be_log_stor_io_sort(&lsi);
-	m0_be_log_stor_io_fini(&lsi);
+	m0_be_log_store_io_sort(&lsi);
+	m0_be_log_store_io_fini(&lsi);
 
 	/* add to seg io */
 	m0_be_reg_area_io_add(&go->go_area, &go->go_io_seg);

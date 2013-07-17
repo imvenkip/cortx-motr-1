@@ -18,7 +18,7 @@
  * Original creation date: 4-Jul-2013
  */
 
-#include "be/log_stor.h"
+#include "be/log_store.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"		/* M0_LOG */
@@ -48,16 +48,16 @@
  * @{
  */
 
-M0_INTERNAL void m0_be_log_stor_init(struct m0_be_log_stor *ls)
+M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls)
 {
 	M0_SET0(ls);
 }
 
-M0_INTERNAL void m0_be_log_stor_fini(struct m0_be_log_stor *ls)
+M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls)
 {
 }
 
-M0_INTERNAL bool m0_be_log_stor__invariant(struct m0_be_log_stor *ls)
+M0_INTERNAL bool m0_be_log_store__invariant(struct m0_be_log_store *ls)
 {
 	return ls != NULL &&
 		ls->ls_discarded <= ls->ls_pos &&
@@ -66,14 +66,14 @@ M0_INTERNAL bool m0_be_log_stor__invariant(struct m0_be_log_stor *ls)
 		     (ls->ls_reserved - ls->ls_discarded) <= ls->ls_size);
 }
 
-M0_INTERNAL int  m0_be_log_stor_open(struct m0_be_log_stor *ls)
+M0_INTERNAL int  m0_be_log_store_open(struct m0_be_log_store *ls)
 {
 	/* XXX */
 	M0_IMPOSSIBLE("Not implemented yet");
 	return -ENOSYS;
 }
 
-M0_INTERNAL void m0_be_log_stor_close(struct m0_be_log_stor *ls)
+M0_INTERNAL void m0_be_log_store_close(struct m0_be_log_store *ls)
 {
 	/* XXX */
 	M0_IMPOSSIBLE("Not implemented yet");
@@ -93,12 +93,12 @@ static struct m0_stob_id be_log_stor_stob_id = {
 static struct m0_stob_domain *be_log_stor_stob_dom;
 static struct m0_dtx	      be_log_stor_dtx;
 
-M0_INTERNAL int  m0_be_log_stor_create(struct m0_be_log_stor *ls,
+M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 				       m0_bcount_t ls_size)
 {
 	int rc;
 
-	M0_PRE(m0_be_log_stor__invariant(ls));
+	M0_PRE(m0_be_log_store__invariant(ls));
 
 	rc = mkdir(BE_LOG_STORAGE_DIR, 0700);
 #ifdef BE_LOG_STOR_DESTOROY_STOB
@@ -122,18 +122,18 @@ M0_INTERNAL int  m0_be_log_stor_create(struct m0_be_log_stor *ls,
 	ls->ls_bshift = ls->ls_stob->so_op->sop_block_shift(ls->ls_stob);
 	ls->ls_size = ls_size;
 
-	M0_POST(m0_be_log_stor__invariant(ls));
+	M0_POST(m0_be_log_store__invariant(ls));
 
 	return rc;
 }
 
-M0_INTERNAL void m0_be_log_stor_destroy(struct m0_be_log_stor *ls)
+M0_INTERNAL void m0_be_log_store_destroy(struct m0_be_log_store *ls)
 {
 #ifdef BE_LOG_STOR_DESTOROY_STOB
 	int rc;
 #endif
 
-	M0_PRE(m0_be_log_stor__invariant(ls));
+	M0_PRE(m0_be_log_store__invariant(ls));
 
 	m0_stob_put(ls->ls_stob);
 
@@ -145,73 +145,73 @@ M0_INTERNAL void m0_be_log_stor_destroy(struct m0_be_log_stor *ls)
 	M0_ASSERT(rc == 0);
 #endif
 
-	M0_POST(m0_be_log_stor__invariant(ls));
+	M0_POST(m0_be_log_store__invariant(ls));
 }
 
-M0_INTERNAL struct m0_stob *m0_be_log_stor_stob(struct m0_be_log_stor *ls)
+M0_INTERNAL struct m0_stob *m0_be_log_store_stob(struct m0_be_log_store *ls)
 {
 	return ls->ls_stob;
 }
 
-static m0_bcount_t be_log_stor_free(struct m0_be_log_stor *ls)
+static m0_bcount_t be_log_stor_free(struct m0_be_log_store *ls)
 {
 	return ls->ls_size - (ls->ls_reserved - ls->ls_discarded);
 }
 
-M0_INTERNAL int m0_be_log_stor_reserve(struct m0_be_log_stor *ls,
+M0_INTERNAL int m0_be_log_store_reserve(struct m0_be_log_store *ls,
 				       m0_bcount_t size)
 {
 	int rc;
 
 	M0_ENTRY("size = %lu", size);
 
-	M0_PRE(m0_be_log_stor__invariant(ls));
+	M0_PRE(m0_be_log_store__invariant(ls));
 	if (be_log_stor_free(ls) < size) {
 		rc = -ENOMEM;
 	} else {
 		ls->ls_reserved += size;
 		rc = 0;
 	}
-	M0_POST(m0_be_log_stor__invariant(ls));
+	M0_POST(m0_be_log_store__invariant(ls));
 
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL void m0_be_log_stor_discard(struct m0_be_log_stor *ls,
+M0_INTERNAL void m0_be_log_store_discard(struct m0_be_log_store *ls,
 					m0_bcount_t size)
 {
 	M0_ENTRY("size = %lu", size);
 
-	M0_PRE(m0_be_log_stor__invariant(ls));
+	M0_PRE(m0_be_log_store__invariant(ls));
 	M0_PRE(ls->ls_discarded + size <= ls->ls_pos);
 
 	ls->ls_discarded += size;
 
-	M0_POST(m0_be_log_stor__invariant(ls));
+	M0_POST(m0_be_log_store__invariant(ls));
 	M0_LEAVE();
 }
 
-static void be_log_stor_pos_advance(struct m0_be_log_stor *ls,
+static void be_log_stor_pos_advance(struct m0_be_log_store *ls,
 				    m0_bcount_t size,
 				    m0_bindex_t *pos_prev,
 				    m0_bindex_t *pos_curr)
 {
-	M0_PRE(m0_be_log_stor__invariant(ls));
+	M0_PRE(m0_be_log_store__invariant(ls));
 	M0_PRE(ls->ls_pos + size <= ls->ls_reserved);
 
 	*pos_prev = ls->ls_pos;
 	ls->ls_pos += size;
 	*pos_curr = ls->ls_pos;
 
-	M0_POST(m0_be_log_stor__invariant(ls));
+	M0_POST(m0_be_log_store__invariant(ls));
 }
 
-static m0_bcount_t be_log_stor_size(const struct m0_be_log_stor *ls)
+static m0_bcount_t be_log_stor_size(const struct m0_be_log_store *ls)
 {
 	return ls->ls_size;
 }
 
-M0_INTERNAL void m0_be_log_stor_cblock_io_credit(struct m0_be_tx_credit *credit,
+M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit,
 						 m0_bcount_t cblock_size)
 {
 	/* XXX */
@@ -221,13 +221,13 @@ M0_INTERNAL void m0_be_log_stor_cblock_io_credit(struct m0_be_tx_credit *credit,
 	*credit = M0_BE_TX_CREDIT(2, cblock_size);
 }
 
-M0_INTERNAL void m0_be_log_stor_io_init(struct m0_be_log_stor_io *lsi,
-					struct m0_be_log_stor *ls,
+M0_INTERNAL void m0_be_log_store_io_init(struct m0_be_log_store_io *lsi,
+					struct m0_be_log_store *ls,
 					struct m0_be_io *bio,
 					struct m0_be_io *bio_cblock,
 					m0_bcount_t size_reserved)
 {
-	*lsi = (struct m0_be_log_stor_io) {
+	*lsi = (struct m0_be_log_store_io) {
 		.lsi_ls		   = ls,
 		.lsi_io		   = bio,
 		.lsi_io_cblock	   = bio_cblock,
@@ -239,7 +239,7 @@ M0_INTERNAL void m0_be_log_stor_io_init(struct m0_be_log_stor_io *lsi,
 	m0_be_io_reset(bio_cblock);
 	be_log_stor_pos_advance(ls, size_reserved,
 				&lsi->lsi_pos, &lsi->lsi_end);
-	M0_POST(m0_be_log_stor_io__invariant(lsi));
+	M0_POST(m0_be_log_store_io__invariant(lsi));
 
 	M0_LEAVE();
 }
@@ -251,7 +251,7 @@ static bool be_log_stor_io_add_wraps(m0_bindex_t pos,
 	return pos / ls_size != (pos + size - 1) / ls_size;
 }
 
-static void be_log_stor_io_add_nowrap(struct m0_be_log_stor_io *lsi,
+static void be_log_stor_io_add_nowrap(struct m0_be_log_store_io *lsi,
 				      struct m0_be_io *bio,
 				      void *ptr,
 				      m0_bcount_t size,
@@ -267,7 +267,7 @@ static void be_log_stor_io_add_nowrap(struct m0_be_log_stor_io *lsi,
 	lsi->lsi_pos += size;
 }
 
-static void be_log_stor_io_add(struct m0_be_log_stor_io *lsi,
+static void be_log_stor_io_add(struct m0_be_log_store_io *lsi,
 			       struct m0_be_io *bio,
 			       void *ptr,
 			       m0_bcount_t size)
@@ -276,7 +276,7 @@ static void be_log_stor_io_add(struct m0_be_log_stor_io *lsi,
 	m0_bcount_t size1;
 	m0_bindex_t wrap_point;
 
-	M0_PRE(m0_be_log_stor_io__invariant(lsi));
+	M0_PRE(m0_be_log_store_io__invariant(lsi));
 	M0_PRE(size > 0);
 	M0_PRE(lsi->lsi_pos + size <= lsi->lsi_end);
 
@@ -292,44 +292,44 @@ static void be_log_stor_io_add(struct m0_be_log_stor_io *lsi,
 		be_log_stor_io_add_nowrap(lsi, bio, ptr, size - size1, ls_size);
 	}
 
-	M0_POST(m0_be_log_stor_io__invariant(lsi));
+	M0_POST(m0_be_log_store_io__invariant(lsi));
 }
 
-M0_INTERNAL void m0_be_log_stor_io_add(struct m0_be_log_stor_io *lsi,
+M0_INTERNAL void m0_be_log_store_io_add(struct m0_be_log_store_io *lsi,
 				       void *ptr,
 				       m0_bcount_t size)
 {
-	M0_PRE(m0_be_log_stor_io__invariant(lsi));
+	M0_PRE(m0_be_log_store_io__invariant(lsi));
 
 	be_log_stor_io_add(lsi, lsi->lsi_io, ptr, size);
 
-	M0_POST(m0_be_log_stor_io__invariant(lsi));
+	M0_POST(m0_be_log_store_io__invariant(lsi));
 }
 
-M0_INTERNAL void m0_be_log_stor_io_add_cblock(struct m0_be_log_stor_io *lsi,
+M0_INTERNAL void m0_be_log_store_io_add_cblock(struct m0_be_log_store_io *lsi,
 					      void *ptr_cblock,
 					      m0_bcount_t size_cblock)
 {
-	M0_PRE(m0_be_log_stor_io__invariant(lsi));
+	M0_PRE(m0_be_log_store_io__invariant(lsi));
 
 	lsi->lsi_pos = lsi->lsi_end - size_cblock;
 	be_log_stor_io_add(lsi, lsi->lsi_io_cblock, ptr_cblock, size_cblock);
 
-	M0_POST(m0_be_log_stor_io__invariant(lsi));
+	M0_POST(m0_be_log_store_io__invariant(lsi));
 }
 
-M0_INTERNAL void m0_be_log_stor_io_sort(struct m0_be_log_stor_io *lsi)
+M0_INTERNAL void m0_be_log_store_io_sort(struct m0_be_log_store_io *lsi)
 {
 	m0_stob_iovec_sort(&lsi->lsi_io->bio_io);
 	m0_stob_iovec_sort(&lsi->lsi_io_cblock->bio_io);
 }
 
-M0_INTERNAL void m0_be_log_stor_io_fini(struct m0_be_log_stor_io *lsi)
+M0_INTERNAL void m0_be_log_store_io_fini(struct m0_be_log_store_io *lsi)
 {
-	M0_PRE(m0_be_log_stor_io__invariant(lsi));
+	M0_PRE(m0_be_log_store_io__invariant(lsi));
 }
 
-M0_INTERNAL bool m0_be_log_stor_io__invariant(struct m0_be_log_stor_io *lsi)
+M0_INTERNAL bool m0_be_log_store_io__invariant(struct m0_be_log_store_io *lsi)
 {
 	return lsi != NULL && lsi->lsi_pos <= lsi->lsi_end;
 }

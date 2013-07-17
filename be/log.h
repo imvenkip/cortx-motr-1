@@ -24,7 +24,7 @@
 #ifndef __MERO_BE_LOG_H__
 #define __MERO_BE_LOG_H__
 
-#include "be/log_stor.h"
+#include "be/log_store.h"
 #include "be/tx_group.h"
 
 /**
@@ -58,7 +58,7 @@ struct m0_be_log {
 	 * a sequence of regions in segments, linked to each other through
 	 * header blocks.
 	 */
-	struct m0_be_log_stor	lg_stor;
+	struct m0_be_log_store	lg_stor;
 
 	/**
 	 * lsn to be used for the next log element.

@@ -6,7 +6,7 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c     \
                             be/ut/io.c        \
                             be/ut/list.c      \
                             be/ut/log.c       \
-                            be/ut/log_stor.c  \
+			    be/ut/log_store.c \
                             be/ut/main.c      \
                             be/ut/seg.c       \
                             be/ut/tx.c        \

@@ -7,7 +7,7 @@ nobase_mero_include_HEADERS += be/alloc.h           \
                                be/io.h              \
                                be/list.h            \
                                be/log.h             \
-                               be/log_stor.h        \
+			       be/log_store.h       \
                                be/seg.h             \
                                be/seg_internal.h    \
                                be/tx.h              \
@@ -25,7 +25,7 @@ mero_libmero_la_SOURCES += be/alloc.c     \
                            be/io.c        \
                            be/list.c      \
                            be/log.c       \
-                           be/log_stor.c  \
+			   be/log_store.c \
                            be/seg.c       \
                            be/tx.c        \
                            be/tx_credit.c \
