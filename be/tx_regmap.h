@@ -58,10 +58,10 @@ struct m0_be_reg_d {
 
 #define M0_BE_REG_D_CREDIT(rd) M0_BE_TX_CREDIT(1, (rd)->rd_reg.br_size)
 
-/* Regions tree */
+/** Regions tree. */
 struct m0_be_reg_d_tree {
-	size_t		    brt_size;
-	size_t		    brt_size_max;
+	size_t              brt_size;
+	size_t              brt_size_max;
 	struct m0_be_reg_d *brt_r;
 };
 
