@@ -37,7 +37,8 @@ extern void m0_be_ut_reg_area_simple(void);
 extern void m0_be_ut_reg_area_random(void);
 extern void m0_be_ut_reg_area_merge(void);
 
-extern void m0_be_ut_tx_simple(void);
+extern void m0_be_ut_tx_single(void);
+extern void m0_be_ut_tx_several(void);
 
 extern void m0_be_ut_io(void);
 extern void m0_be_ut_log_stor_reserve(void);
@@ -131,8 +132,9 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
-		{ "tx-simple",        m0_be_ut_tx_simple            },
 #endif
+		{ "tx-single",        m0_be_ut_tx_single            },
+		{ "tx-several",       m0_be_ut_tx_several           },
 		{ "btree",            m0_be_ut_btree_simple         },
 		{ "list",             m0_be_ut_list_api             },
 		{ "io (XXX NOOP)",    m0_be_ut_io                   },

@@ -19,7 +19,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
-#include "lib/trace.h"		/* M0_LOG */
+#include "lib/trace.h"
 
 #include "be/tx_group_ondisk.h"
 
@@ -36,13 +36,14 @@
  * @{
  */
 
-void be_tx_group_ondisk_cblock_credit(struct m0_be_tx_credit *cblock)
-{
-	m0_be_log_cblock_credit(cblock, sizeof(struct tx_group_commit_block));
-}
+static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,
+			 const struct m0_be_tx_credit *cr_logrec,
+			 const struct m0_be_tx_credit *cr_commit_block,
+			 const struct m0_be_tx_credit *cr_group_maxsize);
+static void group_io_fini(struct m0_be_group_ondisk *g);
 
-void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
-				const struct m0_be_tx_credit *prepared)
+M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
+				     const struct m0_be_tx_credit *prepared)
 {
 	*io_tx = *prepared;
 
@@ -58,13 +59,12 @@ void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
 						  tx_group_commit_block));
 }
 
-void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
-				   size_t tx_nr_max,
-				   const struct m0_be_tx_credit *prepared)
+M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
+					size_t tx_nr_max,
+					const struct m0_be_tx_credit *prepared)
 {
 	struct m0_be_tx_credit io_tx;
-
-	M0_ASSERT(tx_nr_max > 0);
+	M0_PRE(tx_nr_max > 0);
 
 	m0_be_tx_credit_init(io_group);
 
@@ -84,49 +84,47 @@ static void be_group_ondisk_free(struct m0_be_group_ondisk *go)
 M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
-					struct m0_be_tx_credit *size_max)
+					const struct m0_be_tx_credit *size_max)
 {
-	struct m0_be_tx_credit credit_log;
-	struct m0_be_tx_credit credit_log_cblock;
-	int		       rc;
-	int		       rc1;
-	int		       rc2;
-	int		       rc3;
-	int		       rc4;
+	struct m0_be_tx_credit cr_logrec;
+	struct m0_be_tx_credit cr_commit_block;
+	int                    rc;
 
 	M0_ENTRY();
 
 	M0_ALLOC_ARR(go->go_entry, tx_nr_max);
+	if (go->go_entry == NULL)
+		goto err;
+
 	M0_ALLOC_ARR(go->go_reg, size_max->tc_reg_nr);
+	if (go->go_reg == NULL)
+		goto err_entry;
 
-	be_log_io_credit_group(&credit_log, tx_nr_max, size_max);
-	be_tx_group_ondisk_cblock_credit(&credit_log_cblock);
-	m0_be_tx_credit_sub(&credit_log, &credit_log_cblock);
+	be_log_io_credit_group(&cr_logrec, tx_nr_max, size_max);
+	m0_be_log_cblock_credit(&cr_commit_block,
+				sizeof(struct tx_group_commit_block));
+	m0_be_tx_credit_sub(&cr_logrec, &cr_commit_block);
 
-	rc1 = m0_be_io_init(&go->go_io_log, log_stob, &credit_log);
-	rc2 = m0_be_io_init(&go->go_io_log_cblock, log_stob,
-			    &credit_log_cblock);
-	rc3 = m0_be_io_init(&go->go_io_seg, log_stob, size_max);
+	rc = group_io_init(go, log_stob, &cr_logrec, &cr_commit_block,
+			   size_max);
+	if (rc != 0)
+		goto err_reg;
 
-	rc4 = m0_be_reg_area_init(&go->go_area, size_max, false);
+	rc = m0_be_reg_area_init(&go->go_area, size_max, false);
+	if (rc != 0)
+		goto err_io;
 
-	if (go->go_entry == NULL || go->go_reg == NULL ||
-	    rc1 != 0 || rc2 != 0 || rc3 != 0 || rc4 != 0) {
-		if (rc1 == 0)
-			m0_be_io_fini(&go->go_io_log);
-		if (rc2 == 0)
-			m0_be_io_fini(&go->go_io_log_cblock);
-		if (rc3 == 0)
-			m0_be_io_fini(&go->go_io_seg);
-		if (rc4 == 0)
-			m0_be_reg_area_fini(&go->go_area);
-		be_group_ondisk_free(go);
-		rc = -ENOMEM;
-	} else {
-		rc = 0;
-	}
-	M0_POST(ergo(rc == 0, m0_be_group_ondisk__invariant(go)));
-	M0_RETURN(rc);
+	M0_POST(m0_be_group_ondisk__invariant(go));
+	M0_RETURN(0);
+
+err_io:
+	group_io_fini(go);
+err_reg:
+	m0_free(go->go_reg);
+err_entry:
+	m0_free(go->go_entry);
+err:
+	M0_RETURN(-ENOMEM);
 }
 
 M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go)
@@ -141,7 +139,7 @@ M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go)
 
 M0_INTERNAL bool m0_be_group_ondisk__invariant(struct m0_be_group_ondisk *go)
 {
-	return true;
+	return true; /* XXX TODO */
 }
 
 M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go)
@@ -175,7 +173,7 @@ M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
 						*io_reserved)
 {
 	struct m0_be_tx_credit reserved = M0_BE_TX_CREDIT(0, 0);
-	size_t		       tx_nr = 0;
+	size_t                 tx_nr;
 
 	m0_be_group_ondisk_reserved(go, group, &reserved, &tx_nr);
 	be_log_io_credit_group(io_reserved, tx_nr, &reserved);
@@ -186,17 +184,20 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 					      struct m0_be_log *log)
 {
 	struct m0_be_log_stor_io lsi;
-	struct m0_be_tx_credit	 reg_cr;
-	struct m0_be_tx_credit	 io_cr;
-	struct m0_be_reg_d	*rd;
-	struct m0_be_tx		*tx;
-	int			 i;
-	uint64_t		 tx_nr;
-	uint64_t		 reg_nr;
+	struct m0_be_tx_credit   reg_cr;
+	struct m0_be_tx_credit   io_cr;
+	struct m0_be_reg_d      *rd;
+	struct m0_be_tx         *tx;
+	int                      i;
+	uint64_t                 tx_nr;
+	uint64_t                 reg_nr;
 
 
 	m0_be_group_ondisk_reserved(go, group, &reg_cr, &tx_nr);
 	m0_be_group_ondisk_io_reserved(go, group, &io_cr);
+#if 1 /* XXX TODO: implement m0_be_group_ondisk_reset() and use it instead */
+	m0_be_io_reset(&go->go_io_seg);
+#endif
 	m0_be_log_stor_io_init(&lsi, &log->lg_stor, &go->go_io_log,
 			       &go->go_io_log_cblock, io_cr.tc_reg_size);
 
@@ -243,6 +244,43 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	m0_be_io_configure(&go->go_io_log_cblock, SIO_WRITE);
 	m0_be_io_configure(&go->go_io_seg, SIO_WRITE);
 }
+
+static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,
+			 const struct m0_be_tx_credit *cr_logrec,
+			 const struct m0_be_tx_credit *cr_commit_block,
+			 const struct m0_be_tx_credit *cr_group_maxsize)
+{
+	int rc;
+	/*
+	 * XXX TODO: Write a small library module for dealing with chains
+	 * of init/fini statements. The implementation will be pretty much
+	 * similar to mero/init.c.
+	 */
+	rc = m0_be_io_init(&g->go_io_log, stob, cr_logrec);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_be_io_init(&g->go_io_log_cblock, stob, cr_commit_block);
+	if (rc != 0)
+		goto err;
+
+	rc = m0_be_io_init(&g->go_io_seg, stob, cr_group_maxsize);
+	if (rc == 0)
+		return 0;
+
+	m0_be_io_fini(&g->go_io_log_cblock);
+err:
+	m0_be_io_fini(&g->go_io_log);
+	return rc;
+}
+
+static void group_io_fini(struct m0_be_group_ondisk *g)
+{
+	m0_be_io_fini(&g->go_io_seg);
+	m0_be_io_fini(&g->go_io_log_cblock);
+	m0_be_io_fini(&g->go_io_log);
+}
+
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
 

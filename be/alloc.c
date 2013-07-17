@@ -14,24 +14,18 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original author: Maxim Medved <maxim_medved@xyratex.com>
  * Original creation date: 29-May-2013
  */
 
 #include "be/alloc.h"
 #include "be/alloc_internal.h"
-
-#include "lib/types.h"		/* m0_bcount_t */
-#include "lib/memory.h"		/* m0_addr_is_aligned */
-#include "lib/errno.h"		/* ENOSPC */
-#include "mero/magic.h"		/* M0_BE_ALLOC_MAGIC0 */
-
-#include "be/list.h"		/* m0_be_list */
-#include "be/seg.h"		/* m0_be_get */
-#include "be/seg_internal.h"	/* m0_be_seg_hdr */
-#include "be/tx.h"		/* m0_be_tx_credit */
-#include "be/be.h"		/* m0_be_op */
-#include "be/tx_credit.h"	/* m0_be_tx_credit_add */
+#include "be/seg_internal.h"    /* m0_be_seg_hdr */
+#include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
+#include "be/be.h"              /* m0_be_op */
+#include "lib/memory.h"         /* m0_addr_is_aligned */
+#include "lib/errno.h"          /* ENOSPC */
+#include "mero/magic.h"
 
 /**
  * @addtogroup be

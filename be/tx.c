@@ -40,7 +40,6 @@
 
 static int placed_st_in(struct m0_sm *mach);
 static int   done_st_in(struct m0_sm *mach);
-static void _tx_group(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
 M0_TL_DESCR_DEFINE(eng, "m0_be_tx_engine::te_txs[]", M0_INTERNAL,
 		   struct m0_be_tx, t_engine_linkage, t_magic,
@@ -462,72 +461,49 @@ static void tx_fail(struct m0_be_tx *tx, int err)
 	M0_POST(m0_be__tx_invariant(tx));
 }
 
-/*
- * tx_group's fom and tx's sm may belong different sm_groups (e.g.,
- * they may be processed by different localities).
- *
- *             locality
- *             --------
- *             sm_group     sm_group    sm_group
- *                | |            |         | |
- *                | |            |         | |
- *      tx_group  | |            |         | |
- *      --------  | |            |         | |
- *           fom -' |            |         | |
- *                  |  tx    tx  |     tx  | |  tx
- *                  |  --    --  |     --  | |  --
- *                  `- sm    sm -'     sm -' `- sm
- *
- * ->fo_tick() of tx_group's fom shall not assume that sm_group of
- * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
- * implementation should post an AST to tx's sm_group.
- */
-
-M0_INTERNAL void _tx_ast_post(struct m0_be_tx *tx, struct m0_ref *ref,
-			      void post(struct m0_sm_group *grp,
-					struct m0_sm_ast *ast))
+static void _tx_grouped(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
-	M0_ENTRY();
+	m0_be__tx_state_set(container_of(ast, struct m0_be_tx, t_ast),
+			    M0_BTS_GROUPED);
+	m0_ref_put(ast->sa_datum);
+}
 
-	tx->t_ast.sa_cb = post;
+static void _tx_placed(struct m0_sm_group *_, struct m0_sm_ast *ast)
+{
+	m0_be__tx_state_set(container_of(ast, struct m0_be_tx, t_ast),
+			    M0_BTS_PLACED);
+}
+
+M0_INTERNAL void m0_be__tx_state_post(struct m0_be_tx    *tx,
+				      enum m0_be_tx_state to,
+				      struct m0_ref      *ref)
+{
+	/*
+	 * tx_group's fom and tx's sm may belong different sm_groups (e.g.,
+	 * they may be processed by different localities).
+	 *
+	 *             locality
+	 *             --------
+	 *             sm_group     sm_group    sm_group
+	 *                | |            |         | |
+	 *                | |            |         | |
+	 *      tx_group  | |            |         | |
+	 *      --------  | |            |         | |
+	 *           fom -' |            |         | |
+	 *                  |  tx    tx  |     tx  | |  tx
+	 *                  |  --    --  |     --  | |  --
+	 *                  `- sm    sm -'     sm -' `- sm
+	 *
+	 * ->fo_tick() of tx_group's fom shall not assume that sm_group of
+	 * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
+	 * implementation should post an AST to tx's sm_group.
+	 */
+	M0_PRE(M0_IN(to, (M0_BTS_GROUPED, M0_BTS_PLACED)));
+	M0_PRE((to == M0_BTS_PLACED) == (ref == NULL));
+
+	tx->t_ast.sa_cb = to == M0_BTS_GROUPED ? _tx_grouped : _tx_placed;
 	tx->t_ast.sa_datum = ref;
 	m0_sm_ast_post(tx->t_sm.sm_grp, &tx->t_ast);
-
-	M0_LEAVE();
-}
-
-static void _ast_tx_state_set(struct m0_sm_group *grp M0_UNUSED,
-			      struct m0_sm_ast *ast, int state)
-{
-	struct m0_be_tx *tx = container_of(ast, struct m0_be_tx, t_ast);
-
-	M0_ENTRY();
-	M0_PRE(!tx->t_group->tg_opened);
-
-	m0_be__tx_state_set(tx, state);
-	m0_ref_put(ast->sa_datum);
-
-	M0_LEAVE();
-}
-
-static void _tx_group(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
-{
-	_ast_tx_state_set(grp, ast, M0_BTS_GROUPED);
-}
-
-static void _tx_placed(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
-{
-	_ast_tx_state_set(grp, ast, M0_BTS_PLACED);
-}
-
-M0_INTERNAL void m0_be__tx_group_post(struct m0_be_tx *tx, struct m0_ref *ref)
-{
-	_tx_ast_post(tx, ref, _tx_group);
-}
-
-M0_INTERNAL void m0_be__tx_placed_post(struct m0_be_tx *tx, struct m0_ref *ref)
-{
-	_tx_ast_post(tx, ref, _tx_placed);
 }
 
 static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx)
