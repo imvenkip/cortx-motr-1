@@ -551,28 +551,36 @@ M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
 
 	switch (optype) {
 	case M0_BEO_CREATE:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_CREATE, nr, accum);
+		m0_be_btree_create_credit(&map->em_mapping, nr, accum);
 		break;
 	case M0_BEO_DESTROY:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_DESTROY, nr, accum);
+		m0_be_btree_destroy_credit(&map->em_mapping, nr, accum);
 		break;
 	case M0_BEO_INSERT:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_INSERT, nr, accum);
+		m0_be_btree_insert_credit(&map->em_mapping, nr,
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_DELETE:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, nr, accum);
+		m0_be_btree_delete_credit(&map->em_mapping, nr,
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_UPDATE:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_UPDATE, nr, accum);
+		m0_be_btree_update_credit(&map->em_mapping, nr,
+			sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_MERGE:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, nr, accum);
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_INSERT, nr, accum);
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_UPDATE, nr, accum);
+		m0_be_btree_delete_credit(&map->em_mapping, nr,
+			sizeof map->em_key, sizeof map->em_rec, accum);
+		m0_be_btree_insert_credit(&map->em_mapping, nr,
+			sizeof map->em_key, sizeof map->em_rec, accum);
+		m0_be_btree_update_credit(&map->em_mapping, nr,
+			sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_SPLIT:
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, 1, accum);
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_INSERT, nr, accum);
+		m0_be_btree_delete_credit(&map->em_mapping, 1,
+			sizeof map->em_key, sizeof map->em_rec, accum);
+		m0_be_btree_insert_credit(&map->em_mapping, nr,
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_PASTE:
 		/*
@@ -584,7 +592,8 @@ M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
 		 * Sequential deletes in btree end up in one delete credit
 		 * (according to Nikita).
 		 */
-		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, 1, accum);
+		m0_be_btree_delete_credit(&map->em_mapping, 1,
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	default:
 		M0_IMPOSSIBLE("invalid emap operation");
