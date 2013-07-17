@@ -270,7 +270,14 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	rc = rm_out_create(&outreq, otype, other, credit);
 	if (rc != 0)
 		goto out;
-	if (otype != M0_ROT_BORROW) {
+
+	switch (otype) {
+	case M0_ROT_BORROW:
+		rc = borrow_fop_fill(outreq, in, credit);
+		outreq->ou_ast.sa_cb = &borrow_ast;
+		session = other->rem_session;
+		break;
+	case M0_ROT_REVOKE: {
 		struct m0_clink *clink;
 
 		M0_ASSERT(loan != NULL);
@@ -288,20 +295,15 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 			m0_clink_fini(clink);
 		}
 		session = loan->rl_other->rem_session;
-	}
 
-	switch (otype) {
-	case M0_ROT_BORROW:
-		rc = borrow_fop_fill(outreq, in, credit);
-		outreq->ou_ast.sa_cb = &borrow_ast;
-		break;
-	case M0_ROT_REVOKE:
 		rc = revoke_fop_fill(outreq, in, loan, credit);
 		outreq->ou_ast.sa_cb = &revoke_ast;
 		break;
+	}
 	case M0_ROT_CANCEL:
 		rc = cancel_fop_fill(outreq, loan);
 		outreq->ou_ast.sa_cb = &cancel_ast;
+		session = loan->rl_other->rem_session;
 		break;
 	default:
 		M0_IMPOSSIBLE("No such RM outgoing request type");
@@ -323,9 +325,9 @@ int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 		goto out;
 
 	M0_LOG(M0_DEBUG, "sending request: %p over session: %p",
-			 outreq, session);
-	outreq->ou_fop.f_item.ri_session =
-		outreq->ou_req.rog_want.rl_other->rem_session;
+	       outreq, session);
+	M0_ASSERT(session != NULL);
+	outreq->ou_fop.f_item.ri_session = session;
 	outreq->ou_fop.f_item.ri_ops = &rm_request_rpc_ops;
 	m0_rpc_post(&outreq->ou_fop.f_item);
 
@@ -409,8 +411,6 @@ out:
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fop_generic_reply *revoke_reply;
-	struct m0_rm_owner	    *owner;
-	struct m0_rm_credit	    *credit;
 	struct m0_rm_credit	    *out_credit;
 	struct rm_out		    *outreq;
 	struct m0_rpc_item	    *item;
@@ -421,7 +421,6 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	outreq     = container_of(ast, struct rm_out, ou_ast);
 	out_credit = &outreq->ou_req.rog_want.rl_credit;
-	owner      = out_credit->cr_owner;
 
 	item = &outreq->ou_fop.f_item;
 	rc   = item->ri_error;
@@ -435,23 +434,8 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				 outreq, rc);
 		goto out;
 	}
-	rc = m0_rm_credit_dup(out_credit, &credit);
-	if (rc == 0) {
-		rc = _sublet_remove(out_credit);
-		if (rc == 0) {
-			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   credit);
-			M0_LOG(M0_INFO, "revoke request:%p sublet removed "
-					"- credit cached\n", outreq);
-		} else {
-			m0_free(credit);
-			M0_LOG(M0_ERROR, "revoke request:%p sublet removal "
-					 "failed: rc [%d]\n", outreq, rc);
-		}
-	} else
-		M0_LOG(M0_ERROR, "revoke request:%p credit allocation "
-				 "failed: rc [%d]\n", outreq, rc);
 
+	rc = _sublet_remove(out_credit);
 out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);

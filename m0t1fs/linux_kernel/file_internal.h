@@ -1042,6 +1042,7 @@ struct io_request_ops;
 struct nw_xfer_ops;
 struct pargrp_iomap_ops;
 struct target_ioreq_ops;
+struct m0_file;
 
 enum   page_attr;
 enum   copy_direction;
@@ -1313,7 +1314,7 @@ struct io_request_ops {
 	 * @pre  req->ir_state == IRS_INITIALIZED.
 	 * @post req->ir_state == IRS_LOCK_ACQUIRED.
 	 */
-	void (*iro_file_lock)     (struct io_request *req);
+	int  (*iro_file_lock)     (struct io_request *req);
 
 	/**
 	 * Relinquishes the distributed lock on whole file.
@@ -1381,6 +1382,9 @@ struct io_request {
 
         /** Run-time addb context of the operation */
         struct m0_addb_ctx           ir_addb_ctx;
+
+	/** A request to borrow resource from creditor */
+	struct m0_rm_incoming        ir_in;
 
 	/**
 	 * State of SNS repair process with respect to

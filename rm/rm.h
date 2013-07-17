@@ -1560,6 +1560,14 @@ m0_rm_resource_type_lookup(const struct m0_rm_domain *dom,
 			   const uint64_t             rtype_id);
 
 /**
+ * Returns a resource equal to a given one from a resource type's resource list
+ * or NULL if none.
+ */
+M0_INTERNAL struct m0_rm_resource *
+m0_rm_resource_find(const struct m0_rm_resource_type *rt,
+		    const struct m0_rm_resource      *res);
+
+/**
  * Adds a resource to the list of resources and increments resource type
  * reference count.
  *

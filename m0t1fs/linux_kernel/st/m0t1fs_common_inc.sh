@@ -26,7 +26,6 @@ MERO_MODULE_TRACE_MASK='!all'
 MERO_TRACE_PRINT_CONTEXT=short
 MERO_TRACE_LEVEL='call+'
 
-
 #user-space tracing parameters
 export M0_TRACE_IMMEDIATE_MASK='!all' # put your subsystem here
 export M0_TRACE_LEVEL=debug+
@@ -38,6 +37,7 @@ MERO_ADDBSERVICE_NAME=addb
 MERO_IOSERVICE_NAME=ioservice
 MERO_MDSERVICE_NAME=mdservice
 MERO_CMSERVICE_NAME=sns_cm
+MERO_RMSERVICE_NAME=rmservice
 MERO_STOB_DOMAIN=linux
 
 PREPARE_STORAGE="-p"

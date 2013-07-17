@@ -220,23 +220,44 @@ static void rms_stop(struct m0_reqh_service *service)
 	M0_LEAVE();
 }
 
+static struct m0_rm_owner *
+rmsvc_owner_lookup(const struct m0_reqh_rm_service *rms,
+		   const struct m0_rm_resource     *res)
+{
+	struct m0_rm_owner         *scan;
+	struct m0_rm_resource_type *rt;
+
+	M0_PRE(res != NULL);
+	M0_PRE(rms != NULL);
+
+	rt = res->r_type;
+	M0_ASSERT(rt->rt_ops->rto_eq != NULL);
+
+	m0_tl_for (rmsvc_owner, &rms->rms_owners, scan) {
+		M0_ASSERT(scan != NULL);
+		if (rt->rt_ops->rto_eq(res, scan->ro_resource))
+			break;
+	} m0_tl_endfor;
+	return scan;
+}
+
 M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
-				       struct m0_rm_owner    **owner,
+				       struct m0_rm_owner    **out,
 				       struct m0_buf          *resbuf)
 {
 	int                         rc;
 	struct m0_reqh_rm_service  *rms;
 	uint64_t                    rtype_id;
 	struct m0_rm_resource      *resource;
+	struct m0_rm_owner         *owner;
 	struct m0_rm_resource_type *rtype;
 	struct m0_bufvec_cursor     cursor;
-	struct m0_rm_credit        *owner_credit = NULL;
+	struct m0_rm_credit        *ow_cr = NULL;
 	struct m0_bufvec            datum_buf =
 		M0_BUFVEC_INIT_BUF(&resbuf->b_addr,
 				   &resbuf->b_nob);
 
 	M0_PRE(service != NULL);
-	M0_PRE(*owner != NULL);
 
 	M0_ENTRY();
 
@@ -254,32 +275,56 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 	M0_ASSERT(rtype->rt_ops != NULL);
 	rc = rtype->rt_ops->rto_decode(&cursor, &resource);
 	if (rc == 0) {
-		resource->r_type = rtype;
-		m0_rm_resource_add(rtype, resource);
-		m0_rm_owner_init(*owner, resource, NULL);
+		struct m0_rm_resource *resadd;
 
-		RM_ALLOC_PTR(owner_credit, OWNER_CREDIT_ALLOC, &m0_rm_addb_ctx);
-		if (owner_credit == NULL) {
-			rc = -ENOMEM;
-			goto err_owner;
+		resadd = m0_rm_resource_find(rtype, resource);
+		if (resadd == NULL) {
+			resource->r_type = rtype;
+			m0_rm_resource_add(rtype, resource);
+		} else {
+			m0_rm_resource_free(resource);
+			resource = resadd;
 		}
-		m0_rm_credit_init(owner_credit, *owner);
-		owner_credit->cr_ops->cro_initial_capital(owner_credit);
-		rc = m0_rm_owner_selfadd(*owner, owner_credit);
-		m0_free(owner_credit);
-		if (rc != 0)
-			goto err_credit;
-		rmsvc_owner_tlink_init_at_tail(*owner, &rms->rms_owners);
+
+		owner = rmsvc_owner_lookup(rms, resource);
+		if (owner == NULL) {
+			RM_ALLOC_PTR(owner, RMSVC_OWNER_ALLOC,
+				     &m0_rm_addb_ctx);
+			if (owner == NULL) {
+				rc = -ENOMEM;
+				goto err_resource;
+			} else {
+				m0_rm_owner_init(owner, resource, NULL);
+
+				RM_ALLOC_PTR(ow_cr, OWNER_CREDIT_ALLOC,
+					     &m0_rm_addb_ctx);
+				if (ow_cr == NULL) {
+					rc = -ENOMEM;
+					goto err_owner;
+				}
+				m0_rm_credit_init(ow_cr, owner);
+				ow_cr->cr_ops->cro_initial_capital(ow_cr);
+				rc = m0_rm_owner_selfadd(owner, ow_cr);
+				m0_free(ow_cr);
+				if (rc != 0)
+					goto err_credit;
+				rmsvc_owner_tlink_init_at_tail(owner,
+						&rms->rms_owners);
+			}
+		}
+		*out = owner;
 	}
 
 	M0_RETURN(rc);
 
 err_credit:
-	m0_rm_credit_fini(owner_credit);
-	m0_free(owner_credit);
+	m0_rm_credit_fini(ow_cr);
+	m0_free(ow_cr);
 err_owner:
-	m0_rm_owner_fini(*owner);
+	m0_rm_owner_fini(owner);
+err_resource:
 	m0_rm_resource_del(resource);
+
 
 	M0_RETURN(rc);
 }
@@ -307,16 +352,30 @@ static void rms_stats_post_addb(struct m0_reqh_service *service)
 
 	for (i = 0; i < ARRAY_SIZE(dom->rd_types); ++i) {
 		struct m0_rm_resource_type *rt = dom->rd_types[i];
-		struct rm_addb_stats       *as = &rt->rt_addb_stats;
+		struct rm_addb_stats       *as;
 
-		for (j = 0; j < ARRAY_SIZE(as->as_req); ++j) {
-			CNTR_POST(as->as_req[j].rs_nr);
-			CNTR_POST(as->as_req[j].rs_time);
-			as->as_req[j].rs_count = 0;
+		if (rt != NULL) {
+			as = &rt->rt_addb_stats;
+			for (j = 0; j < ARRAY_SIZE(as->as_req); ++j) {
+				CNTR_POST(as->as_req[j].rs_nr);
+				CNTR_POST(as->as_req[j].rs_time);
+				as->as_req[j].rs_count = 0;
+			}
+			CNTR_POST(as->as_credit_time);
 		}
-		CNTR_POST(as->as_credit_time);
 	}
 #undef CNTR_POST
+}
+
+M0_INTERNAL struct m0_rm_domain *
+m0_rm_svc_domain_get(const struct m0_reqh_service *svc)
+{
+	struct m0_reqh_rm_service *rms;
+
+	M0_PRE(svc != NULL);
+	M0_PRE(svc->rs_type == &m0_rms_type);
+	rms = bob_of(svc, struct m0_reqh_rm_service, rms_svc, &rms_bob);
+	return &rms->rms_dom;
 }
 
 /** @} end of rm_service group */

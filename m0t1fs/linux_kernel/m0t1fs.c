@@ -26,11 +26,13 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"  /* M0_LOG and M0_ENTRY */
 #include "lib/memory.h"
+#include "lib/uuid.h"   /* m0_uuid_generate */
 #include "net/lnet/lnet.h"
 #include "fid/fid.h"
 #include "ioservice/io_fops.h"
 #include "mdservice/md_fops.h"
 #include "rpc/rpclib.h"
+#include "rm/rm.h"
 
 static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
 module_param(node_uuid, charp, S_IRUGO);
@@ -58,6 +60,9 @@ static void m0t1fs_rpc_fini(void);
 
 static int  m0t1fs_layout_init(void);
 static void m0t1fs_layout_fini(void);
+
+static int m0t1fs_reqh_services_start(void);
+static void m0t1fs_reqh_services_stop(void);
 
 struct m0_addb_ctx m0t1fs_addb_ctx;
 
@@ -278,17 +283,22 @@ static int m0t1fs_rpc_init(void)
 	tm = &rpc_machine->rm_tm;
 	M0_ASSERT(tm->ntm_recv_pool == buffer_pool);
 
-	M0_LEAVE("rc: %d", rc);
-	return 0;
+	m0_reqh_rpc_mach_tlink_init_at_tail(rpc_machine,
+					    &reqh->rh_rpc_machines);
+
+	/* Start resource manager service */
+	rc = m0t1fs_reqh_services_start();
+	if (rc != 0)
+		goto reqh_fini;
+
+	M0_RETURN(0);
 
 reqh_fini:
 	m0_reqh_fini(reqh);
 cob_dom_fini:
 	m0_cob_domain_fini(cob_dom);
-
 dbenv_fini:
 	m0_dbenv_fini(dbenv);
-
 pool_fini:
 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
 	M0_LEAVE("rc: %d", rc);
@@ -300,8 +310,9 @@ static void m0t1fs_rpc_fini(void)
 {
 	M0_ENTRY();
 
+	m0t1fs_reqh_services_stop();
+	m0_reqh_rpc_mach_tlink_del_fini(&m0t1fs_globals.g_rpc_machine);
 	m0_rpc_machine_fini(&m0t1fs_globals.g_rpc_machine);
-	m0_reqh_services_terminate(&m0t1fs_globals.g_reqh);
 	m0_reqh_fini(&m0t1fs_globals.g_reqh);
 	m0_cob_domain_fini(&m0t1fs_globals.g_cob_dom);
 	m0_dbenv_fini(&m0t1fs_globals.g_dbenv);
@@ -325,8 +336,7 @@ static int m0t1fs_layout_init(void)
 			m0_layout_domain_fini(&m0t1fs_globals.g_layout_dom);
 	}
 
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	M0_RETURN(rc);
 }
 
 static void m0t1fs_layout_fini(void)
@@ -337,4 +347,35 @@ static void m0t1fs_layout_fini(void)
 	m0_layout_domain_fini(&m0t1fs_globals.g_layout_dom);
 
 	M0_LEAVE();
+}
+
+static int m0t1fs_service_start(const char *sname)
+{
+	int                          rc;
+	struct m0_reqh              *reqh = &m0t1fs_globals.g_reqh;
+	struct m0_reqh_service_type *stype;
+	struct m0_reqh_service      *service;
+	struct m0_uint128            uuid;
+
+	stype = m0_reqh_service_type_find(sname);
+	if (stype == NULL)
+		M0_RETURN(-EINVAL);
+	rc = m0_reqh_service_allocate(&service, stype, NULL);
+	if (rc != 0)
+		M0_RETURN(rc);
+	m0_uuid_generate(&uuid);
+	m0_reqh_service_init(service, reqh, &uuid);
+	rc = m0_reqh_service_start(service);
+
+	M0_RETURN(rc);
+}
+
+static int m0t1fs_reqh_services_start(void)
+{
+	return m0t1fs_service_start("rmservice");
+}
+
+static void m0t1fs_reqh_services_stop(void)
+{
+	m0_reqh_services_terminate(&m0t1fs_globals.g_reqh);
 }

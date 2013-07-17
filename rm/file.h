@@ -26,7 +26,6 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
-#include "lib/trace.h"
 #include "fid/fid.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
@@ -136,6 +135,12 @@ M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom);
  * De-registers the resource of type 'distributed mutex' from a resource domain.
  */
 M0_INTERNAL void m0_file_lock_type_deregister(void);
+
+/**
+ * Check whether a file lock resource with description given in @fid is
+ * registered with file lock domain.
+ */
+M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid);
 
 /** @} end of FileLock */
 

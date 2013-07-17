@@ -20,7 +20,7 @@
 
 #undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
-
+#include "lib/trace.h"
 #include "lib/arith.h"
 #include "fid/fid_xc.h"
 #include "xcode/xcode.h"
@@ -444,7 +444,6 @@ static int file_lock_cr_encode(struct m0_rm_credit     *self,
 static int file_lock_cr_decode(struct m0_rm_credit     *self,
 			       struct m0_bufvec_cursor *cur)
 {
-	//M0_PRE(self->cr_datum == 0);
 	return file_lock_cr_encdec(self, cur, M0_XCODE_DECODE);
 }
 
@@ -521,7 +520,7 @@ M0_EXPORTED(m0_file_unlock);
 M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom)
 {
 	M0_ENTRY();
-	M0_SET0(&flock_rt);
+
 	flock_rt.rt_id = M0_RM_FLOCK_RT;
 	flock_rt.rt_ops = &file_lock_type_ops;
 	M0_RETURN(m0_rm_type_register(dom, &flock_rt));
@@ -535,6 +534,18 @@ M0_INTERNAL void m0_file_lock_type_deregister(void)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_file_lock_type_deregister);
+
+M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid)
+{
+	struct m0_file file;
+
+	M0_PRE(fid != NULL);
+
+	m0_fid_set(&file.fi_fid, fid->f_container, fid->f_key);
+	return m0_rm_resource_find(&flock_rt, &file.fi_res) == NULL ?
+		false : true;
+}
+M0_EXPORTED(m0_file_lock_resource_is_added);
 
 /** @} end of FileLock */
 

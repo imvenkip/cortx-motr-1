@@ -92,6 +92,10 @@ M0_INTERNAL void m0_rms_unregister(void);
 M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				       struct m0_rm_owner    **owner,
 				       struct m0_buf          *resbuf);
+
+M0_INTERNAL struct m0_rm_domain *
+m0_rm_svc_domain_get(const struct m0_reqh_service *svc);
+
 /** @} end of rm_service group */
 
 #endif /* __MERO_RM_RM_SERVICE_H__ */

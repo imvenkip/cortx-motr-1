@@ -155,7 +155,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
-	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },

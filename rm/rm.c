@@ -50,7 +50,7 @@ static bool resource_type_invariant(const struct m0_rm_resource_type *rt);
 
 static void owner_balance          (struct m0_rm_owner *o);
 static bool owner_invariant        (struct m0_rm_owner *owner);
-static int  owner_credit_remove    (struct m0_rm_credit *credit,
+static int  owner_loan_remove      (struct m0_rm_credit *credit,
 				    struct m0_tl *list);
 
 static void pin_del                (struct m0_rm_pin *pin);
@@ -109,10 +109,6 @@ static int loan_dup		    (const struct m0_rm_loan *src_loan,
 				     struct m0_rm_loan **dest_loan);
 static void owner_liquidate	    (struct m0_rm_owner *src_owner);
 static void credit_processor        (struct m0_rm_resource_type *rt);
-
-static struct m0_rm_resource *
-resource_find(const struct m0_rm_resource_type *rt,
-	      const struct m0_rm_resource *res);
 
 #define INCOMING_CREDIT(in) in->rin_want.cr_datum
 
@@ -234,13 +230,9 @@ static const struct m0_rm_incoming_ops windup_incoming_ops = {
 	.rio_conflict = windup_incoming_conflict,
 };
 
-/**
- * Returns a resource equal to a given one from a resource type's resource list
- * or NULL if none.
- */
-static struct m0_rm_resource *
-resource_find(const struct m0_rm_resource_type *rt,
-	      const struct m0_rm_resource      *res)
+M0_INTERNAL struct m0_rm_resource *
+m0_rm_resource_find(const struct m0_rm_resource_type *rt,
+		    const struct m0_rm_resource      *res)
 {
 	struct m0_rm_resource *scan;
 
@@ -361,7 +353,7 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE(resource_type_invariant(rtype));
 	M0_PRE(res->r_ref == 0);
-	M0_PRE(resource_find(rtype, res) == NULL);
+	M0_PRE(m0_rm_resource_find(rtype, res) == NULL);
 	res->r_type = rtype;
 	res_tlink_init_at(res, &rtype->rt_resources);
 	m0_remotes_tlist_init(&res->r_remote);
@@ -2067,19 +2059,21 @@ static int cancel_send(struct m0_rm_loan *loan)
 	M0_RETURN(rc);
 }
 
-static int owner_credit_remove(struct m0_rm_credit *credit, struct m0_tl *list)
+static int owner_loan_remove(struct m0_rm_credit *credit, struct m0_tl *list)
 {
 	struct m0_rm_credit *cr;
 	struct m0_rm_loan   *loan;
 	struct m0_rm_loan   *remnant_loan;
+	struct m0_rm_owner  *owner;
 	struct m0_tl	     diff_list;
 	struct m0_tl	     remove_list;
 	int		     rc = 0;
 
+	M0_PRE(credit != NULL);
 	M0_ENTRY("credit: %llu",
 		 (long long unsigned) credit->cr_datum);
-	M0_PRE(credit != NULL);
 
+	owner = credit->cr_owner;
 	m0_rm_ur_tlist_init(&diff_list);
 	m0_rm_ur_tlist_init(&remove_list);
 	m0_tl_for (m0_rm_ur, list, cr) {
@@ -2114,24 +2108,49 @@ static int owner_credit_remove(struct m0_rm_credit *credit, struct m0_tl *list)
 	M0_RETURN(rc);
 }
 
+static int loan_remove(struct m0_rm_credit *credit,
+		       struct m0_tl        *list)
+{
+	int                  rc;
+	struct m0_rm_owner  *owner;
+	struct m0_rm_credit *cached;
+
+	owner = credit->cr_owner;
+
+	rc = m0_rm_credit_dup(credit, &cached);
+	if (rc == 0) {
+		rc = owner_loan_remove(credit, list);
+		if (rc == 0) {
+			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+					   cached);
+			M0_LOG(M0_INFO, "credit cached\n");
+		} else {
+			m0_free(cached);
+			M0_LOG(M0_ERROR, "credit removal failed: rc [%d]\n",
+			       rc);
+		}
+	} else
+		M0_LOG(M0_ERROR, "credit allocation failed: rc [%d]\n", rc);
+
+	return rc;
+}
+
 int _sublet_remove(struct m0_rm_credit *credit)
 {
 	struct m0_rm_owner *owner;
 
 	M0_PRE(credit != NULL);
 	owner = credit->cr_owner;
-
-	return owner_credit_remove(credit, &owner->ro_sublet);
+	return loan_remove(credit, &owner->ro_sublet);
 }
 
 int _borrowed_remove(struct m0_rm_credit *credit)
 {
-	struct m0_rm_owner  *owner;
+	struct m0_rm_owner *owner;
 
 	M0_PRE(credit != NULL);
 	owner  = credit->cr_owner;
-
-	return owner_credit_remove(credit, &owner->ro_borrowed);
+	return loan_remove(credit, &owner->ro_borrowed);
 }
 
 /** @} end of Owner state machine group */
@@ -2154,7 +2173,7 @@ static bool resource_list_check(const struct m0_rm_resource *res, void *datum)
 {
 	const struct m0_rm_resource_type *rt = datum;
 
-	return resource_find(rt, res) == res && res->r_type == rt;
+	return m0_rm_resource_find(rt, res) == res && res->r_type == rt;
 }
 
 static bool resource_type_invariant(const struct m0_rm_resource_type *rt)

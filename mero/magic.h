@@ -181,6 +181,12 @@ enum m0_magic_satchel {
         /* pargrp_iomap::pi_magic (incandescent) */
         M0_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
 
+	/* m0t1fs_services_tl::mss_magic (baseless bass) */
+	M0_T1FS_SERVICE_MAGIC = 0x33ba5e1e55ba5577,
+
+	/* m0t1fs_services_tl::td_head_magic (seize sicilia) */
+	M0_T1FS_SERVICE_HEAD_MAGIC =0x335e12e51c111a77,
+
 /* Configuration */
 	/* m0_conf_cache::ca_registry::t_magic (fabled feodal) */
 	M0_CONF_CACHE_MAGIC = 0x33fab1edfe0da177,

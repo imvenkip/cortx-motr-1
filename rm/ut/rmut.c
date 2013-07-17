@@ -305,9 +305,9 @@ const struct m0_test_suite rm_ut = {
 	.ts_tests = {
 		{ "api", rm_api_test },
 		{ "lcredits", local_credits_test },
-		{ "fom-funcs", rm_fom_funcs_test },
 		{ "fop-funcs", rm_fop_funcs_test },
 #ifndef __KERNEL__
+		{ "fom-funcs", rm_fom_funcs_test },
 		{ "rcredits", remote_credits_test },
 		{ "rmsvc", rmsvc },
 		{ "flock", flock_test },
