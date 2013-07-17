@@ -117,7 +117,7 @@ static m0_bcount_t be_reg_d_size(const struct m0_be_reg_d *rd)
 	return rd->rd_reg.br_size;
 }
 
-static bool be_rdt_rd_is_in(const struct m0_be_reg_d_tree *rdt,
+static bool be_rdt_contains(const struct m0_be_reg_d_tree *rdt,
 			    const struct m0_be_reg_d *rd)
 {
 	return &rdt->brt_r[0] <= rd && rd < &rdt->brt_r[rdt->brt_size];
@@ -196,7 +196,7 @@ m0_be_rdt_find(const struct m0_be_reg_d_tree *rdt, void *addr)
 	i = be_rdt_find_i(rdt, addr);
 	rd = i == rdt->brt_size ? NULL : &rdt->brt_r[i];
 
-	M0_POST(ergo(rd != NULL, be_rdt_rd_is_in(rdt, rd)));
+	M0_POST(ergo(rd != NULL, be_rdt_contains(rdt, rd)));
 	return rd;
 }
 
@@ -207,11 +207,11 @@ m0_be_rdt_next(const struct m0_be_reg_d_tree *rdt, struct m0_be_reg_d *prev)
 
 	M0_PRE(m0_be_rdt__invariant(rdt));
 	M0_PRE(prev != NULL);
-	M0_PRE(be_rdt_rd_is_in(rdt, prev));
+	M0_PRE(be_rdt_contains(rdt, prev));
 
 	rd = prev == &rdt->brt_r[rdt->brt_size - 1] ? NULL : ++prev;
 
-	M0_POST(ergo(rd != NULL, be_rdt_rd_is_in(rdt, rd)));
+	M0_POST(ergo(rd != NULL, be_rdt_contains(rdt, rd)));
 	return rd;
 }
 
