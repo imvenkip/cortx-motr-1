@@ -77,16 +77,12 @@ static bool be_reg_d_is_partof(const struct m0_be_reg_d *super,
  */
 static void *be_reg_d_fb(const struct m0_be_reg_d *rd)
 {
-	M0_PRE(rd != NULL);
-
 	return rd->rd_reg.br_size == 0 ? NULL : rd->rd_reg.br_addr;
 }
 
 /** return address of the byte before be_reg_d_fb(rd) */
 static void *be_reg_d_fb1(const struct m0_be_reg_d *rd)
 {
-	M0_PRE(rd != NULL);
-
 	return be_reg_d_fb(rd) == NULL ? NULL :
 	       (void *) ((uintptr_t) be_reg_d_fb(rd) - 1);
 }
@@ -96,24 +92,18 @@ static void *be_reg_d_fb1(const struct m0_be_reg_d *rd)
  */
 static void *be_reg_d_lb(const struct m0_be_reg_d *rd)
 {
-	M0_PRE(rd != NULL);
-
 	return rd->rd_reg.br_size == 0 ? NULL :
 	       (char *) rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
 }
 
 static void *be_reg_d_lb1(const struct m0_be_reg_d *rd)
 {
-	M0_PRE(rd != NULL);
-
 	return be_reg_d_lb(rd) == NULL ? NULL :
 	       (void *) ((uintptr_t) be_reg_d_lb(rd) + 1);
 }
 
 static m0_bcount_t be_reg_d_size(const struct m0_be_reg_d *rd)
 {
-	M0_PRE(rd != NULL);
-
 	return rd->rd_reg.br_size;
 }
 
