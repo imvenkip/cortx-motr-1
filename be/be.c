@@ -91,6 +91,7 @@ M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
 {
+	M0_SET0(op);
 	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &g_grp);
 }
 

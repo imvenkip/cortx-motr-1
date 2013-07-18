@@ -100,6 +100,10 @@ struct m0_be_op {
 			struct m0_be_btree_anchor *t_anchor;
 			int                        t_rc;
 		} u_btree;
+
+		struct {
+			int                        e_rc;
+		} u_emap;
 	} bo_u;
 };
 
