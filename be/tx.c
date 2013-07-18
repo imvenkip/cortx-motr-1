@@ -415,6 +415,8 @@ static void tx_engine_got_space(struct m0_be_tx_engine *eng)
 		if (rc == 0)
 			m0_be__tx_state_set(tx, M0_BTS_ACTIVE);
 		else
+			/* Ignore the rest of OPENING transactions. If we
+			 * don't ignore them, the big ones may starve. */
 			break;
 	} m0_tl_endfor;
 
@@ -525,13 +527,15 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
 	struct m0_be_tx *prev = NULL;
 
 	return true || /* XXX RESTOREME */
-		m0_forall(i, M0_BTS_NR,
-			  m0_tl_forall(eng, t, &engine->te_txs[i],
-				       m0_be__tx_invariant(t) &&
-				       ergo(prev != NULL && prev->t_lsn != 0,
-					    t->t_lsn != 0 &&
-					    prev->t_lsn > t->t_lsn) &&
-				       (prev = t, true)));
+		(m0_forall(i, M0_BTS_NR,
+			   m0_tl_forall(eng, t, &engine->te_txs[i],
+					m0_be__tx_invariant(t) &&
+					ergo(prev != NULL && prev->t_lsn != 0,
+					     t->t_lsn != 0 &&
+					     prev->t_lsn > t->t_lsn) &&
+					(prev = t, true))) &&
+		 /* tx_engine doesn't keep failed transactions in its lists. */
+		 eng_tlist_is_empty(&engine->te_txs[M0_BTS_FAILED]));
 }
 
 M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)
