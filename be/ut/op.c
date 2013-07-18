@@ -14,32 +14,21 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 29-May-2013
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 17-Jul-2013
  */
 
-#pragma once
-#ifndef __MERO_BE_BE_H__
-#define __MERO_BE_BE_H__
-
-#include "be/op.h"		/* XXX dirty hack. remove it ASAP */
 
 /**
- * @defgroup be
+ * @addtogroup XXX
  *
  * @{
  */
 
-struct m0_be {
-	int unused;
-};
 
-/* These two are called from mero/init.c. */
-M0_INTERNAL int  m0_backend_init(void);
-M0_INTERNAL void m0_backend_fini(void);
 
-/** @} end of be group */
-#endif /* __MERO_BE_BE_H__ */
+/** @} end of XXX group */
+
 
 /*
  *  Local variables:

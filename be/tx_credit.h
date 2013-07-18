@@ -91,6 +91,7 @@ M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
 				     const struct m0_be_tx_credit *c1,
 				     m0_bcount_t k);
 
+/* c0 <= c1 */
 M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 				    const struct m0_be_tx_credit *c1);
 #define M0_BE_TX_CREDIT_TYPE(type)		\

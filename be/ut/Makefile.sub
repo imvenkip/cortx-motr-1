@@ -1,5 +1,6 @@
 ut_libmero_ut_la_SOURCES += be/ut/alloc.c     \
                             be/ut/btree.c     \
+			    be/ut/dom.c       \
                             be/ut/extmap.c    \
                             be/ut/helper.c    \
                             be/ut/helper.h    \
@@ -8,6 +9,7 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c     \
                             be/ut/log.c       \
 			    be/ut/log_store.c \
                             be/ut/main.c      \
+			    be/ut/op.c        \
                             be/ut/seg.c       \
                             be/ut/tx.c        \
                             be/ut/tx_credit.c \

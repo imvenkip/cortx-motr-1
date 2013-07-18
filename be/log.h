@@ -33,6 +33,9 @@
  * @{
  */
 
+struct m0_be_log;
+typedef void (*m0_be_log_got_space_cb_t)(struct m0_be_log *log);
+
 /**
  * This structure encapsulates internals of transactional log.
  *
@@ -58,15 +61,17 @@ struct m0_be_log {
 	 * a sequence of regions in segments, linked to each other through
 	 * header blocks.
 	 */
-	struct m0_be_log_store	lg_stor;
+	struct m0_be_log_store	 lg_stor;
 
 	/**
 	 * lsn to be used for the next log element.
 	 */
-	m0_bindex_t		lg_lsn;
+	m0_bindex_t		 lg_lsn;
+	m0_be_log_got_space_cb_t lg_got_space_cb;
 };
 
-M0_INTERNAL void m0_be_log_init(struct m0_be_log *log);
+M0_INTERNAL void m0_be_log_init(struct m0_be_log *log,
+				m0_be_log_got_space_cb_t got_space_cb);
 M0_INTERNAL void m0_be_log_fini(struct m0_be_log *log);
 M0_INTERNAL bool m0_be_log__invariant(struct m0_be_log *log);
 

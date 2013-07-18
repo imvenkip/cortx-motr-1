@@ -14,32 +14,37 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 29-May-2013
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 18-Jul-2013
  */
 
-#pragma once
-#ifndef __MERO_BE_BE_H__
-#define __MERO_BE_BE_H__
 
-#include "be/op.h"		/* XXX dirty hack. remove it ASAP */
+#include "be/dom.h"
 
 /**
- * @defgroup be
+ * @addtogroup be
  *
  * @{
  */
 
-struct m0_be {
-	int unused;
-};
+M0_INTERNAL int m0_be_dom_init(struct m0_be_dom *dom, struct m0_be_dom_cfg *cfg)
+{
+	dom->bd_cfg = cfg;
+	return m0_be_engine_init(&dom->bd_engine, &cfg->bc_engine);
+}
 
-/* These two are called from mero/init.c. */
-M0_INTERNAL int  m0_backend_init(void);
-M0_INTERNAL void m0_backend_fini(void);
+M0_INTERNAL void m0_be_dom_fini(struct m0_be_dom *dom)
+{
+	m0_be_engine_fini(&dom->bd_engine);
+}
+
+M0_INTERNAL struct m0_be_engine *m0_be_dom_engine(struct m0_be_dom *dom)
+{
+	return &dom->bd_engine;
+}
 
 /** @} end of be group */
-#endif /* __MERO_BE_BE_H__ */
+
 
 /*
  *  Local variables:

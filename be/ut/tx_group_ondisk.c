@@ -153,7 +153,7 @@ void m0_be_ut_group_ondisk(void)
 		}
 	}
 
-	m0_be_log_init(&but_group_ondisk_log);
+	m0_be_log_init(&but_group_ondisk_log, /* XXX */ NULL);
 	rc = m0_be_log_create(&but_group_ondisk_log,
 			      BE_UT_TX_GROUP_ONDISK_LOG_SIZE);
 	M0_UT_ASSERT(rc == 0);

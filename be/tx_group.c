@@ -22,8 +22,11 @@
 #include "lib/trace.h"
 
 #include "be/tx_group.h"
-#include "be/tx.h"
-#include "fop/fom.h"  /* m0_fom_wakeup */
+
+#include "lib/errno.h"		/* ENOSPC */
+
+#include "be/tx.h"		/* m0_be_tx__reg_area */
+
 
 /**
  * @addtogroup be
@@ -40,9 +43,6 @@ M0_TL_DEFINE(grp, M0_INTERNAL, struct m0_be_tx);
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob)
 {
-#if 0 /* Nikita's code. */
-	M0_SET0(gr);
-#else /*XXX*/
 	int rc;
 
 	gr->tg_lsn = 0ULL;
@@ -51,7 +51,6 @@ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob,
 				     20, &M0_BE_TX_CREDIT(200000, 1ULL << 25));
 	M0_ASSERT(rc == 0);
-#endif
 }
 
 M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr)
@@ -65,8 +64,6 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng /* XXX unused */,
 {
 	M0_ENTRY();
 
-	tx->t_group  = gr;
-	tx->t_leader = grp_tlist_is_empty(&gr->tg_txs);
 	/* tx will be moved to M0_BTS_GROUPED state by an AST. */
 	grp_tlist_add(&gr->tg_txs, tx);
 	/* gr->tg_used.     XXX: what's here? */
@@ -138,6 +135,74 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 	/* XXX TODO? */
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
+{
+	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
+
+	gr->tg_used  = M0_BE_TX_CREDIT(0, 0);
+	gr->tg_tx_nr = 0;
+	m0_be_group_ondisk_reset(&gr->tg_od);
+}
+
+M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
+				    struct m0_be_tx_credit *size_max,
+				    size_t tx_nr_max,
+				    struct m0_stob *log_stob)
+{
+	int rc;
+
+	*gr = (struct m0_be_tx_group) {
+		.tg_used = M0_BE_TX_CREDIT(0, 0),
+		.tg_size = *size_max,
+		.tg_tx_nr = 0,
+		.tg_tx_nr_max = tx_nr_max,
+	};
+	grp_tlist_init(&gr->tg_txs);
+	/* XXX make the same paremeters order for m0_be_tx_group_ondisk */
+	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob,
+				     tx_nr_max, &gr->tg_size);
+	if (rc == 0)
+		m0_be_tx_group_reset(gr);
+	return rc;
+}
+
+M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
+{
+	grp_tlist_fini(&gr->tg_txs);
+	m0_be_group_ondisk_fini(&gr->tg_od);
+}
+
+M0_INTERNAL int m0_be_tx_group_add(struct m0_be_tx_group *gr,
+				   struct m0_be_tx *tx)
+{
+	struct m0_be_tx_credit group_used = gr->tg_used;
+	struct m0_be_tx_credit tx_used;
+	int		       rc;
+
+	M0_ENTRY();
+
+	m0_be_reg_area_used(m0_be_tx__reg_area(tx), &tx_used);
+	m0_be_tx_credit_add(&group_used, &tx_used);
+
+	if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
+	    gr->tg_tx_nr < gr->tg_tx_nr_max) {
+		grp_tlink_init_at(tx, &gr->tg_txs);
+		gr->tg_used = group_used;
+		++gr->tg_tx_nr;
+		rc = 0;
+	} else {
+		rc = -ENOSPC;
+	}
+
+	M0_RETURN(rc);
+}
+
+M0_INTERNAL void m0_be_tx_group_del(struct m0_be_tx_group *gr,
+				    struct m0_be_tx *tx)
+{
+	grp_tlist_del(tx);
 }
 
 /** @} end of be group */

@@ -27,6 +27,7 @@
 #include "be/tx_regmap.h"
 
 struct m0_ref;
+struct m0_be_dom;
 
 /**
  * @defgroup be
@@ -257,6 +258,7 @@ enum m0_be_tx_state {
  */
 typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
 
+#if 0
 /**
  * Transaction engine. Embedded in m0_be.
  */
@@ -294,54 +296,28 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine);
 
 M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine);
 M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
+#endif
 
 /**
  * Transaction.
  */
 struct m0_be_tx {
-	uint64_t               t_magic;
 	struct m0_sm           t_sm;
-	struct m0_sm_ast       t_ast;
 
 	/** Transaction identifier, assigned by the user. */
 	uint64_t               t_id;
-	/**
-	 * lsn of transaction representation in the log. Assigned when the
-	 * transaction reaches GROUPED state.
-	 */
-	uint64_t               t_lsn;
+	struct m0_be_engine   *t_engine;
 
-	struct m0_be          *t_be;
 	/** Linkage in one of m0_be_tx_engine::te_txs[] lists. */
 	struct m0_tlink        t_engine_linkage;
-
-	/**
-	 * The group the transaction is part of. This is non-NULL iff the
-	 * transaction is in GROUPED or later state.
-	 */
-	struct m0_be_tx_group *t_group;
 	/** Linkage in m0_be_tx_group::tg_txs. */
 	struct m0_tlink        t_group_linkage;
-
-	/**
-	 * Size (in bytes) of "payload area" in the transaction log header,
-	 * reserved for user.
-	 *
-	 * User should directly set this field, while the transaction is in
-	 * ACTIVE state.
-	 */
-	m0_bcount_t            t_payload_size;
+	uint64_t               t_magic;
 
 	/** Updates prepared for at PREPARE state. */
 	struct m0_be_tx_credit t_prepared;
 	struct m0_be_reg_area  t_reg_area;
-
-	/**
-	 * True iff the transaction is the first transaction in the group. In
-	 * this case, the overhead of group (specifically, the size of group
-	 * header and group commit log) are "billed" to the transaction.
-	 */
-	bool                   t_leader;
+	bool		       t_reg_area_allocated;
 
 	/**
 	 * Optional call-back called when the transaction is guaranteed to
@@ -385,13 +361,29 @@ struct m0_be_tx {
 	 * additional information to the call-backs.
 	 */
 	void                  *t_datum;
+	/**
+	 * lsn of transaction representation in the log. Assigned when the
+	 * transaction reaches GROUPED state.
+	 */
+	uint64_t               t_lsn;
+	/**
+	 * Size (in bytes) of "payload area" in the transaction log header,
+	 * reserved for user.
+	 *
+	 * User should directly set this field, while the transaction is in
+	 * ACTIVE state.
+	 */
+	m0_bcount_t            t_payload_size;
+	struct m0_sm_ast       t_ast_active;
+	struct m0_sm_ast       t_ast_grouped;
+	struct m0_sm_ast       t_ast_placed;
 };
 
-M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx);
+M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 			       uint64_t            tid,
-			       struct m0_be       *be,
+			       struct m0_be_dom   *dom,
 			       struct m0_sm_group *sm_group,
 			       m0_be_tx_cb_t       persistent,
 			       m0_be_tx_cb_t       discarded,
@@ -405,7 +397,7 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
 			       const struct m0_be_tx_credit *credit);
 
-M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
+M0_INTERNAL int m0_be_tx_open(struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
 				  const struct m0_be_reg *reg);
@@ -426,22 +418,18 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int state,
 /** Notifies backend that the transaction is no longer needed for recovery. */
 M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be__tx_state_set(struct m0_be_tx *tx,
-				     enum m0_be_tx_state state);
-M0_INTERNAL enum m0_be_tx_state m0_be__tx_state(const struct m0_be_tx *tx);
+M0_INTERNAL enum m0_be_tx_state m0_be_tx__state(const struct m0_be_tx *tx);
 
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
 
-/**
- * Posts an AST that will move transaction's state machine to given state.
- * Decrements the reference counter, if provided.
- */
-M0_INTERNAL void m0_be__tx_state_post(struct m0_be_tx    *tx,
-				      enum m0_be_tx_state to,
-				      struct m0_ref      *ref);
+/** Posts an AST that will move transaction's state machine to given state */
+M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
+				      enum m0_be_tx_state state);
 
+#if 0
 M0_TL_DESCR_DECLARE(eng, M0_EXTERN);
 M0_TL_DECLARE(eng, M0_INTERNAL, struct m0_be_tx);
+#endif
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

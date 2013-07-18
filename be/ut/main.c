@@ -48,6 +48,8 @@ extern void m0_be_ut_group_ondisk(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_list_api(void);
 
+extern void m0_be_ut_dom(void);
+
 extern struct m0_sm_group ut__txs_sm_group;
 
 /* ---------------------------------------------------------------------
@@ -97,6 +99,7 @@ const struct m0_test_suite be_ut = {
 	.ts_init = _init,
 	.ts_fini = _fini,
 	.ts_tests = {
+		{ "dom",	      m0_be_ut_dom		    }, /* XXX */
 		{ "seg-init",         m0_be_ut_seg_init_fini        },
 		{ "seg-create",       m0_be_ut_seg_create_destroy   },
 		{ "seg-open",         m0_be_ut_seg_open_close       },
@@ -132,12 +135,12 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
-#endif
 		{ "tx-single",        m0_be_ut_tx_single            },
 		{ "tx-several",       m0_be_ut_tx_several           },
 		{ "btree",            m0_be_ut_btree_simple         },
 		{ "list",             m0_be_ut_list_api             },
 		{ "io (XXX NOOP)",    m0_be_ut_io                   },
+#endif
 		{ "log_store-reserve",m0_be_ut_log_store_reserve    },
 		{ "log_store-io",     m0_be_ut_log_store_io         },
 		{ "log (XXX NOOP)",   m0_be_ut_log                  },

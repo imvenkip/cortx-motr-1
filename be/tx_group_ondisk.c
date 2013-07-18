@@ -195,9 +195,6 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 
 	m0_be_group_ondisk_reserved(go, group, &reg_cr, &tx_nr);
 	m0_be_group_ondisk_io_reserved(go, group, &io_cr);
-#if 1 /* XXX TODO: implement m0_be_group_ondisk_reset() and use it instead */
-	m0_be_io_reset(&go->go_io_seg);
-#endif
 	m0_be_log_store_io_init(&lsi, &log->lg_stor, &go->go_io_log,
 			       &go->go_io_log_cblock, io_cr.tc_reg_size);
 

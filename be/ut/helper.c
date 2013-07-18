@@ -177,9 +177,11 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 	h->buh_reqh = m0_mero_to_rmach(&h->buh_rpc_svc.rsx_mero_ctx)->rm_reqh;
 	M0_ASSERT(h->buh_reqh != NULL);
 
+	/*
 	m0_be_init(&h->buh_be);
 	rc = m0_be_tx_engine_start(&h->buh_be.b_tx_engine, h->buh_reqh);
 	M0_ASSERT(rc == 0);
+	*/
 
 	m0_be_ut_seg_create_open(h);
 	h->buh_allocator = &h->buh_seg.bs_allocator;
@@ -192,13 +194,13 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 
 void m0_be_ut_h_fini(struct m0_be_ut_h *h)
 {
-	m0_be_tx_engine_stop(&h->buh_be.b_tx_engine);
+	/* m0_be_tx_engine_stop(&h->buh_be.b_tx_engine); */
 	service_stop(&h->buh_rpc_svc);
 	/*
 	 * Allocator and segment should be finalised _after_ reqh.
 	 * Max knows why.
 	 */
-	m0_be_fini(&h->buh_be);
+	// m0_be_fini(&h->buh_be);
 #if 0 /* XXX FIXME: m0_be_allocator_{create,destroy}() need a transaction.
        * Max knows what to do about it. */
 	rc = m0_be_allocator_destroy(h->buh_allocator, NULL);
@@ -217,6 +219,7 @@ void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h)
 	M0_ASSERT(rc == 0);
 }
 
+#if 0
 static void be_ut_h_persistent(const struct m0_be_tx *tx)
 {
 }
@@ -224,11 +227,14 @@ static void be_ut_h_persistent(const struct m0_be_tx *tx)
 static void be_ut_h_discarded(const struct m0_be_tx *tx)
 {
 }
+#endif
 
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 {
+	/*
 	m0_be_tx_init(tx, ++h->buh_tid, &h->buh_be, &ut__txs_sm_group,
 		      be_ut_h_persistent, be_ut_h_discarded, true, NULL, NULL);
+		      */
 }
 
 #undef M0_TRACE_SUBSYSTEM

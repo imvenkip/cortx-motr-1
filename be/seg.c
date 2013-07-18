@@ -92,7 +92,6 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 M0_INTERNAL void
 m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob, struct m0_be *be)
 {
-	seg->bs_id           = be->b_next_segid++;
 	seg->bs_addr         = NULL;
 	seg->bs_size         = 0;
 	seg->bs_be           = be;

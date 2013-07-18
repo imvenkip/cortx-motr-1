@@ -2,12 +2,15 @@ nobase_mero_include_HEADERS += be/alloc.h           \
                                be/alloc_internal.h  \
                                be/be.h              \
                                be/btree.h           \
+			       be/dom.h		    \
+			       be/engine.h	    \
                                be/extmap.h          \
                                be/extmap_internal.h \
                                be/io.h              \
                                be/list.h            \
                                be/log.h             \
 			       be/log_store.h       \
+			       be/op.h              \
                                be/seg.h             \
                                be/seg_internal.h    \
                                be/tx.h              \
@@ -22,10 +25,13 @@ nobase_mero_include_HEADERS += be/alloc.h           \
 mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/be.c        	\
 			   be/btree.c     	\
+			   be/dom.c		\
+			   be/engine.c       	\
 			   be/io.c        	\
 			   be/list.c      	\
 			   be/log.c       	\
 			   be/log_store.c 	\
+			   be/op.c 		\
 			   be/seg.c       	\
 			   be/tx.c        	\
 			   be/tx_credit.c 	\

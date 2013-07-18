@@ -25,7 +25,6 @@
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 #include "be/tx_group_ondisk.h"	/* m0_be_group_ondisk */
 #include "lib/tlist.h"		/* m0_tl */
-#include "lib/refs.h"           /* m0_ref */
 
 struct m0_be_tx_engine;
 struct m0_be_tx;
@@ -60,18 +59,33 @@ struct m0_be_tx;
  * made it to the log).
  */
 struct m0_be_tx_group {
-	/** lsn of transaction group header in the log. */
+	/** XXX lsn of transaction group header in the log. */
 	m0_bindex_t               tg_lsn;
 
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit    tg_used;
-
+	struct m0_be_tx_credit    tg_size;
+	size_t			  tg_tx_nr;
+	size_t			  tg_tx_nr_max;
 	/** List of transactions in the group. */
 	struct m0_tl              tg_txs;
-
 	/** XXX DOCUMENTME */
 	struct m0_be_group_ondisk tg_od;
 };
+
+M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
+				    struct m0_be_tx_credit *size_max,
+				    size_t tx_nr_max,
+				    struct m0_stob *log_stob);
+M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
+
+M0_INTERNAL int m0_be_tx_group_add(struct m0_be_tx_group *gr,
+				   struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx_group_del(struct m0_be_tx_group *gr,
+				    struct m0_be_tx *tx);
+
 
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob);

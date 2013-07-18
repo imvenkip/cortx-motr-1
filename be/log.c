@@ -33,8 +33,10 @@
  * @{
  */
 
-M0_INTERNAL void m0_be_log_init(struct m0_be_log *log)
+M0_INTERNAL void m0_be_log_init(struct m0_be_log *log,
+				m0_be_log_got_space_cb_t got_space_cb)
 {
+	log->lg_got_space_cb = got_space_cb == NULL ? NULL : got_space_cb;
 	m0_be_log_store_init(&log->lg_stor);
 	M0_POST(m0_be_log__invariant(log));
 }
@@ -112,6 +114,9 @@ M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 				   struct m0_be_tx_credit *reserved)
 {
 	m0_be_log_store_discard(&log->lg_stor, reserved->tc_reg_size);
+
+	if (log->lg_got_space_cb != NULL)
+		log->lg_got_space_cb(log);
 }
 
 M0_INTERNAL int

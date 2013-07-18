@@ -14,32 +14,34 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 29-May-2013
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 18-Jul-2013
  */
 
-#pragma once
-#ifndef __MERO_BE_BE_H__
-#define __MERO_BE_BE_H__
+#include "be/dom.h"
 
-#include "be/op.h"		/* XXX dirty hack. remove it ASAP */
+#include "ut/ut.h"
 
-/**
- * @defgroup be
- *
- * @{
- */
+void m0_be_ut_dom(void)
+{
+	struct m0_be_dom_cfg cfg;
+	struct m0_be_dom     dom;
+	int		     rc;
 
-struct m0_be {
-	int unused;
-};
-
-/* These two are called from mero/init.c. */
-M0_INTERNAL int  m0_backend_init(void);
-M0_INTERNAL void m0_backend_fini(void);
-
-/** @} end of be group */
-#endif /* __MERO_BE_BE_H__ */
+	cfg = (struct m0_be_dom_cfg) {
+		.bc_engine = {
+			.bec_group_nr = 1,
+			.bec_group_fom_nr = 1,
+			.bec_log_size = 1 << 24,
+			.bec_group_size_max =
+				M0_BE_TX_CREDIT(200000, 1 << 22),
+			.bec_group_tx_max = 20,
+		},
+	};
+	rc = m0_be_dom_init(&dom, &cfg);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_dom_fini(&dom);
+}
 
 /*
  *  Local variables:
