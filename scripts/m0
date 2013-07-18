@@ -27,10 +27,7 @@ clean() {
     [ "$1" = '-f' ] && git clean -fdx || true
 }
 
-build() {
-    autoreconf -ifs
-    ./configure $CONFIGURE_OPTS
-
+_make() {
     local _OUT=`mktemp`
     trap "rm $_OUT" 0
     make $MAKE_OPTS 2>&1 | tee $_OUT
@@ -40,23 +37,28 @@ build() {
     fi
 }
 
-_reset() {
+build() {
+    autoreconf -ifs
+    ./configure $CONFIGURE_OPTS
+    _make
+}
+
+run_init() {
     $SUDO rm -rf "$RUNDIR"  # Ouch!
     mkdir "$RUNDIR"
     cd "$RUNDIR"
 }
 
-run_ut()  { _reset; $SUDO "$SRC/utils/ut.sh" "$@"; }
+run_ut()  { run_init; $SUDO "$SRC/utils/ut.sh" "$@"; }
 
 run_kut() {
-    _reset
+    run_init
     echo 'Running kernel UT (this may take a while) ...'
     $SUDO "$SRC/utils/linux_kernel/ut.sh"
 }
 
 run_st() {
-    _reset
-
+    run_init
     $SUDO "$SRC/net/test/st/st.sh"
 
     ## rpc ping
@@ -84,7 +86,7 @@ dist_check() {
     local DISTFILE=$DIST.tar.gz
 
     cd "$SRC"
-    [ -f Makefile ] || die "You need to \`$PROG rebuild' first."
+    [ -f Makefile ] || die "You need to \`$PROG make' first."
 
     make dist
 
@@ -120,6 +122,9 @@ _usage() {
 Usage: $PROG COMMAND [OPTION]...
 
 Commands:
+    make                Execute 'make' in Mero directory, falling back to
+                        '$PROG rebuild' if no Makefile is found.
+
     rebuild             Clean and build the whole Mero anew.
 
     run-ut [OPTION]...  Run user-space unit tests.
@@ -142,12 +147,11 @@ Commands:
                         times; the second time with './configure
                         --disable-m0-asserts'.
 
-    clean [-f]          Call 'make distclean' in M0 sources directory.
-                        '-f' will also remove untracked files and
-                        directories (i.e. those not added to the git
-                        repository).
-                        *CAUTION*: You do not want to use '-f' option if
-                        there are any untracked files you care about.
+    clean [-f]          Execute 'make distclean' in Mero sources directory.
+                        '-f' will also remove untracked files and directories
+                        (i.e. those not added to the git repository).
+                        *WARNING*: You do not want to use '-f' option
+                        if there are any untracked files you care about.
 
     help    Show this help and exit.
 
@@ -161,6 +165,13 @@ EOF
 }
 
 case "$1" in
+    make)
+	cd "$SRC"
+	if [ -f Makefile ]; then
+	    _make
+	else
+	    build
+	fi;;
     rebuild) clean; build;;
     run-ut)  shift; run_ut "$@";;
     run-kut) run_kut;;
