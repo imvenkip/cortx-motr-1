@@ -78,7 +78,7 @@ static bool hbucket_invariant(const struct m0_ht_descr *desc,
 		bucket != NULL &&
 		desc != NULL &&
 		m0_hbucket_forall_ol(desc->hd_tldescr, amb, bucket,
-			 	     index == desc->hd_hash_func(htable,
+				     index == desc->hd_hash_func(htable,
 				     obj_key(desc, amb)));
 }
 
