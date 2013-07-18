@@ -480,34 +480,26 @@ static inline uint64_t target_offset(uint64_t		       frame,
 	       (gob_offset % layout_unit_size(play));
 }
 
-static uint64_t tioreqs_hash_func(const struct m0_htable *htable, void *k)
+static uint64_t tioreqs_hash_func(const struct m0_htable *htable, const void *k)
 {
-	uint64_t *key = (uint64_t *)k;
+	const uint64_t *key = (uint64_t *)k;
 
-	return (*key) % htable->h_bucket_nr;
+	return *key % htable->h_bucket_nr;
 }
 
-static void *tioreq_key_get(const struct m0_ht_descr *d,
-			    void                     *amb)
+static bool tioreq_key_eq(const void *key1, const void *key2)
 {
-	struct target_ioreq *ti = (struct target_ioreq *)amb;
+	const uint64_t *k1 = (uint64_t *)key1;
+	const uint64_t *k2 = (uint64_t *)key2;
 
-	return (uint64_t *)(&ti->ti_fid.f_container);
-}
-
-static bool tioreq_key_eq(void *key1, void *key2)
-{
-	uint64_t *k1 = (uint64_t *)key1;
-	uint64_t *k2 = (uint64_t *)key2;
-
-	return (*k1) == (*k2);
+	return *k1 == *k2;
 }
 
 M0_HT_DESCR_DEFINE(tioreqht, "Hash of target_ioreq objects", static,
 		   struct target_ioreq, ti_link, ti_magic,
 		   M0_T1FS_TIOREQ_MAGIC, M0_T1FS_TLIST_HEAD_MAGIC,
 		   uint64_t, ti_fid.f_container, tioreqs_hash_func,
-		   tioreq_key_get, tioreq_key_eq);
+		   tioreq_key_eq);
 
 M0_HT_DEFINE(tioreqht, static, struct target_ioreq, uint64_t);
 

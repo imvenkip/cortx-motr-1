@@ -40,7 +40,7 @@ struct foo {
 	uint64_t        f_magic;
 	uint64_t        f_hkey;
 	int             f_subject;
-	struct m0_tlink f_link;
+	struct m0_hlink f_hlink;
 };
 
 enum {
@@ -53,31 +53,24 @@ enum {
 static struct foo foos[FOO_NR];
 static struct bar thebar;
 
-static uint64_t hash_func(const struct m0_htable *htable, void *k)
+static uint64_t hash_func(const struct m0_htable *htable, const void *k)
 {
-	uint64_t *key  = k;
+	const uint64_t *key  = k;
 
 	return *key % htable->h_bucket_nr;
 }
 
-static void *hash_key_get(const struct m0_ht_descr *d, void *obj)
+static bool key_eq(const void *key1, const void *key2)
 {
-	struct foo *amb = obj;
-
-	return &(amb->f_hkey);
-}
-
-static bool key_eq(void *key1, void *key2)
-{
-	uint64_t *k1 = key1;
-	uint64_t *k2 = key2;
+	const uint64_t *k1 = key1;
+	const uint64_t *k2 = key2;
 
 	return *k1 == *k2;
 }
 
-M0_HT_DESCR_DEFINE(foohash, "Hash of fops", static, struct foo, f_link,
-		   f_magic, FOO_MAGIC, BAR_MAGIC,
-		   uint64_t, f_hkey, hash_func, hash_key_get, key_eq);
+M0_HT_DESCR_DEFINE(foohash, "Hash of fops", static, struct foo,
+		   f_hlink, f_magic, FOO_MAGIC, BAR_MAGIC,
+		   uint64_t, f_hkey, hash_func, key_eq);
 
 M0_HT_DEFINE(foohash, static, struct foo, uint64_t);
 

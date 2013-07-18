@@ -1715,8 +1715,8 @@ struct target_ioreq {
         /** Resulting IO fops are sent on this rpc session. */
         struct m0_rpc_session         *ti_session;
 
-        /** Linkage to link in to nw_xfer_request::nxr_tioreqs list. */
-        struct m0_tlink                ti_link;
+        /** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
+        struct m0_hlink                ti_link;
 
         /**
          * Index vector containing IO segments with cob offsets and
