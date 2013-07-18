@@ -27,9 +27,10 @@
    @defgroup fol File operations log
 
    File operations log (fol) is a per-node collection of records, describing
-   updates to file system state carried out on the node. See HLD (url below) for
-   the description of requirements, usage patterns and constraints on fol, as
-   well as important terminology (update, operation, etc.).
+   updates to file system state carried out on the node. See HLD for the
+   description of requirements, usage patterns and constraints on fol,
+   as well as important terminology (update, operation, etc.):
+   https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/comment .
 
    A fol is represented by an instance of struct m0_fol. A fol record has two
    data-types associated with it:
@@ -67,7 +68,6 @@
 
    @see m0_fol_rec_add()
    @see m0_fol_rec_lookup()
-   @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
 
    m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
    to initialize and finalize FOL part types.
