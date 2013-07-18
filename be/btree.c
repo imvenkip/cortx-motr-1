@@ -263,8 +263,8 @@ static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
  * Function used to allocate memory for the btree node
  * @return The allocated B-tree node
  */
-static struct m0_be_bnode *allocate_btree_node(const struct m0_be_btree *btree,
-					       struct m0_be_tx *tx)
+static struct m0_be_bnode *
+allocate_btree_node(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
 	struct m0_be_bnode *node;
 
@@ -674,19 +674,11 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
 		node->b_key_vals[i] = node->b_key_vals[i + 1];
 	}
 
-	if (key_val->key) {
-		mem_free(btree, tx, key_val->key, btree->bb_ops->ko_ksize(key_val->key));
-		key_val->key = NULL;
-	}
-
-	if (key_val->val) {
-		mem_free(btree, tx, key_val->val, btree->bb_ops->ko_vsize(key_val->val));
-		key_val->val = NULL;
-	}
+	btree_pair_release(btree, tx, key_val);
 
 	node->b_nr_active--;
 
-	if (node->b_nr_active == 0) {
+	if (node->b_nr_active == 0 && node != btree->bb_root) {
 		free_btree_node(node, btree, tx);
 	} else {
 		/* Update affected memory regions in tx: */
@@ -717,7 +709,8 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 	node = subtree;
 	parent = NULL;
 
- del_loop:for (i = 0;; i = 0) {
+del_loop:
+	for (i = 0;; i = 0) {
 
 		/* If there are no keys simply return */
 		if (!node->b_nr_active)
@@ -787,19 +780,16 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 		}
 	}
 
-	/* Case 1 : The node containing the key is found and is the leaf node. */
+	/* Case 1:
+	 * The node containing the key is found and is the leaf node. */
 	/* Also the leaf node has keys greater than the minimum required. */
 	/* Simply remove the key */
 	if (node->b_leaf && (node->b_nr_active > BTREE_FAN_OUT - 1)) {
 		node_pos.p_node = node;
 		node_pos.p_index = index;
 		delete_key_from_node(btree, tx, &node_pos);
-
-		/* Update affected memory regions in tx: */
-		/* XXX: this update looks to be useless */
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 		node_update(btree->bb_root, btree, tx);
-
 		M0_POST(btree_invariant(btree));
 		return 0;
 	}
@@ -809,16 +799,14 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 		node_pos.p_node = node;
 		node_pos.p_index = index;
 		delete_key_from_node(btree, tx, &node_pos);
-
-		/* Update affected memory regions in tx: */
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 		node_update(btree->bb_root, btree, tx);
-
 		M0_POST(btree_invariant(btree));
 		return 0;
 	}
 
-	/* Case 2: The node containing the key is found and is an internal node */
+	/* Case 2:
+	 * The node containing the key is found and is an internal node */
 	if (node->b_leaf == false) {
 		if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
 			get_max_key_pos(btree, node->b_children[index],
@@ -897,7 +885,7 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 	/*  Case 3: */
 	/*  In this case start from the top of the tree and continue */
 	/*  moving to the leaf node making sure that each node that */
-	/*  we encounter on the way has atleast 't' (order of the tree) */
+	/*  we encounter on the way has at least 't' (order of the tree) */
 	/*  keys */
 	if (node->b_leaf && (node->b_nr_active > BTREE_FAN_OUT - 1)) {
 		node_pos.p_node = node;
@@ -965,25 +953,17 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
 static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
 	int i = 0;
-	unsigned int current_level;
-
 	struct m0_be_bnode *head, *tail, *node;
 	struct m0_be_bnode *child, *del_node;
 
 	node = btree->bb_root;
-	current_level = node->b_level;
 	head = node;
 	tail = node;
 
-	while (true) {
-		if (head == NULL) {
-			break;
-		}
-		if (head->b_level < current_level) {
-			current_level = head->b_level;
-		}
-
-		if (head->b_leaf == false) {
+	while (head != NULL) {
+		if (head->b_leaf) {
+			head->b_next = NULL;
+		} else {
 			for (i = 0; i < head->b_nr_active + 1; i++) {
 				child = head->b_children[i];
 				tail->b_next = child;
@@ -1076,12 +1056,18 @@ static void *btree_get_min_key(struct m0_be_btree *btree)
 	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
 }
 
-static void btree_pair_release(struct m0_be_btree *btree,
-				struct m0_be_tx *tx,
+static void
+btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 				struct bt_key_val *kv)
 {
-	mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
-	mem_free(btree, tx, kv->key, btree->bb_ops->ko_ksize(kv->key));
+	if (kv->key) {
+		mem_free(btree, tx, kv->key, btree->bb_ops->ko_ksize(kv->key));
+		kv->key = NULL;
+	}
+	if (kv->val) {
+		mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
+		kv->val = NULL;
+	}
 	//mem_free(btree, tx, kv, sizeof(struct bt_key_val));
 }
 
@@ -1293,31 +1279,34 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 	m0_bcount_t               vsize = 0;
 	int                       rc;
 
-	m0_be_btree_cursor_init(&cursor, tree);
+	if (tree->bb_root != NULL) {
+		m0_be_btree_cursor_init(&cursor, tree);
 
-	m0_be_op_init(&cursor.bc_op);
-	m0_be_btree_minkey(tree, &cursor.bc_op, &start);
-	m0_be_op_fini(&cursor.bc_op);
-
-	m0_be_op_init(&cursor.bc_op);
-	m0_be_btree_cursor_get(&cursor, &start, true);
-	M0_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
-	rc = cursor.bc_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&cursor.bc_op);
-
-	while (rc != -ENOENT) {
-		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
-		if (key.b_nob > ksize) ksize = key.b_nob;
-		if (val.b_nob > vsize) vsize = val.b_nob;
 		m0_be_op_init(&cursor.bc_op);
-		m0_be_btree_cursor_next(&cursor);
+		m0_be_btree_minkey(tree, &cursor.bc_op, &start);
+		m0_be_op_fini(&cursor.bc_op);
+
+		m0_be_op_init(&cursor.bc_op);
+		m0_be_btree_cursor_get(&cursor, &start, true);
 		M0_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 		rc = cursor.bc_op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&cursor.bc_op);
-		++count;
-	}
 
-	m0_be_btree_cursor_fini(&cursor);
+		while (rc != -ENOENT) {
+			m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+			if (key.b_nob > ksize) ksize = key.b_nob;
+			if (val.b_nob > vsize) vsize = val.b_nob;
+			m0_be_op_init(&cursor.bc_op);
+			m0_be_btree_cursor_next(&cursor);
+			M0_ASSERT(m0_be_op_state(&cursor.bc_op) ==
+							M0_BOS_SUCCESS);
+			rc = cursor.bc_op.bo_u.u_btree.t_rc;
+			m0_be_op_fini(&cursor.bc_op);
+			++count;
+		}
+
+		m0_be_btree_cursor_fini(&cursor);
+	}
 
 	btree_free_credit(tree, accum);
 	m0_be_allocator_credit(a, M0_BAO_FREE, ksize, BTREE_ALLOC_SHIFT, accum);
