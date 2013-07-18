@@ -150,9 +150,9 @@ M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
  *
  * @param nr     number of @optype operations.
  */
-M0_INTERNAL void m0_be_btree_destroy_credit(const struct m0_be_btree *tree,
-					    m0_bcount_t               nr,
-					    struct m0_be_tx_credit   *accum);
+M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
+					    m0_bcount_t             nr,
+					    struct m0_be_tx_credit *accum);
 
 /**
  * Calculates how many internal resources of tx_engine, described by
