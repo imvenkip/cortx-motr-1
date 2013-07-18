@@ -667,6 +667,7 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *al,
 		b_size_total = sizeof(*b) + b->bac_size;
 		be_alloc_chunk_del_fini(al, tx, b);
 		a->bac_size += b_size_total;
+		be_alloc_chunk_capture(al, tx, a);
 		chunks_were_merged = true;
 	}
 	M0_POST(ergo(a != NULL, be_alloc_chunk_invariant(al, a)));
@@ -822,6 +823,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 
 	m0_be_tx_credit_init(&chunk_trymerge_credit);
 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_del_fini_credit);
+	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_credit);
 
 	/** @todo TODO XXX add list credits instead of entire header */
 	switch (optype) {
