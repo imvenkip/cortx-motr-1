@@ -58,7 +58,6 @@ const char *poolmach_state_name[] = {
 	[M0_PNDS_SNS_REPAIRING]   = "SNS Repairing",
 	[M0_PNDS_SNS_REPAIRED]    = "SNS Repaired",
 	[M0_PNDS_SNS_REBALANCING] = "SNS Rebalancing",
-	[M0_PNDS_SNS_REBALANCED]  = "SNS Rebalanced",
 };
 
 const char *cl_ep_addr;

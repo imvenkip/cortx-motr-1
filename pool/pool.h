@@ -116,15 +116,6 @@ enum m0_pool_nd_state {
 	/** a node/device is active in sns re-balance. */
 	M0_PNDS_SNS_REBALANCING,
 
-	/**
-	 * a node/device completed sns re-rebalance. Its data is copyied
-	 * back to its original location. This usually happens when a
-	 * new device replaced a failed device and re-balance completed.
-	 * After this, the device can be set to ONLINE, and its corresponding
-	 * space space can be returned to pool.
-	 */
-	M0_PNDS_SNS_REBALANCED,
-
 	/** number of state */
 	M0_PNDS_NR
 };

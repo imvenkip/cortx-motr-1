@@ -342,7 +342,7 @@ static void pm_test_transit(void)
 	/* invalid event. case 3: invalid state */
 	e_invalid.pe_type  = M0_POOL_NODE;
 	e_invalid.pe_index = 0;
-	e_invalid.pe_state = M0_PNDS_SNS_REBALANCED + 1;
+	e_invalid.pe_state = M0_PNDS_SNS_REBALANCING + 1;
 	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
 	M0_UT_ASSERT(rc == -EINVAL);
 
@@ -468,28 +468,6 @@ static void pm_test_spare_slot(void)
 
 	/* transit to SNS_REBALANCING */
 	target_state = M0_PNDS_SNS_REBALANCING;
-	event.pe_state = target_state;
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_device_state(&pm, 1, &state_out);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(state_out == target_state);
-	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 1, &spare_slot);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(spare_slot == 0);
-	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
-		if (state == M0_PNDS_SNS_REBALANCED)
-			continue;
-		/* transit to other state other than the above one is invalid */
-		event.pe_state = state;
-		rc = m0_poolmach_state_transit(&pm, &event, &tx);
-		M0_UT_ASSERT(rc == -EINVAL);
-	}
-
-
-	/* transit to SNS_REBALANCED */
-	target_state = M0_PNDS_SNS_REBALANCED;
 	event.pe_state = target_state;
 	rc = m0_poolmach_state_transit(&pm, &event, &tx);
 	M0_UT_ASSERT(rc == 0);
@@ -638,28 +616,6 @@ static void pm_test_multi_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spare_slot == 1);
 
-
-	/* transit device 1 to SNS_REBALANCED */
-	event.pe_index = 1;
-	target_state = M0_PNDS_SNS_REBALANCED;
-	event.pe_state = target_state;
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
-	M0_UT_ASSERT(rc == 0);
-	/* the first spare slot is used by device 1 */
-	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 1, &spare_slot);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(spare_slot == 0);
-
-	/* transit device 2 to SNS_REBALANCED */
-	event.pe_index = 2;
-	target_state = M0_PNDS_SNS_REBALANCED;
-	event.pe_state = target_state;
-	rc = m0_poolmach_state_transit(&pm, &event, &tx);
-	M0_UT_ASSERT(rc == 0);
-	/* the second spare slot is used by device 2 */
-	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 2, &spare_slot);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(spare_slot == 1);
 
 	/* transit device 2 to ONLINE */
 	event.pe_index = 2;

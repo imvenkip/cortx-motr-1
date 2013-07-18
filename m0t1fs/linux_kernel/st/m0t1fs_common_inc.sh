@@ -24,7 +24,7 @@ MERO_MODULE=m0mero
 # kernel space tracing parameters
 MERO_MODULE_TRACE_MASK='!all'
 MERO_TRACE_PRINT_CONTEXT=short
-MERO_TRACE_LEVEL=call+
+MERO_TRACE_LEVEL='call+'
 
 
 #user-space tracing parameters
@@ -56,7 +56,7 @@ EP=(
     12345:33:102   # IOS1 EP
     12345:33:103   # IOS2 EP
     12345:33:104   # IOS3 EP
-    12345:33:105   # IOS4 EP
+#    12345:33:105   # IOS4 EP
 )
 
 SNS_CLI_EP="12345:33:301"

@@ -189,6 +189,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_it.si_fdata = &treq->fdata;
 				scm->sc_op             = treq->op;
+				M0_CNT_INC(scm->sc_failures_nr);
 				m0_mutex_lock(&scm->sc_wait_mutex);
 				m0_clink_init(&tclink, NULL);
 				m0_clink_add(&scm->sc_wait, &tclink);

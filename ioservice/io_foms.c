@@ -1083,8 +1083,7 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 	rc = m0_poolmach_device_state(poolmach, cob_fid->f_container,
 				      &device_state);
 	if ((rc != 0) || (device_state != M0_PNDS_ONLINE &&
-			  device_state != M0_PNDS_SNS_REPAIRED &&
-			  device_state != M0_PNDS_SNS_REBALANCED)) {
+			  device_state != M0_PNDS_SNS_REPAIRED)) {
 		if (rc == 0) {
 			M0_LOG(M0_ERROR, "IO @ %lu:%lu on failed device: "
 					 "state = %d",

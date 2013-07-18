@@ -571,6 +571,7 @@ static int cm_ready(struct m0_cm *cm)
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+	M0_PRE(scm->sc_failures_nr > 0);
 
 	scm->sc_helpers = scm->sc_op == SNS_REPAIR ? &repair_helpers :
 						     &rebalance_helpers;
@@ -597,13 +598,6 @@ static int cm_ready(struct m0_cm *cm)
 			     scm->sc_obp.sb_bp.nbp_buf_nr,
 			     scm->sc_ibp.sb_bp.nbp_free,
 			     scm->sc_obp.sb_bp.nbp_free);
-	}
-	if (scm->sc_op == SNS_REPAIR) {
-		/*
-		 * TODO: Move accounting of failures to better place in-order to
-		 * handle multiple failures.
-		 */
-		scm->sc_failures_nr = 1;
 	}
 
 	M0_LEAVE();
@@ -645,13 +639,14 @@ static int cm_stop(struct m0_cm *cm)
 
 	M0_ASSERT(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
-					      M0_PNDS_SNS_REBALANCED;
+					      M0_PNDS_ONLINE;
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
 		pm_event_setup_and_post(dbenv, cm->cm_pm, M0_POOL_DEVICE,
 					scm->sc_it.si_fdata[i], pm_state);
 	}
 
+	scm->sc_failures_nr = 0;
 	scm->sc_stop_time = m0_time_now();
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,
 		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
@@ -719,11 +714,8 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 		m0_cm_cp_buf_add(cp, buf);
 		M0_CNT_DEC(rem_bufs);
 		if (!scp->sc_is_local) {
-			if (scm->sc_ibp_reserved_nr > 0) {
+			if (scm->sc_ibp_reserved_nr > 0)
 				M0_CNT_DEC(scm->sc_ibp_reserved_nr);
-			M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%lu]", cp->c_ag->cag_id.ai_hi.u_hi, cp->c_ag->cag_id.ai_hi.u_lo,
-			       cp->c_ag->cag_id.ai_lo.u_hi, cp->c_ag->cag_id.ai_lo.u_lo, scm->sc_ibp_reserved_nr);
-			}
 		}
 	}
 

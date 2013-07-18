@@ -104,7 +104,8 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		 * 2) Even if we miss an update, its okay as we'll receive
 		 *    another update shortly.
 		 */
-		if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0) {
+		if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0 ||
+		    cm->cm_ready_fops_recvd < cm->cm_proxy_nr) {
 			ep = swo_fop->swo_base.swo_cm_ep.ep;
 			m0_cm_lock(cm);
 			cm_proxy = m0_cm_proxy_locate(cm, ep);

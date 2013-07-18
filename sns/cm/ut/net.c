@@ -488,6 +488,7 @@ static void receiver_init()
         M0_ALLOC_ARR(scm->sc_it.si_fdata, FAIL_NR);
         M0_UT_ASSERT(scm->sc_it.si_fdata != NULL);
         scm->sc_it.si_fdata[0] = 1;
+	scm->sc_failures_nr = 1;
 	cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
 	M0_UT_ASSERT(cm->cm_pm != NULL);
 	m0_cm_lock(cm);

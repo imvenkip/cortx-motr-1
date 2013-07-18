@@ -183,6 +183,8 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 
 
 	sag = ag2snsag(ag);
+        cm = ag->cag_cm;
+        M0_ASSERT(cm != NULL);
 	M0_CNT_INC(sag->sag_acc_freed);
 	/**
 	 * Free the aggregation group if this is the last copy packet
@@ -201,8 +203,6 @@ static void ag_fini(struct m0_cm_aggr_group *ag)
 		m0_free(sag->sag_fc);
 		m0_free(sag);
 	}
-        cm = ag->cag_cm;
-        M0_ASSERT(cm != NULL);
         scm = cm2sns(cm);
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),

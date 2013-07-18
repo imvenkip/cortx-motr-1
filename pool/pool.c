@@ -381,9 +381,6 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
  *       |                                            |
  *       ^                                            |
  *       |                                            v
- *       |                                       SNS_REBALANCED
- *       |                                            |
- *       |                                            v
  *       +------------------<-------------------------+
  */
 M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
@@ -410,8 +407,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 				     M0_PNDS_OFFLINE,
 				     M0_PNDS_SNS_REPAIRING,
 				     M0_PNDS_SNS_REPAIRED,
-				     M0_PNDS_SNS_REBALANCING,
-				     M0_PNDS_SNS_REBALANCED)))
+				     M0_PNDS_SNS_REBALANCING)))
 		return -EINVAL;
 
 	if ((event->pe_type == M0_POOL_NODE &&
@@ -451,10 +447,6 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REBALANCING:
-		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REBALANCED)))
-			return -EINVAL;
-		break;
-	case M0_PNDS_SNS_REBALANCED:
 		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE)))
 			return -EINVAL;
 		break;
@@ -497,11 +489,11 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 	spare_array = pm->pm_state.pst_spare_usage_array;
 	switch (event->pe_state) {
 	case M0_PNDS_ONLINE:
-		/* clear spare slot usage if it is from rebalanced */
+		/* clear spare slot usage if it is from rebalancing */
 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index == event->pe_index){
 				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
-						     (M0_PNDS_SNS_REBALANCED)));
+						     (M0_PNDS_SNS_REBALANCING)));
 				spare_array[i].psu_device_index =
 						POOL_PM_SPARE_SLOT_UNUSED;
 				break;
@@ -529,7 +521,6 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 		break;
 	case M0_PNDS_SNS_REPAIRED:
 	case M0_PNDS_SNS_REBALANCING:
-	case M0_PNDS_SNS_REBALANCED:
 		/* change the repair spare slot usage */
 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index == event->pe_index){
@@ -719,16 +710,14 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
 	rc = -ENOENT;
 	m0_rwlock_read_lock(&pm->pm_lock);
 	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
-	if (!M0_IN(device_state, (M0_PNDS_SNS_REBALANCING,
-				  M0_PNDS_SNS_REBALANCED)))
+	if (!M0_IN(device_state, (M0_PNDS_SNS_REBALANCING)))
 		goto out;
 
 	spare_usage_array = pm->pm_state.pst_spare_usage_array;
 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
 		if (spare_usage_array[i].psu_device_index == device_index) {
 			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
-						(M0_PNDS_SNS_REBALANCING,
-						 M0_PNDS_SNS_REBALANCED)));
+						(M0_PNDS_SNS_REBALANCING)));
 			*spare_slot_out = i;
 			rc = 0;
 			break;

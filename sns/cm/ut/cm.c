@@ -99,6 +99,7 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	cm->cm_pm = m0_ios_poolmach_get(reqh);
 	scm = cm2sns(cm);
 	scm->sc_it.si_fdata = &fdata;
+	scm->sc_failures_nr = 1;
 	scm->sc_op = op;
 	rc = cm->cm_ops->cmo_ready(cm);
 	M0_UT_ASSERT(rc == 0);
@@ -243,7 +244,6 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 
 	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
 	cobs_create(nr_files, pool_width);
-	scm->sc_failures_nr = 1;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);
