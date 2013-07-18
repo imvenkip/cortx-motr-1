@@ -114,8 +114,8 @@ M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 	m0_be_log_store_discard(&log->lg_stor, reserved->tc_reg_size);
 }
 
-M0_INTERNAL int m0_be_log_reserve_tx(struct m0_be_log *log,
-				     struct m0_be_tx_credit *prepared)
+M0_INTERNAL int
+m0_be_log_reserve_tx(struct m0_be_log *log, struct m0_be_tx_credit *prepared)
 {
 	struct m0_be_tx_credit io_tx;
 	int                    rc;
