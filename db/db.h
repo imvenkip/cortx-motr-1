@@ -25,7 +25,6 @@
 
 #include "addb/addb.h"
 #include "lib/tlist.h"
-#include "lib/adt.h"           /* m0_buf */
 
 /**
    @defgroup db Data-base interfaces.

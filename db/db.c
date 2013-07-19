@@ -32,7 +32,6 @@
 #include <sys/stat.h>  /* mkdir */
 #include <stdio.h>     /* asprintf, fopen, fclose */
 
-#include "lib/adt.h"   /* m0_buf */
 #include "lib/misc.h"  /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"

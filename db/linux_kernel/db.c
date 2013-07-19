@@ -18,7 +18,6 @@
  * Original creation date: 09/23/2010
  */
 
-#include "lib/adt.h"   /* m0_buf */
 #include "lib/misc.h"  /* M0_SET0 */
 #include "lib/cdefs.h" /* M0_EXPORTED */
 #include "lib/arith.h" /* M0_3WAY() */

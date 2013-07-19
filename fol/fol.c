@@ -18,7 +18,6 @@
  * Original creation date: 09/09/2010
  */
 
-#include "lib/adt.h"           /* m0_buf */
 #include "lib/arith.h"         /* M0_3WAY */
 #include "lib/memory.h"
 #include "lib/errno.h"

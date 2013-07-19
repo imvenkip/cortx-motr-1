@@ -1,5 +1,4 @@
-nobase_mero_include_HEADERS += lib/adt.h \
-                               lib/arith.h \
+nobase_mero_include_HEADERS += lib/arith.h \
                                lib/assert.h \
                                lib/atomic.h \
                                lib/bitmap.h \
