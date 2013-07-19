@@ -117,7 +117,7 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 
 	ast_thread_init();
 	rc = m0_confc_init(&confc, &g_grp,
-			   &(const struct m0_buf)M0_BUF_INITS((char *)profile),
+			   &M0_BUF_INITS((char *)profile),
 			   confd_addr, rpc_mach, NULL);
 	if (rc != 0)
 		goto end;

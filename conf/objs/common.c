@@ -227,7 +227,7 @@ M0_INTERNAL int arrbuf_from_strings(struct arr_buf *dest, const char **src)
 
 	for (i = 0; i < dest->ab_count; ++i) {
 		rc = m0_buf_copy(&dest->ab_elems[i],
-				 &(struct m0_buf)M0_BUF_INITS((char *)src[i]));
+				 &M0_BUF_INITS((char *)src[i]));
 		if (rc != 0) {
 			arrbuf_free(dest);
 			return -ENOMEM;
