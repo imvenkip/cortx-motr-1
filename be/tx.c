@@ -92,12 +92,12 @@ static const struct m0_sm_conf tx_sm_conf = {
 	.scf_state     = tx_states
 };
 
+static bool tx_is_locked(const struct m0_be_tx *tx);
 static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx);
-static void        tx_fail             (struct m0_be_tx *tx, int err);
-static void        tx_engine_got_space (struct m0_be_tx_engine *eng);
-static void        tx_engine_lock      (struct m0_be_tx_engine *eng);
-static void        tx_engine_unlock    (struct m0_be_tx_engine *eng);
-static bool        tx_is_locked        (const struct m0_be_tx *tx);
+static void tx_engine_got_space(struct m0_be_tx_engine *eng);
+static void tx_engine_lock     (struct m0_be_tx_engine *eng);
+static void tx_engine_unlock   (struct m0_be_tx_engine *eng);
+static void tx_fail(struct m0_be_tx *tx, int err);
 
 M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine)
 {
@@ -105,8 +105,7 @@ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine)
 
 	m0_be_log_init(&engine->te_log);
 	rc = m0_be_log_create(&engine->te_log, 1ULL << 28);
-	/* XXX */
-	M0_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0); /* XXX FIXME */
 	m0_forall(i, ARRAY_SIZE(engine->te_txs),
 		  (eng_tlist_init(&engine->te_txs[i]), true));
 	m0_rwlock_init(&engine->te_lock);
@@ -183,8 +182,7 @@ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
 
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 {
-	struct m0_be_tx_engine *eng = tx_engine(tx);
-	int			rc;
+	int rc;
 
 	M0_ENTRY();
 	M0_PRE(m0_be__tx_invariant(tx));
@@ -192,17 +190,15 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_PRE(tx_is_locked(tx));
 
 	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
-	if (rc == 0) {
-		rc = m0_be_log_reserve_tx(&eng->te_log, &tx->t_prepared);
-		if (rc == 0) {
-			m0_be__tx_state_set(tx, M0_BTS_ACTIVE);
-		} else {
-			m0_be_reg_area_fini(&tx->t_reg_area);
-		}
-	}
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ASSERT(rc == -ENOMEM);
 		tx_fail(tx, rc);
+		goto out;
+	}
 
+	rc = m0_be_log_reserve_tx(&tx_engine(tx)->te_log, &tx->t_prepared);
+	m0_be__tx_state_set(tx, rc == 0 ? M0_BTS_ACTIVE : M0_BTS_OPENING);
+out:
 	M0_POST(m0_be__tx_invariant(tx));
 	M0_LEAVE();
 }
@@ -419,6 +415,8 @@ static void tx_engine_got_space(struct m0_be_tx_engine *eng)
 		if (rc == 0)
 			m0_be__tx_state_set(tx, M0_BTS_ACTIVE);
 		else
+			/* Ignore the rest of OPENING transactions. If we
+			 * don't ignore them, the big ones may starve. */
 			break;
 	} m0_tl_endfor;
 
@@ -453,8 +451,10 @@ m0_be__tx_state_set(struct m0_be_tx *tx, enum m0_be_tx_state state)
 
 static void tx_fail(struct m0_be_tx *tx, int err)
 {
+	M0_PRE(err != 0);
 	M0_PRE(m0_be__tx_invariant(tx));
 
+	M0_LOG(M0_ERROR, "transaction failure: err=%d", err);
 	m0_sm_fail(&tx->t_sm, M0_BTS_FAILED, err);
 	eng_tlist_del(tx);
 
@@ -527,13 +527,15 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
 	struct m0_be_tx *prev = NULL;
 
 	return true || /* XXX RESTOREME */
-		m0_forall(i, M0_BTS_NR,
-			  m0_tl_forall(eng, t, &engine->te_txs[i],
-				       m0_be__tx_invariant(t) &&
-				       ergo(prev != NULL && prev->t_lsn != 0,
-					    t->t_lsn != 0 &&
-					    prev->t_lsn > t->t_lsn) &&
-				       (prev = t, true)));
+		(m0_forall(i, M0_BTS_NR,
+			   m0_tl_forall(eng, t, &engine->te_txs[i],
+					m0_be__tx_invariant(t) &&
+					ergo(prev != NULL && prev->t_lsn != 0,
+					     t->t_lsn != 0 &&
+					     prev->t_lsn > t->t_lsn) &&
+					(prev = t, true))) &&
+		 /* tx_engine doesn't keep failed transactions in its lists. */
+		 eng_tlist_is_empty(&engine->te_txs[M0_BTS_FAILED]));
 }
 
 M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)

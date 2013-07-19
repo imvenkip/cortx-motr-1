@@ -23,6 +23,7 @@ nobase_mero_include_HEADERS += be/alloc.h           \
 mero_libmero_la_SOURCES += be/alloc.c     \
                            be/be.c        \
                            be/btree.c     \
+                           be/extmap.c    \
                            be/io.c        \
                            be/list.c      \
                            be/log.c       \
@@ -36,7 +37,6 @@ mero_libmero_la_SOURCES += be/alloc.c     \
                            be/tx_log.c    \
                            be/tx_regmap.c \
                            be/tx_service.c
-                           #XXX#be/extmap.c
 
 XC_FILES += be/tx_log_xc.h
 
