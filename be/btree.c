@@ -659,31 +659,28 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
 			 struct m0_be_tx	 *tx,
 			 struct node_pos	 *node_pos)
 {
-	unsigned int keys_max = KV_NR;
 	unsigned int i;
 	struct bt_key_val *key_val;
 	struct m0_be_bnode *node = node_pos->p_node;
 
-	if (node->b_leaf == false) {
+	if (node->b_leaf == false)
 		return -1;
-	}
 
 	key_val = node->b_key_vals[node_pos->p_index];
+	node->b_key_vals[node_pos->p_index] = NULL;
 
-	for (i = node_pos->p_index; i < keys_max - 1; i++) {
+	for (i = node_pos->p_index; i < node->b_nr_active - 1; i++)
 		node->b_key_vals[i] = node->b_key_vals[i + 1];
-	}
 
 	btree_pair_release(btree, tx, key_val);
 
 	node->b_nr_active--;
 
-	if (node->b_nr_active == 0 && node != btree->bb_root) {
+	if (node->b_nr_active == 0 && node != btree->bb_root)
 		free_btree_node(node, btree, tx);
-	} else {
+	else
 		/* Update affected memory regions in tx: */
 		node_update(node, btree, tx);
-	}
 
 	return 0;
 }
@@ -1068,7 +1065,7 @@ btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 		mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
 		kv->val = NULL;
 	}
-	//mem_free(btree, tx, kv, sizeof(struct bt_key_val));
+	mem_free(btree, tx, kv, sizeof(struct bt_key_val));
 }
 
 M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
