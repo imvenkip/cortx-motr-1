@@ -54,7 +54,12 @@ struct m0_buf {
  *         static const struct m0_buf good = M0_BUF_INIT(sizeof str, str);
  * @endcode
  */
-#define M0_BUF_INIT(size, data) { .b_nob = (size), .b_addr = (data) }
+#define M0_BUF_INIT(size, data)		\
+	((struct m0_buf) {		\
+		.b_nob = (size),	\
+		.b_addr = (data)	\
+	})
+
 #define M0_BUF_INITS(str)       M0_BUF_INIT(strlen(str), (str))
 #define M0_BUF_INIT0            M0_BUF_INIT(0, NULL)
 

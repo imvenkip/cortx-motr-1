@@ -970,7 +970,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	csb->csb_next_key = mops->mo_fid_start;
 
 	rc = m0_confc_init(&confc, &csb->csb_iogroup,
-			   &(const struct m0_buf)M0_BUF_INITS(mops->mo_profile),
+			   &M0_BUF_INITS(mops->mo_profile),
 			   mops->mo_confd, &m0t1fs_globals.g_rpc_machine,
 			   mops->mo_local_conf);
 	if (rc != 0)

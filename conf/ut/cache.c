@@ -36,8 +36,7 @@ void test_obj_xtors(void)
 
 	M0_CASSERT(M0_CO_DIR == 0);
 	for (t = 0; t < M0_CO_NR; ++t) {
-		obj = m0_conf_obj_create(&g_cache, t, &(const struct m0_buf)
-					 M0_BUF_INITS("test"));
+		obj = m0_conf_obj_create(&g_cache, t, &M0_BUF_INITS("test"));
 		M0_UT_ASSERT(obj != NULL);
 
 		m0_mutex_lock(&g_lock);
