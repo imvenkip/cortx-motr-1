@@ -1228,15 +1228,19 @@ M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
 						 struct m0_be_tx_credit *accum)
 {
 	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
-	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT(1, ksize + vsize +
-						2 * sizeof(struct bt_key_val));
-	btree_alloc_credit(tree, accum);
-	btree_credit(tree, accum);
+	struct m0_be_tx_credit  kv_update_credit =
+		M0_BE_TX_CREDIT(1, ksize + vsize + sizeof(struct bt_key_val));
+	struct m0_be_tx_credit  node_alloc_credit = M0_BE_TX_CREDIT_ZERO;
+
+	btree_alloc_credit(tree, &node_alloc_credit);
+	btree_credit(tree, &node_alloc_credit);
+	m0_be_tx_credit_add(accum, &node_alloc_credit);
+
 	m0_be_allocator_credit(a, M0_BAO_ALLOC,
 			       ksize, BTREE_ALLOC_SHIFT, accum);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC,
 			       vsize, BTREE_ALLOC_SHIFT, accum);
-	m0_be_tx_credit_add(accum, &credit);
+	m0_be_tx_credit_add(accum, &kv_update_credit);
 }
 
 M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
