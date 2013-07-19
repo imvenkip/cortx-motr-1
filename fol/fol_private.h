@@ -25,8 +25,7 @@
 
 #define M0_REC_HEADER_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_rec_header_xc, ptr)
 
-/* __MERO_FOL_FOL_PRIVATE_H__ */
-#endif
+#endif /* __MERO_FOL_FOL_PRIVATE_H__ */
 
 /*
  *  Local variables:
