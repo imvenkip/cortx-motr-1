@@ -93,16 +93,16 @@ struct m0_fol_rec_desc;
 struct m0_fol_rec;
 
 /* import */
-#include "lib/adt.h"      /* m0_buf */
-#include "lib/types.h"    /* uint64_t */
-#include "lib/arith.h"    /* M0_IS_8ALIGNED */
+#include "lib/adt.h"        /* m0_buf */
+#include "lib/types.h"      /* uint64_t */
+#include "lib/arith.h"      /* M0_IS_8ALIGNED */
 #include "lib/mutex.h"
 #include "lib/vec.h"
 #include "fid/fid.h"
-#include "dtm/dtm_update.h" /* m0_update_id, m0_update_state */
-#include "dtm/verno.h"    /* m0_verno */
-#include "db/db.h"        /* m0_table, m0_db_cursor */
-#include "fol/lsn.h"      /* m0_lsn_t */
+#include "dtm/dtm_update.h" /* m0_update_id, m0_update_state, m0_epoch_id */
+#include "dtm/verno.h"      /* m0_verno */
+#include "db/db.h"          /* m0_table, m0_db_cursor */
+#include "fol/lsn.h"        /* m0_lsn_t */
 
 #include "fid/fid_xc.h"
 #include "dtm/verno_xc.h"
@@ -110,7 +110,6 @@ struct m0_fol_rec;
 
 struct m0_dbenv;
 struct m0_db_tx;
-struct m0_epoch_id;
 
 /**
    In-memory representation of a fol.
@@ -491,9 +490,7 @@ static const struct m0_fol_rec_part_type_ops part ## _type_ops = { \
 part ## _type = M0_FOL_REC_PART_TYPE_XC_OPS(name, part ## _xc,  \
 				            &part ## _type_ops)
 /** @} end of fol group */
-
-/* __MERO_FOL_FOL_H__ */
-#endif
+#endif /* __MERO_FOL_FOL_H__ */
 
 /*
  *  Local variables:
