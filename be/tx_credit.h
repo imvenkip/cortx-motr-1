@@ -94,18 +94,13 @@ M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
 M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 				    const struct m0_be_tx_credit *c1);
 
-#define M0_BE_TX_CREDIT_ZERO			\
-	((struct m0_be_tx_credit) {		\
-		.tc_reg_nr = 0,			\
-		.tc_reg_size = 0		\
-	})
-
 #define M0_BE_TX_CREDIT(reg_nr, reg_size)	\
 	((struct m0_be_tx_credit) {		\
 		.tc_reg_nr = (reg_nr),		\
 		.tc_reg_size = (reg_size)	\
 	})
 
+#define M0_BE_TX_CREDIT_ZERO M0_BE_TX_CREDIT(0, 0)
 #define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof (type))
 
 /** @} end of be group */
