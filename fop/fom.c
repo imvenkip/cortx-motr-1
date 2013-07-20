@@ -27,7 +27,6 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
-#include "lib/cdefs.h" /* ergo */
 #include "db/db_common.h"
 #include "addb/addb.h"
 #include "mero/magic.h"

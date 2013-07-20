@@ -21,7 +21,6 @@
 
 #include "lib/arith.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/memory.h"

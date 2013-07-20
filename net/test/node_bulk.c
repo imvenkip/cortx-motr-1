@@ -21,7 +21,6 @@
 #include "lib/arith.h"			/* M0_SWAP */
 #include "lib/errno.h"			/* EALREADY */
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
-#include "lib/cdefs.h"			/* ergo */
 #include "lib/misc.h"			/* M0_IN */
 #include "lib/atomic.h"			/* m0_atomic64 */
 
@@ -1663,9 +1662,7 @@ void m0_net_test_node_bulk_fini(void)
 
 #undef NET_TEST_MODULE_NAME
 
-/**
-   @} end of NetTestBulkNodeInternals group
- */
+/** @} end of NetTestBulkNodeInternals group */
 
 /*
  *  Local variables:

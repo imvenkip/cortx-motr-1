@@ -22,7 +22,6 @@
 #include "lib/vec.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
-#include "lib/cdefs.h"
 
 #ifdef __KERNEL__
 #include <linux/pagemap.h> /* PAGE_CACHE_SIZE */

@@ -26,7 +26,6 @@
 #define __MERO_COB_COB_H__
 
 #include "lib/atomic.h"
-#include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/refs.h"
 #include "lib/bitstring.h"
@@ -857,9 +856,7 @@ M0_INTERNAL int m0_cob_mod_init(void);
 M0_INTERNAL void m0_cob_mod_fini(void);
 
 /** @} end group cob */
-
-/* __MERO_COB_COB_H__ */
-#endif
+#endif /* __MERO_COB_COB_H__ */
 
 /*
  *  Local variables:

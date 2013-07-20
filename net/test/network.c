@@ -18,7 +18,6 @@
  * Original creation date: 03/22/2012
  */
 
-#include "lib/cdefs.h"		/* ergo */
 #include "lib/errno.h"		/* E2BIG */
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/misc.h"		/* M0_SET0 */
@@ -818,9 +817,7 @@ struct m0_net_test_network_timeouts m0_net_test_network_timeouts_never(void)
 	return result;
 }
 
-/**
-   @} end of NetTestNetworkInternals group
- */
+/** @} end of NetTestNetworkInternals group */
 
 /*
  *  Local variables:

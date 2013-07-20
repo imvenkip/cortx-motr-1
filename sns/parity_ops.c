@@ -19,7 +19,6 @@
  */
 
 #include "sns/parity_ops.h"
-#include "lib/cdefs.h"
 
 M0_INTERNAL void m0_parity_fini(void)
 {

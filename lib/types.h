@@ -24,9 +24,9 @@
 #define __MERO_LIB_TYPES_H__
 
 #ifdef __KERNEL__
-#include "lib/linux_kernel/types.h"
+#  include "lib/linux_kernel/types.h"
 #else
-#include "lib/user_space/types.h"
+#  include "lib/user_space/types.h"
 #endif
 #include "xcode/xcode_attr.h"
 
@@ -62,9 +62,7 @@ enum {
 	M0_BSIGNED_MAX = 0x7fffffffffffffff
 };
 
-
-/* __MERO_LIB_TYPES_H__ */
-#endif
+#endif /* __MERO_LIB_TYPES_H__ */
 
 /*
  *  Local variables:

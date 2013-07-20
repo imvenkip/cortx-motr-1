@@ -23,7 +23,6 @@
 #ifndef __MERO_POOL_POOL_H__
 #define __MERO_POOL_POOL_H__
 
-#include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
 #include "db/db.h"
@@ -521,10 +520,7 @@ enum sns_repair_state {
 };
 
 /** @} end of servermachine group */
-
-
-/* __MERO_POOL_POOL_H__ */
-#endif
+#endif /* __MERO_POOL_POOL_H__ */
 
 /*
  *  Local variables:

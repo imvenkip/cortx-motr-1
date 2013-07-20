@@ -8,7 +8,6 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/buf.h \
                                lib/buf_xc.h \
                                lib/byteorder.h \
-                               lib/cdefs.h \
                                lib/chan.h \
                                lib/cond.h \
                                lib/cookie.h \
@@ -42,8 +41,8 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/uuid.h \
                                lib/vec.h \
                                lib/vec_xc.h \
-                               lib/user_space/cdefs.h \
                                lib/user_space/getopts.h \
+                               lib/user_space/misc.h \
                                lib/user_space/mutex.h \
                                lib/user_space/rwlock.h \
                                lib/user_space/semaphore.h \
@@ -113,7 +112,6 @@ XC_FILES += lib/buf_xc.h \
 	    lib/string_xc.h
 
 EXTRA_DIST += lib/linux_kernel/atomic64.h \
-              lib/linux_kernel/cdefs.h \
               lib/linux_kernel/finject_init.c \
               lib/linux_kernel/kassert.c \
               lib/linux_kernel/kcookie.c \
@@ -123,6 +121,7 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/ktrace.c \
               lib/linux_kernel/kvec.c \
               lib/linux_kernel/memory.c \
+              lib/linux_kernel/misc.h \
               lib/linux_kernel/mutex.c \
               lib/linux_kernel/mutex.h \
               lib/linux_kernel/processor.c \

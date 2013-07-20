@@ -18,12 +18,9 @@
  * Original creation date: 03/11/2011
  */
 
-#include <linux/semaphore.h>
-
 #include "lib/semaphore.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"     /* M0_EXPORTED */
-#include "lib/time.h"
+#include <linux/jiffies.h>  /* timespec_to_jiffies */
 
 /**
    @addtogroup semaphore

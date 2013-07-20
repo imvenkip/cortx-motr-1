@@ -18,7 +18,6 @@
  * Original creation date: 12/02/2010
  */
 
-#include "lib/cdefs.h"     /* NULL */
 #include "lib/assert.h"
 #include "lib/rwlock.h"
 
@@ -78,27 +77,8 @@ void m0_rwlock_read_unlock(struct m0_rwlock *lock)
 	rc = pthread_rwlock_unlock(&lock->rw_lock);
 	M0_ASSERT(rc == 0);
 }
-/*
-bool m0_rwlock_read_trylock(struct m0_rwlock *lock)
-{
-	int rc;
 
-	rc = pthread_rwlock_tryrdlock(&lock->rw_lock);
-	M0_ASSERT(rc == EBUSY || rc == 0);
-	return rc == 0;
-}
-
-bool m0_rwlock_write_trylock(struct m0_rwlock *lock)
-{
-	int rc;
-
-	rc = pthread_rwlock_tryrdlock(&lock->rw_lock);
-	M0_ASSERT(rc == EBUSY || rc == 0);
-	return rc == 0;	
-}
-*/
 /** @} end of rwlock group */
-
 
 /*
  *  Local variables:

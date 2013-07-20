@@ -19,12 +19,12 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
+
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "lib/trace.h"
 #include "lib/misc.h"
-#include "lib/cdefs.h"
 #include "lib/finject.h"
 
 #include "cob/cob.h"
@@ -770,9 +770,9 @@ M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)
 	m0_sns_cm_iter_bob_fini(it);
 }
 
+/** @} SNSCM */
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} SNSCM */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

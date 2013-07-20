@@ -19,13 +19,15 @@
  */
 
 #include "mero/version.h"
-#include "lib/trace.h"    /* m0_console_printf */
-
+#ifdef __KERNEL__
+#  include <linux/kernel.h>  /* KERN_INFO */
+#endif
+#include "lib/trace.h"       /* m0_console_printf */
 
 #ifdef __KERNEL__
-#define BI_PREFIX  KERN_INFO "mero: "
+#  define BI_PREFIX  KERN_INFO "mero: "
 #else
-#define BI_PREFIX
+#  define BI_PREFIX
 #endif
 
 static const struct m0_build_info build_info = {
@@ -42,7 +44,6 @@ static const struct m0_build_info build_info = {
 	.bi_kcflags        = M0_VERSION_BUILD_KCFLAGS,
 	.bi_ldflags        = M0_VERSION_BUILD_LDFLAGS,
 };
-
 
 const struct m0_build_info *m0_build_info_get(void)
 {

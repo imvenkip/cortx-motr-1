@@ -23,7 +23,6 @@
 #include <linux/init.h>
 
 #include "ut/ut.h"
-#include "lib/cdefs.h" /* for M0_EXPORTED */
 
 /* These unit tests are done in the kernel */
 M0_INTERNAL void test_bitmap(void);

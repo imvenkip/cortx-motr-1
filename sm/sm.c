@@ -18,13 +18,13 @@
  * Original creation date: 04/01/2010
  */
 
-#include "lib/errno.h"              /* ESRCH */
-#include "lib/misc.h"               /* M0_SET0 */
-#include "lib/cdefs.h"              /* M0_EXPORTED */
-#include "lib/mutex.h"
-#include "lib/arith.h"              /* m0_is_po2 */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SM
 #include "lib/trace.h"
+
+#include "lib/errno.h"              /* ESRCH */
+#include "lib/misc.h"               /* M0_SET0 */
+#include "lib/mutex.h"
+#include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/memory.h"
 #include "sm/sm.h"
 #include "lib/finject.h"
@@ -647,9 +647,9 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 			sub[i] = base[i];
 	}
 }
-#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of sm group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

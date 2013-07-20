@@ -158,12 +158,10 @@ sub build_h_skeleton_for
 
     return <<"END_HSKEL"
 $copyright_header
-
 #pragma once
 
 #ifndef $include_guard
 #define $include_guard
-
 
 /**
  * \@defgroup XXX
@@ -172,11 +170,8 @@ $copyright_header
  */
 
 
-
 /** \@} end of XXX group */
-
 #endif /* $include_guard */
-
 
 $footer
 END_HSKEL
@@ -194,9 +189,7 @@ $copyright_header
  */
 
 
-
 /** \@} end of XXX group */
-
 
 $footer
 END_CSKEL

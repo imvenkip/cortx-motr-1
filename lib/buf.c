@@ -19,7 +19,6 @@
  */
 
 #include "lib/memory.h"
-#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/buf.h"

@@ -20,7 +20,6 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/cdefs.h"
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/bitstring.h"
 

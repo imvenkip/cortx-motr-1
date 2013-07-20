@@ -18,11 +18,8 @@
  * Original creation date: 11/26/2012
  */
 
-#include "lib/cdefs.h"			/* ARRAY_SIZE */
-
 #include "net/test/network.h"		/* m0_net_test_network_init */
 #include "net/test/node_bulk.h"		/* m0_net_test_node_bulk_init */
-
 #include "net/test/initfini.h"
 
 /**
@@ -82,9 +79,7 @@ void m0_net_test_fini(void)
 	M0_POST(rc == 0);
 }
 
-/**
-   @} end of NetTestInitFiniInternals group
- */
+/** @} end of NetTestInitFiniInternals group */
 
 /*
  *  Local variables:

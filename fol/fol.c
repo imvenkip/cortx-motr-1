@@ -22,7 +22,6 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"          /* M0_SET0 */
-#include "lib/cdefs.h"         /* M0_EXPORTED */
 #include "lib/vec.h"
 #include "mero/magic.h"
 #include "rpc/rpc_opcodes.h"

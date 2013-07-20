@@ -14,47 +14,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 04-Aug-2010
  */
-
 #pragma once
+#ifndef __MERO_LIB_LINUX_KERNEL_MISC_H__
+#define __MERO_LIB_LINUX_KERNEL_MISC_H__
 
-#ifndef __MERO_LIB_USER_SPACE_CDEFS_H__
-#define __MERO_LIB_USER_SPACE_CDEFS_H__
+#include <linux/stddef.h> /* offsetof, NULL */
+#include <linux/kernel.h> /* container_of, ARRAY_SIZE */
+#include <linux/module.h> /* EXPORT_SYMBOL */
 
-#ifndef offsetof
-#define offsetof(typ,memb) __builtin_offsetof (typ, memb)
-#endif
+#define M0_EXPORTED(s) EXPORT_SYMBOL(s)
 
-#ifndef container_of
-#define container_of(ptr, type, member) \
-        ((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))
-#endif
+#define CHAR_BIT (8)
 
-#ifndef likely
-#define likely(x)       __builtin_expect(!!(x), 1)
-#endif
-
-#ifndef unlikely
-#define unlikely(x)     __builtin_expect(!!(x), 0)
-#endif
-
-#ifndef NULL
-#define NULL ((void *)0)
-#endif
-
-/**
- * size of static array
- */
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
-#endif
-
-#define M0_EXPORTED(s)
-
-/* __MERO_LIB_USER_SPACE_CDEFS_H__ */
-#endif
+#endif /* __MERO_LIB_LINUX_KERNEL_MISC_H__ */
 
 /*
  *  Local variables:

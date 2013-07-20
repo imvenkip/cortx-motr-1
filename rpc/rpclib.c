@@ -26,7 +26,6 @@
 #  include <stdio.h>  /* fopen, fclose */
 #endif
 
-#include "lib/cdefs.h"
 #include "lib/misc.h"
 #include "lib/types.h"
 #include "lib/memory.h"

@@ -20,7 +20,6 @@
 
 #include "ut/ut.h"
 #include "lib/memory.h"
-#include "lib/cdefs.h"
 #include "lib/misc.h"
 #include "pool/pool.h"
 

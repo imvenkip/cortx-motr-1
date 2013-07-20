@@ -421,7 +421,6 @@
 
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/errno.h"
-#include "lib/cdefs.h"    /* M0_EXPORTED */
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/m0loop_internal.h"
 

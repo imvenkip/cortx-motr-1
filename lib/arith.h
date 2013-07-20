@@ -25,7 +25,6 @@
 
 #include "lib/types.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"
 
 /**
    @defgroup arith Miscellaneous arithmetic functions.
@@ -98,11 +97,9 @@ static inline uint64_t max64u(uint64_t a, uint64_t b)
 	__a > __b ? __a : __b;			\
 })
 
-#ifndef min3
-#define min3(a, b, c) (min_check((a), min_check((b), (c))))
-#endif
-#ifndef max3
-#define max3(a, b, c) (max_check((a), max_check((b), (c))))
+#ifndef __KERNEL__
+#  define min3(a, b, c) (min_check((a), min_check((b), (c))))
+#  define max3(a, b, c) (max_check((a), max_check((b), (c))))
 #endif
 
 /**
@@ -217,9 +214,7 @@ static bool inline m0_addu64_will_overflow(uint64_t a, uint64_t b)
 }
 
 /** @} end of arith group */
-
-/* __MERO_LIB_ARITH_H__ */
-#endif
+#endif /* __MERO_LIB_ARITH_H__ */
 
 /*
  *  Local variables:

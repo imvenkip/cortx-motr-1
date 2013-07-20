@@ -19,11 +19,10 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-
 #include "lib/trace.h"
+
 #include "lib/memory.h"
 #include "lib/errno.h"
-#include "lib/cdefs.h"
 #include "lib/misc.h"
 
 #include "fid/fid.h"
@@ -428,9 +427,9 @@ M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *sag,
 	return rc;
 }
 
+/** @} SNSCMAG */
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} SNSCMAG */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

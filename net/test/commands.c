@@ -18,7 +18,6 @@
  * Original creation date: 05/05/2012
  */
 
-#include "lib/cdefs.h"		/* container_of */
 #include "lib/types.h"		/* m0_bcount_t */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
@@ -597,9 +596,7 @@ bool m0_net_test_commands_invariant(struct m0_net_test_cmd_ctx *ctx)
 
 #undef NET_TEST_MODULE_NAME
 
-/**
-   @} end of NetTestCommandsInternals group
- */
+/** @} end of NetTestCommandsInternals group */
 
 /*
  *  Local variables:

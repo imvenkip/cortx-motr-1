@@ -25,7 +25,6 @@
 
 #include "lib/errno.h"
 #include "lib/misc.h"          /* m0_forall */
-#include "lib/cdefs.h"         /* ARRAY_SIZE */
 #include "lib/memory.h"
 #include "lib/types.h"
 #include "lib/ext.h"           /* m0_ext */

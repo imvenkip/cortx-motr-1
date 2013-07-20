@@ -19,24 +19,21 @@
  */
 
 #ifdef __KERNEL__
-#include "lib/cdefs.h" /* CHAR_BIT */
-#include <linux/ctype.h> /* tolower */
-#include <linux/sched.h> /* current->pid */
+#  include <linux/ctype.h>  /* tolower */
+#  include <linux/sched.h>  /* current->pid */
 #else
-#include <limits.h> /* CHAR_BIT */
-#include <ctype.h> /* tolower */
-#include <sys/types.h>
-#include <unistd.h> /* getpid */
+#  include <limits.h>       /* CHAR_BIT */
+#  include <ctype.h>        /* tolower */
+#  include <sys/types.h>
+#  include <unistd.h>       /* getpid */
 #endif
-
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h"  /* m0_align */
-#include "lib/misc.h"   /* m0_short_file_name, string.h */
-#include "lib/memory.h" /* m0_pagesize_get */
+#include "lib/arith.h"      /* m0_align */
+#include "lib/misc.h"       /* m0_short_file_name, string.h */
+#include "lib/memory.h"     /* m0_pagesize_get */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
-
 #include "mero/magic.h"
 
 /**
@@ -604,7 +601,6 @@ M0_INTERNAL void m0_console_printf(const char *fmt, ...)
 	m0_console_vprintf(fmt, ap);
 	va_end(ap);
 }
-
 
 /** @} end of trace group */
 

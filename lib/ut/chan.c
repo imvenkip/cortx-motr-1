@@ -24,7 +24,6 @@
 #include "lib/chan.h"
 #include "lib/assert.h"
 #include "lib/timer.h"
-#include "lib/cdefs.h"     /* M0_EXPORTED */
 
 enum {
 	NR = 16

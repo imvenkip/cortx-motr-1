@@ -19,7 +19,6 @@
  */
 
 #include "lib/misc.h"  /* M0_SET0 */
-#include "lib/cdefs.h" /* M0_EXPORTED */
 #include "lib/arith.h" /* M0_3WAY() */
 #include "lib/errno.h"
 #include "lib/assert.h"

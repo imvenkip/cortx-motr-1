@@ -19,10 +19,7 @@
  */
 
 #include "be/tx_regmap.h"
-
-#include "ut/ut.h"	/* M0_UT_ASSERT */
-#include "lib/cdefs.h"	/* ARRAY_SIZE */
-
+#include "ut/ut.h"
 #include <stdio.h>	/* fflush */
 #include <stdlib.h>	/* rand_r */
 #include <string.h>	/* memcpy */

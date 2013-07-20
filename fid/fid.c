@@ -15,16 +15,10 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 09/09/2010
+ * Original creation date: 09-Sep-2010
  */
 
-#ifdef __KERNEL__
-#include <linux/string.h>  /* memcmp */
-#else
-#include <string.h>
-#endif
-
-#include "lib/cdefs.h"         /* M0_EXPORTED */
+#include "lib/misc.h"          /* memcmp */
 #include "lib/assert.h"        /* M0_PRE() */
 #include "fid/fid_xc.h"
 #include "fid/fid.h"

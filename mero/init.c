@@ -18,7 +18,6 @@
  * Original creation date: 06/19/2010
  */
 
-#include "lib/cdefs.h"
 #include "fop/fop.h"
 
 #ifndef __KERNEL__

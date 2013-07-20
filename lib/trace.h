@@ -27,11 +27,10 @@
 
 #include "lib/types.h"
 #include "lib/arith.h"
-#include "lib/cdefs.h"   /* M0_HAS_TYPE */
 #include "mero/magic.h"  /* M0_TRACE_DESCR_MAGIC */
 
 #ifndef __KERNEL__
-#include "lib/user_space/trace.h"
+#  include "lib/user_space/trace.h"
 #endif
 
 /**
@@ -577,9 +576,7 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); LOG_CHECK(a8); })
 
 /** @} end of trace group */
-
-/* __MERO_LIB_TRACE_H__ */
-#endif
+#endif /* __MERO_LIB_TRACE_H__ */
 
 /*
  *  Local variables:

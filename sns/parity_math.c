@@ -21,7 +21,6 @@
 
 #include "lib/arith.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h" /* SET0() */
@@ -1166,6 +1165,7 @@ static inline uint32_t block_count(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;
 }
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -31,7 +31,7 @@
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/user_space/types.h"  /* bool */
 #include "lib/user_space/trace.h"  /* m0_trace_parse */
-
+#include "lib/misc.h"              /* ARRAY_SIZE */
 
 int main(int argc, char *argv[])
 {
@@ -41,8 +41,7 @@ int main(int argc, char *argv[])
 	FILE       *input_file;
 	FILE       *output_file;
 	bool        stream_mode = false;
-
-	int rc;
+	int         rc;
 
 	/* process CLI options */
 	rc = M0_GETOPTS(basename(argv[0]), argc, argv,

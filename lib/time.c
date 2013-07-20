@@ -19,9 +19,8 @@
  * Original creation date: 12/10/2010
  */
 
-#include "lib/cdefs.h"	/* M0_EXPORTED */
-#include "lib/assert.h" /* M0_PRE */
 #include "lib/time.h"
+#include "lib/misc.h"  /* M0_EXPORTED */
 
 /**
    @addtogroup time
