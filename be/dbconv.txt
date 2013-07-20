@@ -1,0 +1,16 @@
+= db5 to BE conversion
+
+[cols="l,l", options="header"]
+.Initialisation
+|===
+|db5
+|be
+
+|m0_dbenv_init(db, db_name, flags);
+|m0_be_init(be);
+rc = m0_be_tx_engine_start(be->b_tx_engine, reqh);
+
+|m0_db_tx_init(tx, db, flags);
+|m0_be_tx_init(tx, tid, be, sm_group, persistent_cb, discarded_cb,
+              global_p, filler_cb, datum);
+|===
