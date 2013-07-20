@@ -957,8 +957,7 @@ M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
 		M0_LEAVE("rc: FALSE");
 		return false;
 	}
-	slot = ready_slot_tlist_head(&session->s_ready_slots);
-	ready_slot_tlist_del(slot);
+	slot = ready_slot_tlist_pop(&session->s_ready_slots);
 	m0_rpc_slot_item_add_internal(slot, item);
 
 	M0_POST(m0_rpc_item_is_bound(item));

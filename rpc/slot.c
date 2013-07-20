@@ -260,10 +260,7 @@ M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot)
 	 */
         M0_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
 
-        dummy_item = slot_item_tlist_head(&slot->sl_item_list);
-        M0_ASSERT(slot_item_tlink_is_in(dummy_item));
-
-	slot_item_tlist_del(dummy_item);
+        dummy_item = slot_item_tlist_pop(&slot->sl_item_list);
 	M0_ASSERT(item_xid(dummy_item, 0) == 0);
 
 	fop = m0_rpc_item_to_fop(dummy_item);

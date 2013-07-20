@@ -1584,8 +1584,7 @@ static void io_item_replied(struct m0_rpc_item *item)
 	 */
 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
 		M0_LOG(M0_DEBUG, "Reply received for coalesced io fops.");
-		ritem = rpcitem_tlist_head(&item->ri_compound_items);
-		rpcitem_tlist_del(ritem);
+		ritem = rpcitem_tlist_pop(&item->ri_compound_items);
 		bkpfop = m0_rpc_item_to_fop(ritem);
 		if (fop->f_type->ft_ops->fto_fop_replied != NULL)
 			fop->f_type->ft_ops->fto_fop_replied(fop, bkpfop);

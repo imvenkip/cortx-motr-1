@@ -368,6 +368,12 @@ M0_INTERNAL void m0_tlist_move_tail(const struct m0_tl_descr *d,
 void *m0_tlist_head(const struct m0_tl_descr *d, const struct m0_tl *list);
 
 /**
+   Removes and returns the head the list or NULL.
+ */
+M0_INTERNAL void *m0_tlist_pop(const struct m0_tl_descr *d,
+			       const struct m0_tl *list);
+
+/**
    Returns the last element of a list or NULL if the list is empty.
  */
 M0_INTERNAL void *m0_tlist_tail(const struct m0_tl_descr *d,
@@ -511,6 +517,7 @@ scope void   name ## _tlist_remove(amb_type *amb);			\
 scope void   name ## _tlist_move(struct m0_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb); \
 scope amb_type *name ## _tlist_head(const struct m0_tl *list);		\
+scope amb_type *name ## _tlist_pop(const struct m0_tl *list);		\
 scope amb_type *name ## _tlist_tail(const struct m0_tl *list);		\
 scope amb_type *name ## _tlist_next(const struct m0_tl *list,           \
 				    const amb_type *amb);	        \
@@ -651,6 +658,11 @@ scope __AUN void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb) \
 scope __AUN amb_type *name ## _tlist_head(const struct m0_tl *list)	\
 {									\
 	return (amb_type *)m0_tlist_head(&name ## _tl, list);		\
+}									\
+									\
+scope __AUN amb_type *name ## _tlist_pop(const struct m0_tl *list)	\
+{									\
+	return (amb_type *)m0_tlist_pop(&name ## _tl, list);		\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_tail(const struct m0_tl *list)	\

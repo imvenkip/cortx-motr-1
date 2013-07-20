@@ -134,11 +134,10 @@ M0_INTERNAL void sim_run(struct sim *state)
 	i = 0;
 	while (!ca_tlist_is_empty(&state->ss_future)) {
 		M0_ASSERT(sim_current == NULL);
-		call = ca_tlist_head(&state->ss_future);
+		call = ca_tlist_pop(&state->ss_future);
 		M0_ASSERT(call->sc_time >= state->ss_bolt);
 		/* jump to the future */
 		state->ss_bolt = call->sc_time;
-		ca_tlist_del(call);
 		if (call->sc_call(call))
 			/*
 			 * timer wasn't rearmed.
@@ -440,8 +439,7 @@ static void sim_chan_wake_head(struct sim_chan *chan)
 {
 	struct sim_thread *t;
 
-	t = sim_thr_tlist_head(&chan->ch_threads);
-	sim_thr_tlist_del(t);
+	t = sim_thr_tlist_pop(&chan->ch_threads);
 	cnt_mod(&chan->ch_cnt_sleep, t->st_sim->ss_bolt - t->st_blocked);
 	sim_wakeup_post(t->st_sim, t, 0);
 }

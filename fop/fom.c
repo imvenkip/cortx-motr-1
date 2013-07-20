@@ -572,18 +572,15 @@ static void fom_exec(struct m0_fom *fom)
  */
 static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 {
-	struct m0_fom  *fom;
+	struct m0_fom *fom;
 
-	fom = runq_tlist_head(&loc->fl_runq);
-	if (fom == NULL)
-		return NULL;
-
-	runq_tlist_del(fom);
-	M0_CNT_DEC(loc->fl_runq_nr);
-
-	m0_addb_counter_update(&loc->fl_stat_sched_wait_times, /* ~usec */
-		m0_time_sub(m0_time_now(), fom->fo_sched_epoch) >> 10);
-
+	fom = runq_tlist_pop(&loc->fl_runq);
+	if (fom != NULL) {
+		M0_CNT_DEC(loc->fl_runq_nr);
+		m0_addb_counter_update(&loc->fl_stat_sched_wait_times,
+				       m0_time_sub(m0_time_now(), /* ~usec */
+						   fom->fo_sched_epoch) >> 10);
+	}
 	return fom;
 }
 
