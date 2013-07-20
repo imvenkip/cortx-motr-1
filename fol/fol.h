@@ -93,17 +93,14 @@ struct m0_fol_rec_desc;
 struct m0_fol_rec;
 
 /* import */
-#include "lib/adt.h"        /* m0_buf */
 #include "lib/types.h"      /* uint64_t */
 #include "lib/arith.h"      /* M0_IS_8ALIGNED */
 #include "lib/mutex.h"
-#include "lib/vec.h"
 #include "fid/fid.h"
-#include "dtm/dtm_update.h" /* m0_update_id, m0_update_state, m0_epoch_id */
+#include "dtm/dtm_update.h" /* m0_update_id, m0_epoch_id */
 #include "dtm/verno.h"      /* m0_verno */
 #include "db/db.h"          /* m0_table, m0_db_cursor */
 #include "fol/lsn.h"        /* m0_lsn_t */
-
 #include "fid/fid_xc.h"
 #include "dtm/verno_xc.h"
 #include "dtm/dtm_update_xc.h"

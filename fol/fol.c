@@ -18,20 +18,13 @@
  * Original creation date: 09/09/2010
  */
 
-#include "lib/adt.h"           /* m0_buf */
-#include "lib/arith.h"         /* M0_3WAY */
-#include "lib/memory.h"
-#include "lib/errno.h"
-#include "lib/misc.h"          /* M0_SET0 */
-#include "lib/cdefs.h"         /* M0_EXPORTED */
-#include "lib/vec.h"
-#include "mero/magic.h"
-#include "rpc/rpc_opcodes.h"
 #include "fol/fol.h"
-#include "fol/fol_xc.h"
-#include "xcode/xcode.h"
-#include "fop/fop.h"
 #include "fol/fol_private.h"
+#include "fol/fol_xc.h"       /* m0_xc_fol_init */
+#include "lib/errno.h"        /* ENOENT, EFBIG, ENOMEM */
+#include "lib/misc.h"         /* M0_SET0 */
+#include "lib/memory.h"
+#include "fop/fop.h"          /* m0_fop_fol_rec_part_type */
 
 /**
    @addtogroup fol
@@ -79,15 +72,14 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 #define REC_OBJ_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_obj_ref_xc, ptr)
 
 #define REC_PART_HEADER_XCODE_OBJ(ptr) \
-M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
+	M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
 
 #define REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) { \
-	.xo_type = part->rp_ops != NULL ?	      \
+	.xo_type = part->rp_ops != NULL ?             \
 		   part->rp_ops->rpo_type->rpt_xt :   \
 		   m0_fop_fol_rec_part_type.rpt_xt,   \
-	.xo_ptr  = r->rp_data,		              \
+	.xo_ptr  = r->rp_data                         \
 }
-
 
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
@@ -104,8 +96,8 @@ M0_INTERNAL int m0_lsn_cmp(m0_lsn_t lsn0, m0_lsn_t lsn1)
 
 M0_INTERNAL m0_lsn_t lsn_inc(m0_lsn_t lsn)
 {
-	++lsn;
-	M0_ASSERT(lsn != 0);
+	M0_CNT_INC(lsn);
+
 	M0_POST(m0_lsn_is_valid(lsn));
 	return lsn;
 }
@@ -295,6 +287,7 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 				return false;
 		}
 	}
+/* XXX DELETEME: Do we care about the disabled section?  --vvv */
 #if 0
 	if (!m0_epoch_is_valid(&drec->rd_epoch))
 		return false;
