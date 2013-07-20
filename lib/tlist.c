@@ -154,6 +154,12 @@ M0_INTERNAL void m0_tlist_add_before(const struct m0_tl_descr *d, void *obj,
 
 M0_INTERNAL void m0_tlist_del(const struct m0_tl_descr *d, void *obj)
 {
+	M0_PRE(m0_tlink_is_in(d, obj));
+	m0_tlist_remove(d, obj);
+}
+
+M0_INTERNAL void m0_tlist_remove(const struct m0_tl_descr *d, void *obj)
+{
 	M0_INVARIANT_EX(m0_tlink_invariant(d, obj));
 	M0_PRE(m0_tlink_is_in(d, obj));
 	m0_list_del(__link(d, obj));

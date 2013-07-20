@@ -940,9 +940,7 @@ static void snd_slot_idle(struct m0_rpc_slot *slot)
 static void snd_slot_busy(struct m0_rpc_slot *slot)
 {
 	M0_PRE(slot != NULL);
-
-	if (ready_slot_tlink_is_in(slot))
-		ready_slot_tlist_del(slot);
+	ready_slot_tlist_remove(slot);
 }
 
 M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
@@ -1098,9 +1096,7 @@ M0_INTERNAL void m0_rpc_session_del_slots_from_ready_list(struct m0_rpc_session
 		slot = session->s_slot_table[i];
 
 		M0_ASSERT(slot != NULL);
-
-		if (ready_slot_tlink_is_in(slot))
-			ready_slot_tlist_del(slot);
+		ready_slot_tlist_remove(slot);
 	}
 	M0_LEAVE();
 }

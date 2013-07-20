@@ -339,6 +339,13 @@ M0_INTERNAL void m0_tlist_add_before(const struct m0_tl_descr *d, void *obj,
 M0_INTERNAL void m0_tlist_del(const struct m0_tl_descr *d, void *obj);
 
 /**
+   Deletes at element from the list, if it was there.
+
+   @post !m0_tlink_is_in(d, obj)
+ */
+M0_INTERNAL void m0_tlist_remove(const struct m0_tl_descr *d, void *obj);
+
+/**
    Moves an element from a list to the head of (possibly the same) list.
 
    @pre  m0_tlink_is_in(d, obj)
@@ -438,24 +445,6 @@ do {									\
  *
  * @note This is not the macro you are interested in. Look at m0_tl_forall().
  *
- * Declares a void pointer variable named "var" in a new scope and evaluates
- * user-supplied expression (the last argument) with "var" iterated over
- * successive list elements, while this expression returns true. Returns true
- * iff the whole list was iterated over.
- *
- * The list can be modified by the user-supplied expression.
- *
- * This function is useful for invariant checking.
- *
- * @code
- * bool foo_invariant(const struct foo *f)
- * {
- *         return f_state_is_valid(f) &&
- *                m0_tlist_forall(bars_descr, bar, &f->f_bars,
- *                                bar_is_valid(bar));
- * }
- * @endcode
- *
  * @see m0_forall(), m0_tl_forall(), m0_list_forall(), m0_list_entry_forall().
  */
 #define m0_tlist_forall(descr, var, head, ...)	\
@@ -518,6 +507,7 @@ scope void   name ## _tlist_add_tail(struct m0_tl *list, amb_type *amb); \
 scope void   name ## _tlist_add_after(amb_type *amb, amb_type *next);	\
 scope void   name ## _tlist_add_before(amb_type *amb, amb_type *next);	\
 scope void   name ## _tlist_del(amb_type *amb);				\
+scope void   name ## _tlist_remove(amb_type *amb);			\
 scope void   name ## _tlist_move(struct m0_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb); \
 scope amb_type *name ## _tlist_head(const struct m0_tl *list);		\
@@ -641,6 +631,11 @@ scope __AUN void   name ## _tlist_add_before(amb_type *amb, amb_type *next) \
 scope __AUN void   name ## _tlist_del(amb_type *amb)			\
 {									\
 	m0_tlist_del(&name ## _tl, amb);				\
+}									\
+									\
+scope __AUN void   name ## _tlist_remove(amb_type *amb)			\
+{									\
+	m0_tlist_remove(&name ## _tl, amb);				\
 }									\
 									\
 scope __AUN void   name ## _tlist_move(struct m0_tl *list, amb_type *amb) \
