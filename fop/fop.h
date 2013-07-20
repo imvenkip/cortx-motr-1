@@ -346,10 +346,9 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 			       struct m0_dtx *dtx);
 
 extern struct m0_fol_rec_part_type m0_fop_fol_rec_part_type;
-/** @} end of fop group */
 
-/* __MERO_FOP_FOP_H__ */
-#endif
+/** @} end of fop group */
+#endif /* __MERO_FOP_FOP_H__ */
 
 /*
  *  Local variables:
