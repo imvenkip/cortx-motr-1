@@ -59,8 +59,6 @@ struct m0_be_ut_h {
 	uint64_t		 buh_tid;
 	/** rpc server for reqh */
 	struct m0_rpc_server_ctx buh_rpc_svc;
-	/** reqh */
-	struct m0_reqh		*buh_reqh;
 };
 
 /** Transactions' sm_group. */

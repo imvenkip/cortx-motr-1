@@ -92,6 +92,8 @@ struct m0_be_log_stor_X {
  * A position in the log is identified by a "log sequence number" (lsn), which
  * is simply an offset in the logical log. lsn uniquely identifies a point in
  * system history.
+ *
+ * XXX RENAMEME
  */
 struct m0_be_log_X {
 	/**

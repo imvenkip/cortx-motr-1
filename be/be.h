@@ -40,7 +40,7 @@ struct m0_be_btree_anchor;
 struct m0_be {
 	struct m0_be_tx_engine b_tx_engine;
 	struct m0_be_seg       b_seg0;
-	struct m0_be_log_X    *b_log;
+	struct m0_be_log_X    *b_log; /* XXX FIXME: rename the structure */
 	/* This value is used to assign m0_be_seg::bs_id. */
 	uint64_t               b_next_segid;
 };
