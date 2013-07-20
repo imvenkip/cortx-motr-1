@@ -244,10 +244,9 @@ M0_INTERNAL void m0_rpc_bulk_buflist_empty(struct m0_rpc_bulk *rbulk)
 
 	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_ASSERT(rpc_bulk_invariant(rbulk));
-	m0_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
-		rpcbulk_tlist_del(buf);
+	m0_tl_teardown(rpcbulk, &rbulk->rb_buflist, buf) {
 		rpc_bulk_buf_fini(buf);
-	} m0_tl_endfor;
+	}
 	m0_mutex_unlock(&rbulk->rb_mutex);
 }
 

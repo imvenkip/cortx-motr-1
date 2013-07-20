@@ -1271,6 +1271,10 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 	m0_tl_for(drv_bevs, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
 		m0_mutex_lock(&kd->kd_drv_mutex);
+		/**
+		 * @todo XXX list removal is protected by the lock, but
+		 * iteration over the list isn't? --nikita.
+		 */
 		drv_bevs_tlist_del(kbev);
 		m0_mutex_unlock(&kd->kd_drv_mutex);
 		drv_bevs_tlink_fini(kbev);

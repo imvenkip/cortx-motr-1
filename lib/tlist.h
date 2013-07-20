@@ -697,6 +697,16 @@ struct __ ## name ## _terminate_me_with_a_semicolon { ; }
 #define m0_tl_endfor m0_tlist_endfor
 
 /**
+ * Empties the list, by taking the list head, assigning it to "obj" and removing
+ * it from the list, until the list is empty.
+ *
+ * @note this doesn't require terminating macro.
+ */
+#define m0_tl_teardown(name, head, obj) \
+	while (((obj) = name ## _tlist_pop(head)) != NULL)
+
+
+/**
  * Returns a conjunction (logical AND) of an expression evaluated for each list
  * element.
  *

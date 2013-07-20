@@ -360,10 +360,9 @@ static void addb_ctx_fini(void)
 	struct addb_ctx_def_cache *ce;
 
 	/* free the cache */
-	m0_tl_for(addb_cdc, &addb_cdc, ce) {
-		addb_cdc_tlist_del(ce);
+	m0_tl_teardown(addb_cdc, &addb_cdc, ce) {
 		m0_free(ce);
-	} m0_tl_endfor;
+	}
 	addb_cdc_tlist_fini(&addb_cdc);
 }
 
@@ -382,11 +381,10 @@ static void addb_ctx_global_post(void)
 	addb_ctx_rec_post(&m0_addb_gmc, &m0_addb_proc_ctx,
 			  addb_proc_ctx_fields);
 	m0_mutex_lock(&addb_mutex);
-	m0_tl_for(addb_cdc, &addb_cdc, ce) {
-		addb_cdc_tlist_del(ce);
+	m0_tl_teardown(addb_cdc, &addb_cdc, ce) {
 		addb_ctx_rec_post(&m0_addb_gmc, ce->cdc_ctx, ce->cdc_fields);
 		m0_free(ce);
-	} m0_tl_endfor;
+	}
 	m0_mutex_unlock(&addb_mutex);
 }
 

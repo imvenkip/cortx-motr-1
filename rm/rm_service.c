@@ -212,11 +212,11 @@ static void rms_stop(struct m0_reqh_service *service)
 
 		m0_rm_owner_windup(owner);
 		m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
-		m0_tl_for(m0_remotes, &owner->ro_resource->r_remote, remote) {
-			m0_remotes_tlist_del(remote);
+		m0_tl_teardown(m0_remotes,
+			       &owner->ro_resource->r_remote, remote) {
 			m0_rm_remote_fini(remote);
 			m0_free(remote);
-		} m0_tl_endfor;
+		}
 		m0_rm_resource_del(owner->ro_resource);
 		m0_rm_owner_fini(owner);
 		rmsvc_owner_tlink_del_fini(owner);

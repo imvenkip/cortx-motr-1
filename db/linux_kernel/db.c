@@ -105,11 +105,10 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
 	struct m0_dbenv        *env;
 
 	env = tx->dt_env;
-	m0_tl_for(txw, &tx->dt_waiters, w) {
-		txw_tlist_del(w);
+	m0_tl_teardown(txw, &tx->dt_waiters, w) {
 		w->tw_commit(w);
 		w->tw_done(w);
-	} m0_tl_endfor;
+	}
 	m0_db_common_tx_fini(tx);
 	return 0;
 }

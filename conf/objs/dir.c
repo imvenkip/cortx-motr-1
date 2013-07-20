@@ -180,10 +180,9 @@ static void dir_delete(struct m0_conf_obj *obj)
 	struct m0_conf_obj *item;
 	struct m0_conf_dir *x = M0_CONF_CAST(obj, m0_conf_dir);
 
-	m0_tl_for(m0_conf_dir, &x->cd_items, item) {
-		m0_conf_dir_tlist_del(item);
+	m0_tl_teardown(m0_conf_dir, &x->cd_items, item) {
 		/* `item' is deleted by m0_conf_cache_fini(). */
-	} m0_tl_endfor;
+	}
 	m0_conf_dir_tlist_fini(&x->cd_items);
 	m0_conf_dir_bob_fini(x);
 	m0_free(x);

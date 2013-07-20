@@ -314,11 +314,10 @@ M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine)
 	M0_ENTRY();
 
 	tx_group_fom(engine->te_fom)->tgf_stopping = true;
-	m0_tl_for(eng, &engine->te_txs[M0_BTS_PLACED], tx) {
+	m0_tl_teardown(eng, &engine->te_txs[M0_BTS_PLACED], tx) {
 		/* XXX FIXME: Transactions should leave tx_engine's lists
 		 * by some other means (m0_be_tx::t_discarded() call?). */
-		eng_tlist_del(tx);
-	} m0_tl_endfor;
+	}
 
 	M0_LEAVE();
 }
@@ -488,10 +487,9 @@ static int placed_tick(struct m0_fom *fom)
 	M0_PRE(m0_tl_forall(grp, tx, &gr->tg_txs,
 			    m0_be__tx_state(tx) == M0_BTS_PLACED));
 
-	m0_tl_for(grp, &gr->tg_txs, tx) {
+	m0_tl_teardown(grp, &gr->tg_txs, tx) {
 		tx->t_group = NULL;
-		grp_tlist_del(tx);
-	} m0_tl_endfor;
+	}
 
 	m0_fom_phase_set(fom, TGS_STABLE);
 	M0_LEAVE();

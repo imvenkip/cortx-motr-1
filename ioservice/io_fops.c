@@ -1190,10 +1190,9 @@ static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)
 	sbulk = m0_fop_to_rpcbulk(src);
 	dbulk = m0_fop_to_rpcbulk(dest);
 	m0_mutex_lock(&sbulk->rb_mutex);
-	m0_tl_for(rpcbulk, &sbulk->rb_buflist, rbuf) {
-		rpcbulk_tlist_del(rbuf);
+	m0_tl_teardown(rpcbulk, &sbulk->rb_buflist, rbuf) {
 		rpcbulk_tlist_add(&dbulk->rb_buflist, rbuf);
-	} m0_tl_endfor;
+	}
 	dbulk->rb_bytes = sbulk->rb_bytes;
 	dbulk->rb_rc = sbulk->rb_rc;
 	m0_mutex_unlock(&sbulk->rb_mutex);
@@ -1475,13 +1474,12 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	rbulk = m0_fop_to_rpcbulk(res_fop);
 	m0_mutex_lock(&bbulk->rb_mutex);
 	m0_mutex_lock(&rbulk->rb_mutex);
-	m0_tl_for(rpcbulk, &bbulk->rb_buflist, rbuf) {
-		rpcbulk_tlist_del(rbuf);
+	m0_tl_teardown(rpcbulk, &bbulk->rb_buflist, rbuf) {
 		rpcbulk_tlist_add(&rbulk->rb_buflist, rbuf);
 		m0_net_buffer_del(rbuf->bb_nbuf, tm);
 		rbulk->rb_bytes -= m0_vec_count(&rbuf->bb_nbuf->
 						nb_buffer.ov_vec);
-	} m0_tl_endfor;
+	}
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	m0_mutex_unlock(&bbulk->rb_mutex);
 
@@ -1666,11 +1664,10 @@ static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 
 	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop, size);
 	if (rc != 0) {
-		m0_tl_for(rpcitem, &head->ri_compound_items, item) {
+		m0_tl_teardown(rpcitem, &head->ri_compound_items, item) {
 			IOS_ADDB_FUNCFAIL(rc, ITEM_IO_COALESCE,
 					  &m0_ios_addb_ctx);
-			rpcitem_tlist_del(item);
-		} m0_tl_endfor;
+		}
 	} else {
 		/*
 		 * Item at head is the backup item which is not present

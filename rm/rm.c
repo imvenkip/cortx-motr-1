@@ -1137,11 +1137,10 @@ static void cached_credits_clear(struct m0_rm_owner *owner)
 
 	M0_ENTRY("owner: %p", owner);
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		m0_tl_for(m0_rm_ur, &owner->ro_owned[i], credit) {
-			m0_rm_ur_tlist_del(credit);
+		m0_tl_teardown(m0_rm_ur, &owner->ro_owned[i], credit) {
 			m0_rm_credit_fini(credit);
 			m0_free(credit);
-		} m0_tl_endfor;
+		}
 	}
 	M0_LEAVE();
 }
@@ -1199,11 +1198,10 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 	 * and move the remnant credits to the OWOS_CACHED. Do the opposite
 	 * on failure.
 	 */
-	m0_tl_for(m0_rm_ur, rc ? &diff_list : &remove_list, credit) {
-		     m0_rm_ur_tlist_del(credit);
+	m0_tl_teardown(m0_rm_ur, rc ? &diff_list : &remove_list, credit) {
 		     m0_rm_credit_fini(credit);
 		     m0_free(credit);
-	} m0_tl_endfor;
+	}
 
 	m0_tl_for(m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
 	     m0_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED], credit);
@@ -2071,13 +2069,11 @@ M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit)
 	 * and move the remnant credits to the OWOS_CACHED. Do the opposite
 	 * on failure.
 	 */
-	m0_tl_for(m0_rm_ur, rc ? &diff_list : &remove_list, credit) {
-		m0_rm_ur_tlist_del(credit);
+	m0_tl_teardown(m0_rm_ur, rc ? &diff_list : &remove_list, credit) {
 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
 		m0_rm_loan_fini(loan);
 		m0_free(loan);
-
-	} m0_tl_endfor;
+	}
 
 	m0_tl_for(m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
 	     m0_rm_ur_tlist_move(&owner->ro_sublet, credit);

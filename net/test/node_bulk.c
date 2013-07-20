@@ -816,12 +816,11 @@ static void node_bulk_cb_client(struct node_bulk_ctx *ctx,
 		 * Change state for every bulk buffer, which
 		 * descriptor is stored in current message.
 		 */
-		m0_tl_for(bsb, &ctx->nbc_bsp[buf_index].bsp_buffers, bs) {
+		m0_tl_teardown(bsb, &ctx->nbc_bsp[buf_index].bsp_buffers, bs) {
 			bs->bsb_msg.bse_cb_rc = ev->nbe_status;
 			node_bulk_state_change_cb(ctx, bs->bsb_index,
 						  ev->nbe_status == 0);
-			bsb_tlist_del(bs);
-		} m0_tl_endfor;
+		}
 	} else if (M0_IN(q, (M0_NET_QT_PASSIVE_BULK_RECV,
 			     M0_NET_QT_PASSIVE_BULK_SEND))) {
 		bs = &ctx->nbc_bs[buf_index / 2];
@@ -1194,10 +1193,9 @@ static void client_process_queued_bulk(struct node_bulk_ctx *ctx)
 			ssb_tlist_add_tail(&servers, ss);
 	}
 	/* Send message with buffer descriptors to every server */
-	m0_tl_for(ssb, &servers, ss) {
+	m0_tl_teardown(ssb, &servers, ss) {
 		client_bds_send(ctx, ss);
-		ssb_tlist_del(ss);
-	} m0_tl_endfor;
+	}
 	ssb_tlist_fini(&servers);
 }
 

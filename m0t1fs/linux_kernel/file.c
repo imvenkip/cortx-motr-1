@@ -2836,13 +2836,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 	M0_RETURN(0);
 err:
-	m0_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
-		tioreqs_tlist_del(ti);
+	m0_tl_teardown(tioreqs, &xfer->nxr_tioreqs, ti) {
 		target_ioreq_fini(ti);
 		m0_free(ti);
 		++iommstats.d_target_ioreq_nr;
 		ti = NULL;
-	} m0_tl_endfor;
+	}
 
 	M0_RETERR(rc, "io_prepare failed");
 }
@@ -3468,8 +3467,7 @@ static void io_request_fini(struct io_request *req)
 	req->ir_ops    = NULL;
 	m0_indexvec_free(&req->ir_ivec);
 
-	m0_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
-		tioreqs_tlist_del(ti);
+	m0_tl_teardown(tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 		/*
 		 * All io_req_fop structures in list target_ioreq::ti_iofops
 		 * are already finalized in nw_xfer_req_complete().
@@ -3477,7 +3475,7 @@ static void io_request_fini(struct io_request *req)
 		target_ioreq_fini(ti);
 		m0_free(ti);
 		++iommstats.d_target_ioreq_nr;
-	} m0_tl_endfor;
+	}
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
 	M0_LEAVE();
@@ -4683,12 +4681,11 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			/* Resets status code before dgmode read IO. */
 			ti->ti_rc = 0;
 
-		m0_tl_for(iofops, &ti->ti_iofops, irfop) {
-			iofops_tlist_del(irfop);
+		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 			io_req_fop_fini(irfop);
 			/* see io_req_fop_release() */
 			m0_fop_put(&irfop->irf_iofop.if_fop);
-		} m0_tl_endfor;
+		}
 
 		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_cob_io_finish,
 			     M0_ADDB_CTX_VEC(&req->ir_addb_ctx, NULL),
@@ -5026,10 +5023,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 fini_fop:
 	irfop_fini(irfop);
 err:
-	m0_tlist_for (&iofops_tl, &ti->ti_iofops, irfop) {
-		iofops_tlist_del(irfop);
+	m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 		irfop_fini(irfop);
-	} m0_tlist_endfor;
+	}
 
 	M0_RETERR(rc, "iofops_prepare failed");
 }

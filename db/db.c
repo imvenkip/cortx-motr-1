@@ -557,8 +557,7 @@ static int tx_fini_pre(struct m0_db_tx *tx, bool commit)
 		if (result != 0)
 			return result;
 	}
-	m0_tl_for(txw, &tx->dt_waiters, w) {
-		txw_tlist_del(w);
+	m0_tl_teardown(txw, &tx->dt_waiters, w) {
 		if (!commit) {
 			w->tw_abort(w);
 			m0_mutex_lock(&env->d_i.d_lock);
@@ -568,7 +567,7 @@ static int tx_fini_pre(struct m0_db_tx *tx, bool commit)
 			w->tw_commit(w);
 			w->tw_i.tw_lsn = lsn;
 		}
-	} m0_tl_endfor;
+	}
 	return 0;
 }
 

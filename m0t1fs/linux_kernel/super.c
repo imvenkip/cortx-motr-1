@@ -547,7 +547,7 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+	m0_tl_teardown(svc_ctx, &csb->csb_service_contexts, ctx) {
 		if (csb->csb_nr_active_contexts > 0) {
 			(void)m0_rpc_session_destroy(&ctx->sc_session,
 						     M0_TIME_NEVER);
@@ -558,10 +558,9 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 			       " %d active contexts",
 			       csb->csb_nr_active_contexts);
 		}
-		svc_ctx_tlist_del(ctx);
 		m0t1fs_service_context_fini(ctx);
 		m0_free(ctx);
-	} m0_tl_endfor;
+	}
 
 	M0_POST(csb->csb_nr_active_contexts == 0);
 	M0_POST(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));

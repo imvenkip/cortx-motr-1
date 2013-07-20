@@ -656,7 +656,7 @@ static void addb_rpc_sink_fop_populate(struct rpcsink *rsink,
 	M0_PRE(rsink_fop != NULL && rsink_fop->arsf_nr > 0);
 	M0_PRE(tsrecords_tlist_length(recs) > 0);
 
-	m0_tl_for(tsrecords, recs, header) {
+	m0_tl_teardown(tsrecords, recs, header) {
 		addb_ts_rec = container_of(header,
 					   struct m0_addb_ts_rec,
 					   atr_header);
@@ -664,10 +664,9 @@ static void addb_rpc_sink_fop_populate(struct rpcsink *rsink,
 		rsink_rec            = &(rsink_fop->arsf_recs[i++]);
 		rsink_rec->atrd_data =
 		(struct m0_addb_rec *)&addb_ts_rec->atr_data;
-		tsrecords_tlist_del(header);
-		rpcsink_trans_rec_tlink_init(header);
-		rpcsink_trans_rec_tlist_add(&rsink->rs_rpc_submitted, header);
-	} m0_tl_endfor;
+		rpcsink_trans_rec_tlink_init_at(header,
+						&rsink->rs_rpc_submitted);
+	}
 
 	M0_POST(tsrecords_tlist_length(recs) == 0);
 }
@@ -677,15 +676,14 @@ static void addb_rpc_sink_restore_recs(struct rpcsink *rsink,
 {
 	struct m0_addb_ts_rec_header *header;
 
-	m0_tl_for(tsrecords, recs, header) {
+	m0_tl_teardown(tsrecords, recs, header) {
 		struct m0_addb_ts_rec *ts_rec =
 			container_of(header, struct m0_addb_ts_rec, atr_header);
 
-		tsrecords_tlist_del(header);
 		m0_mutex_lock(&rsink->rs_mutex);
 		addb_ts_save(&rsink->rs_ts, ts_rec);
 		m0_mutex_unlock(&rsink->rs_mutex);
-	} m0_tl_endfor;
+	}
 }
 
 /**

@@ -108,11 +108,11 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 			rm_utdata_fini(data, OBJ_DOMAIN);
 			break;
 		case OBJ_RES:
-			m0_tl_for (m0_remotes, &data->rd_res->r_remote, other) {
-				m0_remotes_tlist_del(other);
+			m0_tl_teardown(m0_remotes,
+				       &data->rd_res->r_remote, other) {
 				m0_rm_remote_fini(other);
 				m0_free(other);
-			} m0_tl_endfor;
+			}
 			data->rd_ops->resource_unset(data);
 			rm_utdata_fini(data, OBJ_RES_TYPE);
 			break;

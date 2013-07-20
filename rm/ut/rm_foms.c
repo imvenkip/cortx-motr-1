@@ -472,11 +472,10 @@ static void rvk_test_cleanup(void)
 		m0_free(loan);
 	} m0_tl_endfor;
 
-	m0_tl_for(m0_remotes, &rm_test_data.rd_res->r_remote, remote) {
-		m0_remotes_tlist_del(remote);
+	m0_tl_teardown(m0_remotes, &rm_test_data.rd_res->r_remote, remote) {
 		m0_rm_remote_fini(remote);
 		m0_free(remote);
-	} m0_tl_endfor;
+	}
 }
 
 /*

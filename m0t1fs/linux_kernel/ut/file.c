@@ -647,10 +647,9 @@ static void nw_xfer_ops_test(void)
 		}
 	} m0_tl_endfor;
 
-	m0_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti1) {
-		tioreqs_tlist_del(ti1);
-	} m0_tl_endfor;
-
+	m0_tl_teardown(tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti1) {
+		;
+	}
 	ioreq_iomaps_destroy(&req);
 	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
@@ -736,14 +735,13 @@ static void target_ioreq_test(void)
 			m0_rpc_session_get_max_item_payload_size(&session));
 	} m0_tl_endfor;
 
-	m0_tl_for(iofops, &ti.ti_iofops, irfop) {
+	m0_tl_teardown(iofops, &ti.ti_iofops, irfop) {
 		struct m0_io_fop *iofop = &irfop->irf_iofop;
 
-                iofops_tlist_del(irfop);
                 irfop_fini(irfop);
 		m0_io_fop_fini(iofop);
 		M0_CNT_DEC(req.ir_nwxfer.nxr_iofop_nr);
-	} m0_tl_endfor;
+	}
 
 	/* Checks allocation failure. */
 
