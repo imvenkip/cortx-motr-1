@@ -23,9 +23,10 @@
  *
  * @{
  */
-#undef M0_TRACE_SUBSYSTEM
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
+
 #include "lib/cdefs.h" /* M0_UNUSED */
 #include "lib/errno.h"
 #include "lib/misc.h"  /* bcopy */
@@ -33,7 +34,6 @@
 #include "be/alloc.h"
 #include "be/seg.h"
 #include <math.h> /* pow */
-
 
 /* btree constants */
 enum {
@@ -118,7 +118,6 @@ static inline int key_eq(const struct m0_be_btree *btree,
 {
 	return btree->bb_ops->ko_compare(key0, key1) ==  0;
 }
-
 
 /* ------------------------------------------------------------------
  * Btree internals implementation
@@ -173,7 +172,6 @@ static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
 				      unsigned int index, enum position_t pos);
 
 static void copy_key_val(struct bt_key_val *src, struct bt_key_val *dst);
-
 
 /* ------------------------------------------------------------------
  * Btree invariant implementation:
@@ -219,7 +217,6 @@ static bool btree_node_invariant(const struct m0_be_btree *btree,
 						node->b_children[i]->
 						      b_key_vals[j]->key))));
 }
-
 
 /* ------------------------------------------------------------------
  * b-tree internals.
@@ -1071,7 +1068,6 @@ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
 
 	return kv;
 }
-
 
 /* ------------------------------------------------------------------
  * Btree external interfaces implementation
@@ -1366,9 +1362,9 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *key,
 				    const struct m0_buf *val)
 {
-	void			*key_data;
-	void			*val_data;
-	struct bt_key_val	*kv; /* XXX: update credit accounting */
+	void              *key_data;
+	void              *val_data;
+	struct bt_key_val *kv; /* XXX: update credit accounting */
 
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1460,8 +1456,8 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 				    const struct m0_buf *key,
 				    struct m0_buf *dest_value)
 {
-	struct bt_key_val	*kv;
-	m0_bcount_t		 vsize;
+	struct bt_key_val *kv;
+	m0_bcount_t        vsize;
 
 	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1527,7 +1523,6 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
-
 
 /* ------------------------------------------------------------------
  * Btree external inplace interfaces implementation
@@ -1647,7 +1642,6 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
-
 
 /* ------------------------------------------------------------------
  * Btree cursor interfaces implementation
@@ -1863,7 +1857,6 @@ out:
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
-
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)
 {
 }
@@ -1884,10 +1877,8 @@ M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)
 	iter_prepare(tree->bb_root, true);
 }
 
-
-
-#undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

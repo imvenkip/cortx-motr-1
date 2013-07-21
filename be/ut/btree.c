@@ -28,6 +28,8 @@
 #include "be/ut/helper.h"
 #include "ut/ut.h"
 
+extern void btree_dbg_print(struct m0_be_btree *tree);
+
 static int tree_cmp(const void *key0, const void *key1)
 {
 	return strcmp(key0, key1);
