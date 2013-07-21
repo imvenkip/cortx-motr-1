@@ -172,6 +172,7 @@ static void test_fol_rec_part_encdec(void)
 	M0_ASSERT(rc == 0);
 
 	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
+		/* Call verify_part_data() for each part. */
 		dec_part->rp_ops->rpo_undo(dec_part, &tx);
 	} m0_tl_endfor;
 
@@ -182,6 +183,10 @@ const struct m0_test_suite fol_ut = {
 	.ts_name = "fol-ut",
 	.ts_init = db_reset,
 	.ts_tests = {
+		/*
+		 * Note, that there are dependencies between these tests.
+		 * Do not reorder them willy-nilly.
+		 */
 		{ "fol-init",                test_init                },
 		{ "fol-rec-part-type-reg",   test_rec_part_type_reg   },
 		{ "fol-add",                 test_add                 },
