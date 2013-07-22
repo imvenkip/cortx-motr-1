@@ -30,12 +30,18 @@
 M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
 				  struct m0_be_domain_cfg *cfg)
 {
+	int rc;
+
 	dom->bd_cfg = cfg;
-	return m0_be_engine_init(&dom->bd_engine, &cfg->bc_engine);
+	rc = m0_be_engine_init(&dom->bd_engine, &cfg->bc_engine);
+	if (rc == 0)
+		m0_be_engine_start(&dom->bd_engine);
+	return rc;
 }
 
 M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
 {
+	m0_be_engine_stop(&dom->bd_engine);
 	m0_be_engine_fini(&dom->bd_engine);
 }
 

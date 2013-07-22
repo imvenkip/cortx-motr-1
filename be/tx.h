@@ -26,6 +26,7 @@
 
 struct m0_ref;
 struct m0_be_domain;
+struct m0_be_tx_group;
 
 /**
  * @defgroup be
@@ -375,6 +376,7 @@ struct m0_be_tx {
 	struct m0_sm_ast       t_ast_active;
 	struct m0_sm_ast       t_ast_grouped;
 	struct m0_sm_ast       t_ast_placed;
+	struct m0_be_tx_group *t_group;
 };
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);

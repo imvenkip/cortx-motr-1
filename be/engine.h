@@ -41,6 +41,13 @@ struct m0_reqh;
  * @{
  */
 
+/* m0_be_engine group state */
+enum {
+	M0_BEG_OPEN,
+	M0_BEG_CLOSED,
+	M0_BEG_NR,
+};
+
 struct m0_be_engine_cfg {
 	size_t		       bec_group_nr;
 	size_t		       bec_log_size;
@@ -58,6 +65,7 @@ struct m0_be_engine {
 	 * of these lists.
 	 */
 	struct m0_tl		   eng_txs[M0_BTS_NR];
+	struct m0_tl		   eng_groups[M0_BEG_NR];
 	/** Transactional log. */
 	struct m0_be_log	   eng_log;
 	/** Transactional group. */
@@ -76,6 +84,9 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 				  struct m0_be_engine_cfg *en_cfg);
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en);
 
+M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en);
+M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en);
+
 /* next functions should be called from m0_be_tx implementation */
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 				       struct m0_be_tx *tx,
@@ -88,6 +99,8 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 					    struct m0_be_tx *tx,
 					    enum m0_be_tx_state state);
 
+M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
+					     struct m0_be_tx_group *gr);
 /*
  * This function should be called from m0_be_log implementation.
  * It shouldn't be called under engine lock.

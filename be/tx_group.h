@@ -75,6 +75,10 @@ struct m0_be_tx_group {
 	uint32_t                  tg_nr_unstable;
 	/** List of transactions in the group. */
 	struct m0_tl              tg_txs;
+	/* XXX DOCUMENTME */
+	struct m0_tlink		  tg_engine_linkage;
+	/* XXX DOCUMENTME */
+	uint64_t		  tg_magic;
 	/** XXX DOCUMENTME */
 	struct m0_be_group_ondisk tg_od;
 	struct m0_be_log         *tg_log;
