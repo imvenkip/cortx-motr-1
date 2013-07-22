@@ -326,6 +326,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	struct m0_buf		  val;
 	int                       v;
 	int                       i;
+	int                       rc;
 
 	m0_be_btree_cursor_init(&cursor, tree);
 
@@ -347,12 +348,22 @@ static void cursor_test(struct m0_be_btree *tree)
 		m0_be_op_init(&cursor.bc_op);
 		m0_be_btree_cursor_next(&cursor);
 		M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
+		rc = cursor.bc_op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&cursor.bc_op);
 
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 	}
 
 	M0_UT_ASSERT(i == 50);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	start = (struct m0_buf)M0_BUF_INITS("200");
+	m0_be_op_init(&cursor.bc_op);
+	m0_be_btree_cursor_get(&cursor, &start, true);
+	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
+	rc = cursor.bc_op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&cursor.bc_op);
+	M0_UT_ASSERT(rc == -ENOENT);
 
 	m0_be_btree_cursor_fini(&cursor);
 }

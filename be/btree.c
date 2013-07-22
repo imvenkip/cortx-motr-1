@@ -931,7 +931,7 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
 		/*  If the node is leaf and if we did not find the key */
 		/*  return NULL */
 		if (node->b_leaf) {
-			if (slant) {
+			if (slant && i < node->b_nr_active) {
 				kp.p_node = node;
 				kp.p_index = i;
 			}
