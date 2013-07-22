@@ -420,7 +420,7 @@ M0_INTERNAL enum m0_be_tx_state m0_be_tx__state(const struct m0_be_tx *tx);
 
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
 
-/** Posts an AST that will move transaction's state machine to given state */
+/** Posts an AST that will move transaction's state machine to given state. */
 M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 				      enum m0_be_tx_state state);
 

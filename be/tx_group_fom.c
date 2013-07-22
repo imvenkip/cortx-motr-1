@@ -15,7 +15,8 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>,
- *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>,
+ *                  Maxim Medved <maxim_medved@xyratex.com>
  * Original creation date: 17-Jun-2013
  */
 
@@ -362,8 +363,8 @@ static struct m0_be_tx_group_fom *tx_group_fom(const struct m0_fom *fom)
 
 static void fom_wake(struct m0_ref *ref)
 {
-	struct m0_be_tx_group_fom *m = container_of(ref, struct m0_be_tx_group_fom,
-					      tgf_nr_ungrouped);
+	struct m0_be_tx_group_fom *m =
+		container_of(ref, struct m0_be_tx_group_fom, tgf_nr_ungrouped);
 	m0_fom_wakeup(&m->tgf_gen);
 }
 
@@ -373,43 +374,53 @@ static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m)
 	return NULL;
 }
 
-#if 0
-static void tx_group_populate(struct m0_be_tx_group *group,
-			      struct m0_be_tx_engine *engine, bool *full)
+static void be_tx_group_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
-	struct m0_be_tx *tx;
+	struct m0_be_tx_group_fom *m =
+		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stable);
 
-	m0_rwlock_read_lock(&engine->te_lock);
-	m0_tl_for(eng, &engine->te_txs[M0_BTS_CLOSED], tx) {
-		if (false /* XXX TODO: credit of group + credit of tx >=
-			   * max credit of group (threshold) */) {
-			*full = true;
-			break;
-		}
-		tx_group_add(engine, group, tx);
-	} m0_tl_endfor;
-	m0_rwlock_read_unlock(&engine->te_lock);
+	m->tgf_stable = true;
+	m0_fom_wakeup(&m->tgf_gen);
 }
-#endif
 
-M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
-					 struct m0_reqh *reqh)
+static void be_tx_group_move(struct m0_sm_group *_, struct m0_sm_ast *ast)
+{
+	struct m0_be_tx_group_fom *m =
+		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_move);
+	enum tx_group_state state = (enum tx_group_state)ast->sa_datum;
+
+	M0_PRE(M0_IN(state, (TGF_LOGGING, TGF_FINISH)));
+
+	m0_fom_phase_set(&m->tgf_gen, state);
+	m0_fom_wakeup(&m->tgf_gen);
+}
+
+M0_INTERNAL void
+m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 {
 	M0_ENTRY();
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
 
-	m0_fom_init(&gf->tgf_gen, &tx_group_fom_type,
+	m0_fom_init(&m->tgf_gen, &tx_group_fom_type,
 		    &tx_group_fom_ops, NULL, NULL, reqh, &m0_be_txs_stype);
 
-	gf->tgf_reqh = reqh;
-	gf->tgf_stopping = false;
-	m0_fom_timeout_init(&gf->tgf_to);
-	m0_semaphore_init(&gf->tgf_started, 0);
+	m->tgf_reqh = reqh;
+	m->tgf_stopping = false;
+	m0_fom_timeout_init(&m->tgf_to);
+
+	m->tgf_ast_stable = (struct m0_sm_ast){ .sa_cb = be_tx_group_stable };
+	m->tgf_ast_move = (struct m0_sm_ast){
+		.sa_cb    = be_tx_group_move,
+		.sa_datum = (void *)TGF_LOGGING
+	};
+
+	m0_semaphore_init(&m->tgf_started, 0);
+
 	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
 			 &m0_be_txs_stype, &_tx_group_conf);
 
-	m0_fom_queue(&gf->tgf_gen, gf->tgf_reqh);
-	m0_semaphore_down(&gf->tgf_started);
+	m0_fom_queue(&m->tgf_gen, m->tgf_reqh);
+	m0_semaphore_down(&m->tgf_started);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf)
@@ -420,13 +431,6 @@ M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf)
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *gf)
 {
-}
-
-M0_INTERNAL void m0_be_tx_group_fom_process(struct m0_be_tx_group_fom *gf,
-					    struct m0_be_tx_group *gr)
-{
-	gf->tgf_group = gr;
-	/* send ast to wake up fom */
 }
 
 static void be_op_reset(struct m0_be_op *op)

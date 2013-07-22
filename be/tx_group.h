@@ -67,15 +67,18 @@ struct m0_be_tx_group {
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit    tg_used;
 	struct m0_be_tx_credit    tg_size;
-	size_t			  tg_tx_nr;
+	/** Maximum acceptable number of transactions in the group. */
 	size_t			  tg_tx_nr_max;
+	/**
+	 * The number of transactions that have not reached M0_BTS_DONE state.
+	 */
+	uint32_t                  tg_nr_unstable;
 	/** List of transactions in the group. */
 	struct m0_tl              tg_txs;
 	/** XXX DOCUMENTME */
 	struct m0_be_group_ondisk tg_od;
 	struct m0_be_log         *tg_log;
-	/** @note it is not just tg_fom, it is tg_group_fom */
-	struct m0_be_tx_group_fom tg_group_fom;
+	struct m0_be_tx_group_fom tg_fom;
 };
 
 M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
@@ -108,6 +111,12 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 				      struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr);
+
+/**
+ * Notifies the group that all of its transactions have reached M0_BTS_DONE
+ * state.
+ */
+M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr);
 
 /**
  * Notifies the group that the transaction can be discarded from the log.

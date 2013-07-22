@@ -134,12 +134,19 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 	M0_LEAVE();
 }
 
+M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
+{
+	M0_ENTRY();
+	m0_sm_ast_post();
+	M0_LEAVE();
+}
+
 M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 {
 	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
+	M0_PRE(gr->tg_nr_unstable == 0);
 
-	gr->tg_used  = M0_BE_TX_CREDIT(0, 0);
-	gr->tg_tx_nr = 0;
+	gr->tg_used = M0_BE_TX_CREDIT(0, 0);
 	m0_be_group_ondisk_reset(&gr->tg_od);
 }
 
@@ -153,7 +160,6 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 
 	*gr = (struct m0_be_tx_group) {
 		.tg_size      = *size_max,
-		.tg_tx_nr     = 0,
 		.tg_tx_nr_max = tx_nr_max,
 		.tg_log       = log
 	};
@@ -162,7 +168,7 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 	rc = m0_be_group_ondisk_init(&gr->tg_od, m0_be_log_stob(log),
 				     tx_nr_max, &gr->tg_size);
 	if (rc == 0) {
-		m0_be_tx_group_fom_init(&gr->tg_group_fom, reqh);
+		m0_be_tx_group_fom_init(&gr->tg_fom, reqh);
 		m0_be_tx_group_reset(gr);
 	}
 	return rc;
@@ -170,7 +176,7 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 {
-	m0_be_tx_group_fom_fini(&gr->tg_group_fom);
+	m0_be_tx_group_fom_fini(&gr->tg_fom);
 	m0_be_group_ondisk_fini(&gr->tg_od);
 	grp_tlist_fini(&gr->tg_txs);
 }
@@ -188,10 +194,10 @@ m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 	m0_be_tx_credit_add(&group_used, &tx_used);
 
 	if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
-	    gr->tg_tx_nr < gr->tg_tx_nr_max) {
+	    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {
 		grp_tlink_init_at(tx, &gr->tg_txs);
 		gr->tg_used = group_used;
-		++gr->tg_tx_nr;
+		M0_CNT_INC(gr->tg_nr_unstable);
 		rc = 0;
 	} else {
 		rc = -ENOSPC;

@@ -268,16 +268,15 @@ static void be_tx_ast_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *ast)
 	struct m0_be_tx	   *tx;
 	enum m0_be_tx_state state = (enum m0_be_tx_state) ast->sa_datum;
 
-	M0_PRE(M0_IN(state, (M0_BTS_ACTIVE, M0_BTS_GROUPED, M0_BTS_PLACED)));
 	switch (state) {
 	case M0_BTS_ACTIVE:
 		tx = container_of(ast, struct m0_be_tx, t_ast_active);
 		break;
 	case M0_BTS_GROUPED:
-		tx = container_of(ast, struct m0_be_tx, t_ast_active);
+		tx = container_of(ast, struct m0_be_tx, t_ast_grouped);
 		break;
 	case M0_BTS_PLACED:
-		tx = container_of(ast, struct m0_be_tx, t_ast_active);
+		tx = container_of(ast, struct m0_be_tx, t_ast_placed);
 		break;
 	default:
 		M0_IMPOSSIBLE("be/tx: invalid state in ast callback");

@@ -80,11 +80,13 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en);
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 				       struct m0_be_tx *tx,
 				       enum m0_be_tx_state state);
+
+M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
+				       struct m0_be_tx *tx);
+
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 					    struct m0_be_tx *tx,
 					    enum m0_be_tx_state state);
-M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
-				       struct m0_be_tx *tx);
 
 /*
  * This function should be called from m0_be_log implementation.

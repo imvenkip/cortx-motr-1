@@ -52,17 +52,22 @@ struct m0_be_tx_group_fom {
 	 * The number of transactions that have been added to the tx_group
 	 * but have not switched to M0_BTS_GROUPED state yet.
 	 */
-	struct m0_ref           tgf_nr_ungrouped;
-	struct m0_semaphore     tgf_started;
+	struct m0_ref          tgf_nr_ungrouped;
+	/**
+	 * True iff all transactions of the group have reached M0_BTS_DONE
+	 * state.
+	 */
+	bool                   tgf_stable;
+
+	struct m0_sm_ast       tgf_ast_stable;
+	struct m0_sm_ast       tgf_ast_move;
+	struct m0_semaphore    tgf_started;
 };
 
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
 					 struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf);
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *gf);
-
-M0_INTERNAL void m0_be_tx_group_fom_process(struct m0_be_tx_group_fom *gf,
-					    struct m0_be_tx_group *gr);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_GROUP_FOM_H__ */
