@@ -64,7 +64,6 @@ struct m0_be_tx;
 struct m0_be_tx_group {
 	/** XXX lsn of transaction group header in the log. */
 	m0_bindex_t               tg_lsn;
-
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit    tg_used;
 	struct m0_be_tx_credit    tg_size;
@@ -74,6 +73,7 @@ struct m0_be_tx_group {
 	struct m0_tl              tg_txs;
 	/** XXX DOCUMENTME */
 	struct m0_be_group_ondisk tg_od;
+	struct m0_be_log         *tg_log;
 	/** @note it is not just tg_fom, it is tg_group_fom */
 	struct m0_be_tx_group_fom tg_group_fom;
 };
@@ -82,7 +82,7 @@ struct m0_be_tx_group {
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				    struct m0_be_tx_credit *size_max,
 				    size_t tx_nr_max,
-				    struct m0_stob *log_stob,
+				    struct m0_be_log *log,
 				    struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
@@ -98,10 +98,14 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_write(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_shutdown(struct m0_be_tx_group *gr);
 
-/* called from fom */
-/* m0_be_tx__state_post() to all transactions in group */
+/**
+ * m0_be_tx__state_post() to all transactions in group.
+ * [called from fom]
+ * XXX RENAMEME
+ */
 M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
 					       enum m0_be_tx_state state);
+
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op);
 M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,

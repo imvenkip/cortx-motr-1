@@ -47,6 +47,8 @@ static void tx_group_fom_fini(struct m0_fom *fom);
 /**
  * Phases of tx_group fom.
  *
+ * XXX UPDATEME
+ *
  * @verbatim
  *                 INIT
  *                  |
@@ -95,23 +97,12 @@ enum tx_group_state {
 	 * tx_group_add().
 	 */
 	TGS_OPEN   = M0_FOM_PHASE_NR,
-	/**
-	 * The first log stobio is in progress.
-	 *
-	 * Log representation of the tx_group is being written to the log.
-	 * If the log is wrapping around (i.e., when a record is known to
-	 * reach the end of the log), then the stobio will also include
-	 * log header.
-	 */
+	/** Log stobio is in progress. */
 	TGS_LOGGING,
-	/**
-	 * The second log stobio is in progress.
-	 *
-	 * Commit block is being written to the log.
-	 */
-	TGS_COMMITTING,
+	TGS_COMMITTING, /* XXX DELETEME */
 	/** In-place (segment) stobio is in progress. */
 	TGS_PLACING,
+	/** Waiting for transactions to stabilize. */
 	TGS_STABILIZING,
 	/**
 	 * m0_be_tx_stable() has been called for all transactions of the
@@ -138,12 +129,12 @@ static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
 
 	_S(TGS_INIT,   M0_SDF_INITIAL, M0_BITS(TGS_OPEN)),
 	_S(TGS_FINISH, M0_SDF_TERMINAL, 0),
-	_S(TGS_OPEN,       0, M0_BITS(TGS_OPEN, TGS_LOGGING, TGS_FINISH)),
-	_S(TGS_LOGGING,    0, M0_BITS(TGS_COMMITTING)),
-	_S(TGS_COMMITTING, 0, M0_BITS(TGS_PLACING)),
-	_S(TGS_PLACING,    0, M0_BITS(TGS_STABILIZING)),
-	_S(TGS_STABILIZING,     0, M0_BITS(TGS_STABILIZING, TGS_STABLE, TGS_FINISH)),
-	_S(TGS_STABLE,     0, M0_BITS(TGS_OPEN))
+	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING, TGS_FINISH)),
+	_S(TGS_LOGGING,     0, M0_BITS(TGS_COMMITTING)),
+	_S(TGS_COMMITTING,  0, M0_BITS(TGS_PLACING)),
+	_S(TGS_PLACING,     0, M0_BITS(TGS_STABILIZING)),
+	_S(TGS_STABILIZING, 0, M0_BITS(TGS_STABLE)),
+	_S(TGS_STABLE,      0, M0_BITS(TGS_OPEN))
 #undef _S
 };
 
@@ -164,10 +155,10 @@ static int tx_group_tick(struct m0_fom *fom)
 	switch (m0_fom_phase(fom)) {
 	case TGS_INIT:
 		m0_fom_phase_set(fom, TGS_OPEN);
-		m0_semaphore_up(&tx_group_fom(fom)->tgf_started);
+		/* m0_semaphore_up(&tx_group_fom(fom)->tgf_started); */
 		return M0_FSO_AGAIN;
 	case TGS_OPEN:
-		return open_tick(fom);
+		break;
 	case TGS_LOGGING:
 		return logging_tick(fom);
 	case TGS_COMMITTING:
@@ -175,7 +166,7 @@ static int tx_group_tick(struct m0_fom *fom)
 	case TGS_PLACING:
 		return placing_tick(fom);
 	case TGS_STABILIZING:
-		return placed_tick(fom);
+		return stabilizing_tick(fom);
 	case TGS_STABLE:
 		return stable_tick(fom);
 	case TGS_FINISH:
@@ -289,73 +280,18 @@ M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine)
  * ------------------------------------------------------------------ */
 
 static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m);
-#if 0
-static void tx_group_populate(struct m0_be_tx_group *group,
-			      struct m0_be_tx_engine *engine, bool *full);
-#endif
 static void fom_wake(struct m0_ref *ref);
-
-static int open_tick(struct m0_fom *fom)
-{
-	struct m0_be_tx_group_fom    *m   = tx_group_fom(fom);
-	/* struct m0_be_engine	*eng = m->tgf_engine; */
-	struct m0_be_tx_group  *gr  = tx_group(m);
-	/* struct m0_be_tx        *tx; */
-	int                     rc;
-	size_t			group_size;
-
-	M0_ENTRY();
-	M0_PRE(!m->tgf_full);
-
-	/* tx_group_populate(gr, eng, &m->tgf_full); */
-
-	group_size = m0_be_tx_group_size(gr);
-	if (m->tgf_expired && group_size > 0) {
-
-		/* tx_group_close(eng, gr); */
-		m->tgf_expired = false;
-
-		m0_ref_init(&m->tgf_nr_ungrouped, group_size,
-			    fom_wake);
-#if 0
-		M0_LOG(M0_DEBUG, "Posting \"Get grouped!\" AST(s)");
-		m0_be_tx_group__tx_state_post(gr, M0_BTS_GROUPED);
-		m0_tl_for(grp, &gr->tg_txs, tx) {
-			m0_be_tx__state_post(tx, M0_BTS_GROUPED,
-					     &m->tgf_nr_ungrouped);
-		} m0_tl_endfor;
-#endif
-
-		m0_fom_phase_set(fom, TGS_LOGGING);
-	} else if (m->tgf_stopping && group_size == 0) {
-		m0_fom_phase_set(fom, TGS_FINISH);
-	} else {
-		M0_LOG(M0_DEBUG, "Start timer");
-		m->tgf_expired = true;
-		m0_fom_timeout_init(&m->tgf_to);
-		rc = m0_fom_timeout_wait_on(&m->tgf_to, fom,
-					    m0_time_from_now(2, 0));
-		M0_ASSERT(rc == 0);
-	}
-	M0_LEAVE();
-	return M0_FSO_WAIT;
-}
 
 static int logging_tick(struct m0_fom *fom)
 {
-	struct m0_be_tx_group_fom   *m  = tx_group_fom(fom);
-	/* struct m0_be_tx_group *gr = tx_group(m); */
-	struct m0_be_op       *op = &m->tgf_op;
+	struct m0_be_tx_group_fom *m  = tx_group_fom(fom);
+	struct m0_be_tx_group     *gr = tx_group(m);
+	struct m0_be_op           *op = &m->tgf_op;
 
 	M0_ENTRY();
-	M0_PRE(m0_ref_read(&m->tgf_nr_ungrouped) == 0);
 
-	m0_be_op_init(op);
-	/*
-	 * Launch the 1st log IO: tx_group and, when the log is wrapped,
-	 * log header.
-	 */
-	/* m0_be_log_submit(&m->tgf_engine->te_log, op, gr); */ /* XXX */
+	be_op_reset(op);
+	m0_be_log_submit(gr->tg_log, op, gr);
 
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_COMMITTING);
@@ -363,20 +299,14 @@ static int logging_tick(struct m0_fom *fom)
 
 static int committing_tick(struct m0_fom *fom)
 {
-	struct m0_be_tx_group_fom   *m  = tx_group_fom(fom);
-	/* struct m0_be_tx_group *gr = tx_group(m); */
-	struct m0_be_op       *op = &m->tgf_op;
-
-	/* XXX: on error transit to failure state, and finish system */
-	M0_PRE(m0_be_op_state(op) == M0_BOS_SUCCESS);
+	struct m0_be_tx_group_fom *m  = tx_group_fom(fom);
+	struct m0_be_tx_group     *gr = tx_group(m);
+	struct m0_be_op           *op = &m->tgf_op;
 
 	M0_ENTRY();
 
-	m0_be_op_init(op);
-	/*
-	 * Launch the 2nd log IO: commit block.
-	 */
-	/* m0_be_log_commit(&m->tgf_engine->te_log, op, gr); */ /* XXX */
+	be_op_reset(op);
+	m0_be_log_commit(gr->tg_log, op, gr);
 
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_PLACING);
@@ -384,45 +314,27 @@ static int committing_tick(struct m0_fom *fom)
 
 static int placing_tick(struct m0_fom *fom)
 {
-	struct m0_be_tx_group_fom   *m  = tx_group_fom(fom);
-	struct m0_be_tx_group *gr = tx_group(m);
-	struct m0_be_op       *op = &m->tgf_op;
+	struct m0_be_tx_group_fom *m  = tx_group_fom(fom);
+	struct m0_be_tx_group     *gr = tx_group(m);
+	struct m0_be_op           *op = &m->tgf_op;
 
 	M0_ENTRY();
-	M0_PRE(!grp_tlist_is_empty(&gr->tg_txs));
-	/* XXX TODO: M0_PRE() that tx is working with the same segment. */
 
-	/* perform IO */
-	m0_be_op_init(op);
+	m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED);
+	m0_be_op_reset(op);
 	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_STABILIZING);
 }
 
-static int placed_tick(struct m0_fom *fom)
+static int stabilizing_tick(struct m0_fom *fom)
 {
-	/*
-	struct m0_be_tx             *tx;
-	const struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
-	*/
-
 	M0_ENTRY();
-
-	/*
-	M0_LOG(M0_DEBUG, "Posting \"Get placed!\" AST(s)");
-	m0_tl_for(grp, &gr->tg_txs, tx) {
-		m0_be_tx__state_post(tx, M0_BTS_PLACED, NULL);
-		if (tx->t_persistent != NULL)
-			tx->t_persistent(tx);
-		grp_tlist_del(tx);
-	} m0_tl_endfor;
-	*/
-
-	m0_fom_phase_set(fom, TGS_STABLE);
-
+	m0_be_tx_group__tx_state_post(tx_group(tx_group_fom(fom)),
+				      M0_BTS_PLACED);
 	M0_LEAVE();
-	return M0_FSO_AGAIN;
+	return M0_FSO_WAIT;
 }
 
 static int stable_tick(struct m0_fom *fom)
@@ -430,8 +342,8 @@ static int stable_tick(struct m0_fom *fom)
 	const struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
 
 	M0_ENTRY();
-	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
 
+	m0_be_tx_group_reset(gr);
 	m0_fom_phase_set(fom, TGS_OPEN);
 
 	M0_LEAVE();
@@ -515,6 +427,12 @@ M0_INTERNAL void m0_be_tx_group_fom_process(struct m0_be_tx_group_fom *gf,
 {
 	gf->tgf_group = gr;
 	/* send ast to wake up fom */
+}
+
+static void be_op_reset(struct m0_be_op *op)
+{
+	m0_be_op_fini(op);
+	m0_be_op_init(op);
 }
 
 /** @} end of be group */

@@ -40,7 +40,6 @@ struct m0_reqh;
  */
 
 struct m0_be_tx_group_fom {
-	/* this field has to be first in structure */
 	struct m0_fom	       tgf_gen;
 	struct m0_reqh	      *tgf_reqh;
 	struct m0_be_tx_group *tgf_group;

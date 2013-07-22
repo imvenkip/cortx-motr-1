@@ -38,14 +38,14 @@ M0_TL_DESCR_DEFINE(etx, "m0_be_engine::eng_txs[]", M0_INTERNAL,
 
 M0_TL_DEFINE(etx, M0_INTERNAL, struct m0_be_tx);
 
-M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
-				  struct m0_be_engine_cfg *en_cfg)
+M0_INTERNAL int
+m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 {
 	int rc;
 
 	*en = (struct m0_be_engine) {
-		.eng_cfg	  = en_cfg,
-		.eng_group_nr	  = en_cfg->bec_group_nr,
+		.eng_cfg      = en_cfg,
+		.eng_group_nr = en_cfg->bec_group_nr,
 	};
 
 	M0_ASSERT(en_cfg->bec_group_nr == 1);
@@ -63,8 +63,7 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 
 	rc = m0_be_tx_group_init(&en->eng_group[0], &en_cfg->bec_group_size_max,
 				 en_cfg->bec_group_tx_max,
-				 m0_be_log_stob(&en->eng_log),
-				 en_cfg->bec_group_fom_reqh);
+				 &en->eng_log, en_cfg->bec_group_fom_reqh);
 	if (rc != 0)
 		goto log_destroy;
 	en->eng_group_closed = false;
