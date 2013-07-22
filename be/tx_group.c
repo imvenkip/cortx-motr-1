@@ -21,12 +21,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
-#include "be/tx_group.h"
-
-#include "lib/errno.h"		/* ENOSPC */
-
 #include "be/tx.h"		/* m0_be_tx__reg_area */
-
+#include "be/tx_group.h"
+#include "lib/errno.h"		/* ENOSPC */
 
 /**
  * @addtogroup be
@@ -178,8 +175,8 @@ M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 	grp_tlist_fini(&gr->tg_txs);
 }
 
-M0_INTERNAL int m0_be_tx_group_add(struct m0_be_tx_group *gr,
-				   struct m0_be_tx *tx)
+M0_INTERNAL int
+m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 {
 	struct m0_be_tx_credit group_used = gr->tg_used;
 	struct m0_be_tx_credit tx_used;
@@ -203,10 +200,32 @@ M0_INTERNAL int m0_be_tx_group_add(struct m0_be_tx_group *gr,
 	M0_RETURN(rc);
 }
 
-M0_INTERNAL void m0_be_tx_group_del(struct m0_be_tx_group *gr,
-				    struct m0_be_tx *tx)
+M0_INTERNAL void
+m0_be_tx_group_tx_del(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 {
 	grp_tlist_del(tx);
+}
+
+M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void
+m0_be_tx_group_tx_discard(struct m0_be_tx_group *gr, const struct m0_be_tx *tx)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void
+m0_be_tx_group_discard(struct m0_be_tx_group *gr)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
 M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)

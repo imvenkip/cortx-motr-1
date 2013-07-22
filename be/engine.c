@@ -163,7 +163,7 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 	M0_PRE(be_engine_is_locked(en));
 
 	while ((gr = be_engine_group_find(en)) != NULL) {
-		rc = m0_be_tx_group_add(gr, tx);
+		rc = m0_be_tx_group_tx_add(gr, tx);
 		if (rc == 0)
 			break;
 		be_engine_group_close(en, gr);

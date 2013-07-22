@@ -70,11 +70,11 @@ struct m0_be_engine {
 	bool			   eng_group_closed;
 };
 
+M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en);
+
 M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 				  struct m0_be_engine_cfg *en_cfg);
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en);
-
-M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en);
 
 /* next functions should be called from m0_be_tx implementation */
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
@@ -93,9 +93,7 @@ M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
 M0_INTERNAL void m0_be_engine__log_got_space(struct m0_be_engine *en);
 
 /** @} end of be group */
-
 #endif /* __MERO_BE_ENGINE_H__ */
-
 
 /*
  *  Local variables:

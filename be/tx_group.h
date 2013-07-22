@@ -78,39 +78,72 @@ struct m0_be_tx_group {
 	struct m0_be_tx_group_fom tg_group_fom;
 };
 
+M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
+
+/**
+ * m0_be_tx__state_post()s each transaction of the group.
+ * XXX RENAMEME
+ */
+M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
+					       enum m0_be_tx_state state);
+
+/* ------------------------------------------------------------------
+ * Interfaces used by m0_be_engine
+ * ------------------------------------------------------------------ */
+
 /* XXX make m0_be_tx_group_cfg? */
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				    struct m0_be_tx_credit *size_max,
 				    size_t tx_nr_max,
 				    struct m0_be_log *log,
 				    struct m0_reqh *reqh);
+
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 
-M0_INTERNAL int m0_be_tx_group_add(struct m0_be_tx_group *gr,
-				   struct m0_be_tx *tx);
-M0_INTERNAL void m0_be_tx_group_del(struct m0_be_tx_group *gr,
-				    struct m0_be_tx *tx);
-M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr);
 
-/* fom control */
-M0_INTERNAL void m0_be_tx_group_write(struct m0_be_tx_group *gr);
-M0_INTERNAL void m0_be_tx_group_shutdown(struct m0_be_tx_group *gr);
+/** Adds the transaction to m0_be_tx_group::tg_txs. */
+M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
+				      struct m0_be_tx *tx);
+
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr);
 
 /**
- * m0_be_tx__state_post() to all transactions in group.
- * [called from fom]
- * XXX RENAMEME
+ * Notifies the group that the transaction can be discarded from the log.
+ *
+ * @see m0_be_tx_group_discard()
  */
-M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
-					       enum m0_be_tx_state state);
+M0_INTERNAL void m0_be_tx_group_tx_discard(struct m0_be_tx_group *gr,
+					   const struct m0_be_tx *tx);
+
+/* ------------------------------------------------------------------
+ * Interfaces used by m0_be_tx_group_fom
+ * ------------------------------------------------------------------ */
+
+/** Makes the tx_group ready for reuse. */
+M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
+
+/** Deletes the transaction from m0_be_tx_group::tg_txs. */
+M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
+				       struct m0_be_tx *tx);
+
+/**
+ * Notifies the log that record of this group can be discarded.
+ *
+ * @see m0_be_tx_group_tx_discard()
+ */
+M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr);
+
+/** Number of transactions in the group. */
+M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
 
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op);
 M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
 				       struct m0_be_op *op);
 
+#if 1 /* XXX DELETEME <<<<<<< */
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob);
 M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr);
@@ -121,6 +154,7 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
 M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
 				struct m0_be_tx_group *gr);
 /* Note the absence of tx_group_open(). */
+#endif /* XXX >>>>>>> */
 
 #define M0_BE_TX_GROUP_TX_FORALL(gr, tx) \
 	m0_tl_for(grp, &(gr)->tg_txs, (tx))
