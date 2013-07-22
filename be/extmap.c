@@ -704,7 +704,7 @@ emap_it_open(struct m0_be_emap_cursor *it)
 			rc = -ESRCH;
 	}
 
-	bt_it_op->bo_u.u_emap.e_rc = rc;
+	it->ec_op.bo_u.u_emap.e_rc = rc;
 
 	return rc;
 }

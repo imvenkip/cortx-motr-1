@@ -111,6 +111,7 @@ static void test_obj_init(struct m0_be_tx *tx)
 {
 	m0_be_op_init(&op);
 	m0_be_emap_obj_insert(emap, tx, &op, &prefix, 42);
+	m0_be_op_wait(&op);
 	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
 	checkpoint();
@@ -120,6 +121,7 @@ static void test_obj_fini(struct m0_be_tx *tx)
 {
 	m0_be_op_init(&op);
 	m0_be_emap_obj_delete(emap, tx, &op, &prefix);
+	m0_be_op_wait(&op);
 	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	M0_UT_ASSERT(op.bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(&op);
@@ -178,28 +180,45 @@ static void test_fini(void)
 	m0_be_ut_h_fini(&be_ut_emap_h);
 }
 
-//static void test_lookup(void)
-//{
-//	m0_be_emap_lookup(emap, &prefix, 0, &it);
-//	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
-//	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
-//	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
-//	M0_UT_ASSERT(seg->ee_val == 42);
-//
-//	m0_be_emap_close(&it);
-//
-//	m0_be_emap_lookup(emap, &prefix, 1000000, &it);
-//	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
-//	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
-//	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
-//	M0_UT_ASSERT(seg->ee_val == 42);
-//
-//	m0_be_emap_close(&it);
-//	checkpoint();
-//}
-//
+static void test_lookup(void)
+{
+	test_obj_init(&tx2);
+
+	m0_be_op_init(&it.ec_op);
+	m0_be_emap_lookup(emap, &prefix, 0, &it);
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(&it.ec_op);
+	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
+	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
+	M0_UT_ASSERT(seg->ee_val == 42);
+
+	m0_be_emap_close(&it);
+
+	m0_be_op_init(&it.ec_op);
+	m0_be_emap_lookup(emap, &prefix, 1000000, &it);
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(&it.ec_op);
+	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
+	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
+	M0_UT_ASSERT(seg->ee_val == 42);
+
+	m0_be_emap_close(&it);
+
+	test_obj_fini(&tx2);
+
+	m0_be_op_init(&it.ec_op);
+	m0_be_emap_lookup(emap, &prefix, 0, &it);
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == -ENOENT);
+	m0_be_op_fini(&it.ec_op);
+
+	m0_be_emap_close(&it);
+
+	checkpoint();
+}
+
 //static void split(m0_bindex_t offset, int nr, bool commit)
 //{
 //	int i;
@@ -215,7 +234,7 @@ static void test_fini(void)
 //
 //	m0_be_emap_lookup(emap, &prefix, offset, &it);
 //	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+//	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 //
 //	for (i = 0; i < nr; ++i) {
 //		m0_bcount_t seglen;
@@ -231,7 +250,7 @@ static void test_fini(void)
 //		len[ARRAY_SIZE(len) - 1] = m0_ext_length(&seg->ee_ext) - total;
 //		m0_be_emap_split(&it, &tx, &vec);
 //		M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
-//		M0_UT_ASSERT(it.ec_op.bo_sm.sm_rc == 0);
+//		M0_UT_ASSERT(it.ec_op.bo_u.u_emap.e_rc == 0);
 //	}
 //	m0_be_emap_close(&it);
 //	if (commit)
@@ -249,7 +268,7 @@ static void test_fini(void)
 //
 //	m0_be_emap_lookup(emap, &prefix, 0, &it);
 //	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+//	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 //
 //#if 0
 //	printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
@@ -264,7 +283,7 @@ static void test_fini(void)
 //			break;
 //		m0_be_emap_next(&it);
 //		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//		M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+//		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 //	}
 //	m0_be_emap_close(&it);
 //}
@@ -273,12 +292,12 @@ static void test_fini(void)
 //{
 //	m0_be_emap_lookup(emap, &prefix, 0, &it);
 //	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+//	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 //
 //	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 //		m0_be_emap_merge(&it, &tx, m0_ext_length(&seg->ee_ext));
 //		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//		M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+//		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 //	}
 //	m0_be_emap_close(&it);
 //	checkpoint();
@@ -290,8 +309,8 @@ void m0_be_ut_emap(void)
 	test_init();
 	test_obj_init(&tx2);
 	test_obj_fini(&tx2);
-/*
 	test_lookup();
+/*
 	test_split();
 	test_print();
 	test_merge();
