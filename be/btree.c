@@ -973,8 +973,7 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 			btree_pair_release(btree, tx, del_node->b_key_vals[i]);
 		free_btree_node(del_node, btree, tx);
 	}
-	/*  @todo: Seems btree has to be deleted also... */
-	/*         And this shall be done near by this line. */
+	btree->bb_root = NULL;
 }
 
 /**
@@ -1694,12 +1693,15 @@ static void iter_prepare(struct m0_be_bnode *node, bool print)
 	struct m0_be_bnode *head, *tail;
 	struct m0_be_bnode *child;
 
+	if (print)
+		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
+
+	if (node == NULL)
+		goto out;
+
 	current_level = node->b_level;
 	head = node;
 	tail = node;
-
-	if (print)
-		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
 
 	head->b_next = NULL;
 	while (head != NULL) {
@@ -1721,7 +1723,7 @@ static void iter_prepare(struct m0_be_bnode *node, bool print)
 		}
 		head = head->b_next;
 	}
-
+out:
 	if (print)
 		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
 }
