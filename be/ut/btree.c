@@ -309,29 +309,30 @@ static void cursor_test(struct m0_be_btree *tree)
 	struct m0_buf		  key;
 	struct m0_buf		  val;
 	int                       v;
+	int                       i;
 
 	m0_be_btree_cursor_init(&cursor, tree);
 
 	m0_be_op_init(&cursor.bc_op);
 	m0_be_btree_cursor_get(&cursor, &start, true);
-	M0_UT_ASSERT(M0_IN(m0_be_op_state(&cursor.bc_op), (M0_BOS_SUCCESS,
-							   M0_BOS_FAILURE)));
+	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 	/* make sure we are on the right position */
 	M0_UT_ASSERT(strcmp(key.b_addr, "075") == 0 &&
 		     strcmp(val.b_addr, key.b_addr) == 0);
 
-	do {
+	for (i = 0; key.b_addr != NULL; i++) {
 		v = atoi(key.b_addr);
-		M0_UT_ASSERT((0 <= v && v < INSERT_COUNT/4) ||
-			     (INSERT_COUNT*3/4 <= v && v < INSERT_COUNT));
+		//M0_UT_ASSERT(v == (i + 75) % 100);
+		M0_LOG(M0_DEBUG, "i=%i k=%s", i, (char*)key.b_addr);
 
 		m0_be_op_init(&cursor.bc_op);
 		m0_be_btree_cursor_next(&cursor);
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&cursor.bc_op),
-				   (M0_BOS_SUCCESS, M0_BOS_FAILURE)));
+		M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
-	} while(key.b_addr != NULL);
+	}
+
+	M0_UT_ASSERT(i == 50);
 
 	m0_be_btree_cursor_fini(&cursor);
 }
