@@ -22,9 +22,12 @@
 #ifndef __MERO_BE_TX_GROUP_H__
 #define __MERO_BE_TX_GROUP_H__
 
+#include "lib/tlist.h"		/* m0_tl */
+
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 #include "be/tx_group_ondisk.h"	/* m0_be_group_ondisk */
-#include "lib/tlist.h"		/* m0_tl */
+#include "be/tx_group_fom.h"	/* m0_be_group_fom */
+#include "be/tx.h"		/* m0_be_tx_state */
 
 struct m0_be_tx_engine;
 struct m0_be_tx;
@@ -71,12 +74,16 @@ struct m0_be_tx_group {
 	struct m0_tl              tg_txs;
 	/** XXX DOCUMENTME */
 	struct m0_be_group_ondisk tg_od;
+	/** @note it is not just tg_fom, it is tg_group_fom */
+	struct m0_be_tx_group_fom tg_group_fom;
 };
 
+/* XXX make m0_be_tx_group_cfg? */
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				    struct m0_be_tx_credit *size_max,
 				    size_t tx_nr_max,
-				    struct m0_stob *log_stob);
+				    struct m0_stob *log_stob,
+				    struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
@@ -85,7 +92,20 @@ M0_INTERNAL int m0_be_tx_group_add(struct m0_be_tx_group *gr,
 				   struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_group_del(struct m0_be_tx_group *gr,
 				    struct m0_be_tx *tx);
+M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
 
+/* fom control */
+M0_INTERNAL void m0_be_tx_group_write(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_shutdown(struct m0_be_tx_group *gr);
+
+/* called from fom */
+/* m0_be_tx__state_post() to all transactions in group */
+M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
+					       enum m0_be_tx_state state);
+M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
+				     struct m0_be_op *op);
+M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
+				       struct m0_be_op *op);
 
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob);
@@ -98,8 +118,8 @@ M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
 				struct m0_be_tx_group *gr);
 /* Note the absence of tx_group_open(). */
 
-#define M0_BE_TX_GROUP_TX_FORALL(group, tx) \
-	m0_tl_for(grp, &(group)->tg_txs, (tx))
+#define M0_BE_TX_GROUP_TX_FORALL(gr, tx) \
+	m0_tl_for(grp, &(gr)->tg_txs, (tx))
 
 #define M0_BE_TX_GROUP_TX_ENDFOR m0_tl_endfor
 

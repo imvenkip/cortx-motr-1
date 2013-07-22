@@ -19,12 +19,16 @@
  */
 
 #include "be/seg.h"
-#include "be/seg_internal.h"  /* m0_be_seg_hdr */
-#include "be/be.h"            /* m0_be_op */
-#include "be/tx_regmap.h"     /* m0_be_reg_area */
+
 #include "lib/misc.h"         /* M0_IN */
 #include "lib/memory.h"       /* m0_alloc_aligned */
 #include "lib/errno.h"        /* ENOMEM */
+
+#include "be/seg_internal.h"  /* m0_be_seg_hdr */
+#include "be/be.h"            /* m0_be_op */
+#include "be/tx_regmap.h"     /* m0_be_reg_area */
+#include "be/io.h"	      /* m0_be_io */
+
 #include <sys/mman.h>         /* mmap */
 #include <search.h>           /* twalk */
 

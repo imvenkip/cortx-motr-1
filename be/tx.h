@@ -22,12 +22,10 @@
 #ifndef __MERO_BE_TX_H__
 #define __MERO_BE_TX_H__
 
-#include "be/log.h"
-#include "be/tx_group.h"
 #include "be/tx_regmap.h"
 
 struct m0_ref;
-struct m0_be_dom;
+struct m0_be_domain;
 
 /**
  * @defgroup be
@@ -383,7 +381,7 @@ M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 			       uint64_t            tid,
-			       struct m0_be_dom   *dom,
+			       struct m0_be_domain   *dom,
 			       struct m0_sm_group *sm_group,
 			       m0_be_tx_cb_t       persistent,
 			       m0_be_tx_cb_t       discarded,

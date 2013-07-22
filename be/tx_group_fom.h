@@ -30,7 +30,7 @@
 
 #include "be/op.h"
 
-struct m0_be_tx_engine;
+struct m0_be_engine;
 struct m0_be_tx_group;
 struct m0_reqh;
 
@@ -41,13 +41,14 @@ struct m0_reqh;
 
 struct m0_be_tx_group_fom {
 	/* this field has to be first in structure */
-	struct m0_fom           tgf_gen;
-	struct m0_be_tx_engine *tgf_engine;
-	bool                    tgf_full;
-	bool                    tgf_expired;
-	bool                    tgf_stopping;
-	struct m0_fom_timeout   tgf_to;
-	struct m0_be_op         tgf_op;
+	struct m0_fom	       tgf_gen;
+	struct m0_reqh	      *tgf_reqh;
+	struct m0_be_tx_group *tgf_group;
+	bool		       tgf_full;
+	bool		       tgf_expired;
+	bool		       tgf_stopping;
+	struct m0_fom_timeout  tgf_to;
+	struct m0_be_op	       tgf_op;
 	/**
 	 * The number of transactions that have been added to the tx_group
 	 * but have not switched to M0_BTS_GROUPED state yet.
@@ -56,16 +57,13 @@ struct m0_be_tx_group_fom {
 	struct m0_semaphore     tgf_started;
 };
 
-M0_INTERNAL int m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf);
+M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
+					 struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf);
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *gf);
 
-M0_INTERNAL void m0_be_tx_group_fom_run(struct m0_be_tx_group_fom *gf,
-					struct m0_be_tx_group *gr);
-
-M0_INTERNAL int m0_be_tx_engine_start(struct m0_be_tx_engine *engine,
-				      struct m0_reqh *reqh);
-M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine);
+M0_INTERNAL void m0_be_tx_group_fom_process(struct m0_be_tx_group_fom *gf,
+					    struct m0_be_tx_group *gr);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_GROUP_FOM_H__ */

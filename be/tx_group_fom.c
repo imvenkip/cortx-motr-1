@@ -24,20 +24,19 @@
 
 #include "be/tx_group_fom.h"
 
-#include "be/tx.h"
-#include "be/tx_service.h"
-#include "be/tx_regmap.h"
 #include "lib/misc.h"       /* M0_BITS */
 #include "lib/memory.h"     /* m0_free */
-#include "reqh/reqh.h"      /* m0_reqh_state_get */
 #include "lib/errno.h"      /* ENOMEM */
+#include "reqh/reqh.h"      /* m0_reqh_state_get */
+
+#include "be/tx_group.h"
+#include "be/tx_service.h"
 
 /**
  * @addtogroup be
  * @{
  */
 
-#if 0
 static struct m0_be_tx_group_fom *tx_group_fom(const struct m0_fom *fom);
 static void tx_group_fom_fini(struct m0_fom *fom);
 
@@ -83,6 +82,7 @@ static void tx_group_fom_fini(struct m0_fom *fom);
  *
  * [0], [2], [4] and [6]   -- m0_sm_state_descr::sd_in();
  * [1], [3], [5], [7]-[10] -- external events.
+ * XXX s/PLACED/STABILIZING/
  * @endverbatim
  *
  * Note the absence of "FAILED" state --- a tx_group is not allowed to fail.
@@ -112,7 +112,7 @@ enum tx_group_state {
 	TGS_COMMITTING,
 	/** In-place (segment) stobio is in progress. */
 	TGS_PLACING,
-	TGS_PLACED,
+	TGS_STABILIZING,
 	/**
 	 * m0_be_tx_stable() has been called for all transactions of the
 	 * tx_group.
@@ -141,8 +141,8 @@ static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
 	_S(TGS_OPEN,       0, M0_BITS(TGS_OPEN, TGS_LOGGING, TGS_FINISH)),
 	_S(TGS_LOGGING,    0, M0_BITS(TGS_COMMITTING)),
 	_S(TGS_COMMITTING, 0, M0_BITS(TGS_PLACING)),
-	_S(TGS_PLACING,    0, M0_BITS(TGS_PLACED)),
-	_S(TGS_PLACED,     0, M0_BITS(TGS_PLACED, TGS_STABLE, TGS_FINISH)),
+	_S(TGS_PLACING,    0, M0_BITS(TGS_STABILIZING)),
+	_S(TGS_STABILIZING,     0, M0_BITS(TGS_STABILIZING, TGS_STABLE, TGS_FINISH)),
 	_S(TGS_STABLE,     0, M0_BITS(TGS_OPEN))
 #undef _S
 };
@@ -174,7 +174,7 @@ static int tx_group_tick(struct m0_fom *fom)
 		return committing_tick(fom);
 	case TGS_PLACING:
 		return placing_tick(fom);
-	case TGS_PLACED:
+	case TGS_STABILIZING:
 		return placed_tick(fom);
 	case TGS_STABLE:
 		return stable_tick(fom);
@@ -221,6 +221,7 @@ static const struct m0_fom_type_ops tx_group_fom_type_ops = {
 	.fto_create = NULL
 };
 
+#if 0
 static struct m0_fom *
 tx_group_fom_create(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
 {
@@ -243,7 +244,9 @@ tx_group_fom_create(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
 
 	return fom;
 }
+#endif
 
+#if 0
 M0_INTERNAL int
 m0_be_tx_engine_start(struct m0_be_tx_engine *engine, struct m0_reqh *reqh)
 {
@@ -279,47 +282,52 @@ M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine)
 
 	M0_LEAVE();
 }
+#endif
 
 /* ------------------------------------------------------------------
  * State transitions
  * ------------------------------------------------------------------ */
 
 static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m);
+#if 0
 static void tx_group_populate(struct m0_be_tx_group *group,
 			      struct m0_be_tx_engine *engine, bool *full);
+#endif
 static void fom_wake(struct m0_ref *ref);
 
 static int open_tick(struct m0_fom *fom)
 {
 	struct m0_be_tx_group_fom    *m   = tx_group_fom(fom);
-	struct m0_be_tx_engine *eng = m->tgf_engine;
+	/* struct m0_be_engine	*eng = m->tgf_engine; */
 	struct m0_be_tx_group  *gr  = tx_group(m);
-	struct m0_be_tx        *tx;
+	/* struct m0_be_tx        *tx; */
 	int                     rc;
+	size_t			group_size;
 
 	M0_ENTRY();
 	M0_PRE(!m->tgf_full);
 
-	tx_group_populate(gr, eng, &m->tgf_full);
+	/* tx_group_populate(gr, eng, &m->tgf_full); */
 
-	if (m->tgf_full || (m->tgf_expired &&
-			    !grp_tlist_is_empty(&gr->tg_txs))) {
-		M0_LOG(M0_DEBUG, "tx_group %s",
-		       m->tgf_full ? "is full" : "has expired");
+	group_size = m0_be_tx_group_size(gr);
+	if (m->tgf_expired && group_size > 0) {
 
-		tx_group_close(eng, gr);
-		m->tgf_full = m->tgf_expired = false;
+		/* tx_group_close(eng, gr); */
+		m->tgf_expired = false;
 
-		m0_ref_init(&m->tgf_nr_ungrouped, grp_tlist_length(&gr->tg_txs),
+		m0_ref_init(&m->tgf_nr_ungrouped, group_size,
 			    fom_wake);
+#if 0
 		M0_LOG(M0_DEBUG, "Posting \"Get grouped!\" AST(s)");
+		m0_be_tx_group__tx_state_post(gr, M0_BTS_GROUPED);
 		m0_tl_for(grp, &gr->tg_txs, tx) {
 			m0_be_tx__state_post(tx, M0_BTS_GROUPED,
 					     &m->tgf_nr_ungrouped);
 		} m0_tl_endfor;
+#endif
 
 		m0_fom_phase_set(fom, TGS_LOGGING);
-	} else if (m->tgf_stopping && grp_tlist_is_empty(&gr->tg_txs)) {
+	} else if (m->tgf_stopping && group_size == 0) {
 		m0_fom_phase_set(fom, TGS_FINISH);
 	} else {
 		M0_LOG(M0_DEBUG, "Start timer");
@@ -336,21 +344,18 @@ static int open_tick(struct m0_fom *fom)
 static int logging_tick(struct m0_fom *fom)
 {
 	struct m0_be_tx_group_fom   *m  = tx_group_fom(fom);
-	struct m0_be_tx_group *gr = tx_group(m);
+	/* struct m0_be_tx_group *gr = tx_group(m); */
 	struct m0_be_op       *op = &m->tgf_op;
 
 	M0_ENTRY();
 	M0_PRE(m0_ref_read(&m->tgf_nr_ungrouped) == 0);
-	M0_PRE(m0_tl_forall(grp, tx, &gr->tg_txs,
-			    m0_be_tx__state(tx) == M0_BTS_GROUPED));
 
 	m0_be_op_init(op);
 	/*
 	 * Launch the 1st log IO: tx_group and, when the log is wrapped,
 	 * log header.
 	 */
-	m0_be_group_ondisk_reset(&gr->tg_od); /* XXX MOVEME ASAP */
-	m0_be_log_submit(&m->tgf_engine->te_log, op, gr);
+	/* m0_be_log_submit(&m->tgf_engine->te_log, op, gr); */ /* XXX */
 
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_COMMITTING);
@@ -359,7 +364,7 @@ static int logging_tick(struct m0_fom *fom)
 static int committing_tick(struct m0_fom *fom)
 {
 	struct m0_be_tx_group_fom   *m  = tx_group_fom(fom);
-	struct m0_be_tx_group *gr = tx_group(m);
+	/* struct m0_be_tx_group *gr = tx_group(m); */
 	struct m0_be_op       *op = &m->tgf_op;
 
 	/* XXX: on error transit to failure state, and finish system */
@@ -371,7 +376,7 @@ static int committing_tick(struct m0_fom *fom)
 	/*
 	 * Launch the 2nd log IO: commit block.
 	 */
-	m0_be_log_commit(&m->tgf_engine->te_log, op, gr);
+	/* m0_be_log_commit(&m->tgf_engine->te_log, op, gr); */ /* XXX */
 
 	M0_LEAVE();
 	return m0_be_op_tick_ret(op, fom, TGS_PLACING);
@@ -392,16 +397,19 @@ static int placing_tick(struct m0_fom *fom)
 	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 
 	M0_LEAVE();
-	return m0_be_op_tick_ret(op, fom, TGS_PLACED);
+	return m0_be_op_tick_ret(op, fom, TGS_STABILIZING);
 }
 
 static int placed_tick(struct m0_fom *fom)
 {
+	/*
 	struct m0_be_tx             *tx;
 	const struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
+	*/
 
 	M0_ENTRY();
 
+	/*
 	M0_LOG(M0_DEBUG, "Posting \"Get placed!\" AST(s)");
 	m0_tl_for(grp, &gr->tg_txs, tx) {
 		m0_be_tx__state_post(tx, M0_BTS_PLACED, NULL);
@@ -409,6 +417,7 @@ static int placed_tick(struct m0_fom *fom)
 			tx->t_persistent(tx);
 		grp_tlist_del(tx);
 	} m0_tl_endfor;
+	*/
 
 	m0_fom_phase_set(fom, TGS_STABLE);
 
@@ -448,9 +457,11 @@ static void fom_wake(struct m0_ref *ref)
 
 static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m)
 {
-	return &m->tgf_engine->te_group;
+	/* return &m->tgf_engine->te_group; */
+	return NULL;
 }
 
+#if 0
 static void tx_group_populate(struct m0_be_tx_group *group,
 			      struct m0_be_tx_engine *engine, bool *full)
 {
@@ -469,13 +480,41 @@ static void tx_group_populate(struct m0_be_tx_group *group,
 }
 #endif
 
-M0_INTERNAL int m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf)
+M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
+					 struct m0_reqh *reqh)
 {
-	return 0;
+	M0_ENTRY();
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
+
+	m0_fom_init(&gf->tgf_gen, &tx_group_fom_type,
+		    &tx_group_fom_ops, NULL, NULL, reqh, &m0_be_txs_stype);
+
+	gf->tgf_reqh = reqh;
+	gf->tgf_stopping = false;
+	m0_fom_timeout_init(&gf->tgf_to);
+	m0_semaphore_init(&gf->tgf_started, 0);
+	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
+			 &m0_be_txs_stype, &_tx_group_conf);
+
+	m0_fom_queue(&gf->tgf_gen, gf->tgf_reqh);
+	m0_semaphore_down(&gf->tgf_started);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf)
 {
+	gf->tgf_stopping = true;
+	/* XXX */
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *gf)
+{
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_process(struct m0_be_tx_group_fom *gf,
+					    struct m0_be_tx_group *gr)
+{
+	gf->tgf_group = gr;
+	/* send ast to wake up fom */
 }
 
 /** @} end of be group */

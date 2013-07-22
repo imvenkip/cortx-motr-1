@@ -25,7 +25,6 @@
 #include "lib/misc.h"		/* m0_forall */
 
 #include "be/tx_group.h"	/* m0_be_tx_group */
-#include "be/tx_group_fom.h"	/* m0_be_tx_group_fom */
 
 /**
  * @addtogroup be
@@ -47,15 +46,12 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 	*en = (struct m0_be_engine) {
 		.eng_cfg	  = en_cfg,
 		.eng_group_nr	  = en_cfg->bec_group_nr,
-		.eng_group_fom_nr = en_cfg->bec_group_fom_nr,
 	};
 
 	M0_ASSERT(en_cfg->bec_group_nr == 1);
-	M0_ASSERT(en_cfg->bec_group_fom_nr == 1);
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
-	M0_ALLOC_ARR(en->eng_group_fom, en_cfg->bec_group_fom_nr);
-	if (en->eng_group == NULL || en->eng_group_fom == NULL) {
+	if (en->eng_group == NULL) {
 		rc = -ENOMEM;
 		goto free;
 	}
@@ -67,14 +63,11 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 
 	rc = m0_be_tx_group_init(&en->eng_group[0], &en_cfg->bec_group_size_max,
 				 en_cfg->bec_group_tx_max,
-				 m0_be_log_stob(&en->eng_log));
+				 m0_be_log_stob(&en->eng_log),
+				 en_cfg->bec_group_fom_reqh);
 	if (rc != 0)
 		goto log_destroy;
 	en->eng_group_closed = false;
-
-	rc = m0_be_tx_group_fom_init(&en->eng_group_fom[0]);
-	if (rc != 0)
-		goto group_fini;
 
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_init(&en->eng_txs[i]), true));
@@ -83,8 +76,6 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 	goto out;
 
 	/* left for reference */
-	m0_be_tx_group_fom_fini(&en->eng_group_fom[0]);
-group_fini:
 	m0_be_tx_group_fini(&en->eng_group[0]);
 log_destroy:
 	m0_be_log_destroy(&en->eng_log);
@@ -92,7 +83,6 @@ log_fini:
 	m0_be_log_fini(&en->eng_log);
 free:
 	m0_free(en->eng_group);
-	m0_free(en->eng_group_fom);
 out:
 	M0_POST(ergo(rc == 0, m0_be_engine__invariant(en)));
 	return rc;
@@ -105,12 +95,10 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	m0_mutex_fini(&en->eng_lock);
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_fini(&en->eng_txs[i]), true));
-	m0_be_tx_group_fom_fini(&en->eng_group_fom[0]);
 	m0_be_tx_group_fini(&en->eng_group[0]);
 	m0_be_log_destroy(&en->eng_log);
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);
-	m0_free(en->eng_group_fom);
 }
 
 static void be_engine_lock(struct m0_be_engine *en)
@@ -171,7 +159,9 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 				 struct m0_be_tx *tx)
 {
 	struct m0_be_tx_group *gr;
-	int		       rc = -ENOSPC;
+	int		       rc = -EBUSY;
+
+	M0_PRE(be_engine_is_locked(en));
 
 	while ((gr = be_engine_group_find(en)) != NULL) {
 		rc = m0_be_tx_group_add(gr, tx);
@@ -239,7 +229,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 
 	if (state == M0_BTS_OPENING)
 		be_engine_got_tx_open(en);
-	if (state == M0_BTS_OPENING)
+	if (state == M0_BTS_CLOSED)
 		be_engine_got_tx_close(en);
 
 	M0_POST(be_engine_invariant(en));

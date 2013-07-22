@@ -33,7 +33,7 @@
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 
 struct m0_be_tx_group;
-struct m0_be_tx_group_fom;
+struct m0_reqh;
 
 /**
  * @defgroup be
@@ -43,10 +43,10 @@ struct m0_be_tx_group_fom;
 
 struct m0_be_engine_cfg {
 	size_t		       bec_group_nr;
-	size_t		       bec_group_fom_nr;
 	size_t		       bec_log_size;
 	struct m0_be_tx_credit bec_group_size_max;
 	size_t		       bec_group_tx_max;
+	struct m0_reqh	      *bec_group_fom_reqh;
 };
 
 struct m0_be_engine {
@@ -68,8 +68,6 @@ struct m0_be_engine {
 	 * Remove it when add multiple groups support.
 	 */
 	bool			   eng_group_closed;
-	struct m0_be_tx_group_fom *eng_group_fom;
-	size_t			   eng_group_fom_nr;
 };
 
 M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
@@ -93,7 +91,6 @@ M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
  * It shouldn't be called under engine lock.
  */
 M0_INTERNAL void m0_be_engine__log_got_space(struct m0_be_engine *en);
-
 
 /** @} end of be group */
 

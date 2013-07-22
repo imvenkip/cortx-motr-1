@@ -30,7 +30,7 @@
 
 #include "be/be.h"
 #include "be/tx.h"
-#include "be/dom.h"
+#include "be/domain.h"
 #include "fop/fom.h"
 #include "be/engine.h"
 
@@ -104,7 +104,7 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 			       uint64_t            tid,
-			       struct m0_be_dom    *dom,
+			       struct m0_be_domain    *dom,
 			       struct m0_sm_group *sm_group,
 			       m0_be_tx_cb_t       persistent,
 			       m0_be_tx_cb_t       discarded,
@@ -116,7 +116,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_PREPARE, sm_group);
 
 	tx->t_id		 = tid;
-	tx->t_engine		 = m0_be_dom_engine(dom);
+	tx->t_engine		 = m0_be_domain_engine(dom);
 
 	m0_be_tx_credit_init(&tx->t_prepared);
 	tx->t_reg_area_allocated = false;

@@ -19,37 +19,32 @@
  */
 
 
-#pragma once
-
-#ifndef __MERO_BE_DOM_H__
-#define __MERO_BE_DOM_H__
-
-#include "be/engine.h"		/* m0_be_engine */
+#include "be/domain.h"
 
 /**
- * @defgroup be
+ * @addtogroup be
  *
  * @{
  */
 
-struct m0_be_dom_cfg {
-	struct m0_be_engine_cfg bc_engine;
-};
+M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+				  struct m0_be_domain_cfg *cfg)
+{
+	dom->bd_cfg = cfg;
+	return m0_be_engine_init(&dom->bd_engine, &cfg->bc_engine);
+}
 
-struct m0_be_dom {
-	struct m0_be_dom_cfg *bd_cfg;
-	struct m0_be_engine   bd_engine;
-};
+M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+{
+	m0_be_engine_fini(&dom->bd_engine);
+}
 
-M0_INTERNAL int m0_be_dom_init(struct m0_be_dom *dom,
-			       struct m0_be_dom_cfg *cfg);
-M0_INTERNAL void m0_be_dom_fini(struct m0_be_dom *dom);
-
-M0_INTERNAL struct m0_be_engine *m0_be_dom_engine(struct m0_be_dom *dom);
+M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
+{
+	return &dom->bd_engine;
+}
 
 /** @} end of be group */
-
-#endif /* __MERO_BE_DOM_H__ */
 
 
 /*
