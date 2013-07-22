@@ -21,9 +21,12 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
-#include "be/tx.h"		/* m0_be_tx__reg_area */
 #include "be/tx_group.h"
+
 #include "lib/errno.h"		/* ENOSPC */
+
+#include "be/tx.h"		/* m0_be_tx__reg_area */
+#include "be/log.h"		/* m0_be_log_stob */
 
 /**
  * @addtogroup be
@@ -137,8 +140,14 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
 {
 	M0_ENTRY();
-	m0_sm_ast_post();
+	m0_sm_ast_post(&gr->tg_fom.tgf_gen.fo_loc->fl_group,
+		       &gr->tg_fom.tgf_ast_stable);
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
+{
+	/* XXX post fom */
 }
 
 M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)

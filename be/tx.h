@@ -240,6 +240,8 @@ enum m0_be_tx_state {
 	 * Transaction is a member of transaction group.
 	 */
 	M0_BTS_GROUPED,
+	/* XXX DOCUMENTME */
+	M0_BTS_LOGGED,
 	/**
 	 * All transaction in-place updates completed.
 	 */

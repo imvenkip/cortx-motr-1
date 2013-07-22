@@ -32,6 +32,7 @@
 
 #include "be/tx_group.h"
 #include "be/tx_service.h"
+#include "be/log.h"
 
 /**
  * @addtogroup be
@@ -40,6 +41,7 @@
 
 static struct m0_be_tx_group_fom *tx_group_fom(const struct m0_fom *fom);
 static void tx_group_fom_fini(struct m0_fom *fom);
+static void be_op_reset(struct m0_be_op *op);
 
 /* ------------------------------------------------------------------
  * State definitions
@@ -113,11 +115,10 @@ enum tx_group_state {
 	TGS_NR
 };
 
-static int       open_tick(struct m0_fom *fom);
 static int    logging_tick(struct m0_fom *fom);
 static int committing_tick(struct m0_fom *fom);
 static int    placing_tick(struct m0_fom *fom);
-static int    placed_tick(struct m0_fom *fom);
+static int stabilizing_tick(struct m0_fom *fom);
 static int    stable_tick(struct m0_fom *fom);
 
 static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
@@ -281,7 +282,6 @@ M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine)
  * ------------------------------------------------------------------ */
 
 static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m);
-static void fom_wake(struct m0_ref *ref);
 
 static int logging_tick(struct m0_fom *fom)
 {
@@ -322,7 +322,7 @@ static int placing_tick(struct m0_fom *fom)
 	M0_ENTRY();
 
 	m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED);
-	m0_be_op_reset(op);
+	be_op_reset(op);
 	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 
 	M0_LEAVE();
@@ -340,7 +340,7 @@ static int stabilizing_tick(struct m0_fom *fom)
 
 static int stable_tick(struct m0_fom *fom)
 {
-	const struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
+	struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
 
 	M0_ENTRY();
 
@@ -359,13 +359,6 @@ static struct m0_be_tx_group_fom *tx_group_fom(const struct m0_fom *fom)
 {
 	/* XXX TODO bob_of() */
 	return container_of(fom, struct m0_be_tx_group_fom, tgf_gen);
-}
-
-static void fom_wake(struct m0_ref *ref)
-{
-	struct m0_be_tx_group_fom *m =
-		container_of(ref, struct m0_be_tx_group_fom, tgf_nr_ungrouped);
-	m0_fom_wakeup(&m->tgf_gen);
 }
 
 static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m)
@@ -389,7 +382,7 @@ static void be_tx_group_move(struct m0_sm_group *_, struct m0_sm_ast *ast)
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_move);
 	enum tx_group_state state = (enum tx_group_state)ast->sa_datum;
 
-	M0_PRE(M0_IN(state, (TGF_LOGGING, TGF_FINISH)));
+	M0_PRE(M0_IN(state, (TGS_LOGGING, TGS_FINISH)));
 
 	m0_fom_phase_set(&m->tgf_gen, state);
 	m0_fom_wakeup(&m->tgf_gen);
@@ -411,7 +404,7 @@ m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 	m->tgf_ast_stable = (struct m0_sm_ast){ .sa_cb = be_tx_group_stable };
 	m->tgf_ast_move = (struct m0_sm_ast){
 		.sa_cb    = be_tx_group_move,
-		.sa_datum = (void *)TGF_LOGGING
+		.sa_datum = (void *)TGS_LOGGING
 	};
 
 	m0_semaphore_init(&m->tgf_started, 0);
