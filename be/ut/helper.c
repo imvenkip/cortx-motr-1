@@ -217,18 +217,12 @@ void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h)
 	M0_ASSERT(rc == 0);
 }
 
-static void be_ut_h_persistent(const struct m0_be_tx *tx)
-{
-}
-
-static void be_ut_h_discarded(const struct m0_be_tx *tx)
-{
-}
+static void noop(const struct m0_be_tx *tx) {}
 
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 {
 	m0_be_tx_init(tx, ++h->buh_tid, &h->buh_be, &ut__txs_sm_group,
-		      be_ut_h_persistent, be_ut_h_discarded, true, NULL, NULL);
+		      noop, noop, true, NULL, NULL);
 }
 
 #undef M0_TRACE_SUBSYSTEM

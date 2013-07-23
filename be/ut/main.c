@@ -53,9 +53,9 @@ extern struct m0_sm_group ut__txs_sm_group;
 
 /* ---------------------------------------------------------------------
  * XXX FIXME: Using "ast threads" is a very wrong thing to do.
- * We should have landed origin/fom-simple branch to origin/master
- * and use m0_fom_simple instead.
- *  -- Bad, bad vvv.
+ * We should use m0_fom_simple instead. (The changes are to be made in
+ * be/ut/helper.c, supposedly.)
+ *  --vvv
  */
 
 static struct {
@@ -89,7 +89,6 @@ static int _fini(void)
 	m0_clink_signal(&ut__txs_sm_group.s_clink);
 	m0_thread_join(&g_ast.thread);
 	m0_sm_group_fini(&ut__txs_sm_group);
-
 	return 0;
 }
 

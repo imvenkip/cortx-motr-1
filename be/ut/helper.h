@@ -110,7 +110,15 @@ void m0_be_ut_h_fini(struct m0_be_ut_h *h);
  */
 void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h);
 
-/** Initialize m0_be_tx in m0_be_ut_h context */
+/**
+ * Initialize m0_be_tx in m0_be_ut_h context.
+ *
+ * XXX RENAMEME: The name of this function is very much alike
+ * m0_be_ut_h_init().
+ * Or even better: XXX DELETEME.
+ *
+ * Note the absence of m0_be_ut_h_tx_fini().
+ */
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
