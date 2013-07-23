@@ -1737,17 +1737,16 @@ out:
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
 					 struct m0_be_btree *btree)
 {
+	struct m0_be_bnode *node;
+
 	iter_prepare(btree->bb_root, false);
 	cur->bc_tree = btree;
 
-	cur->bc_node = btree->bb_root;
-	while (cur->bc_node->b_next != NULL) {
-		cur->bc_node->b_next->b_prev = cur->bc_node;
-		cur->bc_node = cur->bc_node->b_next;
-	}
+	for (node = btree->bb_root; node->b_next != NULL; node = node->b_next)
+		node->b_next->b_prev = node;
 
-	cur->bc_node->b_next = btree->bb_root;
-	btree->bb_root->b_prev = cur->bc_node;
+	node->b_next = btree->bb_root;
+	btree->bb_root->b_prev = node;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
