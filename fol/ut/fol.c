@@ -24,6 +24,7 @@
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
 #if !XXX_USE_DB5
+#  include "be/btree.h"
 /* XXX FIXME: Do not use ut/ of other subsystem. */
 #  include "be/ut/helper.h"   /* m0_be_ut_h */
 #endif
@@ -37,6 +38,7 @@
 #include "lib/ub.h"
 
 static struct m0_fol_rec_header *h;
+static int                       rc;
 
 #if XXX_USE_DB5
 static const char db_name[] = "ut-fol";
@@ -52,18 +54,16 @@ static struct m0_be_ut_h         beh;
 
 extern void m0_be_ut_h_init(struct m0_be_ut_h *h);
 extern void m0_be_ut_h_fini(struct m0_be_ut_h *h);
+
+static struct m0_be_btree *btree_alloc(void);
 #endif
 
-static int rc;
-
+#if XXX_USE_DB5
 static int db_reset(void)
 {
-#if XXX_USE_DB5
 	return m0_ut_db_reset(db_name);
-#else
-	return 0; /* XXX noop */
-#endif
 }
+#endif
 
 static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
 M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL);
@@ -85,7 +85,10 @@ static void test_init(void)
 	d = &r.fr_desc;
 	h = &d->rd_header;
 #else
+	struct m0_be_btree *t;
+
 	m0_be_ut_h_init(&beh);
+	t = btree_alloc(); /* XXX USEME */
 #endif
 }
 
@@ -211,9 +214,112 @@ static void test_fol_rec_part_encdec(void)
 }
 #endif
 
+#if !XXX_USE_DB5
+static void noop(const struct m0_be_tx *tx) {}
+
+static struct m0_be_btree *btree_alloc(void)
+{
+	enum { SHIFT = 0 };
+	struct m0_be_btree    *tree;
+	struct m0_be_tx_credit cred;
+	struct m0_be_tx        tx;
+	struct m0_be_op        op;
+
+	/* Prepare the credit needed for btree allocation. */
+	m0_be_tx_credit_init(&cred);
+	m0_be_allocator_credit(beh.buh_allocator, M0_BAO_ALLOC, sizeof *tree,
+			       SHIFT, &cred);
+
+	/* Initialise the transaction. */
+	m0_be_tx_init(&tx, ++beh.buh_tid, &beh.buh_be, &ut__txs_sm_group,
+		      noop, noop, false /* "local" tx */, NULL, NULL);
+
+	/* m0_be_tx_{prep,open,capture,close,timedwait}() require
+	 * transaction's sm_group to be locked. */
+	m0_sm_group_lock(&ut__txs_sm_group);
+
+	/* Get transaction prepared by giving it the credit. */
+	m0_be_tx_prep(&tx, &cred);
+
+	/* Open the transaction and wait for it to become active. */
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Allocate a btree. */
+	m0_be_op_init(&op);
+	tree = m0_be_alloc(beh.buh_allocator, &tx, &op, sizeof *tree, 0);
+	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	m0_be_op_fini(&op);
+
+	/* Close the transaction and wait for its data to become written to
+	 * segment. */
+	m0_be_tx_close(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	/*
+	 * XXX The placement of this statement does not look right.
+	 * An attempt to get rid of it causes m0_be_ut_h_fini() to fail.
+	 * BE UTs manage without finalising their transactions, somehow...
+	 */
+	m0_be_tx_fini(&tx);
+
+	m0_sm_group_unlock(&ut__txs_sm_group);
+
+	M0_POST(tree != NULL);
+	return tree;
+}
+
+/* ---------------------------------------------------------------------
+ * XXX FIXME: Use m0_fom_simple instead of an "ast thread".
+ * See the comment in be/ut/helper.c.
+ * XXX Code duplication.
+ */
+
+static struct {
+	bool             run;
+	struct m0_thread thread;
+} g_ast;
+
+static void ast_thread(int _)
+{
+	struct m0_sm_group *g = &ut__txs_sm_group;
+
+	while (g_ast.run) {
+		m0_chan_wait(&g->s_clink);
+		m0_sm_group_lock(g);
+		m0_sm_asts_run(g);
+		m0_sm_group_unlock(g);
+	}
+}
+
+static int _init(void)
+{
+	m0_sm_group_init(&ut__txs_sm_group);
+	g_ast.run = true;
+	return M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
+			      "ast_thread");
+}
+
+static int _fini(void)
+{
+	g_ast.run = false;
+	m0_clink_signal(&ut__txs_sm_group.s_clink);
+	m0_thread_join(&g_ast.thread);
+	m0_sm_group_fini(&ut__txs_sm_group);
+	return 0;
+}
+#endif
+
 const struct m0_test_suite fol_ut = {
 	.ts_name = "fol-ut",
+#if XXX_USE_DB5
 	.ts_init = db_reset,
+#else
+	.ts_init = _init,
+	.ts_fini = _fini,
+#endif
 	.ts_tests = {
 		/*
 		 * Note, that there are dependencies between these tests.
@@ -240,7 +346,9 @@ enum { UB_ITER = 100000 };
 
 static int ub_init(const char *opts M0_UNUSED)
 {
+#if XXX_USE_DB5
 	db_reset();
+#endif
 	test_init();
 	test_rec_part_type_reg();
 
@@ -254,7 +362,9 @@ static void ub_fini(void)
 {
 	test_rec_part_type_unreg();
 	test_fini();
+#if XXX_USE_DB5
 	db_reset();
+#endif
 }
 
 #if XXX_USE_DB5
