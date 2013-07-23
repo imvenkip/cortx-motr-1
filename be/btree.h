@@ -47,8 +47,10 @@ struct m0_be_btree {
 	struct m0_rwlock                 bb_lock;
 	/** Segment in which @bb_root node is being stored */
 	struct m0_be_seg                *bb_seg;
-	/** Inmemory root node of the tree */
+	/** Root node of the tree */
 	struct m0_be_bnode              *bb_root;
+	/** Stack top pointer for tree traversing. */
+	struct m0_be_bnode              *bb_stack;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
 };
@@ -371,9 +373,7 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
  */
 struct m0_be_btree_cursor {
 	struct m0_be_bnode *bc_node;
-	unsigned int        bc_pos;
-	struct m0_be_bnode *bc_last_node;
-	unsigned int        bc_last_pos;
+	int                 bc_pos;
 
 	struct m0_be_btree *bc_tree;
 	struct m0_be_op     bc_op;
