@@ -103,6 +103,11 @@ M0_INTERNAL bool m0_be_group_ondisk__invariant(struct m0_be_group_ondisk *go);
 
 M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go);
 
+M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
+					     struct m0_be_tx_group *group,
+					     struct m0_be_tx_credit *reserved,
+					     size_t *tx_nr);
+
 M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
 						struct m0_be_tx_group *group,
 						struct m0_be_tx_credit *reserved);

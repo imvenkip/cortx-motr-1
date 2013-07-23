@@ -157,6 +157,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 
 	gr->tg_used = M0_BE_TX_CREDIT(0, 0);
 	m0_be_group_ondisk_reset(&gr->tg_od);
+	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
 
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
@@ -218,7 +219,16 @@ m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 M0_INTERNAL void
 m0_be_tx_group_tx_del(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 {
-	grp_tlist_del(tx);
+	grp_tlink_del_fini(tx);
+}
+
+M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr)
+{
+	struct m0_be_tx *tx;
+
+	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
+		m0_be_tx_group_tx_del(gr, tx);
+	} M0_BE_TX_GROUP_TX_ENDFOR;
 }
 
 M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)
@@ -231,16 +241,9 @@ M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
 	m0_be_tx_group_fom_stop(&gr->tg_fom);
 }
 
-M0_INTERNAL void
-m0_be_tx_group_tx_discard(struct m0_be_tx_group *gr, const struct m0_be_tx *tx)
+M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr)
 {
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void
-m0_be_tx_group_discard(struct m0_be_tx_group *gr)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
+	m0_be_log_discard(gr->tg_log, &gr->tg_reserved);
 }
 
 M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
@@ -251,8 +254,11 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op)
 {
-	int rc;
+	size_t tx_nr;
+	int    rc;
 
+	/** XXX FIXME move somewhere else */
+	m0_be_group_ondisk_reserved(&gr->tg_od, gr, &gr->tg_reserved, &tx_nr);
 	/** XXX FIXME: write with single call to m0_be_log function */
 	m0_be_log_submit(gr->tg_log, op, gr);
 	rc = m0_be_op_wait(op);

@@ -67,6 +67,7 @@ struct m0_be_tx_group {
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit    tg_used;
 	struct m0_be_tx_credit    tg_size;
+	struct m0_be_tx_credit    tg_reserved;
 	/** Maximum acceptable number of transactions in the group. */
 	size_t			  tg_tx_nr_max;
 	/**
@@ -140,6 +141,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 /** Deletes the transaction from m0_be_tx_group::tg_txs. */
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr);
 
 /**
  * Notifies the log that record of this group can be discarded.

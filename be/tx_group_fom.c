@@ -169,7 +169,8 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		return m0_be_op_tick_ret(op, fom, TGS_PLACED);
 	case TGS_PLACED:
 		m0_be_tx_group__tx_state_post(gr, M0_BTS_PLACED);
-		m0_fom_phase_set(fom, TGS_STABLE);
+		m0_be_tx_group_tx_del_all(gr);
+		m0_fom_phase_set(fom, TGS_STABILIZING);
 		return M0_FSO_AGAIN;
 	case TGS_STABILIZING:
 		if (m->tgf_stable) {
@@ -178,6 +179,7 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		}
 		return M0_FSO_WAIT;
 	case TGS_STABLE:
+		m0_be_tx_group_discard(gr);
 		m0_be_tx_group_reset(gr);
 		m0_fom_phase_set(fom, TGS_OPEN);
 		return M0_FSO_AGAIN;
