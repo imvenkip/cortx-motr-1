@@ -21,26 +21,26 @@
 #include "be/domain.h"
 
 #include "ut/ut.h"
+#include "be/ut/helper.h"
 
 void m0_be_ut_domain(void)
 {
+	struct m0_be_ut_backend ut_be;
+	int			i;
+
+	for (i = 0; i < 10; ++i) {
+		m0_be_ut_backend_init(&ut_be);
+		m0_be_ut_backend_fini(&ut_be);
+	}
+	/*
 	struct m0_be_domain_cfg cfg;
 	struct m0_be_domain     dom;
 	int		     rc;
 
-	cfg = (struct m0_be_domain_cfg) {
-		.bc_engine = {
-			.bec_group_nr = 1,
-			.bec_log_size = 1 << 24,
-			.bec_group_size_max =
-				M0_BE_TX_CREDIT(200000, 1 << 22),
-			.bec_group_tx_max = 20,
-			.bec_group_fom_reqh = NULL,	/* XXX */
-		},
-	};
 	rc = m0_be_domain_init(&dom, &cfg);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_domain_fini(&dom);
+	*/
 }
 
 /*

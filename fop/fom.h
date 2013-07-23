@@ -867,6 +867,8 @@ void m0_fom_phase_moveif(struct m0_fom *fom, int32_t rc, int phase0,
 
 int m0_fom_phase(const struct m0_fom *fom);
 
+M0_INTERNAL const char *m0_fom_phase_name(const struct m0_fom *fom, int phase);
+
 M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom);
 
 M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom);

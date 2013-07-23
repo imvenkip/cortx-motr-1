@@ -18,6 +18,9 @@
  * Original creation date: 17-Jul-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 #include "be/engine.h"
 
 #include "lib/memory.h"		/* m0_free */
@@ -47,6 +50,8 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 {
 	int rc;
 	int i;
+
+	M0_ENTRY();
 
 	*en = (struct m0_be_engine) {
 		.eng_cfg      = en_cfg,
@@ -99,13 +104,14 @@ free:
 	m0_free(en->eng_group);
 out:
 	M0_POST(ergo(rc == 0, m0_be_engine__invariant(en)));
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 {
 	int i;
 
+	M0_ENTRY();
 	M0_PRE(m0_be_engine__invariant(en));
 
 	m0_mutex_fini(&en->eng_lock);
@@ -120,6 +126,8 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	m0_be_log_destroy(&en->eng_log);
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);
+
+	M0_LEAVE();
 }
 
 static void be_engine_lock(struct m0_be_engine *en)
@@ -150,6 +158,7 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 
 	M0_PRE(be_engine_is_locked(en));
 
+	/* XXX TODO make be_engine_tx_peek(state) */
 	m0_tl_for(etx, &en->eng_txs[M0_BTS_OPENING], tx) {
 		rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared);
 		if (rc == 0)
@@ -241,10 +250,19 @@ M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 				       struct m0_be_tx *tx,
 				       enum m0_be_tx_state state)
 {
+	etx_tlink_init(tx);
+
+	m0_be_engine__tx_state_set(en, tx, state);
+}
+
+M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
+				       struct m0_be_tx *tx)
+{
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
-	etx_tlink_init_at(tx, &en->eng_txs[state]);
+	etx_tlist_del(tx);
+	etx_tlink_fini(tx);
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
@@ -257,15 +275,19 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
+	M0_LOG(M0_DEBUG, "m0_be_tx %p: => %s",
+	       tx, m0_be_tx_state_name(tx, state));
+
 	etx_tlist_del(tx);
 	etx_tlist_add_tail(&en->eng_txs[state], tx);
 
-	if (state == M0_BTS_OPENING)
+	if (state == M0_BTS_OPENING) {
 		be_engine_got_tx_open(en);
-	else if (state == M0_BTS_CLOSED)
+	} else if (state == M0_BTS_CLOSED) {
 		be_engine_got_tx_close(en);
-	else if (state == M0_BTS_DONE)
+	} else if (state == M0_BTS_DONE) {
 		be_engine_got_tx_done(en, tx);
+	}
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
@@ -300,6 +322,7 @@ M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en)
 {
 	size_t i;
 
+	M0_ENTRY();
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
@@ -313,10 +336,12 @@ M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en)
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)
 {
+	M0_ENTRY();
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
@@ -324,19 +349,7 @@ M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
-}
-
-M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
-				       struct m0_be_tx *tx)
-{
-	be_engine_lock(en);
-	M0_PRE(be_engine_invariant(en));
-
-	etx_tlist_del(tx);
-	etx_tlink_fini(tx);
-
-	M0_POST(be_engine_invariant(en));
-	be_engine_unlock(en);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_engine__log_got_space(struct m0_be_engine *en)
@@ -351,6 +364,7 @@ M0_INTERNAL void m0_be_engine__log_got_space(struct m0_be_engine *en)
 }
 
 /** @} end of be group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

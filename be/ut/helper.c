@@ -237,6 +237,59 @@ void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 		      */
 }
 
+void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
+{
+	int                      rc;
+#define NAME(ext) "be-ut" ext
+	static char		*argv[] = {
+		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+		"-S", NAME(".stob"), "-A", NAME("_addb.stob"), "-w", "10",
+		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service"
+	};
+	struct m0_reqh		*reqh;
+
+	*ut_be = (struct m0_be_ut_backend) {
+		.but_net_xprt = &m0_net_lnet_xprt,
+		.but_rpc_sctx = {
+			.rsx_xprts         = &ut_be->but_net_xprt,
+			.rsx_xprts_nr      = 1,
+			.rsx_argv          = argv,
+			.rsx_argc          = ARRAY_SIZE(argv),
+			.rsx_log_file_name = NAME(".log")
+		},
+		.but_dom_cfg = {
+			.bc_engine = {
+				.bec_group_nr = 1,
+				.bec_log_size = 1 << 24,
+				.bec_group_size_max =
+					M0_BE_TX_CREDIT(200000, 1 << 22),
+				.bec_group_tx_max = 20,
+				.bec_group_fom_reqh = NULL,
+			},
+		},
+	};
+#undef NAME
+
+	rc = m0_net_xprt_init(ut_be->but_net_xprt);
+	M0_ASSERT(rc == 0);
+	rc = m0_rpc_server_start(&ut_be->but_rpc_sctx);
+	M0_ASSERT(rc == 0);
+
+	reqh = m0_mero_to_rmach(&ut_be->but_rpc_sctx.rsx_mero_ctx)->rm_reqh;
+	M0_ASSERT(reqh != NULL);
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = reqh;
+
+	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
+	M0_ASSERT(rc == 0);
+}
+
+void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
+{
+	m0_be_domain_fini(&ut_be->but_dom);
+	m0_rpc_server_stop(&ut_be->but_rpc_sctx);
+	m0_net_xprt_fini(ut_be->but_net_xprt);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

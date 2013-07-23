@@ -24,6 +24,7 @@
 
 #include "lib/types.h"          /* bool */
 #include "be/be.h"              /* m0_be */
+#include "be/domain.h"          /* m0_be_domain */
 #include "dtm/dtm.h"            /* m0_dtx */
 #include "net/net.h"		/* m0_net_xprt */
 #include "rpc/rpclib.h"		/* m0_rpc_server_ctx */
@@ -114,6 +115,16 @@ void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h);
 
 /** Initialize m0_be_tx in m0_be_ut_h context */
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h);
+
+struct m0_be_ut_backend {
+	struct m0_net_xprt	 *but_net_xprt;
+	struct m0_rpc_server_ctx  but_rpc_sctx;
+	struct m0_be_domain	  but_dom;
+	struct m0_be_domain_cfg	  but_dom_cfg;
+};
+
+void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
+void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

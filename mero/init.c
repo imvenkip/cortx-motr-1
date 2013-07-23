@@ -57,6 +57,7 @@
 #  include "net/test/initfini.h"	/* m0_net_test_init */
 #else
 #  include "be/tx_service.h"    /* m0_be_txs_register */
+#  include "be/be.h"		/* m0_backend_init */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "conf/addb.h"        /* m0_conf_addb_init */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */

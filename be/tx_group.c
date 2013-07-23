@@ -223,12 +223,12 @@ m0_be_tx_group_tx_del(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 
 M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)
 {
-	M0_IMPOSSIBLE("XXX Not implemented");
+	m0_be_tx_group_fom_start(&gr->tg_fom);
 }
 
 M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
 {
-	M0_IMPOSSIBLE("XXX Not implemented");
+	m0_be_tx_group_fom_stop(&gr->tg_fom);
 }
 
 M0_INTERNAL void
@@ -246,6 +246,28 @@ m0_be_tx_group_discard(struct m0_be_tx_group *gr)
 M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 {
 	return grp_tlist_length(&gr->tg_txs);
+}
+
+M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
+				     struct m0_be_op *op)
+{
+	int rc;
+
+	/** XXX FIXME: write with single call to m0_be_log function */
+	m0_be_log_submit(gr->tg_log, op, gr);
+	rc = m0_be_op_wait(op);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(m0_be_op_state(op) == M0_BOS_SUCCESS);
+	/* XXX dirty hack */
+	m0_be_op_fini(op);
+	m0_be_op_init(op);
+	m0_be_log_commit(gr->tg_log, op, gr);
+}
+
+M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
+				       struct m0_be_op *op)
+{
+	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 }
 
 M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,

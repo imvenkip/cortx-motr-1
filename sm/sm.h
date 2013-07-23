@@ -583,6 +583,9 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state);
  */
 void m0_sm_state_set(struct m0_sm *mach, int state);
 
+/** Get human readable name (m0_sm_state_descr::sd_name) for the given state */
+M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state);
+
 /**
  * State machine timer.
  *

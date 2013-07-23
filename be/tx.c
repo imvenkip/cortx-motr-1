@@ -48,8 +48,7 @@ M0_TL_DESCR_DEFINE(eng, "m0_be_tx_engine::te_txs[]", M0_INTERNAL,
 M0_TL_DEFINE(eng, M0_INTERNAL, struct m0_be_tx);
 #endif
 
-static int placed_st_in(struct m0_sm *mach);
-static int   done_st_in(struct m0_sm *mach);
+static int done_st_in(struct m0_sm *mach);
 
 
 static bool tx_state_invariant(const struct m0_sm *mach)
@@ -68,19 +67,15 @@ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
 	}
 
 	_S(M0_BTS_FAILED,  M0_SDF_FAILURE, 0),
-	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_ACTIVE,
-						   M0_BTS_OPENING,
+	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_OPENING,
 						   M0_BTS_FAILED)),
 	_S(M0_BTS_OPENING, 0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)),
 	_S(M0_BTS_ACTIVE,  0, M0_BITS(M0_BTS_CLOSED)),
 	_S(M0_BTS_CLOSED,  0, M0_BITS(M0_BTS_GROUPED)),
-	_S(M0_BTS_GROUPED, 0, M0_BITS(M0_BTS_PLACED)),
-	[M0_BTS_PLACED] = {
-		.sd_name      = "M0_BTS_PLACED",
-		.sd_in        = placed_st_in,
-		.sd_invariant = tx_state_invariant,
-		.sd_allowed   = M0_BITS(M0_BTS_DONE)
-	},
+	_S(M0_BTS_GROUPED,  0, M0_BITS(M0_BTS_LOGGED)),
+	_S(M0_BTS_LOGGED, 0, M0_BITS(M0_BTS_PLACED)),
+	_S(M0_BTS_PLACED, 0, M0_BITS(M0_BTS_DONE)),
+#undef _S
 	[M0_BTS_DONE] = {
 		.sd_flags     = M0_SDF_TERMINAL,
 		.sd_name      = "M0_BTS_DONE",
@@ -88,7 +83,6 @@ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
 		.sd_invariant = tx_state_invariant,
 		.sd_allowed   = 0
 	}
-#undef _S
 };
 
 static const struct m0_sm_conf tx_sm_conf = {
@@ -245,6 +239,12 @@ M0_INTERNAL enum m0_be_tx_state m0_be_tx__state(const struct m0_be_tx *tx)
 	return tx->t_sm.sm_state;
 }
 
+M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
+					    enum m0_be_tx_state state)
+{
+	return m0_sm_state_name(&tx->t_sm, state);
+}
+
 static void be_tx_state_move(struct m0_be_tx *tx,
 			     enum m0_be_tx_state state,
 			     int rc)
@@ -359,6 +359,7 @@ static struct m0_be_tx *sm_to_tx(struct m0_sm *mach)
 	return container_of(mach, struct m0_be_tx, t_sm); /* XXX bob_of() */
 }
 
+#if 0
 static int placed_st_in(struct m0_sm *mach)
 {
 	M0_ENTRY("t_glob_stable=%d", !!sm_to_tx(mach)->t_glob_stable);
@@ -367,6 +368,7 @@ static int placed_st_in(struct m0_sm *mach)
 	 * transitions. This makes code hard to read. (Reported by Nikita.) */
 	return sm_to_tx(mach)->t_glob_stable ? M0_BTS_DONE : -1;
 }
+#endif
 
 static int done_st_in(struct m0_sm *mach)
 {

@@ -647,6 +647,12 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 			sub[i] = base[i];
 	}
 }
+
+M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state)
+{
+	return state_get(mach, state)->sd_name;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of sm group */

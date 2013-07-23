@@ -39,7 +39,7 @@
  * @{
  */
 
-static struct m0_be_tx_group_fom *tx_group_fom(const struct m0_fom *fom);
+static struct m0_be_tx_group_fom *fom2tx_group_fom(const struct m0_fom *fom);
 static void tx_group_fom_fini(struct m0_fom *fom);
 static void be_op_reset(struct m0_be_op *op);
 
@@ -92,7 +92,7 @@ static void be_op_reset(struct m0_be_op *op);
  *
  * Note the absence of "FAILED" state --- a tx_group is not allowed to fail.
  */
-enum tx_group_state {
+enum tx_group_fom_state {
 	TGS_INIT   = M0_FOM_PHASE_INIT,
 	TGS_FINISH = M0_FOM_PHASE_FINISH,
 	/**
@@ -102,9 +102,9 @@ enum tx_group_state {
 	TGS_OPEN   = M0_FOM_PHASE_NR,
 	/** Log stobio is in progress. */
 	TGS_LOGGING,
-	TGS_COMMITTING, /* XXX DELETEME */
 	/** In-place (segment) stobio is in progress. */
 	TGS_PLACING,
+	TGS_PLACED,
 	/** Waiting for transactions to stabilize. */
 	TGS_STABILIZING,
 	/**
@@ -112,16 +112,11 @@ enum tx_group_state {
 	 * tx_group.
 	 */
 	TGS_STABLE,
+	TGS_STOPPING,
 	TGS_NR
 };
 
-static int    logging_tick(struct m0_fom *fom);
-static int committing_tick(struct m0_fom *fom);
-static int    placing_tick(struct m0_fom *fom);
-static int stabilizing_tick(struct m0_fom *fom);
-static int    stable_tick(struct m0_fom *fom);
-
-static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
+static struct m0_sm_state_descr tx_group_fom_states[TGS_NR] = {
 #define _S(name, flags, allowed)  \
 	[name] = {                    \
 		.sd_flags   = flags,  \
@@ -131,47 +126,65 @@ static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
 
 	_S(TGS_INIT,   M0_SDF_INITIAL, M0_BITS(TGS_OPEN)),
 	_S(TGS_FINISH, M0_SDF_TERMINAL, 0),
-	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING, TGS_FINISH)),
-	_S(TGS_LOGGING,     0, M0_BITS(TGS_COMMITTING)),
-	_S(TGS_COMMITTING,  0, M0_BITS(TGS_PLACING)),
-	_S(TGS_PLACING,     0, M0_BITS(TGS_STABILIZING)),
+	_S(TGS_STOPPING,    0, M0_BITS(TGS_FINISH)),
+	_S(TGS_OPEN,        0, M0_BITS(TGS_LOGGING, TGS_STOPPING)),
+	_S(TGS_LOGGING,     0, M0_BITS(TGS_PLACING)),
+	_S(TGS_PLACING,     0, M0_BITS(TGS_PLACED)),
+	_S(TGS_PLACED,      0, M0_BITS(TGS_STABILIZING)),
 	_S(TGS_STABILIZING, 0, M0_BITS(TGS_STABLE)),
-	_S(TGS_STABLE,      0, M0_BITS(TGS_OPEN))
+	_S(TGS_STABLE,      0, M0_BITS(TGS_OPEN)),
 #undef _S
 };
 
-static struct m0_sm_conf _tx_group_conf = {
-	.scf_name      = "phases of tx_group",
-	.scf_nr_states = ARRAY_SIZE(_tx_group_states),
-	.scf_state     = _tx_group_states
+static struct m0_sm_conf tx_group_fom_conf = {
+	.scf_name      = "phases of m0_be_tx_group_fom",
+	.scf_nr_states = ARRAY_SIZE(tx_group_fom_states),
+	.scf_state     = tx_group_fom_states,
 };
-
-/* ------------------------------------------------------------------
- * FOM operations
- * ------------------------------------------------------------------ */
 
-static int tx_group_tick(struct m0_fom *fom)
+static int tx_group_fom_tick(struct m0_fom *fom)
 {
-	M0_ENTRY("tx_group state=%u", m0_fom_phase(fom));
+	enum tx_group_fom_state	   phase = m0_fom_phase(fom);
+	struct m0_be_tx_group_fom *m	 = fom2tx_group_fom(fom);
+	struct m0_be_tx_group     *gr	 = m->tgf_group;
+	struct m0_be_op           *op	 = &m->tgf_op;
 
-	switch (m0_fom_phase(fom)) {
+	M0_ENTRY("m0_be_tx_group_fom phase %s", m0_fom_phase_name(fom, phase));
+
+	switch (phase) {
 	case TGS_INIT:
 		m0_fom_phase_set(fom, TGS_OPEN);
-		/* m0_semaphore_up(&tx_group_fom(fom)->tgf_started); */
+		m0_semaphore_up(&m->tgf_started);
 		return M0_FSO_AGAIN;
 	case TGS_OPEN:
 		break;
 	case TGS_LOGGING:
-		return logging_tick(fom);
-	case TGS_COMMITTING:
-		return committing_tick(fom);
+		be_op_reset(op);
+		m0_be_tx_group__log(gr, op);
+		return m0_be_op_tick_ret(op, fom, TGS_PLACING);
 	case TGS_PLACING:
-		return placing_tick(fom);
+		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED);
+		be_op_reset(op);
+		m0_be_tx_group__place(gr, op);
+		return m0_be_op_tick_ret(op, fom, TGS_PLACED);
+	case TGS_PLACED:
+		m0_be_tx_group__tx_state_post(gr, M0_BTS_PLACED);
+		m0_fom_phase_set(fom, TGS_STABLE);
+		return M0_FSO_AGAIN;
 	case TGS_STABILIZING:
-		return stabilizing_tick(fom);
+		if (m->tgf_stable) {
+			m0_fom_phase_set(fom, TGS_STABLE);
+			return M0_FSO_AGAIN;
+		}
+		return M0_FSO_WAIT;
 	case TGS_STABLE:
-		return stable_tick(fom);
-	case TGS_FINISH:
+		m0_be_tx_group_reset(gr);
+		m0_fom_phase_set(fom, TGS_OPEN);
+		return M0_FSO_AGAIN;
+	case TGS_STOPPING:
+		m0_fom_phase_set(fom, TGS_FINISH);
+		m0_semaphore_up(&m->tgf_stopped);
+		return M0_FSO_WAIT;
 	default:
 		M0_IMPOSSIBLE("XXX");
 	}
@@ -185,27 +198,27 @@ static void tx_group_fom_fini(struct m0_fom *fom)
 	M0_ENTRY();
 
 	m0_fom_fini(fom);
-	m0_semaphore_fini(&tx_group_fom(fom)->tgf_started);
 
 	M0_LEAVE();
 }
 
-static size_t tx_group_locality(const struct m0_fom *fom)
+static size_t tx_group_fom_locality(const struct m0_fom *fom)
 {
 	return 0; /* XXX TODO: reconsider */
 }
 
 static void
-tx_group_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc M0_UNUSED)
+tx_group_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc M0_UNUSED)
 {
+	/* XXX */
 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 static const struct m0_fom_ops tx_group_fom_ops = {
 	.fo_fini          = tx_group_fom_fini,
-	.fo_tick          = tx_group_tick,
-	.fo_home_locality = tx_group_locality,
-	.fo_addb_init     = tx_group_addb_init
+	.fo_tick          = tx_group_fom_tick,
+	.fo_home_locality = tx_group_fom_locality,
+	.fo_addb_init     = tx_group_fom_addb_init
 };
 
 static struct m0_fom_type tx_group_fom_type;
@@ -214,157 +227,10 @@ static const struct m0_fom_type_ops tx_group_fom_type_ops = {
 	.fto_create = NULL
 };
 
-#if 0
-static struct m0_fom *
-tx_group_fom_create(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
-{
-	struct m0_be_tx_group_fom *m;
-	struct m0_fom *fom;
-
-	M0_ALLOC_PTR(m);
-	if (m == NULL)
-		return NULL;
-
-	fom = &m->tgf_gen;
-	m0_fom_init(fom, &tx_group_fom_type, &tx_group_fom_ops, NULL, NULL,
-		    reqh, &m0_be_txs_stype);
-
-	engine->te_fom = fom;
-	m->tgf_engine = engine;
-	m->tgf_stopping = false;
-	m0_fom_timeout_init(&m->tgf_to);
-	m0_semaphore_init(&m->tgf_started, 0);
-
-	return fom;
-}
-#endif
-
-#if 0
-M0_INTERNAL int
-m0_be_tx_engine_start(struct m0_be_tx_engine *engine, struct m0_reqh *reqh)
-{
-	struct m0_fom *fom;
-
-	M0_ENTRY();
-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
-
-	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
-			 &m0_be_txs_stype, &_tx_group_conf);
-
-	fom = tx_group_fom_create(reqh, engine);
-	if (fom == NULL)
-		M0_RETURN(-ENOMEM);
-
-	m0_fom_queue(fom, reqh);
-	m0_semaphore_down(&tx_group_fom(fom)->tgf_started);
-
-	M0_RETURN(0);
-}
-
-M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine)
-{
-	struct m0_be_tx *tx;
-	M0_ENTRY();
-
-	tx_group_fom(engine->te_fom)->tgf_stopping = true;
-	m0_tl_for(eng, &engine->te_txs[M0_BTS_PLACED], tx) {
-		/* XXX FIXME: Transactions should leave tx_engine's lists
-		 * by some other means (m0_be_tx::t_discarded() call?). */
-		eng_tlist_del(tx);
-	} m0_tl_endfor;
-
-	M0_LEAVE();
-}
-#endif
-
-/* ------------------------------------------------------------------
- * State transitions
- * ------------------------------------------------------------------ */
-
-static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m);
-
-static int logging_tick(struct m0_fom *fom)
-{
-	struct m0_be_tx_group_fom *m  = tx_group_fom(fom);
-	struct m0_be_tx_group     *gr = tx_group(m);
-	struct m0_be_op           *op = &m->tgf_op;
-
-	M0_ENTRY();
-
-	be_op_reset(op);
-	m0_be_log_submit(gr->tg_log, op, gr);
-
-	M0_LEAVE();
-	return m0_be_op_tick_ret(op, fom, TGS_COMMITTING);
-}
-
-static int committing_tick(struct m0_fom *fom)
-{
-	struct m0_be_tx_group_fom *m  = tx_group_fom(fom);
-	struct m0_be_tx_group     *gr = tx_group(m);
-	struct m0_be_op           *op = &m->tgf_op;
-
-	M0_ENTRY();
-
-	be_op_reset(op);
-	m0_be_log_commit(gr->tg_log, op, gr);
-
-	M0_LEAVE();
-	return m0_be_op_tick_ret(op, fom, TGS_PLACING);
-}
-
-static int placing_tick(struct m0_fom *fom)
-{
-	struct m0_be_tx_group_fom *m  = tx_group_fom(fom);
-	struct m0_be_tx_group     *gr = tx_group(m);
-	struct m0_be_op           *op = &m->tgf_op;
-
-	M0_ENTRY();
-
-	m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED);
-	be_op_reset(op);
-	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
-
-	M0_LEAVE();
-	return m0_be_op_tick_ret(op, fom, TGS_STABILIZING);
-}
-
-static int stabilizing_tick(struct m0_fom *fom)
-{
-	M0_ENTRY();
-	m0_be_tx_group__tx_state_post(tx_group(tx_group_fom(fom)),
-				      M0_BTS_PLACED);
-	M0_LEAVE();
-	return M0_FSO_WAIT;
-}
-
-static int stable_tick(struct m0_fom *fom)
-{
-	struct m0_be_tx_group *gr = tx_group(tx_group_fom(fom));
-
-	M0_ENTRY();
-
-	m0_be_tx_group_reset(gr);
-	m0_fom_phase_set(fom, TGS_OPEN);
-
-	M0_LEAVE();
-	return M0_FSO_AGAIN;
-}
-
-/* ------------------------------------------------------------------
- * Auxiliary functions
- * ------------------------------------------------------------------ */
-
-static struct m0_be_tx_group_fom *tx_group_fom(const struct m0_fom *fom)
+static struct m0_be_tx_group_fom *fom2tx_group_fom(const struct m0_fom *fom)
 {
 	/* XXX TODO bob_of() */
 	return container_of(fom, struct m0_be_tx_group_fom, tgf_gen);
-}
-
-static struct m0_be_tx_group *tx_group(const struct m0_be_tx_group_fom *m)
-{
-	/* return &m->tgf_engine->te_group; */
-	return NULL;
 }
 
 static void be_tx_group_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
@@ -380,9 +246,9 @@ static void be_tx_group_move(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
 	struct m0_be_tx_group_fom *m =
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_move);
-	enum tx_group_state state = (enum tx_group_state)ast->sa_datum;
+	enum tx_group_fom_state state = (enum tx_group_fom_state)ast->sa_datum;
 
-	M0_PRE(M0_IN(state, (TGS_LOGGING, TGS_FINISH)));
+	M0_PRE(M0_IN(state, (TGS_LOGGING, TGS_STOPPING)));
 
 	m0_fom_phase_set(&m->tgf_gen, state);
 	m0_fom_wakeup(&m->tgf_gen);
@@ -398,32 +264,59 @@ m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 		    &tx_group_fom_ops, NULL, NULL, reqh, &m0_be_txs_stype);
 
 	m->tgf_reqh = reqh;
-	m->tgf_stopping = false;
 	m0_fom_timeout_init(&m->tgf_to);
 
 	m->tgf_ast_stable = (struct m0_sm_ast){ .sa_cb = be_tx_group_stable };
-	m->tgf_ast_move = (struct m0_sm_ast){
-		.sa_cb    = be_tx_group_move,
-		.sa_datum = (void *)TGS_LOGGING
-	};
-
-	m0_semaphore_init(&m->tgf_started, 0);
+	m->tgf_ast_move	  = (struct m0_sm_ast){ .sa_cb = be_tx_group_move   };
 
 	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
-			 &m0_be_txs_stype, &_tx_group_conf);
-
-	m0_fom_queue(&m->tgf_gen, m->tgf_reqh);
-	m0_semaphore_down(&m->tgf_started);
+			 &m0_be_txs_stype, &tx_group_fom_conf);
+	m0_semaphore_init(&m->tgf_started, 0);
+	m0_semaphore_init(&m->tgf_stopped, 0);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf)
 {
-	gf->tgf_stopping = true;
+	m0_semaphore_fini(&gf->tgf_started);
+	m0_semaphore_fini(&gf->tgf_stopped);
 	/* XXX */
 }
 
-M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *gf)
+M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)
 {
+	m->tgf_stable = false;
+}
+
+static void be_tx_group_fom_ast_post(struct m0_be_tx_group_fom *gf,
+				     struct m0_sm_ast *ast)
+{
+	m0_sm_ast_post(&gf->tgf_gen.fo_loc->fl_group, ast);
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
+{
+	m0_fom_queue(&gf->tgf_gen, gf->tgf_reqh);
+	m0_semaphore_down(&gf->tgf_started);
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
+{
+	gf->tgf_ast_move.sa_datum = (void *) TGS_STOPPING;
+	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_move);
+	m0_semaphore_down(&gf->tgf_stopped);
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *gf,
+					   struct m0_be_tx_group *gr)
+{
+	gf->tgf_group = gr;
+	gf->tgf_ast_move.sa_datum = (void *) TGS_LOGGING;
+	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_move);
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)
+{
+	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stable);
 }
 
 static void be_op_reset(struct m0_be_op *op)

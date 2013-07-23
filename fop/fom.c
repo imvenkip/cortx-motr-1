@@ -1334,6 +1334,11 @@ int m0_fom_phase(const struct m0_fom *fom)
 }
 M0_EXPORTED(m0_fom_phase);
 
+M0_INTERNAL const char *m0_fom_phase_name(const struct m0_fom *fom, int phase)
+{
+	return m0_sm_state_name(&fom->fo_sm_phase, phase);
+}
+
 M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom)
 {
 	return fom->fo_sm_phase.sm_rc;

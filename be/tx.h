@@ -421,6 +421,9 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int state,
 M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx__state(const struct m0_be_tx *tx);
+/** XXX remove tx from parameters */
+M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
+					    enum m0_be_tx_state state);
 
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
 

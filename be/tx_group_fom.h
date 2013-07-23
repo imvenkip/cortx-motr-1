@@ -40,13 +40,13 @@ struct m0_reqh;
  */
 
 struct m0_be_tx_group_fom {
+	/** generic fom */
 	struct m0_fom	       tgf_gen;
 	struct m0_reqh	      *tgf_reqh;
+	/** group to handle */
 	struct m0_be_tx_group *tgf_group;
-	bool		       tgf_full;
-	bool		       tgf_expired;
-	bool		       tgf_stopping;
 	struct m0_fom_timeout  tgf_to;
+	/** m0_be_op for I/O operations */
 	struct m0_be_op	       tgf_op;
 	/**
 	 * The number of transactions that have been added to the tx_group
@@ -58,16 +58,24 @@ struct m0_be_tx_group_fom {
 	 * state.
 	 */
 	bool                   tgf_stable;
-
 	struct m0_sm_ast       tgf_ast_stable;
 	struct m0_sm_ast       tgf_ast_move;
 	struct m0_semaphore    tgf_started;
+	struct m0_semaphore    tgf_stopped;
 };
 
+/** @todo XXX TODO s/gf/m/ in function parameters */
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
 					 struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf);
-M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *gf);
+M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m);
+
+M0_INTERNAL void m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf);
+M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf);
+
+M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *gf,
+					   struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_GROUP_FOM_H__ */

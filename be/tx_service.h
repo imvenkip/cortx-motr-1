@@ -23,7 +23,6 @@
 #define __MERO_BE_TX_SERVICE_H__
 
 #include "reqh/reqh_service.h"
-#include "be/be.h"
 
 /**
  * @defgroup be
