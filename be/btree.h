@@ -141,22 +141,16 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
  * ------------------------------------------------------------------ */
 
 /**
- * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform the create operation over the @tree.
- * Function updates @accum structure which is an input for m0_be_tx_prep().
- *
- * @param nr  Number of @optype operations.
+ * Calculates the credit needed to create @nr nodes and adds this credit to
+ * @accum.
  */
 M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
 					   m0_bcount_t nr,
 					   struct m0_be_tx_credit *accum);
 
 /**
- * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform the create operation over the @tree.
- * Function updates @accum structure which is an input for m0_be_tx_prep().
- *
- * @param nr  Number of @optype operations.
+ * Calculates the credit needed to destroy @nr nodes and adds this credit
+ * to @accum.
  */
 M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree *tree,
 					    m0_bcount_t nr,

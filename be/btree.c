@@ -265,7 +265,8 @@ allocate_btree_node(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 	struct m0_be_bnode *node;
 
 	/*  Allocate memory for the node */
-	node = (struct m0_be_bnode *)mem_alloc(btree, tx, sizeof(struct m0_be_bnode));
+	node = (struct m0_be_bnode *)mem_alloc(btree, tx,
+					       sizeof(struct m0_be_bnode));
 	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
 
 	/*  Initialize the number of active nodes */
@@ -276,7 +277,8 @@ allocate_btree_node(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 	M0_ASSERT(node->b_key_vals != NULL); /* @todo: analyse return code */
 
 	/*  Initialize the child pointers */
-	node->b_children = (struct m0_be_bnode **)mem_alloc(btree, tx, CHILDREN_SIZE);
+	node->b_children = (struct m0_be_bnode **)mem_alloc(btree, tx,
+							    CHILDREN_SIZE);
 	M0_ASSERT(node->b_children != NULL); /* @todo: analyse return code */
 
 	/*  Use to determine whether it is a leaf */
@@ -1073,15 +1075,14 @@ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
  * Btree external interfaces implementation
  * ------------------------------------------------------------------ */
 
-#define BTREE_OP_FILL(op, tree, tx, optype, anchor) ({	\
-	(op)->bo_u.u_btree.t_anchor = (anchor);		\
-	(op)->bo_u.u_btree.t_tree   = (tree);		\
-	(op)->bo_u.u_btree.t_in     = NULL;		\
-	(op)->bo_u.u_btree.t_op     = optype;		\
-	(op)->bo_u.u_btree.t_tx     = (tx);		\
-	(op)->bo_utype              = M0_BOP_TREE;	\
+#define BTREE_OP_FILL(op, tree, tx, optype, anchor) ({ \
+	(op)->bo_u.u_btree.t_anchor = (anchor);        \
+	(op)->bo_u.u_btree.t_tree   = (tree);          \
+	(op)->bo_u.u_btree.t_in     = NULL;            \
+	(op)->bo_u.u_btree.t_op     = optype;          \
+	(op)->bo_u.u_btree.t_tx     = (tx);            \
+	(op)->bo_utype              = M0_BOP_TREE;     \
 	})
-
 
 M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 				  struct m0_be_seg   *seg,

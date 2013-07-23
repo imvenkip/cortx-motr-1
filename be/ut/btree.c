@@ -150,7 +150,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 						 M0_BOS_FAILURE)));
 	m0_be_op_fini(&op);
 
-	M0_SET0(tree);
+	M0_SET0(tree); /* XXX Why do we need this?  --vvv */
 	m0_be_btree_init(tree, &h->buh_seg, &kv_ops);
 
 	m0_be_op_init(&op);
