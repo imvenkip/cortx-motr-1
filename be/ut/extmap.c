@@ -48,10 +48,8 @@ static struct m0_be_op           *it_op;
 static void emap_alloc(struct m0_be_tx *tx)
 {
 	int			  rc;
-	struct m0_be_allocator   *a;
 	struct m0_be_tx_credit    cred;
-
-	a = &be_seg->bs_allocator;
+	struct m0_be_allocator   *a = &be_seg->bs_allocator;
 
 	m0_be_tx_credit_init(&cred);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *emap, 0, &cred);

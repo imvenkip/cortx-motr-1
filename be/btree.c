@@ -1242,10 +1242,9 @@ M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
 						 m0_bcount_t             vsize,
 						 struct m0_be_tx_credit *accum)
 {
-	uint32_t		height;
-	struct m0_be_tx_credit	cred = M0_BE_TX_CREDIT_ZERO;
-
-	height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
+	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT_ZERO;
+	const uint32_t         height =
+		tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
 
 	btree_node_alloc_credit(tree, &cred);
 	btree_node_update_credit(&cred, 3); /* see btree_split_child() */
@@ -1290,7 +1289,7 @@ M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree     *tree,
 						 m0_bcount_t             nr,
 						 struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_ZERO;
+	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT_ZERO;
 
 	btree_node_alloc_credit(tree, &cred);
 	btree_node_update_credit(&cred, 1);

@@ -89,7 +89,6 @@ void m0_be_ut_btree_simple(void)
 static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 {
 	struct m0_be_btree_anchor anchor;
-	struct m0_be_allocator   *a;
 	struct m0_be_tx_credit    insert_cred;
 	struct m0_be_tx_credit    cred;
 	struct m0_be_btree       *tree;
@@ -99,6 +98,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	struct m0_buf             val;
 	int                       rc;
 	int                       i;
+	struct m0_be_allocator   *a = h->buh_allocator;
 
 	M0_ENTRY();
 	/*
@@ -115,7 +115,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	 * Init transaction and its credits
 	 */
 	m0_be_ut_h_tx_init(tx, h);
-	a = &h->buh_seg.bs_allocator;
 
 	{ /* XXX: should calculate these credits not for dummy tree,
 	   but for allocated below. This needs at least two transactions. */
@@ -132,7 +131,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *tree, 0, &cred);
 
 	m0_be_tx_credit_add(&cred, &insert_cred);
-
 
 	m0_sm_group_lock(&ut__txs_sm_group);
 
