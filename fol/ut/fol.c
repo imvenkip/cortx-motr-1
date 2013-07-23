@@ -18,38 +18,59 @@
  * Original creation date: 16-Sep-2010
  */
 
-#include "ut/ut.h"
-#include "lib/ub.h"
-#include "lib/memory.h"
-#include "lib/misc.h"              /* M0_SET0 */
+#define XXX_USE_DB5 0
+
 #include "fol/fol.h"
-#include "rpc/rpc_opcodes.h"
-#include "fid/fid_xc.h"
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
+#if !XXX_USE_DB5
+/* XXX FIXME: Do not use ut/ of other subsystem. */
+#  include "be/ut/helper.h"   /* m0_be_ut_h */
+#endif
 
+#include "fid/fid_xc.h"
+#include "rpc/rpc_opcodes.h"
+#include "lib/memory.h"
+#include "lib/misc.h"         /* M0_SET0 */
+
+#include "ut/ut.h"
+#include "lib/ub.h"
+
+static struct m0_fol_rec_header *h;
+
+#if XXX_USE_DB5
 static const char db_name[] = "ut-fol";
+
+static struct m0_fol             fol;
+static struct m0_fol_rec         r;
+static struct m0_fol_rec_desc   *d;
+static struct m0_buf             buf;
+static struct m0_dbenv           db;
+static struct m0_db_tx           tx;
+#else
+static struct m0_be_ut_h         beh;
+
+extern void m0_be_ut_h_init(struct m0_be_ut_h *h);
+extern void m0_be_ut_h_fini(struct m0_be_ut_h *h);
+#endif
+
+static int rc;
 
 static int db_reset(void)
 {
+#if XXX_USE_DB5
 	return m0_ut_db_reset(db_name);
+#else
+	return 0; /* XXX noop */
+#endif
 }
-
-static struct m0_dbenv           db;
-static struct m0_fol             fol;
-static struct m0_db_tx           tx;
-static struct m0_fol_rec         r;
-static struct m0_fol_rec_desc   *d;
-static struct m0_fol_rec_header *h;
-static struct m0_buf             buf;
-
-static int rc;
 
 static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
 M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL);
 
 static void test_init(void)
 {
+#if XXX_USE_DB5
 	rc = m0_dbenv_init(&db, db_name, 0);
 	M0_ASSERT(rc == 0);
 
@@ -63,10 +84,14 @@ static void test_init(void)
 
 	d = &r.fr_desc;
 	h = &d->rd_header;
+#else
+	m0_be_ut_h_init(&beh);
+#endif
 }
 
 static void test_fini(void)
 {
+#if XXX_USE_DB5
 	m0_fol_rec_fini(&r);
 
 	rc = m0_db_tx_commit(&tx);
@@ -75,6 +100,9 @@ static void test_fini(void)
 	m0_fol_fini(&fol);
 	m0_dbenv_fini(&db);
 	m0_buf_free(&buf);
+#else
+	m0_be_ut_h_fini(&beh);
+#endif
 }
 
 static void test_rec_part_type_reg(void)
@@ -94,6 +122,7 @@ static void test_rec_part_type_unreg(void)
 	M0_ASSERT(ut_part_type.rpt_index == 0);
 }
 
+#if XXX_USE_DB5
 static void test_add(void)
 {
 	M0_SET0(h);
@@ -127,6 +156,7 @@ static void test_lookup(void)
 	rc = m0_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
 	M0_ASSERT(rc == -ENOENT);
 }
+#endif
 
 static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx)
 {
@@ -138,6 +168,7 @@ static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx)
 	return 0;
 }
 
+#if XXX_USE_DB5
 static void test_fol_rec_part_encdec(void)
 {
 	struct m0_fid          *rec;
@@ -178,6 +209,7 @@ static void test_fol_rec_part_encdec(void)
 
 	m0_fol_lookup_rec_fini(&dec_rec);
 }
+#endif
 
 const struct m0_test_suite fol_ut = {
 	.ts_name = "fol-ut",
@@ -188,11 +220,13 @@ const struct m0_test_suite fol_ut = {
 		 * Do not reorder them willy-nilly.
 		 */
 		{ "fol-init",                test_init                },
+#if XXX_USE_DB5
 		{ "fol-rec-part-type-reg",   test_rec_part_type_reg   },
 		{ "fol-add",                 test_add                 },
 		{ "fol-lookup",              test_lookup              },
 		{ "fol-rec-part-test",       test_fol_rec_part_encdec },
 		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
+#endif
 		{ "fol-fini",                test_fini                },
 		{ NULL, NULL }
 	}
@@ -223,6 +257,7 @@ static void ub_fini(void)
 	db_reset();
 }
 
+#if XXX_USE_DB5
 static m0_lsn_t last;
 
 static void checkpoint()
@@ -266,12 +301,14 @@ static void ub_insert_buf(int i)
 	if (i % 1000 == 0)
 		checkpoint();
 }
+#endif
 
 struct m0_ub_set m0_fol_ub = {
 	.us_name = "fol-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = {
+#if XXX_USE_DB5
 		{ .ub_name = "insert",
 		  .ub_iter = UB_ITER,
 		  .ub_round = ub_insert },
@@ -283,7 +320,7 @@ struct m0_ub_set m0_fol_ub = {
 		{ .ub_name = "insert-buf",
 		  .ub_iter = UB_ITER,
 		  .ub_round = ub_insert_buf },
-
+#endif
 		{ .ub_name = NULL }
 	}
 };
