@@ -1758,8 +1758,9 @@ out:
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
 					 struct m0_be_btree *btree)
 {
-	iter_prepare(btree->bb_root, false);
 	cur->bc_tree = btree;
+	cur->bc_node = NULL;
+	cur->bc_pos = 0;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
@@ -1822,6 +1823,10 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	m0_rwlock_read_lock(&tree->bb_lock);
 
 	node = cur->bc_node;
+	if (node == NULL) {
+		op->bo_u.u_btree.t_rc = -EINVAL;
+		goto out;
+	}
 
 	/* cursor move */
 	++cur->bc_pos;
