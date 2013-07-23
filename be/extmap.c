@@ -17,17 +17,17 @@
  * Original creation date: 08/13/2010
  */
 
-#include <stdio.h>     /* asprintf */
-#include <stdlib.h>
-#include <string.h>
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
+
+#include "be/extmap.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/misc.h"
-#include "be/extmap.h"
+#include <stdio.h>       /* asprintf */
+#include <stdlib.h>
+#include <string.h>
 
 /**
    @addtogroup extmap
@@ -117,9 +117,9 @@ static int be_emap_split(struct m0_be_emap_cursor *it,
 static bool be_emap_caret_invariant(const struct m0_be_emap_caret *car);
 
 static const struct m0_be_btree_kv_ops be_emap_ops = {
-        .ko_ksize =   be_emap_ksize,
-        .ko_vsize =   be_emap_vsize,
-        .ko_compare = be_emap_cmp
+	.ko_ksize   = be_emap_ksize,
+	.ko_vsize   = be_emap_vsize,
+	.ko_compare = be_emap_cmp
 };
 
 M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
@@ -149,11 +149,8 @@ M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
 M0_INTERNAL void m0_be_emap_init(struct m0_be_emap *map,
 				 struct m0_be_seg  *db)
 {
-	map->em_key_buf.b_addr = &map->em_key;
-	map->em_val_buf.b_addr = &map->em_rec;
-	map->em_key_buf.b_nob = sizeof map->em_key;
-	map->em_val_buf.b_nob = sizeof map->em_rec;
-
+	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
+	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
 }
 
