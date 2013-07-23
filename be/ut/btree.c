@@ -340,9 +340,9 @@ static void cursor_test(struct m0_be_btree *tree)
 	M0_UT_ASSERT(strcmp(key.b_addr, "075") == 0 &&
 		     strcmp(val.b_addr, key.b_addr) == 0);
 
-	for (i = 0; key.b_addr != NULL; i++) {
+	for (i = 0; key.b_addr != NULL; ++i) {
 		v = atoi(key.b_addr);
-		//M0_UT_ASSERT(v == (i + 75) % 100);
+		M0_UT_ASSERT(v == i + 75);
 		M0_LOG(M0_DEBUG, "i=%i k=%s", i, (char*)key.b_addr);
 
 		m0_be_op_init(&cursor.bc_op);
@@ -354,7 +354,35 @@ static void cursor_test(struct m0_be_btree *tree)
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 	}
 
-	M0_UT_ASSERT(i == 50);
+	M0_UT_ASSERT(i == 25);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	start = (struct m0_buf)M0_BUF_INITS("024");
+	m0_be_op_init(&cursor.bc_op);
+	m0_be_btree_cursor_get(&cursor, &start, false);
+	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
+	m0_be_op_fini(&cursor.bc_op);
+
+	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+	/* make sure we are on the right position */
+	M0_UT_ASSERT(strcmp(key.b_addr, "024") == 0 &&
+		     strcmp(val.b_addr, key.b_addr) == 0);
+
+	for (i = 24; key.b_addr != NULL; --i) {
+		v = atoi(key.b_addr);
+		M0_UT_ASSERT(v == i);
+		M0_LOG(M0_DEBUG, "i=%i k=%s", i, (char*)key.b_addr);
+
+		m0_be_op_init(&cursor.bc_op);
+		m0_be_btree_cursor_prev(&cursor);
+		M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
+		rc = cursor.bc_op.bo_u.u_btree.t_rc;
+		m0_be_op_fini(&cursor.bc_op);
+
+		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+	}
+
+	M0_UT_ASSERT(i == -1);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	start = (struct m0_buf)M0_BUF_INITS("200");
