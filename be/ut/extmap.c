@@ -181,36 +181,46 @@ static void test_fini(void)
 	m0_be_ut_h_fini(&be_ut_emap_h);
 }
 
+static int be_emap_lookup(struct m0_be_emap        *map,
+			  const struct m0_uint128  *prefix,
+			  m0_bindex_t               offset,
+			  struct m0_be_emap_cursor *it)
+{
+	int rc;
+
+	m0_be_op_init(&it->ec_op);
+	m0_be_emap_lookup(emap, prefix, 0, it);
+	m0_be_op_wait(&it->ec_op);
+	M0_ASSERT(m0_be_op_state(&it->ec_op) == M0_BOS_SUCCESS);
+	rc = it->ec_op.bo_u.u_emap.e_rc;
+	m0_be_op_fini(&it->ec_op);
+
+	return rc;
+}
+
 static void test_lookup(void)
 {
-	m0_be_op_init(it_op);
-	m0_be_emap_lookup(emap, &prefix, 0, &it);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-	m0_be_op_fini(it_op);
+	int rc;
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
 	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
 	M0_UT_ASSERT(seg->ee_val == 42);
 
 	m0_be_emap_close(&it);
 
-	m0_be_op_init(it_op);
-	m0_be_emap_lookup(emap, &prefix, 1000000, &it);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-	m0_be_op_fini(it_op);
+	rc = be_emap_lookup(emap, &prefix, 1000000, &it);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
 	M0_UT_ASSERT(m0_be_emap_ext_is_last(&seg->ee_ext));
 	M0_UT_ASSERT(seg->ee_val == 42);
 
 	m0_be_emap_close(&it);
 
-	m0_be_op_init(it_op);
 	++prefix.u_lo;
-	m0_be_emap_lookup(emap, &prefix, 0, &it);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == -ENOENT);
-	m0_be_op_fini(it_op);
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == -ENOENT);
 	--prefix.u_lo;
 
 	m0_be_emap_close(&it);
@@ -221,6 +231,7 @@ static void test_lookup(void)
 static void split(m0_bindex_t offset, int nr, bool commit)
 {
 	int i;
+	int rc;
 	m0_bcount_t len[] = { 100, 2, 0, 0 };
 	uint64_t    val[] = { 1,   2, 3, 4 };
 	struct m0_indexvec vec = {
@@ -231,11 +242,8 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		.iv_index = val
 	};
 
-	m0_be_op_init(it_op);
-	m0_be_emap_lookup(emap, &prefix, offset, &it);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-	m0_be_op_fini(it_op);
+	rc = be_emap_lookup(emap, &prefix, offset, &it);
+	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < nr; ++i) {
 		m0_bcount_t seglen;
@@ -265,32 +273,30 @@ static void test_split(void)
 	split(0, 100, true);
 }
 
-//static void test_print(void)
-//{
-//	int i;
-//
-//	m0_be_emap_lookup(emap, &prefix, 0, &it);
-//	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-//
-//#if 0
-//	printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
-//#endif
-//	for (i = 0; ; ++i) {
-//#if 0
-//		printf("\t%5.5i %16lx .. %16lx: %16lx %10lx\n", i,
-//		       seg->ee_ext.e_start, seg->ee_ext.e_end,
-//		       m0_ext_length(&seg->ee_ext), seg->ee_val);
-//#endif
-//		if (m0_be_emap_ext_is_last(&seg->ee_ext))
-//			break;
-//		m0_be_emap_next(&it);
-//		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-//	}
-//	m0_be_emap_close(&it);
-//}
-//
+static void test_print(void)
+{
+	int i;
+	int rc;
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_LOG(M0_DEBUG, "%010lx:%010lx:", prefix.u_hi, prefix.u_lo);
+	for (i = 0; ; ++i) {
+		M0_LOG(M0_DEBUG, "\t%5.5i %16lx .. %16lx: %16lx %10lx", i,
+		       seg->ee_ext.e_start, seg->ee_ext.e_end,
+		       m0_ext_length(&seg->ee_ext), seg->ee_val);
+		if (m0_be_emap_ext_is_last(&seg->ee_ext))
+			break;
+		m0_be_op_init(it_op);
+		m0_be_emap_next(&it);
+		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+		m0_be_op_fini(it_op);
+	}
+	m0_be_emap_close(&it);
+}
+
 //static void test_merge(void)
 //{
 //	m0_be_emap_lookup(emap, &prefix, 0, &it);
@@ -313,8 +319,8 @@ void m0_be_ut_emap(void)
 	test_obj_init(&tx2);
 	test_lookup();
 	test_split();
-/*
 	test_print();
+/*
 	test_merge();
 */
 	test_obj_fini(&tx2);
