@@ -768,8 +768,15 @@ be_emap_lookup(struct m0_be_emap        *map,
 static int
 be_emap_next(struct m0_be_emap_cursor *it)
 {
+	int rc;
+
+	m0_be_op_init(&it->ec_cursor.bc_op);
 	m0_be_btree_cursor_next(&it->ec_cursor);
-	return emap_it_open(it);
+	m0_be_op_wait(&it->ec_cursor.bc_op);
+	rc = emap_it_open(it);
+	m0_be_op_fini(&it->ec_cursor.bc_op);
+
+	return rc;
 }
 
 static int
