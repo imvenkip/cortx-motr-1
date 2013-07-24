@@ -89,7 +89,7 @@ struct m0_be_op {
 			m0_bcount_t                l_nelems;
 		} u_list;
 
-		struct {
+		struct m0_be_op__btree {
 			struct m0_be_btree        *t_tree;
 			struct m0_be_tx           *t_tx;
 			/* XXX to be defined in btree.c */

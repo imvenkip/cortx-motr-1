@@ -142,7 +142,7 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 				     struct m0_be_op *op);
 
 /* ------------------------------------------------------------------
- * Btree manipulation
+ * Btree credits
  * ------------------------------------------------------------------ */
 
 /**
@@ -202,6 +202,10 @@ M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
 						 m0_bcount_t nr,
 						 m0_bcount_t vsize,
 						 struct m0_be_tx_credit *accum);
+
+/* ------------------------------------------------------------------
+ * Btree manipulation
+ * ------------------------------------------------------------------ */
 
 /**
  * Inserts @key and @value into btree. Operation is asynchronous.
