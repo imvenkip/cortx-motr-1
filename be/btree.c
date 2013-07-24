@@ -697,7 +697,7 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 	struct m0_be_bnode *comb_node, *parent;
 	struct node_pos sub_node_pos;
 	struct node_pos node_pos;
-	struct bt_key_val *key_val, *new_key_val;
+	struct bt_key_val *key_val;
 	void *kv = key;
 
 	M0_PRE(btree_invariant(btree));
@@ -799,43 +799,27 @@ del_loop:
 			get_max_key_pos(btree, node->b_children[index],
 					&sub_node_pos);
 			key_val =
-			    sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
+			  sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
 
-			new_key_val =
-			    (struct bt_key_val *)
-				mem_alloc(btree, tx, sizeof(struct bt_key_val));
-			/* @todo: analyse return code */
-			M0_ASSERT(new_key_val != NULL);
-
-			copy_key_val(key_val, new_key_val);
-			node->b_key_vals[index] = new_key_val;
-
-			/* Update key vals pointer, WARNING: can be XXX. */
-			/*rc =*/ mem_update(btree, tx, node->b_key_vals, KV_SIZE);
-			/* M0_ASSERT(rc == 0); */
+			copy_key_val(key_val, node->b_key_vals[index]);
+			mem_update(btree, tx, node->b_key_vals[index],
+						sizeof(struct bt_key_val));
 
 			btree_delete_key(btree, tx, node->b_children[index],
 					 key_val->key);
 			if (sub_node_pos.p_node->b_leaf == false) {
 				M0_LOG(M0_ERROR, "Not leaf");
 			}
-		} else if ((node->b_children[index + 1]->b_nr_active >
-			    BTREE_FAN_OUT - 1)) {
+		} else if (node->b_children[index + 1]->b_nr_active >
+			   BTREE_FAN_OUT - 1) {
 			get_min_key_pos(btree, node->b_children[index + 1],
 					&sub_node_pos);
 			key_val =
-			    sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
+			  sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
 
-			new_key_val =
-			    (struct bt_key_val *)
-				mem_alloc(btree, tx, sizeof(struct bt_key_val));
-			M0_ASSERT(new_key_val != NULL);	/* @todo: analyse return code */
-
-			copy_key_val(key_val, new_key_val);
-			node->b_key_vals[index] = new_key_val;
-
-			/* Update key vals pointer, WARNING: can be XXX. */
-			mem_update(btree, tx, node->b_key_vals, KV_SIZE);
+			copy_key_val(key_val, node->b_key_vals[index]);
+			mem_update(btree, tx, node->b_key_vals[index],
+						sizeof(struct bt_key_val));
 
 			btree_delete_key(btree, tx, node->b_children[index + 1],
 					 key_val->key);
