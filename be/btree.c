@@ -1496,8 +1496,7 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
 	m0_rwlock_read_lock(&btree->bb_lock);
 
 	key = btree_get_max_key(btree);
-	out->b_addr = key;
-	out->b_nob = btree->bb_ops->ko_vsize(key);
+	m0_buf_init(out, key, btree->bb_ops->ko_vsize(key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
@@ -1518,8 +1517,7 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
 	m0_rwlock_read_lock(&btree->bb_lock);
 
 	key = btree_get_min_key(btree);
-	out->b_addr = key;
-	out->b_nob = btree->bb_ops->ko_vsize(key);
+	m0_buf_init(out, key, btree->bb_ops->ko_vsize(key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
@@ -1615,11 +1613,11 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
 
 	anchor->ba_write = false;
 	kv = btree_search(btree, key->b_addr);
-	if (kv != NULL) {
-		anchor->ba_value.b_addr = kv->val;
-		anchor->ba_value.b_nob = btree->bb_ops->ko_vsize(kv->val);
-	} else
+	if (kv == NULL)
 		op_tree(op)->t_rc = -ENOENT;
+	else
+		m0_buf_init(&anchor->ba_value, kv->val,
+			    btree->bb_ops->ko_vsize(kv->val));
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
@@ -1817,10 +1815,10 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	cur->bc_node = node;
 
 	kv = node->b_key_vals[cur->bc_pos];
-	op_tree(op)->t_out.b_addr  = kv->val;
-	op_tree(op)->t_out.b_nob   = tree->bb_ops->ko_vsize(kv->val);
-	op_tree(op)->t_out2.b_addr = kv->key;
-	op_tree(op)->t_out2.b_nob  = tree->bb_ops->ko_ksize(kv->key);
+	m0_buf_init(&op_tree(op)->t_out, kv->val,
+		    tree->bb_ops->ko_vsize(kv->val));
+	m0_buf_init(&op_tree(op)->t_out2, kv->key,
+		    tree->bb_ops->ko_ksize(kv->key));
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
@@ -1864,10 +1862,10 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	cur->bc_node = node;
 
 	kv = cur->bc_node->b_key_vals[cur->bc_pos];
-	op_tree(op)->t_out.b_addr = kv->val;
-	op_tree(op)->t_out.b_nob = cur->bc_tree->bb_ops->ko_vsize(kv->val);
-	op_tree(op)->t_out2.b_addr = kv->key;
-	op_tree(op)->t_out2.b_nob = cur->bc_tree->bb_ops->ko_ksize(kv->key);
+	m0_buf_init(&op_tree(op)->t_out, kv->val,
+		    cur->bc_tree->bb_ops->ko_vsize(kv->val));
+	m0_buf_init(&op_tree(op)->t_out2, kv->key,
+		    cur->bc_tree->bb_ops->ko_ksize(kv->key));
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
