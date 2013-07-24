@@ -1091,8 +1091,8 @@ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 	M0_PRE(ops != NULL);
 
 	m0_rwlock_init(&tree->bb_lock);
-	tree->bb_ops  = ops;
-	tree->bb_seg  = seg;
+	tree->bb_ops = ops;
+	tree->bb_seg = seg;
 
 	if (!m0_be_seg_contains(seg, tree->bb_root))
 		tree->bb_root = NULL;
@@ -1749,14 +1749,29 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 	kv = cur->bc_node->b_key_vals[cur->bc_pos];
 	/* cursor end move */
 
-	op->bo_u.u_btree.t_out.b_addr = kv->val;
-	op->bo_u.u_btree.t_out.b_nob = cur->bc_tree->bb_ops->ko_vsize(kv->val);
-	op->bo_u.u_btree.t_out2.b_addr = kv->key;
-	op->bo_u.u_btree.t_out2.b_nob = cur->bc_tree->bb_ops->ko_ksize(kv->key);
+	m0_buf_init(&op->bo_u.u_btree.t_out, kv->val,
+		    cur->bc_tree->bb_ops->ko_vsize(kv->val));
+	m0_buf_init(&op->bo_u.u_btree.t_out2, kv->key,
+		    cur->bc_tree->bb_ops->ko_ksize(kv->key));
 
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+}
+
+M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
+					    const struct m0_buf *key,
+					    bool slant)
+{
+	struct m0_be_op *op = &cur->bc_op;
+
+	m0_be_op_init(op);
+	m0_be_btree_cursor_get(cur, key, slant);
+	m0_be_op_wait(op);
+	M0_ASSERT(m0_be_op_state(op) == M0_BOS_SUCCESS);
+	m0_be_op_fini(op);
+
+	return op->bo_u.u_btree.t_rc;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)

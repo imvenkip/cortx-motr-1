@@ -57,15 +57,20 @@ struct m0_be_btree {
 
 /** Btree operations vector. */
 struct m0_be_btree_kv_ops {
-	/** Size of key. */
+	/** Size of key.  XXX RENAMEME? s/ko_ksize/ko_key_size/ */
 	m0_bcount_t (*ko_ksize)(const void *key);
-	/** Size of value. */
+
+	/** Size of value.  XXX RENAMEME? s/ko_vsize/ko_val_size/
+	 */
 	m0_bcount_t (*ko_vsize)(const void *data);
+
 	/**
 	 * Key comparison function.
 	 *
 	 * Should return -ve, 0 or +ve value depending on how key0 and key1
 	 * compare in key ordering.
+	 *
+	 * XXX RENAMEME? s/ko_compare/ko_key_cmp/
 	 */
 	int         (*ko_compare)(const void *key0, const void *key1);
 };
@@ -416,6 +421,11 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
  */
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
 					const struct m0_buf *key, bool slant);
+
+/** Synchronous version of m0_be_btree_cursor_get(). */
+M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
+					    const struct m0_buf *key,
+					    bool slant);
 
 /**
  * Fills cursor internal buffers with next key and value obtained from the
