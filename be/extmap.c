@@ -21,6 +21,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
 #include "lib/arith.h"   /* M0_3WAY */
@@ -119,6 +121,30 @@ static const struct m0_be_btree_kv_ops be_emap_ops = {
         .ko_vsize =   be_emap_vsize,
         .ko_compare = be_emap_cmp
 };
+
+static void emap_dump(struct m0_be_emap_cursor *it)
+{
+	struct m0_be_emap_cursor	 scan;
+	struct m0_uint128		*prefix	= &it->ec_key.ek_prefix;
+	struct m0_be_emap_seg		*seg	= &scan.ec_seg;
+	int				 i;
+	int				 rc;
+
+	rc = be_emap_lookup(it->ec_map, prefix, 0, &scan);
+	M0_ASSERT(rc == 0);
+
+	M0_LOG(M0_DEBUG, "%010lx:%010lx:", prefix->u_hi, prefix->u_lo);
+	for (i = 0; ; ++i) {
+		M0_LOG(M0_DEBUG, "\t%5.5i %16lx .. %16lx: %16lx %10lx", i,
+		       seg->ee_ext.e_start, seg->ee_ext.e_end,
+		       m0_ext_length(&seg->ee_ext), seg->ee_val);
+		if (m0_be_emap_ext_is_last(&seg->ee_ext))
+			break;
+		rc = be_emap_next(&scan);
+		M0_ASSERT(rc == 0);
+	}
+	be_emap_close(&scan);
+}
 
 M0_INTERNAL void m0_be_emap_init(struct m0_be_emap *map,
 				 struct m0_be_seg  *db)
@@ -311,6 +337,7 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start);
 	m0_be_op_state_set(&it->ec_op, M0_BOS_SUCCESS);
+	//emap_dump(it);
 	M0_ASSERT_EX(be_emap_invariant(it));
 }
 
@@ -791,16 +818,14 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 	return emap_it_open(it);
 }
 
-#if 0
+#if 1
 static bool
 be_emap_invariant_check(struct m0_be_emap_cursor *it)
 {
-	int                   result;
-	m0_bindex_t           reached;
-	m0_bcount_t           total;
+	int                   rc;
+	m0_bindex_t           reached	= 0;
+	m0_bcount_t           total	= 0;
 
-	reached = 0;
-	total   = 0;
 	if (!m0_be_emap_ext_is_first(&it->ec_seg.ee_ext))
 		return false;
 	while (1) {
@@ -812,8 +837,8 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 		total += m0_ext_length(&it->ec_seg.ee_ext);
 		if (m0_be_emap_ext_is_last(&it->ec_seg.ee_ext))
 			break;
-		result = be_emap_next(it);
-		if (result != 0)
+		rc = be_emap_next(it);
+		if (rc != 0)
 			return true;
 	}
 	if (total != M0_BCOUNT_MAX)
@@ -827,16 +852,19 @@ static bool
 be_emap_invariant(struct m0_be_emap_cursor *it)
 {
 	struct m0_be_emap_cursor scan;
-	int                      result;
-	bool                     check;
+	int                      rc;
+	bool                     is_good = true;
 
-	result = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, &scan);
-	if (result == 0) {
-		check = be_emap_invariant_check(&scan);
+	rc = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, &scan);
+	if (rc == 0) {
+		is_good = be_emap_invariant_check(&scan);
 		be_emap_close(&scan);
-	} else
-		check = true;
-	return check;
+	}
+
+	if (!is_good)
+		emap_dump(it);
+
+	return is_good;
 }
 
 #else
@@ -913,6 +941,7 @@ be_emap_caret_invariant(const struct m0_be_emap_caret *car)
 		 car->ct_index == M0_BINDEX_MAX + 1);
 }
 
+#undef M0_TRACE_SUBSYSTEM
 /** @} end group extmap */
 
 /*

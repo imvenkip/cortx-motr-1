@@ -251,7 +251,8 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		m0_bcount_t total;
 
 		seglen = m0_ext_length(&seg->ee_ext);
-		M0_LOG(M0_DEBUG, "seglen=%llu", (unsigned long long)seglen);
+		M0_LOG(M0_DEBUG, "%3i: seglen=%llu", i,
+					(unsigned long long)seglen);
 		total  = 102; /* 100 + 2, the sum of elements in len[]. */
 		M0_UT_ASSERT(seglen > total);
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
