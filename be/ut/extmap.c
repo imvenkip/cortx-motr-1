@@ -144,10 +144,11 @@ static void test_init(void)
 	m0_be_tx_credit_init(&cred);
 	m0_be_emap_init(emap, be_seg);
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
+	m0_be_emap_credit(emap, M0_BEO_DESTROY, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_INSERT, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_DELETE, 1, &cred);
-	m0_be_emap_credit(emap, M0_BEO_DESTROY, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_SPLIT, 100 * 4, &cred);
+	m0_be_emap_credit(emap, M0_BEO_MERGE, 100, &cred);
 
 	m0_sm_group_lock(&ut__txs_sm_group);
 
@@ -297,21 +298,23 @@ static void test_print(void)
 	m0_be_emap_close(&it);
 }
 
-//static void test_merge(void)
-//{
-//	m0_be_emap_lookup(emap, &prefix, 0, &it);
-//	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-//
-//	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
-//		m0_be_emap_merge(&it, &tx, m0_ext_length(&seg->ee_ext));
-//		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-//		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
-//	}
-//	m0_be_emap_close(&it);
-//	checkpoint();
-//}
-//
+static void test_merge(void)
+{
+	int rc;
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
+		m0_be_op_init(it_op);
+		m0_be_emap_merge(&it, &tx2, m0_ext_length(&seg->ee_ext));
+		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+		m0_be_op_fini(it_op);
+	}
+	m0_be_emap_close(&it);
+	checkpoint();
+}
 
 void m0_be_ut_emap(void)
 {
@@ -320,9 +323,7 @@ void m0_be_ut_emap(void)
 	test_lookup();
 	test_split();
 	test_print();
-/*
 	test_merge();
-*/
 	test_obj_fini(&tx2);
 	test_fini();
 }
