@@ -332,6 +332,7 @@ static void cursor_test(struct m0_be_btree *tree)
 
 	m0_be_op_init(&cursor.bc_op);
 	m0_be_btree_cursor_get(&cursor, &start, true);
+	/* XXX Shouldn't we m0_be_op_wait() here?  --vvv */
 	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&cursor.bc_op);
 
@@ -360,6 +361,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	start = (struct m0_buf)M0_BUF_INITS("024");
 	m0_be_op_init(&cursor.bc_op);
 	m0_be_btree_cursor_get(&cursor, &start, false);
+	/* XXX Why don't we m0_be_op_wait()?  --vvv */
 	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&cursor.bc_op);
 
@@ -385,12 +387,9 @@ static void cursor_test(struct m0_be_btree *tree)
 	M0_UT_ASSERT(i == -1);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	start = (struct m0_buf)M0_BUF_INITS("200");
-	m0_be_op_init(&cursor.bc_op);
-	m0_be_btree_cursor_get(&cursor, &start, true);
-	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
-	rc = cursor.bc_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&cursor.bc_op);
+	rc = m0_be_btree_cursor_get_sync(&cursor,
+					 &(struct m0_buf)M0_BUF_INITS("200"),
+					 true);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	m0_be_btree_cursor_fini(&cursor);

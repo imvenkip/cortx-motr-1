@@ -1316,11 +1316,7 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 		m0_be_btree_minkey(tree, &cursor.bc_op, &start);
 		m0_be_op_fini(&cursor.bc_op);
 
-		m0_be_op_init(&cursor.bc_op);
-		m0_be_btree_cursor_get(&cursor, &start, true);
-		M0_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
-		rc = cursor.bc_op.bo_u.u_btree.t_rc;
-		m0_be_op_fini(&cursor.bc_op);
+		rc = m0_be_btree_cursor_get_sync(&cursor, &start, true);
 
 		while (rc != -ENOENT) {
 			m0_be_btree_cursor_kv_get(&cursor, &key, &val);
