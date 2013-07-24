@@ -19,9 +19,9 @@
  * Original creation date: 07/19/2011
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"

@@ -63,9 +63,7 @@ M0_INTERNAL int m0_dtm_init(void);
 M0_INTERNAL void m0_dtm_fini(void);
 
 /** @} end of dtm group */
-
-/* __MERO_DTM_DTM_H__ */
-#endif
+#endif /* __MERO_DTM_DTM_H__ */
 
 /*
  *  Local variables:
