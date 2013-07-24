@@ -1736,8 +1736,8 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 	last = get_btree_node(cur->bc_tree, key->b_addr, slant);
 
 	if (last.p_node == NULL) {
-		M0_SET0(&op_tree(op)->t_out);
-		M0_SET0(&op_tree(op)->t_out2);
+		M0_SET0(&op_tree(op)->t_out_val);
+		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
 		goto out;
 	}
@@ -1748,9 +1748,9 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 	kv = cur->bc_node->b_key_vals[cur->bc_pos];
 	/* cursor end move */
 
-	m0_buf_init(&op_tree(op)->t_out, kv->val,
+	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
 		    cur->bc_tree->bb_ops->ko_vsize(kv->val));
-	m0_buf_init(&op_tree(op)->t_out2, kv->key,
+	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 		    cur->bc_tree->bb_ops->ko_ksize(kv->key));
 
 out:
@@ -1805,8 +1805,8 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	}
 
 	if (node == NULL) {
-		M0_SET0(&op_tree(op)->t_out);
-		M0_SET0(&op_tree(op)->t_out2);
+		M0_SET0(&op_tree(op)->t_out_val);
+		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
 		goto out;
 	}
@@ -1815,9 +1815,9 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	cur->bc_node = node;
 
 	kv = node->b_key_vals[cur->bc_pos];
-	m0_buf_init(&op_tree(op)->t_out, kv->val,
+	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
 		    tree->bb_ops->ko_vsize(kv->val));
-	m0_buf_init(&op_tree(op)->t_out2, kv->key,
+	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 		    tree->bb_ops->ko_ksize(kv->key));
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
@@ -1852,8 +1852,8 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	}
 
 	if (node == NULL) {
-		M0_SET0(&op_tree(op)->t_out);
-		M0_SET0(&op_tree(op)->t_out2);
+		M0_SET0(&op_tree(op)->t_out_val);
+		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
 		goto out;
 	}
@@ -1862,9 +1862,9 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	cur->bc_node = node;
 
 	kv = cur->bc_node->b_key_vals[cur->bc_pos];
-	m0_buf_init(&op_tree(op)->t_out, kv->val,
+	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
 		    cur->bc_tree->bb_ops->ko_vsize(kv->val));
-	m0_buf_init(&op_tree(op)->t_out2, kv->key,
+	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 		    cur->bc_tree->bb_ops->ko_ksize(kv->key));
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
@@ -1882,8 +1882,8 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 	struct m0_be_op *op = &cur->bc_op;
 	M0_PRE(m0_be_op_state(op) == M0_BOS_SUCCESS);
 
-	*val = op_tree(op)->t_out;
-	*key = op_tree(op)->t_out2;
+	*val = op_tree(op)->t_out_val;
+	*key = op_tree(op)->t_out_key;
 }
 
 M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)
