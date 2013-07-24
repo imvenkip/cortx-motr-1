@@ -1472,7 +1472,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
 		op->bo_u.u_btree.t_rc = -ENOENT;
 
 	m0_rwlock_write_unlock(&btree->bb_lock);
-	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
@@ -1495,7 +1495,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 		op->bo_u.u_btree.t_rc = -ENOENT;
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
-	m0_be_op_state_set(op, rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
@@ -1606,7 +1606,7 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *btree,
 	} else
 		op->bo_u.u_btree.t_rc = -ENOENT;
 
-	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
