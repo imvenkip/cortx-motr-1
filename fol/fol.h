@@ -87,6 +87,8 @@
    @{
  */
 
+#define XXX_USE_DB5 0
+
 /* export */
 struct m0_fol;
 struct m0_fol_rec_desc;
@@ -99,14 +101,20 @@ struct m0_fol_rec;
 #include "fid/fid.h"
 #include "dtm/dtm_update.h" /* m0_update_id, m0_epoch_id */
 #include "dtm/verno.h"      /* m0_verno */
-#include "db/db.h"          /* m0_table, m0_db_cursor */
+#if XXX_USE_DB5
+#  include "db/db.h"        /* m0_table, m0_db_cursor */
+#else
+#  include "be/btree.h"
+#endif
 #include "fol/lsn.h"        /* m0_lsn_t */
 #include "fid/fid_xc.h"
 #include "dtm/verno_xc.h"
 #include "dtm/dtm_update_xc.h"
 
+#if XXX_USE_DB5
 struct m0_dbenv;
 struct m0_db_tx;
+#endif
 
 /**
    In-memory representation of a fol.
@@ -121,13 +129,18 @@ struct m0_db_tx;
    functions against the same fol (except for m0_fol_init() and m0_fol_fini()).
  */
 struct m0_fol {
+#if XXX_USE_DB5
 	/** Table where fol records are stored. */
-	struct m0_table f_table;
+	struct m0_table    f_table;
+#else
+	/** KV store of fol records. */
+	struct m0_be_btree f_store;
+#endif
 	/** Next lsn to use in the fol. */
-	m0_lsn_t        f_lsn;
+	m0_lsn_t           f_lsn;
 	/** Lock, serializing fol access. */
-	struct m0_mutex f_lock;
-	struct m0_reqh *f_reqh;
+	struct m0_mutex    f_lock;
+	struct m0_reqh    *f_reqh;
 };
 
 /**
@@ -136,9 +149,14 @@ struct m0_fol {
 
    @post ergo(result == 0, m0_lsn_is_valid(fol->f_lsn))
  */
+#if XXX_USE_DB5
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
+#else
+M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
+#endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
+#if XXX_USE_DB5 /* ################################################ */
 /**
    Adds a record to the fol, in the transaction context.
 
@@ -153,6 +171,7 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
  */
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 			       struct m0_fol_rec *rec);
+#endif /* XXX_USE_DB5 ############################################# */
 
 /**
    Reserves and returns lsn.
@@ -306,17 +325,21 @@ struct m0_fol_rec_desc {
    fields (reference counter and sibling updates state).
  */
 struct m0_fol_rec {
-	struct m0_fol               *fr_fol;
-	struct m0_fol_rec_desc       fr_desc;
+	struct m0_fol            *fr_fol;
+	struct m0_fol_rec_desc    fr_desc;
 	/**
 	   A list of all FOL record parts in a record.
 	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
 	 */
-	struct m0_tl		     fr_fol_rec_parts;
+	struct m0_tl              fr_fol_rec_parts;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
-	struct m0_db_cursor          fr_ptr;
-	struct m0_db_pair            fr_pair;
+#if XXX_USE_DB5
+	struct m0_db_cursor       fr_ptr;
+	struct m0_db_pair         fr_pair;
+#else
+	struct m0_be_btree_cursor fr_ptr;
+#endif
 };
 
 /** Initializes fol record parts list. */
@@ -486,6 +509,7 @@ static const struct m0_fol_rec_part_type_ops part ## _type_ops = { \
 #define M0_FOL_REC_PART_TYPE_INIT(part, name)		        \
 part ## _type = M0_FOL_REC_PART_TYPE_XC_OPS(name, part ## _xc,  \
 				            &part ## _type_ops)
+
 /** @} end of fol group */
 #endif /* __MERO_FOL_FOL_H__ */
 

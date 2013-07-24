@@ -18,13 +18,10 @@
  * Original creation date: 16-Sep-2010
  */
 
-#define XXX_USE_DB5 0
-
 #include "fol/fol.h"
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
 #if !XXX_USE_DB5
-#  include "be/btree.h"
 /* XXX FIXME: Do not use ut/ of other subsystem. */
 #  include "be/ut/helper.h"   /* m0_be_ut_h */
 #endif
@@ -43,19 +40,20 @@ static int                       rc;
 #if XXX_USE_DB5
 static const char db_name[] = "ut-fol";
 
-static struct m0_fol             fol;
-static struct m0_fol_rec         r;
-static struct m0_fol_rec_desc   *d;
-static struct m0_buf             buf;
-static struct m0_dbenv           db;
-static struct m0_db_tx           tx;
+static struct m0_fol           fol;
+static struct m0_fol_rec       r;
+static struct m0_fol_rec_desc *d;
+static struct m0_buf           buf;
+static struct m0_dbenv         db;
+static struct m0_db_tx         tx;
 #else
-static struct m0_be_ut_h         beh;
-
 extern void m0_be_ut_h_init(struct m0_be_ut_h *h);
 extern void m0_be_ut_h_fini(struct m0_be_ut_h *h);
 
-static struct m0_be_btree *btree_alloc(void);
+static struct m0_fol    *fol;
+static struct m0_be_ut_h beh;
+
+static void *ut_be_alloc(m0_bcount_t size);
 #endif
 
 #if XXX_USE_DB5
@@ -85,10 +83,13 @@ static void test_init(void)
 	d = &r.fr_desc;
 	h = &d->rd_header;
 #else
-	struct m0_be_btree *t;
+	struct m0_fol *fol;
 
 	m0_be_ut_h_init(&beh);
-	t = btree_alloc(); /* XXX USEME */
+	fol = ut_be_alloc(sizeof *fol);
+
+	rc = m0_fol_init(fol, &beh.buh_seg);
+	M0_UT_ASSERT(rc == 0);
 #endif
 }
 
@@ -104,6 +105,8 @@ static void test_fini(void)
 	m0_dbenv_fini(&db);
 	m0_buf_free(&buf);
 #else
+	m0_fol_fini(fol);
+
 	m0_be_ut_h_fini(&beh);
 #endif
 }
@@ -217,18 +220,18 @@ static void test_fol_rec_part_encdec(void)
 #if !XXX_USE_DB5
 static void noop(const struct m0_be_tx *tx) {}
 
-static struct m0_be_btree *btree_alloc(void)
+static void *ut_be_alloc(m0_bcount_t size)
 {
 	enum { SHIFT = 0 };
-	struct m0_be_btree    *tree;
 	struct m0_be_tx_credit cred;
 	struct m0_be_tx        tx;
 	struct m0_be_op        op;
+	void                  *ptr;
 
-	/* Prepare the credit needed for btree allocation. */
+	/* Prepare the credit needed for the allocation. */
 	m0_be_tx_credit_init(&cred);
-	m0_be_allocator_credit(beh.buh_allocator, M0_BAO_ALLOC, sizeof *tree,
-			       SHIFT, &cred);
+	m0_be_allocator_credit(beh.buh_allocator, M0_BAO_ALLOC, size, SHIFT,
+			       &cred);
 
 	/* Initialise the transaction. */
 	m0_be_tx_init(&tx, ++beh.buh_tid, &beh.buh_be, &ut__txs_sm_group,
@@ -246,9 +249,9 @@ static struct m0_be_btree *btree_alloc(void)
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Allocate a btree. */
+	/* Allocate `size' bytes. */
 	m0_be_op_init(&op);
-	tree = m0_be_alloc(beh.buh_allocator, &tx, &op, sizeof *tree, 0);
+	ptr = m0_be_alloc(beh.buh_allocator, &tx, &op, size, 0);
 	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
 
@@ -267,8 +270,8 @@ static struct m0_be_btree *btree_alloc(void)
 
 	m0_sm_group_unlock(&ut__txs_sm_group);
 
-	M0_POST(tree != NULL);
-	return tree;
+	M0_POST(ptr != NULL);
+	return ptr;
 }
 
 /* ---------------------------------------------------------------------
