@@ -205,9 +205,10 @@ static bool btree_node_invariant(const struct m0_be_btree *btree,
 		/* keys are in order */
 		ergo(node->b_nr_active > 1,
 		     m0_forall(i, node->b_nr_active - 1,
-			       i < 1 ? true : node->b_key_vals[i]->key >
-			       node->b_key_vals[i - 1]->key)) &&
-		/* matchig parent */
+			       i < 1 ? true :
+			       key_gt(btree, node->b_key_vals[i]->key,
+			                     node->b_key_vals[i - 1]->key))) &&
+		/* matching parent */
 		ergo(node->b_nr_active > 1,
 		     m0_forall(i, node->b_nr_active - 1,
 			       node->b_leaf ? true :
@@ -218,8 +219,8 @@ static bool btree_node_invariant(const struct m0_be_btree *btree,
 						/* key 0: */
 						node->b_key_vals[i]->key,
 						/* key 1: */
-						node->b_children[i] ->
-						b_key_vals[j]->key))));
+						node->b_children[i]->
+						      b_key_vals[j]->key))));
 }
 
 
