@@ -45,8 +45,9 @@ extern void m0_be_ut_log_store_reserve(void);
 extern void m0_be_ut_log_store_io(void);
 extern void m0_be_ut_log(void);
 extern void m0_be_ut_group_ondisk(void);
-extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_list_api(void);
+extern void m0_be_ut_btree_simple(void);
+extern void m0_be_ut_emap(void);
 
 extern void m0_be_ut_domain(void);
 
@@ -137,8 +138,9 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
 		{ "tx-single",        m0_be_ut_tx_single            },
 		{ "tx-several",       m0_be_ut_tx_several           },
-		{ "btree",            m0_be_ut_btree_simple         },
 		{ "list",             m0_be_ut_list_api             },
+		{ "btree",            m0_be_ut_btree_simple         },
+		{ "emap",             m0_be_ut_emap                 },
 		{ "io (XXX NOOP)",    m0_be_ut_io                   },
 #endif
 		{ "log_store-reserve",m0_be_ut_log_store_reserve    },

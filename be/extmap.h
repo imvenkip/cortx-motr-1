@@ -390,10 +390,10 @@ enum m0_be_emap_optype {
  * @param optype operation type over the @emap.
  * @param nr     number of @optype operations.
  */
-M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
-					 enum m0_be_emap_optype  optype,
-					 m0_bcount_t             nr,
-					 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
+				   enum m0_be_emap_optype  optype,
+				   m0_bcount_t             nr,
+				   struct m0_be_tx_credit *accum);
 
 /** @} end group extmap */
 

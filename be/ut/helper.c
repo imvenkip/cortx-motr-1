@@ -154,6 +154,7 @@ void m0_be_ut_seg_close_destroy(struct m0_be_ut_h *h)
 void m0_be_ut_h_init(struct m0_be_ut_h *h)
 {
 	int                      rc;
+	struct m0_rpc_machine   *mach;
 #define NAME(ext) "be-ut" ext
 	char                    *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
@@ -173,13 +174,12 @@ void m0_be_ut_h_init(struct m0_be_ut_h *h)
 
 	rc = service_start(&h->buh_rpc_svc);
 	M0_ASSERT(rc == 0);
-
-	h->buh_reqh = m0_mero_to_rmach(&h->buh_rpc_svc.rsx_mero_ctx)->rm_reqh;
-	M0_ASSERT(h->buh_reqh != NULL);
+	mach = m0_mero_to_rmach(&h->buh_rpc_svc.rsx_mero_ctx);
+	M0_ASSERT(mach->rm_reqh != NULL);
 
 	/*
 	m0_be_init(&h->buh_be);
-	rc = m0_be_tx_engine_start(&h->buh_be.b_tx_engine, h->buh_reqh);
+	rc = m0_be_tx_engine_start(&h->buh_be.b_tx_engine, mach->rm_reqh);
 	M0_ASSERT(rc == 0);
 	*/
 
