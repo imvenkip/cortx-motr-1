@@ -104,7 +104,6 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 			  struct m0_be_emap_cursor *it);
 static int be_emap_next(struct m0_be_emap_cursor *it);
 static int be_emap_prev(struct m0_be_emap_cursor *it);
-static bool be_emap_invariant_check(struct m0_be_emap_cursor *it);
 static bool be_emap_invariant(struct m0_be_emap_cursor *it);
 static int emap_extent_update(struct m0_be_emap_cursor *it,
 			      struct m0_be_tx          *tx,
@@ -686,16 +685,20 @@ emap_it_open(struct m0_be_emap_cursor *it)
 	const struct m0_be_emap_rec *rec;
 	      struct m0_be_emap_seg *ext      = &it->ec_seg;
 	      struct m0_be_op       *bt_it_op = &it->ec_cursor.bc_op;
+	      struct m0_buf          keybuf;
+	      struct m0_buf          recbuf;
 	      int		     rc;
 
 	M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
 
 	rc = bt_it_op->bo_u.u_btree.t_rc;
 	if (rc == 0) {
-		m0_be_btree_cursor_kv_get(&it->ec_cursor, &it->ec_keybuf,
-							  &it->ec_recbuf);
-		key = it->ec_keybuf.b_addr;
-		rec = it->ec_recbuf.b_addr;
+		m0_be_btree_cursor_kv_get(&it->ec_cursor, &keybuf,
+							  &recbuf);
+		key = keybuf.b_addr;
+		rec = recbuf.b_addr;
+		it->ec_key = *key;
+		it->ec_rec = *rec;
 		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
@@ -776,7 +779,7 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 	return emap_it_open(it);
 }
 
-#if 1
+#if 0
 static bool
 be_emap_invariant_check(struct m0_be_emap_cursor *it)
 {
@@ -881,7 +884,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 
 		if (rc == 0)
 			/* Re-initialize the cursor position. */
-			emap_it_get(it);
+			rc = emap_it_get(it);
 	}
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
