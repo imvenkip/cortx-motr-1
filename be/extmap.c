@@ -243,11 +243,14 @@ M0_INTERNAL void m0_be_emap_extent_update(struct m0_be_emap_cursor *it,
 
 static int update_next_segment(struct m0_be_emap_cursor *it,
 			       struct m0_be_tx          *tx,
-			       m0_bindex_t               delta)
+			       m0_bindex_t               delta,
+			       bool                      get_next)
 {
-	int rc;
+	int rc = 0;
 
-	rc = be_emap_next(it);
+	if (get_next)
+		rc = be_emap_next(it);
+
 	if (rc == 0) {
 		it->ec_seg.ee_ext.e_start -= delta;
 		rc = emap_extent_update(it, tx, &it->ec_seg);
@@ -262,6 +265,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 {
 	int		 rc;
 	struct m0_be_op	 bt_op;
+	bool		 inserted = false;
 
 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
 	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
@@ -277,9 +281,10 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 	m0_be_op_fini(&bt_op);
 
 	if (rc == 0) {
-		if (m0_ext_length(&it->ec_seg.ee_ext) < delta) {
+		if (delta < m0_ext_length(&it->ec_seg.ee_ext)) {
 			it->ec_seg.ee_ext.e_end -= delta;
 			rc = emap_it_pack(it, m0_be_btree_insert, tx);
+			inserted = true;
 		}
 	}
 
@@ -287,7 +292,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 		rc = emap_it_get(it); /* Re-initialize the cursor position. */
 
 	if (rc == 0)
-		rc = update_next_segment(it, tx, delta);
+		rc = update_next_segment(it, tx, delta, inserted);
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 
