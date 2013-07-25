@@ -51,42 +51,56 @@ enum {
 	INSERT_SIZE  = 4
 };
 
-static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h);
-static struct m0_be_btree *create_tree(struct m0_be_ut_h *h);
-static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h);
+static void check(struct m0_be_btree *tree,
+		  struct m0_be_ut_backend *ut_be,
+		  struct m0_be_seg *seg);
+static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
+				       struct m0_be_seg *seg);
+static void destroy_tree(struct m0_be_btree *tree,
+			 struct m0_be_ut_backend *ut_be,
+			 struct m0_be_seg *seg);
 
 void m0_be_ut_btree_simple(void)
 {
-	struct m0_be_btree *tree0;
-	struct m0_be_btree *tree1;
-	struct m0_be_ut_h   h;
+	struct m0_be_ut_backend	 ut_be;
+	struct m0_be_ut_seg	 ut_seg;
+	struct m0_be_seg	*seg;
+	struct m0_be_btree	*tree0;
+	struct m0_be_btree	*tree1;
 
 	M0_ENTRY();
 	/* Init BE */
-	m0_be_ut_h_init(&h);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&ut_seg);
+	seg = &ut_seg.bus_seg;
 
 	/* create btrees */
-	tree0 = create_tree(&h);
+	tree0 = create_tree(&ut_be, seg);
 
 	/* Reload segment and check data */
-	m0_be_ut_h_seg_reload(&h);
+	m0_be_ut_seg_reload(&ut_seg);
 
-	check(tree0, &h);
-	destroy_tree(tree0, &h);
+	check(tree0, &ut_be, seg);
+	destroy_tree(tree0, &ut_be, seg);
 
 	/* Reload segment, create new tree and check data */
-	m0_be_ut_h_seg_reload(&h);
+	m0_be_ut_seg_reload(&ut_seg);
 
-	tree1 = create_tree(&h);
-	check(tree1, &h);
-	destroy_tree(tree1, &h);
+	tree1 = create_tree(&ut_be, seg);
+	check(tree1, &ut_be, seg);
+	destroy_tree(tree1, &ut_be, seg);
 
-	m0_be_ut_h_fini(&h);
+	/* XXX FIXME something wasn't freed */
+	/* m0_be_ut_seg_allocator_fini(&ut_seg); */
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 
 	M0_LEAVE();
 }
 
-static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
+static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
+				       struct m0_be_seg *seg)
 {
 	struct m0_be_btree_anchor anchor;
 	struct m0_be_tx_credit    insert_cred;
@@ -98,7 +112,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	struct m0_buf             val;
 	int                       rc;
 	int                       i;
-	struct m0_be_allocator   *a = h->buh_allocator;
+	struct m0_be_allocator   *a = &seg->bs_allocator;
 
 	M0_ENTRY();
 	/*
@@ -114,11 +128,11 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	/*
 	 * Init transaction and its credits
 	 */
-	m0_be_ut_h_tx_init(tx, h);
+	m0_be_ut_backend_tx_init(ut_be, tx);
 
 	{ /* XXX: should calculate these credits not for dummy tree,
 	   but for allocated below. This needs at least two transactions. */
-		struct m0_be_btree t = { .bb_seg = &h->buh_seg };
+		struct m0_be_btree t = { .bb_seg = seg };
 		m0_be_btree_create_credit(&t, 1, &cred);
 		m0_be_btree_insert_credit(&t, 1, INSERT_SIZE, INSERT_SIZE,
 						&insert_cred);
@@ -132,14 +146,14 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 
 	m0_be_tx_credit_add(&cred, &insert_cred);
 
-	m0_sm_group_lock(&ut__txs_sm_group);
-
 	m0_be_tx_prep(tx, &cred);
 
 	/* Open transaction, allocate, dirty and capture region. */
 	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 	M0_LOG(M0_DEBUG, "Transaction has reached M0_BTS_ACTIVE");
 
 	/* start */
@@ -151,7 +165,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	m0_be_op_fini(&op);
 
 	M0_SET0(tree); /* XXX Why do we need this?  --vvv */
-	m0_be_btree_init(tree, &h->buh_seg, &kv_ops);
+	m0_be_btree_init(tree, seg, &kv_ops);
 
 	m0_be_op_init(&op);
 	m0_be_btree_create(tree, tx, &op);
@@ -177,10 +191,8 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 
 		sprintf(key.b_addr, "%03d", i);
 		sprintf(val.b_addr, "%03d", i);
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						INSERT_SIZE, key.b_addr));
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						INSERT_SIZE, val.b_addr));
+		m0_be_tx_capture(tx, &M0_BE_REG(seg, INSERT_SIZE, key.b_addr));
+		m0_be_tx_capture(tx, &M0_BE_REG(seg, INSERT_SIZE, val.b_addr));
 
 		m0_be_op_init(&op);
 		m0_be_btree_insert(tree, tx, &op, &key, &val);
@@ -199,8 +211,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 		m0_be_op_fini(&op);
 
 		sprintf(key.b_addr, "%03d", i);
-		m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg,
-						INSERT_SIZE, key.b_addr));
+		m0_be_tx_capture(tx, &M0_BE_REG(seg, INSERT_SIZE, key.b_addr));
 
 		anchor.ba_value.b_nob = INSERT_SIZE;
 		m0_be_op_init(&op);
@@ -242,7 +253,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	m0_be_op_fini(&op);
 
 	sprintf(val.b_addr, "XYZ");
-	m0_be_tx_capture(tx, &M0_BE_REG(&h->buh_seg, INSERT_SIZE, val.b_addr));
+	m0_be_tx_capture(tx, &M0_BE_REG(seg, INSERT_SIZE, val.b_addr));
 
 	m0_be_op_init(&op);
 	m0_be_btree_update(tree, tx, &op, &key, &val);
@@ -254,13 +265,10 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 
 	m0_be_tx_close(tx); /* Make things persistent. */
 
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "Transaction has reached M0_BTS_PLACED");
-
-	/* XXX TODO: m0_be_tx_stable(tx) */
-
-	m0_sm_group_unlock(&ut__txs_sm_group);
+	m0_be_tx_fini(tx);
 
 	btree_dbg_print(tree);
 	M0_LOG(M0_DEBUG, "segment closed, tree root: %p", tree);
@@ -269,7 +277,9 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	return tree;
 }
 
-static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h)
+static void destroy_tree(struct m0_be_btree *tree,
+			 struct m0_be_ut_backend *ut_be,
+			 struct m0_be_seg *seg)
 {
 	struct m0_be_tx_credit    cred;
 	struct m0_be_op           op;
@@ -281,17 +291,17 @@ static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
 
-	m0_be_ut_h_tx_init(tx, h);
+	m0_be_ut_backend_tx_init(ut_be, tx);
 
 	m0_be_tx_credit_init(&cred);
 	m0_be_btree_destroy_credit(tree, 1, &cred);
 
-	m0_sm_group_lock(&ut__txs_sm_group);
-
 	m0_be_tx_prep(tx, &cred);
 	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 	M0_LOG(M0_DEBUG, "Transaction has reached M0_BTS_ACTIVE");
 
 	m0_be_op_init(&op);
@@ -304,13 +314,10 @@ static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 
 	m0_be_tx_close(tx); /* Make things persistent. */
 
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "Transaction has reached M0_BTS_PLACED");
-
-	/* XXX TODO: m0_be_tx_stable(tx) */
-
-	m0_sm_group_unlock(&ut__txs_sm_group);
+	m0_be_tx_fini(tx);
 
 	btree_dbg_print(tree);
 	M0_LOG(M0_DEBUG, "segment closed, tree root: %p", tree);
@@ -395,7 +402,9 @@ static void cursor_test(struct m0_be_btree *tree)
 	m0_be_btree_cursor_fini(&cursor);
 }
 
-static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
+static void check(struct m0_be_btree *tree,
+		  struct m0_be_ut_backend *ut_be,
+		  struct m0_be_seg *seg)
 {
 	struct m0_buf             key;
 	struct m0_buf             val;
@@ -405,7 +414,7 @@ static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 	char v[4];
 	int i;
 
-	m0_be_btree_init(tree, &h->buh_seg, &kv_ops);
+	m0_be_btree_init(tree, seg, &kv_ops);
 
 	/* lookup */
 	for (i = 0; i < INSERT_COUNT; ++i) {

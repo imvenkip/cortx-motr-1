@@ -129,8 +129,8 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
 		{ "list",             m0_be_ut_list_api             },
-#if 0
 		{ "btree",            m0_be_ut_btree_simple         },
+#if 0
 		{ "emap",             m0_be_ut_emap                 },
 #endif
 		{ NULL, NULL }
