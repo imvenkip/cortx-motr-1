@@ -773,6 +773,8 @@ del_loop:
 		goto out;
 	}
 
+	M0_ASSERT(0); // are we ever getting here?
+
 	/* Case 2:
 	 * The node containing the key is found and is an internal node */
 	if (node->b_leaf == false) {
@@ -1628,10 +1630,16 @@ static void print_single_node(struct m0_be_bnode *node)
 		void *key = node->b_key_vals[i]->key;
 		void *val = node->b_key_vals[i]->val;
 
-		M0_LOG(M0_DEBUG, "key=%s val=%s level=%d",
-		       (char *)key, (char *)val, node->b_level);
+		if (node->b_leaf)
+			M0_LOG(M0_DEBUG, "%02d: key=%s val=%s", i,
+			       (char *)key, (char *)val);
+		else
+			M0_LOG(M0_DEBUG, "%02d: key=%s val=%s child=%p", i,
+			       (char *)key, (char *)val, node->b_children[i]);
 	}
-	M0_LOG(M0_DEBUG, "} (%p,%d) ", node, !!node->b_leaf);
+	if (!node->b_leaf)
+		M0_LOG(M0_DEBUG, "%02d: child=%p", i, node->b_children[i]);
+	M0_LOG(M0_DEBUG, "} (%p, %d)", node, node->b_level);
 }
 
 static void iter_prepare(struct m0_be_bnode *node, bool print)
@@ -1640,7 +1648,8 @@ static void iter_prepare(struct m0_be_bnode *node, bool print)
 	int i = 0;
 	unsigned int current_level;
 
-	struct m0_be_bnode *head, *tail;
+	struct m0_be_bnode *head;
+	struct m0_be_bnode *tail;
 	struct m0_be_bnode *child;
 
 	if (print)
@@ -1804,9 +1813,15 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 		while (node && cur->bc_pos < 0)
 			node = node_pop(tree, &cur->bc_pos);
 	} else {
-		node_push(tree, node, cur->bc_pos - 1);
-		node = node->b_children[cur->bc_pos];
-		cur->bc_pos = node->b_nr_active - 1;
+		for (;;) {
+			node_push(tree, node, cur->bc_pos - 1);
+			node = node->b_children[cur->bc_pos];
+			if (node->b_leaf) {
+				cur->bc_pos = node->b_nr_active - 1;
+				break;
+			} else
+				cur->bc_pos = node->b_nr_active;
+		}
 	}
 
 	if (node == NULL) {

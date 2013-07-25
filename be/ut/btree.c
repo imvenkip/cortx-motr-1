@@ -370,9 +370,9 @@ static void cursor_test(struct m0_be_btree *tree)
 	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 
 	for (i = INSERT_COUNT/4 - 1; key.b_addr != NULL; --i) {
+		M0_LOG(M0_DEBUG, "i=%i k=%s", i, (char*)key.b_addr);
 		v = atoi(key.b_addr);
 		M0_UT_ASSERT(v == i);
-		M0_LOG(M0_DEBUG, "i=%i k=%s", i, (char*)key.b_addr);
 
 		m0_be_op_init(&cursor.bc_op);
 		m0_be_btree_cursor_prev(&cursor);
