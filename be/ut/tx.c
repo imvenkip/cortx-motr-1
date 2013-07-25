@@ -50,14 +50,17 @@ void m0_be_ut_tx_usecase(void)
 	m0_be_ut_backend_tx_init(&ut_be, tx);
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+
 	m0_be_tx_prep(tx, &credit);
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+
 	m0_be_tx_open(tx);
 	m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 			   M0_TIME_NEVER);
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+
 	m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, data));
 	m0_be_tx_close(tx);
 	m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
