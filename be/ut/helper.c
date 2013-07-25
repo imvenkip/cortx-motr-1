@@ -218,8 +218,6 @@ void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h)
 	M0_ASSERT(rc == 0);
 }
 
-static void noop(const struct m0_be_tx *tx) {}
-
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 {
 	/*
@@ -290,7 +288,7 @@ void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
 			      struct m0_be_tx *tx)
 {
 	m0_be_tx_init(tx, 0, &ut_be->but_dom, &ut__txs_sm_group,
-		      noop, noop, true, NULL, NULL);
+		      NULL, NULL, true, NULL, NULL);
 }
 
 static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,

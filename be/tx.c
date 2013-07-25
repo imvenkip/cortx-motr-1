@@ -317,6 +317,11 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 	m0_sm_move(&tx->t_sm, rc, state);
 	m0_be_engine__tx_state_set(tx->t_engine, tx, state);
 
+	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
+		tx->t_persistent(tx);
+	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
+		tx->t_discarded(tx);
+
 	M0_POST(m0_be_tx__invariant(tx));
 	M0_LEAVE();
 }
