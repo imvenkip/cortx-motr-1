@@ -124,11 +124,11 @@ const struct m0_test_suite be_ut = {
 		{ "tx-usecase_failure",	m0_be_ut_tx_usecase_failure },
 		{ "tx-single",        m0_be_ut_tx_single            },
 		{ "tx-several",       m0_be_ut_tx_several           },
-#if 0
 		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
+#if 0
 		{ "list",             m0_be_ut_list_api             },
 		{ "btree",            m0_be_ut_btree_simple         },
 		{ "emap",             m0_be_ut_emap                 },

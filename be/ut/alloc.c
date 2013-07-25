@@ -46,30 +46,36 @@ struct be_ut_alloc_thread_state {
 	int		 ats_nr;
 };
 
-static struct m0_be_ut_h	       be_ut_alloc_h;
+static struct m0_be_ut_seg	       be_ut_alloc_seg;
 static struct be_ut_alloc_thread_state be_ut_ts[BE_UT_ALLOC_THR_NR];
 
 M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
 {
+	struct m0_be_ut_seg    ut_seg;
 	struct m0_be_allocator a;
 	int		       rc;
 
-	m0_be_ut_seg_create_open(&be_ut_alloc_h);
-	rc = m0_be_allocator_init(&a, &be_ut_alloc_h.buh_seg);
+	m0_be_ut_seg_init(&ut_seg, 1ULL << 20);
+	rc = m0_be_allocator_init(&a, &ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_allocator_fini(&a);
-	m0_be_ut_seg_close_destroy(&be_ut_alloc_h);
+	m0_be_ut_seg_fini(&ut_seg);
 }
 
 M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 {
-	m0_be_ut_h_init(&be_ut_alloc_h);
-	m0_be_ut_h_fini(&be_ut_alloc_h);
+	struct m0_be_ut_seg    ut_seg;
+
+	m0_be_ut_seg_init(&ut_seg, 1ULL << 20);
+	m0_be_ut_seg_allocator_init(&ut_seg);
+	m0_be_ut_seg_allocator_fini(&ut_seg);
+	m0_be_ut_seg_fini(&ut_seg);
 }
 
 static void be_ut_alloc_thread(int index)
 {
 	struct be_ut_alloc_thread_state *ts = &be_ut_ts[index];
+	struct m0_be_allocator		*a;
 	struct m0_be_op			 op;
 	unsigned int			 seed = index;
 	m0_bcount_t			 size;
@@ -78,6 +84,7 @@ static void be_ut_alloc_thread(int index)
 	int				 j;
 	void				*p;
 
+	a = &be_ut_alloc_seg.bus_seg.bs_allocator;
 	memset(&ts->ats_ptr, 0, sizeof(ts->ats_ptr));
 	for (j = 0; j < ts->ats_nr; ++j) {
 		i = rand_r(&seed) % BE_UT_ALLOC_PTR_NR;
@@ -86,15 +93,13 @@ static void be_ut_alloc_thread(int index)
 		if (p == NULL) {
 			size = (rand_r(&seed) % BE_UT_ALLOC_SIZE) + 1;
 			shift = rand_r(&seed) % BE_UT_ALLOC_SHIFT;
-			p = m0_be_alloc(be_ut_alloc_h.buh_allocator, NULL, &op,
-					/* XXX */ size, shift);
+			p = m0_be_alloc(a, NULL, &op, /* XXX */ size, shift);
 			M0_UT_ASSERT(p != NULL);
 			M0_UT_ASSERT(m0_addr_is_aligned(p, shift));
 			if (p != NULL)
 				memset(p, 0xFF, size);
 		} else {
-			m0_be_free(be_ut_alloc_h.buh_allocator, NULL, &op,
-				   /*XXX*/ p);
+			m0_be_free(a, NULL, &op, /*XXX*/ p);
 			p = NULL;
 		}
 		m0_be_op_fini(&op);
@@ -102,8 +107,7 @@ static void be_ut_alloc_thread(int index)
 	}
 	for (i = 0; i < BE_UT_ALLOC_PTR_NR; ++i) {
 		m0_be_op_init(&op);
-		m0_be_free(be_ut_alloc_h.buh_allocator, NULL, &op,
-			   /*XXX*/ ts->ats_ptr[i]);
+		m0_be_free(a, NULL, &op, /*XXX*/ ts->ats_ptr[i]);
 		m0_be_op_fini(&op);
 	}
 }
@@ -118,7 +122,8 @@ static void be_ut_alloc_mt(int nr)
 		be_ut_ts[i].ats_nr = nr == 1 ? BE_UT_ALLOC_NR :
 					       BE_UT_ALLOC_MT_NR;
 	}
-	m0_be_ut_h_init(&be_ut_alloc_h);
+	m0_be_ut_seg_init(&be_ut_alloc_seg, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&be_ut_alloc_seg);
 	for (i = 0; i < nr; ++i) {
 		rc = M0_THREAD_INIT(&be_ut_ts[i].ats_thread, int, NULL,
 				    &be_ut_alloc_thread, i,
@@ -129,7 +134,8 @@ static void be_ut_alloc_mt(int nr)
 		m0_thread_join(&be_ut_ts[i].ats_thread);
 		m0_thread_fini(&be_ut_ts[i].ats_thread);
 	}
-	m0_be_ut_h_fini(&be_ut_alloc_h);
+	m0_be_ut_seg_allocator_fini(&be_ut_alloc_seg);
+	m0_be_ut_seg_fini(&be_ut_alloc_seg);
 }
 
 M0_INTERNAL void m0_be_ut_alloc_multiple(void)
