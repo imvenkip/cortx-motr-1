@@ -169,6 +169,7 @@ M0_INTERNAL void m0_fol_lookup_rec_fini(struct m0_fol_rec *rec)
 	m0_db_cursor_fini(&rec->fr_ptr);
 	m0_db_pair_fini(&rec->fr_pair);
 #else
+	m0_be_btree_cursor_put(&rec->fr_ptr);
 	m0_be_btree_cursor_fini(&rec->fr_ptr);
 #endif
 	m0_fol_rec_fini(rec);
@@ -625,6 +626,8 @@ m0_fol_rec_lookup(struct m0_fol *fol, m0_lsn_t lsn, struct m0_fol_rec *out)
 {
 	struct m0_fol_rec_desc    *d   = &out->fr_desc;
 	struct m0_be_btree_cursor *cur = &out->fr_ptr;
+	const struct m0_buf        key = M0_BUF_INIT(sizeof d->rd_lsn,
+						     &d->rd_lsn);
 	int rc;
 
 	m0_fol_rec_init(out);
@@ -632,11 +635,11 @@ m0_fol_rec_lookup(struct m0_fol *fol, m0_lsn_t lsn, struct m0_fol_rec *out)
 	out->fr_fol = fol;
 	d->rd_lsn = lsn;
 
-	rc = m0_be_btree_cursor_get_sync(cur, &(struct m0_buf)M0_BUF_INIT(
-						 sizeof d->rd_lsn, &d->rd_lsn),
-					 true) ?:
+	/* XXX TODO: m0_be_btree_cursor_get_sync() should be followed by
+	 * m0_be_btree_cursor_kv_get(). Create a helper function in
+	 * be/btree.[hc] for this common scenario. */
+	rc = m0_be_btree_cursor_get_sync(cur, &key, true) ?:
 		fol_record_decode(out);
-
 	if (rc == 0) {
 		M0_POST(d->rd_header.rh_refcount > 0);
 		M0_POST(m0_fol_rec_invariant(d));

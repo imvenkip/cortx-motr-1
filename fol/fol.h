@@ -339,6 +339,8 @@ struct m0_fol_rec {
 	struct m0_db_pair         fr_pair;
 #else
 	struct m0_be_btree_cursor fr_ptr;
+	struct m0_buf             fr_key;
+	struct m0_buf             fr_val;
 #endif
 };
 
