@@ -122,10 +122,10 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 					m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
 							   &swo_fop->swo_base.swo_sw.sw_hi);
 				}
+				M0_CNT_INC(cm->cm_ready_fops_recvd);
 			}
 			m0_cm_unlock(cm);
 		}
-		M0_CNT_INC(cm->cm_ready_fops_recvd);
 		M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
 				 swo_fop->swo_base.swo_cm_ep.ep,
 				 (int)cm->cm_ready_fops_recvd,
