@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
  * Original creation date: 29-May-2013
  */
 
@@ -33,7 +33,7 @@
 #include "be/btree.h"
 #include "be/alloc.h"
 #include "be/seg.h"
-#include <math.h> /* pow */
+#include <math.h>      /* pow */
 
 /* btree constants */
 enum {
@@ -993,14 +993,10 @@ static struct bt_key_val *btree_search(struct m0_be_btree *btree, void *key)
  * @param src The source key value
  * @param dst The dest key value
  */
-static void copy_key_val(struct bt_key_val  *src, struct bt_key_val  *dst)
+static void copy_key_val(struct bt_key_val *src, struct bt_key_val *dst)
 {
-	M0_ENTRY();
-
 	dst->key = src->key;
 	dst->val = src->val;
-
-	M0_LEAVE();
 }
 
 /**
@@ -1029,9 +1025,8 @@ static void *btree_get_min_key(struct m0_be_btree *btree)
 	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
 }
 
-static void
-btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
-				struct bt_key_val *kv)
+static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
+			       struct bt_key_val *kv)
 {
 	if (kv->key) {
 		mem_free(btree, tx, kv->key, btree->bb_ops->ko_ksize(kv->key));
@@ -1044,6 +1039,7 @@ btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 	mem_free(btree, tx, kv, sizeof(struct bt_key_val));
 }
 
+/* XXX DELETEME? */
 M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
 						     struct m0_be_tx    *tx,
 						     void *key, size_t key_size,
@@ -1720,9 +1716,9 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 					const struct m0_buf *key, bool slant)
 {
-	struct node_pos    last;
+	struct node_pos     last;
 	struct bt_key_val  *kv;
-	struct m0_be_op    *op = &cur->bc_op;
+	struct m0_be_op    *op   = &cur->bc_op;
 	struct m0_be_btree *tree = cur->bc_tree;
 
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
@@ -1732,28 +1728,23 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_read_lock(&tree->bb_lock);
 
-	/* cursor move */
-	last = get_btree_node(cur->bc_tree, key->b_addr, slant);
-
+	last = get_btree_node(tree, key->b_addr, slant);
 	if (last.p_node == NULL) {
 		M0_SET0(&op_tree(op)->t_out_val);
 		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
-		goto out;
+	} else {
+		cur->bc_pos  = last.p_index;
+		cur->bc_node = last.p_node;
+
+		kv = cur->bc_node->b_key_vals[cur->bc_pos];
+
+		m0_buf_init(&op_tree(op)->t_out_val, kv->val,
+			    tree->bb_ops->ko_vsize(kv->val));
+		m0_buf_init(&op_tree(op)->t_out_key, kv->key,
+			    tree->bb_ops->ko_ksize(kv->key));
 	}
 
-	cur->bc_pos  = last.p_index;
-	cur->bc_node = last.p_node;
-
-	kv = cur->bc_node->b_key_vals[cur->bc_pos];
-	/* cursor end move */
-
-	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
-		    cur->bc_tree->bb_ops->ko_vsize(kv->val));
-	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
-		    cur->bc_tree->bb_ops->ko_ksize(kv->key));
-
-out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
@@ -1763,14 +1754,16 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
 					    bool slant)
 {
 	struct m0_be_op *op = &cur->bc_op;
+	int              rc;
 
 	m0_be_op_init(op);
 	m0_be_btree_cursor_get(cur, key, slant);
 	m0_be_op_wait(op);
 	M0_ASSERT(m0_be_op_state(op) == M0_BOS_SUCCESS);
+	rc = op_tree(op)->t_rc;
 	m0_be_op_fini(op);
 
-	return op_tree(op)->t_rc;
+	return rc;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
@@ -1789,7 +1782,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 
 	node = cur->bc_node;
 	if (node == NULL) {
-		op->bo_u.u_btree.t_rc = -EINVAL;
+		op_tree(op)->t_rc = -EINVAL;
 		goto out;
 	}
 
@@ -1863,9 +1856,9 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 
 	kv = cur->bc_node->b_key_vals[cur->bc_pos];
 	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
-		    cur->bc_tree->bb_ops->ko_vsize(kv->val));
+		    tree->bb_ops->ko_vsize(kv->val));
 	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
-		    cur->bc_tree->bb_ops->ko_ksize(kv->key));
+		    tree->bb_ops->ko_ksize(kv->key));
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
