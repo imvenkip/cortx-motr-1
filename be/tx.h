@@ -379,7 +379,9 @@ struct m0_be_tx {
 	struct m0_sm_ast       t_ast_grouped;
 	struct m0_sm_ast       t_ast_logged;
 	struct m0_sm_ast       t_ast_placed;
+	struct m0_sm_ast       t_ast_done;
 	struct m0_be_tx_group *t_group;
+	uint32_t	       t_ref;
 };
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
@@ -412,14 +414,14 @@ M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx *tx,
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx);
 
+M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx);
+
 /** Forces the transaction to storage. */
 M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
 
 M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout);
-
-/** Notifies backend that the transaction is no longer needed for recovery. */
-M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
 /** XXX remove tx from parameters */

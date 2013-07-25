@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "lib/types.h"
 #include "lib/ext.h"           /* m0_ext */
+#include "lib/arith.h"	       /* M0_CNT_INC */
 
 #include "be/be.h"
 #include "be/tx.h"
@@ -47,9 +48,6 @@ M0_TL_DESCR_DEFINE(eng, "m0_be_tx_engine::te_txs[]", M0_INTERNAL,
 
 M0_TL_DEFINE(eng, M0_INTERNAL, struct m0_be_tx);
 #endif
-
-static int done_st_in(struct m0_sm *mach);
-
 
 static bool tx_state_invariant(const struct m0_sm *mach)
 {
@@ -77,8 +75,7 @@ static void be_tx_ast_cb(struct m0_be_tx *tx, enum m0_be_tx_state state)
 			be_tx_state_move(tx, ++tx_state, 0);
 	}
 
-	/* XXX temporary hack */
-	if (state == M0_BTS_PLACED)
+	if (state == M0_BTS_PLACED && tx->t_ref == 0)
 		be_tx_state_move(tx, M0_BTS_DONE, 0);
 }
 
@@ -94,6 +91,7 @@ BE_TX_AST_CB(active);
 BE_TX_AST_CB(grouped);
 BE_TX_AST_CB(logged);
 BE_TX_AST_CB(placed);
+BE_TX_AST_CB(done);
 #undef BE_TX_AST_CB
 
 /* be sure to change be_tx_ast_cb if change tx_states */
@@ -115,14 +113,8 @@ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
 	_S(M0_BTS_GROUPED,  0, M0_BITS(M0_BTS_LOGGED)),
 	_S(M0_BTS_LOGGED, 0, M0_BITS(M0_BTS_PLACED)),
 	_S(M0_BTS_PLACED, 0, M0_BITS(M0_BTS_DONE)),
+	_S(M0_BTS_DONE, M0_SDF_TERMINAL, 0),
 #undef _S
-	[M0_BTS_DONE] = {
-		.sd_flags     = M0_SDF_TERMINAL,
-		.sd_name      = "M0_BTS_DONE",
-		.sd_in        = done_st_in,
-		.sd_invariant = tx_state_invariant,
-		.sd_allowed   = 0
-	}
 };
 
 static const struct m0_sm_conf tx_sm_conf = {
@@ -160,13 +152,13 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	tx->t_reg_area_allocated = false;
 	tx->t_persistent	 = persistent;
 	tx->t_discarded		 = discarded;
-	tx->t_glob_stable	 = !is_part_of_global_tx; /* XXX */
 	tx->t_filler		 = filler;
 	tx->t_datum		 = datum;
 	tx->t_ast_active.sa_cb	 = be_tx_ast_active_cb;
 	tx->t_ast_grouped.sa_cb	 = be_tx_ast_grouped_cb;
 	tx->t_ast_logged.sa_cb	 = be_tx_ast_logged_cb;
 	tx->t_ast_placed.sa_cb	 = be_tx_ast_placed_cb;
+	tx->t_ast_done.sa_cb	 = be_tx_ast_done_cb;
 
 	m0_be_engine__tx_init(tx->t_engine, tx, M0_BTS_PREPARE);
 
@@ -186,6 +178,7 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_grouped);
 	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_logged);
 	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_placed);
+	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_done);
 	if (tx->t_reg_area_allocated)
 		m0_be_reg_area_fini(&tx->t_reg_area);
 	m0_sm_fini(&tx->t_sm);
@@ -259,6 +252,24 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 	M0_LEAVE();
 }
 
+M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx)
+{
+	M0_ENTRY();
+	M0_PRE(be_tx_is_locked(tx));
+
+	M0_CNT_INC(tx->t_ref);
+}
+
+M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx)
+{
+	M0_ENTRY();
+	M0_PRE(be_tx_is_locked(tx));
+
+	M0_CNT_DEC(tx->t_ref);
+	if (tx->t_ref == 0)
+		m0_be_tx__state_post(tx, M0_BTS_DONE);
+}
+
 M0_INTERNAL int
 m0_be_tx_timedwait(struct m0_be_tx *tx, int states, m0_time_t timeout)
 {
@@ -315,12 +326,14 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 		M0_LOG(M0_ERROR, "transaction failure: err=%d", rc);
 
 	m0_sm_move(&tx->t_sm, rc, state);
+
+	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
+		tx->t_discarded(tx);
+
 	m0_be_engine__tx_state_set(tx->t_engine, tx, state);
 
 	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
 		tx->t_persistent(tx);
-	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
-		tx->t_discarded(tx);
 
 	M0_POST(m0_be_tx__invariant(tx));
 	M0_LEAVE();
@@ -350,8 +363,8 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 	 * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
 	 * implementation should post an AST to tx's sm_group.
 	 */
-	M0_PRE(M0_IN(state, (M0_BTS_ACTIVE, M0_BTS_FAILED,
-			     M0_BTS_GROUPED, M0_BTS_LOGGED, M0_BTS_PLACED)));
+	M0_PRE(M0_IN(state, (M0_BTS_ACTIVE, M0_BTS_FAILED, M0_BTS_GROUPED,
+			     M0_BTS_LOGGED, M0_BTS_PLACED, M0_BTS_DONE)));
 	M0_LOG(M0_DEBUG, "tx = %p, state = %s",
 	       tx, m0_be_tx_state_name(tx, state));
 
@@ -359,7 +372,8 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 	      state == M0_BTS_FAILED  ? &tx->t_ast_active :
 	      state == M0_BTS_GROUPED ? &tx->t_ast_grouped :
 	      state == M0_BTS_LOGGED  ? &tx->t_ast_logged :
-	      state == M0_BTS_PLACED  ? &tx->t_ast_placed : NULL;
+	      state == M0_BTS_PLACED  ? &tx->t_ast_placed :
+	      state == M0_BTS_DONE  ? &tx->t_ast_done : NULL;
 
 	ast->sa_datum = (void *) state;
 	m0_sm_ast_post(tx->t_sm.sm_grp, ast);
@@ -390,12 +404,12 @@ static bool be_tx_is_locked(const struct m0_be_tx *tx)
 	return m0_mutex_is_locked(&tx->t_sm.sm_grp->s_lock);
 }
 
+#if 0
 static struct m0_be_tx *sm_to_tx(struct m0_sm *mach)
 {
 	return container_of(mach, struct m0_be_tx, t_sm); /* XXX bob_of() */
 }
 
-#if 0
 static int placed_st_in(struct m0_sm *mach)
 {
 	M0_ENTRY("t_glob_stable=%d", !!sm_to_tx(mach)->t_glob_stable);
@@ -404,7 +418,6 @@ static int placed_st_in(struct m0_sm *mach)
 	 * transitions. This makes code hard to read. (Reported by Nikita.) */
 	return sm_to_tx(mach)->t_glob_stable ? M0_BTS_DONE : -1;
 }
-#endif
 
 static int done_st_in(struct m0_sm *mach)
 {
@@ -416,6 +429,7 @@ static int done_st_in(struct m0_sm *mach)
 	M0_LEAVE();
 	return -1;
 }
+#endif
 
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx)
 {

@@ -204,6 +204,7 @@ static void be_ut_tx_test(size_t nr)
 
 	for (x = xs; x->size != 0; ++x) {
 		m0_be_ut_backend_tx_init(&ut_be, &x->tx);
+		m0_be_tx_get(&x->tx);
 		m0_be_tx_credit_init(&x->cred);
 		m0_be_tx_credit_add(&x->cred, &M0_BE_TX_CREDIT(1, x->size));
 	}
@@ -213,10 +214,10 @@ static void be_ut_tx_test(size_t nr)
 
 	/* Wait for transactions to become persistent. */
 	for (x = xs; x->size != 0; ++x) {
-		/* s/M0_BTS_DONE/M0_BTS_PLACED/ when ref counting implemented */
-		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_DONE),
+		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_PLACED),
 					    M0_TIME_NEVER);
 		M0_UT_ASSERT(rc == 0);
+		m0_be_tx_put(&x->tx);
 	}
 
 	/* Reload the segment. */
