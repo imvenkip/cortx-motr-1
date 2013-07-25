@@ -24,7 +24,7 @@
  * @{
  */
 #undef M0_TRACE_SUBSYSTEM
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BTREE
 #include "lib/trace.h"
 #include "lib/cdefs.h" /* M0_UNUSED */
 #include "lib/errno.h"
@@ -476,11 +476,12 @@ static void get_min_key_pos(struct m0_be_btree *btree,
  *	@param index of the child
  *	@param pos left or right
  */
-static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
-					  struct m0_be_tx    *tx,
-					  struct m0_be_bnode *parent,
-					  unsigned int	      index,
-					  enum position_t     pos)
+static struct m0_be_bnode *
+merge_siblings(struct m0_be_btree *btree,
+	       struct m0_be_tx    *tx,
+	       struct m0_be_bnode *parent,
+	       unsigned int        index,
+	       enum position_t     pos)
 {
 	unsigned int i;
 	unsigned int j;
@@ -555,97 +556,95 @@ static void move_key(struct m0_be_btree	  *btree,
 		     unsigned int	   index,
 		     enum position_t	   pos)
 {
-	struct m0_be_bnode *lchild;
-	struct m0_be_bnode *rchild;
+	struct m0_be_bnode *lch;
+	struct m0_be_bnode *rch;
 	unsigned int i;
+
+	M0_ENTRY("n=%p i=%d dir=%d", node, index, pos);
 
 	if (pos == P_RIGHT) {
 		index--;
 	}
-	lchild = node->b_children[index];
-	rchild = node->b_children[index + 1];
+	lch = node->b_children[index];
+	rch = node->b_children[index + 1];
 
 	/*  Move the key from the parent to the left child */
 	if (pos == P_LEFT) {
-		lchild->b_key_vals[lchild->b_nr_active] = node->b_key_vals[index];
-		lchild->b_children[lchild->b_nr_active + 1] = rchild->b_children[0];
-		rchild->b_children[0] = NULL;
-		lchild->b_nr_active++;
+		lch->b_key_vals[lch->b_nr_active] = node->b_key_vals[index];
+		lch->b_children[lch->b_nr_active + 1] = rch->b_children[0];
+		rch->b_children[0] = NULL;
+		lch->b_nr_active++;
 
-		node->b_key_vals[index] = rchild->b_key_vals[0];
-		rchild->b_key_vals[0] = NULL;
+		node->b_key_vals[index] = rch->b_key_vals[0];
+		rch->b_key_vals[0] = NULL;
 
-		for (i = 0; i < rchild->b_nr_active - 1; i++) {
-			rchild->b_key_vals[i] = rchild->b_key_vals[i + 1];
-			rchild->b_children[i] = rchild->b_children[i + 1];
+		for (i = 0; i < rch->b_nr_active - 1; i++) {
+			rch->b_key_vals[i] = rch->b_key_vals[i + 1];
+			rch->b_children[i] = rch->b_children[i + 1];
 		}
-		rchild->b_children[rchild->b_nr_active - 1] =
-		    rchild->b_children[rchild->b_nr_active];
-		rchild->b_nr_active--;
+		rch->b_children[rch->b_nr_active - 1] =
+		    rch->b_children[rch->b_nr_active];
+		rch->b_nr_active--;
 	} else {
 		/*  Move the key from the parent to the right child */
-		for (i = rchild->b_nr_active; i > 0; i--) {
-			rchild->b_key_vals[i] = rchild->b_key_vals[i - 1];
-			rchild->b_children[i + 1] = rchild->b_children[i];
+		for (i = rch->b_nr_active; i > 0; i--) {
+			rch->b_key_vals[i] = rch->b_key_vals[i - 1];
+			rch->b_children[i + 1] = rch->b_children[i];
 		}
-		rchild->b_children[1] = rchild->b_children[0];
-		rchild->b_children[0] = NULL;
+		rch->b_children[1] = rch->b_children[0];
+		rch->b_children[0] = NULL;
 
-		rchild->b_key_vals[0] = node->b_key_vals[index];
+		rch->b_key_vals[0] = node->b_key_vals[index];
 
-		rchild->b_children[0] = lchild->b_children[lchild->b_nr_active];
-		lchild->b_children[lchild->b_nr_active] = NULL;
+		rch->b_children[0] = lch->b_children[lch->b_nr_active];
+		lch->b_children[lch->b_nr_active] = NULL;
 
-		node->b_key_vals[index] = lchild->b_key_vals[lchild->b_nr_active - 1];
-		lchild->b_key_vals[lchild->b_nr_active - 1] = NULL;
+		node->b_key_vals[index] = lch->b_key_vals[lch->b_nr_active - 1];
+		lch->b_key_vals[lch->b_nr_active - 1] = NULL;
 
-		lchild->b_nr_active--;
-		rchild->b_nr_active++;
+		lch->b_nr_active--;
+		rch->b_nr_active++;
 	}
 
 	/* Update affected memory regions in tx: */
 	node_update(node, btree, tx);
-	node_update(lchild, btree, tx);
-	node_update(rchild, btree, tx);
+	node_update(lch, btree, tx);
+	node_update(rch, btree, tx);
+
+	M0_LEAVE();
 }
 
 /**
  * Merge nodes n1 and n2
  * @return combined node
  */
-static struct m0_be_bnode *merge_nodes(struct m0_be_btree *btree,
-				   struct m0_be_tx *tx,
-				   struct m0_be_bnode *n1,
-				   struct bt_key_val *kv,
-				   struct m0_be_bnode *n2)
+static struct m0_be_bnode *
+merge_nodes(struct m0_be_btree *btree,
+	    struct m0_be_tx *tx,
+	    struct m0_be_bnode *n1,
+	    struct bt_key_val *kv,
+	    struct m0_be_bnode *n2)
 {
-	struct m0_be_bnode *new_node;
 	unsigned int i;
 
-	new_node = allocate_btree_node(btree, tx);
-	new_node->b_leaf = true;
+	M0_ENTRY("n1=%p n2=%p", n1, n2);
 
-	for (i = 0; i < n1->b_nr_active; i++) {
-		new_node->b_key_vals[i] = n1->b_key_vals[i];
-		new_node->b_children[i] = n1->b_children[i];
-	}
-	new_node->b_children[n1->b_nr_active] = n1->b_children[n1->b_nr_active];
-	new_node->b_key_vals[n1->b_nr_active] = kv;
+	n1->b_key_vals[n1->b_nr_active++] = kv;
 
 	for (i = 0; i < n2->b_nr_active; i++) {
-		new_node->b_key_vals[i + n1->b_nr_active + 1] = n2->b_key_vals[i];
-		new_node->b_children[i + n1->b_nr_active + 1] = n2->b_children[i];
+		n1->b_key_vals[i + n1->b_nr_active] = n2->b_key_vals[i];
+		n1->b_children[i + n1->b_nr_active] = n2->b_children[i];
 	}
-	new_node->b_children[KV_NR] = n2->b_children[n2->b_nr_active];
+	n1->b_children[i + n1->b_nr_active] = n2->b_children[i];
 
-	new_node->b_nr_active = n1->b_nr_active + n2->b_nr_active + 1;
-	new_node->b_leaf = n1->b_leaf;
-	new_node->b_level = n1->b_level;
+	n1->b_nr_active += n2->b_nr_active;
 
-	free_btree_node(n1, btree, tx);
+	node_update(n1, btree, tx);
 	free_btree_node(n2, btree, tx);
 
-	return new_node;
+	M0_LEAVE();
+
+	return n1;
 }
 
 /**
@@ -687,44 +686,47 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
  */
 static int btree_delete_key(struct m0_be_btree   *btree,
 			    struct m0_be_tx      *tx,
-			    struct m0_be_bnode   *subtree,
+			    struct m0_be_bnode   *node,
 			    void                 *key)
 {
-	unsigned int i, index;
-	struct m0_be_bnode *node = NULL, *rsibling, *lsibling;
-	struct m0_be_bnode *comb_node, *parent;
-	struct node_pos child;
-	struct node_pos node_pos;
-	struct bt_key_val *key_val;
-	void *kv = key;
+	unsigned int		 i;
+	unsigned int		 index;
+	struct m0_be_bnode	*rsibling;
+	struct m0_be_bnode	*lsibling;
+	struct m0_be_bnode	*parent = NULL;
+	struct node_pos		 child;
+	struct node_pos		 node_pos;
+	struct bt_key_val	*key_val;
+	int			 rc = -1;
 
 	M0_PRE(btree_invariant(btree));
 
-	node = subtree;
-	parent = NULL;
+	M0_ENTRY("n=%p", node);
 
 del_loop:
 	for (i = 0;; i = 0) {
 
 		/* If there are no keys simply return */
 		if (!node->b_nr_active)
-			return -1;
+			goto out;
 
 		/*  Fix the index of the key greater than or equal */
 		/*  to the key that we would like to search */
 
 		while (i < node->b_nr_active &&
-		       key_gt(btree, kv, node->b_key_vals[i]->key)) {
+		       key_gt(btree, key, node->b_key_vals[i]->key)) {
 			i++;
 		}
 		index = i;
 
 		/*  If we find such key break */
-		if (i < node->b_nr_active && key_eq(btree, kv, node->b_key_vals[i]->key)) {
+		if (i < node->b_nr_active &&
+		    key_eq(btree, key, node->b_key_vals[i]->key)) {
 			break;
 		}
-		if (node->b_leaf)
-			return -1;
+
+		if (node->b_leaf) /* No more to find */
+			goto out;
 
 		/* Store the parent node */
 		parent = node;
@@ -734,7 +736,7 @@ del_loop:
 
 		/* If NULL not found */
 		if (node == NULL)
-			return -1;
+			goto out;
 
 		if (index == (parent->b_nr_active)) {
 			lsibling = parent->b_children[parent->b_nr_active - 1];
@@ -748,30 +750,27 @@ del_loop:
 		}
 
 		if (node->b_nr_active == BTREE_FAN_OUT - 1 && parent) {
-			/*  The current node has (t - 1) keys but the */
-			/*  right sibling has > (t - 1) keys */
-			if (rsibling
-			    && (rsibling->b_nr_active > BTREE_FAN_OUT - 1)) {
-				move_key(btree, tx, parent, i, P_LEFT);
-			} else
-			/*  The current node has (t - 1) keys but the */
-			/*  left sibling has > (t - 1) keys */
-			if (lsibling
-			    && (lsibling->b_nr_active > BTREE_FAN_OUT - 1)) {
-				move_key(btree, tx, parent, i, P_RIGHT);
-			} else
-			/*  Left sibling has (t - 1) keys */
-			if (lsibling  &&
-			    (lsibling->b_nr_active == BTREE_FAN_OUT - 1)) {
-				node = merge_siblings(btree, tx, parent, i, P_LEFT);
-			} else
-			/*  Right sibling has (t - 1) keys */
 			if (rsibling &&
-			    (rsibling->b_nr_active ==BTREE_FAN_OUT - 1)) {
-				node = merge_siblings(btree, tx, parent, i, P_RIGHT);
+			   (rsibling->b_nr_active > BTREE_FAN_OUT - 1)) {
+				move_key(btree, tx, parent, i, P_LEFT);
+			} else if (lsibling &&
+			   (lsibling->b_nr_active > BTREE_FAN_OUT - 1)) {
+				move_key(btree, tx, parent, i, P_RIGHT);
+			} else if (lsibling &&
+			   (lsibling->b_nr_active == BTREE_FAN_OUT - 1)) {
+				node = merge_siblings(btree, tx, parent, i,
+						      P_LEFT);
+			} else if (rsibling &&
+			   (rsibling->b_nr_active == BTREE_FAN_OUT - 1)) {
+				node = merge_siblings(btree, tx, parent, i,
+						      P_RIGHT);
 			}
 		}
 	}
+
+	M0_LOG(M0_DEBUG, "found node=%p lf=%d nr=%d idx=%d", node,
+			!!node->b_leaf, node->b_nr_active, index);
+	rc = 0;
 
 	/* Case 1:
 	 * The node containing the key is found and is the leaf node. */
@@ -781,18 +780,19 @@ del_loop:
 	/* Simply remove the key */
 	if (node->b_leaf && (node->b_nr_active > BTREE_FAN_OUT - 1 ||
 	                     node == btree->bb_root)) {
+		M0_LOG(M0_DEBUG, "case1");
 		node_pos.p_node = node;
 		node_pos.p_index = index;
 		delete_key_from_node(btree, tx, &node_pos);
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 		node_update(btree->bb_root, btree, tx);
-		M0_POST(btree_invariant(btree));
-		return 0;
+		goto out;
 	}
 
 	/* Case 2:
 	 * The node containing the key is found and is an internal node */
 	if (node->b_leaf == false) {
+		M0_LOG(M0_DEBUG, "case2");
 		if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
 			get_max_key_pos(btree, node->b_children[index], &child);
 			key_val = child.p_node->b_key_vals[child.p_index];
@@ -821,17 +821,14 @@ del_loop:
 			if (child.p_node->b_leaf == false) {
 				M0_LOG(M0_ERROR, "Not leaf");
 			}
-
-		} else if (node->b_children[index]->b_nr_active ==
+		} else if (node->b_children[index]->b_nr_active <=
 							BTREE_FAN_OUT - 1 &&
-			   node->b_children[index + 1]->b_nr_active ==
+			   node->b_children[index + 1]->b_nr_active <=
 							BTREE_FAN_OUT - 1) {
 
-			comb_node = merge_nodes(btree, tx,
-						node->b_children[index],
-						node->b_key_vals[index],
-						node->b_children[index + 1]);
-			node->b_children[index] = comb_node;
+			merge_nodes(btree, tx, node->b_children[index],
+					       node->b_key_vals[index],
+					       node->b_children[index + 1]);
 
 			for (i = index + 1; i < node->b_nr_active; i++) {
 				node->b_children[i] = node->b_children[i + 1];
@@ -840,13 +837,13 @@ del_loop:
 			node->b_nr_active--;
 			if (node->b_nr_active == 0 && btree->bb_root == node) {
 				free_btree_node(node, btree, tx);
-				btree->bb_root = comb_node;
+				btree->bb_root = node->b_children[index];
 			} else {
 				/* XXX: crazy looking update procedure... */
 				node_update(node, btree, tx);
 			}
 
-			node = comb_node;
+			node = node->b_children[index];
 			goto del_loop;
 		}
 	}
@@ -856,6 +853,7 @@ del_loop:
 	/*  we encounter on the way has at least 't' (order of the tree) */
 	/*  keys */
 	if (node->b_leaf && (node->b_nr_active > BTREE_FAN_OUT - 1)) {
+		M0_LOG(M0_DEBUG, "case3");
 		node_pos.p_node = node;
 		node_pos.p_index = index;
 		delete_key_from_node(btree, tx, &node_pos);
@@ -864,9 +862,11 @@ del_loop:
 	/* Update affected memory regions in tx: */
 	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 	node_update(btree->bb_root, btree, tx);
-
+	rc = 0;
+out:
 	M0_POST(btree_invariant(btree));
-	return 0;
+	M0_LEAVE("rc=%d", rc);
+	return rc;
 }
 
 static void node_push(struct m0_be_btree *tree, struct m0_be_bnode *node,

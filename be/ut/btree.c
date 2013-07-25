@@ -218,6 +218,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 							 M0_BOS_FAILURE)));
 		m0_be_op_fini(&op);
 	}
+	btree_dbg_print(tree);
 
 	/* delete */
 	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
@@ -225,6 +226,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 
 		m0_buf_init(&key, k, ARRAY_SIZE(k));
 		sprintf(key.b_addr, "%03d", i);
+		M0_LOG(M0_DEBUG, "delete key=%d", i);
 
 		m0_be_op_init(&op);
 		m0_be_btree_delete(tree, tx, &op, &key);
