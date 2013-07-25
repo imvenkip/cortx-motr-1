@@ -249,11 +249,11 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 		.but_dom_cfg = {
 			.bc_engine = {
 				.bec_group_nr = 1,
-				.bec_log_size = 1 << 24,
+				.bec_log_size = 1 << 27,
 				.bec_tx_size_max =
-					M0_BE_TX_CREDIT(131072, 1 << 24),
+					M0_BE_TX_CREDIT(1 << 20, 1 << 26),
 				.bec_group_size_max =
-					M0_BE_TX_CREDIT(200000, 1 << 25),
+					M0_BE_TX_CREDIT(1 << 21, 1 << 27),
 				.bec_group_tx_max = 20,
 				.bec_group_fom_reqh = NULL,
 			},

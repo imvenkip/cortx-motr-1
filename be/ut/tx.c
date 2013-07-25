@@ -98,7 +98,7 @@ void m0_be_ut_tx_usecase_failure(void)
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
-	m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1ULL << 20, 1ULL << 25));
+	m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1ULL << 21, 1ULL << 25));
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 

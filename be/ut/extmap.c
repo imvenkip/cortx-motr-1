@@ -32,7 +32,8 @@
 #include "be/ut/helper.h"
 #include "be/extmap.h"
 
-static struct m0_be_ut_h be_ut_emap_h;
+static struct m0_be_ut_backend be_ut_emap_backend;
+static struct m0_be_ut_seg     be_ut_emap_seg;
 
 static struct m0_be_tx          tx1;
 static struct m0_be_tx          tx2;
@@ -53,13 +54,13 @@ static void emap_alloc(struct m0_be_tx *tx)
 	m0_be_tx_credit_init(&cred);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *emap, 0, &cred);
 
-	m0_sm_group_lock(&ut__txs_sm_group);
-
-	m0_be_ut_h_tx_init(tx, &be_ut_emap_h);
+	m0_be_ut_backend_tx_init(&be_ut_emap_backend, tx);
 	m0_be_tx_prep(tx, &cred);
 	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	m0_be_op_init(&op);
 	emap = m0_be_alloc(a, tx, &op, sizeof *emap, 0);
@@ -70,10 +71,9 @@ static void emap_alloc(struct m0_be_tx *tx)
 	M0_UT_ASSERT(emap != NULL);
 
 	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-
-	m0_sm_group_unlock(&ut__txs_sm_group);
+	m0_be_tx_fini(tx);
 }
 
 static void emap_create(struct m0_be_tx *tx)
@@ -127,8 +127,10 @@ static void test_init(void)
 	M0_ENTRY();
 
 	/* Init BE */
-	m0_be_ut_h_init(&be_ut_emap_h);
-	be_seg = &be_ut_emap_h.buh_seg;
+	m0_be_ut_backend_init(&be_ut_emap_backend);
+	m0_be_ut_seg_init(&be_ut_emap_seg, 1ULL << 26);
+	m0_be_ut_seg_allocator_init(&be_ut_emap_seg);
+	be_seg = &be_ut_emap_seg.bus_seg;
 
 	emap_alloc(&tx1);
 	m0_be_emap_init(emap, be_seg);
@@ -141,13 +143,13 @@ static void test_init(void)
 	m0_be_emap_credit(emap, M0_BEO_SPLIT, 100 * 4, &cred);
 	m0_be_emap_credit(emap, M0_BEO_MERGE, 100, &cred);
 
-	m0_sm_group_lock(&ut__txs_sm_group);
-
-	m0_be_ut_h_tx_init(&tx2, &be_ut_emap_h);
+	m0_be_ut_backend_tx_init(&be_ut_emap_backend, &tx2);
 	m0_be_tx_prep(&tx2, &cred);
 	m0_be_tx_open(&tx2);
-	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx2) == M0_BTS_ACTIVE);
 
 	emap_create(&tx2);
 
@@ -165,12 +167,13 @@ static void test_fini(void)
 	emap_destroy(&tx2);
 
 	m0_be_tx_close(&tx2);
-	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_fini(&tx2);
 
-	m0_sm_group_unlock(&ut__txs_sm_group);
-
-	m0_be_ut_h_fini(&be_ut_emap_h);
+	m0_be_ut_seg_allocator_fini(&be_ut_emap_seg);
+	m0_be_ut_seg_fini(&be_ut_emap_seg);
+	m0_be_ut_backend_fini(&be_ut_emap_backend);
 }
 
 static int be_emap_lookup(struct m0_be_emap        *map,
