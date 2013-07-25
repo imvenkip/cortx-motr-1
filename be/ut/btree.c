@@ -392,6 +392,17 @@ static void cursor_test(struct m0_be_btree *tree)
 					 true);
 	M0_UT_ASSERT(rc == -ENOENT);
 
+	rc = m0_be_btree_cursor_last_sync(&cursor);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_btree_cursor_kv_get(&cursor, &key, NULL);
+	M0_UT_ASSERT(strcmp(key.b_addr, "099") == 0);
+
+	rc = m0_be_btree_cursor_first_sync(&cursor);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+	M0_UT_ASSERT(strcmp(key.b_addr, "000") == 0 &&
+		     strcmp(val.b_addr, key.b_addr) == 0);
+
 	m0_be_btree_cursor_fini(&cursor);
 }
 

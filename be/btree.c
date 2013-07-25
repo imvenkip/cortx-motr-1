@@ -1766,6 +1766,24 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
 	return rc;
 }
 
+static int btree_cursor_seek(struct m0_be_btree_cursor *cur, void *key)
+{
+	const struct m0_be_btree_kv_ops *ops = cur->bc_tree->bb_ops;
+	const struct m0_buf kbuf = M0_BUF_INIT(ops->ko_ksize(key), key);
+
+	return m0_be_btree_cursor_get_sync(cur, &kbuf, true);
+}
+
+M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *cur)
+{
+	return btree_cursor_seek(cur, btree_get_min_key(cur->bc_tree));
+}
+
+M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur)
+{
+	return btree_cursor_seek(cur, btree_get_max_key(cur->bc_tree));
+}
+
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 {
 	struct bt_key_val  *kv;
@@ -1874,9 +1892,12 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 {
 	struct m0_be_op *op = &cur->bc_op;
 	M0_PRE(m0_be_op_state(op) == M0_BOS_SUCCESS);
+	M0_PRE(key != NULL || val != NULL);
 
-	*val = op_tree(op)->t_out_val;
-	*key = op_tree(op)->t_out_key;
+	if (key != NULL)
+		*key = op_tree(op)->t_out_key;
+	if (val != NULL)
+		*val = op_tree(op)->t_out_val;
 }
 
 M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)

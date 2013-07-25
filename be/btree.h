@@ -421,7 +421,7 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
  * - m0_be_btree_cursor_fini();
  *
  * @param slant[in] if slant == true then cursor will return a minimum key not
- *  less than given, otherwize it'll be set on exact key if it's possible.
+ *  less than given, otherwise it'll be set on exact key if it's possible.
  */
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
 					const struct m0_buf *key, bool slant);
@@ -448,6 +448,20 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
 M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cursor);
 
 /**
+ * Moves cursor to the first key in the btree.
+ *
+ * @note The call is synchronous.
+ */
+M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *cur);
+
+/**
+ * Moves cursor to the last key in the btree.
+ *
+ * @note The call is synchronous.
+ */
+M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur);
+
+/**
  * Unpins pages associated with cursor, releases cursor values.
  *
  * Note: interface is synchronous.
@@ -458,11 +472,13 @@ M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
  * Sets key and value buffers to point on internal structures of cursor
  * representing current key and value, cursor is placed on.
  *
+ * Any of @key and @val pointers can be NULL, but not both.
+ *
  * Note: interface is synchronous.
  */
-M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cursor,
+M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 					   struct m0_buf *key,
-					   struct m0_buf *value);
+					   struct m0_buf *val);
 
 /** @} end of be group */
 #endif /* __MERO_BE_BTREE_H__ */
