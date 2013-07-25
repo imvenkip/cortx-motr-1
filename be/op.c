@@ -63,7 +63,7 @@ static struct m0_sm_state_descr op_states[M0_BOS_NR] = {
 		.sd_allowed = 0
 	},
 	[M0_BOS_FAILURE] = {
-		.sd_flags   = M0_SDF_FAILURE,
+		.sd_flags   = M0_SDF_FAILURE | M0_SDF_TERMINAL,
 		.sd_name    = "M0_BOS_FAILURE",
 		.sd_allowed = 0
 	}

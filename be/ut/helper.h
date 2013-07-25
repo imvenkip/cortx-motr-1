@@ -123,6 +123,28 @@ struct m0_be_ut_backend {
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
+void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
+			      struct m0_be_tx *tx);
+
+struct m0_be_ut_seg {
+	struct m0_stob_domain	*bus_dom;
+	struct m0_dtx            bus_dtx;
+	/**
+	 * Stob to test. It can point to m0_be_ut_seg.bus_stob_ if
+	 * there is new stob and to existing stob if it isn't new.
+	 */
+	struct m0_stob		*bus_stob;
+	/** Newly created stob. This field is unused if stob already exists */
+	struct m0_stob		 bus_stob_;
+	/** Segment to test */
+	struct m0_be_seg	 bus_seg;
+	/** Pointer to m0_be_ut_seg.bus_seg.bs_allocator */
+	struct m0_be_allocator	*bus_allocator;
+};
+
+void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg, m0_bcount_t size);
+void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

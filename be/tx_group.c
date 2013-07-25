@@ -140,14 +140,15 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
 {
 	M0_ENTRY();
-	m0_sm_ast_post(&gr->tg_fom.tgf_gen.fo_loc->fl_group,
-		       &gr->tg_fom.tgf_ast_stable);
+	m0_be_tx_group_fom_stable(&gr->tg_fom);
 	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
 {
-	/* XXX post fom */
+	M0_ENTRY();
+	m0_be_tx_group_fom_handle(&gr->tg_fom, gr);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
@@ -243,7 +244,7 @@ M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
 
 M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr)
 {
-	m0_be_log_discard(gr->tg_log, &gr->tg_reserved);
+	m0_be_log_discard(gr->tg_log, &gr->tg_log_reserved);
 }
 
 M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
@@ -254,11 +255,10 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op)
 {
-	size_t tx_nr;
 	int    rc;
 
 	/** XXX FIXME move somewhere else */
-	m0_be_group_ondisk_reserved(&gr->tg_od, gr, &gr->tg_reserved, &tx_nr);
+	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
 	/** XXX FIXME: write with single call to m0_be_log function */
 	m0_be_log_submit(gr->tg_log, op, gr);
 	rc = m0_be_op_wait(op);

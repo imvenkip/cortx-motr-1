@@ -67,7 +67,7 @@ struct m0_be_tx_group {
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit    tg_used;
 	struct m0_be_tx_credit    tg_size;
-	struct m0_be_tx_credit    tg_reserved;
+	struct m0_be_tx_credit    tg_log_reserved;
 	/** Maximum acceptable number of transactions in the group. */
 	size_t			  tg_tx_nr_max;
 	/**

@@ -219,7 +219,6 @@ void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h)
 	M0_ASSERT(rc == 0);
 }
 
-#if 0
 static void be_ut_h_persistent(const struct m0_be_tx *tx)
 {
 }
@@ -227,7 +226,6 @@ static void be_ut_h_persistent(const struct m0_be_tx *tx)
 static void be_ut_h_discarded(const struct m0_be_tx *tx)
 {
 }
-#endif
 
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 {
@@ -288,6 +286,82 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_rpc_server_stop(&ut_be->but_rpc_sctx);
 	m0_net_xprt_fini(ut_be->but_net_xprt);
+}
+
+void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
+			      struct m0_be_tx *tx)
+{
+	m0_be_tx_init(tx, 0, &ut_be->but_dom, &ut__txs_sm_group,
+		      be_ut_h_persistent, be_ut_h_discarded, true, NULL, NULL);
+}
+
+static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+			   bool stob_create,
+			   m0_bcount_t size)
+{
+	int rc;
+
+	rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
+	M0_ASSERT(rc == 0);
+	rc = mkdir(BE_UT_H_STORAGE_DIR, 0700);
+	M0_ASSERT(rc == 0);
+	rc = mkdir(BE_UT_H_STORAGE_DIR "/o", 0700);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &ut_seg->bus_dom);
+	M0_ASSERT(rc == 0);
+	m0_dtx_init(&ut_seg->bus_dtx);
+	if (!stob_create) {
+		m0_stob_init(&ut_seg->bus_stob_, &be_ut_h_stob_id,
+			     ut_seg->bus_dom);
+		ut_seg->bus_stob = &ut_seg->bus_stob_;
+	} else {
+		rc = m0_stob_create_helper(ut_seg->bus_dom, &ut_seg->bus_dtx,
+					   &be_ut_h_stob_id, &ut_seg->bus_stob);
+		M0_ASSERT(rc == 0);
+	}
+	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, /* XXX */ NULL);
+	rc = m0_be_seg_create(&ut_seg->bus_seg, size);
+	M0_ASSERT(rc == 0);
+	rc = m0_be_seg_open(&ut_seg->bus_seg);
+	M0_ASSERT(rc == 0);
+}
+
+static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
+{
+	int rc;
+
+	m0_be_seg_close(&ut_seg->bus_seg);
+	rc = m0_be_seg_destroy(&ut_seg->bus_seg);
+	M0_ASSERT(rc == 0);
+	m0_be_seg_fini(&ut_seg->bus_seg);
+	if (stob_destroy)
+		m0_stob_put(ut_seg->bus_stob);
+	m0_dtx_fini(&ut_seg->bus_dtx);
+	ut_seg->bus_dom->sd_ops->sdo_fini(ut_seg->bus_dom);
+	if (stob_destroy) {
+		rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
+		M0_ASSERT(rc == 0);
+	}
+}
+
+void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg, m0_bcount_t size)
+{
+	be_ut_seg_init(ut_seg, false, size);
+}
+
+void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
+{
+	be_ut_seg_fini(ut_seg, false);
+}
+
+void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
+{
+	int rc;
+
+	m0_be_seg_close(&ut_seg->bus_seg);
+	rc = m0_be_seg_open(&ut_seg->bus_seg);
+	M0_ASSERT(rc == 0);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -275,13 +275,18 @@ m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 			 &m0_be_txs_stype, &tx_group_fom_conf);
 	m0_semaphore_init(&m->tgf_started, 0);
 	m0_semaphore_init(&m->tgf_stopped, 0);
+	m0_be_op_init(&m->tgf_op);
+	/* XXX */
+	m0_be_op_state_set(&m->tgf_op, M0_BOS_ACTIVE);
+	m0_be_op_state_set(&m->tgf_op, M0_BOS_SUCCESS);
 }
 
-M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf)
+M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 {
-	m0_semaphore_fini(&gf->tgf_started);
-	m0_semaphore_fini(&gf->tgf_stopped);
-	/* XXX */
+	m0_be_op_fini(&m->tgf_op);
+	m0_semaphore_fini(&m->tgf_started);
+	m0_semaphore_fini(&m->tgf_stopped);
+	/* TODO */
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)

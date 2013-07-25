@@ -67,7 +67,7 @@ struct m0_be_tx_group_fom {
 /** @todo XXX TODO s/gf/m/ in function parameters */
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
 					 struct m0_reqh *reqh);
-M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *gf);
+M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m);
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m);
 
 M0_INTERNAL void m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf);

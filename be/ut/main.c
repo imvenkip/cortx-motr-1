@@ -37,6 +37,7 @@ extern void m0_be_ut_reg_area_simple(void);
 extern void m0_be_ut_reg_area_random(void);
 extern void m0_be_ut_reg_area_merge(void);
 
+extern void m0_be_ut_tx_usecase(void);
 extern void m0_be_ut_tx_single(void);
 extern void m0_be_ut_tx_several(void);
 
@@ -111,31 +112,14 @@ const struct m0_test_suite be_ut = {
 		{ "reg_area-simple",  m0_be_ut_reg_area_simple      },
 		{ "reg_area-random",  m0_be_ut_reg_area_random      },
 		{ "reg_area-merge",   m0_be_ut_reg_area_merge       },
-#if 0 /* XXX FIXME
-       * A test calling m0_be_ut_h_fini() may fail on
-       * m0_net__buf_invariant(). When it does, the stack trace is
-       *
-       *     nlx_tm_ev_worker
-       *      \_ nlx_xo_bev_deliver_all
-       *          \_ nlx_xo_core_bev_to_net_bev
-       *              \_ m0_net__buffer_invariant
-       *
-       * Immediate cause [net/lnet/lnet_tm.c:291]:
-       * lcbev->cbe_buffer_id is 0, hence nb == NULL,
-       * m0_net__buffer_invariant(nb) returns false, and M0_ASSERT() fails.
-       *
-       * The root cause remains unknown. I do not know why struct
-       * nlx_core_buffer_event, pointed to by `lcbev', is zeroed.
-       *
-       * I disable unit tests that call m0_be_ut_h_{init,fini}() in order
-       * to land BE without any harm to master branch.
-       *
-       *  --vvv
-       */
+#if 0
 		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
+#endif
+		{ "tx-usecase",	      m0_be_ut_tx_usecase	    },
+#if 0
 		{ "tx-single",        m0_be_ut_tx_single            },
 		{ "tx-several",       m0_be_ut_tx_several           },
 		{ "list",             m0_be_ut_list_api             },

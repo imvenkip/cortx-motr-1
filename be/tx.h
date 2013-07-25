@@ -377,6 +377,7 @@ struct m0_be_tx {
 	m0_bcount_t            t_payload_size;
 	struct m0_sm_ast       t_ast_active;
 	struct m0_sm_ast       t_ast_grouped;
+	struct m0_sm_ast       t_ast_logged;
 	struct m0_sm_ast       t_ast_placed;
 	struct m0_be_tx_group *t_group;
 };
@@ -399,7 +400,7 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
 			       const struct m0_be_tx_credit *credit);
 
-M0_INTERNAL int m0_be_tx_open(struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
 				  const struct m0_be_reg *reg);
@@ -414,13 +415,13 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx);
 /** Forces the transaction to storage. */
 M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
 
-M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int state,
+M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout);
 
 /** Notifies backend that the transaction is no longer needed for recovery. */
 M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
 
-M0_INTERNAL enum m0_be_tx_state m0_be_tx__state(const struct m0_be_tx *tx);
+M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
 /** XXX remove tx from parameters */
 M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
 					    enum m0_be_tx_state state);
@@ -430,11 +431,6 @@ M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
 /** Posts an AST that will move transaction's state machine to given state. */
 M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 				      enum m0_be_tx_state state);
-
-#if 0
-M0_TL_DESCR_DECLARE(eng, M0_EXTERN);
-M0_TL_DECLARE(eng, M0_INTERNAL, struct m0_be_tx);
-#endif
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

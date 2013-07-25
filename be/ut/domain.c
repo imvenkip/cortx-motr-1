@@ -26,21 +26,16 @@
 void m0_be_ut_domain(void)
 {
 	struct m0_be_ut_backend ut_be;
+#if 0
 	int			i;
 
 	for (i = 0; i < 10; ++i) {
 		m0_be_ut_backend_init(&ut_be);
 		m0_be_ut_backend_fini(&ut_be);
 	}
-	/*
-	struct m0_be_domain_cfg cfg;
-	struct m0_be_domain     dom;
-	int		     rc;
-
-	rc = m0_be_domain_init(&dom, &cfg);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_domain_fini(&dom);
-	*/
+#endif
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
 /*

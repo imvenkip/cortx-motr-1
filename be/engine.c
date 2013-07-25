@@ -159,6 +159,7 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 	M0_PRE(be_engine_is_locked(en));
 
 	/* XXX TODO make be_engine_tx_peek(state) */
+	/* XXX race condition here */
 	m0_tl_for(etx, &en->eng_txs[M0_BTS_OPENING], tx) {
 		rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared);
 		if (rc == 0)
@@ -194,8 +195,11 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 
 	while ((gr = be_engine_group_find(en)) != NULL) {
 		rc = m0_be_tx_group_tx_add(gr, tx);
-		if (rc == 0)
-			break;
+		if (rc == 0) {
+			tx->t_group = gr;
+			/* XXX enable it when timeouts implemented */
+			/* break; */
+		}
 		be_engine_group_close(en, gr);
 	}
 	return rc;
@@ -208,6 +212,7 @@ static void be_engine_got_tx_close(struct m0_be_engine *en)
 
 	M0_PRE(be_engine_is_locked(en));
 
+	/* XXX race condition here */
 	m0_tl_for(etx, &en->eng_txs[M0_BTS_CLOSED], tx) {
 		rc = be_engine_tx_trygroup(en, tx);
 		if (rc != 0)
@@ -251,21 +256,13 @@ M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 				       enum m0_be_tx_state state)
 {
 	etx_tlink_init(tx);
-
 	m0_be_engine__tx_state_set(en, tx, state);
 }
 
 M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
 				       struct m0_be_tx *tx)
 {
-	be_engine_lock(en);
-	M0_PRE(be_engine_invariant(en));
-
-	etx_tlist_del(tx);
 	etx_tlink_fini(tx);
-
-	M0_POST(be_engine_invariant(en));
-	be_engine_unlock(en);
 }
 
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
@@ -275,12 +272,15 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
-	M0_LOG(M0_DEBUG, "m0_be_tx %p: => %s",
+	M0_LOG(M0_DEBUG, "tx %p: => %s",
 	       tx, m0_be_tx_state_name(tx, state));
 
-	etx_tlist_del(tx);
-	etx_tlist_add_tail(&en->eng_txs[state], tx);
+	if (state != M0_BTS_PREPARE)
+		etx_tlist_del(tx);
+	if (!M0_IN(state, (M0_BTS_DONE, M0_BTS_FAILED)))
+		etx_tlist_add_tail(&en->eng_txs[state], tx);
 
+	M0_ASSERT(tx->t_sm.sm_rc == 0);
 	if (state == M0_BTS_OPENING) {
 		be_engine_got_tx_open(en);
 	} else if (state == M0_BTS_CLOSED) {
