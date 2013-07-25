@@ -258,6 +258,8 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 			.bc_engine = {
 				.bec_group_nr = 1,
 				.bec_log_size = 1 << 24,
+				.bec_tx_size_max =
+					M0_BE_TX_CREDIT(131072, 1 << 20),
 				.bec_group_size_max =
 					M0_BE_TX_CREDIT(200000, 1 << 22),
 				.bec_group_tx_max = 20,

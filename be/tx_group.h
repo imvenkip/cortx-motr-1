@@ -63,27 +63,28 @@ struct m0_be_tx;
  */
 struct m0_be_tx_group {
 	/** XXX lsn of transaction group header in the log. */
-	m0_bindex_t               tg_lsn;
+	m0_bindex_t		   tg_lsn;
 	/** Total size of all updates in all transactions in this group. */
-	struct m0_be_tx_credit    tg_used;
-	struct m0_be_tx_credit    tg_size;
-	struct m0_be_tx_credit    tg_log_reserved;
+	struct m0_be_tx_credit	   tg_used;
+	struct m0_be_tx_credit	   tg_size;
+	struct m0_be_tx_credit	   tg_log_reserved;
 	/** Maximum acceptable number of transactions in the group. */
-	size_t			  tg_tx_nr_max;
+	size_t			   tg_tx_nr_max;
 	/**
 	 * The number of transactions that have not reached M0_BTS_DONE state.
 	 */
-	uint32_t                  tg_nr_unstable;
+	uint32_t		   tg_nr_unstable;
 	/** List of transactions in the group. */
-	struct m0_tl              tg_txs;
+	struct m0_tl		   tg_txs;
 	/* XXX DOCUMENTME */
-	struct m0_tlink		  tg_engine_linkage;
+	struct m0_tlink		   tg_engine_linkage;
 	/* XXX DOCUMENTME */
-	uint64_t		  tg_magic;
+	uint64_t		   tg_magic;
 	/** XXX DOCUMENTME */
-	struct m0_be_group_ondisk tg_od;
-	struct m0_be_log         *tg_log;
-	struct m0_be_tx_group_fom tg_fom;
+	struct m0_be_group_ondisk  tg_od;
+	struct m0_be_log	  *tg_log;
+	struct m0_be_engine	  *tg_engine;
+	struct m0_be_tx_group_fom  tg_fom;
 };
 
 M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
@@ -103,6 +104,7 @@ M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				    struct m0_be_tx_credit *size_max,
 				    size_t tx_nr_max,
+				    struct m0_be_engine *en,
 				    struct m0_be_log *log,
 				    struct m0_reqh *reqh);
 
@@ -142,6 +144,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr);
 
 /**
  * Notifies the log that record of this group can be discarded.

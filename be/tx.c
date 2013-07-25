@@ -70,7 +70,8 @@ static void be_tx_ast_cb(struct m0_be_tx *tx, enum m0_be_tx_state state)
 	       tx, m0_be_tx_state_name(tx, state));
 
 	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
-		be_tx_state_move(tx, state, 0);
+		be_tx_state_move(tx, state,
+				 state == M0_BTS_FAILED ? -ENOMEM : 0);
 	} else {
 		while (tx_state < state)
 			be_tx_state_move(tx, ++tx_state, 0);

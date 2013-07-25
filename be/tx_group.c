@@ -27,6 +27,7 @@
 
 #include "be/tx.h"		/* m0_be_tx__reg_area */
 #include "be/log.h"		/* m0_be_log_stob */
+#include "be/engine.h"		/* m0_be_engine__tx_group_open */
 
 /**
  * @addtogroup be
@@ -164,6 +165,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				    struct m0_be_tx_credit *size_max,
 				    size_t tx_nr_max,
+				    struct m0_be_engine *en,
 				    struct m0_be_log *log,
 				    struct m0_reqh *reqh)
 {
@@ -172,7 +174,8 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 	*gr = (struct m0_be_tx_group) {
 		.tg_size      = *size_max,
 		.tg_tx_nr_max = tx_nr_max,
-		.tg_log       = log
+		.tg_log       = log,
+		.tg_engine    = en,
 	};
 	grp_tlist_init(&gr->tg_txs);
 	/* XXX make the same paremeters order for m0_be_tx_group_ondisk */
@@ -230,6 +233,11 @@ M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr)
 	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
 		m0_be_tx_group_tx_del(gr, tx);
 	} M0_BE_TX_GROUP_TX_ENDFOR;
+}
+
+M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr)
+{
+	m0_be_engine__tx_group_open(gr->tg_engine, gr);
 }
 
 M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)

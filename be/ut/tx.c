@@ -98,7 +98,7 @@ void m0_be_ut_tx_usecase_failure(void)
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
-	m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1ULL << 20, 1ULL << 40));
+	m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1ULL << 20, 1ULL << 25));
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
@@ -213,7 +213,8 @@ static void be_ut_tx_test(size_t nr)
 
 	/* Wait for transactions to become persistent. */
 	for (x = xs; x->size != 0; ++x) {
-		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_PLACED),
+		/* s/M0_BTS_DONE/M0_BTS_PLACED/ when ref counting implemented */
+		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_DONE),
 					    M0_TIME_NEVER);
 		M0_UT_ASSERT(rc == 0);
 	}
