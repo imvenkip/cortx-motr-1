@@ -172,8 +172,6 @@ static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
 				      struct m0_be_bnode *parent,
 				      unsigned int index, enum position_t pos);
 
-static void copy_key_val(struct bt_key_val *src, struct bt_key_val *dst);
-
 
 /* ------------------------------------------------------------------
  * Btree invariant implementation:
@@ -695,7 +693,7 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 	unsigned int i, index;
 	struct m0_be_bnode *node = NULL, *rsibling, *lsibling;
 	struct m0_be_bnode *comb_node, *parent;
-	struct node_pos sub_node_pos;
+	struct node_pos child;
 	struct node_pos node_pos;
 	struct bt_key_val *key_val;
 	void *kv = key;
@@ -796,42 +794,41 @@ del_loop:
 	 * The node containing the key is found and is an internal node */
 	if (node->b_leaf == false) {
 		if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
-			get_max_key_pos(btree, node->b_children[index],
-					&sub_node_pos);
-			key_val =
-			  sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
+			get_max_key_pos(btree, node->b_children[index], &child);
+			key_val = child.p_node->b_key_vals[child.p_index];
 
-			copy_key_val(key_val, node->b_key_vals[index]);
+			M0_SWAP(*key_val, *node->b_key_vals[index]);
 			mem_update(btree, tx, node->b_key_vals[index],
 						sizeof(struct bt_key_val));
 
 			btree_delete_key(btree, tx, node->b_children[index],
 					 key_val->key);
-			if (sub_node_pos.p_node->b_leaf == false) {
+			if (child.p_node->b_leaf == false) {
 				M0_LOG(M0_ERROR, "Not leaf");
 			}
 		} else if (node->b_children[index + 1]->b_nr_active >
 			   BTREE_FAN_OUT - 1) {
 			get_min_key_pos(btree, node->b_children[index + 1],
-					&sub_node_pos);
-			key_val =
-			  sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
+					&child);
+			key_val = child.p_node->b_key_vals[child.p_index];
 
-			copy_key_val(key_val, node->b_key_vals[index]);
+			M0_SWAP(*key_val, *node->b_key_vals[index]);
 			mem_update(btree, tx, node->b_key_vals[index],
 						sizeof(struct bt_key_val));
 
 			btree_delete_key(btree, tx, node->b_children[index + 1],
 					 key_val->key);
-			if (sub_node_pos.p_node->b_leaf == false) {
+			if (child.p_node->b_leaf == false) {
 				M0_LOG(M0_ERROR, "Not leaf");
 			}
 
-		} else if (node->b_children[index]->b_nr_active == BTREE_FAN_OUT - 1
-			   && node->b_children[index + 1]->b_nr_active ==
-			   BTREE_FAN_OUT - 1) {
+		} else if (node->b_children[index]->b_nr_active ==
+							BTREE_FAN_OUT - 1 &&
+			   node->b_children[index + 1]->b_nr_active ==
+							BTREE_FAN_OUT - 1) {
 
-			comb_node = merge_nodes(btree, tx, node->b_children[index],
+			comb_node = merge_nodes(btree, tx,
+						node->b_children[index],
 						node->b_key_vals[index],
 						node->b_children[index + 1]);
 			node->b_children[index] = comb_node;
@@ -987,21 +984,6 @@ static struct bt_key_val *btree_search(struct m0_be_btree *btree, void *key)
 		key_val = kp.p_node->b_key_vals[kp.p_index];
 	}
 	return key_val;
-}
-
-/**
- * Used to copy key value from source to destination
- * @param src The source key value
- * @param dst The dest key value
- */
-static void copy_key_val(struct bt_key_val  *src, struct bt_key_val  *dst)
-{
-	M0_ENTRY();
-
-	dst->key = src->key;
-	dst->val = src->val;
-
-	M0_LEAVE();
 }
 
 /**
