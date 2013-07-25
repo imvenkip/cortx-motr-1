@@ -280,7 +280,6 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	if (!M0_IN(state, (M0_BTS_DONE, M0_BTS_FAILED)))
 		etx_tlist_add_tail(&en->eng_txs[state], tx);
 
-	M0_ASSERT(tx->t_sm.sm_rc == 0);
 	if (state == M0_BTS_OPENING) {
 		be_engine_got_tx_open(en);
 	} else if (state == M0_BTS_CLOSED) {

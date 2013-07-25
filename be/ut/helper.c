@@ -203,8 +203,7 @@ void m0_be_ut_h_fini(struct m0_be_ut_h *h)
 	// m0_be_fini(&h->buh_be);
 #if 0 /* XXX FIXME: m0_be_allocator_{create,destroy}() need a transaction.
        * Max knows what to do about it. */
-	rc = m0_be_allocator_destroy(h->buh_allocator, NULL);
-	M0_ASSERT(rc == 0);
+	m0_be_allocator_destroy(h->buh_allocator, NULL);
 #endif
 	m0_be_allocator_fini(h->buh_allocator);
 	m0_be_ut_seg_close_destroy(h);
@@ -279,10 +278,13 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT(rc == 0);
+
+	m0_sm_group_lock(&ut__txs_sm_group); /* XXX fix it using fom-simple */
 }
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 {
+	m0_sm_group_unlock(&ut__txs_sm_group);	/* XXX FIXME */
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_rpc_server_stop(&ut_be->but_rpc_sctx);
 	m0_net_xprt_fini(ut_be->but_net_xprt);
@@ -362,6 +364,24 @@ void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
 	m0_be_seg_close(&ut_seg->bus_seg);
 	rc = m0_be_seg_open(&ut_seg->bus_seg);
 	M0_ASSERT(rc == 0);
+}
+
+void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg)
+{
+	int rc;
+
+	ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
+
+	rc = m0_be_allocator_init(ut_seg->bus_allocator, &ut_seg->bus_seg);
+	M0_ASSERT(rc == 0);
+	rc = m0_be_allocator_create(ut_seg->bus_allocator, /* XXX */ NULL);
+	M0_ASSERT(rc == 0);
+}
+
+void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg)
+{
+	m0_be_allocator_destroy(ut_seg->bus_allocator, /* XXX */ NULL);
+	m0_be_allocator_fini(ut_seg->bus_allocator);
 }
 
 #undef M0_TRACE_SUBSYSTEM
