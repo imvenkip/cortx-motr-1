@@ -448,27 +448,27 @@ static void revoke_fop_validate(struct m0_rm_fop_revoke *rfop)
 	struct m0_rm_loan  *loan;
 	int		    rc;
 
-	owner = m0_cookie_of(&rfop->rr_base.rrq_owner.ow_cookie,
+	owner = m0_cookie_of(&rfop->fr_base.rrq_owner.ow_cookie,
 			     struct m0_rm_owner, ro_id);
 
 	M0_UT_ASSERT(owner != NULL);
 	M0_UT_ASSERT(owner == rm_test_data.rd_owner);
 
-	loan = m0_cookie_of(&rfop->rr_loan.lo_cookie, struct m0_rm_loan, rl_id);
+	loan = m0_cookie_of(&rfop->fr_loan.lo_cookie, struct m0_rm_loan, rl_id);
 	M0_UT_ASSERT(loan != NULL);
 	M0_UT_ASSERT(loan == test_loan);
 
 	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
 	credit.cr_ops = &rings_credit_ops;
-	rc = m0_rm_credit_decode(&credit, &rfop->rr_base.rrq_credit.cr_opaque);
+	rc = m0_rm_credit_decode(&credit, &rfop->fr_base.rrq_credit.cr_opaque);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(credit.cr_datum == rm_test_data.rd_credit.cr_datum);
 	m0_rm_credit_fini(&credit);
 
-	M0_UT_ASSERT(rfop->rr_base.rrq_policy == RIP_NONE);
-	M0_UT_ASSERT(rfop->rr_base.rrq_flags &
+	M0_UT_ASSERT(rfop->fr_base.rrq_policy == RIP_NONE);
+	M0_UT_ASSERT(rfop->fr_base.rrq_flags &
 		     (RIF_LOCAL_WAIT | RIF_MAY_REVOKE));
-	m0_buf_free(&rfop->rr_base.rrq_credit.cr_opaque);
+	m0_buf_free(&rfop->fr_base.rrq_credit.cr_opaque);
 }
 
 static void post_revoke_cleanup(struct m0_rpc_item *item, int err)

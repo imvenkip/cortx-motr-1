@@ -114,7 +114,6 @@ M0_INTERNAL int m0_rm_borrow_done(struct m0_rm_outgoing *out,
  */
 int m0_rm_revoke_done(struct m0_rm_outgoing *out);
 
-
 /**
  * Returns the owner locally managing the credits for a given resource.
  *
@@ -190,8 +189,16 @@ M0_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
  * Removes partial or full sublet matching the credit from the owner's sublet
  * list.
  */
-M0_INTERNAL int m0_rm_sublet_remove(struct m0_rm_credit *credit);
+int _sublet_remove(struct m0_rm_credit *credit);
 
+/**
+ * Removes partial or full credit from owners borrowed list
+ */
+int _borrowed_remove(struct m0_rm_credit *credit);
+
+/**
+ * Establish a reverse session to facilitate sending revoke requests
+ */
 M0_INTERNAL int
 m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			  struct m0_rm_remote          *remote);

@@ -206,7 +206,7 @@ static int session_establish(struct m0_fom *fom)
 
 static int session_wait(struct m0_fom *fom)
 {
-	m0_chan_signal_lock(&fom->fo_service->rs_rev_conn_wait);
+	m0_chan_broadcast_lock(&fom->fo_service->rs_rev_conn_wait);
 	return M0_FSO_WAIT;
 }
 

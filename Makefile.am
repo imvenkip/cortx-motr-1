@@ -1040,6 +1040,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               fid/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \
+              fop/ut/Kbuild.sub \
               ha/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
@@ -1064,6 +1065,8 @@ EXTRA_DIST += addb/Kbuild.sub \
               pool/Kbuild.sub \
               reqh/Kbuild.sub \
               reqh/ut/Kbuild.sub \
+              rm/Kbuild.sub \
+              rm/ut/Kbuild.sub \
               rpc/Kbuild.sub \
               rpc/it/Kbuild.sub \
               rpc/ut/Kbuild.sub \

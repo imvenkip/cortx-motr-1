@@ -82,7 +82,6 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 			rm_utdata_init(data, OBJ_RES);
 			data->rd_ops->owner_set(data);
 			break;
-
 		default:
 			M0_IMPOSSIBLE("Invalid value of obj_type");
 	}
@@ -135,6 +134,8 @@ void rm_ctx_config(enum rm_server id)
 	rm_ctx_init(&rm_ctx[id]);
 }
 
+struct m0_reqh_service *rsvc;
+
 void rm_ctx_init(struct rm_context *rmctx)
 {
 	int                                 rc;
@@ -144,17 +145,23 @@ void rm_ctx_init(struct rm_context *rmctx)
 
 	m0_mutex_init(&rmctx->rc_mutex);
 
-	if (stype == NULL) {
-		stype = m0_reqh_service_type_find("rmservice");
-		M0_UT_ASSERT(stype != NULL);
+	if (rmctx->rc_id == 0) {
+		if (stype == NULL) {
+			stype = m0_reqh_service_type_find("rmservice");
+			M0_UT_ASSERT(stype != NULL);
+		}
+
+		rc = m0_reqh_service_allocate(&rsvc, stype, NULL);
+		M0_UT_ASSERT(rc == 0);
+		m0_reqh_service_init(rsvc,
+				     &rmctx->rc_rmach_ctx.rmc_reqh, NULL);
+		rc = m0_reqh_service_start(rsvc);
+		M0_UT_ASSERT(rc == 0);
+	} else {
+		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
+				    stype->rst_key, rsvc);
 	}
 
-	rc = m0_reqh_service_allocate(&rmctx->rc_reqh_svc, stype, NULL);
-	M0_UT_ASSERT(rc == 0);
-	m0_reqh_service_init(rmctx->rc_reqh_svc,
-			     &rmctx->rc_rmach_ctx.rmc_reqh, NULL);
-	rc = m0_reqh_service_start(rmctx->rc_reqh_svc);
-	M0_UT_ASSERT(rc == 0);
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
 	m0_clink_init(&rmctx->rc_clink, NULL);
 }
@@ -164,8 +171,10 @@ void rm_ctx_fini(struct rm_context *rmctx)
 	m0_clink_fini(&rmctx->rc_clink);
 	m0_chan_fini_lock(&rmctx->rc_chan);
 	m0_mutex_fini(&rmctx->rc_mutex);
-	m0_reqh_service_stop(rmctx->rc_reqh_svc);
-	m0_reqh_service_fini(rmctx->rc_reqh_svc);
+	if (rmctx->rc_id == 0) {
+		m0_reqh_service_stop(rsvc);
+		m0_reqh_service_fini(rsvc);
+	}
 	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
 }
 
@@ -296,11 +305,13 @@ const struct m0_test_suite rm_ut = {
 	.ts_tests = {
 		{ "api", rm_api_test },
 		{ "lcredits", local_credits_test },
-		{ "fom-funcs", rm_fom_funcs_test },
 		{ "fop-funcs", rm_fop_funcs_test },
+#ifndef __KERNEL__
+		{ "fom-funcs", rm_fom_funcs_test },
 		{ "rcredits", remote_credits_test },
-		{ "flock", flock_test },
 		{ "rmsvc", rmsvc },
+		{ "flock", flock_test },
+#endif
 		{ NULL, NULL }
 	}
 };

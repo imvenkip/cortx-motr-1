@@ -84,6 +84,8 @@ static struct m0_layout_linear_attr  llattr;
 static struct file                   lfile;
 static struct m0t1fs_service_context ctx;
 static struct m0_poolmach            poolmach;
+static struct m0_rm_remote           creditor;
+static struct m0t1fs_service_context msc;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
@@ -96,11 +98,12 @@ static int file_io_ut_init(void)
 
         M0_SET0(&sb);
         M0_SET0(&csb);
-	sb.s_fs_info = &csb;
+	M0_SET0(&creditor);
         m0_sm_group_init(&csb.csb_iogroup);
-        csb.csb_active = true;
+	sb.s_fs_info          = &csb;
+        csb.csb_active        = true;
 	csb.csb_nr_containers = LAY_P + 1;
-	csb.csb_pool_width = LAY_P;
+	csb.csb_pool_width    = LAY_P;
         m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
         io_bob_tlists_init();
@@ -138,6 +141,9 @@ static int file_io_ut_init(void)
                 .f_key       = FID_KEY,
         };
         ci.ci_layout_id = csb.csb_layout_id;
+	csb.csb_cl_map.clm_map[0] = &msc;
+	m0t1fs_file_lock_init(&ci, &csb);
+
 	lay = m0_pdl_to_layout(pdlay);
 	M0_ASSERT(lay != NULL);
 
@@ -178,7 +184,8 @@ static void ds_test(void)
 	struct m0_rpc_session session;
 
 	M0_SET0(&req);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
+			       &m0t1fs_addb_ctx, 0);
         M0_UT_ASSERT(rc == 0);
 
         for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
@@ -280,6 +287,7 @@ static void ds_test(void)
 	/* io_req_fop attributes test. */
 	M0_ALLOC_PTR(irfop);
 	M0_UT_ASSERT(irfop != NULL);
+	ioreq_sm_state_set(&req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(&req, IRS_READING);
 	rc = io_req_fop_init(irfop, &ti, PA_DATA);
 	M0_UT_ASSERT(rc == 0);
@@ -374,7 +382,8 @@ static void pargrp_iomap_test(void)
 	struct pargrp_iomap     map;
 	struct pargrp_iomap_ops piops;
 
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
+			       &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
@@ -535,6 +544,11 @@ static void pargrp_iomap_test(void)
 	M0_UT_ASSERT(map.pi_databufs[1][2]->db_flags & PA_READ);
 	M0_UT_ASSERT(map.pi_databufs[2][2] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[2][2]->db_flags & PA_READ);
+
+	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	req.ir_nwxfer.nxr_bytes = 1;
+	io_request_fini(&req);
 }
 
 static void helpers_test(void)
@@ -593,7 +607,8 @@ static void nw_xfer_ops_test(void)
 	M0_SET0(&req);
 	M0_SET0(&src);
 	M0_SET0(&tgt);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
+			       &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	index = 0;
@@ -659,6 +674,7 @@ static void nw_xfer_ops_test(void)
 
 static int file_io_ut_fini(void)
 {
+	m0t1fs_file_lock_fini(&ci);
 	m0_free(lfile.f_dentry);
 	m0_layout_instance_fini(ci.ci_layout_instance);
 
@@ -880,6 +896,7 @@ static void dgmode_readio_test(void)
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
 
+	ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(req, IRS_READING);
 	ti = tioreqs_tlist_head(&req->ir_nwxfer.nxr_tioreqs);
 

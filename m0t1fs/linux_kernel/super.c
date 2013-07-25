@@ -488,7 +488,7 @@ end:
 
 static void m0t1fs_service_context_init(struct m0t1fs_service_context *ctx,
 					struct m0t1fs_sb              *csb,
-					enum m0_conf_service_type     type)
+					enum m0_conf_service_type      type)
 {
 	M0_ENTRY();
 
@@ -585,6 +585,9 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 		M0_RETURN(rc);
 
 	*nr_ios = 0;
+	/**
+	 * @todo Check for M0_CST_DLM
+	 */
 	for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
 		const struct m0_conf_service *svc =
 			M0_CONF_CAST(entry, m0_conf_service);
@@ -595,7 +598,8 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 			++*nr_ios;
 
 		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
-			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s", svc->cs_type, *pstr);
+			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s",
+			       svc->cs_type, *pstr);
 			rc = connect_to_service(*pstr, svc->cs_type, csb);
 			if (rc != 0)
 				goto out;
@@ -758,7 +762,7 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 
 	/* See "Containers and component objects" section in m0t1fs.h
 	 * for more information on following line */
-	csb->csb_nr_containers = fs_params->fs_pool_width + 1;
+	csb->csb_nr_containers = fs_params->fs_pool_width + 2;
 	csb->csb_pool_width    = fs_params->fs_pool_width;
 
 	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
@@ -766,8 +770,8 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
 		M0_RETURN(-EINVAL);
 
-	/* One of containers is for MD, the rest are data containers. */
-	nr_data_containers = csb->csb_nr_containers - 1;
+	/* 1 for MD, 1 for RM, the rest are data containers. */
+	nr_data_containers = csb->csb_nr_containers - 2;
 
 	nr_cont_per_svc = nr_data_containers / nr_ios;
 	if (nr_data_containers % nr_ios != 0)
@@ -793,6 +797,10 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 			break;
 
 		case M0_CST_MGS:
+			break;
+
+		case M0_CST_DLM:
+			map->clm_map[csb->csb_nr_containers] = ctx;
 			break;
 
 		default:
@@ -1144,6 +1152,9 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	struct m0t1fs_sb *csb = M0T1FS_SB(sb);
 
 	M0_ENTRY("csb = %p", csb);
+
+	kill_anon_super(sb);
+
 	/*
 	 * If m0t1fs_fill_super() fails then deactivate_locked_super() calls
 	 * m0t1fs_fs_type->kill_sb(). In that case, csb == NULL.
@@ -1155,7 +1166,6 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 		m0t1fs_sb_fini(csb);
 		m0_free(csb);
 	}
-	kill_anon_super(sb);
 
 	M0_LOG(M0_INFO, "mem stats :\n a_ioreq_nr = %llu, d_ioreq_nr = %llu\n"
 			"a_pargrp_iomap_nr = %llu, d_pargrp_iomap_nr = %llu\n"

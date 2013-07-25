@@ -23,6 +23,8 @@
 #include <linux/fs.h>       /* struct file_operations */
 #include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
+#include "lib/trace.h"      /* M0_LOG, M0_ENTRY */
 #include "fop/fom_generic.h"/* m0_rpc_item_is_generic_reply_fop */
 #include "lib/memory.h"     /* m0_alloc(), m0_free() */
 #include "lib/misc.h"       /* m0_round_{up/down} */
@@ -37,11 +39,8 @@
 #include "ioservice/io_device.h"
 #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
-
+#include "rm/file.h"
 #include "m0t1fs/linux_kernel/file_internal.h"
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
-#include "lib/trace.h"      /* M0_LOG, M0_ENTRY */
 
 /**
    @page iosnsrepair I/O with SNS and SNS repair.
@@ -777,7 +776,7 @@ static int ioreq_parity_recalc	(struct io_request *req);
 
 static int ioreq_iosm_handle	(struct io_request *req);
 
-static void ioreq_file_lock     (struct io_request *req);
+static int  ioreq_file_lock     (struct io_request *req);
 static void ioreq_file_unlock   (struct io_request *req);
 
 static int ioreq_dgmode_read    (struct io_request *req, bool rmw);
@@ -815,8 +814,8 @@ static struct m0_sm_state_descr io_states[] = {
 	[IRS_INITIALIZED]       = {
 		.sd_flags       = M0_SDF_INITIAL,
 		.sd_name        = "IO_initial",
-		.sd_allowed     = M0_BITS(IRS_READING, IRS_WRITING,
-				          IRS_FAILED,  IRS_REQ_COMPLETE)
+		.sd_allowed     = M0_BITS(IRS_LOCK_ACQUIRED,
+					  IRS_FAILED,  IRS_REQ_COMPLETE)
 	},
 	[IRS_LOCK_ACQUIRED]     = {
 		.sd_name        = "IO_dist_lock_acquired",
@@ -830,7 +829,7 @@ static struct m0_sm_state_descr io_states[] = {
 		.sd_name        = "IO_read_complete",
 		.sd_allowed     = M0_BITS(IRS_WRITING, IRS_REQ_COMPLETE,
 			                  IRS_DEGRADED_READING, IRS_FAILED,
-					  IRS_READING)
+					  IRS_READING, IRS_LOCK_RELINQUISHED)
 	},
 	[IRS_DEGRADED_READING]  = {
 		.sd_name        = "IO_degraded_read",
@@ -847,7 +846,8 @@ static struct m0_sm_state_descr io_states[] = {
 	[IRS_WRITE_COMPLETE]    = {
 		.sd_name        = "IO_write_complete",
 		.sd_allowed     = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED,
-				          IRS_DEGRADED_WRITING)
+				          IRS_DEGRADED_WRITING,
+					  IRS_LOCK_RELINQUISHED)
 	},
 	[IRS_LOCK_RELINQUISHED] = {
 		.sd_name        = "IO_dist_lock_relinquished",
@@ -3173,15 +3173,31 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	M0_RETURN(rc);
 }
 
-/** @todo Use actual rm lock interfaces as and when they are available. */
-static void ioreq_file_lock(struct io_request *req)
+static int ioreq_file_lock(struct io_request *req)
 {
+	int                  rc;
+	struct m0t1fs_inode *mi;
+
 	M0_PRE(req != NULL);
+
+	M0_ENTRY();
+	mi = file_to_m0inode(req->ir_file);
+	m0_file_lock(&mi->ci_fowner, &req->ir_in);
+	rc = m0_sm_timedwait(&req->ir_in.rin_sm,
+			     M0_BITS(RI_SUCCESS, RI_FAILURE),
+			     M0_TIME_NEVER);
+	rc = rc ?: req->ir_in.rin_rc;
+	if (rc == 0)
+		ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
+
+	M0_RETURN(rc);
 }
 
 static void ioreq_file_unlock(struct io_request *req)
 {
 	M0_PRE(req != NULL);
+	m0_file_unlock(&req->ir_in);
+	ioreq_sm_state_set(req, IRS_LOCK_RELINQUISHED);
 }
 
 static int ioreq_iosm_handle(struct io_request *req)
@@ -3204,16 +3220,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 	/*
 	 * Acquires lock before proceeding to do actual IO.
-	 * @todo This code is just a placeholder since rm locks code is
-	 * not available yet. Will be replaced by actual rm interfaces
-	 * as and when they are available.
 	 */
-	req->ir_ops->iro_file_lock(req);
-	/*
-	rc = ioreq_sm_timedwait(req, IRS_LOCK_ACQUIRED);
+	rc = req->ir_ops->iro_file_lock(req);
 	if (rc != 0)
 		goto fail;
-	*/
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
 	/*
@@ -3382,12 +3392,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 	}
 
 	req->ir_ops->iro_file_unlock(req);
-	/*
-	 * Will be uncommented as and when RM locks code is available.
-	rc = ioreq_sm_timedwait(req, IRS_LOCK_RELINQUISHED);
-	if (rc != 0)
-		goto fail;
-	*/
 
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
 
@@ -3408,8 +3412,8 @@ static int io_request_init(struct io_request  *req,
 			   struct m0_indexvec *ivec,
 			   enum io_req_type    rw)
 {
-	int	 rc;
-	uint32_t seg;
+	int                  rc;
+	uint32_t             seg;
 
 	M0_ENTRY("io_request %p, rw %d", req, rw);
 	M0_PRE(req  != NULL);
@@ -4097,8 +4101,10 @@ static void m0t1fs_addb_stat_post_counters(struct m0t1fs_sb *csb)
  * aligned with user buffers in struct iovec array.
  * This function is also used by file->f_op->aio_{read/write} path.
  */
-M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb       *kcb, const struct iovec *iov,
-			       struct m0_indexvec *ivec, enum io_req_type   rw)
+M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb       *kcb,
+			       const struct iovec *iov,
+			       struct m0_indexvec *ivec,
+			       enum io_req_type    rw)
 {
 	int                      rc;
 	ssize_t                  count;
@@ -4705,7 +4711,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	 * meaning for states IRS_READ_COMPLETE and IRS_WRITE_COMPLETE.
 	 */
 	if (M0_IN(ioreq_sm_state(req),
-		  (IRS_READ_COMPLETE, IRS_WRITE_COMPLETE))) {
+		  (IRS_READ_COMPLETE, IRS_WRITE_COMPLETE,
+		   IRS_LOCK_RELINQUISHED))) {
 		if (!rmw)
 			ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 		else if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
