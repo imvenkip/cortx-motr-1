@@ -650,6 +650,7 @@ m0_fol_rec_lookup(struct m0_fol *fol, m0_lsn_t lsn, struct m0_fol_rec *out)
 }
 #endif
 
+#if XXX_USE_DB5
 static int fol_record_decode(struct m0_fol_rec *rec)
 {
 	struct m0_buf	       *rec_buf = &rec->fr_pair.dp_rec.db_buf;
@@ -700,6 +701,56 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	}
 	return rc;
 }
+#else
+static int fol_record_decode(struct m0_fol_rec *rec)
+{
+	struct m0_fol_rec_desc *desc = &rec->fr_desc;
+	struct m0_bufvec        bvec = M0_BUFVEC_INIT_BUF(&rec->fr_val.b_addr,
+							  &rec->fr_val.b_nob);
+	struct m0_bufvec_cursor cur;
+	uint32_t                i;
+	int                     rc;
+
+	m0_bufvec_cursor_init(&cur, &bvec);
+
+	rc = fol_rec_desc_encdec(desc, &cur, M0_XCODE_DECODE);
+	if (rc != 0)
+		return rc;
+
+	for (i = 0; rc == 0 && i < desc->rd_header.rh_parts_nr; ++i) {
+		struct m0_fol_rec_part            *part;
+		const struct m0_fol_rec_part_type *part_type;
+		struct m0_fol_rec_part_header      ph;
+
+		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&ph),
+				     &cur, M0_XCODE_DECODE);
+		if (rc == 0) {
+			void *rp_data;
+
+			part_type = fol_rec_part_type_lookup(ph.rph_index);
+
+			M0_ALLOC_PTR(part);
+			if (part == NULL)
+				return -ENOMEM;
+
+			rp_data = m0_alloc(part_type->rpt_xt->xct_sizeof);
+			if (rp_data == NULL) {
+				m0_free(part);
+				return -ENOMEM;
+			}
+
+			part->rp_flag = M0_XCODE_DECODE;
+
+			m0_fol_rec_part_init(part, rp_data, part_type);
+			rc = m0_xcode_encdec(&REC_PART_XCODE_OBJ(part), &cur,
+					     M0_XCODE_DECODE);
+			if (rc == 0)
+				m0_fol_rec_part_add(rec, part);
+		}
+	}
+	return rc;
+}
+#endif
 
 /** @} end of fol group */
 
