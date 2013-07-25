@@ -48,7 +48,7 @@ M0_TL_DEFINE(test, M0_INTERNAL, struct test);
  * List construction test
  * ------------------------------------------------------------------------- */
 
-static void check(struct m0_be_list *list, struct m0_be_ut_h *h);
+static void check(struct m0_be_list *list, struct m0_be_seg *seg);
 M0_UNUSED static void print(struct m0_be_list *list);
 
 M0_INTERNAL void m0_be_ut_list_api(void)
@@ -62,7 +62,9 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	struct m0_be_tx_credit  cred;  /* total credits */
 
 	struct m0_be_list      *list;
-	struct m0_be_ut_h       h;
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_ut_seg	ut_seg;
+	struct m0_be_seg       *seg;
 	struct m0_be_op         op;
 	struct m0_be_tx         tx = {};
 	struct test            *elem[10];
@@ -74,10 +76,12 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	/*
 	 * Init BE.
 	 */
-	m0_be_ut_h_init(&h);
-	m0_be_ut_h_tx_init(&tx, &h);
-	m0_sm_group_lock(&ut__txs_sm_group);
-	a = h.buh_allocator;
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_tx_init(&ut_be, &tx);
+	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&ut_seg);
+	a = ut_seg.bus_allocator;
+	seg = &ut_seg.bus_seg;
 
 	/*
 	 * Prepare some credits.
@@ -90,7 +94,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 	{ /* XXX: calculate credits properly */
 	struct m0_be_list l;
-	m0_be_list_init(&l, &test_tl, &h.buh_seg);
+	m0_be_list_init(&l, &test_tl, seg);
 
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(elem[0]), 0, &tcred);
 	m0_be_allocator_credit(a, M0_BAO_FREE,  sizeof(elem[0]), 0, &tcred);
@@ -110,14 +114,16 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	 */
 	m0_be_tx_prep(&tx, &cred);
 	m0_be_tx_open(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
+	M0_ASSERT(m0_be_tx_state(&tx) == M0_BTS_ACTIVE);
 
 	/*
 	 * Perform some operations over the list.
 	 */
 	m0_be_op_init(&op);
-	m0_be_list_create(&list, &test_tl, &h.buh_seg, &op, &tx);
+	m0_be_list_create(&list, &test_tl, seg, &op, &tx);
 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 						 M0_BOS_FAILURE)));
 	m0_be_op_fini(&op);
@@ -134,7 +140,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 		m0_tlink_init(&test_tl, elem[i]);
 		elem[i]->t_payload = i;
-		M0_BE_TX_CAPTURE_PTR(&h.buh_seg, &tx, elem[i]);
+		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
 
 		m0_be_op_init(&op);
 		if (i < ARRAY_SIZE(elem)/2)
@@ -171,7 +177,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 		m0_be_op_fini(&op);
-		M0_BE_TX_CAPTURE_PTR(&h.buh_seg, &tx, elem[i]);
+		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
 	}
 
 	/*
@@ -180,12 +186,19 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	m0_be_tx_close(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-	m0_sm_group_unlock(&ut__txs_sm_group);
 
 	/* Reload segment and check data */
-	m0_be_ut_h_seg_reload(&h);
-	check(list, &h);
-	m0_be_ut_h_fini(&h);
+	m0_be_ut_seg_reload(&ut_seg);
+	check(list, seg);
+
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_fini(&tx);
+
+	/* XXX can't destroy allocator because some memory wasn't freed */
+	/* m0_be_ut_seg_allocator_fini(&ut_seg); */
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 
 	M0_LEAVE();
 }
@@ -235,13 +248,13 @@ do {									\
 
 #define m0_be_endfor m0_be_list_endfor
 
-static void check(struct m0_be_list *list, struct m0_be_ut_h *h)
+static void check(struct m0_be_list *list, struct m0_be_seg *seg)
 {
 	struct test *test;
 	int expected[] = { 5, 8, 6, 4, 1, 3 };
 	int i = 0;
 
-	m0_be_list_init(list, &test_tl, &h->buh_seg);
+	m0_be_list_init(list, &test_tl, seg);
 
 	m0_be_for(test, list, test) {
 		M0_UT_ASSERT(i < ARRAY_SIZE(expected));
