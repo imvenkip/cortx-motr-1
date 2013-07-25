@@ -111,8 +111,8 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
  * All memory allocations obtained from m0_be_alloc()
  * should be m0_be_free()'d before calling this function.
  */
-M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
-					struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
+					 struct m0_be_tx *tx);
 
 /**
  * Allocator operation.

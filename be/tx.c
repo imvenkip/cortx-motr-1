@@ -64,9 +64,18 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 /* XXX REFACTORME */
 static void be_tx_ast_cb(struct m0_be_tx *tx, enum m0_be_tx_state state)
 {
+	enum m0_be_tx_state tx_state = m0_be_tx_state(tx);
+
 	M0_LOG(M0_DEBUG, "ast: tx = %p, state = %s",
 	       tx, m0_be_tx_state_name(tx, state));
-	be_tx_state_move(tx, state, 0);
+
+	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
+		be_tx_state_move(tx, state,
+				 state == M0_BTS_FAILED ? -ENOMEM : 0);
+	} else {
+		while (tx_state < state)
+			be_tx_state_move(tx, ++tx_state, 0);
+	}
 
 	/* XXX temporary hack */
 	if (state == M0_BTS_PLACED)
@@ -87,6 +96,7 @@ BE_TX_AST_CB(logged);
 BE_TX_AST_CB(placed);
 #undef BE_TX_AST_CB
 
+/* be sure to change be_tx_ast_cb if change tx_states */
 static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
 #define _S(name, flags, allowed)                    \
 	[name] = {                                  \
@@ -96,10 +106,10 @@ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
 		.sd_allowed   = allowed             \
 	}
 
-	_S(M0_BTS_FAILED,  M0_SDF_TERMINAL | M0_SDF_FAILURE, 0),
 	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_OPENING,
 						   M0_BTS_FAILED)),
 	_S(M0_BTS_OPENING, 0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)),
+	_S(M0_BTS_FAILED,  M0_SDF_TERMINAL | M0_SDF_FAILURE, 0),
 	_S(M0_BTS_ACTIVE,  0, M0_BITS(M0_BTS_CLOSED)),
 	_S(M0_BTS_CLOSED,  0, M0_BITS(M0_BTS_GROUPED)),
 	_S(M0_BTS_GROUPED,  0, M0_BITS(M0_BTS_LOGGED)),
@@ -166,9 +176,16 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 {
 	M0_PRE(m0_be_tx__invariant(tx));
+	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_DONE, M0_BTS_FAILED)));
+	M0_PRE(be_tx_is_locked(tx));
 
 	m0_be_engine__tx_fini(tx->t_engine, tx);
 
+	/* XXX REFACTORME */
+	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_active);
+	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_grouped);
+	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_logged);
+	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_placed);
 	if (tx->t_reg_area_allocated)
 		m0_be_reg_area_fini(&tx->t_reg_area);
 	m0_sm_fini(&tx->t_sm);

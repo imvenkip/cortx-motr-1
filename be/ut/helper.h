@@ -123,6 +123,8 @@ struct m0_be_ut_backend {
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
+
+/* will work with single thread only */
 void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
 			      struct m0_be_tx *tx);
 
@@ -145,6 +147,11 @@ struct m0_be_ut_seg {
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg, m0_bcount_t size);
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
+
+/* m0_be_allocator_{init,create,open} */
+void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg);
+/* m0_be_allocator_{close,destroy,fini} */
+void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

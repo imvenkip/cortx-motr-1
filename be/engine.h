@@ -51,6 +51,7 @@ enum {
 struct m0_be_engine_cfg {
 	size_t		       bec_group_nr;
 	size_t		       bec_log_size;
+	struct m0_be_tx_credit bec_tx_size_max;
 	struct m0_be_tx_credit bec_group_size_max;
 	size_t		       bec_group_tx_max;
 	struct m0_reqh	      *bec_group_fom_reqh;

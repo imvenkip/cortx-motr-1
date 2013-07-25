@@ -761,8 +761,8 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 	return 0;
 }
 
-M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
-					struct m0_be_tx *tx)
+M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
+					 struct m0_be_tx *tx)
 {
 	struct m0_be_allocator_header *h;
 	struct be_alloc_chunk	      *c;
@@ -781,7 +781,6 @@ M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
 
 	m0_mutex_unlock(&a->ba_lock);
 	/** @todo PUT_PTR h */
-	return 0;
 }
 
 M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,

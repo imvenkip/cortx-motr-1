@@ -181,6 +181,7 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 	case TGS_STABLE:
 		m0_be_tx_group_discard(gr);
 		m0_be_tx_group_reset(gr);
+		m0_be_tx_group_open(gr);
 		m0_fom_phase_set(fom, TGS_OPEN);
 		return M0_FSO_AGAIN;
 	case TGS_STOPPING:

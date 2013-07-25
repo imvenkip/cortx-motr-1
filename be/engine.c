@@ -58,6 +58,9 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		.eng_group_nr = en_cfg->bec_group_nr,
 	};
 
+	M0_ASSERT(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
+				     &en_cfg->bec_group_size_max));
+	/* XXX temporary */
 	M0_ASSERT(en_cfg->bec_group_nr == 1);
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
@@ -77,6 +80,7 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		rc = m0_be_tx_group_init(&en->eng_group[0],
 					 &en_cfg->bec_group_size_max,
 					 en_cfg->bec_group_tx_max,
+					 en,
 					 &en->eng_log,
 					 en_cfg->bec_group_fom_reqh);
 		/* XXX invalid for number of groups > 1 */
@@ -151,6 +155,7 @@ static bool be_engine_invariant(struct m0_be_engine *en)
 	return true; /* XXX TODO */
 }
 
+/* XXX RENAME IT */
 static void be_engine_got_tx_open(struct m0_be_engine *en)
 {
 	struct m0_be_tx *tx;
@@ -161,13 +166,18 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 	/* XXX TODO make be_engine_tx_peek(state) */
 	/* XXX race condition here */
 	m0_tl_for(etx, &en->eng_txs[M0_BTS_OPENING], tx) {
-		rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared);
-		if (rc == 0)
-			m0_be_tx__state_post(tx, M0_BTS_ACTIVE);
-		else
+		if (!m0_be_tx_credit_le(&tx->t_prepared,
+					&en->eng_cfg.bec_tx_size_max)) {
+			m0_be_tx__state_post(tx, M0_BTS_FAILED);
+		} else {
+			rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared);
+			if (rc == 0)
+				m0_be_tx__state_post(tx, M0_BTS_ACTIVE);
+			else
 			/* Ignore the rest of OPENING transactions. If we
 			 * don't ignore them, the big ones may starve. */
 			break;
+		}
 	} m0_tl_endfor;
 }
 
@@ -280,7 +290,6 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	if (!M0_IN(state, (M0_BTS_DONE, M0_BTS_FAILED)))
 		etx_tlist_add_tail(&en->eng_txs[state], tx);
 
-	M0_ASSERT(tx->t_sm.sm_rc == 0);
 	if (state == M0_BTS_OPENING) {
 		be_engine_got_tx_open(en);
 	} else if (state == M0_BTS_CLOSED) {
@@ -301,6 +310,7 @@ M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 
 	/* TODO check if group is in M0_BEG_CLOSED list */
 	egr_tlist_move(&en->eng_groups[M0_BEG_OPEN], gr);
+	be_engine_got_tx_close(en);
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);

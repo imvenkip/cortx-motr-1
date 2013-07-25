@@ -20,16 +20,6 @@
 
 #include "ut/ut.h"
 
-extern void m0_be_ut_seg_init_fini(void);
-extern void m0_be_ut_seg_create_destroy(void);
-extern void m0_be_ut_seg_open_close(void);
-extern void m0_be_ut_seg_io(void);
-
-extern void m0_be_ut_alloc_init_fini(void);
-extern void m0_be_ut_alloc_create_destroy(void);
-extern void m0_be_ut_alloc_multiple(void);
-extern void m0_be_ut_alloc_concurrent(void);
-
 extern void m0_be_ut_reg_d_tree(void);
 extern void m0_be_ut_regmap_simple(void);
 extern void m0_be_ut_regmap_random(void);
@@ -37,20 +27,33 @@ extern void m0_be_ut_reg_area_simple(void);
 extern void m0_be_ut_reg_area_random(void);
 extern void m0_be_ut_reg_area_merge(void);
 
-extern void m0_be_ut_tx_usecase(void);
-extern void m0_be_ut_tx_single(void);
-extern void m0_be_ut_tx_several(void);
-
 extern void m0_be_ut_io(void);
 extern void m0_be_ut_log_store_reserve(void);
 extern void m0_be_ut_log_store_io(void);
 extern void m0_be_ut_log(void);
+
+extern void m0_be_ut_seg_init_fini(void);
+extern void m0_be_ut_seg_create_destroy(void);
+extern void m0_be_ut_seg_open_close(void);
+extern void m0_be_ut_seg_io(void);
+
 extern void m0_be_ut_group_ondisk(void);
+
+extern void m0_be_ut_domain(void);
+
+extern void m0_be_ut_tx_usecase_success(void);
+extern void m0_be_ut_tx_usecase_failure(void);
+extern void m0_be_ut_tx_single(void);
+extern void m0_be_ut_tx_several(void);
+
+extern void m0_be_ut_alloc_init_fini(void);
+extern void m0_be_ut_alloc_create_destroy(void);
+extern void m0_be_ut_alloc_multiple(void);
+extern void m0_be_ut_alloc_concurrent(void);
+
 extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
-
-extern void m0_be_ut_domain(void);
 
 extern struct m0_sm_group ut__txs_sm_group;
 
@@ -64,13 +67,14 @@ extern struct m0_sm_group ut__txs_sm_group;
 static struct {
 	bool             run;
 	struct m0_thread thread;
-} g_ast;
+} be_ut_ast_thread;
 
-static void ast_thread(int _ M0_UNUSED)
+static void be_ut_ast_thread_func(int _ M0_UNUSED)
 {
 	struct m0_sm_group *g = &ut__txs_sm_group;
 
-	while (g_ast.run) {
+	/* XXX hello, race condition. */
+	while (be_ut_ast_thread.run) {
 		m0_chan_wait(&g->s_clink);
 		m0_sm_group_lock(g);
 		m0_sm_asts_run(g);
@@ -78,19 +82,19 @@ static void ast_thread(int _ M0_UNUSED)
 	}
 }
 
-static int _init(void)
+static int be_ut_init(void)
 {
 	m0_sm_group_init(&ut__txs_sm_group);
-	g_ast.run = true;
-	return M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
-			      "ast_thread");
+	be_ut_ast_thread.run = true;
+	return M0_THREAD_INIT(&be_ut_ast_thread.thread, int, NULL,
+			      &be_ut_ast_thread_func, 0, "be_ut_ast_thread");
 }
 
-static int _fini(void)
+static int be_ut_fini(void)
 {
-	g_ast.run = false;
+	be_ut_ast_thread.run = false;
 	m0_clink_signal(&ut__txs_sm_group.s_clink);
-	m0_thread_join(&g_ast.thread);
+	m0_thread_join(&be_ut_ast_thread.thread);
 	m0_sm_group_fini(&ut__txs_sm_group);
 
 	return 0;
@@ -98,39 +102,38 @@ static int _fini(void)
 
 const struct m0_test_suite be_ut = {
 	.ts_name = "be-ut",
-	.ts_init = _init,
-	.ts_fini = _fini,
+	.ts_init = be_ut_init,
+	.ts_fini = be_ut_fini,
 	.ts_tests = {
-		{ "domain",	      m0_be_ut_domain		    }, /* XXX */
-		{ "seg-init",         m0_be_ut_seg_init_fini        },
-		{ "seg-create",       m0_be_ut_seg_create_destroy   },
-		{ "seg-open",         m0_be_ut_seg_open_close       },
-		{ "seg-io",           m0_be_ut_seg_io               },
 		{ "reg_d_tree",       m0_be_ut_reg_d_tree           },
 		{ "regmap-simple",    m0_be_ut_regmap_simple        },
 		{ "regmap-random",    m0_be_ut_regmap_random        },
 		{ "reg_area-simple",  m0_be_ut_reg_area_simple      },
 		{ "reg_area-random",  m0_be_ut_reg_area_random      },
 		{ "reg_area-merge",   m0_be_ut_reg_area_merge       },
+		{ "io (XXX NOOP)",    m0_be_ut_io                   },
+		{ "log_store-reserve",m0_be_ut_log_store_reserve    },
+		{ "log_store-io",     m0_be_ut_log_store_io         },
+		{ "log (XXX NOOP)",   m0_be_ut_log                  },
+		{ "seg-init",         m0_be_ut_seg_init_fini        },
+		{ "seg-create",       m0_be_ut_seg_create_destroy   },
+		{ "seg-open",         m0_be_ut_seg_open_close       },
+		{ "seg-io",           m0_be_ut_seg_io               },
+		{ "group_ondisk",     m0_be_ut_group_ondisk         },
+		{ "domain",	      m0_be_ut_domain		    },
+		{ "tx-usecase_success", m0_be_ut_tx_usecase_success },
+		{ "tx-usecase_failure",	m0_be_ut_tx_usecase_failure },
+		{ "tx-single",        m0_be_ut_tx_single            },
+		{ "tx-several",       m0_be_ut_tx_several           },
 #if 0
 		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
-#endif
-		{ "tx-usecase",	      m0_be_ut_tx_usecase	    },
-#if 0
-		{ "tx-single",        m0_be_ut_tx_single            },
-		{ "tx-several",       m0_be_ut_tx_several           },
 		{ "list",             m0_be_ut_list_api             },
 		{ "btree",            m0_be_ut_btree_simple         },
 		{ "emap",             m0_be_ut_emap                 },
-		{ "io (XXX NOOP)",    m0_be_ut_io                   },
 #endif
-		{ "log_store-reserve",m0_be_ut_log_store_reserve    },
-		{ "log_store-io",     m0_be_ut_log_store_io         },
-		{ "log (XXX NOOP)",   m0_be_ut_log                  },
-		{ "group_ondisk",     m0_be_ut_group_ondisk         },
 		{ NULL, NULL }
 	}
 };

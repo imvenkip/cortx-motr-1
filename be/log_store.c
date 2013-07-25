@@ -86,12 +86,12 @@ enum {
 	BE_LOG_STOR_STOB_ID = 0x100,
 };
 
-static struct m0_stob_id be_log_stor_stob_id = {
+static struct m0_stob_id be_log_store_stob_id = {
 	.si_bits = M0_UINT128(0, BE_LOG_STOR_STOB_ID),
 };
 
-static struct m0_stob_domain *be_log_stor_stob_dom;
-static struct m0_dtx	      be_log_stor_dtx;
+static struct m0_stob_domain *be_log_store_stob_dom;
+static struct m0_dtx	      be_log_store_dtx;
 
 M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 				       m0_bcount_t ls_size)
@@ -111,12 +111,12 @@ M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 #endif
 
 	rc = m0_linux_stob_domain_locate(BE_LOG_STORAGE_DIR,
-					 &be_log_stor_stob_dom);
+					 &be_log_store_stob_dom);
 	M0_ASSERT(rc == 0);
-	m0_dtx_init(&be_log_stor_dtx);
+	m0_dtx_init(&be_log_store_dtx);
 
-	rc = m0_stob_create_helper(be_log_stor_stob_dom, &be_log_stor_dtx,
-				   &be_log_stor_stob_id, &ls->ls_stob);
+	rc = m0_stob_create_helper(be_log_store_stob_dom, &be_log_store_dtx,
+				   &be_log_store_stob_id, &ls->ls_stob);
 	M0_ASSERT(rc == 0);
 
 	ls->ls_bshift = ls->ls_stob->so_op->sop_block_shift(ls->ls_stob);
@@ -137,8 +137,8 @@ M0_INTERNAL void m0_be_log_store_destroy(struct m0_be_log_store *ls)
 
 	m0_stob_put(ls->ls_stob);
 
-	m0_dtx_fini(&be_log_stor_dtx);
-	be_log_stor_stob_dom->sd_ops->sdo_fini(be_log_stor_stob_dom);
+	m0_dtx_fini(&be_log_store_dtx);
+	be_log_store_stob_dom->sd_ops->sdo_fini(be_log_store_stob_dom);
 
 #ifdef BE_LOG_STOR_DESTOROY_STOB
 	rc = system("rm -rf " BE_LOG_STORAGE_DIR);
@@ -153,9 +153,14 @@ M0_INTERNAL struct m0_stob *m0_be_log_store_stob(struct m0_be_log_store *ls)
 	return ls->ls_stob;
 }
 
-static m0_bcount_t be_log_stor_free(struct m0_be_log_store *ls)
+static m0_bcount_t be_log_store_free(struct m0_be_log_store *ls)
 {
 	return ls->ls_size - (ls->ls_reserved - ls->ls_discarded);
+}
+
+static m0_bcount_t be_log_store_size(const struct m0_be_log_store *ls)
+{
+	return ls->ls_size;
 }
 
 M0_INTERNAL int m0_be_log_store_reserve(struct m0_be_log_store *ls,
@@ -166,8 +171,8 @@ M0_INTERNAL int m0_be_log_store_reserve(struct m0_be_log_store *ls,
 	M0_ENTRY("size = %lu", size);
 
 	M0_PRE(m0_be_log_store__invariant(ls));
-	if (be_log_stor_free(ls) < size) {
-		rc = -ENOMEM;
+	if (be_log_store_free(ls) < size) {
+		rc = -EAGAIN;
 	} else {
 		ls->ls_reserved += size;
 		rc = 0;
@@ -191,7 +196,7 @@ M0_INTERNAL void m0_be_log_store_discard(struct m0_be_log_store *ls,
 	M0_LEAVE();
 }
 
-static void be_log_stor_pos_advance(struct m0_be_log_store *ls,
+static void be_log_store_pos_advance(struct m0_be_log_store *ls,
 				    m0_bcount_t size,
 				    m0_bindex_t *pos_prev,
 				    m0_bindex_t *pos_curr)
@@ -204,11 +209,6 @@ static void be_log_stor_pos_advance(struct m0_be_log_store *ls,
 	*pos_curr = ls->ls_pos;
 
 	M0_POST(m0_be_log_store__invariant(ls));
-}
-
-static m0_bcount_t be_log_stor_size(const struct m0_be_log_store *ls)
-{
-	return ls->ls_size;
 }
 
 M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit,
@@ -237,27 +237,27 @@ M0_INTERNAL void m0_be_log_store_io_init(struct m0_be_log_store_io *lsi,
 
 	m0_be_io_reset(bio);
 	m0_be_io_reset(bio_cblock);
-	be_log_stor_pos_advance(ls, size_reserved,
+	be_log_store_pos_advance(ls, size_reserved,
 				&lsi->lsi_pos, &lsi->lsi_end);
 	M0_POST(m0_be_log_store_io__invariant(lsi));
 
 	M0_LEAVE();
 }
 
-static bool be_log_stor_io_add_wraps(m0_bindex_t pos,
+static bool be_log_store_io_add_wraps(m0_bindex_t pos,
 				     m0_bcount_t size,
 				     m0_bcount_t ls_size)
 {
 	return pos / ls_size != (pos + size - 1) / ls_size;
 }
 
-static void be_log_stor_io_add_nowrap(struct m0_be_log_store_io *lsi,
+static void be_log_store_io_add_nowrap(struct m0_be_log_store_io *lsi,
 				      struct m0_be_io *bio,
 				      void *ptr,
 				      m0_bcount_t size,
 				      m0_bcount_t ls_size)
 {
-	M0_PRE(!be_log_stor_io_add_wraps(lsi->lsi_pos, size, ls_size));
+	M0_PRE(!be_log_store_io_add_wraps(lsi->lsi_pos, size, ls_size));
 
 
 	LOGD("%s: ptr = %p, size = %lu, pos = %lu, end = %lu\n",
@@ -267,12 +267,12 @@ static void be_log_stor_io_add_nowrap(struct m0_be_log_store_io *lsi,
 	lsi->lsi_pos += size;
 }
 
-static void be_log_stor_io_add(struct m0_be_log_store_io *lsi,
+static void be_log_store_io_add(struct m0_be_log_store_io *lsi,
 			       struct m0_be_io *bio,
 			       void *ptr,
 			       m0_bcount_t size)
 {
-	m0_bcount_t ls_size = be_log_stor_size(lsi->lsi_ls);
+	m0_bcount_t ls_size = be_log_store_size(lsi->lsi_ls);
 	m0_bcount_t size1;
 	m0_bindex_t wrap_point;
 
@@ -280,16 +280,16 @@ static void be_log_stor_io_add(struct m0_be_log_store_io *lsi,
 	M0_PRE(size > 0);
 	M0_PRE(lsi->lsi_pos + size <= lsi->lsi_end);
 
-	if (!be_log_stor_io_add_wraps(lsi->lsi_pos, size, ls_size)) {
-		be_log_stor_io_add_nowrap(lsi, bio, ptr, size, ls_size);
+	if (!be_log_store_io_add_wraps(lsi->lsi_pos, size, ls_size)) {
+		be_log_store_io_add_nowrap(lsi, bio, ptr, size, ls_size);
 	} else {
 		wrap_point = (lsi->lsi_pos + ls_size - 1) / ls_size * ls_size;
 		size1 = wrap_point - lsi->lsi_pos;
 		M0_ASSERT(size1 < size);
 
-		be_log_stor_io_add_nowrap(lsi, bio, ptr, size1, ls_size);
+		be_log_store_io_add_nowrap(lsi, bio, ptr, size1, ls_size);
 		ptr = (char *) ptr + size1;
-		be_log_stor_io_add_nowrap(lsi, bio, ptr, size - size1, ls_size);
+		be_log_store_io_add_nowrap(lsi, bio, ptr, size - size1, ls_size);
 	}
 
 	M0_POST(m0_be_log_store_io__invariant(lsi));
@@ -301,7 +301,7 @@ M0_INTERNAL void m0_be_log_store_io_add(struct m0_be_log_store_io *lsi,
 {
 	M0_PRE(m0_be_log_store_io__invariant(lsi));
 
-	be_log_stor_io_add(lsi, lsi->lsi_io, ptr, size);
+	be_log_store_io_add(lsi, lsi->lsi_io, ptr, size);
 
 	M0_POST(m0_be_log_store_io__invariant(lsi));
 }
@@ -313,7 +313,7 @@ M0_INTERNAL void m0_be_log_store_io_add_cblock(struct m0_be_log_store_io *lsi,
 	M0_PRE(m0_be_log_store_io__invariant(lsi));
 
 	lsi->lsi_pos = lsi->lsi_end - size_cblock;
-	be_log_stor_io_add(lsi, lsi->lsi_io_cblock, ptr_cblock, size_cblock);
+	be_log_store_io_add(lsi, lsi->lsi_io_cblock, ptr_cblock, size_cblock);
 
 	M0_POST(m0_be_log_store_io__invariant(lsi));
 }
