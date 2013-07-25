@@ -122,7 +122,7 @@ static const struct m0_be_btree_kv_ops be_emap_ops = {
         .ko_compare = be_emap_cmp
 };
 
-static void emap_dump(struct m0_be_emap_cursor *it)
+M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
 {
 	struct m0_be_emap_cursor	 scan;
 	struct m0_uint128		*prefix	= &it->ec_key.ek_prefix;
@@ -818,7 +818,7 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 	return emap_it_open(it);
 }
 
-#if 1
+#if 0
 static bool
 be_emap_invariant_check(struct m0_be_emap_cursor *it)
 {
