@@ -331,7 +331,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	int                       i;
 	int                       rc;
 
-	sprintf(k, "%03d", INSERT_COUNT/2);
+	sprintf(k, "%03d", 0);
 	start = M0_BUF_INIT(sizeof k, k);
 
 	m0_be_btree_cursor_init(&cursor, tree);
@@ -345,7 +345,10 @@ static void cursor_test(struct m0_be_btree *tree)
 
 	for (i = 0; key.b_addr != NULL; ++i) {
 		v = atoi(key.b_addr);
-		M0_UT_ASSERT(v == i + INSERT_COUNT*3/4);
+		if (i < INSERT_COUNT/4)
+			M0_UT_ASSERT(v == i);
+		else
+			M0_UT_ASSERT(v == i + INSERT_COUNT/2);
 		M0_LOG(M0_DEBUG, "i=%i k=%s", i, (char*)key.b_addr);
 
 		m0_be_op_init(&cursor.bc_op);
@@ -357,7 +360,7 @@ static void cursor_test(struct m0_be_btree *tree)
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 	}
 
-	M0_UT_ASSERT(i == INSERT_COUNT/4);
+	M0_UT_ASSERT(i == INSERT_COUNT/2);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	sprintf(k, "%03d", INSERT_COUNT/4 - 1);

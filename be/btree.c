@@ -1323,6 +1323,7 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 	m0_bcount_t               vsize;
 
 	count += btree_count_items(tree, &ksize, &vsize);
+	M0_LOG(M0_DEBUG, "count=%d", count);
 	kv_delete_credit(tree, ksize, vsize, &cred);
 	btree_node_free_credit(tree, &cred);
 	m0_be_tx_credit_mac(accum, &cred, count * nr);
@@ -1766,9 +1767,13 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 		while (node && cur->bc_pos >= node->b_nr_active)
 			node = node_pop(tree, &cur->bc_pos);
 	} else {
-		node_push(tree, node, cur->bc_pos);
-		node = node->b_children[cur->bc_pos];
-		cur->bc_pos = 0;
+		for (;;) {
+			node_push(tree, node, cur->bc_pos);
+			node = node->b_children[cur->bc_pos];
+			cur->bc_pos = 0;
+			if (node->b_leaf)
+				break;
+		}
 	}
 
 	if (node == NULL) {
