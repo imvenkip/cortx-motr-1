@@ -167,7 +167,7 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 	/* XXX race condition here */
 	m0_tl_for(etx, &en->eng_txs[M0_BTS_OPENING], tx) {
 		if (!m0_be_tx_credit_le(&tx->t_prepared,
-					&en->eng_cfg.bec_tx_size_max)) {
+					&en->eng_cfg->bec_tx_size_max)) {
 			m0_be_tx__state_post(tx, M0_BTS_FAILED);
 		} else {
 			rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared);

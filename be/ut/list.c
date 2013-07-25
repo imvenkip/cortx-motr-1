@@ -77,7 +77,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	m0_be_ut_h_init(&h);
 	m0_be_ut_h_tx_init(&tx, &h);
 	m0_sm_group_lock(&ut__txs_sm_group);
-	a = &h.buh_seg.bs_allocator;
+	a = h.buh_allocator;
 
 	/*
 	 * Prepare some credits.

@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original author: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
  * Original creation date: 08/13/2010
  */
 
@@ -34,24 +34,21 @@
 
 static struct m0_be_ut_h be_ut_emap_h;
 
-static struct m0_be_tx            tx1;
-static struct m0_be_tx            tx2;
-static struct m0_be_op            op;
-static struct m0_be_emap         *emap;
-static struct m0_uint128          prefix;
-static struct m0_be_emap_cursor   it;
-static struct m0_be_emap_seg     *seg; /* cursor segment */
-static struct m0_be_seg          *be_seg;
-static struct m0_be_op           *it_op;
-
+static struct m0_be_tx          tx1;
+static struct m0_be_tx          tx2;
+static struct m0_be_op          op;
+static struct m0_be_emap       *emap;
+static struct m0_uint128        prefix;
+static struct m0_be_emap_cursor it;
+static struct m0_be_emap_seg   *seg; /* cursor segment */
+static struct m0_be_seg        *be_seg;
+static struct m0_be_op         *it_op;
 
 static void emap_alloc(struct m0_be_tx *tx)
 {
-	int			  rc;
-	struct m0_be_allocator   *a;
-	struct m0_be_tx_credit    cred;
-
-	a = &be_seg->bs_allocator;
+	int                     rc;
+	struct m0_be_tx_credit  cred;
+	struct m0_be_allocator *a = &be_seg->bs_allocator;
 
 	m0_be_tx_credit_init(&cred);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *emap, 0, &cred);
@@ -77,8 +74,6 @@ static void emap_alloc(struct m0_be_tx *tx)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_sm_group_unlock(&ut__txs_sm_group);
-
-	M0_LEAVE();
 }
 
 static void emap_create(struct m0_be_tx *tx)
@@ -88,8 +83,6 @@ static void emap_create(struct m0_be_tx *tx)
 	m0_be_op_wait(&op);
 	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
-
-	M0_LEAVE();
 }
 
 static void emap_destroy(struct m0_be_tx *tx)
@@ -99,8 +92,6 @@ static void emap_destroy(struct m0_be_tx *tx)
 	m0_be_op_wait(&op);
 	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
-
-	M0_LEAVE();
 }
 
 static void checkpoint(void)
@@ -140,9 +131,9 @@ static void test_init(void)
 	be_seg = &be_ut_emap_h.buh_seg;
 
 	emap_alloc(&tx1);
+	m0_be_emap_init(emap, be_seg);
 
 	m0_be_tx_credit_init(&cred);
-	m0_be_emap_init(emap, be_seg);
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_DESTROY, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_INSERT, 1, &cred);

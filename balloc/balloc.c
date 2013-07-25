@@ -19,7 +19,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BALLOC
-#include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
+#include "lib/trace.h"
 
 #include <stdio.h>        /* sprintf */
 #include <stdlib.h>

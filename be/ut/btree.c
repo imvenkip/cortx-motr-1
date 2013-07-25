@@ -28,6 +28,8 @@
 #include "be/ut/helper.h"
 #include "ut/ut.h"
 
+extern void btree_dbg_print(struct m0_be_btree *tree);
+
 static int tree_cmp(const void *key0, const void *key1)
 {
 	return strcmp(key0, key1);
@@ -87,7 +89,6 @@ void m0_be_ut_btree_simple(void)
 static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 {
 	struct m0_be_btree_anchor anchor;
-	struct m0_be_allocator   *a;
 	struct m0_be_tx_credit    insert_cred;
 	struct m0_be_tx_credit    cred;
 	struct m0_be_btree       *tree;
@@ -97,6 +98,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	struct m0_buf             val;
 	int                       rc;
 	int                       i;
+	struct m0_be_allocator   *a = h->buh_allocator;
 
 	M0_ENTRY();
 	/*
@@ -113,7 +115,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	 * Init transaction and its credits
 	 */
 	m0_be_ut_h_tx_init(tx, h);
-	a = &h->buh_seg.bs_allocator;
 
 	{ /* XXX: should calculate these credits not for dummy tree,
 	   but for allocated below. This needs at least two transactions. */
@@ -130,7 +131,6 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *tree, 0, &cred);
 
 	m0_be_tx_credit_add(&cred, &insert_cred);
-
 
 	m0_sm_group_lock(&ut__txs_sm_group);
 
@@ -150,7 +150,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 						 M0_BOS_FAILURE)));
 	m0_be_op_fini(&op);
 
-	M0_SET0(tree);
+	M0_SET0(tree); /* XXX Why do we need this?  --vvv */
 	m0_be_btree_init(tree, &h->buh_seg, &kv_ops);
 
 	m0_be_op_init(&op);
@@ -332,6 +332,7 @@ static void cursor_test(struct m0_be_btree *tree)
 
 	m0_be_op_init(&cursor.bc_op);
 	m0_be_btree_cursor_get(&cursor, &start, true);
+	/* XXX Shouldn't we m0_be_op_wait() here?  --vvv */
 	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&cursor.bc_op);
 
@@ -360,6 +361,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	start = (struct m0_buf)M0_BUF_INITS("024");
 	m0_be_op_init(&cursor.bc_op);
 	m0_be_btree_cursor_get(&cursor, &start, false);
+	/* XXX Why don't we m0_be_op_wait()?  --vvv */
 	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&cursor.bc_op);
 
@@ -385,12 +387,9 @@ static void cursor_test(struct m0_be_btree *tree)
 	M0_UT_ASSERT(i == -1);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	start = (struct m0_buf)M0_BUF_INITS("200");
-	m0_be_op_init(&cursor.bc_op);
-	m0_be_btree_cursor_get(&cursor, &start, true);
-	M0_UT_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
-	rc = cursor.bc_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&cursor.bc_op);
+	rc = m0_be_btree_cursor_get_sync(&cursor,
+					 &(struct m0_buf)M0_BUF_INITS("200"),
+					 true);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	m0_be_btree_cursor_fini(&cursor);
