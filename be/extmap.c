@@ -241,7 +241,6 @@ M0_INTERNAL void m0_be_emap_close(struct m0_be_emap_cursor *it)
 M0_INTERNAL void m0_be_emap_next(struct m0_be_emap_cursor *it)
 {
 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
-	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_next(it);
@@ -251,7 +250,6 @@ M0_INTERNAL void m0_be_emap_next(struct m0_be_emap_cursor *it)
 M0_INTERNAL void m0_be_emap_prev(struct m0_be_emap_cursor *it)
 {
 	M0_PRE(!m0_be_emap_ext_is_first(&it->ec_seg.ee_ext));
-	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_prev(it);
@@ -839,7 +837,7 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 			break;
 		rc = be_emap_next(it);
 		if (rc != 0)
-			return true;
+			break;
 	}
 	if (total != M0_BCOUNT_MAX)
 		return false;
