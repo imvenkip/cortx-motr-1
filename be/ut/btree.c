@@ -159,6 +159,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 						 M0_BOS_FAILURE)));
 	m0_be_op_fini(&op);
 
+	M0_LOG(M0_DEBUG, "Inserting...");
 	/* insert */
 	for (i = 0; i < INSERT_COUNT/2; ++i) {
 		m0_be_op_init(&op);
@@ -189,6 +190,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 		m0_be_op_fini(&op);
 	}
 
+	M0_LOG(M0_DEBUG, "Inserting inplace...");
 	/* insert inplace */
 	for (i = INSERT_COUNT/2; i < INSERT_COUNT; ++i) {
 		m0_be_op_init(&op);
@@ -220,6 +222,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	}
 	btree_dbg_print(tree);
 
+	M0_LOG(M0_DEBUG, "Deleting...");
 	/* delete */
 	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
 		char k[INSERT_SIZE];
@@ -235,6 +238,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 		m0_be_op_fini(&op);
 	}
 
+	M0_LOG(M0_DEBUG, "Updating...");
 	/* update */
 	sprintf(key.b_addr, "%03d", INSERT_COUNT - 1);
 	m0_be_op_init(&op);
