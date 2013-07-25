@@ -130,7 +130,6 @@ static const struct m0_be_btree_kv_ops fol_kv_ops = {
 };
 #endif
 
-#if XXX_USE_DB5
 /**
    Initializes fields in @rec.
 
@@ -140,6 +139,7 @@ static const struct m0_be_btree_kv_ops fol_kv_ops = {
 
    @see m0_fol_rec_fini()
  */
+#if XXX_USE_DB5
 static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 {
 	struct m0_db_pair *pair;
@@ -150,6 +150,18 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
 	return m0_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx, 0);
+}
+#else
+static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
+{
+	M0_PRE(rec->fr_fol != NULL);
+
+	m0_fol_rec_init(rec);
+	rec->fr_fol = fol;
+	m0_buf_init(&rec->fr_key, &rec->fr_desc.rd_lsn,
+		    sizeof rec->fr_desc.rd_lsn);
+	M0_SET0(rec->fr_val);
+	m0_be_btree_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_store);
 }
 #endif
 
@@ -626,26 +638,25 @@ m0_fol_rec_lookup(struct m0_fol *fol, m0_lsn_t lsn, struct m0_fol_rec *out)
 {
 	struct m0_fol_rec_desc    *d   = &out->fr_desc;
 	struct m0_be_btree_cursor *cur = &out->fr_ptr;
-	const struct m0_buf        key = M0_BUF_INIT(sizeof d->rd_lsn,
-						     &d->rd_lsn);
-	int rc;
+	int                        rc;
 
-	m0_fol_rec_init(out);
-	m0_be_btree_cursor_init(cur, &fol->f_store);
-	out->fr_fol = fol;
+	rec_init(out, fol);
+
 	d->rd_lsn = lsn;
+	rc = m0_be_btree_cursor_get_sync(cur, &out->fr_key, true);
+	if (rc != 0)
+		goto out;
+	m0_be_btree_cursor_kv_get(cur, &out->fr_key, &out->fr_val);
 
-	/* XXX TODO: m0_be_btree_cursor_get_sync() should be followed by
-	 * m0_be_btree_cursor_kv_get(). Create a helper function in
-	 * be/btree.[hc] for this common scenario. */
-	rc = m0_be_btree_cursor_get_sync(cur, &key, true) ?:
-		fol_record_decode(out);
-	if (rc == 0) {
-		M0_POST(d->rd_header.rh_refcount > 0);
-		M0_POST(m0_fol_rec_invariant(d));
-	} else {
+	rc = fol_record_decode(out);
+	if (rc != 0)
+		goto out;
+
+	M0_POST(d->rd_header.rh_refcount > 0);
+	M0_POST(m0_fol_rec_invariant(d));
+out:
+	if (rc != 0)
 		m0_fol_lookup_rec_fini(out);
-	}
 	return rc;
 }
 #endif
