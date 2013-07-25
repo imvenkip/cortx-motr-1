@@ -49,8 +49,6 @@ struct m0_be_btree {
 	struct m0_be_seg                *bb_seg;
 	/** Root node of the tree */
 	struct m0_be_bnode              *bb_root;
-	/** Stack top pointer for tree traversing. */
-	struct m0_be_bnode              *bb_stack;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
 };
@@ -366,6 +364,19 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
  * ------------------------------------------------------------------ */
 
 /**
+ * Btree cursor stack entry.
+ *
+ * Used for cursor depth-first in-order traversing.
+ */
+struct m0_be_btree_cursor_stack_entry {
+	struct m0_be_bnode *bs_node;
+	int                 bs_idx;
+};
+
+/** Maximum btree height configuration. */
+enum { BTREE_HEIGHT_MAX = 15 };
+
+/**
  * Btree cursor.
  *
  * Read-only cursor can be positioned with m0_be_btree_cursor_get() and moved
@@ -374,6 +385,8 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
 struct m0_be_btree_cursor {
 	struct m0_be_bnode *bc_node;
 	int                 bc_pos;
+	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
+	int                 bc_stack_pos;
 
 	struct m0_be_btree *bc_tree;
 	struct m0_be_op     bc_op;
