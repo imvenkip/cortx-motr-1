@@ -108,18 +108,20 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		    cm->cm_ready_fops_recvd < cm->cm_proxy_nr) {
 			ep = swo_fop->swo_base.swo_cm_ep.ep;
 			m0_cm_lock(cm);
-			cm_proxy = m0_cm_proxy_locate(cm, ep);
-			M0_ASSERT(cm_proxy != NULL);
-			M0_LOG(M0_DEBUG, "proxy hi: [%lu] [%lu] [%lu] [%lu]",
-			       cm_proxy->px_sw.sw_hi.ai_hi.u_hi,
-			       cm_proxy->px_sw.sw_hi.ai_hi.u_lo,
-			       cm_proxy->px_sw.sw_hi.ai_lo.u_hi,
-			       cm_proxy->px_sw.sw_hi.ai_lo.u_lo);
+			if (m0_cm_is_ready(cm) || m0_cm_is_active(cm)) {
+				cm_proxy = m0_cm_proxy_locate(cm, ep);
+				M0_ASSERT(cm_proxy != NULL);
+				M0_LOG(M0_DEBUG, "proxy hi: [%lu] [%lu] [%lu] [%lu]",
+				       cm_proxy->px_sw.sw_hi.ai_hi.u_hi,
+				       cm_proxy->px_sw.sw_hi.ai_hi.u_lo,
+				       cm_proxy->px_sw.sw_hi.ai_lo.u_hi,
+				       cm_proxy->px_sw.sw_hi.ai_lo.u_lo);
 
-			if (m0_cm_ag_id_cmp(&swo_fop->swo_base.swo_sw.sw_hi,
-					    &cm_proxy->px_sw.sw_hi) > 0) {
-				m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
-						   &swo_fop->swo_base.swo_sw.sw_hi);
+				if (m0_cm_ag_id_cmp(&swo_fop->swo_base.swo_sw.sw_hi,
+						    &cm_proxy->px_sw.sw_hi) > 0) {
+					m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
+							   &swo_fop->swo_base.swo_sw.sw_hi);
+				}
 			}
 			m0_cm_unlock(cm);
 		}
