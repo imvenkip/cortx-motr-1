@@ -19,12 +19,11 @@
 |XXX TODO
 
 |m0_db_cursor_get(cursor, pair);
-|m0_be_btree_cursor_get_sync(cur,
-                            &(struct m0_buf)M0_BUF_INIT(sizeof key, key),
-                            true);
+|m0_be_btree_cursor_get_sync(cur, &key, true);
+m0_be_btree_cursor_kv_get(cur, &key, &val);
 
 |m0_db_cursor_last(cursor, pair);
-|XXX TODO
+|m0_be_btree_cursor_last_sync(cur);
 
 |m0_db_tx_commit(tx);
 |XXX ?

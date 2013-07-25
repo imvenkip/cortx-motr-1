@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 09/09/2010
+ * Original creation date: 09-Sep-2010
  */
 
 #include "fol/fol.h"
@@ -270,9 +270,12 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 		rc = m0_fol_rec_add(fol, &r);
 		m0_fol_rec_fini(&r);
 	} else if (rc == 0) {
-		rc = m0_db_cursor_last(&r.fr_ptr, &r.fr_pair);
-		if (rc == 0)
-			fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
+		rc = m0_be_btree_cursor_last_sync(&r.fr_ptr);
+		if (rc == 0) {
+			m0_be_btree_cursor_kv_get(&r.fr_ptr,
+						  &r.fr_key, &r.fr_val);
+			fol->f_lsn = lsn_inc(d->rd_lsn);
+		}
 		m0_fol_lookup_rec_fini(&r);
 	}
 
