@@ -191,9 +191,9 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	}
 	btree_dbg_print(tree);
 
-#if 0
-	sprintf(k, "%03d", 24);
-	M0_LOG(M0_DEBUG, "delete key=%d", 24);
+	i = BTREE_FAN_OUT - 1;
+	sprintf(k, "%03d", i);
+	M0_LOG(M0_DEBUG, "delete key=%03d", i);
 
 	m0_be_op_init(&op);
 	m0_be_btree_delete(tree, tx, &op, &key);
@@ -202,12 +202,22 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	m0_be_op_fini(&op);
 
 	btree_dbg_print(tree);
-#endif
 
-	M0_LOG(M0_DEBUG, "Deleting...");
+	M0_LOG(M0_DEBUG, "insert back key=%03d", i);
+
+	m0_be_op_init(&op);
+	m0_be_btree_insert(tree, tx, &op, &key, &key);
+	m0_be_op_wait(&op);
+	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	m0_be_op_fini(&op);
+
+	btree_dbg_print(tree);
+
+	M0_LOG(M0_DEBUG, "Deleting [%03d, %03d)...", INSERT_COUNT/4,
+						 INSERT_COUNT*3/4);
 	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
 		sprintf(k, "%03d", i);
-		M0_LOG(M0_DEBUG, "delete key=%d", i);
+		M0_LOG(M0_DEBUG, "delete key=%03d", i);
 
 		m0_be_op_init(&op);
 		m0_be_btree_delete(tree, tx, &op, &key);

@@ -384,8 +384,11 @@ struct m0_be_btree_cursor_stack_entry {
 	int                 bs_idx;
 };
 
-/** Maximum btree height configuration. */
-enum { BTREE_HEIGHT_MAX = 15 };
+/** Btree configuration constants. */
+enum {
+	BTREE_FAN_OUT    =  5,
+	BTREE_HEIGHT_MAX = 15,
+};
 
 /**
  * Btree cursor.
