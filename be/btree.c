@@ -1325,10 +1325,12 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 					    m0_bcount_t             nr,
 					    struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT_ZERO;
+	struct m0_be_tx_credit    cred;
 	int                       count = 1;
 	m0_bcount_t               ksize;
 	m0_bcount_t               vsize;
+
+	cred = M0_BE_TX_CREDIT_TYPE(struct m0_be_btree);
 
 	count += btree_count_items(tree, &ksize, &vsize);
 	M0_LOG(M0_DEBUG, "count=%d ksz=%d vsz%d", count, (int)ksize,
