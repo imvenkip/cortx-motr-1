@@ -735,31 +735,31 @@ del_loop:
 		if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
 			get_max_key_pos(btree, node->b_children[index], &child);
 			key_val = child.p_node->b_key_vals[child.p_index];
-			M0_LOG(M0_DEBUG, "swap with n=%p i=%d", child.p_node,
-								child.p_index);
+			M0_LOG(M0_DEBUG, "swapR with n=%p i=%d", child.p_node,
+								 child.p_index);
 			M0_SWAP(*key_val, *node->b_key_vals[index]);
 			mem_update(btree, tx, node->b_key_vals[index],
 						sizeof(struct bt_key_val));
-			btree_delete_key(btree, tx, node->b_children[index],
-					 key_val->key);
 			if (child.p_node->b_leaf == false) {
 				M0_LOG(M0_ERROR, "Not leaf");
 			}
+			node = child.p_node;
+			goto del_loop;
 		} else if (node->b_children[index + 1]->b_nr_active >
 			   BTREE_FAN_OUT - 1) {
 			get_min_key_pos(btree, node->b_children[index + 1],
 					&child);
 			key_val = child.p_node->b_key_vals[child.p_index];
-			M0_LOG(M0_DEBUG, "swap with n=%p i=%d", child.p_node,
-								child.p_index);
+			M0_LOG(M0_DEBUG, "swapL with n=%p i=%d", child.p_node,
+								 child.p_index);
 			M0_SWAP(*key_val, *node->b_key_vals[index]);
 			mem_update(btree, tx, node->b_key_vals[index],
 						sizeof(struct bt_key_val));
-			btree_delete_key(btree, tx, node->b_children[index + 1],
-					 key_val->key);
 			if (child.p_node->b_leaf == false) {
 				M0_LOG(M0_ERROR, "Not leaf");
 			}
+			node = child.p_node;
+			goto del_loop;
 		} else if (node->b_children[index]->b_nr_active <=
 							BTREE_FAN_OUT - 1 &&
 			   node->b_children[index + 1]->b_nr_active <=
