@@ -954,6 +954,7 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 		free_btree_node(del_node, btree, tx);
 	}
 	btree->bb_root = NULL;
+	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 }
 
 /**
@@ -1131,20 +1132,6 @@ static void btree_node_alloc_credit(const struct m0_be_btree     *tree,
 
 }
 
-static void btree_node_free_credit(const struct m0_be_btree     *tree,
-					 struct m0_be_tx_credit *accum)
-{
-	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
-
-	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(struct m0_be_bnode),
-			       BTREE_ALLOC_SHIFT, accum);
-	m0_be_allocator_credit(a, M0_BAO_FREE, CHILDREN_SIZE,
-			       BTREE_ALLOC_SHIFT, accum);
-	m0_be_allocator_credit(a, M0_BAO_FREE, KV_SIZE,
-			       BTREE_ALLOC_SHIFT, accum);
-
-}
-
 static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 					m0_bcount_t nr)
 {
@@ -1160,6 +1147,20 @@ static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 	m0_be_tx_credit_add(&sum_cred, &struct_node_update_cred);
 
 	m0_be_tx_credit_mac(accum, &sum_cred, nr);
+}
+
+static void btree_node_free_credit(const struct m0_be_btree     *tree,
+					 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+
+	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(struct m0_be_bnode),
+			       BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE, CHILDREN_SIZE,
+			       BTREE_ALLOC_SHIFT, accum);
+	m0_be_allocator_credit(a, M0_BAO_FREE, KV_SIZE,
+			       BTREE_ALLOC_SHIFT, accum);
+	btree_node_update_credit(accum, 1);
 }
 
 /* XXX */
@@ -1212,6 +1213,7 @@ static void kv_delete_credit(const struct m0_be_btree     *tree,
 	m0_be_allocator_credit(a, M0_BAO_FREE, vsize, BTREE_ALLOC_SHIFT, accum);
 	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(struct bt_key_val),
 						BTREE_ALLOC_SHIFT, accum);
+	btree_node_update_credit(accum, 1);
 }
 
 M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree     *tree,
@@ -1329,9 +1331,12 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 	m0_bcount_t               vsize;
 
 	count += btree_count_items(tree, &ksize, &vsize);
-	M0_LOG(M0_DEBUG, "count=%d", count);
+	M0_LOG(M0_DEBUG, "count=%d ksz=%d vsz%d", count, (int)ksize,
+							 (int)vsize);
 	kv_delete_credit(tree, ksize, vsize, &cred);
 	btree_node_free_credit(tree, &cred);
+	/* XXX: optimization is possible here:
+	 * the number of nodes is less than number of entries actually */
 	m0_be_tx_credit_mac(accum, &cred, count * nr);
 }
 
