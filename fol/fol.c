@@ -102,6 +102,7 @@ M0_INTERNAL m0_lsn_t lsn_inc(m0_lsn_t lsn)
 	return lsn;
 }
 
+#if XXX_USE_DB5
 static int lsn_cmp(struct m0_table *table, const void *key0, const void *key1)
 {
 	const m0_lsn_t *lsn0 = key0;
@@ -110,7 +111,6 @@ static int lsn_cmp(struct m0_table *table, const void *key0, const void *key1)
 	return m0_lsn_cmp(*lsn0, *lsn1);
 }
 
-#if XXX_USE_DB5
 static const struct m0_table_ops fol_ops = {
 	.to = {
 		[TO_KEY] = {
@@ -123,10 +123,29 @@ static const struct m0_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 #else
+static m0_bcount_t fol_ksize(const void *key)
+{
+	M0_IMPOSSIBLE("XXX Not sure about this implementation");
+	return sizeof m0_lsn_t;
+}
+
+static m0_bcount_t fol_vsize(const void *data)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+static int lsn_cmp(const void *key0, const void *key1)
+{
+	const m0_lsn_t *lsn0 = key0;
+	const m0_lsn_t *lsn1 = key1;
+
+	return m0_lsn_cmp(*lsn0, *lsn1);
+}
+
 static const struct m0_be_btree_kv_ops fol_kv_ops = {
-	.ko_ksize   = NULL, /* XXX TODO */
-	.ko_vsize   = NULL, /* XXX TODO */
-	.ko_compare = NULL  /* XXX TODO */
+	.ko_ksize   = fol_ksize,
+	.ko_vsize   = fol_vsize,
+	.ko_compare = lsn_cmp
 };
 #endif
 
