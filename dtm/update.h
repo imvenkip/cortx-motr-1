@@ -49,11 +49,23 @@ struct m0_fop;
 #include "lib/cookie_xc.h"
 #include "xcode/xcode.h"              /* struct m0_xcode_obj */
 
+enum m0_dtm_update_comm_state {
+	M0_DUX_NEW,
+	M0_DUX_INFLIGHT,
+	M0_DUX_REPLIED
+};
+
+struct m0_dtm_update_comm {
+	enum m0_dtm_update_comm_state  uc_state;
+	uint64_t                       uc_instance;
+	struct m0_fop                 *uc_body;
+};
+
 struct m0_dtm_update {
 	struct m0_dtm_up                upd_up;
 	uint32_t                        upd_label;
 	const struct m0_dtm_update_ops *upd_ops;
-	struct m0_fop                  *upd_body;
+	struct m0_dtm_update_comm       upd_comm;
 };
 M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update);
 

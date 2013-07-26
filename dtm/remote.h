@@ -51,6 +51,7 @@ struct m0_dtm_remote_ops;
 
 struct m0_dtm_remote {
 	struct m0_uint128               re_id;
+	uint64_t                        re_instance;
 	const struct m0_dtm_remote_ops *re_ops;
 	struct m0_dtm_fol_remote        re_fol;
 };
@@ -64,10 +65,12 @@ struct m0_dtm_remote_ops {
 			  struct m0_dtm_history *history);
 	void (*reo_close)(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history);
-	void (*reo_redo)(struct m0_dtm_remote *rem,
-			 struct m0_dtm_update *update);
 	void (*reo_undo)(struct m0_dtm_remote *rem,
 			 struct m0_dtm_history *history, m0_dtm_ver_t upto);
+	void (*reo_send)(struct m0_dtm_remote *rem,
+			 struct m0_dtm_update *update);
+	void (*reo_resend)(struct m0_dtm_remote *rem,
+			   struct m0_dtm_update *update);
 };
 
 M0_INTERNAL void m0_dtm_remote_init(struct m0_dtm_remote *remote,

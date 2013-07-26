@@ -379,6 +379,86 @@ M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up)
 	return hi_tlist_prev(&up->up_hi->hi_ups, up);
 }
 
+M0_INTERNAL struct m0_dtm_up *hi_latest(struct m0_dtm_hi *hi)
+{
+	return hi_tlist_head(&hi->hi_ups);
+}
+
+M0_INTERNAL struct m0_dtm_up *hi_earliest(struct m0_dtm_hi *hi)
+{
+	return hi_tlist_tail(&hi->hi_ups);
+}
+
+
+/**
+ * Returns the earliest update in the same history as "up", which
+ *
+ *     - is not earlier than "up" and
+ *
+ *     - has version number greater than "since".
+ */
+M0_INTERNAL struct m0_dtm_up *history_first(struct m0_dtm_up *up,
+					    m0_dtm_ver_t since)
+{
+	M0_PRE(up != NULL);
+
+	while (1) {
+		struct m0_dtm_up *prior = m0_dtm_up_prior(up);
+
+		if (prior == NULL || (prior->up_ver != 0 &&
+				      prior->up_ver <= since))
+			break;
+		up = prior;
+	}
+	return up;
+}
+
+/**
+ * Returns the latest update in the same history as "up", which
+ *
+ *     - is not later than "up" and
+ *
+ *     - has version number less than "since".
+ */
+M0_INTERNAL struct m0_dtm_up *history_last(struct m0_dtm_up *up,
+					   m0_dtm_ver_t upto)
+{
+	M0_PRE(up != NULL);
+
+	while (1) {
+		struct m0_dtm_up *later = m0_dtm_up_later(up);
+
+		if (later == NULL || (later->up_ver != 0 &&
+				      later->up_ver >= upto))
+			break;
+		up = later;
+	}
+	return up;
+}
+
+M0_INTERNAL m0_dtm_ver_t up_ver(const struct m0_dtm_up *up)
+{
+	return up != NULL ? up->up_ver : 0;
+}
+
+M0_INTERNAL bool up_is_earlier(struct m0_dtm_up *up0, struct m0_dtm_up *up1)
+{
+	M0_PRE(up0 != NULL);
+	M0_PRE(up1 != NULL);
+	M0_PRE(up0->up_hi == up1->up_hi);
+
+	if (up0->up_ver < up1->up_ver)
+		return true;
+	while (1) {
+		up0 = m0_dtm_up_later(up0);
+		if (up0 == NULL)
+			return false;
+		if (up1 == up0)
+			return true;
+	}
+}
+
+
 static bool op_is_locked(const struct m0_dtm_op *op)
 {
 	return m0_mutex_is_locked(&op->op_nu->nu_lock);

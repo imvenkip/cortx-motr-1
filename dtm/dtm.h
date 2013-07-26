@@ -54,6 +54,7 @@ struct m0_dtm {
 	struct m0_uint128                 d_id;
 	struct m0_dtm_catalogue           d_cat[M0_DTM_HISTORY_TYPE_NR];
 	struct m0_dtm_fol                 d_fol;
+	struct m0_tl                      d_excited;
 	const struct m0_dtm_history_type *d_htype[M0_DTM_HISTORY_TYPE_NR];
 };
 

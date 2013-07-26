@@ -10,6 +10,7 @@ nobase_mero_include_HEADERS += \
                                   dtm/fol.h \
                                   dtm/history.h \
                                   dtm/ltx.h \
+                                  dtm/machine.h \
                                   dtm/nucleus.h \
                                   dtm/object.h \
                                   dtm/operation.h \
@@ -28,6 +29,7 @@ mero_libmero_la_SOURCES  += \
                                   dtm/fol.c \
                                   dtm/history.c \
                                   dtm/ltx.c \
+                                  dtm/machine.c \
                                   dtm/nucleus.c \
                                   dtm/object.c \
                                   dtm/operation.c \

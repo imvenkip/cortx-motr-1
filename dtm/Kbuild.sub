@@ -8,6 +8,7 @@ m0mero_objects += \
                   dtm/fol.o \
                   dtm/history.o \
                   dtm/ltx.o \
+                  dtm/machine.o \
                   dtm/nucleus.o \
                   dtm/object.o \
                   dtm/operation.o \

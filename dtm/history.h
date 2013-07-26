@@ -49,10 +49,14 @@ struct m0_dtm_history_type_ops;
 
 struct m0_dtm_history {
 	struct m0_dtm_hi                 h_hi;
-	struct m0_queue_link             h_pending;
+	struct m0_tlink                  h_exclink;
 	struct m0_tlink                  h_catlink;
 	struct m0_dtm_remote            *h_rem;
 	struct m0_dtm_update            *h_persistent;
+	struct m0_dtm_update            *h_undo;
+	struct m0_dtm_update            *h_reint;
+	struct m0_dtm_update            *h_known;
+	struct m0_dtm_update            *h_reset;
 	const struct m0_dtm_history_ops *h_ops;
 	uint64_t                         h_gen;
 	struct m0_cookie                 h_remcookie;
@@ -61,7 +65,8 @@ struct m0_dtm_history {
 M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history);
 
 enum m0_dtm_history_flags {
-	M0_DHF_CLOSED = M0_DHF_LAST
+	M0_DHF_CLOSED = M0_DHF_LAST,
+	M0_DHF_AMNESIA
 };
 
 struct m0_dtm_history_ops {
@@ -100,8 +105,6 @@ M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history);
 
 M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 					   m0_dtm_ver_t upto);
-M0_INTERNAL void m0_dtm_history_redo(struct m0_dtm_history *history,
-				     m0_dtm_ver_t since);
 M0_INTERNAL void m0_dtm_history_undo(struct m0_dtm_history *history,
 				     m0_dtm_ver_t upto);
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history);

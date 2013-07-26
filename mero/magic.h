@@ -765,8 +765,10 @@ enum m0_magic_satchel {
 	M0_DTM_HI_MAGIX = 0x33b1b11ca1f00d77,
 	/* m0_dtm_op::op_ups::t_magic (feeble fiddle) */
 	M0_DTM_OP_MAGIX = 0x33feeb1ef1dd1e77,
-	/* m0_dtm_catalogue::ca_el::t_magic (accessible 42) */
-	M0_DTM_CAT_MAGIX = 0x33ACCE551B1E4277
+	/* m0_dtm_catalogue::d_cat[]::ca_el::t_magic (accessible 42) */
+	M0_DTM_CAT_MAGIX = 0x33acce551b1e4277,
+	/* m0_dtm::d_excited::t_magic (flooded baboo) */
+	M0_DTM_EXC_MAGIX = 0x33f100dedbab0077
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

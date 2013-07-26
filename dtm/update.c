@@ -33,6 +33,8 @@
 #include "lib/misc.h"                   /* M0_IN */
 #include "mero/magic.h"
 
+#include "fop/fop.h"
+
 #include "dtm/dtm_internal.h"
 #include "dtm/nucleus.h"
 #include "dtm/operation.h"
@@ -60,7 +62,17 @@ M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 
 M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update)
 {
-	return m0_dtm_up_invariant(&update->upd_up);
+	const struct m0_dtm_up          *up     = &update->upd_up;
+	enum m0_dtm_state                state  = up->up_state;
+	const struct m0_dtm_update_comm *comm   = &update->upd_comm;
+	enum m0_dtm_update_comm_state    cstate = comm->uc_state;
+
+	return
+		m0_dtm_up_invariant(up) &&
+		M0_IN(cstate, (M0_DUX_NEW, M0_DUX_INFLIGHT, M0_DUX_REPLIED)) &&
+		ergo(state > M0_DOS_INPROGRESS, cstate == M0_DUX_REPLIED) &&
+		ergo(cstate == M0_DUX_REPLIED,
+		     comm->uc_body->f_item.ri_reply != NULL);
 }
 
 M0_INTERNAL bool m0_dtm_update_is_user(const struct m0_dtm_update *update)
@@ -179,6 +191,12 @@ M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up)
 {
 	return up != NULL ?
 		container_of(up, struct m0_dtm_update, upd_up) : NULL;
+}
+
+M0_INTERNAL bool update_is_earlier(struct m0_dtm_update *update0,
+				   struct m0_dtm_update *update1)
+{
+	return up_is_earlier(UPDATE_UP(update0), UPDATE_UP(update1));
 }
 
 M0_TL_DESCR_DEFINE(history, "dtm history updates", M0_INTERNAL,

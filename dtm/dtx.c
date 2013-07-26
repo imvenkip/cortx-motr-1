@@ -90,7 +90,7 @@ M0_INTERNAL void m0_dtm_dtx_close(struct m0_dtm_dtx *dtx)
 		struct m0_dtm_history *history = pa_history(&dtx->dt_party[i]);
 		struct m0_dtm_update  *update;
 
-		update = up_update(hi_tlist_head(&history->h_hi.hi_ups));
+		update = up_update(history_latest(history));
 		M0_ASSERT(update != NULL);
 		m0_dtm_controlh_fuse_close(update);
 		M0_ASSERT(m0_dtm_history_invariant(history));

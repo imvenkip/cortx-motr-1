@@ -268,9 +268,9 @@ enum m0_rpc_item_flags {
 	 */
 	M0_RIF_DUP  = 1 << 0,
 	/**
-	 * Item is being sent as part of DTM redo.
+	 * Sender already has the reply.
 	 */
-	M0_RIF_REDO = 1 << 1
+	M0_RIF_REPLIED = 1 << 1
 };
 
 struct m0_rpc_item_ops {

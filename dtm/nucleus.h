@@ -119,29 +119,27 @@ struct m0_dtm_nu {
 	struct m0_mutex nu_lock;
 };
 
-M0_INTERNAL void m0_dtm_op_init      (struct m0_dtm_op *op,
-				      struct m0_dtm_nu *nu);
-M0_INTERNAL void m0_dtm_op_prepared  (const struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_done      (const struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_close     (const struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_del       (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_fini      (struct m0_dtm_op *op);
-M0_INTERNAL void m0_dtm_op_persistent(struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_init    (struct m0_dtm_op *op,
+				    struct m0_dtm_nu *nu);
+M0_INTERNAL void m0_dtm_op_prepared(const struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_done    (const struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_close   (const struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_del     (struct m0_dtm_op *op);
+M0_INTERNAL void m0_dtm_op_fini    (struct m0_dtm_op *op);
 
-M0_INTERNAL void m0_dtm_hi_init      (struct m0_dtm_hi *hi,
-				      struct m0_dtm_nu *nu);
-M0_INTERNAL void m0_dtm_hi_fini      (struct m0_dtm_hi *hi);
+M0_INTERNAL void m0_dtm_hi_init    (struct m0_dtm_hi *hi,
+				    struct m0_dtm_nu *nu);
+M0_INTERNAL void m0_dtm_hi_fini    (struct m0_dtm_hi *hi);
 
-M0_INTERNAL void m0_dtm_up_init      (struct m0_dtm_up *up,
-				      struct m0_dtm_hi *hi,
-				      struct m0_dtm_op *op,
-				      enum m0_dtm_up_rule rule,
-				      m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
-M0_INTERNAL void m0_dtm_up_ver_set   (struct m0_dtm_up *up,
-				      m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
-M0_INTERNAL void m0_dtm_up_persistent(struct m0_dtm_up *up);
-M0_INTERNAL void m0_dtm_nu_init      (struct m0_dtm_nu *nu);
-M0_INTERNAL void m0_dtm_nu_fini      (struct m0_dtm_nu *nu);
+M0_INTERNAL void m0_dtm_up_init    (struct m0_dtm_up *up,
+				    struct m0_dtm_hi *hi,
+				    struct m0_dtm_op *op,
+				    enum m0_dtm_up_rule rule,
+				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
+M0_INTERNAL void m0_dtm_up_ver_set (struct m0_dtm_up *up,
+				    m0_dtm_ver_t ver, m0_dtm_ver_t orig_ver);
+M0_INTERNAL void m0_dtm_nu_init    (struct m0_dtm_nu *nu);
+M0_INTERNAL void m0_dtm_nu_fini    (struct m0_dtm_nu *nu);
 
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_prior(struct m0_dtm_up *up);
 M0_INTERNAL struct m0_dtm_up *m0_dtm_up_later(struct m0_dtm_up *up);

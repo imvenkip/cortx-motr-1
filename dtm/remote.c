@@ -132,12 +132,17 @@ static void rem_rpc_undo(struct m0_dtm_remote *rem,
 M0_EXTERN struct m0_rpc_session *m0_rpc_conn_session0(const struct m0_rpc_conn
 						      *conn);
 
-static void rem_rpc_redo(struct m0_dtm_remote *rem,
+static void rem_rpc_send(struct m0_dtm_remote *rem,
 			 struct m0_dtm_update *update)
 {
-	struct m0_rpc_item *item = &update->upd_body->f_item;
+}
 
-	M0_PRE(update->upd_body != NULL);
+static void rem_rpc_resend(struct m0_dtm_remote *rem,
+			   struct m0_dtm_update *update)
+{
+	struct m0_rpc_item *item = &update->upd_comm.uc_body->f_item;
+
+	M0_PRE(update->upd_comm.uc_body != NULL);
 	M0_PRE(M0_IN(update->upd_up.up_state, (M0_DOS_INPROGRESS,
 					       M0_DOS_VOLATILE,
 					       M0_DOS_PERSISTENT)));
@@ -152,7 +157,8 @@ static const struct m0_dtm_remote_ops rem_rpc_ops = {
 	.reo_fixed      = &rem_rpc_fixed,
 	.reo_known      = &rem_rpc_known,
 	.reo_close      = &rem_rpc_close,
-	.reo_redo       = &rem_rpc_redo,
+	.reo_send       = &rem_rpc_send,
+	.reo_resend     = &rem_rpc_resend,
 	.reo_undo       = &rem_rpc_undo
 };
 
@@ -234,7 +240,7 @@ static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)
 		case R_FIXED:
 			break;
 		case R_KNOWN:
-			m0_dtm_history_redo(history, notice->dno_ver);
+			m0_dtm_history_reset(history, notice->dno_ver);
 			break;
 		case R_UNDO:
 			m0_dtm_history_undo(history, notice->dno_ver);
@@ -320,14 +326,14 @@ static void rem_local_known(struct m0_dtm_remote *rem,
 	rem_local_notify(rem, history, history->h_hi.hi_ver, R_KNOWN);
 }
 
-static void rem_local_redo(struct m0_dtm_remote *rem,
+static void rem_local_send(struct m0_dtm_remote *rem,
 			   struct m0_dtm_update *update)
 {
 	struct m0_dtm_local_remote *lre;
 	int                         result;
 
 	M0_AMB(lre, rem, lre_rem);
-	result = m0_reqh_fop_handle(lre->lre_reqh, update->upd_body);
+	result = m0_reqh_fop_handle(lre->lre_reqh, update->upd_comm.uc_body);
 	if (result != 0)
 		M0_LOG(M0_ERROR, "redo: %i.", result);
 }
@@ -343,7 +349,8 @@ static const struct m0_dtm_remote_ops rem_local_ops = {
 	.reo_persistent = &rem_local_persistent,
 	.reo_fixed      = &rem_local_fixed,
 	.reo_known      = &rem_local_known,
-	.reo_redo       = &rem_local_redo,
+	.reo_send       = &rem_local_send,
+	.reo_resend     = &rem_local_send,
 	.reo_undo       = &rem_local_undo
 };
 

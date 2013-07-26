@@ -69,6 +69,8 @@ M0_TL_DESCR_DECLARE(oper, M0_EXTERN);
 M0_TL_DECLARE(oper, M0_EXTERN, struct m0_dtm_update);
 M0_TL_DESCR_DECLARE(cat, M0_EXTERN);
 M0_TL_DECLARE(cat, M0_EXTERN, struct m0_dtm_history);
+M0_TL_DESCR_DECLARE(exc, M0_EXTERN);
+M0_TL_DECLARE(exc, M0_EXTERN, struct m0_dtm_history);
 
 #define oper_for(o, update)				\
 do {							\
@@ -102,9 +104,9 @@ do {							\
 #define HISTORY_DTM(history) (nu_dtm((history)->h_hi.hi_nu))
 
 M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu);
-M0_INTERNAL struct m0_dtm *history_dtm(struct m0_dtm_history *history);
 M0_INTERNAL struct m0_dtm_history *hi_history(struct m0_dtm_hi *hi);
 M0_INTERNAL struct m0_dtm_update *up_update(struct m0_dtm_up *up);
+M0_INTERNAL m0_dtm_ver_t up_ver(const struct m0_dtm_up *up);
 M0_INTERNAL bool op_state(const struct m0_dtm_op *op, enum m0_dtm_state state);
 M0_INTERNAL void advance_try(const struct m0_dtm_op *op);
 M0_INTERNAL void up_prepared(struct m0_dtm_up *up);
@@ -118,7 +120,21 @@ M0_INTERNAL void oper_unlock(const struct m0_dtm_oper *oper);
 M0_INTERNAL void history_lock(const struct m0_dtm_history *history);
 M0_INTERNAL void history_unlock(const struct m0_dtm_history *history);
 
+M0_INTERNAL struct m0_dtm_up *hi_latest(struct m0_dtm_hi *hi);
+M0_INTERNAL struct m0_dtm_up *hi_earliest(struct m0_dtm_hi *hi);
+M0_INTERNAL struct m0_dtm_up *history_latest(struct m0_dtm_history *history);
+M0_INTERNAL struct m0_dtm_up *history_earliest(struct m0_dtm_history *history);
+
+M0_INTERNAL struct m0_dtm_up *history_first(struct m0_dtm_up *up,
+					    m0_dtm_ver_t since);
+M0_INTERNAL struct m0_dtm_up *history_last(struct m0_dtm_up *up,
+					   m0_dtm_ver_t upto);
+
 M0_INTERNAL m0_dtm_ver_t update_ver(const struct m0_dtm_update *update);
+M0_INTERNAL m0_dtm_ver_t up_ver(const struct m0_dtm_up *up);
+M0_INTERNAL bool up_is_earlier(struct m0_dtm_up *up0, struct m0_dtm_up *up1);
+M0_INTERNAL bool update_is_earlier(struct m0_dtm_update *update0,
+				   struct m0_dtm_update *update1);
 
 M0_INTERNAL int m0_dtm_remote_global_init(void);
 M0_INTERNAL void m0_dtm_remote_global_fini(void);
