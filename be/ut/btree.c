@@ -130,7 +130,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 	/* start */
 
 	m0_be_op_init(&op);
-	tree = m0_be_alloc(a, tx, &op, sizeof *tree, 0),
+	tree = m0_be_alloc(a, tx, &op, sizeof *tree, 0);
 	m0_be_op_wait(&op);
 	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
@@ -246,6 +246,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 
 static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 {
+	struct m0_be_allocator   *a = h->buh_allocator;
 	struct m0_be_tx_credit    cred;
 	struct m0_be_op           op;
 	struct m0_be_tx          *tx;
@@ -260,6 +261,7 @@ static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 
 	m0_be_tx_credit_init(&cred);
 	m0_be_btree_destroy_credit(tree, 1, &cred);
+	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof *tree, 0, &cred);
 
 	m0_sm_group_lock(&ut__txs_sm_group);
 
@@ -273,6 +275,12 @@ static void destroy_tree(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 	M0_LOG(M0_DEBUG, "Btree %p destroy...", tree);
 	m0_be_op_init(&op);
 	m0_be_btree_destroy(tree, tx, &op);
+	m0_be_op_wait(&op);
+	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	m0_be_op_fini(&op);
+
+	m0_be_op_init(&op);
+	m0_be_free(a, tx, &op, tree);
 	m0_be_op_wait(&op);
 	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
