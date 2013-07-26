@@ -65,7 +65,7 @@ struct m0_be_engine {
 	 * Per-state lists of transaction. Each non-failed transaction is in one
 	 * of these lists.
 	 */
-	struct m0_tl		   eng_txs[M0_BTS_NR];
+	struct m0_tl		   eng_txs[M0_BTS_NR + 1];
 	struct m0_tl		   eng_groups[M0_BEG_NR];
 	/** Transactional log. */
 	struct m0_be_log	   eng_log;

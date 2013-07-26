@@ -157,6 +157,24 @@ static bool be_engine_invariant(struct m0_be_engine *en)
 	return true; /* XXX TODO */
 }
 
+static struct m0_be_tx *be_engine_tx_peek(struct m0_be_engine *en,
+					  enum m0_be_tx_state state)
+{
+	M0_PRE(be_engine_is_locked(en));
+
+	return etx_tlist_head(&en->eng_txs[state]);
+}
+
+static void be_engine_tx_state_post(struct m0_be_engine *en,
+				    struct m0_be_tx *tx,
+				    enum m0_be_tx_state state)
+{
+	M0_PRE(be_engine_is_locked(en));
+
+	etx_tlist_move(&en->eng_txs[M0_BTS_NR], tx);
+	m0_be_tx__state_post(tx, state);
+}
+
 /* XXX RENAME IT */
 static void be_engine_got_tx_open(struct m0_be_engine *en)
 {
@@ -165,22 +183,24 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 
 	M0_PRE(be_engine_is_locked(en));
 
-	/* XXX TODO make be_engine_tx_peek(state) */
-	/* XXX race condition here */
-	m0_tl_for(etx, &en->eng_txs[M0_BTS_OPENING], tx) {
+	while ((tx = be_engine_tx_peek(en, M0_BTS_OPENING)) != NULL) {
 		if (!m0_be_tx_credit_le(&tx->t_prepared,
 					&en->eng_cfg->bec_tx_size_max)) {
-			m0_be_tx__state_post(tx, M0_BTS_FAILED);
+			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
-			rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared);
-			if (rc == 0)
-				m0_be_tx__state_post(tx, M0_BTS_ACTIVE);
-			else
-			/* Ignore the rest of OPENING transactions. If we
-			 * don't ignore them, the big ones may starve. */
-			break;
+			rc = m0_be_log_reserve_tx(&en->eng_log,
+						  &tx->t_prepared);
+			if (rc == 0) {
+				be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
+			} else {
+				/* Ignore the rest of OPENING transactions.
+				 * If we don't ignore them, the big ones
+				 * may starve.
+				 */
+				break;
+			}
 		}
-	} m0_tl_endfor;
+	}
 }
 
 static void be_engine_group_close(struct m0_be_engine *en,
@@ -217,6 +237,7 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 	return rc;
 }
 
+/* XXX RENAME IT */
 static void be_engine_got_tx_close(struct m0_be_engine *en)
 {
 	struct m0_be_tx *tx;
@@ -224,13 +245,12 @@ static void be_engine_got_tx_close(struct m0_be_engine *en)
 
 	M0_PRE(be_engine_is_locked(en));
 
-	/* XXX race condition here */
-	m0_tl_for(etx, &en->eng_txs[M0_BTS_CLOSED], tx) {
+	while ((tx = be_engine_tx_peek(en, M0_BTS_CLOSED)) != NULL) {
 		rc = be_engine_tx_trygroup(en, tx);
 		if (rc != 0)
 			break;
-		m0_be_tx__state_post(tx, M0_BTS_GROUPED);
-	} m0_tl_endfor;
+		be_engine_tx_state_post(en, tx, M0_BTS_GROUPED);
+	}
 }
 
 static void be_engine_got_tx_done(struct m0_be_engine *en, struct m0_be_tx *tx)
