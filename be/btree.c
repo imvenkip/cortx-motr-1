@@ -719,12 +719,12 @@ del_loop:
 		if (node == NULL)
 			goto out;
 
-		if (index == (parent->b_nr_active)) {
-			lsibling = parent->b_children[parent->b_nr_active - 1];
+		if (i == parent->b_nr_active) {
+			lsibling = parent->b_children[i - 1];
 			rsibling = NULL;
-		} else if (index == 0) {
+		} else if (i == 0) {
 			lsibling = NULL;
-			rsibling = parent->b_children[1];
+			rsibling = parent->b_children[i + 1];
 		} else {
 			lsibling = parent->b_children[i - 1];
 			rsibling = parent->b_children[i + 1];
