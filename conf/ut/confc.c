@@ -308,8 +308,7 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	struct m0_conf_obj *svc_dir;
 	int                 rc;
 
-	rc = m0_confc_init(&confc, &g_grp,
-			   &(const struct m0_buf)M0_BUF_INITS("prof"),
+	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("prof"),
 			   confd_addr, rpc_mach, local_conf);
 	M0_UT_ASSERT(rc == 0);
 
@@ -332,13 +331,11 @@ static void test_confc_local(void)
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_confc_init(&confc, &g_grp,
-			   &(const struct m0_buf)M0_BUF_INITS("prof"),
+	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("prof"),
 			   NULL, NULL, "bad configuration string");
 	M0_UT_ASSERT(rc == -EPROTO);
 
-	rc = m0_confc_init(&confc, &g_grp,
-			   &(const struct m0_buf)M0_BUF_INITS("bad profile"),
+	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("bad profile"),
 			   NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == -ENODATA);
 
@@ -390,8 +387,7 @@ static void test_confc_invalid_input(void)
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_confc_init(&confc, &g_grp,
-			   &(const struct m0_buf)M0_BUF_INITS("prof"),
+	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("prof"),
 			   NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == -EEXIST);
 }

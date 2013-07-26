@@ -27,7 +27,7 @@
 #include "ut/ut.h"
 
 #define _CONFDB_PATH "_conf.db"
-#define _BUF(str) (const struct m0_buf)M0_BUF_INITS(str)
+#define _BUF(str) M0_BUF_INITS(str)
 
 /* ----------------------------------------------------------------
  * Source of configuration data: conf/ut/conf_xc.txt
