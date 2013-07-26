@@ -845,7 +845,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 			break;
 		case M0_BAO_FREE:
 			/* be_alloc_chunk_mark_free */
-			m0_be_tx_credit_mac(accum, &capture_around_credit, 2);
+			m0_be_tx_credit_mac(accum, &capture_around_credit, 3);
 			m0_be_tx_credit_mac(accum, &chunk_trymerge_credit, 2);
 			break;
 		default:
