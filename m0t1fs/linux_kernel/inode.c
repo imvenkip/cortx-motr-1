@@ -99,14 +99,7 @@ M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void)
 
 static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
 {
-	/**
-	 * @todo
-	 * M0_RETURN(csb->csb_nr_containers);
-	 * Check why conf profile doesn't parse DLM parameter
-	 * Current assumption: Return the container ID for mdservice,
-	 * so node running mdservice also runs rmservice.
-	 */
-	M0_RETURN(0);
+	M0_RETURN(csb->csb_nr_containers);
 }
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,

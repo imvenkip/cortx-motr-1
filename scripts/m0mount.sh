@@ -135,6 +135,11 @@ M0_TRACE_IMMEDIATE_MASK=0
 M0_TRACE_LEVEL=debug+
 M0_TRACE_PRINT_CONTEXT=full
 
+# kernel space tracing parameters
+MERO_MODULE_TRACE_MASK='!all'
+MERO_TRACE_PRINT_CONTEXT=func
+MERO_TRACE_LEVEL='call+'
+
 # number of disks to split by for each service
 # in ad-stob mode
 DISKS_SH_NR=1 #`expr $POOL_WIDTH / $SERVICES_NR + 1`
@@ -157,7 +162,8 @@ XPT_SETUP="-m 163840 -q 16"
 XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
 XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
-#KTRACE_FLAGS=m0_trace_immediate_mask=8
+KTRACE_FLAGS="trace_immediate_mask=$MERO_MODULE_TRACE_MASK \
+trace_print_context=$MERO_TRACE_PRINT_CONTEXT trace_level=$MERO_TRACE_LEVEL"
 
 BROOT=$PWD   # globally visible build root
 
@@ -423,7 +429,7 @@ function start_server () {
 
 	local SNAME="-s addb -s ioservice -s sns_cm"
 	if [ $I -eq 0 ]; then
-		SNAME="-s mdservice $SNAME"
+		SNAME="-s mdservice -s rmservice $SNAME"
 	fi
 
 	$RUN "cd $DDIR && \
@@ -586,6 +592,7 @@ main()
 
 	# prepare configuration data
 	MDS_ENDPOINT="\"${SERVICES[1]}\""
+	RMS_ENDPOINT="\"${SERVICES[1]}\""
 	IOS_NAMES='"ios1"'
 	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
@@ -596,14 +603,15 @@ main()
 	done
 
 	CONF="`cat <<EOF
-[$((SERVICES_NR + 3)):
+[$((SERVICES_NR + 4)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
               [3: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
                   "unit_size=$UNIT_SIZE"],
-              [$((SERVICES_NR + 1)): "mds", $IOS_NAMES])}),
+              [$((SERVICES_NR + 2)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
+  ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
   $IOS_OBJS]
 EOF`"
 
@@ -618,8 +626,6 @@ EOF`"
 
 	# wait to terminate
 	if [ $wait_after_mount -eq 1 ]; then
-
-		trap cleanup EXIT
 
 		echo
 		echo The mero file system may be accessed with another terminal at $MP
@@ -671,6 +677,8 @@ while getopts "$OPTIONS_STRING" OPTION; do
 done
 
 #set -x
+
+trap cleanup EXIT
 
 main
 

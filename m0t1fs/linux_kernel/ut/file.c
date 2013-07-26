@@ -141,7 +141,7 @@ static int file_io_ut_init(void)
                 .f_key       = FID_KEY,
         };
         ci.ci_layout_id = csb.csb_layout_id;
-	csb.csb_cl_map.clm_map[0] = &msc;
+	csb.csb_cl_map.clm_map[csb.csb_nr_containers] = &msc;
 	m0t1fs_file_lock_init(&ci, &csb);
 
 	lay = m0_pdl_to_layout(pdlay);

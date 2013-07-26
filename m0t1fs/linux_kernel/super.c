@@ -116,7 +116,7 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 	struct m0t1fs_service_context *ctx;
 
 	M0_ENTRY();
-	M0_PRE(container_id < csb->csb_nr_containers);
+	M0_PRE(container_id <= csb->csb_nr_containers);
 
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	M0_ASSERT(ctx != NULL);
@@ -575,6 +575,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 	const char        **pstr;
 	int                 rc;
 	bool                mds_is_provided = false;
+	bool                dlm_is_provided = false;
 
 	M0_ENTRY();
 	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
@@ -585,15 +586,15 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 		M0_RETURN(rc);
 
 	*nr_ios = 0;
-	/**
-	 * @todo Check for M0_CST_DLM
-	 */
+
 	for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
 		const struct m0_conf_service *svc =
 			M0_CONF_CAST(entry, m0_conf_service);
 
 		if (svc->cs_type == M0_CST_MDS)
 			mds_is_provided = true;
+		else if (svc->cs_type == M0_CST_DLM)
+			dlm_is_provided = true;
 		else if (svc->cs_type == M0_CST_IOS)
 			++*nr_ios;
 
@@ -609,10 +610,14 @@ out:
 	m0_confc_close(entry);
 	m0_confc_close(dir);
 
-	if (rc == 0)
-		M0_POST(mds_is_provided && *nr_ios > 0);
-	else
+	if (rc == 0 && mds_is_provided && dlm_is_provided && *nr_ios > 0)
+		M0_LOG(M0_DEBUG, "Connected to IOS, MDS and RMS");
+	else {
+		M0_LOG(M0_FATAL, "Error connecting to the services. "
+		       "(Please check whether IOS, MDS and RMS are provided)");
+		rc = rc ?: -EINVAL;
 		disconnect_from_services(csb);
+	}
 	M0_RETURN(rc);
 }
 
