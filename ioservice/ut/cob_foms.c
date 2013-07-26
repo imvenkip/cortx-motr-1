@@ -1176,7 +1176,7 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 	int			  result = 0;
 
 	cob_cmn =  m0_cobfop_common_get(fop);
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, dec_part) {
+	m0_tl_for(m0_rec_part, &rec->fr_parts, dec_part) {
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
 		    m0_fop_fol_rec_part_type.rpt_index) {
 			struct m0_fop_cob_common   *cob_data;

@@ -186,7 +186,7 @@ static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 
 M0_INTERNAL void m0_fol_rec_init(struct m0_fol_rec *rec)
 {
-	m0_rec_part_tlist_init(&rec->fr_fol_rec_parts);
+	m0_rec_part_tlist_init(&rec->fr_parts);
 }
 
 /**
@@ -210,10 +210,10 @@ M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 {
 	struct m0_fol_rec_part *part;
 
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
+	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
 		m0_fol_rec_part_fini(part);
 	} m0_tl_endfor;
-	m0_rec_part_tlist_fini(&rec->fr_fol_rec_parts);
+	m0_rec_part_tlist_fini(&rec->fr_parts);
 }
 
 M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
@@ -221,7 +221,7 @@ M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
 {
 	M0_PRE(rec != NULL && part != NULL);
 
-	m0_rec_part_tlist_add_tail(&rec->fr_fol_rec_parts, part);
+	m0_rec_part_tlist_add_tail(&rec->fr_parts, part);
 }
 
 #if XXX_USE_DB5
@@ -524,8 +524,7 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	int                     result;
 	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 
-	desc->rd_header.rh_parts_nr =
-		m0_rec_part_tlist_length(&rec->fr_fol_rec_parts);
+	desc->rd_header.rh_parts_nr = m0_rec_part_tlist_length(&rec->fr_parts);
 
 	size = fol_record_pack_size(rec);
 	M0_ASSERT(M0_IS_8ALIGNED(size));
@@ -560,7 +559,7 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	      desc->rd_header.rh_parts_nr *
 	      m0_xcode_data_size(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rp));
 
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
+	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
 		len += m0_xcode_data_size(&ctx, &REC_PART_XCODE_OBJ(part));
 	} m0_tl_endfor;
 	return m0_align(len, 8);
@@ -580,7 +579,7 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 	if (rc != 0)
 		return rc;
 
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, part) {
+	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
 		struct m0_fol_rec_part_header rph;
 		uint32_t		      index;
 

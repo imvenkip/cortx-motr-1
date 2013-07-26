@@ -208,7 +208,7 @@ static void test_fol_rec_part_encdec(void)
 	rc = m0_fol_rec_lookup(&fol, &tx, lsn, &dec_rec);
 	M0_ASSERT(rc == 0);
 
-	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
+	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
 		/* Call verify_part_data() for each part. */
 		dec_part->rp_ops->rpo_undo(dec_part, &tx);
 	} m0_tl_endfor;

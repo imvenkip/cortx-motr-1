@@ -381,7 +381,7 @@ static void test_ad_undo(void)
 
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
 
-	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_fol_rec_parts);
+	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_parts);
 	M0_ASSERT(rpart != NULL);
 
 	/* Write new data in stob */

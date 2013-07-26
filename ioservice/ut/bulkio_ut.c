@@ -1302,7 +1302,7 @@ static void bulkio_server_write_fol_rec_verify(void)
 	M0_UT_ASSERT(result == 0);
 
 	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
-	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
+	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
 		struct m0_fop_fol_rec_part *fp_part = dec_part->rp_data;
 
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
@@ -1363,7 +1363,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	M0_UT_ASSERT(result == 0);
 
 	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
-	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
+	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
 		    m0_fop_fol_rec_part_type.rpt_index) {
 			struct m0_fop_fol_rec_part *fp_part;

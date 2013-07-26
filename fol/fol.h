@@ -57,13 +57,13 @@
    @see m0_fol_rec_part_type_register() : Registers FOL record part type.
    @see m0_fol_rec_part_type_deregister() : Deregisters FOL record part type.
 
-   FOL record parts list is kept in m0_fol_rec::fr_fol_rec_parts which is
+   FOL record parts list is kept in m0_fol_rec::fr_parts which is
    initialized in m0_fol_rec_init()
 
    m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
    and parts.
    fol_record_encode() encodes the FOL record parts in the list
-   m0_fol_rec:fr_fol_rec_parts in a buffer, which then will be added into the db
+   m0_fol_rec:fr_parts in a buffer, which then will be added into the db
    using m0_fol_add_buf().
 
    @see m0_fol_rec_add()
@@ -331,7 +331,7 @@ struct m0_fol_rec {
 	   A list of all FOL record parts in a record.
 	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
 	 */
-	struct m0_tl              fr_fol_rec_parts;
+	struct m0_tl              fr_parts;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
 #if XXX_USE_DB5
