@@ -521,7 +521,6 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 {
 	void                   *buf;
 	size_t                  size;
-	int                     result;
 	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 
 	desc->rd_header.rh_parts_nr = m0_rec_part_tlist_length(&rec->fr_parts);
@@ -532,13 +531,11 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	desc->rd_header.rh_data_len = size;
 
 	buf = m0_alloc(size);
-	if (buf != NULL) {
-		out->b_addr = buf;
-		out->b_nob  = size;
-		result = fol_record_pack(rec, out);
-	} else
-		result = -ENOMEM;
-	return result;
+	if (buf == NULL)
+		return -ENOMEM;
+
+	m0_buf_init(out, buf, size);
+	return fol_record_pack(rec, out);
 }
 
 static size_t fol_record_pack_size(struct m0_fol_rec *rec)
