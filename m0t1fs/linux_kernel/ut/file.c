@@ -648,7 +648,7 @@ static void nw_xfer_ops_test(void)
 	/* Test for nw_xfer_io_distribute. */
 	rc = nw_xfer_io_distribute(&req.ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(tioreqht_htable_length(&req.ir_nwxfer.nxr_tioreqs_hash) ==
+	M0_UT_ASSERT(tioreqht_htable_size(&req.ir_nwxfer.nxr_tioreqs_hash) ==
 			LAY_P);
 	m0_htable_for(tioreqht, ti, &req.ir_nwxfer.nxr_tioreqs_hash) {
 		M0_UT_ASSERT(ti->ti_nwxfer == &req.ir_nwxfer);

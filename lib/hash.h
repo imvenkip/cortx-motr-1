@@ -29,7 +29,7 @@
 /**
  * @defgroup hash Hash table.
  *
- * Hash table module provides a simple hash implementation built over
+ * Hash table module provides a simple hash implementation built on
  * top of typed lists. @see tlist.
  *
  * Often, lookup for objects stored in simple tlists proves to be expensive
@@ -102,8 +102,8 @@
  * - Now define hash descriptor like this.
  *
  *   M0_HT_DESCR_DEFINE(foohash, "Hash of foo structures", static, struct foo,
- *                      f_link, f_magic, FOO_MAGIC, BAR_MAGIC, uint64_t,
- *                      f_hash_key, hash_func, hash_key_eq);
+ *                      f_link, f_magic, FOO_MAGIC, BAR_MAGIC, f_hash_key,
+ *                      hash_func, hash_key_eq);
  *
  *   This will take care of defining tlist descriptor internally.
  *
@@ -163,10 +163,9 @@ struct m0_htable {
 	uint64_t                  h_bucket_nr;
 
 	/**
-	 * Array of hash buckets. Hash buckets are supposed to be
-	 * indexed in increasing order of hash key.
-	 * Ergo, the very first bucket will have bucket id 0, the next one
-	 * will have bucket id 1 and so on.
+	 * Array of hash buckets.
+	 * Hash buckets are supposed to be indexed in increasing order of
+	 * bucket id retrieved using hash function.
 	 */
 	struct m0_hbucket        *h_buckets;
 
@@ -176,7 +175,8 @@ struct m0_htable {
 
 /**
  * Hash table descriptor. An instance of this type must be defined per
- * struct m0_htable.
+ * hash table type. Multiple instances of m0_htable can share a single
+ * descriptor.
  * It keeps track of tlist descriptor, offset to key field and hash function.
  */
 struct m0_ht_descr {
@@ -269,35 +269,34 @@ M0_INTERNAL void *m0_htable_lookup(const struct m0_htable *htable,
 M0_INTERNAL bool m0_htable_is_empty(const struct m0_htable *htable);
 
 /** Returns number of objects stored within m0_htable. */
-M0_INTERNAL uint64_t m0_htable_length(const struct m0_htable *htable);
+M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable);
 
 /** Defines a hashtable descriptor. */
-#define M0_HT_DESCR(name, amb_type, key_type, key_field,		\
-		    hash_func, key_eq)					\
+#define M0_HT_DESCR(name, amb_type, key_field, hash_func, key_eq)	\
 {									\
 	.hd_tldescr    = &name ## _tl,					\
 	.hd_key_eq     = key_eq,					\
 	.hd_hash_func  = hash_func,					\
 	.hd_key_offset = offsetof(amb_type, key_field),			\
-};									\
-									\
-M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(amb_type, key_field),		\
-		       key_type));					\
+};
 
 /** Defines a hashtable descriptor with given scope. */
 #define M0_HT_DESCR_DEFINE(name, htname, scope, amb_type, amb_link_field,\
 			   amb_magic_field, amb_magic, head_magic,	\
-			   key_type, key_field, hash_func, key_eq)	\
+			   key_field, hash_func, key_eq)		\
+									\
+M0_BASSERT(sizeof(hash_func(NULL, &M0_FIELD_VALUE(amb_type, key_field))) > 0);\
+M0_BASSERT(sizeof(key_eq(&M0_FIELD_VALUE(amb_type, key_field),		\
+			 &M0_FIELD_VALUE(amb_type, key_field))) > 0);	\
 									\
 M0_TL_DESCR_DEFINE(name, htname, scope, amb_type, amb_link_field.hl_link,	\
 		   amb_magic_field, amb_magic, head_magic);		\
 									\
 scope const struct m0_ht_descr name ## _ht = M0_HT_DESCR(name,		\
 							 amb_type,	\
-							 key_type,	\
 							 key_field,	\
-							 hash_func,	\
-							 key_eq)
+	(uint64_t (*)(const struct m0_htable *, const void *))hash_func,\
+	(bool (*)(const void *, const void *))key_eq)
 
 /** Declares a hashtable descriptr with given scope. */
 #define M0_HT_DESCR_DECLARE(name, scope)				\
@@ -317,7 +316,7 @@ scope amb_type *name ## _htable_lookup(const struct m0_htable *htable,	\
 				       key_type               *key);	\
 scope void name ## _htable_fini(struct m0_htable *htable);		\
 scope bool name ## _htable_is_empty(const struct m0_htable *htable);	\
-scope uint64_t m0_htable_length(const struct m0_htable *htable);
+scope uint64_t name ## _htable_size(const struct m0_htable *htable);
 
 /**
  * Defines all functions of hash table which accepts ambient type
@@ -361,9 +360,9 @@ scope __AUN bool name ## _htable_is_empty(const struct m0_htable *htable)\
 	return m0_htable_is_empty(htable);				\
 }									\
 									\
-scope __AUN uint64_t name ## _htable_length(const struct m0_htable *htable)\
+scope __AUN uint64_t name ## _htable_size(const struct m0_htable *htable)\
 {									\
-	return m0_htable_length(htable);				\
+	return m0_htable_size(htable);					\
 }									\
 
 /**
@@ -397,7 +396,7 @@ scope __AUN uint64_t name ## _htable_length(const struct m0_htable *htable)\
 /**
  * An open ended version of loop over all objects in all hash buckets
  * in a m0_htable.
- * This loop has to be closed using m0_htable_endfor() macro.
+ * This loop has to be closed using m0_htable_endfor macro.
  */
 #define m0_htable_for(name, var, htable)				    \
 ({									    \

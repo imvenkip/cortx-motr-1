@@ -201,7 +201,7 @@ M0_INTERNAL bool m0_htable_is_empty(const struct m0_htable *htable)
 	return nr == htable->h_bucket_nr;
 }
 
-M0_INTERNAL uint64_t m0_htable_length(const struct m0_htable *htable)
+M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable)
 {
 	uint64_t nr;
 	uint64_t len = 0;

@@ -498,8 +498,7 @@ static bool tioreq_key_eq(const void *key1, const void *key2)
 M0_HT_DESCR_DEFINE(tioreqht, "Hash of target_ioreq objects", static,
 		   struct target_ioreq, ti_link, ti_magic,
 		   M0_T1FS_TIOREQ_MAGIC, M0_T1FS_TLIST_HEAD_MAGIC,
-		   uint64_t, ti_fid.f_container, tioreqs_hash_func,
-		   tioreq_key_eq);
+		   ti_fid.f_container, tioreqs_hash_func, tioreq_key_eq);
 
 M0_HT_DEFINE(tioreqht, static, struct target_ioreq, uint64_t);
 

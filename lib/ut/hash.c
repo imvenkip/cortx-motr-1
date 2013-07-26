@@ -70,7 +70,7 @@ static bool key_eq(const void *key1, const void *key2)
 
 M0_HT_DESCR_DEFINE(foohash, "Hash of fops", static, struct foo,
 		   f_hlink, f_magic, FOO_MAGIC, BAR_MAGIC,
-		   uint64_t, f_hkey, hash_func, key_eq);
+		   f_hkey, hash_func, key_eq);
 
 M0_HT_DEFINE(foohash, static, struct foo, uint64_t);
 
@@ -98,7 +98,7 @@ void test_hashtable(void)
 	M0_UT_ASSERT(thebar.b_hash.h_buckets != NULL);
 
 	foohash_htable_add(&thebar.b_hash, &foos[0]);
-	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == 1);
+	M0_UT_ASSERT(foohash_htable_size(&thebar.b_hash) == 1);
 	M0_UT_ASSERT(!foohash_htable_is_empty(&thebar.b_hash));
 	key = 0;
 	M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash, &key) == &foos[0]);
@@ -110,7 +110,7 @@ void test_hashtable(void)
 
 	foohash_htable_del(&thebar.b_hash, &foos[0]);
 	M0_UT_ASSERT(foohash_htable_is_empty(&thebar.b_hash));
-	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == 0);
+	M0_UT_ASSERT(foohash_htable_size(&thebar.b_hash) == 0);
 	M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash, &foos[0].f_hkey) ==
 		     NULL);
 
@@ -118,7 +118,7 @@ void test_hashtable(void)
 		foohash_htable_add(&thebar.b_hash, &foos[i]);
 		M0_UT_ASSERT(m0_tlink_is_in(&foohash_tl, &foos[i]));
 	}
-	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == FOO_NR);
+	M0_UT_ASSERT(foohash_htable_size(&thebar.b_hash) == FOO_NR);
 
 	for (i = 0; i < BUCKET_NR; ++i) {
 		hb = &thebar.b_hash.h_buckets[i];
@@ -138,13 +138,13 @@ void test_hashtable(void)
 
 	for (i = 0; i < FOO_NR; ++i) {
 		foohash_htable_del(&thebar.b_hash, &foos[i]);
-		M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) ==
+		M0_UT_ASSERT(foohash_htable_size(&thebar.b_hash) ==
 			     FOO_NR - (i + 1));
 		M0_UT_ASSERT(foohash_htable_lookup(&thebar.b_hash,
 					&foos[i].f_hkey) == NULL);
 		M0_UT_ASSERT(!m0_tlink_is_in(&foohash_tl, &foos[i]));
 	}
-	M0_UT_ASSERT(foohash_htable_length(&thebar.b_hash) == 0);
+	M0_UT_ASSERT(foohash_htable_size(&thebar.b_hash) == 0);
 	M0_UT_ASSERT(foohash_htable_is_empty(&thebar.b_hash));
 
 	foohash_htable_fini(&thebar.b_hash);
