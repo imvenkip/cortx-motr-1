@@ -21,6 +21,8 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
+#include "lib/memory.h"
+
 #include "be/ut/helper.h"
 #include "be/tx_group_fom.h"
 
@@ -344,20 +346,39 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg, m0_bcount_t size)
 {
 	be_ut_seg_init(ut_seg, false, size);
+	ut_seg->bus_copy = NULL;
 }
 
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 {
+	m0_free(ut_seg->bus_copy);
 	be_ut_seg_fini(ut_seg, false);
 }
 
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
 {
+#if 0
 	int rc;
 
 	m0_be_seg_close(&ut_seg->bus_seg);
 	rc = m0_be_seg_open(&ut_seg->bus_seg);
 	M0_ASSERT(rc == 0);
+#endif
+}
+
+void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
+{
+	struct m0_be_seg *seg = &ut_seg->bus_seg;
+	bool		  seg_data_was_successfully_written_to_stob;
+
+	if (ut_seg->bus_copy == NULL)
+		ut_seg->bus_copy = m0_alloc(seg->bs_size);
+	M0_ASSERT(ut_seg->bus_copy != NULL);
+	m0_be_seg__read(&M0_BE_REG_SEG(seg), ut_seg->bus_copy);
+	seg_data_was_successfully_written_to_stob =
+		memcmp(seg->bs_addr,ut_seg->bus_copy, seg->bs_size) == 0;
+	M0_ASSERT(seg_data_was_successfully_written_to_stob);
+
 }
 
 void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg)

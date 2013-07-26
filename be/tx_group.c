@@ -285,11 +285,14 @@ M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
 }
 
 M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
-					       enum m0_be_tx_state state)
+					       enum m0_be_tx_state state,
+					       bool del_tx_from_group)
 {
 	struct m0_be_tx *tx;
 
 	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
+		if (del_tx_from_group)
+			m0_be_tx_group_tx_del(gr, tx);
 		m0_be_tx__state_post(tx, state);
 	} M0_BE_TX_GROUP_TX_ENDFOR;
 }

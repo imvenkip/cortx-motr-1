@@ -103,6 +103,7 @@ M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 
 #define M0_BE_TX_CREDIT_ZERO M0_BE_TX_CREDIT(0, 0)
 #define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof (type))
+#define M0_BE_TX_CREDIT_REG(reg) M0_BE_TX_CREDIT(1, (reg)->br_size)
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_CREDIT_H__ */

@@ -46,10 +46,13 @@ enum m0_be_seg_states {
 #define M0_BE_SEG_PG_PIN_CNT_MASK  (~M0_BE_SEG_PG_PRESENT)
 
 struct m0_be_seg {
-	uint64_t               bs_id; /* see also m0_be::b_next_segid */
+	uint64_t               bs_id;
 	struct m0_stob        *bs_stob;
 	m0_bcount_t            bs_size;
 	void                  *bs_addr;
+	/** Size at the start of segment which is used by segment internals. */
+	/** XXX use it in all UTs */
+	m0_bcount_t	       bs_reserved;
 	struct m0_be_allocator bs_allocator;
 	struct m0_be          *bs_be;
 	int                    bs_state;
@@ -98,6 +101,7 @@ struct m0_be_reg {
 		.br_addr = (addr) })
 
 #define M0_BE_REG_PTR(seg, ptr)	M0_BE_REG((seg), sizeof *(ptr), (ptr))
+#define M0_BE_REG_SEG(seg) M0_BE_REG((seg), (seg)->bs_size, (seg)->bs_addr)
 
 M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg);
 

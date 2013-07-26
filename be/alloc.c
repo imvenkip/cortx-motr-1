@@ -730,7 +730,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 
 	h = a->ba_h;
 	/** @todo GET_PTR h */
-	overhead   = sizeof(struct m0_be_seg_hdr);
+	overhead   = a->ba_seg->bs_reserved;
 	free_space = a->ba_seg->bs_size - overhead;
 
 	/* check if segment is large enough to allocate at least 1 byte */

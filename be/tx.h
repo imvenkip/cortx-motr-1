@@ -420,6 +420,18 @@ M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx);
 /** Forces the transaction to storage. */
 M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
 
+/**
+ * @note backend user can't use m0_be_tx_timedwait() with
+ * M0_BTS_PLACED state only if m0_be_tx_get() wasn't called before
+ * m0_be_tx_open(). It is possible for transaction to reach
+ * M0_BE_TX_DONE state before m0_be_tx_close() returns if
+ * tx reference counter wasn't bumped before m0_be_tx_close().
+ *
+ * Usually m0_be_tx_timedwait() is called for the following states:
+ * - M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED) after m0_be_tx_open();
+ * - M0_BITS(M0_BTS_DONE) after m0_be_tx_close() if tx ref counter
+ *   wasn't bumped;
+ */
 M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout);
 

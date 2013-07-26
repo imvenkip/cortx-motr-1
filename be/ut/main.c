@@ -45,6 +45,8 @@ extern void m0_be_ut_tx_usecase_success(void);
 extern void m0_be_ut_tx_usecase_failure(void);
 extern void m0_be_ut_tx_single(void);
 extern void m0_be_ut_tx_several(void);
+extern void m0_be_ut_tx_persistence(void);
+extern void m0_be_ut_tx_fast(void);
 
 extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
@@ -124,13 +126,15 @@ const struct m0_test_suite be_ut = {
 		{ "tx-usecase_failure",	m0_be_ut_tx_usecase_failure },
 		{ "tx-single",        m0_be_ut_tx_single            },
 		{ "tx-several",       m0_be_ut_tx_several           },
+		{ "tx-persistence",   m0_be_ut_tx_persistence	    },
+		{ "tx-fast",	      m0_be_ut_tx_fast		    },
 		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
 		{ "list",             m0_be_ut_list_api             },
-		{ "btree",            m0_be_ut_btree_simple         },
 #if 0
+		{ "btree",            m0_be_ut_btree_simple         },
 		{ "emap",             m0_be_ut_emap                 },
 #endif
 		{ NULL, NULL }

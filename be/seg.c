@@ -96,15 +96,19 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 M0_INTERNAL void
 m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob, struct m0_be *be)
 {
-	seg->bs_addr         = NULL;
-	seg->bs_size         = 0;
-	seg->bs_be           = be;
-	seg->bs_stob         = stob;
-	seg->bs_state        = M0_BSS_INIT;
-	seg->bs_bshift       = 0;
-	seg->bs_pgshift      = 12;
-	seg->bs_pgmap        = NULL;
-	seg->bs_pgnr         = 0;
+	*seg = (struct m0_be_seg) {
+		.bs_id	     = 0,		/* XXX */
+		.bs_addr     = NULL,
+		.bs_size     = 0,
+		.bs_reserved = sizeof(struct m0_be_seg_hdr),
+		.bs_be	     = be,
+		.bs_stob     = stob,
+		.bs_state    = M0_BSS_INIT,
+		.bs_bshift   = 0,
+		.bs_pgshift  = 12,
+		.bs_pgmap    = NULL,
+		.bs_pgnr     = 0,
+	};
 }
 
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)

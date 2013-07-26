@@ -94,7 +94,8 @@ M0_INTERNAL void m0_be_tx_group__invariant(struct m0_be_tx_group *gr);
  * XXX RENAMEME
  */
 M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
-					       enum m0_be_tx_state state);
+					       enum m0_be_tx_state state,
+					       bool del_tx_from_group);
 
 /* ------------------------------------------------------------------
  * Interfaces used by m0_be_engine

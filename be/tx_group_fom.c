@@ -163,12 +163,12 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		m0_be_tx_group__log(gr, op);
 		return m0_be_op_tick_ret(op, fom, TGS_PLACING);
 	case TGS_PLACING:
-		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED);
+		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED, false);
 		be_op_reset(op);
 		m0_be_tx_group__place(gr, op);
 		return m0_be_op_tick_ret(op, fom, TGS_PLACED);
 	case TGS_PLACED:
-		m0_be_tx_group__tx_state_post(gr, M0_BTS_PLACED);
+		m0_be_tx_group__tx_state_post(gr, M0_BTS_PLACED, true);
 		m0_be_tx_group_tx_del_all(gr);
 		m0_fom_phase_set(fom, TGS_STABILIZING);
 		return M0_FSO_AGAIN;
