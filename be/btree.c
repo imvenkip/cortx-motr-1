@@ -515,13 +515,13 @@ merge_siblings(struct m0_be_btree *btree,
 /**
  * Move the key from node to another
  * @param btree The B-Tree
- * @param node The parent node
+ * @param parent The parent node
  * @param index of the key to be moved done
  * @param pos the position of the child to receive the key
  */
 static void move_key(struct m0_be_btree	  *btree,
 		     struct m0_be_tx	  *tx,
-		     struct m0_be_bnode	  *node,
+		     struct m0_be_bnode	  *parent,
 		     unsigned int	   index,
 		     enum position_t	   pos)
 {
@@ -529,43 +529,43 @@ static void move_key(struct m0_be_btree	  *btree,
 	struct m0_be_bnode *rch;
 	unsigned int i;
 
-	M0_ENTRY("n=%p i=%d dir=%d", node, index, pos);
+	M0_ENTRY("n=%p i=%d dir=%d", parent, index, pos);
 
 	if (pos == P_RIGHT) {
 		index--;
 	}
-	lch = node->b_children[index];
-	rch = node->b_children[index + 1];
+	lch = parent->b_children[index];
+	rch = parent->b_children[index + 1];
 
 	/*  Move the key from the parent to the left child */
 	if (pos == P_LEFT) {
-		lch->b_key_vals[lch->b_nr_active] = node->b_key_vals[index];
+		lch->b_key_vals[lch->b_nr_active] = parent->b_key_vals[index];
 		lch->b_children[lch->b_nr_active + 1] = rch->b_children[0];
 		lch->b_nr_active++;
 
-		node->b_key_vals[index] = rch->b_key_vals[0];
+		parent->b_key_vals[index] = rch->b_key_vals[0];
 
 		for (i = 0; i < rch->b_nr_active - 1; i++) {
 			rch->b_key_vals[i] = rch->b_key_vals[i + 1];
 			rch->b_children[i] = rch->b_children[i + 1];
 		}
 		rch->b_children[i] = rch->b_children[i + 1];
+		rch->b_children[i + 1] = NULL;
 		rch->b_nr_active--;
 	} else {
-		/*  Move the key from the parent to the right child */
+	/*  Move the key from the parent to the right child */
+		/* prepare place */
 		for (i = rch->b_nr_active; i > 0; i--) {
 			rch->b_key_vals[i] = rch->b_key_vals[i - 1];
 			rch->b_children[i + 1] = rch->b_children[i];
 		}
 		rch->b_children[1] = rch->b_children[0];
-		rch->b_children[0] = NULL;
 
-		rch->b_key_vals[0] = node->b_key_vals[index];
-
+		rch->b_key_vals[0] = parent->b_key_vals[index];
 		rch->b_children[0] = lch->b_children[lch->b_nr_active];
 		lch->b_children[lch->b_nr_active] = NULL;
 
-		node->b_key_vals[index] = lch->b_key_vals[lch->b_nr_active - 1];
+		parent->b_key_vals[index] = lch->b_key_vals[lch->b_nr_active-1];
 		lch->b_key_vals[lch->b_nr_active - 1] = NULL;
 
 		lch->b_nr_active--;
@@ -573,7 +573,7 @@ static void move_key(struct m0_be_btree	  *btree,
 	}
 
 	/* Update affected memory regions in tx: */
-	node_update(node, btree, tx);
+	node_update(parent, btree, tx);
 	node_update(lch, btree, tx);
 	node_update(rch, btree, tx);
 
@@ -730,30 +730,25 @@ del_loop:
 	M0_LOG(M0_DEBUG, "case2");
 	if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
 		get_max_key_pos(btree, node->b_children[index], &child);
+		M0_ASSERT(child.p_node->b_leaf);
 		key_val = child.p_node->b_key_vals[child.p_index];
 		M0_LOG(M0_DEBUG, "swapR with n=%p i=%d", child.p_node,
 							 child.p_index);
 		M0_SWAP(*key_val, *node->b_key_vals[index]);
 		mem_update(btree, tx, node->b_key_vals[index],
 					sizeof(struct bt_key_val));
-		if (child.p_node->b_leaf == false) {
-			M0_LOG(M0_ERROR, "Not leaf");
-		}
 		node = child.p_node;
 		goto del_loop;
 	} else if (node->b_children[index + 1]->b_nr_active >
 		   BTREE_FAN_OUT - 1) {
-		get_min_key_pos(btree, node->b_children[index + 1],
-				&child);
+		get_min_key_pos(btree, node->b_children[index + 1], &child);
+		M0_ASSERT(child.p_node->b_leaf);
 		key_val = child.p_node->b_key_vals[child.p_index];
 		M0_LOG(M0_DEBUG, "swapL with n=%p i=%d", child.p_node,
 							 child.p_index);
 		M0_SWAP(*key_val, *node->b_key_vals[index]);
 		mem_update(btree, tx, node->b_key_vals[index],
 					sizeof(struct bt_key_val));
-		if (child.p_node->b_leaf == false) {
-			M0_LOG(M0_ERROR, "Not leaf");
-		}
 		node = child.p_node;
 		goto del_loop;
 	} else if (node->b_children[index]->b_nr_active <=
@@ -761,6 +756,7 @@ del_loop:
 		   node->b_children[index + 1]->b_nr_active <=
 						BTREE_FAN_OUT - 1) {
 
+		M0_LOG(M0_DEBUG, "case2-merge");
 		node = merge_siblings(btree, tx, node, index);
 		goto del_loop;
 	}
