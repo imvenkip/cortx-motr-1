@@ -765,9 +765,7 @@ del_loop:
 			   node->b_children[index + 1]->b_nr_active <=
 							BTREE_FAN_OUT - 1) {
 
-			merge_siblings(btree, tx, node, index);
-
-			node = node->b_children[index];
+			node = merge_siblings(btree, tx, node, index);
 			goto del_loop;
 		}
 	}
@@ -1797,11 +1795,13 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	/* cursor move */
 	if (node->b_leaf) {
 		--cur->bc_pos;
-		while (node && cur->bc_pos < 0)
+		while (node && cur->bc_pos < 0) {
 			node = node_pop(cur, &cur->bc_pos);
+			--cur->bc_pos;
+		}
 	} else {
 		for (;;) {
-			node_push(cur, node, cur->bc_pos - 1);
+			node_push(cur, node, cur->bc_pos);
 			node = node->b_children[cur->bc_pos];
 			if (node->b_leaf) {
 				cur->bc_pos = node->b_nr_active - 1;
