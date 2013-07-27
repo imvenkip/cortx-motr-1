@@ -157,6 +157,8 @@ static void get_min_key_pos(struct m0_be_btree *btree,
 			    struct m0_be_bnode *subtree,
 			    struct node_pos    *pos);
 
+static int iter_prepare(struct m0_be_bnode *node, bool print);
+
 
 /* ------------------------------------------------------------------
  * Btree invariant implementation:
@@ -1077,7 +1079,7 @@ static void btree_node_free_credit(const struct m0_be_btree     *tree,
 			       BTREE_ALLOC_SHIFT, accum);
 	m0_be_allocator_credit(a, M0_BAO_FREE, KV_SIZE,
 			       BTREE_ALLOC_SHIFT, accum);
-	btree_node_update_credit(accum, 1);
+	btree_node_update_credit(accum, 1); /* for parent */
 }
 
 /* XXX */
@@ -1239,21 +1241,26 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 					    m0_bcount_t             nr,
 					    struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit    cred;
-	int                       count = 1;
+	struct m0_be_tx_credit    cred = {0};
+	int                       nodes_nr;
+	int                       items_nr;
 	m0_bcount_t               ksize;
 	m0_bcount_t               vsize;
 
-	cred = M0_BE_TX_CREDIT_TYPE(struct m0_be_btree);
+	nodes_nr = iter_prepare(tree->bb_root, false);
+	items_nr = btree_count_items(tree, &ksize, &vsize);
+	M0_LOG(M0_DEBUG, "nodes=%d items=%d ksz=%d vsz%d",
+		nodes_nr, items_nr, (int)ksize, (int)vsize);
 
-	count += btree_count_items(tree, &ksize, &vsize);
-	M0_LOG(M0_DEBUG, "count=%d ksz=%d vsz%d", count, (int)ksize,
-							 (int)vsize);
 	kv_delete_credit(tree, ksize, vsize, &cred);
+	m0_be_tx_credit_mac(accum, &cred, items_nr);
+
+	cred = (struct m0_be_tx_credit){0};
 	btree_node_free_credit(tree, &cred);
-	/* XXX: optimization is possible here:
-	 * the number of nodes is less than number of entries actually */
-	m0_be_tx_credit_mac(accum, &cred, count * nr);
+	m0_be_tx_credit_mac(accum, &cred, nodes_nr);
+
+	cred = M0_BE_TX_CREDIT_TYPE(struct m0_be_btree);
+	m0_be_tx_credit_add(accum, &cred);
 }
 
 M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
@@ -1561,11 +1568,12 @@ static void print_single_node(struct m0_be_bnode *node)
 	M0_LOG(M0_DEBUG, "} (%p, %d)", node, node->b_level);
 }
 
-static void iter_prepare(struct m0_be_bnode *node, bool print)
+static int iter_prepare(struct m0_be_bnode *node, bool print)
 {
 
-	int i = 0;
-	unsigned int current_level;
+	int		 i = 0;
+	int		 count = 0;
+	unsigned int	 current_level;
 
 	struct m0_be_bnode *head;
 	struct m0_be_bnode *tail;
@@ -1577,6 +1585,7 @@ static void iter_prepare(struct m0_be_bnode *node, bool print)
 	if (node == NULL)
 		goto out;
 
+	count = 1;
 	current_level = node->b_level;
 	head = node;
 	tail = node;
@@ -1600,10 +1609,13 @@ static void iter_prepare(struct m0_be_bnode *node, bool print)
 			}
 		}
 		head = head->b_next;
+		count++;
 	}
 out:
 	if (print)
 		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
+
+	return count;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
