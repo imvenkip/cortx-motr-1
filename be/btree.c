@@ -1278,7 +1278,7 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 
 	key_data = mem_alloc(tree, tx, key->b_nob);
 	val_data = mem_alloc(tree, tx, val->b_nob);
-	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
+	kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
 	memcpy(key_data, key->b_addr, key->b_nob);
 	memcpy(val_data, val->b_addr, val->b_nob);
 	kv->key = key_data;
@@ -1480,7 +1480,7 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 
 	key_data = mem_alloc(tree, tx, key->b_nob);
 	val_data = mem_alloc(tree, tx, anchor->ba_value.b_nob);
-	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
+	kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
 	kv->key = key_data;
 	kv->val = val_data;
 	memcpy(key_data, key->b_addr, key->b_nob);
@@ -1523,13 +1523,10 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
 
 M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
 				     struct m0_be_tx                 *tx,
-				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor)
 {
 	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 	M0_PRE(ergo(anchor->ba_write, tx != NULL));
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
 	if (anchor->ba_write) {
 		mem_update(btree, tx, anchor->ba_value.b_addr,
@@ -1537,8 +1534,6 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
 		m0_rwlock_write_unlock(&btree->bb_lock);
 	} else
 		m0_rwlock_read_unlock(&btree->bb_lock);
-
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 /* ------------------------------------------------------------------

@@ -395,14 +395,16 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		val_orig  = seg->ee_val;
 
 		if (length[0] > 0) {
-			cut_left(seg, &clip, val_orig);
+			if (cut_left)
+				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
 		}
 		if (length[2] > 0) {
-			cut_right(seg, &clip, val_orig);
+			if (cut_right)
+				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
 		}
-		if (length[0] == 0 && length[2] == 0)
+		if (length[0] == 0 && length[2] == 0 && del)
 			del(seg);
 
 		rc = be_emap_split(it, tx, &vec, length[0] > 0 ?
@@ -412,18 +414,22 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 		ext->e_start += consumed;
 		M0_ASSERT(ext->e_start <= ext->e_end);
+
+		M0_LOG(M0_DEBUG, "left %llu",
+				(unsigned long long)m0_ext_length(ext));
+
 		if (m0_ext_is_empty(ext))
 			break;
-
-		M0_ASSERT(!m0_be_emap_ext_is_last(&seg->ee_ext));
 		/*
 		 * If vec is empty, be_emap_split() just deletes
 		 * the current extent and puts iterator to the next
 		 * position automatically.
 		 */
-		if (m0_vec_count(&vec.iv_vec) != 0)
+		if (m0_vec_count(&vec.iv_vec) != 0) {
+			M0_ASSERT(!m0_be_emap_ext_is_last(&seg->ee_ext));
 			if (be_emap_next(it) != 0)
 				break;
+		}
 	}
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));

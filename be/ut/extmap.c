@@ -181,7 +181,7 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 	int rc;
 
 	m0_be_op_init(&it->ec_op);
-	m0_be_emap_lookup(emap, prefix, 0, it);
+	m0_be_emap_lookup(emap, prefix, offset, it);
 	m0_be_op_wait(&it->ec_op);
 	M0_ASSERT(m0_be_op_state(&it->ec_op) == M0_BOS_SUCCESS);
 	rc = it->ec_op.bo_u.u_emap.e_rc;
@@ -249,6 +249,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		m0_be_op_init(it_op);
 		m0_be_emap_split(&it, &tx2, &vec);
+		m0_be_op_wait(it_op);
 		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
 		M0_UT_ASSERT(it.ec_op.bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
@@ -283,6 +284,7 @@ static void test_print(void)
 			break;
 		m0_be_op_init(it_op);
 		m0_be_emap_next(&it);
+		m0_be_op_wait(it_op);
 		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
 		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
@@ -300,12 +302,110 @@ static void test_merge(void)
 	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 		m0_be_op_init(it_op);
 		m0_be_emap_merge(&it, &tx2, m0_ext_length(&seg->ee_ext));
+		m0_be_op_wait(it_op);
 		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
 		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 	}
 	m0_be_emap_close(&it);
 	checkpoint();
+}
+
+static void test_paste(void)
+{
+	int		 rc;
+	struct m0_ext	 e;
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	e.e_start = 10;
+	e.e_end   = 20;
+
+	m0_be_op_init(it_op);
+	m0_be_emap_paste(&it, &tx2, &e, 12, NULL, NULL, NULL);
+	m0_be_op_wait(it_op);
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(it_op);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start == 20);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	test_print();
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start ==  0);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == 10);
+
+	rc = be_emap_lookup(emap, &prefix, 10, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start == 10);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == 20);
+	M0_UT_ASSERT(seg->ee_val         == 12);
+
+	rc = be_emap_lookup(emap, &prefix, 20, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start == 20);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	e.e_start = 5;
+	e.e_end   = 25;
+
+	m0_be_op_init(it_op);
+	m0_be_emap_paste(&it, &tx2, &e, 11, NULL, NULL, NULL);
+	m0_be_op_wait(it_op);
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(it_op);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start == 25);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	test_print();
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start == 0);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == 5);
+
+	rc = be_emap_lookup(emap, &prefix, 5, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start ==  5);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == 25);
+	M0_UT_ASSERT(seg->ee_val         == 11);
+
+	rc = be_emap_lookup(emap, &prefix, 25, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(seg->ee_ext.e_start == 25);
+	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	e.e_start = 0;
+	e.e_end   = M0_BINDEX_MAX + 1;
+
+	m0_be_op_init(it_op);
+	m0_be_emap_paste(&it, &tx2, &e, 0, NULL, NULL, NULL);
+	m0_be_op_wait(it_op);
+	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+	m0_be_op_fini(it_op);
+
+	test_print();
+
+	m0_be_emap_close(&it);
 }
 
 void m0_be_ut_emap(void)
@@ -316,6 +416,7 @@ void m0_be_ut_emap(void)
 	test_split();
 	test_print();
 	test_merge();
+	test_paste();
 	test_obj_fini(&tx2);
 	test_fini();
 }
