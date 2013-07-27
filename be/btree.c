@@ -1523,13 +1523,10 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
 
 M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
 				     struct m0_be_tx                 *tx,
-				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor)
 {
 	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 	M0_PRE(ergo(anchor->ba_write, tx != NULL));
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
 	if (anchor->ba_write) {
 		mem_update(btree, tx, anchor->ba_value.b_addr,
@@ -1537,8 +1534,6 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
 		m0_rwlock_write_unlock(&btree->bb_lock);
 	} else
 		m0_rwlock_read_unlock(&btree->bb_lock);
-
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 /* ------------------------------------------------------------------

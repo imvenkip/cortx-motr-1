@@ -175,11 +175,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_h *h)
 		/* update value */
 		sprintf(anchor.ba_value.b_addr, "%03d", i);
 
-		m0_be_op_init(&op);
-		m0_be_btree_release(tree, tx, &op, &anchor);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+		m0_be_btree_release(tree, tx, &anchor);
 	}
 	btree_dbg_print(tree);
 
@@ -438,11 +434,7 @@ static void check(struct m0_be_btree *tree, struct m0_be_ut_h *h)
 		else
 			M0_UT_ASSERT(strcmp(val.b_addr, k) == 0);
 
-		m0_be_op_init(&op);
-		m0_be_btree_release(tree, NULL, &op, &anchor);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+		m0_be_btree_release(tree, NULL, &anchor);
 	}
 
 	m0_be_op_init(&op);

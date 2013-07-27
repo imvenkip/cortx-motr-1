@@ -367,7 +367,6 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  */
 M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
 				     struct m0_be_tx                 *tx,
-				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor);
 
 /* ------------------------------------------------------------------
