@@ -817,9 +817,9 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 
 	m0_be_tx_credit_init(&chunk_del_fini_credit);
 	/* tlist_del x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 2);
+	m0_be_tx_credit_mac(&chunk_del_fini_credit, &capture_around_credit, 2);
 	/* tlink_fini x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &chunk_credit, 2);
+	m0_be_tx_credit_mac(&chunk_del_fini_credit, &chunk_credit, 2);
 
 	m0_be_tx_credit_init(&chunk_trymerge_credit);
 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_del_fini_credit);
@@ -845,7 +845,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 			break;
 		case M0_BAO_FREE:
 			/* be_alloc_chunk_mark_free */
-			m0_be_tx_credit_mac(accum, &capture_around_credit, 3);
+			m0_be_tx_credit_mac(accum, &capture_around_credit, 2);
 			m0_be_tx_credit_mac(accum, &chunk_trymerge_credit, 2);
 			break;
 		default:
