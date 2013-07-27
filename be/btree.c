@@ -1278,7 +1278,7 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 
 	key_data = mem_alloc(tree, tx, key->b_nob);
 	val_data = mem_alloc(tree, tx, val->b_nob);
-	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
+	kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
 	memcpy(key_data, key->b_addr, key->b_nob);
 	memcpy(val_data, val->b_addr, val->b_nob);
 	kv->key = key_data;
@@ -1480,7 +1480,7 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 
 	key_data = mem_alloc(tree, tx, key->b_nob);
 	val_data = mem_alloc(tree, tx, anchor->ba_value.b_nob);
-	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
+	kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
 	kv->key = key_data;
 	kv->val = val_data;
 	memcpy(key_data, key->b_addr, key->b_nob);
