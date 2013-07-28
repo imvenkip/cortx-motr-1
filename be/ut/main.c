@@ -47,6 +47,7 @@ extern void m0_be_ut_tx_single(void);
 extern void m0_be_ut_tx_several(void);
 extern void m0_be_ut_tx_persistence(void);
 extern void m0_be_ut_tx_fast(void);
+extern void m0_be_ut_tx_concurrent(void);
 
 extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
@@ -127,6 +128,7 @@ const struct m0_test_suite be_ut = {
 		{ "tx-several",       m0_be_ut_tx_several           },
 		{ "tx-persistence",   m0_be_ut_tx_persistence	    },
 		{ "tx-fast",	      m0_be_ut_tx_fast		    },
+		{ "tx-concurrent(XXX NOOP)",m0_be_ut_tx_concurrent	    },
 		{ "alloc-init",       m0_be_ut_alloc_init_fini      },
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },

@@ -387,4 +387,50 @@ void m0_be_ut_tx_fast(void)
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+enum {
+	BE_UT_TX_C_SEG_SIZE	 = 0x10000,
+	BE_UT_TX_C_THREAD_NR	 = 0x10,
+	BE_UT_TX_C_TX_PER_THREAD = 0x100,
+};
+
+struct be_ut_tx_thread_state {
+	struct m0_thread	 tts_thread;
+	struct m0_be_ut_backend *tts_ut_be;
+	struct m0_be_seg	*tts_seg;
+};
+
+static void be_ut_tx_thread(struct be_ut_tx_thread_state *state)
+{
+// XXX:
+}
+
+void m0_be_ut_tx_concurrent(void)
+{
+	static struct be_ut_tx_thread_state threads[BE_UT_TX_C_THREAD_NR];
+	struct m0_be_ut_backend		    ut_be;
+	struct m0_be_ut_seg		    ut_seg;
+	int				    i;
+	int				    rc;
+
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, BE_UT_TX_C_SEG_SIZE);
+
+	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
+		threads[i].tts_ut_be = &ut_be;
+		threads[i].tts_seg = &ut_seg.bus_seg;
+		rc = M0_THREAD_INIT(&threads[i].tts_thread,
+				    struct be_ut_tx_thread_state *, NULL,
+				    &be_ut_tx_thread, &threads[i],
+				    "#%dbe_ut_tx", i);
+		M0_UT_ASSERT(rc == 0);
+	}
+	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
+		m0_thread_join(&threads[i].tts_thread);
+		m0_thread_fini(&threads[i].tts_thread);
+	}
+
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
 #undef M0_TRACE_SUBSYSTEM
