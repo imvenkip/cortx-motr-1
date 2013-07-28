@@ -131,6 +131,7 @@ static m0_bcount_t fol_ksize(const void *key)
 
 static m0_bcount_t fol_vsize(const void *data)
 {
+	/* XXX See fol_record_pack_size() for implementation ideas. */
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
@@ -286,6 +287,7 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 		d->rd_header.rh_refcount = 1;
 		d->rd_lsn = M0_LSN_ANCHOR;
 		fol->f_lsn = M0_LSN_ANCHOR + 1;
+		/* XXX Should we m0_be_tx_capture() fol->f_lsn here?  --vvv */
 		rc = m0_fol_rec_add(fol, &r);
 		m0_fol_rec_fini(&r);
 	} else if (rc == 0) {
@@ -329,7 +331,7 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol)
 	return lsn;
 }
 
-#if XXX_USE_DB5 /* ################################################ */
+#if XXX_USE_DB5
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
 			       struct m0_fol_rec_desc *drec, struct m0_buf *buf)
 {
@@ -342,7 +344,45 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
 			 buf->b_addr, buf->b_nob);
 	return m0_table_insert(tx, &pair);
 }
+#else
+/* XXX FIXME: Pass m0_be_tx as a parameter to m0_fol_add_buf(), do not
+ * create it inside this function. */
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf)
+{
+	const struct m0_buf    key = M0_BUF_INIT(sizeof drec->rd_lsn,
+						 &drec->rd_lsn);
+	struct m0_be_tx_credit cred = {0};
+	struct m0_be_tx        tx;
+	struct m0_be_op        op;
+	int                    rc;
+	int                    rc_done;
 
+	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
+
+	m0_be_tx_init(&tx);
+	m0_be_btree_insert_credit(&fol->f_store, 1, key.b_nob, buf->b_nob,
+				  &cred);
+	m0_be_tx_prep(&tx, &cred);
+
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	if (rc == 0) {
+		m0_be_op_init(&op);
+		m0_be_btree_insert(&fol->f_store, tx, &op, &key, buf);
+		m0_be_op_wait(&op);
+		rc = op.bo_u.u_btree.t_rc;
+		m0_be_op_fini(&op);
+
+		m0_be_tx_close(&tx);
+		rc_done = m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER);
+	}
+	m0_be_tx_fini(&tx);
+	return rc ?: rc_done;
+}
+#endif
+
+#if XXX_USE_DB5 /* ################################################ */
 M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto)
 {
 	return m0_dbenv_sync(fol->f_table.t_env);
