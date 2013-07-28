@@ -149,7 +149,6 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	tx->t_engine		 = m0_be_domain_engine(dom);
 
 	m0_be_tx_credit_init(&tx->t_prepared);
-	tx->t_reg_area_allocated = false;
 	tx->t_persistent	 = persistent;
 	tx->t_discarded		 = discarded;
 	tx->t_filler		 = filler;
@@ -179,8 +178,7 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_logged);
 	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_placed);
 	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_done);
-	if (tx->t_reg_area_allocated)
-		m0_be_reg_area_fini(&tx->t_reg_area);
+	m0_be_reg_area_fini(&tx->t_reg_area);
 	m0_sm_fini(&tx->t_sm);
 }
 
@@ -208,7 +206,6 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_PRE(be_tx_is_locked(tx));
 
 	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
-	tx->t_reg_area_allocated = rc == 0;
 
 	be_tx_state_move(tx, rc == 0 ? M0_BTS_OPENING : M0_BTS_FAILED, rc);
 

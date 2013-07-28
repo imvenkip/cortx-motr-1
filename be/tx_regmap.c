@@ -134,7 +134,7 @@ M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
 {
 	size_t i;
 
-	if (rdt == NULL || rdt->brt_r == NULL ||
+	if (rdt == NULL || (rdt->brt_r == NULL && rdt->brt_size > 0) ||
 	    rdt->brt_size > rdt->brt_size_max)
 		return false;
 	for (i = 0; i < rdt->brt_size; ++i)
