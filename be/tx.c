@@ -46,7 +46,7 @@ M0_TL_DESCR_DEFINE(eng, "m0_be_tx_engine::te_txs[]", M0_INTERNAL,
 M0_TL_DEFINE(eng, M0_INTERNAL, struct m0_be_tx);
 #endif
 
-static bool tx_state_invariant(const struct m0_sm *mach)
+static bool be_tx_state_invariant(const struct m0_sm *mach)
 {
 	return m0_be_tx__invariant(
 		container_of(mach, const struct m0_be_tx, t_sm));
@@ -79,33 +79,62 @@ static struct m0_sm_ast *be_tx_ast(struct m0_be_tx *tx, enum m0_be_tx_state stat
 	return ((void *)tx) + be_tx_ast_offset[state];
 }
 
-/* be sure to change be_tx_ast_cb if change tx_states */
-static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
-#define _S(name, flags, allowed)                    \
-	[name] = {                                  \
-		.sd_flags     = flags,              \
-		.sd_name      = #name,              \
-		.sd_invariant = tx_state_invariant, \
-		.sd_allowed   = allowed             \
-	}
-
-	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_OPENING,
-						   M0_BTS_FAILED)),
-	_S(M0_BTS_OPENING, 0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)),
-	_S(M0_BTS_FAILED,  M0_SDF_TERMINAL | M0_SDF_FAILURE, 0),
-	_S(M0_BTS_ACTIVE,  0, M0_BITS(M0_BTS_CLOSED)),
-	_S(M0_BTS_CLOSED,  0, M0_BITS(M0_BTS_GROUPED)),
-	_S(M0_BTS_GROUPED,  0, M0_BITS(M0_BTS_LOGGED)),
-	_S(M0_BTS_LOGGED, 0, M0_BITS(M0_BTS_PLACED)),
-	_S(M0_BTS_PLACED, 0, M0_BITS(M0_BTS_DONE)),
-	_S(M0_BTS_DONE, M0_SDF_TERMINAL, 0),
-#undef _S
+/* be sure to change be_tx_state_move_ast if change be_tx_states */
+static struct m0_sm_state_descr be_tx_states[M0_BTS_NR] = {
+	[M0_BTS_PREPARE] = {
+		.sd_flags = M0_SDF_INITIAL,
+		.sd_name = "prepare",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_OPENING, M0_BTS_FAILED),
+	},
+	[M0_BTS_OPENING] = {
+		.sd_name = "opening",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+	},
+	[M0_BTS_FAILED] = {
+		.sd_flags =  M0_SDF_TERMINAL | M0_SDF_FAILURE,
+		.sd_name = "failed",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = 0,
+	},
+	[M0_BTS_ACTIVE] = {
+		.sd_name = "active",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_CLOSED),
+	},
+	[M0_BTS_CLOSED] = {
+		.sd_name = "closed",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_GROUPED),
+	},
+	[M0_BTS_GROUPED] = {
+		.sd_name = "grouped",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_LOGGED),
+	},
+	[M0_BTS_LOGGED] = {
+		.sd_name = "logged",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_PLACED),
+	},
+	[M0_BTS_PLACED] = {
+		.sd_name = "placed",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = M0_BITS(M0_BTS_DONE),
+	},
+	[M0_BTS_DONE] = {
+		.sd_flags = M0_SDF_TERMINAL,
+		.sd_name = "done",
+		.sd_invariant = be_tx_state_invariant,
+		.sd_allowed = 0,
+	},
 };
 
-static const struct m0_sm_conf tx_sm_conf = {
+static const struct m0_sm_conf be_tx_sm_conf = {
 	.scf_name      = "m0_be_tx::t_sm",
 	.scf_nr_states = M0_BTS_NR,
-	.scf_state     = tx_states
+	.scf_state     = be_tx_states
 };
 
 static bool be_tx_is_locked(const struct m0_be_tx *tx);
@@ -130,7 +159,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	*tx = (struct m0_be_tx) {
 	};
 
-	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_PREPARE, sm_group);
+	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
 
 	tx->t_id		 = tid;
 	tx->t_engine		 = m0_be_domain_engine(dom);
