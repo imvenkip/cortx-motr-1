@@ -431,15 +431,6 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout);
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
-/** XXX remove tx from parameters */
-M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
-					    enum m0_be_tx_state state);
-
-M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
-
-/** Posts an AST that will move transaction's state machine to given state. */
-M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
-				      enum m0_be_tx_state state);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

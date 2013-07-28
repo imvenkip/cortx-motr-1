@@ -25,7 +25,7 @@
 
 #include "be/log.h"
 #include "be/tx_regmap.h"	/* m0_be_reg_area_used */
-#include "be/tx.h"		/* m0_be_tx */
+#include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 
 #include "lib/memory.h"		/* m0_alloc */
 #include "lib/errno.h"		/* ENOMEM */

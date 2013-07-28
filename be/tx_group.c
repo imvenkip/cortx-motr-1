@@ -25,7 +25,7 @@
 
 #include "lib/errno.h"		/* ENOSPC */
 
-#include "be/tx.h"		/* m0_be_tx__reg_area */
+#include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/log.h"		/* m0_be_log_stob */
 #include "be/engine.h"		/* m0_be_engine__tx_group_open */
 

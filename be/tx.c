@@ -21,6 +21,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
+#include "be/tx.h"
+#include "be/tx_internal.h"
+
 #include "lib/errno.h"
 #include "lib/misc.h"          /* m0_forall */
 #include "lib/cdefs.h"         /* ARRAY_SIZE */
@@ -30,7 +33,6 @@
 #include "lib/arith.h"	       /* M0_CNT_INC */
 
 #include "be/be.h"
-#include "be/tx.h"
 #include "be/domain.h"
 #include "fop/fom.h"
 #include "be/engine.h"

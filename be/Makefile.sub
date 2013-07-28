@@ -19,6 +19,7 @@ nobase_mero_include_HEADERS += be/alloc.h           \
                                be/tx_group.h        \
                                be/tx_group_ondisk.h \
                                be/tx_group_ondisk_internal.h \
+			       be/tx_internal.h	    \
                                be/tx_regmap.h       \
                                be/tx_service.h
 

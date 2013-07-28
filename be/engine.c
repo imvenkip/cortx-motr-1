@@ -28,6 +28,7 @@
 #include "lib/misc.h"		/* m0_forall */
 
 #include "be/tx_group.h"	/* m0_be_tx_group */
+#include "be/tx_internal.h"	/* m0_be_tx__state_post */
 
 /**
  * @addtogroup be
