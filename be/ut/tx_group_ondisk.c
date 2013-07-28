@@ -24,6 +24,7 @@
 #include "be/ut/helper.h"
 
 enum {
+	BE_UT_TX_GROUP_ONDISK_SEG_SIZE = 0x10000,
 	BE_UT_TX_GROUP_ONDISK_ITER     = 0x100,
 	BE_UT_TX_GROUP_ONDISK_LOG_SIZE = 1 << 11,
 	BE_UT_TX_GROUP_ONDISK_RB_SIZE  = 0x1000,
@@ -118,8 +119,9 @@ void m0_be_ut_group_ondisk(void)
 	struct m0_be_tx_credit gr_credit;
 	struct m0_be_tx_credit tx_credit;
 	struct m0_be_tx_credit reserved;
-	struct m0_be_ut_h      hseg;
 	struct m0_be_reg_d     rd[1+2+3];
+	struct m0_be_ut_seg    ut_seg;
+	struct m0_be_seg      *seg = &ut_seg.bus_seg;
 	int		       i;
 	int		       j;
 	int                    rc;
@@ -127,7 +129,7 @@ void m0_be_ut_group_ondisk(void)
 	int		       tx_reserved;
 
 	be_ut_group_ondisk_rb_init();
-	m0_be_ut_seg_create_open(&hseg);
+	m0_be_ut_seg_init(&ut_seg, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
 
 	m0_be_tx_credit_init(&gr_credit);
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
@@ -143,10 +145,8 @@ void m0_be_ut_group_ondisk(void)
 			rd[j] = (struct m0_be_reg_d) {
 				.rd_tx	= &but_group_ondisk_tx[i],
 				.rd_buf = NULL,
-				.rd_reg = M0_BE_REG(&hseg.buh_seg, i+2,
-						    (char *)
-						    hseg.buh_seg.bs_addr +
-						    i*100 + j*10)
+				.rd_reg = M0_BE_REG(seg, i+2, (char *)
+						    seg->bs_addr + i*100 + j*10)
 			};
 			m0_be_reg_area_capture(&but_group_ondisk_tx[i].
 						t_reg_area, &rd[j]);
@@ -196,7 +196,7 @@ void m0_be_ut_group_ondisk(void)
 
 	grp_tlist_fini(&but_group_ondisk_gr.tg_txs);
 
-	m0_be_ut_seg_close_destroy(&hseg);
+	m0_be_ut_seg_fini(&ut_seg);
 	be_ut_group_ondisk_rb_fini();
 }
 

@@ -24,70 +24,60 @@
 #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
 
 enum {
+	BE_UT_SEG_SIZE	  = 0x20000,
 	BE_UT_SEG_IO_ITER = 0x400,
 	BE_UT_SEG_IO_OFFS = 0x10000,
 	BE_UT_SEG_IO_SIZE = 0x10000,
 };
-
-static struct m0_be_ut_h be_ut_seg_h;
-static unsigned		 be_ut_seg_seed;
-
-M0_INTERNAL void m0_be_ut_seg_init_fini(void)
-{
-	m0_be_ut_seg_storage_init();
-	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
-	m0_be_ut_seg_finalize(&be_ut_seg_h, true);
-	m0_be_ut_seg_storage_fini();
-}
-
-M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
-{
-	m0_be_ut_seg_create(&be_ut_seg_h);
-	m0_be_ut_seg_destroy(&be_ut_seg_h);
-}
+M0_BASSERT(BE_UT_SEG_IO_OFFS + BE_UT_SEG_IO_SIZE <= BE_UT_SEG_SIZE);
 
 M0_INTERNAL void m0_be_ut_seg_open_close(void)
 {
-	m0_be_ut_seg_create_open(&be_ut_seg_h);
-	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
+	struct m0_be_ut_seg ut_seg;
+
+	m0_be_ut_seg_init(&ut_seg, BE_UT_SEG_SIZE);
+	m0_be_ut_seg_fini(&ut_seg);
 }
 
 static void be_ut_seg_rand_reg(struct m0_be_reg *reg,
 			       void *seg_addr,
 			       m0_bindex_t *offset,
-			       m0_bcount_t *size)
+			       m0_bcount_t *size,
+			       unsigned *seed)
 {
-	*size	= rand_r(&be_ut_seg_seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
-	*offset = rand_r(&be_ut_seg_seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
+	*size	= rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
+	*offset = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
 	reg->br_addr = (char *) seg_addr + BE_UT_SEG_IO_OFFS + *offset;
 	reg->br_size = *size;
 }
 
 M0_INTERNAL void m0_be_ut_seg_io(void)
 {
-	struct m0_be_seg *seg;
-	struct m0_be_reg  reg;
-	struct m0_be_reg  reg_check;
-	m0_bindex_t	  offset;
-	m0_bcount_t	  size;
-	static char	  pre[BE_UT_SEG_IO_SIZE];
-	static char	  post[BE_UT_SEG_IO_SIZE];
-	static char	  rand[BE_UT_SEG_IO_SIZE];
-	int		  rc;
-	int		  i;
-	int		  j;
-	int		  cmp;
+	struct m0_be_ut_seg ut_seg;
+	struct m0_be_seg   *seg;
+	struct m0_be_reg    reg;
+	struct m0_be_reg    reg_check;
+	m0_bindex_t	    offset;
+	m0_bcount_t	    size;
+	static char	    pre[BE_UT_SEG_IO_SIZE];
+	static char	    post[BE_UT_SEG_IO_SIZE];
+	static char	    rand[BE_UT_SEG_IO_SIZE];
+	unsigned	    seed;
+	int		    rc;
+	int		    i;
+	int		    j;
+	int		    cmp;
 
-	be_ut_seg_seed = 0;
-	m0_be_ut_seg_create_open(&be_ut_seg_h);
-	seg = &be_ut_seg_h.buh_seg;
+	seed = 0;
+	m0_be_ut_seg_init(&ut_seg, BE_UT_SEG_SIZE);
+	seg = &ut_seg.bus_seg;
 	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
 			      (char *) seg->bs_addr + BE_UT_SEG_IO_OFFS);
 	for (i = 0; i < BE_UT_SEG_IO_ITER; ++i) {
-		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size);
+		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size, &seed);
 		reg.br_seg = seg;
 		for (j = 0; j < reg.br_size; ++j)
-			rand[j] = rand_r(&be_ut_seg_seed) & 0xFF;
+			rand[j] = rand_r(&seed) & 0xFF;
 
 		/* read segment before write operation */
 		rc = m0_be_seg__read(&reg_check, pre);
@@ -116,5 +106,5 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		cmp = memcmp(post, reg_check.br_addr, reg_check.br_size);
 		M0_UT_ASSERT(cmp == 0);
 	}
-	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
+	m0_be_ut_seg_fini(&ut_seg);
 }

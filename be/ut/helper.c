@@ -37,18 +37,9 @@
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
-enum {
-	BE_UT_H_DOM_ID   = 42,
-	BE_UT_H_STOB_ID  = 42,
-	BE_UT_H_SEG_SIZE = 0x1000000  /* 16 MiB */
-};
-
 struct m0_sm_group ut__txs_sm_group;
 
-static struct m0_stob_id be_ut_h_stob_id = {
-	.si_bits = M0_UINT128(0, BE_UT_H_STOB_ID)
-};
-
+#if 0
 static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
 
 /* XXX Code duplication! The same code exists in conf/ut/confc.c. */
@@ -227,6 +218,7 @@ void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h)
 		      noop, noop, true, NULL, NULL);
 		      */
 }
+#endif
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
@@ -297,6 +289,10 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 			   bool stob_create,
 			   m0_bcount_t size)
 {
+	struct m0_stob_id stob_id = {
+		.si_bits = M0_UINT128(0, 42)
+	};
+
 	int rc;
 
 	rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
@@ -310,12 +306,12 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	M0_ASSERT(rc == 0);
 	m0_dtx_init(&ut_seg->bus_dtx);
 	if (!stob_create) {
-		m0_stob_init(&ut_seg->bus_stob_, &be_ut_h_stob_id,
+		m0_stob_init(&ut_seg->bus_stob_, &stob_id,
 			     ut_seg->bus_dom);
 		ut_seg->bus_stob = &ut_seg->bus_stob_;
 	} else {
 		rc = m0_stob_create_helper(ut_seg->bus_dom, &ut_seg->bus_dtx,
-					   &be_ut_h_stob_id, &ut_seg->bus_stob);
+					   &stob_id, &ut_seg->bus_stob);
 		M0_ASSERT(rc == 0);
 	}
 	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, /* XXX */ NULL);

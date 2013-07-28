@@ -24,7 +24,7 @@
 #include "lib/misc.h"		/* M0_SET_ARR0 */
 #include "lib/thread.h"		/* m0_thread */
 #include "ut/ut.h"		/* M0_UT_ASSERT */
-#include "be/ut/helper.h"	/* m0_be_ut_h */
+#include "be/ut/helper.h"	/* m0_be_ut_backend */
 
 #include <stdlib.h>		/* rand_r */
 #include <string.h>		/* memset */

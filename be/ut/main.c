@@ -117,8 +117,6 @@ const struct m0_test_suite be_ut = {
 		{ "log_store-reserve",m0_be_ut_log_store_reserve    },
 		{ "log_store-io",     m0_be_ut_log_store_io         },
 		{ "log (XXX NOOP)",   m0_be_ut_log                  },
-		{ "seg-init",         m0_be_ut_seg_init_fini        },
-		{ "seg-create",       m0_be_ut_seg_create_destroy   },
 		{ "seg-open",         m0_be_ut_seg_open_close       },
 		{ "seg-io",           m0_be_ut_seg_io               },
 		{ "group_ondisk",     m0_be_ut_group_ondisk         },

@@ -29,6 +29,7 @@
 #include "net/net.h"		/* m0_net_xprt */
 #include "rpc/rpclib.h"		/* m0_rpc_server_ctx */
 
+#if 0
 /**
  * Helper structure for easy segment preparing for UT.
  *
@@ -121,6 +122,7 @@ void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h);
  * Note the absence of m0_be_ut_h_tx_fini().
  */
 void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h);
+#endif
 
 struct m0_be_ut_backend {
 	struct m0_net_xprt	 *but_net_xprt;
