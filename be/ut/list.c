@@ -79,7 +79,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_backend_tx_init(&ut_be, &tx);
 	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
-	m0_be_ut_seg_allocator_init(&ut_seg);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	a = ut_seg.bus_allocator;
 	seg = &ut_seg.bus_seg;
 
@@ -196,7 +196,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	m0_be_tx_fini(&tx);
 
 	/* XXX can't destroy allocator because some memory wasn't freed */
-	/* m0_be_ut_seg_allocator_fini(&ut_seg); */
+	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 

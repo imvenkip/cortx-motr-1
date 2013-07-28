@@ -159,9 +159,11 @@ void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
 
 /* m0_be_allocator_{init,create,open} */
-void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
+				 struct m0_be_ut_backend *ut_be);
 /* m0_be_allocator_{close,destroy,fini} */
-void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
+				 struct m0_be_ut_backend *ut_be);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

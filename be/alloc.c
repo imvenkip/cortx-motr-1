@@ -142,8 +142,6 @@
  * freeing may take place at a some point of time for the same allocator.
  *
  * Know issues:
- * - tx is not used in m0_be_alloc() and m0_be_free(), so nothing is
- *   m0_be_tx_capture()'d;
  * - op is unconditionally transitioned to state M0_BOS_SUCCESS in m0_be_alloc()
  *   and m0_be_free().
  */
@@ -650,29 +648,29 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	return result;
 }
 
-static bool be_alloc_chunk_trymerge(struct m0_be_allocator *al,
+static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
-				    struct be_alloc_chunk *a,
-				    struct be_alloc_chunk *b)
+				    struct be_alloc_chunk *x,
+				    struct be_alloc_chunk *y)
 {
-	m0_bcount_t b_size_total;
+	m0_bcount_t y_size_total;
 	bool	    chunks_were_merged = false;
 
-	M0_PRE(ergo(a != NULL, be_alloc_chunk_invariant(al, a)));
-	M0_PRE(ergo(b != NULL, be_alloc_chunk_invariant(al, b)));
-	M0_PRE(ergo(a != NULL && b != NULL, (char *) a < (char *) b));
-	M0_PRE(ergo(a != NULL, chunks_free_tlink_is_in(a)) ||
-	       ergo(b != NULL, chunks_free_tlink_is_in(b)));
-	if (a != NULL && b != NULL && a->bac_free && b->bac_free) {
-		b_size_total = sizeof(*b) + b->bac_size;
-		be_alloc_chunk_del_fini(al, tx, b);
-		a->bac_size += b_size_total;
-		be_alloc_chunk_capture(al, tx, a);
+	M0_PRE(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
+	M0_PRE(ergo(y != NULL, be_alloc_chunk_invariant(a, y)));
+	M0_PRE(ergo(x != NULL && y != NULL, (char *) x < (char *) y));
+	M0_PRE(ergo(x != NULL, chunks_free_tlink_is_in(x)) ||
+	       ergo(y != NULL, chunks_free_tlink_is_in(y)));
+	if (x != NULL && y != NULL && x->bac_free && y->bac_free) {
+		y_size_total = sizeof(*y) + y->bac_size;
+		be_alloc_chunk_del_fini(a, tx, y);
+		x->bac_size += y_size_total;
+		be_alloc_chunk_capture(a, tx, x);
 		chunks_were_merged = true;
 	}
-	M0_POST(ergo(a != NULL, be_alloc_chunk_invariant(al, a)));
-	M0_POST(ergo(b != NULL && !chunks_were_merged,
-		     be_alloc_chunk_invariant(al, b)));
+	M0_POST(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
+	M0_POST(ergo(y != NULL && !chunks_were_merged,
+		     be_alloc_chunk_invariant(a, y)));
 	return chunks_were_merged;
 }
 
@@ -797,7 +795,6 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	struct m0_be_tx_credit chunk_del_fini_credit;
 	struct m0_be_tx_credit chunk_trymerge_credit;
 
-	M0_PRE(m0_be_allocator__invariant(a));
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 
 	chunk_credit  = M0_BE_TX_CREDIT_TYPE(struct be_alloc_chunk);
@@ -809,16 +806,16 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	m0_be_tx_credit_mac(&capture_around_credit, &chunk_credit, 3);
 
 	m0_be_tx_credit_init(&chunk_add_after_credit);
-	/* be_alloc_chunk_init() x2 */
+	/* tlink_init() x2 */
 	m0_be_tx_credit_mac(&chunk_add_after_credit, &chunk_credit, 2);
-	/* tlist_add_after x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 2);
+	/* tlist_add_after() x2 */
+	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 4);
 
 	m0_be_tx_credit_init(&chunk_del_fini_credit);
-	/* tlist_del x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 2);
-	/* tlink_fini x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &chunk_credit, 2);
+	/* tlist_del() x2 */
+	m0_be_tx_credit_mac(&chunk_del_fini_credit, &capture_around_credit, 2);
+	/* tlink_fini() x2 */
+	m0_be_tx_credit_mac(&chunk_del_fini_credit, &chunk_credit, 2);
 
 	m0_be_tx_credit_init(&chunk_trymerge_credit);
 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_del_fini_credit);
@@ -840,10 +837,11 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 			m0_be_tx_credit_add(accum, &chunk_del_fini_credit);
 			m0_be_tx_credit_mac(accum, &chunk_add_after_credit, 3);
 			m0_be_tx_credit_add(accum, &capture_around_credit);
-			m0_be_tx_credit_add(accum, &mem_credit);
+			/* XXX */
+			/* m0_be_tx_credit_add(accum, &mem_credit); */
 			break;
 		case M0_BAO_FREE:
-			/* be_alloc_chunk_mark_free */
+			/* be_alloc_chunk_mark_free = tlist_add_before() */
 			m0_be_tx_credit_mac(accum, &capture_around_credit, 2);
 			m0_be_tx_credit_mac(accum, &chunk_trymerge_credit, 2);
 			break;

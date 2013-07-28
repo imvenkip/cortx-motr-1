@@ -52,6 +52,7 @@ extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
 extern void m0_be_ut_alloc_multiple(void);
 extern void m0_be_ut_alloc_concurrent(void);
+extern void m0_be_ut_alloc_transactional(void);
 
 extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
@@ -132,6 +133,7 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-create",     m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",   m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent", m0_be_ut_alloc_concurrent     },
+		{ "alloc-transactional", m0_be_ut_alloc_transactional},
 		{ "list",             m0_be_ut_list_api             },
 #if 0
 		{ "btree",            m0_be_ut_btree_simple         },

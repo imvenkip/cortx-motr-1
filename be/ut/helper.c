@@ -21,19 +21,19 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
-#include "lib/memory.h"
+#include "lib/memory.h"		/* m0_alloc */
+#include "lib/misc.h"		/* M0_BITS */
 
-#include "be/ut/helper.h"
-#include "be/tx_group_fom.h"
+#include "be/ut/helper.h"	/* m0_be_ut_backend */
 
-#include "stob/stob.h"	/* m0_stob_id */
-#include "stob/linux.h"	/* m0_linux_stob_domain_locate */
-#include "dtm/dtm.h"	/* m0_dtx_init */
-#include "rpc/rpclib.h"	/* m0_rpc_server_start */
+#include "stob/stob.h"		/* m0_stob_id */
+#include "stob/linux.h"		/* m0_linux_stob_domain_locate */
+#include "dtm/dtm.h"		/* m0_dtx_init */
+#include "rpc/rpclib.h"		/* m0_rpc_server_start */
 
-#include <stdlib.h>	/* system */
-#include <sys/stat.h>	/* mkdir */
-#include <sys/types.h>	/* mkdir */
+#include <stdlib.h>		/* system */
+#include <sys/stat.h>		/* mkdir */
+#include <sys/types.h>		/* mkdir */
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
@@ -381,22 +381,58 @@ void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 
 }
 
-void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg)
+static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+					 struct m0_be_ut_backend *ut_be,
+					 bool init)
 {
-	int rc;
+	struct m0_be_allocator *a;
+	struct m0_be_tx_credit	credit;
+	struct m0_be_tx	       _tx;
+	struct m0_be_tx	       *tx = &_tx;
+	int			rc;
 
 	ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
+	a = ut_seg->bus_allocator;
 
-	rc = m0_be_allocator_init(ut_seg->bus_allocator, &ut_seg->bus_seg);
-	M0_ASSERT(rc == 0);
-	rc = m0_be_allocator_create(ut_seg->bus_allocator, /* XXX */ NULL);
-	M0_ASSERT(rc == 0);
+	if (ut_be != NULL) {
+		m0_be_ut_backend_tx_init(ut_be, tx);
+		m0_be_tx_credit_init(&credit);
+		m0_be_allocator_credit(a, M0_BAO_CREATE, 0, 0, &credit);
+		m0_be_tx_prep(tx, &credit);
+		m0_be_tx_open(tx);
+		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
+						    M0_BTS_FAILED),
+					M0_TIME_NEVER);
+		M0_ASSERT(rc == 0);
+	}
+	if (init) {
+		rc = m0_be_allocator_init(a, &ut_seg->bus_seg);
+		M0_ASSERT(rc == 0);
+		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : tx);
+		M0_ASSERT(rc == 0);
+	} else {
+		m0_be_allocator_destroy(a, ut_be == NULL ? NULL : tx);
+		m0_be_allocator_fini(a);
+	}
+	if (ut_be != NULL) {
+		m0_be_tx_close(tx);
+		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
+					M0_TIME_NEVER);
+		M0_ASSERT(rc == 0);
+		m0_be_tx_fini(tx);
+	}
 }
 
-void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg)
+void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
+				 struct m0_be_ut_backend *ut_be)
 {
-	m0_be_allocator_destroy(ut_seg->bus_allocator, /* XXX */ NULL);
-	m0_be_allocator_fini(ut_seg->bus_allocator);
+	be_ut_seg_allocator_initfini(ut_seg, ut_be, true);
+}
+
+void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
+				 struct m0_be_ut_backend *ut_be)
+{
+	be_ut_seg_allocator_initfini(ut_seg, ut_be, false);
 }
 
 #undef M0_TRACE_SUBSYSTEM

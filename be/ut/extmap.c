@@ -129,7 +129,7 @@ static void test_init(void)
 	/* Init BE */
 	m0_be_ut_backend_init(&be_ut_emap_backend);
 	m0_be_ut_seg_init(&be_ut_emap_seg, 1ULL << 26);
-	m0_be_ut_seg_allocator_init(&be_ut_emap_seg);
+	m0_be_ut_seg_allocator_init(&be_ut_emap_seg, &be_ut_emap_backend);
 	be_seg = &be_ut_emap_seg.bus_seg;
 
 	emap_alloc(&tx1);
@@ -171,7 +171,7 @@ static void test_fini(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(&tx2);
 
-	m0_be_ut_seg_allocator_fini(&be_ut_emap_seg);
+	m0_be_ut_seg_allocator_fini(&be_ut_emap_seg, &be_ut_emap_backend);
 	m0_be_ut_seg_fini(&be_ut_emap_seg);
 	m0_be_ut_backend_fini(&be_ut_emap_backend);
 }
