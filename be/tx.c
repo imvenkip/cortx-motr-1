@@ -24,18 +24,13 @@
 #include "be/tx.h"
 #include "be/tx_internal.h"
 
-#include "lib/errno.h"
-#include "lib/misc.h"          /* m0_forall */
-#include "lib/cdefs.h"         /* ARRAY_SIZE */
-#include "lib/memory.h"
-#include "lib/types.h"
-#include "lib/ext.h"           /* m0_ext */
-#include "lib/arith.h"	       /* M0_CNT_INC */
+#include "lib/errno.h"		/* ENOMEM */
+#include "lib/misc.h"		/* M0_BITS */
+#include "lib/arith.h"		/* M0_CNT_INC */
 
-#include "be/be.h"
-#include "be/domain.h"
-#include "fop/fom.h"
-#include "be/engine.h"
+#include "be/op.h"		/* m0_be_op */
+#include "be/domain.h"		/* m0_be_domain_engine */
+#include "be/engine.h"		/* m0_be_engine__tx_state_set */
 
 /**
  * @addtogroup be
