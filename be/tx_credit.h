@@ -66,9 +66,11 @@ struct m0_be_tx_credit {
 	m0_bcount_t tc_reg_size;
 };
 
-/**
- * @todo XXX it should have name m0_be_tx_credit_reset() because
- * there is no fini() function for m0_be_tx_credit
+/*
+ * Note the absence of m0_be_tx_credit_fini().
+ *
+ * XXX DELETEME: Get rid of m0_be_tx_credit_init(). Use `= {0}' for
+ * initialising and M0_SET0() for resetting.
  */
 M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
 

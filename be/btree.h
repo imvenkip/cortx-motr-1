@@ -367,7 +367,6 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  */
 M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
 				     struct m0_be_tx                 *tx,
-				     struct m0_be_op                 *op,
 				     const struct m0_be_btree_anchor *anchor);
 
 /* ------------------------------------------------------------------
@@ -384,8 +383,11 @@ struct m0_be_btree_cursor_stack_entry {
 	int                 bs_idx;
 };
 
-/** Maximum btree height configuration. */
-enum { BTREE_HEIGHT_MAX = 15 };
+/** Btree configuration constants. */
+enum {
+	BTREE_FAN_OUT    =  5,
+	BTREE_HEIGHT_MAX = 15,
+};
 
 /**
  * Btree cursor.
