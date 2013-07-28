@@ -71,9 +71,6 @@ static void be_tx_ast_cb(struct m0_be_tx *tx, enum m0_be_tx_state state)
 		while (tx_state < state)
 			be_tx_state_move(tx, ++tx_state, 0);
 	}
-
-	if (state == M0_BTS_PLACED && tx->t_ref == 0)
-		be_tx_state_move(tx, M0_BTS_DONE, 0);
 }
 
 #define BE_TX_AST_CB(name)						\
@@ -157,15 +154,18 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	tx->t_ast_done.sa_cb	 = be_tx_ast_done_cb;
 
 	m0_be_engine__tx_init(tx->t_engine, tx, M0_BTS_PREPARE);
+	m0_be_tx_get(tx);
 
 	M0_POST(m0_be_tx__invariant(tx));
 }
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 {
+	/* XXX reorder M0_PRE to check be_tx_is_locked() first */
 	M0_PRE(m0_be_tx__invariant(tx));
 	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_DONE, M0_BTS_FAILED)));
 	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(tx->t_ref == 0);
 
 	m0_be_engine__tx_fini(tx->t_engine, tx);
 
@@ -328,6 +328,9 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 
 	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
 		tx->t_persistent(tx);
+
+	if (state == M0_BTS_PLACED || state == M0_BTS_FAILED)
+		m0_be_tx_put(tx);
 
 	M0_POST(m0_be_tx__invariant(tx));
 	M0_LEAVE();
