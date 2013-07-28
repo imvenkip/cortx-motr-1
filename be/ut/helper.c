@@ -351,6 +351,17 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 	be_ut_seg_fini(ut_seg, false);
 }
 
+static void be_ut_data_save(const char *filename, m0_bcount_t size, void *addr)
+{
+	size_t	written;
+	FILE   *f;
+
+	f = fopen(filename, "w");
+	written = fwrite(addr, size, 1, f);
+	M0_ASSERT(written == 1);
+	fclose(f);
+}
+
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 {
 	struct m0_be_seg *seg = &ut_seg->bus_seg;
@@ -362,6 +373,17 @@ void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 	m0_be_seg__read(&M0_BE_REG_SEG(seg), ut_seg->bus_copy);
 	seg_data_was_successfully_written_to_stob =
 		memcmp(seg->bs_addr,ut_seg->bus_copy, seg->bs_size) == 0;
+	/*
+	 * You can find all differences between stob and memory using
+	 * the following commands (s/vimdiff/some_tool/ if needed):
+	 *
+	 * > for f in stob memory; do hexdump -vC data.$f > data-hex.$f; done
+	 * > vimdiff data-hex.stob data-hex.memory
+	 */
+	if (!seg_data_was_successfully_written_to_stob) {
+		be_ut_data_save("data.stob", seg->bs_size, ut_seg->bus_copy);
+		be_ut_data_save("data.memory", seg->bs_size, seg->bs_addr);
+	}
 	M0_ASSERT(seg_data_was_successfully_written_to_stob);
 
 }
