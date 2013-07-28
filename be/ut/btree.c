@@ -79,13 +79,13 @@ void m0_be_ut_btree_simple(void)
 	tree0 = create_tree(&ut_be, seg);
 
 	/* Reload segment and check data */
-	m0_be_ut_seg_reload(&ut_seg);
+	m0_be_ut_seg_check_persistence(&ut_seg);
 
 	check(tree0, &ut_be, seg);
 	destroy_tree(tree0, &ut_be, seg);
 
 	/* Reload segment, create new tree and check data */
-	m0_be_ut_seg_reload(&ut_seg);
+	m0_be_ut_seg_check_persistence(&ut_seg);
 
 	tree1 = create_tree(&ut_be, seg);
 	check(tree1, &ut_be, seg);

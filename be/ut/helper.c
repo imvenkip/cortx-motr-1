@@ -355,17 +355,6 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 	be_ut_seg_fini(ut_seg, false);
 }
 
-void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
-{
-#if 0
-	int rc;
-
-	m0_be_seg_close(&ut_seg->bus_seg);
-	rc = m0_be_seg_open(&ut_seg->bus_seg);
-	M0_ASSERT(rc == 0);
-#endif
-}
-
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 {
 	struct m0_be_seg *seg = &ut_seg->bus_seg;

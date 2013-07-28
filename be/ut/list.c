@@ -188,7 +188,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Reload segment and check data */
-	m0_be_ut_seg_reload(&ut_seg);
+	m0_be_ut_seg_check_persistence(&ut_seg);
 	check(list, seg);
 
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
