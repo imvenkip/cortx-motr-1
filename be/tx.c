@@ -319,15 +319,13 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "transaction failure: err=%d", rc);
 
-	m0_sm_move(&tx->t_sm, rc, state);
-
+	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
+		tx->t_persistent(tx);
 	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
 		tx->t_discarded(tx);
 
+	m0_sm_move(&tx->t_sm, rc, state);
 	m0_be_engine__tx_state_set(tx->t_engine, tx, state);
-
-	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
-		tx->t_persistent(tx);
 
 	if (state == M0_BTS_PLACED || state == M0_BTS_FAILED)
 		m0_be_tx_put(tx);
