@@ -100,34 +100,39 @@ struct m0_be_tx_group;
  *                        | m0_be_tx_init()
  *                        |
  *                        V
- *                     PREPARE------+
- *                        | ^       | m0_be_tx_prep();
- *        m0_be_tx_open() | |       |
- *                        | +-------+
- *                        V
+ *                     PREPARE
+ *                        |
+ *        m0_be_tx_open() |
+ *                        |	engine thinks that the transaction
+ *                        V	v can't be opened
  *                     OPENING---------->FAILED
  *                        |
- *                        | tx_open_tail()
+ *                        | log space reserved for the transaction
  *                        |
  *                        V
- *                      ACTIVE------+
- *                        | ^       | m0_be_tx_capture();
- *       m0_be_tx_close() | |       |
- *                        | +-------+
+ *                      ACTIVE
+ *                        |
+ *       m0_be_tx_close() |
+ *                        |
  *                        V
  *                      CLOSED
  *                        |
- *                        | tx_group_add()
+ *                        | added to group
  *                        |
  *                        V
  *                     GROUPED
  *                        |
- *                        | log io & in-place io complete
+ *                        | log io complete
+ *                        |
+ *                        V
+ *                     LOGGED
+ *                        |
+ *                        | in-place io complete
  *                        |
  *                        V
  *                      PLACED
  *                        |
- *                        | m0_be_tx_stable()
+ *                        | m0_be_tx::t_ref == 0
  *                        |
  *                        V
  *                      DONE
