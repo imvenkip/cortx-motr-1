@@ -347,12 +347,6 @@ struct m0_be_tx {
 	m0_be_tx_cb_t          t_discarded;
 
 	/**
-	 * True iff the transaction is globally stable, i.e., not
-	 * needed for recovery.
-	 */
-	bool                   t_glob_stable;
-
-	/**
 	 * An optional call-back called when the transaction is being closed.
 	 *
 	 * "payload" parameter is the pointer to a m0_be_tx::t_payload_size-d
