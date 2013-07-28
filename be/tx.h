@@ -132,8 +132,8 @@ struct m0_be_tx_group;
  *                        V
  *                      PLACED
  *                        |
- *                        | m0_be_tx::t_ref == 0
- *                        |
+ *                        | number of m0_be_tx_get() == number of m0_be_tx_put()
+ *                        | for the transaction
  *                        V
  *                      DONE
  *
@@ -245,14 +245,18 @@ enum m0_be_tx_state {
 	 * Transaction is a member of transaction group.
 	 */
 	M0_BTS_GROUPED,
-	/* XXX DOCUMENTME */
+	/*
+	 * All transaction updates made it to the log.
+	 */
 	M0_BTS_LOGGED,
 	/**
 	 * All transaction in-place updates completed.
 	 */
 	M0_BTS_PLACED,
 	/**
-	 * Transaction was declared stable by call to m0_be_tx_stable().
+	 * Transaction reached M0_BTS_PLACED state and the number of
+	 * m0_be_tx_get() is equal to the number of m0_be_tx_put()
+	 * for the transaction.
 	 */
 	M0_BTS_DONE,
 	M0_BTS_NR
