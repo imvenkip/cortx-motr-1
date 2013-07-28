@@ -379,6 +379,7 @@ struct m0_be_tx {
 	 */
 	m0_bcount_t            t_payload_size;
 	struct m0_sm_ast       t_ast_active;
+	struct m0_sm_ast       t_ast_failed;
 	struct m0_sm_ast       t_ast_grouped;
 	struct m0_sm_ast       t_ast_logged;
 	struct m0_sm_ast       t_ast_placed;

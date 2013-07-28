@@ -52,41 +52,32 @@ static bool tx_state_invariant(const struct m0_sm *mach)
 		container_of(mach, const struct m0_be_tx, t_sm));
 }
 
-static void be_tx_state_move(struct m0_be_tx *tx,
-			     enum m0_be_tx_state state,
-			     int rc);
+static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR] = {
+	[M0_BTS_ACTIVE] = offsetof(struct m0_be_tx, t_ast_active),
+	[M0_BTS_FAILED] = offsetof(struct m0_be_tx, t_ast_failed),
+	[M0_BTS_GROUPED] = offsetof(struct m0_be_tx, t_ast_grouped),
+	[M0_BTS_LOGGED] = offsetof(struct m0_be_tx, t_ast_logged),
+	[M0_BTS_PLACED] = offsetof(struct m0_be_tx, t_ast_placed),
+	[M0_BTS_DONE] = offsetof(struct m0_be_tx, t_ast_done)
+};
 
-/* XXX REFACTORME */
-static void be_tx_ast_cb(struct m0_be_tx *tx, enum m0_be_tx_state state)
+static void be_tx_state_move_ast(struct m0_be_tx *tx,
+				 enum m0_be_tx_state state);
+
+static void be_tx_ast_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *ast)
 {
-	enum m0_be_tx_state tx_state = m0_be_tx_state(tx);
+	enum m0_be_tx_state state = (enum m0_be_tx_state)ast->sa_datum;
+	struct m0_be_tx    *tx    = ((void *)ast) - be_tx_ast_offset[state];
 
-	M0_LOG(M0_DEBUG, "ast: tx = %p, state = %s",
-	       tx, m0_be_tx_state_name(tx, state));
-
-	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
-		be_tx_state_move(tx, state,
-				 state == M0_BTS_FAILED ? -ENOMEM : 0);
-	} else {
-		while (tx_state < state)
-			be_tx_state_move(tx, ++tx_state, 0);
-	}
+	M0_PRE(be_tx_ast_offset[state] != 0);
+	be_tx_state_move_ast(tx, state);
 }
 
-#define BE_TX_AST_CB(name)						\
-static void be_tx_ast_##name##_cb(struct m0_sm_group *sm_group,		\
-				struct m0_sm_ast *ast)			\
-{									\
-	be_tx_ast_cb(container_of(ast, struct m0_be_tx, t_ast_##name),	\
-		     (enum m0_be_tx_state) ast->sa_datum);		\
-}									\
-
-BE_TX_AST_CB(active);
-BE_TX_AST_CB(grouped);
-BE_TX_AST_CB(logged);
-BE_TX_AST_CB(placed);
-BE_TX_AST_CB(done);
-#undef BE_TX_AST_CB
+static struct m0_sm_ast *be_tx_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
+{
+	M0_PRE(be_tx_ast_offset[state] != 0);
+	return ((void *)tx) + be_tx_ast_offset[state];
+}
 
 /* be sure to change be_tx_ast_cb if change tx_states */
 static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
@@ -133,6 +124,8 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 							   void *payload),
 			       void               *datum)
 {
+	enum m0_be_tx_state state;
+
 	/* XXX REFACTORME */
 	*tx = (struct m0_be_tx) {
 	};
@@ -147,11 +140,15 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	tx->t_discarded		 = discarded;
 	tx->t_filler		 = filler;
 	tx->t_datum		 = datum;
-	tx->t_ast_active.sa_cb	 = be_tx_ast_active_cb;
-	tx->t_ast_grouped.sa_cb	 = be_tx_ast_grouped_cb;
-	tx->t_ast_logged.sa_cb	 = be_tx_ast_logged_cb;
-	tx->t_ast_placed.sa_cb	 = be_tx_ast_placed_cb;
-	tx->t_ast_done.sa_cb	 = be_tx_ast_done_cb;
+
+	for (state = 0; state < ARRAY_SIZE(be_tx_ast_offset); ++state) {
+		if (be_tx_ast_offset[state] != 0) {
+			*be_tx_ast(tx, state) = (struct m0_sm_ast) {
+				.sa_cb	  = be_tx_ast_cb,
+				.sa_datum = (void *) state,
+			};
+		}
+	}
 
 	m0_be_engine__tx_init(tx->t_engine, tx, M0_BTS_PREPARE);
 	m0_be_tx_get(tx);
@@ -161,6 +158,8 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 {
+	enum m0_be_tx_state state;
+
 	/* XXX reorder M0_PRE to check be_tx_is_locked() first */
 	M0_PRE(m0_be_tx__invariant(tx));
 	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_DONE, M0_BTS_FAILED)));
@@ -169,12 +168,10 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 
 	m0_be_engine__tx_fini(tx->t_engine, tx);
 
-	/* XXX REFACTORME */
-	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_active);
-	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_grouped);
-	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_logged);
-	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_placed);
-	m0_sm_ast_cancel(tx->t_sm.sm_grp, &tx->t_ast_done);
+	for (state = 0; state < ARRAY_SIZE(be_tx_ast_offset); ++state) {
+		if (be_tx_ast_offset[state] != 0)
+			m0_sm_ast_cancel(tx->t_sm.sm_grp, be_tx_ast(tx, state));
+	}
 	m0_be_reg_area_fini(&tx->t_reg_area);
 	m0_sm_fini(&tx->t_sm);
 }
@@ -305,6 +302,23 @@ M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
 	return m0_sm_state_name(&tx->t_sm, state);
 }
 
+static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
+{
+	enum m0_be_tx_state tx_state = m0_be_tx_state(tx);
+
+	M0_LOG(M0_DEBUG, "ast: tx = %p, %s -> %s",
+	       tx, m0_be_tx_state_name(tx, tx_state),
+	       m0_be_tx_state_name(tx, state));
+
+	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
+		be_tx_state_move(tx, state,
+				 state == M0_BTS_FAILED ? -ENOMEM : 0);
+	} else {
+		while (tx_state < state)
+			be_tx_state_move(tx, ++tx_state, 0);
+	}
+}
+
 static void be_tx_state_move(struct m0_be_tx *tx,
 			     enum m0_be_tx_state state,
 			     int rc)
@@ -337,7 +351,7 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 				      enum m0_be_tx_state state)
 {
-	struct m0_sm_ast *ast;
+	/* XXX move to group_fom doc */
 	/*
 	 * tx_group's fom and tx's sm may belong different sm_groups (e.g.,
 	 * they may be processed by different localities).
@@ -363,15 +377,7 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 	M0_LOG(M0_DEBUG, "tx = %p, state = %s",
 	       tx, m0_be_tx_state_name(tx, state));
 
-	ast = state == M0_BTS_ACTIVE  ? &tx->t_ast_active :
-	      state == M0_BTS_FAILED  ? &tx->t_ast_active :
-	      state == M0_BTS_GROUPED ? &tx->t_ast_grouped :
-	      state == M0_BTS_LOGGED  ? &tx->t_ast_logged :
-	      state == M0_BTS_PLACED  ? &tx->t_ast_placed :
-	      state == M0_BTS_DONE  ? &tx->t_ast_done : NULL;
-
-	ast->sa_datum = (void *) state;
-	m0_sm_ast_post(tx->t_sm.sm_grp, ast);
+	m0_sm_ast_post(tx->t_sm.sm_grp, be_tx_ast(tx, state));
 }
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx)
