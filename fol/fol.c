@@ -287,7 +287,6 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 		d->rd_header.rh_refcount = 1;
 		d->rd_lsn = M0_LSN_ANCHOR;
 		fol->f_lsn = M0_LSN_ANCHOR + 1;
-		/* XXX Should we m0_be_tx_capture() fol->f_lsn here?  --vvv */
 		rc = m0_fol_rec_add(fol, &r);
 		m0_fol_rec_fini(&r);
 	} else if (rc == 0) {
@@ -345,8 +344,6 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
 	return m0_table_insert(tx, &pair);
 }
 #else
-/* XXX FIXME: Pass m0_be_tx as a parameter to m0_fol_add_buf(), do not
- * create it inside this function. */
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 			       struct m0_buf *buf)
 {
@@ -382,12 +379,15 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 }
 #endif
 
-#if XXX_USE_DB5 /* ################################################ */
 M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto)
 {
+#if XXX_USE_DB5
 	return m0_dbenv_sync(fol->f_table.t_env);
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+#endif
 }
-#endif /* XXX_USE_DB5 ############################################# */
 
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 {
@@ -538,7 +538,10 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	}
 }
 
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
+#if XXX_USE_DB5
+			       struct m0_db_tx *tx,
+#endif
 			       struct m0_fol_rec *rec)
 {
 	int                     result;
@@ -551,7 +554,11 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
 
 	desc = &rec->fr_desc;
 	result = fol_record_encode(rec, &buf) ?:
-		 m0_fol_add_buf(fol, tx, desc, &buf);
+		 m0_fol_add_buf(fol,
+#if XXX_USE_DB5
+				tx,
+#endif
+				desc, &buf);
 	if (result == 0)
 		m0_free(buf.b_addr);
 	return result;
@@ -719,63 +726,18 @@ out:
 }
 #endif
 
-#if XXX_USE_DB5
 static int fol_record_decode(struct m0_fol_rec *rec)
 {
+	struct m0_fol_rec_desc *desc = &rec->fr_desc;
+#if XXX_USE_DB5
 	struct m0_buf	       *rec_buf = &rec->fr_pair.dp_rec.db_buf;
 	void		       *buf = &rec_buf->b_addr;
-	m0_bcount_t	        len = rec_buf->b_nob;
+	m0_bcount_t		len = rec_buf->b_nob;
 	struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
-	struct m0_bufvec_cursor cur;
-	uint32_t		i;
-	struct m0_fol_rec_desc *desc = &rec->fr_desc;
-	int			rc;
-
-	m0_bufvec_cursor_init(&cur, &bvec);
-
-	rc = fol_rec_desc_encdec(desc, &cur, M0_XCODE_DECODE);
-	if (rc != 0)
-		return rc;
-
-	for (i = 0; rc == 0 && i < desc->rd_header.rh_parts_nr; ++i) {
-		struct m0_fol_rec_part	          *part;
-		const struct m0_fol_rec_part_type *part_type;
-		struct m0_fol_rec_part_header      ph;
-
-		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&ph),
-				     &cur, M0_XCODE_DECODE);
-		if (rc == 0) {
-			void *rp_data;
-
-			part_type = fol_rec_part_type_lookup(ph.rph_index);
-
-			M0_ALLOC_PTR(part);
-			if (part == NULL)
-				return -ENOMEM;
-
-			rp_data = m0_alloc(part_type->rpt_xt->xct_sizeof);
-			if (rp_data == NULL) {
-				m0_free(part);
-				return -ENOMEM;
-			}
-
-			part->rp_flag = M0_XCODE_DECODE;
-
-			m0_fol_rec_part_init(part, rp_data, part_type);
-			rc = m0_xcode_encdec(&REC_PART_XCODE_OBJ(part),
-					     &cur, M0_XCODE_DECODE);
-			if (rc == 0)
-				m0_fol_rec_part_add(rec, part);
-		}
-	}
-	return rc;
-}
 #else
-static int fol_record_decode(struct m0_fol_rec *rec)
-{
-	struct m0_fol_rec_desc *desc = &rec->fr_desc;
 	struct m0_bufvec        bvec = M0_BUFVEC_INIT_BUF(&rec->fr_val.b_addr,
 							  &rec->fr_val.b_nob);
+#endif
 	struct m0_bufvec_cursor cur;
 	uint32_t                i;
 	int                     rc;
@@ -819,7 +781,6 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 	}
 	return rc;
 }
-#endif
 
 /** @} end of fol group */
 
