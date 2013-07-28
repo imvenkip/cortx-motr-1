@@ -260,7 +260,7 @@ M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx)
 	M0_PRE(be_tx_is_locked(tx));
 
 	M0_CNT_DEC(tx->t_ref);
-	if (tx->t_ref == 0)
+	if (tx->t_ref == 0 && m0_be_tx_state(tx) != M0_BTS_FAILED)
 		m0_be_tx__state_post(tx, M0_BTS_DONE);
 }
 
