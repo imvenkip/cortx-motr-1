@@ -30,7 +30,7 @@ enum {
 };
 
 static struct m0_thread t[NR];
-static struct m0_chan   c[NR];
+static struct m0_chan   cc[NR];
 static struct m0_mutex  m[NR];
 static struct m0_clink  l[NR];
 
@@ -42,7 +42,7 @@ static void t0(int self)
 	for (i = 0; i < NR; ++i) {
 		for (j = 0; j < NR; ++j) {
 			if (j != self)
-				m0_chan_signal_lock(&c[j]);
+				m0_chan_signal_lock(&cc[j]);
 		}
 
 		for (j = 0; j < NR - 1; ++j)
@@ -211,9 +211,9 @@ void test_chan(void)
 
 	for (i = 0; i < ARRAY_SIZE(c); ++i) {
 		m0_mutex_init(&m[i]);
-		m0_chan_init(&c[i], &m[i]);
+		m0_chan_init(&cc[i], &m[i]);
 		m0_clink_init(&l[i], NULL);
-		m0_clink_add_lock(&c[i], &l[i]);
+		m0_clink_add_lock(&cc[i], &l[i]);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
@@ -229,14 +229,14 @@ void test_chan(void)
 	for (i = 0; i < ARRAY_SIZE(c); ++i) {
 		m0_clink_del_lock(&l[i]);
 		m0_clink_fini(&l[i]);
-		m0_chan_fini_lock(&c[i]);
+		m0_chan_fini_lock(&cc[i]);
 		m0_mutex_fini(&m[i]);
 	}
 
 	/*
 	 * multi-channel test
 	 *
-	 * NR clinks are arranged in a group, with c[0] as a head. Each clink is
+	 * NR clinks are arranged in a group, with cc[0] as a head. Each clink is
 	 * added to the corresponding channel.
 	 *
 	 * j-th channel is signalled and the signal is awaited for on the (j+1)
@@ -248,7 +248,7 @@ void test_chan(void)
 	for (j = 0; j < ARRAY_SIZE(c); ++j) {
 		for (i = 0; i < ARRAY_SIZE(c); ++i) {
 			m0_mutex_init(&m[i]);
-			m0_chan_init(&c[i], &m[i]);
+			m0_chan_init(&cc[i], &m[i]);
 		}
 
 		m0_clink_init(&l[0], j == 0 ? mfilter : NULL);
@@ -256,7 +256,7 @@ void test_chan(void)
 			m0_clink_attach(&l[i], &l[0], j == i ? mfilter : NULL);
 
 		for (i = 0; i < ARRAY_SIZE(c); ++i)
-			m0_clink_add_lock(&c[i], &l[i]);
+			m0_clink_add_lock(&cc[i], &l[i]);
 
 		flag = 0;
 		m0_timer_init(&timer, M0_TIMER_HARD,
@@ -273,7 +273,7 @@ void test_chan(void)
 		for (i = ARRAY_SIZE(c) - 1; i >= 0; --i) {
 			m0_clink_del_lock(&l[i]);
 			m0_clink_fini(&l[i]);
-			m0_chan_fini_lock(&c[i]);
+			m0_chan_fini_lock(&cc[i]);
 			m0_mutex_fini(&m[i]);
 		}
 	}
