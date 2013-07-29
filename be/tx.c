@@ -155,20 +155,17 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 {
 	enum m0_be_tx_state state;
 
-	/* XXX REFACTORME */
 	*tx = (struct m0_be_tx) {
+		.t_id	      = tid,
+		.t_engine     = m0_be_domain_engine(dom),
+		.t_prepared   = M0_BE_TX_CREDIT_ZERO,
+		.t_persistent = persistent,
+		.t_discarded  = discarded,
+		.t_filler     = filler,
+		.t_datum      = datum,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);
-
-	tx->t_id		 = tid;
-	tx->t_engine		 = m0_be_domain_engine(dom);
-
-	m0_be_tx_credit_init(&tx->t_prepared);
-	tx->t_persistent	 = persistent;
-	tx->t_discarded		 = discarded;
-	tx->t_filler		 = filler;
-	tx->t_datum		 = datum;
 
 	for (state = 0; state < ARRAY_SIZE(be_tx_ast_offset); ++state) {
 		if (be_tx_ast_offset[state] != 0) {
