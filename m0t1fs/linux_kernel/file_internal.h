@@ -1193,8 +1193,12 @@ struct nw_xfer_request {
 
         const struct nw_xfer_ops *nxr_ops;
 
-        /** List of all target_ioreq structures. */
-        struct m0_tl              nxr_tioreqs;
+	/**
+	 * Hash of target_ioreq objects. Helps to speed up the lookup
+	 * of target_ioreq objects based on a key
+	 * (target_ioreq::ti_fid::f_container)
+	 */
+	struct m0_htable        nxr_tioreqs_hash;
 
         /**
          * Number of IO fops issued by all target_ioreq structures
@@ -1711,8 +1715,8 @@ struct target_ioreq {
         /** Resulting IO fops are sent on this rpc session. */
         struct m0_rpc_session         *ti_session;
 
-        /** Linkage to link in to nw_xfer_request::nxr_tioreqs list. */
-        struct m0_tlink                ti_link;
+        /** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
+        struct m0_hlink                ti_link;
 
         /**
          * Index vector containing IO segments with cob offsets and

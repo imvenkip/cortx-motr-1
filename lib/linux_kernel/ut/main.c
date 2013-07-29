@@ -47,6 +47,7 @@ M0_INTERNAL void test_memory(void);
 M0_INTERNAL void test_bob(void);
 M0_INTERNAL void m0_ut_lib_buf_test(void);
 M0_INTERNAL void m0_test_lib_uuid(void);
+M0_INTERNAL void test_hashtable(void);
 
 const struct m0_test_suite m0_klibm0_ut = {
 	.ts_name = "klibm0-ut",
@@ -63,6 +64,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 #ifdef ENABLE_FAULT_INJECTION
 		{ "finject",       test_finject       },
 #endif
+		{ "hash",          test_hashtable     },
 		{ "list",          test_list          },
 		{ "locality",      test_locality      },
 		{ "lockers",       test_lockers       },

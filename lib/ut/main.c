@@ -48,6 +48,7 @@ extern void test_trace(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_locality(void);
+extern void test_hashtable(void);
 
 const struct m0_test_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -65,6 +66,7 @@ const struct m0_test_suite libm0_ut = {
 		{ "finject",          test_finject       },
 #endif
 		{ "getopts",          test_getopts       },
+		{ "hash",	      test_hashtable     },
 		{ "list",             test_list          },
 		{ "locality",         test_locality      },
 		{ "lockers",          test_lockers       },
