@@ -26,9 +26,7 @@
 
 
 /**
- * @defgroup dtm
- *
- * HLD https://docs.google.com/a/xyratex.com/document/d/1RacseZooNnfbKiaD-s5rmTpLlpw_QlPomAX9iH4PlfI/edit
+ * @addtogroup dtm
  *
  * @{
  */

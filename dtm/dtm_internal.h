@@ -25,7 +25,7 @@
 #define __MERO_DTM_DTM_INTERNAL_H__
 
 /**
- * @defgroup dtm
+ * @addtogroup dtm
  *
  * @{
  */

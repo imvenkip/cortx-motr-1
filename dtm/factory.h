@@ -26,7 +26,7 @@
 
 
 /**
- * @defgroup dtm
+ * @addtogroup dtm
  *
  * @{
  */

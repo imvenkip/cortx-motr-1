@@ -24,7 +24,7 @@
 #define __MERO_DTM_MACHINE_H__
 
 /**
- * @defgroup dtm
+ * @addtogroup dtm
  *
  * @{
  */

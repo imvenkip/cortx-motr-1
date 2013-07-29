@@ -31,7 +31,7 @@
 #include "dtm/nucleus.h"
 
 /**
- * @defgroup dtm
+ * @addtogroup dtm
  *
  * @{
  */
