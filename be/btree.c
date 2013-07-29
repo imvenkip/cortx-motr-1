@@ -393,7 +393,7 @@ static void btree_insert_key(struct m0_be_btree *btree,
 {
 	struct m0_be_bnode *rnode;
 
-	M0_PRE(btree_invariant(btree));
+	M0_PRE_EX(btree_invariant(btree));
 
 	rnode = btree->bb_root;
 	if (rnode->b_nr_active == KV_NR) {
@@ -416,7 +416,7 @@ static void btree_insert_key(struct m0_be_btree *btree,
 	} else
 		btree_insert_nonfull(btree, tx, rnode, key_val);
 
-	M0_POST(btree_invariant(btree));
+	M0_POST_EX(btree_invariant(btree));
 }
 
 /**
@@ -634,7 +634,7 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 	struct bt_key_val	*key_val;
 	int			 rc = -1;
 
-	M0_PRE(btree_invariant(btree));
+	M0_PRE_EX(btree_invariant(btree));
 
 	M0_ENTRY("n=%p", node);
 
@@ -763,7 +763,7 @@ del_loop:
 		goto del_loop;
 	}
 out:
-	M0_POST(btree_invariant(btree));
+	M0_POST_EX(btree_invariant(btree));
 	M0_LEAVE("rc=%d", rc);
 	return rc;
 }
