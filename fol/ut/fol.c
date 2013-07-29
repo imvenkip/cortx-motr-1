@@ -22,7 +22,7 @@
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
 #if !XXX_USE_DB5
-/* XXX FIXME: Do not use ut/ of other subsystem. */
+/* XXX FIXME: Do not use ut/ directory of other subsystem. */
 #  include "be/ut/helper.h"   /* m0_be_ut_h */
 #endif
 
@@ -86,6 +86,8 @@ static void test_init(void)
 	struct m0_fol *fol;
 
 	m0_be_ut_h_init(&beh);
+	/* XXX FIXME: I think that `fol' should be allocated on stack,
+	 * not in the segment.  --vvv */
 	fol = ut_be_alloc(sizeof *fol);
 
 	rc = m0_fol_init(fol, &beh.buh_seg);
@@ -115,7 +117,7 @@ static void test_rec_part_type_reg(void)
 {
 	ut_part_type = M0_FOL_REC_PART_TYPE_XC_OPS("UT record part", m0_fid_xc,
 						   &ut_part_type_ops);
-	rc =  m0_fol_rec_part_type_register(&ut_part_type);
+	rc = m0_fol_rec_part_type_register(&ut_part_type);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(ut_part_type.rpt_index > 0);
 }

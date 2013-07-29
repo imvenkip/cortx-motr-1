@@ -268,6 +268,25 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	return result;
 }
 #else
+/** Initialises new fol. */
+static int fol_init(struct m0_fol *fol)
+{
+	struct m0_fol_rec       rec;
+	struct m0_fol_rec_desc *desc = &rec.fr_desc;
+	int                     rc;
+
+	m0_fol_rec_init(&rec);
+	M0_SET0(desc);
+
+	desc->rd_header.rh_refcount = 1;
+	desc->rd_lsn = M0_LSN_ANCHOR;
+	fol->f_lsn = M0_LSN_ANCHOR + 1;
+	rc = m0_fol_rec_add(fol, &rec);
+
+	m0_fol_rec_fini(&rec);
+	return rc;
+}
+
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 {
 	struct m0_fol_rec       r;
@@ -280,16 +299,7 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 	m0_be_btree_init(&fol->f_store, seg, &fol_kv_ops);
 
 	rc = m0_fol_rec_lookup(fol, M0_LSN_ANCHOR, &r);
-	if (rc == -ENOENT) {
-		m0_fol_rec_init(&r);
-		/* Initialise new fol. */
-		M0_SET0(d);
-		d->rd_header.rh_refcount = 1;
-		d->rd_lsn = M0_LSN_ANCHOR;
-		fol->f_lsn = M0_LSN_ANCHOR + 1;
-		rc = m0_fol_rec_add(fol, &r);
-		m0_fol_rec_fini(&r);
-	} else if (rc == 0) {
+	if (rc == 0) {
 		rc = m0_be_btree_cursor_last_sync(&r.fr_ptr);
 		if (rc == 0) {
 			m0_be_btree_cursor_kv_get(&r.fr_ptr,
@@ -297,8 +307,9 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 			fol->f_lsn = lsn_inc(d->rd_lsn);
 		}
 		m0_fol_lookup_rec_fini(&r);
+	} else if (rc == -ENOENT) {
+		rc = fol_init(fol);
 	}
-
 	M0_POST(ergo(rc == 0, m0_lsn_is_valid(fol->f_lsn)));
 	return rc;
 }
@@ -313,6 +324,47 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol)
 	m0_mutex_fini(&fol->f_lock);
 #endif
 }
+
+#if !XXX_USE_DB5
+M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_be_tx_credit cred = {0};
+	struct m0_be_tx        tx;
+	int                    rc;
+
+	m0_be_btree_init(&fol->f_store, seg, &fol_kv_ops);
+
+	m0_be_tx_init(&tx, XXX);
+	m0_be_btree_create_credit(&fol->f_store, 1, &cred);
+	m0_be_tx_prep(&tx, &cred);
+
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	if (rc == 0) {
+		struct m0_be_op op;
+		int             rc_wait;
+
+		m0_be_op_init(&op);
+		m0_be_btree_create(&fol->f_store, &tx, &op);
+		m0_be_op_wait(&op);
+		rc = op.bo_u.u_btree.t_rc;
+		m0_be_op_fini(&op);
+
+		m0_be_tx_close(&tx);
+		rc_wait = m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER);
+		if (rc == 0)
+			rc = rc_wait;
+	}
+	m0_be_tx_fini(&tx);
+
+	return rc ?: fol_init(fol);
+}
+
+M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol)
+{
+	XXX;
+}
+#endif
 
 M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol)
 {
@@ -357,7 +409,7 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 
 	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
 
-	m0_be_tx_init(&tx);
+	m0_be_tx_init(&tx, XXX);
 	m0_be_btree_insert_credit(&fol->f_store, 1, key.b_nob, buf->b_nob,
 				  &cred);
 	m0_be_tx_prep(&tx, &cred);
