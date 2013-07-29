@@ -327,7 +327,6 @@ struct m0_be_tx {
 	/** Updates prepared for at PREPARE state. */
 	struct m0_be_tx_credit t_prepared;
 	struct m0_be_reg_area  t_reg_area;
-	bool		       t_reg_area_allocated;
 
 	/**
 	 * Optional call-back called when the transaction is guaranteed to
