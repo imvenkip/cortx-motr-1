@@ -739,8 +739,7 @@ del_loop:
 		M0_SWAP(*key_val, *node->b_key_vals[index]);
 		mem_update(btree, tx, node->b_key_vals[index],
 					sizeof(struct bt_key_val));
-		node = child.p_node;
-		goto del_loop;
+		node = node->b_children[index];
 	} else if (node->b_children[index + 1]->b_nr_active >
 		   BTREE_FAN_OUT - 1) {
 		get_min_key_pos(btree, node->b_children[index + 1], &child);
@@ -751,17 +750,13 @@ del_loop:
 		M0_SWAP(*key_val, *node->b_key_vals[index]);
 		mem_update(btree, tx, node->b_key_vals[index],
 					sizeof(struct bt_key_val));
-		node = child.p_node;
-		goto del_loop;
-	} else if (node->b_children[index]->b_nr_active <=
-						BTREE_FAN_OUT - 1 &&
-		   node->b_children[index + 1]->b_nr_active <=
-						BTREE_FAN_OUT - 1) {
-
+		node = node->b_children[index + 1];
+	} else {
 		M0_LOG(M0_DEBUG, "case2-merge");
 		node = merge_siblings(btree, tx, node, index);
-		goto del_loop;
 	}
+	goto del_loop;
+
 out:
 	M0_POST_EX(btree_invariant(btree));
 	M0_LEAVE("rc=%d", rc);

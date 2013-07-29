@@ -100,25 +100,6 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	m0_be_op_fini(&op);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	M0_LOG(M0_INFO, "Delete with fan_out (%d) step...", BTREE_FAN_OUT);
-	for (i = BTREE_FAN_OUT - 1; i < INSERT_COUNT; i += BTREE_FAN_OUT) {
-		sprintf(k, "%03d", i);
-		M0_LOG(M0_DEBUG, "delete key=%03d", i);
-
-		m0_be_op_init(&op);
-		m0_be_btree_delete(tree, tx, &op, &key);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-
-		M0_LOG(M0_DEBUG, "insert back key=%03d", i);
-
-		m0_be_op_init(&op);
-		m0_be_btree_insert(tree, tx, &op, &key, &key);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-	}
 	btree_dbg_print(tree);
 
 	M0_LOG(M0_INFO, "Delete all in random order...");
@@ -131,7 +112,11 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 		m0_be_btree_delete(tree, tx, &op, &key);
 		m0_be_op_wait(&op);
 		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		rc = op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&op);
+		if (rc == -ENOENT)
+			M0_LOG(M0_DEBUG, "key=%s was deleted already",
+					(char*)k);
 	}
 
 	M0_LOG(M0_INFO, "Delete what is left...");
