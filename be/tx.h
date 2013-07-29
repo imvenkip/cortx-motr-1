@@ -102,9 +102,9 @@ struct m0_be_tx_group;
  *                        V
  *                     PREPARE
  *                        |
- *        m0_be_tx_open() |
- *                        |	engine thinks that the transaction
- *                        V	v can't be opened
+ *        m0_be_tx_open() |   no free memory or engine thinks that
+ *                        |   the transaction can't be opened
+ *                        V	    V
  *                     OPENING---------->FAILED
  *                        |
  *                        | log space reserved for the transaction
