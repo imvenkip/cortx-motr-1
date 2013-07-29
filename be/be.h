@@ -31,7 +31,6 @@
  */
 
 struct m0_be {
-	int unused;
 };
 
 /* These two are called from mero/init.c. */
