@@ -114,11 +114,42 @@
    fixed by making them static and including dtm .c files in a single dtm/dtm.c
    file.
 
+   @par Outline of DTM usage patterns
+
+   A typical interaction with DTM consists of the following steps:
+
+       - creates a transaction (m0_dtm_dtx_init());
+
+       - create an operation (m0_dtm_oper_init());
+
+       - for each object, modified by the operation, locate the history
+         (m0_dtm_history), representing the object;
+
+       - create an update and add it to the history and the operation
+         (m0_dtm_update_init());
+
+       - when all updates are added to the operation, add the operation to the
+         transaction (m0_dtm_dtx_add());
+
+       - create a fop, representing the update and associate it with the update;
+
+       - close the operation (m0_dtm_oper_close());
+
+       - repeat for other operations in the transaction;
+
+       - close the transaction (m0_dtm_dtx_close());
+
+   @todo pack, unpack, fop.
+
    @par Theory of operation
 
    First, read the HLD.
 
 
+
+   @par Concurrency
+
+   @par Ownership
 
    @{
 */
