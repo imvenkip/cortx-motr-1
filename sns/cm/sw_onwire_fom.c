@@ -124,16 +124,16 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 				}
 				M0_CNT_INC(cm->cm_ready_fops_recvd);
 			}
+			M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
+					 swo_fop->swo_base.swo_cm_ep.ep,
+					 (int)cm->cm_ready_fops_recvd,
+					 (int)cm->cm_proxy_nr);
+			/* This check is for the READY phase completion only. */
+			if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr) {
+				M0_LOG(M0_DEBUG, "Ready done");
+				cm->cm_ops->cmo_complete(cm);
+			}
 			m0_cm_unlock(cm);
-		}
-		M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
-				 swo_fop->swo_base.swo_cm_ep.ep,
-				 (int)cm->cm_ready_fops_recvd,
-				 (int)cm->cm_proxy_nr);
-		/* This check is for the READY phase completion only. */
-		if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr) {
-			M0_LOG(M0_DEBUG, "Ready done");
-			cm->cm_ops->cmo_complete(cm);
 		}
 		m0_fom_phase_set(fom, SWOPH_FINI);
 		break;
