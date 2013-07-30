@@ -185,13 +185,13 @@ static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
 
 #define M0_SWAP(v0, v1)					\
 ({							\
-	typeof(v0) __a0 = (v0);				\
-	typeof(v1) __a1 = (v1);				\
-	typeof(v0) __tmp = __a0;			\
-	(void)(&__a0 == &__a1);				\
+	typeof(v0) *__a0 = &(v0);			\
+	typeof(v1) *__a1 = &(v1);			\
+	typeof(v0) __tmp = *__a0;			\
+	(void)(__a0 == __a1);				\
 							\
-	(v0) = __a1;					\
-	(v1) = __tmp;					\
+	*__a0 = *__a1;					\
+	*__a1 = __tmp;					\
 })
 
 /** Decrements a counter checking for underflow. */
