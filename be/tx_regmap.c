@@ -71,35 +71,28 @@ static bool be_reg_d_is_partof(const struct m0_be_reg_d *super,
 	return m0_ext_is_partof(&REGD_EXT(super), &REGD_EXT(sub));
 }
 
-/**
- * return address of the first byte inside the region.
- * return NULL if region is empty
- */
+/** Return address of the first byte inside the region. */
 static void *be_reg_d_fb(const struct m0_be_reg_d *rd)
 {
-	return rd->rd_reg.br_size == 0 ? NULL : rd->rd_reg.br_addr;
+	return rd->rd_reg.br_addr;
 }
 
-/** return address of the byte before be_reg_d_fb(rd) */
+/** Return address of the byte before be_reg_d_fb(rd). */
 static void *be_reg_d_fb1(const struct m0_be_reg_d *rd)
 {
-	return be_reg_d_fb(rd) == NULL ? NULL :
-	       (void *) ((uintptr_t) be_reg_d_fb(rd) - 1);
-}
-/**
- * return address of the last byte inside the region.
- * return NULL if region is empty
- */
-static void *be_reg_d_lb(const struct m0_be_reg_d *rd)
-{
-	return rd->rd_reg.br_size == 0 ? NULL :
-	       (char *) rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
+	return (void *) ((uintptr_t) be_reg_d_fb(rd) - 1);
 }
 
+/** Return address of the last byte inside the region. */
+static void *be_reg_d_lb(const struct m0_be_reg_d *rd)
+{
+	return (char *) rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
+}
+
+/** Return address of the byte after be_reg_d_lb(rd). */
 static void *be_reg_d_lb1(const struct m0_be_reg_d *rd)
 {
-	return be_reg_d_lb(rd) == NULL ? NULL :
-	       (void *) ((uintptr_t) be_reg_d_lb(rd) + 1);
+	return (void *) ((uintptr_t) be_reg_d_lb(rd) + 1);
 }
 
 static m0_bcount_t be_reg_d_size(const struct m0_be_reg_d *rd)
