@@ -275,7 +275,7 @@ static int fol_reset(struct m0_fol *fol)
 	struct m0_fol_rec_desc *desc = &rec.fr_desc;
 	int                     rc;
 
-	/* XXX TODO: M0_PRE() that &fol->f_store is empty. */
+	M0_PRE(m0_be_btree_is_empty(&fol->f_store));
 
 	m0_fol_rec_init(&rec);
 	M0_SET0(desc);
