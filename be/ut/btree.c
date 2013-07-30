@@ -84,6 +84,8 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	struct m0_buf		 val;
 	char			 k[INSERT_SIZE];
 	char			 v[INSERT_SIZE];
+	long			 rand;
+	uint64_t		 rand_seed;
 	int			 rc;
 	int			 i;
 
@@ -103,9 +105,11 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	btree_dbg_print(tree);
 
 	M0_LOG(M0_INFO, "Delete all in random order...");
-	srandom(123);
-	for (i = 0; i < INSERT_COUNT; ++i) {
-		sprintf(k, "%03d", (int)(random() % INSERT_COUNT));
+	rand_seed = 123;
+	for (i = 0; i < INSERT_COUNT;) {
+		rand = m0_rnd(INSERT_COUNT, &rand_seed);
+
+		sprintf(k, "%03d", (int)(rand));
 		M0_LOG(M0_DEBUG, "%03d: delete key=%s", i, (char*)k);
 
 		m0_be_op_init(&op);
@@ -114,13 +118,13 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 		rc = op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&op);
-		if (rc == -ENOENT)
-			M0_LOG(M0_DEBUG, "key=%s was deleted already",
-					(char*)k);
+
+		if (rc != -ENOENT)
+			++i;
 	}
 
-	M0_LOG(M0_INFO, "Delete what is left...");
-	for (i = INSERT_COUNT - 1; i >= 0; --i) {
+	M0_LOG(M0_INFO, "Make sure nothing is left...");
+	for (i = 0; i < INSERT_COUNT; ++i) {
 		sprintf(k, "%03d", i);
 
 		m0_be_op_init(&op);
@@ -129,8 +133,8 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 		rc = op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&op);
-		if (rc == 0)
-			M0_LOG(M0_DEBUG, "key=%03d deleted", i);
+
+		M0_UT_ASSERT(rc == -ENOENT);
 	}
 
 	M0_LOG(M0_INFO, "Insert back all...");
