@@ -204,8 +204,12 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 		if (be_tx_ast_offset[state] != 0)
 			m0_sm_ast_cancel(tx->t_sm.sm_grp, be_tx_ast(tx, state));
 	}
-	m0_be_reg_area_fini(&tx->t_reg_area);
+	/*
+	 * Note: m0_sm_fini() will call be_tx_state_invariant(), so
+	 * m0_be_tx::t_reg_area should be finalized after m0_be_tx::t_sm.
+	 */
 	m0_sm_fini(&tx->t_sm);
+	m0_be_reg_area_fini(&tx->t_reg_area);
 }
 
 M0_INTERNAL void
@@ -400,9 +404,8 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx)
 {
-	/* const enum m0_be_tx_state state = m0_be_tx_state(tx); */
-
-	return true; /* XXX RESTOREME */
+	return _0C(m0_be_tx_state(tx) < M0_BTS_NR) &&
+	       _0C(m0_be_reg_area__invariant(&tx->t_reg_area));
 #if 0
 		(state < M0_BTS_NR &&
 		eng_tlist_contains(&tx_engine(tx)->te_txs[state], tx) &&
