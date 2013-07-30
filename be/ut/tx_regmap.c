@@ -22,6 +22,7 @@
 
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
+#include "lib/misc.h"		/* M0_SET0 */
 
 #include "be/ut/helper.c"	/* m0_be_ut_seg */
 
@@ -359,6 +360,7 @@ static void be_ut_regmap_init(void)
 	int rc;
 	int i;
 
+	M0_SET0(&be_ut_rm_regmap);
 	rc = m0_be_regmap_init(&be_ut_rm_regmap, &be_ut_regmap_ops,
 			       be_ut_rm_ops_data, BE_UT_REGMAP_ITER);
 	M0_UT_ASSERT(rc == 0);

@@ -108,7 +108,7 @@ static bool be_rdt_contains(const struct m0_be_reg_d_tree *rdt,
 
 M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max)
 {
-	*rdt = (struct m0_be_reg_d_tree){ .brt_size_max = size_max };
+	rdt->brt_size_max = size_max;
 	M0_ALLOC_ARR(rdt->brt_r, rdt->brt_size_max);
 	if (rdt->brt_r == NULL)
 		return -ENOMEM;
