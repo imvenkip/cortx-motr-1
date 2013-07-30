@@ -106,6 +106,8 @@ M0_INTERNAL bool m0_be_reg_d_is_in(const struct m0_be_reg_d *rd, void *ptr);
  *
  * Region is from the tree iff it is returned by m0_be_rdt_find(),
  * m0_be_rdt_next(), m0_be_rdt_del().
+ * @note Current implementation is based on array, so technically it is not
+ * a tree. Optimizations should be made to make it a real tree.
  */
 M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max);
 /** Finalize m0_be_reg_d tree. Free all memory allocated */
