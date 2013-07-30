@@ -400,7 +400,6 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx)
 {
-	M0_PRE(be_tx_is_locked(tx));
 	/* const enum m0_be_tx_state state = m0_be_tx_state(tx); */
 
 	return true; /* XXX RESTOREME */
