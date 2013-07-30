@@ -77,6 +77,18 @@ void m0_be_ut_btree_simple(void)
 	M0_LEAVE();
 }
 
+static void shuffle_array(int a[], size_t n)
+{
+	if (n > 1) {
+		int      i;
+		uint64_t seed;
+
+		seed = 123;
+		for (i = 0; i < n - 1; ++i)
+			M0_SWAP(a[i], a[m0_rnd(n, &seed)]);
+	}
+}
+
 static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 {
 	struct m0_be_op		 op;
@@ -84,8 +96,7 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	struct m0_buf		 val;
 	char			 k[INSERT_SIZE];
 	char			 v[INSERT_SIZE];
-	long			 rand;
-	uint64_t		 rand_seed;
+	int			 rand_keys[INSERT_COUNT];
 	int			 rc;
 	int			 i;
 
@@ -105,11 +116,11 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	btree_dbg_print(tree);
 
 	M0_LOG(M0_INFO, "Delete all in random order...");
-	rand_seed = 123;
-	for (i = 0; i < INSERT_COUNT;) {
-		rand = m0_rnd(INSERT_COUNT, &rand_seed);
-
-		sprintf(k, "%03d", (int)(rand));
+	for (i = 0; i < INSERT_COUNT; ++i)
+		rand_keys[i] = i;
+	shuffle_array(rand_keys, INSERT_COUNT);
+	for (i = 0; i < INSERT_COUNT; ++i) {
+		sprintf(k, "%03d", rand_keys[i]);
 		M0_LOG(M0_DEBUG, "%03d: delete key=%s", i, (char*)k);
 
 		m0_be_op_init(&op);
@@ -119,8 +130,7 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 		rc = op.bo_u.u_btree.t_rc;
 		m0_be_op_fini(&op);
 
-		if (rc != -ENOENT)
-			++i;
+		M0_UT_ASSERT(rc == 0);
 	}
 
 	M0_LOG(M0_INFO, "Make sure nothing is left...");
