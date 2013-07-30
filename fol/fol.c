@@ -376,9 +376,13 @@ M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
 
 	m0_mutex_init(&fol->f_lock);
 	m0_be_btree_init(&fol->f_store, seg, &fol_kv_ops);
+
 	m0_be_btree_create_credit(&fol->f_store, 1, &cred);
-	return btree_transact(m0_be_btree_create, &fol->f_store, &cred) ?:
+	rc = btree_transact(m0_be_btree_create, &fol->f_store, &cred) ?:
 		fol_reset(fol);
+	if (rc != 0)
+		m0_fol_fini(fol);
+	return rc;
 }
 
 M0_INTERNAL int m0_fol_destroy(struct m0_fol *fol)
@@ -429,32 +433,12 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 	const struct m0_buf    key = M0_BUF_INIT(sizeof drec->rd_lsn,
 						 &drec->rd_lsn);
 	struct m0_be_tx_credit cred = {0};
-	struct m0_be_tx        tx;
-	struct m0_be_op        op;
-	int                    rc;
-	int                    rc_done;
 
 	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
 
-	m0_be_tx_init(&tx, XXX);
 	m0_be_btree_insert_credit(&fol->f_store, 1, key.b_nob, buf->b_nob,
 				  &cred);
-	m0_be_tx_prep(&tx, &cred);
-
-	m0_be_tx_open(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
-	if (rc == 0) {
-		m0_be_op_init(&op);
-		m0_be_btree_insert(&fol->f_store, tx, &op, &key, buf);
-		m0_be_op_wait(&op);
-		rc = op.bo_u.u_btree.t_rc;
-		m0_be_op_fini(&op);
-
-		m0_be_tx_close(&tx);
-		rc_done = m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER);
-	}
-	m0_be_tx_fini(&tx);
-	return rc ?: rc_done;
+	return btree_transact(m0_be_btree_insert, &fol->f_store, &cred);
 }
 #endif
 
