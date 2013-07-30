@@ -345,6 +345,8 @@ static int btree_transact(void (*action)(struct m0_be_btree *,
 	struct m0_be_op op;
 	int             rc;
 
+	M0_PRE(cred->tc_reg_nr > 0 && cred->tc_reg_size > 0);
+
 	m0_be_tx_init(&tx, XXX);
 	m0_be_tx_prep(&tx, cred);
 
