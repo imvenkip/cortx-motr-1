@@ -372,7 +372,7 @@ void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 	M0_ASSERT(ut_seg->bus_copy != NULL);
 	m0_be_seg__read(&M0_BE_REG_SEG(seg), ut_seg->bus_copy);
 	seg_data_was_successfully_written_to_stob =
-		memcmp(seg->bs_addr,ut_seg->bus_copy, seg->bs_size) == 0;
+		memcmp(seg->bs_addr, ut_seg->bus_copy, seg->bs_size) == 0;
 	/*
 	 * You can find all differences between stob and memory using
 	 * the following commands (s/vimdiff/some_tool/ if needed):
