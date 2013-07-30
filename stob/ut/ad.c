@@ -23,19 +23,21 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
-#include "dtm/dtm.h"     /* m0_dtx */
 #include "lib/arith.h"   /* min64u */
 #include "lib/misc.h"    /* M0_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/ub.h"
-#include "ut/ut.h"
 #include "lib/assert.h"
+#include "ut/ut.h"
 
+#include "dtm/dtm.h"     /* m0_dtx */
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "balloc/balloc.h"
+
+#include "be/ut/helper.h"
 
 /**
    @addtogroup stob
@@ -79,7 +81,8 @@ static char *read_bufs[NR];
 static m0_bindex_t stob_vec[NR];
 static struct m0_clink clink;
 static struct m0_dtx tx;
-static struct m0_dbenv db;
+static struct m0_be_ut_h be_ut_emap_h;
+static struct m0_be_seg *db;
 static uint32_t block_shift;
 static uint32_t buf_size;
 
@@ -93,7 +96,7 @@ static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
-static int mock_balloc_init(struct m0_ad_balloc *ballroom, struct m0_dbenv *db,
+static int mock_balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 			    uint32_t bshift, m0_bindex_t container_size,
 			    m0_bcount_t groupsize, m0_bcount_t res_groups)
 {
@@ -156,8 +159,9 @@ static int test_ad_init(void)
 	result = mkdir("./__s/o", 0700);
 	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	result = m0_dbenv_init(&db, db_name, 0);
-	M0_ASSERT(result == 0);
+	/* Init BE */
+	m0_be_ut_h_init(&be_ut_emap_h);
+	db = &be_ut_emap_h.buh_seg;
 
 	result = m0_linux_stob_domain_locate("./__s", &dom_back);
 	M0_ASSERT(result == 0);
@@ -173,7 +177,7 @@ static int test_ad_init(void)
 	result = m0_ad_stob_domain_locate("", &dom_fore, obj_back);
 	M0_ASSERT(result == 0);
 
-	result = m0_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,
+	result = m0_ad_stob_setup(dom_fore, db, obj_back, &mb.mb_ballroom,
 				  BALLOC_DEF_CONTAINER_SIZE,
 				  BALLOC_DEF_BLOCK_SHIFT,
 				  BALLOC_DEF_BLOCKS_PER_GROUP,
@@ -233,7 +237,8 @@ static int test_ad_fini(void)
 	m0_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore);
 	dom_back->sd_ops->sdo_fini(dom_back);
-	m0_dbenv_fini(&db);
+
+	m0_be_ut_h_fini(&be_ut_emap_h);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
@@ -389,7 +394,7 @@ static void test_ad_undo(void)
 	test_write(1);
 
 	/* Do the undo operation. */
-	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_dbtx);
+	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
 	m0_dtx_done(&tx);
 
