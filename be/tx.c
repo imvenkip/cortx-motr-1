@@ -38,14 +38,6 @@
  * @{
  */
 
-#if 0
-M0_TL_DESCR_DEFINE(eng, "m0_be_tx_engine::te_txs[]", M0_INTERNAL,
-		   struct m0_be_tx, t_engine_linkage, t_magic,
-		   M0_BE_TX_MAGIC, M0_BE_TX_ENGINE_MAGIC);
-
-M0_TL_DEFINE(eng, M0_INTERNAL, struct m0_be_tx);
-#endif
-
 static bool be_tx_state_invariant(const struct m0_sm *mach)
 {
 	return m0_be_tx__invariant(
@@ -293,26 +285,6 @@ m0_be_tx_timedwait(struct m0_be_tx *tx, int states, m0_time_t timeout)
 	M0_RETURN(tx->t_sm.sm_rc);
 }
 
-#if 0
-M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx)
-{
-	enum m0_be_tx_state state = m0_be_tx_state(tx);
-
-	M0_ENTRY();
-	M0_PRE(m0_be_tx__invariant(tx));
-	M0_PRE(be_tx_is_locked(tx));
-	M0_PRE(M0_IN(state, (M0_BTS_PLACED, M0_BTS_GROUPED)));
-	M0_PRE(!tx->t_glob_stable);
-
-	tx->t_glob_stable = true;
-	if (state == M0_BTS_PLACED) {
-		be_tx_state_move(tx, M0_BTS_DONE, 0);
-		m0_fom_wakeup(tx_engine(tx)->te_fom);
-	}
-	M0_LEAVE();
-}
-#endif
-
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx)
 {
 	return tx->t_sm.sm_state;
@@ -406,51 +378,12 @@ M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx)
 {
 	return _0C(m0_be_tx_state(tx) < M0_BTS_NR) &&
 	       _0C(m0_be_reg_area__invariant(&tx->t_reg_area));
-#if 0
-		(state < M0_BTS_NR &&
-		eng_tlist_contains(&tx_engine(tx)->te_txs[state], tx) &&
-		(tx->t_lsn == 0) == (state < M0_BTS_GROUPED) &&
-		m0_be_reg_area__invariant(&tx->t_reg_area) &&
-		(tx->t_group != NULL) == (state >= M0_BTS_GROUPED) &&
-		(tx->t_leader == (
-			tx->t_group != NULL &&
-			tx == grp_tlist_head(&tx->t_group->tg_txs))) &&
-		(tx->t_group != NULL) == grp_tlist_contains(
-			&tx->t_group->tg_txs, tx));
-#endif
 }
 
 static bool be_tx_is_locked(const struct m0_be_tx *tx)
 {
 	return m0_mutex_is_locked(&tx->t_sm.sm_grp->s_lock);
 }
-
-#if 0
-static struct m0_be_tx *sm_to_tx(struct m0_sm *mach)
-{
-	return container_of(mach, struct m0_be_tx, t_sm); /* XXX bob_of() */
-}
-
-static int placed_st_in(struct m0_sm *mach)
-{
-	M0_ENTRY("t_glob_stable=%d", !!sm_to_tx(mach)->t_glob_stable);
-	M0_LEAVE();
-	/* XXX FIXME: Don't intermix "external" and "chained" styles of state
-	 * transitions. This makes code hard to read. (Reported by Nikita.) */
-	return sm_to_tx(mach)->t_glob_stable ? M0_BTS_DONE : -1;
-}
-
-static int done_st_in(struct m0_sm *mach)
-{
-	const struct m0_be_tx *tx = sm_to_tx(mach);
-	M0_ENTRY();
-
-	if (tx->t_discarded != NULL)
-		tx->t_discarded(tx);
-	M0_LEAVE();
-	return -1;
-}
-#endif
 
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx)
 {
