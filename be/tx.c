@@ -52,6 +52,16 @@ static bool be_tx_state_invariant(const struct m0_sm *mach)
 		container_of(mach, const struct m0_be_tx, t_sm));
 }
 
+static bool be_tx_is_locked(const struct m0_be_tx *tx);
+
+#define BE_TX_LOCKED_AT_STATE(tx, states)			\
+({								\
+	const struct m0_be_tx *__tx = (tx);			\
+								\
+	be_tx_is_locked(__tx) && m0_be_tx__invariant(__tx) &&	\
+		M0_IN(m0_be_tx_state(__tx), states);		\
+})
+
 static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR] = {
 	[M0_BTS_ACTIVE] = offsetof(struct m0_be_tx, t_ast_active),
 	[M0_BTS_FAILED] = offsetof(struct m0_be_tx, t_ast_failed),
@@ -137,7 +147,6 @@ static const struct m0_sm_conf be_tx_sm_conf = {
 	.scf_state     = be_tx_states
 };
 
-static bool be_tx_is_locked(const struct m0_be_tx *tx);
 static void be_tx_state_move(struct m0_be_tx *tx,
 			     enum m0_be_tx_state state,
 			     int rc);
@@ -179,17 +188,14 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
 	m0_be_engine__tx_init(tx->t_engine, tx, M0_BTS_PREPARE);
 	m0_be_tx_get(tx);
 
-	M0_POST(m0_be_tx__invariant(tx));
+	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 }
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 {
 	enum m0_be_tx_state state;
 
-	/* XXX reorder M0_PRE to check be_tx_is_locked() first */
-	M0_PRE(m0_be_tx__invariant(tx));
-	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_DONE, M0_BTS_FAILED)));
-	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_DONE, M0_BTS_FAILED)));
 	M0_PRE(tx->t_ref == 0);
 
 	m0_be_engine__tx_fini(tx->t_engine, tx);
@@ -206,13 +212,11 @@ M0_INTERNAL void
 m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
 {
 	M0_ENTRY();
-	M0_PRE(m0_be_tx__invariant(tx));
-	M0_PRE(m0_be_tx_state(tx) == M0_BTS_PREPARE);
-	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
 	m0_be_tx_credit_add(&tx->t_prepared, credit);
 
-	M0_POST(m0_be_tx__invariant(tx));
+	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 	M0_LEAVE();
 }
 
@@ -221,48 +225,36 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	int rc;
 
 	M0_ENTRY();
-	M0_PRE(m0_be_tx__invariant(tx));
-	M0_PRE(m0_be_tx_state(tx) == M0_BTS_PREPARE);
-	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
 	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
 
 	be_tx_state_move(tx, rc == 0 ? M0_BTS_OPENING : M0_BTS_FAILED, rc);
 
-	M0_POST(m0_be_tx__invariant(tx));
+	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_OPENING, M0_BTS_FAILED)));
 	M0_LEAVE();
-}
-
-static void cap_uncap(struct m0_be_tx *tx, const struct m0_be_reg *reg,
-		      void (*op)(struct m0_be_reg_area *ra,
-				 const struct m0_be_reg_d *rd))
-{
-	M0_PRE(m0_be_tx__invariant(tx));
-	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
-	M0_PRE(be_tx_is_locked(tx));
-
-	op(&tx->t_reg_area,
-	   &((const struct m0_be_reg_d){ .rd_tx = tx, .rd_reg = *reg }));
 }
 
 M0_INTERNAL void
 m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
-	cap_uncap(tx, reg, m0_be_reg_area_capture);
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+
+	m0_be_reg_area_capture(&tx->t_reg_area, &M0_BE_REG_D(*reg, NULL));
 }
 
 M0_INTERNAL void
 m0_be_tx_uncapture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
-	cap_uncap(tx, reg, m0_be_reg_area_uncapture);
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+
+	m0_be_reg_area_uncapture(&tx->t_reg_area, &M0_BE_REG_D(*reg, NULL));
 }
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 {
 	M0_ENTRY();
-	M0_PRE(m0_be_tx__invariant(tx));
-	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
-	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
 
 	be_tx_state_move(tx, M0_BTS_CLOSED, 0);
 
@@ -462,6 +454,8 @@ M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx)
 {
 	return &tx->t_reg_area;
 }
+
+#undef BE_TX_LOCKED_AT_STATE
 
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
