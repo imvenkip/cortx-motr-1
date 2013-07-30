@@ -162,7 +162,6 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
 				       struct m0_be_op *op);
 
-#if 1 /* XXX DELETEME <<<<<<< */
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob);
 M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr);
@@ -173,7 +172,6 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
 M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
 				struct m0_be_tx_group *gr);
 /* Note the absence of tx_group_open(). */
-#endif /* XXX >>>>>>> */
 
 #define M0_BE_TX_GROUP_TX_FORALL(gr, tx) \
 	m0_tl_for(grp, &(gr)->tg_txs, (tx))

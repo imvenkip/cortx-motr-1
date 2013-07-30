@@ -268,49 +268,7 @@ enum m0_be_tx_state {
  */
 typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
 
-#if 0
-/**
- * Transaction engine. Embedded in m0_be.
- */
-struct m0_be_tx_engine {
-	/**
-	 * Per-state lists of transaction. Each non-failed transaction is in one
-	 * of these lists.
-	 */
-	struct m0_tl          te_txs[M0_BTS_NR];
-
-	/** Protects all fields of this struct. */
-	struct m0_rwlock      te_lock;
-
-	/** Transactional log. */
-	struct m0_be_log      te_log;
-
-	/** Transactional group. (Currently there is only one.) */
-	struct m0_be_tx_group te_group;
-
-	/**
-	 * Total space reserved for active transactions.
-	 *
-	 * This space is reserved by m0_tx_open(). When a transaction closes
-	 * (m0_be_tx_close()), the difference between reserved and actually used
-	 * space is released.
-	 */
-	m0_bcount_t           te_reserved;
-
-	/** Pointer to the FOM processing transaction groups. */
-	struct m0_fom        *te_fom;
-};
-
-M0_INTERNAL bool
-m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine);
-
-M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine);
-M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
-#endif
-
-/**
- * Transaction.
- */
+/** Transaction. */
 struct m0_be_tx {
 	struct m0_sm           t_sm;
 

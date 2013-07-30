@@ -424,7 +424,7 @@ void m0_be_ut_emap(void)
 	test_fini();
 }
 
-#if 0
+#if 0 /* XXX RESTOREME */
 const struct m0_test_suite m0_be_ut_emap = {
 	.ts_name = "be-emap-ut",
 	.ts_tests = {

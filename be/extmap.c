@@ -808,7 +808,7 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 	return emap_it_open(it);
 }
 
-#if 0
+#if 0 /* XXX DELETEME? */
 static bool
 be_emap_invariant_check(struct m0_be_emap_cursor *it)
 {
