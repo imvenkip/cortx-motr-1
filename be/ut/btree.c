@@ -54,8 +54,10 @@ enum {
 static void check(struct m0_be_btree *tree,
 		  struct m0_be_ut_backend *ut_be,
 		  struct m0_be_seg *seg);
+
 static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
 				       struct m0_be_seg *seg);
+
 static void destroy_tree(struct m0_be_btree *tree,
 			 struct m0_be_ut_backend *ut_be,
 			 struct m0_be_seg *seg);
@@ -91,6 +93,102 @@ void m0_be_ut_btree_simple(void)
 	m0_be_ut_backend_fini(&ut_be);
 
 	M0_LEAVE();
+}
+
+static void shuffle_array(int a[], size_t n)
+{
+	if (n > 1) {
+		int      i;
+		uint64_t seed;
+
+		seed = 123;
+		for (i = 0; i < n - 1; ++i)
+			M0_SWAP(a[i], a[m0_rnd(n, &seed)]);
+	}
+}
+
+static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
+{
+	struct m0_be_op		 op;
+	struct m0_buf		 key;
+	struct m0_buf		 val;
+	char			 k[INSERT_SIZE];
+	char			 v[INSERT_SIZE];
+	int			 rand_keys[INSERT_COUNT];
+	int			 rc;
+	int			 i;
+
+	m0_buf_init(&key, k, sizeof k);
+	m0_buf_init(&val, v, sizeof v);
+
+	M0_LOG(M0_INFO, "Check error code...");
+	sprintf(k, "%03d", INSERT_COUNT);
+	m0_be_op_init(&op);
+	m0_be_btree_delete(tree, tx, &op, &key);
+	m0_be_op_wait(&op);
+	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	btree_dbg_print(tree);
+
+	M0_LOG(M0_INFO, "Delete all in random order...");
+	for (i = 0; i < INSERT_COUNT; ++i)
+		rand_keys[i] = i;
+	shuffle_array(rand_keys, INSERT_COUNT);
+	for (i = 0; i < INSERT_COUNT; ++i) {
+		sprintf(k, "%03d", rand_keys[i]);
+		M0_LOG(M0_DEBUG, "%03d: delete key=%s", i, (char*)k);
+
+		m0_be_op_init(&op);
+		m0_be_btree_delete(tree, tx, &op, &key);
+		m0_be_op_wait(&op);
+		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		rc = op.bo_u.u_btree.t_rc;
+		m0_be_op_fini(&op);
+
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	M0_LOG(M0_INFO, "Make sure nothing is left...");
+	for (i = 0; i < INSERT_COUNT; ++i) {
+		sprintf(k, "%03d", i);
+
+		m0_be_op_init(&op);
+		m0_be_btree_delete(tree, tx, &op, &key);
+		m0_be_op_wait(&op);
+		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		rc = op.bo_u.u_btree.t_rc;
+		m0_be_op_fini(&op);
+
+		M0_UT_ASSERT(rc == -ENOENT);
+	}
+
+	M0_LOG(M0_INFO, "Insert back all...");
+	for (i = 0; i < INSERT_COUNT; ++i) {
+		sprintf(k, "%03d", i);
+		sprintf(v, "%03d", i);
+
+		m0_be_op_init(&op);
+		m0_be_btree_insert(tree, tx, &op, &key, &val);
+		m0_be_op_wait(&op);
+		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		m0_be_op_fini(&op);
+	}
+
+	M0_LOG(M0_INFO, "Deleting [%03d, %03d)...", INSERT_COUNT/4,
+						    INSERT_COUNT*3/4);
+	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
+		sprintf(k, "%03d", i);
+		M0_LOG(M0_DEBUG, "delete key=%03d", i);
+
+		m0_be_op_init(&op);
+		m0_be_btree_delete(tree, tx, &op, &key);
+		m0_be_op_wait(&op);
+		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		m0_be_op_fini(&op);
+	}
 }
 
 static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
@@ -196,38 +294,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
 	}
 	btree_dbg_print(tree);
 
-	for (i = BTREE_FAN_OUT - 1; i < INSERT_COUNT; i += BTREE_FAN_OUT) {
-		sprintf(k, "%03d", i);
-		M0_LOG(M0_DEBUG, "delete key=%03d", i);
-
-		m0_be_op_init(&op);
-		m0_be_btree_delete(tree, tx, &op, &key);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-
-		M0_LOG(M0_DEBUG, "insert back key=%03d", i);
-
-		m0_be_op_init(&op);
-		m0_be_btree_insert(tree, tx, &op, &key, &key);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-	}
-	btree_dbg_print(tree);
-
-	M0_LOG(M0_INFO, "Deleting [%03d, %03d)...", INSERT_COUNT/4,
-						    INSERT_COUNT*3/4);
-	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
-		sprintf(k, "%03d", i);
-		M0_LOG(M0_DEBUG, "delete key=%03d", i);
-
-		m0_be_op_init(&op);
-		m0_be_btree_delete(tree, tx, &op, &key);
-		m0_be_op_wait(&op);
-		M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-	}
+	btree_delete(tree, tx);
 
 	M0_LOG(M0_INFO, "Updating...");
 	sprintf(k, "%03d", INSERT_COUNT - 1);
