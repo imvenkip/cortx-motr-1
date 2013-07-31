@@ -17,7 +17,7 @@
  * Original creation date: 08/13/2010
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_EXTMAP
 #include "lib/trace.h"
 
 #include "be/extmap.h"

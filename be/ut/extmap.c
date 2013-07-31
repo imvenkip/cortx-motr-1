@@ -18,7 +18,7 @@
  * Original creation date: 08/13/2010
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_EXTMAP
 #include "lib/trace.h"
 
 #include <stdio.h>        /* printf */
@@ -78,6 +78,7 @@ static void emap_alloc(struct m0_be_tx *tx)
 
 static void emap_create(struct m0_be_tx *tx)
 {
+	M0_LOG(M0_INFO, "Create...");
 	m0_be_op_init(&op);
 	m0_be_emap_create(emap, tx, &op, be_seg);
 	m0_be_op_wait(&op);
@@ -87,6 +88,7 @@ static void emap_create(struct m0_be_tx *tx)
 
 static void emap_destroy(struct m0_be_tx *tx)
 {
+	M0_LOG(M0_INFO, "Destroy...");
 	m0_be_op_init(&op);
 	m0_be_emap_destroy(emap, tx, &op);
 	m0_be_op_wait(&op);
@@ -100,6 +102,7 @@ static void checkpoint(void)
 
 static void test_obj_init(struct m0_be_tx *tx)
 {
+	M0_LOG(M0_INFO, "obj_insert");
 	m0_be_op_init(&op);
 	m0_be_emap_obj_insert(emap, tx, &op, &prefix, 42);
 	m0_be_op_wait(&op);
@@ -110,6 +113,7 @@ static void test_obj_init(struct m0_be_tx *tx)
 
 static void test_obj_fini(struct m0_be_tx *tx)
 {
+	M0_LOG(M0_INFO, "obj_delete");
 	m0_be_op_init(&op);
 	m0_be_emap_obj_delete(emap, tx, &op, &prefix);
 	m0_be_op_wait(&op);
@@ -238,6 +242,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 	rc = be_emap_lookup(emap, &prefix, offset, &it);
 	M0_UT_ASSERT(rc == 0);
 
+	M0_LOG(M0_INFO, "off=%lu nr=%d", (unsigned long)offset, nr);
 	for (i = 0; i < nr; ++i) {
 		m0_bcount_t seglen;
 		m0_bcount_t total;
@@ -297,6 +302,7 @@ static void test_merge(void)
 {
 	int rc;
 
+	M0_LOG(M0_INFO, "Merge all segments...");
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
 
@@ -323,6 +329,7 @@ static void test_paste(void)
 	e.e_start = 10;
 	e.e_end   = 20;
 
+	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 12, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
@@ -360,6 +367,7 @@ static void test_paste(void)
 	e.e_start = 5;
 	e.e_end   = 25;
 
+	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 11, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
@@ -397,6 +405,7 @@ static void test_paste(void)
 	e.e_start = 0;
 	e.e_end   = M0_BINDEX_MAX + 1;
 
+	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 0, NULL, NULL, NULL);
 	m0_be_op_wait(it_op);
