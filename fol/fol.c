@@ -133,6 +133,9 @@ static m0_bcount_t fol_vsize(const void *data)
 {
 	/* XXX See fol_record_pack_size() for implementation ideas. */
 	M0_IMPOSSIBLE("XXX Not implemented");
+	struct m0_fol_rec rec;
+
+	rc = fol_record_decode(&rec);
 }
 
 static int lsn_cmp(const void *key0, const void *key1)
@@ -271,21 +274,21 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 /** Initialises new fol. */
 static int fol_reset(struct m0_fol *fol)
 {
-	struct m0_fol_rec       rec;
-	struct m0_fol_rec_desc *desc = &rec.fr_desc;
-	int                     rc;
+	struct m0_fol_rec rec;
+	int               rc;
 
 	M0_PRE(m0_be_btree_is_empty(&fol->f_store));
 
-	m0_fol_rec_init(&rec);
-	M0_SET0(desc);
-
 	M0_CASSERT(M0_LSN_ANCHOR > M0_LSN_RESERVED_NR);
 
-	desc->rd_header.rh_refcount = 1;
-	desc->rd_lsn = M0_LSN_ANCHOR;
-	fol->f_lsn = M0_LSN_ANCHOR + 1;
+	m0_fol_rec_init(&rec);
+	rec.fr_desc = (struct m0_fol_rec_desc){
+		.rd_header = { .rh_refcount = 1 },
+		.rd_lsn    = M0_LSN_ANCHOR
+	};
 	rc = m0_fol_rec_add(fol, &rec);
+	if (rc == 0)
+		fol->f_lsn = M0_LSN_ANCHOR + 1;
 
 	m0_fol_rec_fini(&rec);
 	return rc;
