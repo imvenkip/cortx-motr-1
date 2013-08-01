@@ -81,7 +81,8 @@ static char *read_bufs[NR];
 static m0_bindex_t stob_vec[NR];
 static struct m0_clink clink;
 static struct m0_dtx tx;
-static struct m0_be_ut_h be_ut_emap_h;
+struct m0_be_ut_backend	 ut_be;
+struct m0_be_ut_seg	 ut_seg;
 static struct m0_be_seg *db;
 static uint32_t block_shift;
 static uint32_t buf_size;
@@ -160,8 +161,10 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	/* Init BE */
-	m0_be_ut_h_init(&be_ut_emap_h);
-	db = &be_ut_emap_h.buh_seg;
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	db = &ut_seg.bus_seg;
 
 	result = m0_linux_stob_domain_locate("./__s", &dom_back);
 	M0_ASSERT(result == 0);
@@ -238,7 +241,9 @@ static int test_ad_fini(void)
 	dom_fore->sd_ops->sdo_fini(dom_fore);
 	dom_back->sd_ops->sdo_fini(dom_back);
 
-	m0_be_ut_h_fini(&be_ut_emap_h);
+	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
