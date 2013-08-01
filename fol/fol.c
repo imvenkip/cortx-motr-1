@@ -126,14 +126,15 @@ static const struct m0_table_ops fol_ops = {
 #else
 static m0_bcount_t fol_ksize(const void *key)
 {
-	return sizeof m0_lsn_t;
+	return sizeof(m0_lsn_t);
 }
 
 static m0_bcount_t fol_vsize(const void *data)
 {
 	struct m0_fol_rec_header hdr;
 	m0_bcount_t              len = fol_rec_header_pack_size(&hdr);
-	struct m0_bufvec         bvec = M0_BUFVEC_INIT_BUF(data, &len);
+	struct m0_bufvec         bvec = M0_BUFVEC_INIT_BUF((void **)&data,
+							   &len);
 	struct m0_bufvec_cursor  cur;
 	int                      rc;
 
@@ -191,7 +192,7 @@ static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 	rec->fr_fol = fol;
 	m0_buf_init(&rec->fr_key, &rec->fr_desc.rd_lsn,
 		    sizeof rec->fr_desc.rd_lsn);
-	M0_SET0(rec->fr_val);
+	M0_SET0(&rec->fr_val);
 	m0_be_btree_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_store);
 }
 #endif
