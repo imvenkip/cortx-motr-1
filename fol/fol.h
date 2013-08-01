@@ -156,7 +156,6 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
 #endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
-#if XXX_USE_DB5 /* ################################################ */
 /**
    Adds a record to the fol, in the transaction context.
 
@@ -169,9 +168,11 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
    @pre m0_lsn_is_valid(drec->rd_lsn);
    @see m0_fol_add_buf()
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
+#if XXX_USE_DB5
+			       struct m0_db_tx *tx,
+#endif
 			       struct m0_fol_rec *rec);
-#endif /* XXX_USE_DB5 ############################################# */
 
 /**
    Reserves and returns lsn.
@@ -185,7 +186,10 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
 
    @pre m0_lsn_is_valid(drec->rd_lsn);
  */
-M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
+#if XXX_USE_DB5
+			       struct m0_db_tx *tx,
+#endif
 			       struct m0_fol_rec_desc *drec,
 			       struct m0_buf *buf);
 
@@ -364,7 +368,10 @@ M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
    @post ergo(result == 0, out->fr_d.rd_refcount > 0)
    @post ergo(result == 0, m0_fol_rec_invariant(&out->fr_d))
  */
-M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol,
+#if XXX_USE_DB5
+				  struct m0_db_tx *tx,
+#endif
 				  m0_lsn_t lsn, struct m0_fol_rec *out);
 
 /**
@@ -455,8 +462,13 @@ struct m0_fol_rec_part_type_ops {
  */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;
+#if XXX_USE_DB5
 	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
 	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
+#else
+	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
+	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
+#endif
 };
 
 struct m0_fol_rec_part_header {
