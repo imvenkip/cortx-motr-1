@@ -255,12 +255,16 @@ struct m0_fol_rec_header {
 	uint32_t            rh_sibling_nr;
 	/** Number of record parts added to the record. */
 	uint32_t            rh_parts_nr;
-	/** Length of the remaining operation type specific data in bytes. */
+	/**
+	 * Length of the remaining operation type specific data in bytes.
+	 *
+	 * @note XXX Currently this is the length of encoded record.
+	 */
 	uint32_t            rh_data_len;
 	/**
-	   Identifier of this update.
-
-	   @note that the update might be for a different node.
+	 * Identifier of this update.
+	 *
+	 * @note The update might be for a different node.
 	 */
 	struct m0_update_id rh_self;
 	uint64_t            rh_magic;

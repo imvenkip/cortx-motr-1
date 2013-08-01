@@ -60,6 +60,7 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
+static m0_bcount_t fol_rec_header_pack_size(const struct m0_fol_rec_header *h);
 static size_t fol_record_pack_size(struct m0_fol_rec *rec);
 static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf);
 static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out);
@@ -125,17 +126,24 @@ static const struct m0_table_ops fol_ops = {
 #else
 static m0_bcount_t fol_ksize(const void *key)
 {
-	M0_IMPOSSIBLE("XXX Not sure about this implementation");
 	return sizeof m0_lsn_t;
 }
 
 static m0_bcount_t fol_vsize(const void *data)
 {
-	/* XXX See fol_record_pack_size() for implementation ideas. */
-	M0_IMPOSSIBLE("XXX Not implemented");
-	struct m0_fol_rec rec;
+	struct m0_fol_rec_header hdr;
+	m0_bcount_t              len = fol_rec_header_pack_size(&hdr);
+	struct m0_bufvec         bvec = M0_BUFVEC_INIT_BUF(data, &len);
+	struct m0_bufvec_cursor  cur;
+	int                      rc;
 
-	rc = fol_record_decode(&rec);
+	m0_bufvec_cursor_init(&cur, &bvec);
+	rc = m0_xcode_encdec(&M0_REC_HEADER_XCODE_OBJ(&hdr), &cur,
+			     M0_XCODE_DECODE);
+	/* XXX There is no way to return an error code from
+	 * m0_be_btree_kv_ops::ko_vsize(). */
+	M0_ASSERT(rc == 0 && hdr.rh_magic == M0_FOL_REC_MAGIC);
+	return hdr.rh_data_len;
 }
 
 static int lsn_cmp(const void *key0, const void *key1)
@@ -651,6 +659,15 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	return fol_record_pack(rec, out);
 }
 
+static m0_bcount_t fol_rec_header_pack_size(const struct m0_fol_rec_header *h)
+{
+	struct m0_xcode_ctx ctx;
+	int len = m0_xcode_data_size(&ctx, &M0_REC_HEADER_XCODE_OBJ(h));
+
+	M0_POST(len > 0);
+	return len;
+}
+
 static size_t fol_record_pack_size(const struct m0_fol_rec *rec)
 {
 	const struct m0_fol_rec_desc   *desc = &rec->fr_desc;
@@ -660,7 +677,7 @@ static size_t fol_record_pack_size(const struct m0_fol_rec *rec)
 	struct m0_xcode_ctx             ctx;
 	m0_bcount_t                     len;
 
-	len = m0_xcode_data_size(&ctx, &M0_REC_HEADER_XCODE_OBJ(h)) +
+	len = fol_rec_header_pack_size(h) +
 	      h->rh_obj_nr *
 		m0_xcode_data_size(&ctx, &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
 	      h->rh_sibling_nr *
