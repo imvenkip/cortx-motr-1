@@ -456,12 +456,15 @@ M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto)
 
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 {
+	const struct m0_fol_rec_header *h = &drec->rd_header;
 	uint32_t i;
 	uint32_t j;
 
 	if (!m0_lsn_is_valid(drec->rd_lsn))
 		return false;
-	for (i = 0; i < drec->rd_header.rh_obj_nr; ++i) {
+	if (h->rh_magic != M0_FOL_REC_MAGIC)
+		return false;
+	for (i = 0; i < h->rh_obj_nr; ++i) {
 		struct m0_fol_obj_ref *ref;
 
 		ref = &drec->rd_ref[i];
@@ -481,9 +484,9 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec_desc *drec)
 #if 0
 	if (!m0_epoch_is_valid(&drec->rd_epoch))
 		return false;
-	if (!m0_update_is_valid(&drec->rd_header.rh_self))
+	if (!m0_update_is_valid(&h->rh_self))
 		return false;
-	for (i = 0; i < drec->rd_header.rh_sibling_nr; ++i) {
+	for (i = 0; i < h->rh_sibling_nr; ++i) {
 		struct m0_fol_update_ref *upd;
 
 		upd = &drec->rd_sibling[i];
@@ -609,38 +612,33 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 #endif
 			       struct m0_fol_rec *rec)
 {
-	int                     result;
-	struct m0_buf           buf;
-	struct m0_fol_rec_desc *desc;
+	struct m0_buf buf;
+	int           rc;
 
-	M0_PRE(rec != NULL);
-	M0_PRE(fol != NULL);
-	M0_PRE(tx != NULL);
-
-	desc = &rec->fr_desc;
-	result = fol_record_encode(rec, &buf) ?:
+	rc = fol_record_encode(rec, &buf) ?:
 		 m0_fol_add_buf(fol,
 #if XXX_USE_DB5
 				tx,
 #endif
-				desc, &buf);
-	if (result == 0)
-		m0_free(buf.b_addr);
-	return result;
+				&rec->fr_desc, &buf);
+	if (rc == 0)
+		m0_buf_free(&buf);
+	return rc;
 }
 
 static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 {
-	void                   *buf;
-	size_t                  size;
-	struct m0_fol_rec_desc *desc = &rec->fr_desc;
+	struct m0_fol_rec_header *h = &rec->fr_desc.rd_header;
+	size_t                    size;
+	void                     *buf;
 
-	desc->rd_header.rh_parts_nr = m0_rec_part_tlist_length(&rec->fr_parts);
+	h->rh_magic = M0_FOL_REC_MAGIC;
+	h->rh_parts_nr = m0_rec_part_tlist_length(&rec->fr_parts);
 
 	size = fol_record_pack_size(rec);
 	M0_ASSERT(M0_IS_8ALIGNED(size));
 
-	desc->rd_header.rh_data_len = size;
+	h->rh_data_len = size;
 
 	buf = m0_alloc(size);
 	if (buf == NULL)
@@ -650,23 +648,23 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	return fol_record_pack(rec, out);
 }
 
-static size_t fol_record_pack_size(struct m0_fol_rec *rec)
+static size_t fol_record_pack_size(const struct m0_fol_rec *rec)
 {
-	struct m0_fol_rec_desc       *desc = &rec->fr_desc;
-	struct m0_fol_rec_part       *part;
-	m0_bcount_t		      len;
-	struct m0_xcode_ctx	      ctx;
-	struct m0_fol_rec_part_header rp;
+	const struct m0_fol_rec_desc   *desc = &rec->fr_desc;
+	const struct m0_fol_rec_header *h = &desc->rd_header;
+	const struct m0_fol_rec_part   *part;
+	struct m0_fol_rec_part_header   rph;
+	struct m0_xcode_ctx             ctx;
+	m0_bcount_t                     len;
 
-	len = m0_xcode_data_size(&ctx,
-				 &M0_REC_HEADER_XCODE_OBJ(&desc->rd_header)) +
-	      desc->rd_header.rh_obj_nr *
-	      m0_xcode_data_size(&ctx, &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
-	      desc->rd_header.rh_sibling_nr *
-	      m0_xcode_data_size(&ctx,
-				 &REC_SIBLING_XCODE_OBJ(desc->rd_sibling)) +
-	      desc->rd_header.rh_parts_nr *
-	      m0_xcode_data_size(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rp));
+	len = m0_xcode_data_size(&ctx, &M0_REC_HEADER_XCODE_OBJ(h)) +
+	      h->rh_obj_nr *
+		m0_xcode_data_size(&ctx, &REC_OBJ_REF_XCODE_OBJ(desc->rd_ref)) +
+	      h->rh_sibling_nr *
+		m0_xcode_data_size(&ctx,
+				   &REC_SIBLING_XCODE_OBJ(desc->rd_sibling)) +
+	      h->rh_parts_nr *
+		m0_xcode_data_size(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rph));
 
 	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
 		len += m0_xcode_data_size(&ctx, &REC_PART_XCODE_OBJ(part));
@@ -698,7 +696,7 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 
 		rph = (struct m0_fol_rec_part_header) {
 			.rph_index = index,
-			.rph_magic = M0_FOL_REC_PART_MAGIC,
+			.rph_magic = M0_FOL_REC_PART_MAGIC
 		};
 
 		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&rph),
@@ -717,8 +715,10 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 			       enum m0_xcode_what what)
 {
 	struct m0_fol_rec_header *h = &desc->rd_header;
-	int			  rc;
 	uint32_t		  i;
+	int			  rc;
+
+	M0_PRE(ergo(what == M0_XCODE_ENCODE, h->rh_magic == M0_FOL_REC_MAGIC));
 
 	rc = m0_xcode_encdec(&M0_REC_HEADER_XCODE_OBJ(h), cur, what);
 	if (rc != 0)
@@ -727,19 +727,22 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 	if (what == M0_XCODE_DECODE && h->rh_refcount == 0)
 		return -ENOENT;
 
-	for (i = 0, rc = 0; rc == 0 && i < h->rh_obj_nr; ++i) {
-		struct m0_fol_obj_ref *obj_ref = &desc->rd_ref[i];
-		rc = m0_xcode_encdec(&REC_OBJ_REF_XCODE_OBJ(obj_ref),
-				     cur, what);
+	for (i = 0; i < h->rh_obj_nr; ++i) {
+		struct m0_fol_obj_ref *r = &desc->rd_ref[i];
+		rc = m0_xcode_encdec(&REC_OBJ_REF_XCODE_OBJ(r), cur, what);
+		if (rc != 0)
+			return rc;
 	}
-	if (rc != 0)
-		return rc;
 
-	for (i = 0, rc = 0; rc == 0 && i < h->rh_sibling_nr; ++i) {
-		struct m0_fol_update_ref *ur = &desc->rd_sibling[i];
-		rc = m0_xcode_encdec(&REC_SIBLING_XCODE_OBJ(ur), cur, what);
+	for (i = 0; i < h->rh_sibling_nr; ++i) {
+		struct m0_fol_update_ref *r = &desc->rd_sibling[i];
+		rc = m0_xcode_encdec(&REC_SIBLING_XCODE_OBJ(r), cur, what);
+		if (rc != 0)
+			return rc;
 	}
-	return rc;
+
+	M0_POST(ergo(what == M0_XCODE_DECODE, h->rh_magic == M0_FOL_REC_MAGIC));
+	return 0;
 }
 
 #if XXX_USE_DB5
@@ -818,8 +821,8 @@ static int fol_record_decode(struct m0_fol_rec *rec)
 		const struct m0_fol_rec_part_type *part_type;
 		struct m0_fol_rec_part_header      ph;
 
-		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&ph),
-				     &cur, M0_XCODE_DECODE);
+		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&ph), &cur,
+				     M0_XCODE_DECODE);
 		if (rc == 0) {
 			void *rp_data;
 

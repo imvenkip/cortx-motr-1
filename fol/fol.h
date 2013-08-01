@@ -236,9 +236,9 @@ struct m0_fol_obj_ref {
    @todo More detailed description is to be supplied as part of DTM design.
  */
 struct m0_fol_update_ref {
-	/* taken from enum m0_update_state  */
-	uint32_t             ur_state;
-	struct m0_update_id  ur_id;
+	/* taken from enum m0_update_state */
+	uint32_t            ur_state;
+	struct m0_update_id ur_id;
 } M0_XCA_RECORD;
 
 /**
@@ -247,22 +247,23 @@ struct m0_fol_update_ref {
    @see m0_fol_rec_desc
  */
 struct m0_fol_rec_header {
-	/** number of outstanding references to the record */
+	/** Number of outstanding references to the record. */
 	uint64_t            rh_refcount;
-	/** number of objects modified by this update */
+	/** Number of objects modified by this update. */
 	uint32_t            rh_obj_nr;
-	/** number of sibling updates in the same operation */
+	/** Number of sibling updates in the same operation. */
 	uint32_t            rh_sibling_nr;
-	/** number of record parts added to the record */
+	/** Number of record parts added to the record. */
 	uint32_t            rh_parts_nr;
-	/** length of the remaining operation type specific data in bytes */
+	/** Length of the remaining operation type specific data in bytes. */
 	uint32_t            rh_data_len;
 	/**
-	    Identifier of this update.
+	   Identifier of this update.
 
-	    @note that the update might be for a different node.
+	   @note that the update might be for a different node.
 	 */
 	struct m0_update_id rh_self;
+	uint64_t            rh_magic;
 } M0_XCA_RECORD;
 
 M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_rec_header)));
@@ -285,15 +286,15 @@ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_update_ref)));
    it is done with inspecting the record.
  */
 struct m0_fol_rec_desc {
-	/** record log sequence number */
-	m0_lsn_t                      rd_lsn;
-	struct m0_fol_rec_header      rd_header;
-	/** references to the objects modified by this update. */
-	struct m0_fol_obj_ref        *rd_ref;
-	/** a DTM epoch this update is a part of. */
-	struct m0_epoch_id           *rd_epoch;
-	/** identifiers of sibling updates. */
-	struct m0_fol_update_ref     *rd_sibling;
+	/** Record log sequence number. */
+	m0_lsn_t                  rd_lsn;
+	struct m0_fol_rec_header  rd_header;
+	/** References to the objects modified by this update. */
+	struct m0_fol_obj_ref    *rd_ref;
+	/** A DTM epoch this update is a part of. */
+	struct m0_epoch_id       *rd_epoch;
+	/** Identifiers of sibling updates. */
+	struct m0_fol_update_ref *rd_sibling;
 };
 
 /**
