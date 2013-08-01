@@ -32,8 +32,8 @@
 
 #include "cm/proxy.h"
 
-#include "sns/cm/st/trigger_fop.h"
-#include "sns/cm/st/trigger_fop_xc.h"
+#include "sns/cm/trigger_fop.h"
+#include "sns/cm/trigger_fop_xc.h"
 #include "rpc/rpc_opcodes.h"
 
 #include "sns/cm/cm.h"

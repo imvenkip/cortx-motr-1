@@ -31,7 +31,7 @@
 #include "lib/finject.h"
 
 #include "reqh/reqh_service.h"
-#include "sns/cm/st/trigger_fop.h"
+#include "sns/cm/trigger_fop.h"
 #include "sns/cm/cm.h"
 #include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"

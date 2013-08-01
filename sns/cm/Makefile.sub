@@ -4,8 +4,9 @@ nobase_mero_include_HEADERS += sns/cm/ag.h \
                                   sns/cm/sw_onwire_fom.h \
                                   sns/cm/cp.h \
                                   sns/cm/iter.h \
-				  sns/cm/sns_cp_onwire.h \
-                                  sns/cm/cm_utils.h
+                                  sns/cm/sns_cp_onwire.h \
+                                  sns/cm/cm_utils.h \
+                                  sns/cm/trigger_fop.h
 
 mero_libmero_la_SOURCES  += sns/cm/ag.c \
                                   sns/cm/ag.h \
@@ -27,9 +28,12 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
 				  sns/cm/sns_cp_onwire_xc.c \
                                   sns/cm/cm_utils.c \
                                   sns/cm/repair_helpers.c \
-                                  sns/cm/rebalance_helpers.c
+                                  sns/cm/rebalance_helpers.c \
+                                  sns/cm/trigger_fop.h \
+                                  sns/cm/trigger_fop_xc.c \
+                                  sns/cm/trigger_fom.c
 
-XC_FILES += sns/cm/sns_cp_onwire_xc.h sns/cm/sw_onwire_fop_xc.h
+XC_FILES += sns/cm/sns_cp_onwire_xc.h sns/cm/sw_onwire_fop_xc.h sns/cm/trigger_fop_xc.h
 
 sns/cm/sns_cp_onwire_xc.h: ioservice/io_fops_xc.h \
                             cm/ag_xc.h \
@@ -44,4 +48,6 @@ CLEANFILES += sns/cm/sns_cp_onwire_xc.h \
 	      sns/cm/sns_cp_onwire.gccxml \
 	      sns/cm/sw_onwire_fop_xc.h \
 	      sns/cm/sw_onwire_fop_xc.c \
-	      sns/cm/sw_onwire_fop.gccxml
+	      sns/cm/sw_onwire_fop.gccxml \
+	      sns/cm/trigger_fop_xc.h \
+	      sns/cm/trigger_fop_xc.c
