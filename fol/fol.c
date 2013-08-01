@@ -60,7 +60,7 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
-static m0_bcount_t fol_rec_header_pack_size(const struct m0_fol_rec_header *h);
+static m0_bcount_t fol_rec_header_pack_size(struct m0_fol_rec_header *h);
 static size_t fol_record_pack_size(struct m0_fol_rec *rec);
 static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf);
 static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out);
@@ -659,7 +659,7 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 	return fol_record_pack(rec, out);
 }
 
-static m0_bcount_t fol_rec_header_pack_size(const struct m0_fol_rec_header *h)
+static m0_bcount_t fol_rec_header_pack_size(struct m0_fol_rec_header *h)
 {
 	struct m0_xcode_ctx ctx;
 	int len = m0_xcode_data_size(&ctx, &M0_REC_HEADER_XCODE_OBJ(h));
@@ -668,14 +668,14 @@ static m0_bcount_t fol_rec_header_pack_size(const struct m0_fol_rec_header *h)
 	return len;
 }
 
-static size_t fol_record_pack_size(const struct m0_fol_rec *rec)
+static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 {
-	const struct m0_fol_rec_desc   *desc = &rec->fr_desc;
-	const struct m0_fol_rec_header *h = &desc->rd_header;
-	const struct m0_fol_rec_part   *part;
-	struct m0_fol_rec_part_header   rph;
-	struct m0_xcode_ctx             ctx;
-	m0_bcount_t                     len;
+	struct m0_fol_rec_desc       *desc = &rec->fr_desc;
+	struct m0_fol_rec_header     *h = &desc->rd_header;
+	const struct m0_fol_rec_part *part;
+	struct m0_fol_rec_part_header rph;
+	struct m0_xcode_ctx           ctx;
+	m0_bcount_t                   len;
 
 	len = fol_rec_header_pack_size(h) +
 	      h->rh_obj_nr *

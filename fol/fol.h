@@ -87,7 +87,7 @@
    @{
  */
 
-#define XXX_USE_DB5 0
+#define XXX_USE_DB5 1
 
 /* export */
 struct m0_fol;
