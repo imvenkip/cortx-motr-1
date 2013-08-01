@@ -260,6 +260,7 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
+	m0_free(tx);
 
 	btree_dbg_print(tree);
 
@@ -296,6 +297,7 @@ static void destroy_tree(struct m0_be_btree *tree,
 
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
+	m0_free(tx);
 
 	btree_dbg_print(tree);
 
