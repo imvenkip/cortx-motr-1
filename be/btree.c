@@ -1403,7 +1403,7 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
 	m0_rwlock_read_lock(&btree->bb_lock);
 
 	key = btree_get_max_key(btree);
-	m0_buf_init(out, key, btree->bb_ops->ko_vsize(key));
+	m0_buf_init(out, key, btree->bb_ops->ko_ksize(key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
@@ -1424,7 +1424,7 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
 	m0_rwlock_read_lock(&btree->bb_lock);
 
 	key = btree_get_min_key(btree);
-	m0_buf_init(out, key, btree->bb_ops->ko_vsize(key));
+	m0_buf_init(out, key, btree->bb_ops->ko_ksize(key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
