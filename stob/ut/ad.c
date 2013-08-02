@@ -148,6 +148,7 @@ struct mock_balloc mb = {
 
 static int test_ad_init(void)
 {
+	struct m0_be_tx_credit cred = {0};
 	int	i;
 	int	result;
 
@@ -193,7 +194,18 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj_fore->so_state == CSS_UNKNOWN);
 
-	m0_dtx_init(&tx);
+	block_shift = obj_fore->so_op->sop_block_shift(obj_fore);
+	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
+	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
+	buf_size = max_check(MIN_BUF_SIZE
+			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
+
+	m0_dtx_init(&tx, db->bs_be_domain);
+	dom_fore->sd_ops->sdo_write_credit(dom_fore,
+				buf_size * (NR * NR / 2) /* test_ad() */ +
+				buf_size * NR, /* test_ad_rw_unordered() */
+						&cred);
+	m0_be_tx_prep(&tx.tx_betx, &cred);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_ASSERT(result == 0);
 
@@ -204,12 +216,6 @@ static int test_ad_init(void)
 		M0_ASSERT(result == 0);
 	}
 	M0_ASSERT(obj_fore->so_state == CSS_EXISTS);
-
-	block_shift = obj_fore->so_op->sop_block_shift(obj_fore);
-	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
-	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
-	buf_size = max_check(MIN_BUF_SIZE
-			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -236,6 +242,7 @@ static int test_ad_fini(void)
 	int i;
 
 	m0_dtx_done(&tx);
+	m0_dtx_fini(&tx);
 
 	m0_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore);
@@ -380,7 +387,7 @@ static void test_ad_undo(void)
 
 	m0_dtx_done(&tx);
 
-	m0_dtx_init(&tx);
+	m0_dtx_init(&tx, db->bs_be_domain);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 
@@ -402,8 +409,9 @@ static void test_ad_undo(void)
 	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
 	m0_dtx_done(&tx);
+	m0_dtx_fini(&tx);
 
-	m0_dtx_init(&tx);
+	m0_dtx_init(&tx, db->bs_be_domain);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	test_read(1);
