@@ -47,6 +47,9 @@ struct m0_dtm_history_ops;
 struct m0_dtm_history_type;
 struct m0_dtm_history_type_ops;
 
+/**
+ * DTM history.
+ */
 struct m0_dtm_history {
 	struct m0_dtm_hi                 h_hi;
 	struct m0_tlink                  h_exclink;
