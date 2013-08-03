@@ -41,14 +41,14 @@ struct m0_sm_group ut__txs_sm_group;
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
-	int                      rc;
 #define NAME(ext) "be-ut" ext
-	static char		*argv[] = {
+	static char    *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", NAME("_addb.stob"), "-w", "10",
 		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service"
 	};
-	struct m0_reqh		*reqh;
+	struct m0_reqh *reqh;
+	int             rc;
 
 	*ut_be = (struct m0_be_ut_backend) {
 		.but_net_xprt = &m0_net_lnet_xprt,
@@ -104,15 +104,11 @@ void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
 		      NULL, NULL);
 }
 
-static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
-			   bool stob_create,
-			   m0_bcount_t size)
+static void
+be_ut_seg_init(struct m0_be_ut_seg *ut_seg, bool stob_create, m0_bcount_t size)
 {
-	struct m0_stob_id stob_id = {
-		.si_bits = M0_UINT128(0, 42)
-	};
-
-	int rc;
+	struct m0_stob_id stob_id = { .si_bits = M0_UINT128(0, 42) };
+	int               rc;
 
 	rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
 	M0_ASSERT(rc == 0);
@@ -124,15 +120,15 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &ut_seg->bus_dom);
 	M0_ASSERT(rc == 0);
 	m0_dtx_init(&ut_seg->bus_dtx);
-	if (!stob_create) {
-		m0_stob_init(&ut_seg->bus_stob_, &stob_id,
-			     ut_seg->bus_dom);
-		ut_seg->bus_stob = &ut_seg->bus_stob_;
-	} else {
+	if (stob_create) {
 		rc = m0_stob_create_helper(ut_seg->bus_dom, &ut_seg->bus_dtx,
 					   &stob_id, &ut_seg->bus_stob);
 		M0_ASSERT(rc == 0);
+	} else {
+		m0_stob_init(&ut_seg->bus_stob_, &stob_id, ut_seg->bus_dom);
+		ut_seg->bus_stob = &ut_seg->bus_stob_;
 	}
+
 	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, /* XXX */ NULL);
 	rc = m0_be_seg_create(&ut_seg->bus_seg, size);
 	M0_ASSERT(rc == 0);
@@ -184,27 +180,19 @@ static void be_ut_data_save(const char *filename, m0_bcount_t size, void *addr)
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 {
 	struct m0_be_seg *seg = &ut_seg->bus_seg;
-	bool		  seg_data_was_successfully_written_to_stob;
 
-	if (ut_seg->bus_copy == NULL)
+	if (ut_seg->bus_copy == NULL) {
 		ut_seg->bus_copy = m0_alloc(seg->bs_size);
-	M0_ASSERT(ut_seg->bus_copy != NULL);
-	m0_be_seg__read(&M0_BE_REG_SEG(seg), ut_seg->bus_copy);
-	seg_data_was_successfully_written_to_stob =
-		memcmp(seg->bs_addr,ut_seg->bus_copy, seg->bs_size) == 0;
-	/*
-	 * You can find all differences between stob and memory using
-	 * the following commands (s/vimdiff/some_tool/ if needed):
-	 *
-	 * > for f in stob memory; do hexdump -vC data.$f > data-hex.$f; done
-	 * > vimdiff data-hex.stob data-hex.memory
-	 */
-	if (!seg_data_was_successfully_written_to_stob) {
-		be_ut_data_save("data.stob", seg->bs_size, ut_seg->bus_copy);
-		be_ut_data_save("data.memory", seg->bs_size, seg->bs_addr);
+		M0_ASSERT(ut_seg->bus_copy != NULL);
 	}
-	M0_ASSERT(seg_data_was_successfully_written_to_stob);
 
+	m0_be_seg__read(&M0_BE_REG_SEG(seg), ut_seg->bus_copy);
+
+	if (memcmp(seg->bs_addr, ut_seg->bus_copy, seg->bs_size) != 0) {
+		be_ut_data_save("stob.dat", seg->bs_size, ut_seg->bus_copy);
+		be_ut_data_save("memory.dat", seg->bs_size, seg->bs_addr);
+		M0_IMPOSSIBLE("Segment data differs from stob data");
+	}
 }
 
 static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
