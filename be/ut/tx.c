@@ -141,16 +141,15 @@ struct be_ut_tx_x {
 	m0_bcount_t            size;
 	void                  *data;
 	const union {
-		struct m0_uint128 u128;
-		struct be_ut_complex    be_ut_complex;
+		struct m0_uint128    u128;
+		struct be_ut_complex complex;
 	} captured;
 };
 
 enum { SHIFT = 0 };
 
-static void be_ut_transact(struct be_ut_tx_x *x,
-			   struct m0_be_seg *seg,
-			   void **alloc)
+static void
+be_ut_transact(struct be_ut_tx_x *x, struct m0_be_seg *seg, void **alloc)
 {
 	int rc;
 
@@ -182,11 +181,11 @@ static void be_ut_transact(struct be_ut_tx_x *x,
  */
 static void be_ut_tx_test(size_t nr)
 {
-	struct m0_be_ut_backend	 ut_be;
-	struct m0_be_ut_seg	 ut_seg;
-	void			*alloc;
-	struct be_ut_tx_x	*x;
-	struct be_ut_tx_x	 xs[] = {
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_ut_seg     ut_seg;
+	void                   *alloc;
+	struct be_ut_tx_x      *x;
+	struct be_ut_tx_x       xs[] = {
 		{
 			.size          = sizeof(struct m0_uint128),
 			.captured.u128 = M0_UINT128(0xdeadd00d8badf00d,
@@ -194,7 +193,7 @@ static void be_ut_tx_test(size_t nr)
 		},
 		{
 			.size             = sizeof(struct be_ut_complex),
-			.captured.be_ut_complex = { .real = 18, .imag = 04 }
+			.captured.complex = { .real = 18, .imag = 4 }
 		},
 		{ .size = 0 } /* terminator */
 	};
@@ -224,7 +223,6 @@ static void be_ut_tx_test(size_t nr)
 		m0_be_tx_put(&x->tx);
 	}
 
-	/* Reload the segment. */
 	m0_be_ut_seg_check_persistence(&ut_seg);
 
 	for (x = xs; x->size != 0; ++x) {

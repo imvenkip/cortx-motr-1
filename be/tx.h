@@ -342,6 +342,7 @@ struct m0_be_tx {
 	struct m0_sm_ast       t_ast_placed;
 	struct m0_sm_ast       t_ast_done;
 	struct m0_be_tx_group *t_group;
+	/** Reference counter. */
 	uint32_t	       t_ref;
 };
 
