@@ -100,8 +100,8 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
 			      struct m0_be_tx *tx)
 {
-	m0_be_tx_init(tx, 0, &ut_be->but_dom, &ut__txs_sm_group,
-		      NULL, NULL, true, NULL, NULL);
+	m0_be_tx_init(tx, 0, &ut_be->but_dom, &ut__txs_sm_group, NULL, NULL,
+		      NULL, NULL);
 }
 
 static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,

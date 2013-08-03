@@ -134,16 +134,15 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 			     enum m0_be_tx_state state,
 			     int rc);
 
-M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
-			       uint64_t            tid,
-			       struct m0_be_domain    *dom,
-			       struct m0_sm_group *sm_group,
-			       m0_be_tx_cb_t       persistent,
-			       m0_be_tx_cb_t       discarded,
-			       bool                is_part_of_global_tx,
-			       void              (*filler)(struct m0_be_tx *tx,
-							   void *payload),
-			       void               *datum)
+M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
+			       uint64_t             tid,
+			       struct m0_be_domain *dom,
+			       struct m0_sm_group  *sm_group,
+			       m0_be_tx_cb_t        persistent,
+			       m0_be_tx_cb_t        discarded,
+			       void               (*filler)(struct m0_be_tx *tx,
+							    void *payload),
+			       void                *datum)
 {
 	enum m0_be_tx_state state;
 

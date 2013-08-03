@@ -347,16 +347,15 @@ struct m0_be_tx {
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
-			       uint64_t            tid,
-			       struct m0_be_domain   *dom,
-			       struct m0_sm_group *sm_group,
-			       m0_be_tx_cb_t       persistent,
-			       m0_be_tx_cb_t       discarded,
-			       bool                is_part_of_global_tx,
-			       void              (*filler)(struct m0_be_tx *tx,
-							   void *payload),
-			       void               *datum);
+M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
+			       uint64_t             tid,
+			       struct m0_be_domain *dom,
+			       struct m0_sm_group  *sm_group,
+			       m0_be_tx_cb_t        persistent,
+			       m0_be_tx_cb_t        discarded,
+			       void               (*filler)(struct m0_be_tx *tx,
+							    void *payload),
+			       void                *datum);
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 
