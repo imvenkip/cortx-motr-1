@@ -42,7 +42,7 @@
 enum rem_rpc_notification {
 	R_PERSISTENT = 1,
 	R_FIXED      = 2,
-	R_KNOWN      = 3,
+	R_RESET      = 3,
 	R_UNDO       = 4
 };
 
@@ -111,16 +111,10 @@ static void rem_rpc_fixed(struct m0_dtm_remote *rem,
 	rem_rpc_notify(rem, history, 0, R_FIXED);
 }
 
-static void rem_rpc_known(struct m0_dtm_remote *rem,
+static void rem_rpc_reset(struct m0_dtm_remote *rem,
 			  struct m0_dtm_history *history)
 {
-	rem_rpc_notify(rem, history, history->h_hi.hi_ver, R_KNOWN);
-}
-
-static void rem_rpc_close(struct m0_dtm_remote *rem,
-			  struct m0_dtm_history *history)
-{
-	M0_IMPOSSIBLE("Not yet.");
+	rem_rpc_notify(rem, history, history->h_hi.hi_ver, R_RESET);
 }
 
 static void rem_rpc_undo(struct m0_dtm_remote *rem,
@@ -155,8 +149,7 @@ static void rem_rpc_resend(struct m0_dtm_remote *rem,
 static const struct m0_dtm_remote_ops rem_rpc_ops = {
 	.reo_persistent = &rem_rpc_persistent,
 	.reo_fixed      = &rem_rpc_fixed,
-	.reo_known      = &rem_rpc_known,
-	.reo_close      = &rem_rpc_close,
+	.reo_reset      = &rem_rpc_reset,
 	.reo_send       = &rem_rpc_send,
 	.reo_resend     = &rem_rpc_resend,
 	.reo_undo       = &rem_rpc_undo
@@ -239,7 +232,7 @@ static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)
 			break;
 		case R_FIXED:
 			break;
-		case R_KNOWN:
+		case R_RESET:
 			m0_dtm_history_reset(history, notice->dno_ver);
 			break;
 		case R_UNDO:
@@ -320,10 +313,10 @@ static void rem_local_fixed(struct m0_dtm_remote *rem,
 	rem_local_notify(rem, history, 0, R_FIXED);
 }
 
-static void rem_local_known(struct m0_dtm_remote *rem,
+static void rem_local_reset(struct m0_dtm_remote *rem,
 			    struct m0_dtm_history *history)
 {
-	rem_local_notify(rem, history, history->h_hi.hi_ver, R_KNOWN);
+	rem_local_notify(rem, history, history->h_hi.hi_ver, R_RESET);
 }
 
 static void rem_local_send(struct m0_dtm_remote *rem,
@@ -348,7 +341,7 @@ static void rem_local_undo(struct m0_dtm_remote *rem,
 static const struct m0_dtm_remote_ops rem_local_ops = {
 	.reo_persistent = &rem_local_persistent,
 	.reo_fixed      = &rem_local_fixed,
-	.reo_known      = &rem_local_known,
+	.reo_reset      = &rem_local_reset,
 	.reo_send       = &rem_local_send,
 	.reo_resend     = &rem_local_send,
 	.reo_undo       = &rem_local_undo
