@@ -97,17 +97,11 @@ M0_INTERNAL void
 m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob, struct m0_be *be)
 {
 	*seg = (struct m0_be_seg) {
-		.bs_id	     = 0,		/* XXX */
-		.bs_addr     = NULL,
-		.bs_size     = 0,
 		.bs_reserved = sizeof(struct m0_be_seg_hdr),
 		.bs_be	     = be,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
-		.bs_bshift   = 0,
-		.bs_pgshift  = 12,
-		.bs_pgmap    = NULL,
-		.bs_pgnr     = 0,
+		.bs_pgshift  = 12
 	};
 }
 
