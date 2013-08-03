@@ -66,13 +66,17 @@ M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update)
 	enum m0_dtm_state                state  = up->up_state;
 	const struct m0_dtm_update_comm *comm   = &update->upd_comm;
 	enum m0_dtm_update_comm_state    cstate = comm->uc_state;
+	struct m0_dtm_remote            *rem    = UPDATE_REM(update);
 
 	return
 		m0_dtm_up_invariant(up) &&
-		M0_IN(cstate, (M0_DUX_NEW, M0_DUX_INFLIGHT, M0_DUX_REPLIED)) &&
-		ergo(state > M0_DOS_INPROGRESS, cstate == M0_DUX_REPLIED) &&
-		ergo(cstate == M0_DUX_REPLIED,
-		     comm->uc_body->f_item.ri_reply != NULL);
+		_0C(M0_IN(cstate, (M0_DUX_NEW,
+				   M0_DUX_INFLIGHT, M0_DUX_REPLIED))) &&
+		_0C(ergo(rem == NULL, cstate == M0_DUX_NEW)) &&
+		_0C(ergo(state > M0_DOS_INPROGRESS,
+			 cstate == M0_DUX_REPLIED || rem == NULL)) &&
+		_0C(ergo(cstate == M0_DUX_REPLIED,
+			 comm->uc_body->f_item.ri_reply != NULL));
 }
 
 M0_INTERNAL bool m0_dtm_update_is_user(const struct m0_dtm_update *update)
