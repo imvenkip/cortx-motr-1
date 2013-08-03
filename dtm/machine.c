@@ -138,8 +138,6 @@ static void history_balance(struct m0_dtm_history *history)
 
 static void sibling_undo(struct m0_dtm_history *history, struct m0_dtm_op *op)
 {
-	M0_PRE(m0_dtm_op_invariant(op));
-
 	up_for(op, up) {
 		struct m0_dtm_history *other  = UP_HISTORY(up);
 		struct m0_dtm_update  *update = up_update(up);
@@ -147,10 +145,11 @@ static void sibling_undo(struct m0_dtm_history *history, struct m0_dtm_op *op)
 		M0_ASSERT(up == hi_latest(up->up_hi));
 		M0_ASSERT(up->up_state >= M0_DOS_VOLATILE);
 
-		if (other != history && (other->h_undo == NULL ||
-					 update_is_earlier(update,
+		if (other != history && other->h_epoch < history->h_epoch &&
+		    (other->h_undo == NULL || update_is_earlier(update,
 							   other->h_undo))) {
 			other->h_undo = update;
+			other->h_epoch = history->h_epoch;
 			history_excite(other);
 		}
 	} up_endfor;
@@ -159,8 +158,6 @@ static void sibling_undo(struct m0_dtm_history *history, struct m0_dtm_op *op)
 static void sibling_persistent(struct m0_dtm_history *history,
 			       struct m0_dtm_op *op)
 {
-	M0_PRE(m0_dtm_op_invariant(op));
-
 	up_for(op, up) {
 		struct m0_dtm_history *other  = UP_HISTORY(up);
 		struct m0_dtm_update  *update = up_update(up);
@@ -177,16 +174,16 @@ static void sibling_persistent(struct m0_dtm_history *history,
 
 static void sibling_reset(struct m0_dtm_history *history, struct m0_dtm_op *op)
 {
-	M0_PRE(m0_dtm_op_invariant(op));
-
 	up_for(op, up) {
 		struct m0_dtm_history *other  = UP_HISTORY(up);
 		struct m0_dtm_update  *update = up_update(up);
 
 		if (other != history && other->h_rem == history->h_rem &&
+		    other->h_epoch < history->h_epoch &&
 		    (other->h_reset == NULL ||
 		     update_is_earlier(update, other->h_reset))) {
 			other->h_reset = update;
+			other->h_epoch = history->h_epoch;
 			history_excite(other);
 		}
 	} up_endfor;
@@ -200,6 +197,8 @@ static void update_reint(struct m0_dtm_update *update)
 
 	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
 
+	if (comm->uc_body == NULL)
+		return;
 	if (comm->uc_state == M0_DUX_NEW)
 		rem->re_ops->reo_send(rem, update);
 	else if (comm->uc_state == M0_DUX_INFLIGHT &&

@@ -78,11 +78,6 @@ M0_INTERNAL bool m0_dtm_history_invariant(const struct m0_dtm_history *history)
 			 history->h_persistent == NULL &&
 			 history->h_reint == NULL &&
 			 history->h_reset == NULL)) &&
-		_0C(ergo(exc_tlink_is_in(history), /* not equivalence */
-			 history->h_undo != NULL ||
-			 history->h_persistent != NULL ||
-			 history->h_reint != NULL ||
-			 history->h_reset != NULL)) &&
 		_0C(ergo(history->h_known != NULL,
 			 H_STATE(h_known) >= M0_DOS_INPROGRESS)) &&
 		_0C(ergo(history->h_undo != NULL,
@@ -138,6 +133,7 @@ M0_INTERNAL void m0_dtm_history_reset(struct m0_dtm_history *history,
 	if (up != NULL) {
 		up = history_first(up, since);
 		history->h_reset = up_update(up);
+		history->h_epoch++;
 		m0_dtm_history_balance(history);
 	}
 	M0_POST(m0_dtm_history_invariant(history));
@@ -156,6 +152,7 @@ M0_INTERNAL void m0_dtm_history_undo(struct m0_dtm_history *history,
 	if (up != NULL) {
 		up = history_first(up, upto);
 		history->h_undo = up_update(up);
+		history->h_epoch++;
 		m0_dtm_history_balance(history);
 	}
 	M0_POST(m0_dtm_history_invariant(history));
@@ -348,10 +345,8 @@ M0_INTERNAL void m0_dtm_controlh_fini(struct m0_dtm_controlh *ch)
 
 M0_INTERNAL void m0_dtm_controlh_close(struct m0_dtm_controlh *ch)
 {
-	struct m0_dtm_remote *rem = ch->ch_history.h_rem;
-
 	m0_dtm_history_add_close(&ch->ch_history, &ch->ch_clop, &ch->ch_clup);
-	m0_dtm_oper_prepared(&ch->ch_clop, rem);
+	m0_dtm_oper_prepared(&ch->ch_clop, ch->ch_history.h_rem);
 }
 
 M0_INTERNAL void m0_dtm_controlh_add(struct m0_dtm_controlh *ch,

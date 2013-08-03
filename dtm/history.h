@@ -62,6 +62,7 @@ struct m0_dtm_history {
 	struct m0_dtm_update            *h_reset;
 	const struct m0_dtm_history_ops *h_ops;
 	uint64_t                         h_gen;
+	uint64_t                         h_epoch;
 	struct m0_cookie                 h_remcookie;
 	m0_dtm_ver_t                     h_max_ver;
 };
@@ -108,6 +109,8 @@ M0_INTERNAL void m0_dtm_history_fini(struct m0_dtm_history *history);
 
 M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 					   m0_dtm_ver_t upto);
+M0_INTERNAL void m0_dtm_history_reset(struct m0_dtm_history *history,
+				      m0_dtm_ver_t since);
 M0_INTERNAL void m0_dtm_history_undo(struct m0_dtm_history *history,
 				     m0_dtm_ver_t upto);
 M0_INTERNAL void m0_dtm_history_close(struct m0_dtm_history *history);
