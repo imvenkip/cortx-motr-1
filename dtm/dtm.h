@@ -34,9 +34,9 @@
 #include "dtm/fol.h"
 
 /**
- * @defgroup dtm Distributed transaction manager
+ * @page dtm Distributed transaction manager
  *
- * @par Overview
+ * @section Overview
  *
  * Distributed transaction manager (DTM) is a major Mero
  * component, responsible for dealing with certain types of transient failures.
@@ -65,11 +65,11 @@
  * history that is no longer consistent and notifies HA that affected nodes
  * should be anathematised.
  *
- * @par High level design
+ * @section hld High level design
  *
  * <a href="https://docs.google.com/a/xyratex.com/document/d/1RacseZooNnfbKiaD-s5rmTpLlpw_QlPomAX9iH4PlfI">HLD</a>
  *
- * @par Abstractions
+ * @section Abstractions
  *
  * DTM introduces the following major abstractions:
  *
@@ -82,7 +82,7 @@
  *
  * See the HLD for more details.
  *
- * @par Nucleus
+ * @section Nucleus
  *
  * Nucleus is a sub-module within DTM, which contains core versioning and
  * ordering logic for histories, operations and updates. Nucleus introduces its
@@ -98,7 +98,7 @@
  *
  * See dtm/nucleus.c, dtm/nucleus.h.
  *
- * @par Coding conventions
+ * @section coding-conventions Coding conventions
  *
  * Throughout the code, names of nuclear types, functions and variables use 2
  * letter abbreviations: @t nu (nucleus), @t hi (history), @t op (operation),
@@ -115,7 +115,7 @@
  * fixed by making them static and including dtm .c files in a single dtm/dtm.c
  * file.
  *
- * @par Outline of DTM usage patterns
+ * @section usage Outline of DTM usage patterns
  *
  * A typical interaction with DTM consists of the following steps:
  *
@@ -142,7 +142,7 @@
  *
  * @todo pack, unpack, fop.
  *
- * @par Theory of operation
+ * @section TOO Theory of operation
  *
  * First, read the HLD.
  *
@@ -164,7 +164,7 @@
  * m0_dtm_update::upd_up::up_op_linkage.
  *
  * Thus, updates, histories and operations form a certain gridiron pattern:
- *
+ * @anchor gridiron
  * @verbatim
  *
  *        H0        H1        H2        H3        H4        H5        H6  NOW
@@ -199,13 +199,13 @@
  * represented by the history.
  *
  * Version 0 is "unknown version", see below. Version 1 is the version of the
- * history after the first (earliest) update in the history has been executed.
+ * history before the first (earliest) update in the history has been executed.
  *
  * The following 3 complementary sub-sections describe organization of DTM
  * structures from the point of view of update, history and operation
  * respectively.
  *
- * @par Update
+ * @section Update
  *
  * Each update has a state: m0_dtm_update::upd_up::up_state.
  *
@@ -223,36 +223,30 @@
  *       updates, but not on the history's list of updates. The update starts in
  *       LIMBO state and remains in this stats until the operation, to which the
  *       update belongs is closed. In other words, LIMBO is the state of updates
- *       belonging to still not closed operations.
- *
- *       LIMBO is the only state, in which the update is not on its history
- *       update list. When an operation is closed, m0_dtm_op_close() places all
- *       its updates on the corresponding history lists.
+ *       belonging to still not closed operations. LIMBO is the only state, in
+ *       which the update is not on its history update list. When an operation
+ *       is closed, m0_dtm_op_close() places all its updates on the
+ *       corresponding history lists.
  *
  *     - FUTURE: this is the state of updates from closed operations that are
  *	 not yet executed. Operation can be in FUTURE state for several reasons:
- *
  *           - it is too early, and some previous operations, as determined by
  *             version numbers, are not yet added. This is possible when network
  *             reorders operations arriving to a server;
- *
  *           - histories of some of operation's updates are busy (see PREPARE
  *             state below);
  *
  *     - PREPARE: when all updates of an operation are ready (versionwise) to be
  *       executed, they are moved from FUTURE to PREPARE state and
- *       m0_dtm_op_ops::doo_ready() call-back is called by the DTM.
- *
- *       For a given history, at most one update of the history can be in
- *       PREPARE state. When an update is moved in PREPARE state, its history is
- *       marked busy (M0_DHF_BUSY) preventing other otherwise ready updates of
- *       this history to advance past FUTURE state.
- *
- *       The purpose of PREPARE state is to allow DTM user to serialise
- *       operation execution as necessary, e.g., take locks. When all the locks
- *       necessary for the operation execution are taken, the user calls
- *       m0_dtm_op_prepared(), which moves all operation updates in INPROGRESS
- *       state.
+ *       m0_dtm_op_ops::doo_ready() call-back is called by the DTM. For a given
+ *       history, at most one update of the history can be in PREPARE
+ *       state. When an update is moved in PREPARE state, its history is marked
+ *       busy (M0_DHF_BUSY) preventing other otherwise ready updates of this
+ *       history to advance past FUTURE state. The purpose of PREPARE state is
+ *       to allow DTM user to serialise operation execution as necessary, e.g.,
+ *       take locks. When all the locks necessary for the operation execution
+ *       are taken, the user calls m0_dtm_op_prepared(), which moves all
+ *       operation updates in INPROGRESS state.
  *
  *     - INPROGRESS: an update in INPROGRESS state is being executed. When an
  *       update transitions from PREPARED to INPROGRESS state, history's version
@@ -278,92 +272,9 @@
  *       persistent. If such earlier updates are lost in a failure, DTM must
  *       undo U to preserve consistency.
  *
- * @par Update
+ * @section History
  *
- * Each update has a a state (m0_dtm_update::upd_up::up_state) and 2 version
- * numbers: m0_dtm_update::upd_up::up_ver and
- * m0_dtm_update::upd_up::up_orig_ver.
- *
- * Version number specifies a position in history. Version numbers are used to
- * order updates and to determine when an update is
- * applicable. m0_dtm_update::upd_up::up_orig_ver specifies the version the
- * history has before the update was applied and m0_dtm_update::upd_up::up_ver
- * specifies the version the history has after the update is applied. These 2
- * version numbers can coincide, when update doesn't change the entity,
- * represented by the history.
- *
- * When going through updates of a history pastward (that is, starting from the
- * head of the history update list, downward in the diagram above), version
- * numbers are non-increasing and states are non-decreasing.
- *
- * Update state determines the execution status of the update. Update state
- * increases throughout update life. Hence, update states describe update's life
- * stages. Updates states are the following (m0_dtm_state):
- *
- *     - LIMBO: a new update is initialised by m0_dtm_update_init(). From the
- *       very beginning the update is associated with an operation and a
- *       history. m0_dtm_init() places the update on the operation's list
- *       updates, but not on the history's list of updates. The update starts in
- *       LIMBO state and remains in this stats until the operation, to which the
- *       update belongs is closed. In other words, LIMBO is the state of updates
- *       belonging to still not closed operations.
- *
- *       LIMBO is the only state, in which the update is not on its history
- *       update list. When an operation is closed, m0_dtm_op_close() places all
- *       its updates on the corresponding history lists.
- *
- *     - FUTURE: this is the state of updates from closed operations that are
- *	 not yet executed. Operation can be in FUTURE state for several reasons:
- *
- *           - it is too early, and some previous operations, as determined by
- *             version numbers, are not yet added. This is possible when network
- *             reorders operations arriving to a server;
- *
- *           - histories of some of operation's updates are busy (see PREPARE
- *             state below);
- *
- *     - PREPARE: when all updates of an operation are ready (versionwise) to be
- *       executed, they are moved from FUTURE to PREPARE state and
- *       m0_dtm_op_ops::doo_ready() call-back is called by the DTM.
- *
- *       For a given history, at most one update of the history can be in
- *       PREPARE state. When an update is moved in PREPARE state, its history is
- *       marked busy (M0_DHF_BUSY) preventing other otherwise ready updates of
- *       this history to advance past FUTURE state.
- *
- *       The purpose of PREPARE state is to allow DTM user to serialise
- *       operation execution as necessary, e.g., take locks. When all the locks
- *       necessary for the operation execution are taken, the user calls
- *       m0_dtm_op_prepared(), which moves all operation updates in INPROGRESS
- *       state.
- *
- *     - INPROGRESS: an update in INPROGRESS state is being executed. When an
- *       update transitions from PREPARED to INPROGRESS state, history's version
- *       (m0_dtm_hi::hi_ver) is set to update's version, implying that as far as
- *       DTM is concerned, the state of the entity represented by the history
- *       contains the update. Because update execution is never truly
- *       instantaneous, the actual entity state is changed gradually, while the
- *       update is in INPROGRESS state, but thanks to the locks taken by the
- *       user in PREPARE state, this doesn't matter.
- *
- *     - VOLATILE: an update moves to VOLATILE state when its execution
- *       completes, but modified entity state is present only in volatile store
- *       and can be lost in an allowed failure.
- *
- *     - PERSISTENT: an update moves to PERSISTENT state, when modified entity
- *       state makes it to persistent store, which is guaranteed to survive any
- *       allowed failure.
- *
- *     - STABLE: finally, an update moves to STABLE state, when DTM guarantees
- *       that it will survive any further allowed failure. STABLE state is
- *       different from PERSISTENT, because even if a particular update U is
- *       persistent, some earlier updates on which U depends can be not yet
- *       persistent. If such earlier updates are lost in a failure, DTM must
- *       undo U to preserve consistency.
- *
- * @par History
- *
- * History represent evolution of a storage entity. Storage entity changes as
+ * History represents evolution of a storage entity. Storage entity changes as
  * result of update executions. Version number unambiguously identifies a point
  * in the history.
  *
@@ -381,32 +292,209 @@
  * local Mero instance owns an exclusive lock on the entity represented by the
  * history.
  *
- * Originally, when an update is added to an owned history, its version can be
- * either unknown (0) or known (non 0). When an update is added to a non-owned
- * history, its version must be known, its original version can be either known
- * or unknown.
+ * Updates in a history are ordered in 3 ways:
  *
- * By the time update reaches VOLATILE state, both its version and original
- * versions are known. This is achieved as follows:
+ *     - "list" ordering by their location in the history update list
+ *       (m0_dtm_history::h_hi::hi_ups);
  *
- *     - if original version is initially unknown, the original version is
- *       assigned (up_ready()) to the current version history when the update is
- *       moved from FUTURE to PREPARE state;
+ *     - "state" ordering by update state (m0_dtm_update::upd_up::up_state);
  *
- *     - if update version is initially unknown,
+ *     - "version" ordering by update version
+ *       (m0_dtm_update::upd_up::up_ver). This ordering is partial, because some
+ *       updates have "unknown" version (0).
+ *
+ * For updates in states VOLATILE and later, all 3 orderings coincide: for
+ * updates X and Y, if X.state >= VOLATILE, then (X.state <= Y.state iff X.ver
+ * <= Y.ver iff X is not later than Y in the update list). Moreover, such an
+ * update has known (non 0) original version, which coincides with the version
+ * of the update next in the list order.
+ *
+ * Updates in FUTURE state are not ordered, they form a set from which updates
+ * are selected for execution as described below.
+ *
+ * Finally, updates in INPROGRESS state are only ordered by the list order,
+ * which determines the order in which they left PREPARE state and in which they
+ * enter VOLATILE state.
+ *
+ * Generally, updates in a history undergo the following process:
+ *
+ *     - at certain conditions (described below), advance_hi() scans the set of
+ *       FUTURE updates, looking for an update ready for execution;
+ *
+ *     - if such an update is found, the update is moved in PREPARE state, the
+ *       history is marked busy and m0_dtm_op_ops::doo_ready() call-back is
+ *       called. This call-back belong to the update operation. All updates of
+ *       an operation move to PREPARE state together. For owned histories,
+ *       update version and original version are assigned at this moment
+ *       (up_ready()), if they were unknown;
+ *
+ *     - when PREPARE state is complete, user calls m0_dtm_oper_prepared().
+ *       This moves all updates of the operation in INPROGRESS state. This
+ *       signifies that update started execution;
+ *
+ *     - when update execution is complete, user calls m0_dtm_oper_done(), which
+ *       moves operation updates to VOLATILE state;
+ *
+ *     - later, when an update reaches a persistent store,
+ *       m0_dtm_history_persistent() is called, which moves the update from
+ *       VOLATILE to PERSISTENT state;
+ *
+ *     - finally, the update is moved to STABLE state.
+ *
+ * hi_advance() is called in the following cases:
+ *
+ *     - an operation closes (m0_dtm_op_close()), operation updates are moved to
+ *       FUTURE state and added to their histories and
+ *
+ *     - m0_dtm_op_prepared() un-busies histories.
+ *
+ * Note that while update states are monotonically increasing, while the history
+ * update list is traversed, some state-changing events can happen out of
+ * order. Specifically, m0_dtm_oper_done() can be called, when some earlier (in
+ * the list order) update is still INPROGRESS. In such cases update state
+ * transition is postponed to preserve monotonicity.
+ *
+ * @section Operation
+ *
+ * An operation is a group of updates that change state (mostly) together.
+ *
+ * It's important to understand that operations are not (directly) related to
+ * transactions, they are orthogonal. In fact, in the @ref gridiron diagram
+ * above, operations (going horizontally) are literally *orthogonal* to
+ * transactions, because the latter are implemented as (vertical) histories.
+ *
+ * An operation is initially open. Updates can be added to an open
+ * operation. Such updates are in LIMBO state and are not attached to history
+ * update lists. When the operation is closed by m0_dtm_oper_close(), all its
+ * updates are moved to the FUTURE state. No further updates can be added to a
+ * closed operation.
+ *
+ * By the time m0_dtm_oper_close() returns, operation updates might advance past
+ * FUTURE state: if they are ready for the execution (see above), they will be
+ * transferred to PREPARE state and might reach STABLE state by the time
+ * operation is closed.
+ *
+ * The main purpose of operations is to group together updates, that should be
+ * simultaneously executed. Roughly speaking, an individual update can be
+ * executed when its version allows so and an operation can be executed when all
+ * its updated can be executed.
+ *
+ * Executability of an individual update U is defined as following:
+ *
+ *     - U's version is compared (up_cmp()) with the current version of its
+ *       history (m0_dtm_history::h_hi::hi_ver). This comparison can produce one
+ *       of the following outcomes:
+ *
+ *     - U is EARLY: the update cannot be executed at the moment, because some
+ *       intermediate updates are still missing;
+ *
+ *     - U is LATE: the update cannot be executed, because it has already been
+ *       executed (update's version is less or equal to the history version);
+ *
+ *     - U is READY: the update can be executed.
+ *
+ * Executability of an operation is checked by op_cmp() as following:
+ *
+ *     - if all operation updates are READY, then the operation is READY;
+ *
+ *     - if all operation updates are LATE, then the operation is LATE;
+ *
+ *     - if there are EARLY and no LATE updates, then the operation is EARLY;
+ *
+ *     - otherwise there are both EARLY and LATE updates and the operation is
+ *       *misordered*, that is, cannot be consistently recorded in its consittuent
+ *       histories (op_cmp() returns MISER).
+ *
+ * Misordering means that DTM user violated serialisability conditions.
+ *
+ * When advance_op() finds late or misordered operation, it signals the user and
+ * deletes the operation from DTM (removing all its updates from their
+ * histories), see advance_op().
+ *
+ * An operation typically contains updates from 2 classes:
+ *
+ *     - user updates, corresponding to storage objects that DTM end-user
+ *       modifies (files, directories, etc.). User updates are explicitly added
+ *       to the operation by the user (before the operation is closed);
+ *
+ *     - control updates, used internally by DTM to organize updates in larger
+ *       logical ensembles.
+ *
+ * For example, for each local transaction (m0_dtm_ltx) there is a corresponding
+ * history (m0_dtm_ltx::lx_ch::ch_history). When an operation is executed in the
+ * context of a local transaction, DTM internally adds a special "noop" update
+ * (ch_noop_utype) to the operation. This noop update belongs to the local
+ * transaction history. This way all operations executed in the context of the
+ * local transaction are linked together and can be traced by following local
+ * transaction history's list of updates. When a local transaction is closed, a
+ * special "close" control update (ch_close_utype) is added to it.
+ *
+ * Similarly, distributed transaction (m0_dtm_dtx), domain (m0_dtm_domain) and
+ * fol (m0_dtm_fol) contain embedded histories.
+ *
+ * An update has a label (m0_dtm_update::upd_label) unique within the update
+ * operation. The label is used to identify the update and fetch it from the
+ * operation after network transmission. User should assign unique labels to
+ * user updates. User updates must have labels not less than
+ * M0_DTM_USER_UPDATE_BASE. DTM automatically assigns unique labels to all
+ * control updates (in m0_dtm_oper_close()).
+ *
+ * @section client-use Client use cases for DTM
+ *
+ * There is a DTM instance on each client. For exmaple, in an m0t1fs client,
+ * m0_dtm is embedded in the super-block.
+ *
+ * When a client executes an application request that changes system state
+ * (e.g., file write or directory creation, as opposed to read-only request like
+ * file read or pathname lookup), it creates a distributed transaction for the
+ * request (m0_dtm_dtx_init()). The client then creates one or more operations,
+ * populates then with updates and adds operations to the transaction. Each
+ * operation can include updates to multiple histories corresponding to storage
+ * entities, potentially on different remote nodes. Internally, DTM adds control
+ * histories and control updates to the operations.
+ *
+ * Updates can belong to owned or not-owned histories:
+ *
+ *     - when a client has an exclusive lock on some storage entity, the entity
+ *       history is owned by the client DTM instance. In this case, client DTM
+ *       assigns version and original version to every update to the history;
+ *
+ *     - when a client has no lock on an entity, it still can execute an
+ *       operation on this entity. In this case, entity's history is not owned
+ *       by the client and client DTM uses "unknown" (0) version number for
+ *       updates to the history. When remote DTM executes the update, it assigns
+ *       the version number to the update (which it can do, because it owns the
+ *       history) and returns it to the client;
+ *
+ *     - a control history on a client can be owned. Examples are:
+ *         - application domain (m0_dtm_domain), exclusively owned by the
+ *           client;
+ *         - "slot" shared between a client and server;
+ *         - distributed transaction initiated by the client.
+ *       In all these cases, the client assigns version numbers to the updates;
+ *
+ *     - a control history on a client can be non-owned. An example of this is
+ *       the fol of a remote DTM instance. For an operation that has an update
+ *       to be executed by a remote DTM instance, local client DTM adds (in
+ *       m0_dtm_oper_close()) a no-op update to the remote DTM's fol
+ *       (m0_dtm_fol_remote). This update has unknown version. When the
+ *       operation is executed by the remote DTM, actual version number is
+ *       assigned to this update and this version number is returned to the
+ *       client.
+ *
+ * After the user added all user updates to the operation, it adds the operation
+ * to the distributed transaction and closes the operation.
  *
  *
  *
  *
  *
+ * @section Concurrency
  *
- *
- *
- *
- *
- * @par Concurrency
- *
- * @par Ownership
+ * @section Ownership
+ */
+/**
+ * @defgroup dtm
  *
  * @{
  */
@@ -451,6 +539,12 @@ struct m0_dtm {
 	struct m0_dtm_fol                 d_fol;
 	struct m0_tl                      d_excited;
 	const struct m0_dtm_history_type *d_htype[M0_DTM_HISTORY_TYPE_NR];
+};
+
+enum m0_dtx_state {
+	M0_DTX_INIT = 1,
+	M0_DTX_OPEN,
+	M0_DTX_DONE
 };
 
 struct m0_dtx {
