@@ -594,7 +594,7 @@ static void transmit_build(void)
 		oper_populate(i, nr);
 		m0_dtm_oper_pack(&oper_src[i], &tgt.lre_rem, &ode);
 		m0_dtm_oper_pack(&oper_src[i], &tgt.lre_rem, &redo_ode[i]);
-		update_src[i][0].upd_body = &redo_fop[i];
+		update_src[i][0].upd_comm.uc_body = &redo_fop[i];
 
 		m0_dtm_update_list_init(&uu);
 		m0_dtm_update_link(&uu, update_tgt[i], nr + TGT_DELTA);
@@ -720,7 +720,7 @@ static void redo_test(void)
 	tgt_init();
 
 	ticked = 0;
-	m0_dtm_history_redo(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 0);
+	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 0);
 	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
 	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();

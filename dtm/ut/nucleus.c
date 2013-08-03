@@ -117,7 +117,7 @@ static void ctx_init(void)
 {
 	int i;
 
-	M0_SET0(&c);
+	M0_SET0(&cc);
 	m0_dtm_nu_init(&cc.c_nu);
 	nu_lock(&cc.c_nu);
 	for (i = 0; i < ARRAY_SIZE(cc.c_hi); ++i) {
@@ -362,7 +362,7 @@ static void op_done(void)
 	ctx_state(1, M0_DOS_INPROGRESS);
 
 	m0_dtm_op_done(&cc.c_op[0]);
-	m0_dtm_op_done(&cc.yc_op[1]);
+	m0_dtm_op_done(&cc.c_op[1]);
 	ctx_state(0, M0_DOS_VOLATILE);
 	ctx_state(1, M0_DOS_VOLATILE);
 

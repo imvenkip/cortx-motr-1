@@ -43,11 +43,8 @@ static struct m0_fol_rec_header *h;
 static struct m0_fol_rec_desc   *d;
 static struct m0_fol             fol;
 static struct m0_fol_rec         r;
-<<<<<<< HEAD
-=======
 static struct m0_fol_rec_desc   *d;
 static struct m0_fol_rec_header *hh;
->>>>>>> Eliminate static variables named "c" and "h".
 static struct m0_buf             buf;
 static struct m0_dbenv           db;
 static struct m0_db_tx           tx;
@@ -93,7 +90,7 @@ static void test_init(void)
 	m0_fol_rec_init(&r);
 
 	d = &r.fr_desc;
-	h = &d->rd_header;
+	hh = &d->rd_header;
 #else
 	struct m0_be_tx_credit cred = {};
 	int		       rc;
@@ -172,7 +169,7 @@ static void test_rec_part_type_unreg(void)
 static void test_add(void)
 {
 #if XXX_USE_DB5
-	M0_SET0(h);
+	M0_SET0(hh);
 
 	hh->rh_refcount = 1;
 
@@ -375,18 +372,14 @@ static int ub_init(const char *opts M0_UNUSED)
 	test_init();
 	test_rec_part_type_reg();
 
-	M0_SET0(h);
+	M0_SET0(hh);
 
-<<<<<<< HEAD
-	h->rh_refcount = 1;
+	hh->rh_refcount = 1;
 #else
 	test_init();
 	test_rec_part_type_reg();
 	*g_hdr = (struct m0_fol_rec_header){ .rh_refcount = 1 };
 #endif
-=======
-	hh->rh_refcount = 1;
->>>>>>> Eliminate static variables named "c" and "h".
 	return 0;
 }
 
