@@ -156,6 +156,21 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
 #endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
+#if !XXX_USE_DB5
+/** Fol operations that modify memory. */
+enum m0_fol_op {
+	M0_FO_CREATE,  /**< m0_fol_create() */
+	M0_FO_DESTROY, /**< m0_fol_destroy() */
+	M0_FO_REC_ADD  /**< m0_fol_rec_add() */
+};
+/**
+ * Calculates the credit needed to perform one fol operation of type
+ * `optype' and adds this credit to `accum'.
+ */
+M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
+			       struct m0_be_tx_credit *accum);
+#endif
+
 /**
    Adds a record to the fol, in the transaction context.
 

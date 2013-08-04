@@ -82,6 +82,24 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 	.xo_ptr  = r->rp_data                         \
 }
 
+enum {
+	FOL_KEY_SIZE = sizeof(m0_lsn_t),
+	/*
+	 * The maximum possible length of fol record.
+	 *
+	 * We need to obtain sufficient BE credit before adding new record
+	 * to the fol. Fol records are of variable length and the actual
+	 * length is hard, if possible, to calculate at the moment of
+	 * m0_fol_credit() call. We use the empirical value of maximum
+	 * possible record length instead.
+	 *
+	 * XXX REVISEME: If the value is not sufficient, it should be
+	 * increased. Alternative (proper?) solution is to calculate the
+	 * size of fol record as a function of rpc opcode.
+	 */
+	FOL_REC_MAXSIZE = 512
+};
+
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
 	return lsn > M0_LSN_RESERVED_NR;
@@ -115,7 +133,7 @@ static int lsn_cmp(struct m0_table *table, const void *key0, const void *key1)
 static const struct m0_table_ops fol_ops = {
 	.to = {
 		[TO_KEY] = {
-			.max_size = sizeof(m0_lsn_t)
+			.max_size = FOL_KEY_SIZE
 		},
 		[TO_REC] = {
 			.max_size = ~0
@@ -124,9 +142,9 @@ static const struct m0_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 #else
-static m0_bcount_t fol_ksize(const void *key)
+static m0_bcount_t fol_ksize(const void *_)
 {
-	return sizeof(m0_lsn_t);
+	return FOL_KEY_SIZE;
 }
 
 static m0_bcount_t fol_vsize(const void *data)
@@ -144,6 +162,8 @@ static m0_bcount_t fol_vsize(const void *data)
 	/* XXX There is no way to return an error code from
 	 * m0_be_btree_kv_ops::ko_vsize(). */
 	M0_ASSERT(rc == 0 && hdr.rh_magic == M0_FOL_REC_MAGIC);
+
+	M0_POST(hdr.rh_data_len <= FOL_REC_MAXSIZE);
 	return hdr.rh_data_len;
 }
 
@@ -180,7 +200,7 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 	m0_fol_rec_init(rec);
 	pair = &rec->fr_pair;
 	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
-			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
+			 FOL_KEY_SIZE, NULL, 0);
 	return m0_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx, 0);
 }
 #else
@@ -190,8 +210,7 @@ static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 
 	m0_fol_rec_init(rec);
 	rec->fr_fol = fol;
-	m0_buf_init(&rec->fr_key, &rec->fr_desc.rd_lsn,
-		    sizeof rec->fr_desc.rd_lsn);
+	m0_buf_init(&rec->fr_key, &rec->fr_desc.rd_lsn, FOL_KEY_SIZE);
 	M0_SET0(&rec->fr_val);
 	m0_be_btree_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_store);
 }
@@ -343,6 +362,25 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol)
 }
 
 #if !XXX_USE_DB5
+M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
+			       struct m0_be_tx_credit *accum)
+{
+	switch (optype) {
+	case M0_FO_CREATE:
+		m0_be_btree_create_credit(&fol->f_store, 1, accum);
+		break;
+	case M0_FO_DESTROY:
+		m0_be_btree_destroy_credit(&fol->f_store, 1, accum);
+		break;
+	case M0_FO_REC_ADD:
+		m0_be_btree_insert_credit(&fol->f_store, 1, FOL_KEY_SIZE,
+					  FOL_REC_MAXSIZE, accum);
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid optype");
+	}
+}
+
 /**
  * Performs `action' over the `tree' transactionally.
  * Sufficient credit (`cred') should be prepared beforehand.
@@ -414,7 +452,6 @@ M0_INTERNAL int m0_fol_destroy(struct m0_fol *fol)
 M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol)
 {
 	m0_lsn_t lsn;
-
 	/*
 	 * Obtain next fol lsn under the lock. Alternatively, m0_fol::f_lsn
 	 * could be made into a m0_atomic64 instance.
@@ -435,8 +472,7 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
 
 	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
 
-	m0_db_pair_setup(&pair, &fol->f_table,
-			 &drec->rd_lsn, sizeof drec->rd_lsn,
+	m0_db_pair_setup(&pair, &fol->f_table, &drec->rd_lsn, FOL_KEY_SIZE,
 			 buf->b_addr, buf->b_nob);
 	return m0_table_insert(tx, &pair);
 }
@@ -444,13 +480,12 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 			       struct m0_buf *buf)
 {
-	const struct m0_buf    key = M0_BUF_INIT(sizeof drec->rd_lsn,
-						 &drec->rd_lsn);
+	const struct m0_buf    key = M0_BUF_INIT(FOL_KEY_SIZE, &drec->rd_lsn);
 	struct m0_be_tx_credit cred = {0};
 
 	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
 
-	m0_be_btree_insert_credit(&fol->f_store, 1, key.b_nob, buf->b_nob,
+	m0_be_btree_insert_credit(&fol->f_store, 1, FOL_KEY_SIZE, buf->b_nob,
 				  &cred);
 	return btree_transact(m0_be_btree_insert, &fol->f_store, &cred);
 }
@@ -690,7 +725,12 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
 		len += m0_xcode_data_size(&ctx, &REC_PART_XCODE_OBJ(part));
 	} m0_tl_endfor;
-	return m0_align(len, 8);
+
+	len = m0_align(len, 8);
+#if !XXX_USE_DB5
+	M0_POST(len <= FOL_REC_MAXSIZE);
+#endif
+	return len;
 }
 
 static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
