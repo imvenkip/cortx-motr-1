@@ -159,7 +159,7 @@ static void bufvec_initialize(struct m0_bufvec **bvec, uint32_t count,
 static void bufvec_fill(struct m0_bufvec *x);
 static void bufvec_fini(struct m0_bufvec *bvec, uint32_t count);
 static bool bufvec_eq(struct m0_bufvec *bvec1, struct m0_bufvec *bvec2);
-static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src);
+//static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src);
 static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len);
 static void buf_free(struct m0_buf *buf, uint32_t count);
 
@@ -993,8 +993,7 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 		node[0].sin_ir.si_alive_nr;
 	for (i = 0; i < node_nr; ++i) {
 		ir = node[i].sin_ir;
-		for (j = 0; j < node[i].sin_alive_nr && node[i].sin_alive_nr >
-		     1; ++j) {
+		for (j = 0; j < node[i].sin_alive_nr; ++j) {
 			m0_bitmap_set(&alive_bitmap, node[i].sin_alive[j],
 				      true);
 			alive_idx = node[i].sin_alive[j];
@@ -1017,21 +1016,7 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 			m0_bitmap_set(&alive_bitmap, node[i].sin_alive[j],
 				      false);
 		}
-		/* If only single alive block resides on a node it passes
-		 * through the same to output accumulator buffer. */
-		if (node[i].sin_alive_nr == 1) {
-			for (k = 0; k < total_failures; ++k) {
-				m0_bitmap_set(&node[i].sin_bitmap[k],
-					      node[i].sin_alive[0], true);
-				if (node[i].sin_alive[0] < ir.si_data_nr)
-					bufvec_copy(&node[i].sin_recov_arr[k],
-						    &x[node[i].sin_alive[0]]);
-				else
-					bufvec_copy(&node[i].sin_recov_arr[k],
-						    &p[node[i].sin_alive[0]-
-						    ir.si_data_nr]);
-			}
-		}
+		m0_sns_ir_local_xform(&node[i].sin_ir);
 	}
 	m0_bitmap_fini(&alive_bitmap);
 }
@@ -1237,7 +1222,7 @@ static bool bufvec_eq(struct m0_bufvec *bvec_1, struct m0_bufvec *bvec_2)
 		 !m0_bufvec_cursor_move(&bvec_2_cursor, step));
 	return ret == 0;
 }
-
+#if 0
 static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src)
 {
 	struct m0_bufvec_cursor src_cursor;
@@ -1255,7 +1240,7 @@ static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src)
 	} while (!m0_bufvec_cursor_move(&src_cursor, step) &&
 		 !m0_bufvec_cursor_move(&des_cursor, step));
 }
-
+#endif
 static inline uint32_t block_nr(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;

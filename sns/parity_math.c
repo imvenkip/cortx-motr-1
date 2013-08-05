@@ -122,8 +122,6 @@ static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 
 static void restored_list_update(struct m0_sns_ir_block *block);
 
-static void transform_recently_restored_blocks(struct m0_sns_ir *ir);
-
 static inline bool is_bitmap_empty(const struct m0_bitmap *bitmap);
 
 static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
@@ -738,6 +736,7 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	ir->si_parity_recovery_mat = math->pmi_vandmat_parity_slice;
 	ir->si_failed_data_nr	   = 0;
 	ir->si_alive_nr		   = block_count(ir);
+	ir->si_mode		   = M0_SI_BARE;
 
 	M0_ALLOC_ARR(ir->si_blocks, ir->si_alive_nr);
 	if (ir->si_blocks == NULL)
@@ -936,14 +935,18 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 	size_t		        b_set_nr;
 	struct m0_sns_ir_block *blocks;
 	struct m0_sns_ir_block *alive_block;
-	M0_PRE(ir != NULL && bufvec != NULL && bitmap != NULL);
 
+	M0_PRE(ir != NULL && bufvec != NULL && bitmap != NULL);
+	M0_PRE(M0_IN(ir->si_mode, (M0_SI_BARE, M0_SI_XFORM)));
 	b_set_nr = m0_bitmap_set_nr(bitmap);
 	M0_PRE(b_set_nr > 0);
-	M0_PRE(ergo(b_set_nr > 1, is_valid_block_idx(ir, failed_index)));
-	M0_PRE(ergo(b_set_nr > 1, M0_IN(ir->si_blocks[failed_index].sib_status,
-					(M0_SI_BLOCK_FAILED,
-					 M0_SI_BLOCK_RESTORED))));
+	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
+		    is_valid_block_idx(ir, failed_index)));
+	M0_PRE(ergo(b_set_nr > 1, ir->si_mode == M0_SI_XFORM));
+
+	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
+	       M0_IN(ir->si_blocks[failed_index].sib_status,
+		     (M0_SI_BLOCK_FAILED, M0_SI_BLOCK_RESTORED))));
 	if (b_set_nr == 1) {
 		for (block_idx = 0; block_idx < bitmap->b_nr; ++block_idx) {
 			if (m0_bitmap_get(bitmap, block_idx))
@@ -951,8 +954,8 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		}
 	}
 	blocks = ir->si_blocks;
-	switch (b_set_nr) {
-	case 1:
+	switch (ir->si_mode) {
+	case M0_SI_BARE:
 		alive_block = &blocks[block_idx];
 		alive_block->sib_addr = bufvec;
 		for (j = 0; j < block_count(ir); ++j) {
@@ -963,7 +966,7 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 			}
 		}
 		break;
-	default:
+	case M0_SI_XFORM:
 		if (!is_usable(ir, (struct m0_bitmap*) bitmap,
 			       &blocks[failed_index]))
 			break;
@@ -975,8 +978,6 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 			restored_list_update(&blocks[failed_index]);
 		break;
 	}
-	/* Recovery using recently restored data-blocks */
-	transform_recently_restored_blocks(ir);
 }
 
 static void incr_recover(struct m0_sns_ir_block *failed_block,
@@ -1076,7 +1077,7 @@ static void restored_list_update(struct m0_sns_ir_block *block)
 	}
 }
 
-static void transform_recently_restored_blocks(struct m0_sns_ir *ir)
+void m0_sns_ir_local_xform(struct m0_sns_ir *ir)
 {
 	struct m0_sns_ir_block *res_block;
 	struct m0_sns_ir_block *par_block;
@@ -1091,15 +1092,18 @@ static void transform_recently_restored_blocks(struct m0_sns_ir *ir)
 	 * of failed parity blocks.
 	 */
 	for (i = 0; i < block_count(ir); ++i) {
-		if (ir->si_blocks[i].sib_status == M0_SI_BLOCK_RESTORED)
+		if (is_data(ir, ir->si_blocks[i].sib_idx) &&
+		    ir->si_blocks[i].sib_status != M0_SI_BLOCK_ALIVE)
 			for (j = 0; j < block_count(ir); ++j) {
-				if (ir->si_blocks[j].sib_status ==
+				if (!is_data(ir, ir->si_blocks[j].sib_idx) &&
+				    ir->si_blocks[j].sib_status ==
 				    M0_SI_BLOCK_FAILED)
 					incr_recover(&par_block[j],
 						     &res_block[i],
 						     ir);
 			}
 	}
+	ir->si_mode = M0_SI_XFORM;
 }
 
 static inline bool is_bitmap_empty(const struct m0_bitmap *bitmap)
