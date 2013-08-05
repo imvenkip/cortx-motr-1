@@ -55,6 +55,8 @@
  * to prepare for more updates than the transaction will actually make (the
  * latter quantity is usually impossible to know beforehand anyway), but the
  * transaction must never capture more than it prepared.
+ *
+ * @see M0_BE_TX_CREDIT(), M0_BE_TX_CREDIT_INIT(), M0_BE_TX_CREDIT_OBJ()
  */
 struct m0_be_tx_credit {
 	/**
@@ -66,13 +68,13 @@ struct m0_be_tx_credit {
 	m0_bcount_t tc_reg_size;
 };
 
-/*
- * Note the absence of m0_be_tx_credit_fini().
- *
- * XXX DELETEME: Get rid of m0_be_tx_credit_init(). Use `= {0}' for
- * initialising and M0_SET0() for resetting.
- */
-M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
+#define M0_BE_TX_CREDIT(name) struct m0_be_tx_credit name = {0}
+
+#define M0_BE_TX_CREDIT_INIT(nr, size) \
+	{ .tc_reg_nr = (nr), .tc_reg_size = (size) }
+
+#define M0_BE_TX_CREDIT_OBJ(nr, size) \
+	(struct m0_be_tx_credit)M0_BE_TX_CREDIT_INIT(nr, size)
 
 /** c0 += c1 */
 M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
@@ -96,16 +98,6 @@ M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
 /* c0 <= c1 */
 M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 				    const struct m0_be_tx_credit *c1);
-
-#define M0_BE_TX_CREDIT(reg_nr, reg_size)	\
-	((struct m0_be_tx_credit) {		\
-		.tc_reg_nr = (reg_nr),		\
-		.tc_reg_size = (reg_size)	\
-	})
-
-#define M0_BE_TX_CREDIT_ZERO M0_BE_TX_CREDIT(0, 0)
-#define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof (type))
-#define M0_BE_TX_CREDIT_REG(reg) M0_BE_TX_CREDIT(1, (reg)->br_size)
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_CREDIT_H__ */

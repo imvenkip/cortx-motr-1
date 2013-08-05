@@ -52,11 +52,11 @@ static void *be_ut_tx_alloc(void **alloc, m0_bcount_t size)
 void m0_be_ut_tx_usecase_success(void)
 {
 	struct m0_be_ut_backend	 ut_be;
-	struct m0_be_tx_credit	 credit;
 	struct m0_be_ut_seg	 ut_seg;
 	struct m0_be_seg	*seg = &ut_seg.bus_seg;
-	struct m0_be_tx		 tx_;
-	struct m0_be_tx		*tx = &tx_;
+	struct m0_be_tx_credit	 credit =
+		M0_BE_TX_CREDIT_INIT(1, sizeof(uint64_t));
+	struct m0_be_tx		 tx;
 	uint64_t		*data;
 	int			 rc;
 
@@ -65,27 +65,26 @@ void m0_be_ut_tx_usecase_success(void)
 
 	data = (uint64_t *) ((char *) seg->bs_addr + seg->bs_reserved);
 	*data = 0x101;
-	credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
 
-	m0_be_ut_backend_tx_init(&ut_be, tx);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
-	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+	m0_be_ut_backend_tx_init(&ut_be, &tx);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
 
-	m0_be_tx_prep(tx, &credit);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
-	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+	m0_be_tx_prep(&tx, &credit);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
 
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_ACTIVE);
 
-	m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, data));
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
+	m0_be_tx_close(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-	m0_be_tx_fini(tx);
+	m0_be_tx_fini(&tx);
 
 	m0_be_ut_seg_check_persistence(&ut_seg);
 	m0_be_ut_seg_fini(&ut_seg);
@@ -105,7 +104,7 @@ void m0_be_ut_tx_usecase_failure(void)
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
-	m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1ULL << 21, 1ULL << 25));
+	m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_OBJ(1ULL << 21, 1ULL << 25));
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 	M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
@@ -208,8 +207,7 @@ static void be_ut_tx_test(size_t nr)
 	for (x = xs; x->size != 0; ++x) {
 		m0_be_ut_backend_tx_init(&ut_be, &x->tx);
 		m0_be_tx_get(&x->tx);
-		m0_be_tx_credit_init(&x->cred);
-		m0_be_tx_credit_add(&x->cred, &M0_BE_TX_CREDIT(1, x->size));
+		x->cred = M0_BE_TX_CREDIT_OBJ(1, x->size);
 	}
 
 	for (x = xs; x->size != 0; ++x)
@@ -290,10 +288,10 @@ void m0_be_ut_tx_persistence(void)
 		for (i = 0; i < ARRAY_SIZE(regs); ++i)
 			be_ut_tx_reg_rand(&regs[i], seg, &seed);
 
-		m0_be_tx_credit_init(&credit);
+		M0_SET0(&credit);
 		for (i = 0; i < ARRAY_SIZE(regs); ++i) {
-			m0_be_tx_credit_add(&credit,
-					    &M0_BE_TX_CREDIT_REG(&regs[i]));
+			m0_be_tx_credit_add(&credit, &M0_BE_TX_CREDIT_OBJ(
+						    1, regs[i].br_size));
 		}
 
 		m0_be_tx_prep(tx, &credit);
@@ -301,7 +299,8 @@ void m0_be_ut_tx_persistence(void)
 		M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
 		m0_be_tx_open(tx);
-		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+		rc = m0_be_tx_timedwait(tx,
+					M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 					M0_TIME_NEVER);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
@@ -366,7 +365,7 @@ void m0_be_ut_tx_fast(void)
 			M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 			M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 
-			m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_REG(&reg));
+			m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_OBJ(1, reg.br_size));
 			M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 			M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
 

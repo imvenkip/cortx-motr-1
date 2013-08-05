@@ -22,13 +22,12 @@
 #include "lib/trace.h"
 
 #include "be/tx_group_ondisk.h"
-
 #include "be/log.h"
-#include "be/tx_regmap.h"	/* m0_be_reg_area_used */
-#include "be/tx_internal.h"	/* m0_be_tx__reg_area */
-
-#include "lib/memory.h"		/* m0_alloc */
-#include "lib/errno.h"		/* ENOMEM */
+#include "be/tx_regmap.h"    /* m0_be_reg_area_used */
+#include "be/tx_internal.h"  /* m0_be_tx__reg_area */
+#include "lib/memory.h"      /* m0_alloc */
+#include "lib/misc.h"        /* M0_SET0 */
+#include "lib/errno.h"       /* ENOMEM */
 
 /**
  * @addtogroup be
@@ -48,15 +47,16 @@ M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
 	*io_tx = *prepared;
 
 	/* for log wrap case */
-	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT(1, 0));
-	m0_be_tx_credit_add(io_tx,
-			    &M0_BE_TX_CREDIT_TYPE(struct tx_group_header));
-	m0_be_tx_credit_add(io_tx,
-			    &M0_BE_TX_CREDIT_TYPE(struct tx_group_entry));
-	m0_be_tx_credit_mac(io_tx, &M0_BE_TX_CREDIT_TYPE(struct tx_reg_header),
+	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT_OBJ(1, 0));
+	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT_OBJ(
+				    1, sizeof(struct tx_group_header)));
+	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT_OBJ(
+				    1, sizeof(struct tx_group_entry)));
+	m0_be_tx_credit_mac(io_tx, &M0_BE_TX_CREDIT_OBJ(
+				    1, sizeof(struct tx_reg_header)),
 			    prepared->tc_reg_nr);
-	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT_TYPE(struct
-						  tx_group_commit_block));
+	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT_OBJ(
+				    1, sizeof(struct tx_group_commit_block)));
 }
 
 M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
@@ -66,12 +66,12 @@ M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
 	struct m0_be_tx_credit io_tx;
 	M0_PRE(tx_nr_max > 0);
 
-	m0_be_tx_credit_init(io_group);
+	M0_SET0(io_group);
 
 	be_log_io_credit_tx(&io_tx, prepared);
 	m0_be_tx_credit_add(io_group, &io_tx);
 
-	be_log_io_credit_tx(&io_tx, &M0_BE_TX_CREDIT(0, 0));
+	be_log_io_credit_tx(&io_tx, &M0_BE_TX_CREDIT_OBJ(0, 0));
 	m0_be_tx_credit_mac(io_group, &io_tx, tx_nr_max - 1);
 }
 
@@ -159,7 +159,7 @@ M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
 	struct m0_be_tx       *tx;
 
 	*tx_nr = 0;
-	m0_be_tx_credit_init(reserved);
+	M0_SET0(reserved);
 	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
 		m0_be_reg_area_prepared(&tx->t_reg_area, &tx_prepared);
 		m0_be_tx_credit_add(reserved, &tx_prepared);
@@ -172,8 +172,8 @@ M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
 						struct m0_be_tx_credit
 						*io_reserved)
 {
-	struct m0_be_tx_credit reserved = M0_BE_TX_CREDIT(0, 0);
-	size_t                 tx_nr;
+	M0_BE_TX_CREDIT(reserved);
+	size_t          tx_nr;
 
 	m0_be_group_ondisk_reserved(go, group, &reserved, &tx_nr);
 	be_log_io_credit_group(io_reserved, tx_nr, &reserved);

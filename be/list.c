@@ -40,10 +40,8 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 				   m0_bcount_t              nr,
 				   struct m0_be_tx_credit  *accum)
 {
+	M0_BE_TX_CREDIT(cred);
 	struct m0_be_allocator *a = &list->bl_seg->bs_allocator;
-	struct m0_be_tx_credit  cred;
-
-	m0_be_tx_credit_init(&cred);
 
 	switch (optype) {
 	case M0_BLO_CREATE:
@@ -57,14 +55,14 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 	case M0_BLO_INSERT:
 	case M0_BLO_DELETE:
 		/* list header */
-		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT
-				    (1, sizeof(struct m0_list)));
+		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
+					    1, sizeof(struct m0_list)));
 		/* left list link */
-		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT
-				    (1, sizeof(struct m0_list_link)));
+		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
+					    1, sizeof(struct m0_list_link)));
 		/* right list link */
-		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT
-				    (1, sizeof(struct m0_list_link)));
+		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
+					    1, sizeof(struct m0_list_link)));
 		/* inserted element */
 		/* XXX: what about links with an array of bytes the last
 		 * element?? struct { char mem[0]; }. From the other hand,
@@ -73,11 +71,11 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 		/* Here we have to capture just a link.. Assume deletion
 		 * scenario, in which user still has to capture ambient object
 		 * after this m0_be_free()...
-		 *  m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT
-		 * 		       (1, list->bl_descr->td_container_size));
+		 *  m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
+		 *          1, list->bl_descr->td_container_size));
 		 */
-		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT
-				    (1, sizeof(struct m0_list_link)));
+		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
+					    1, sizeof(struct m0_list_link)));
 		break;
 	case M0_BLO_MOVE:
 	default:
@@ -105,15 +103,16 @@ M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list)
 	m0_tlist_fini(list->bl_descr, &list->bl_list);
 }
 
-M0_INTERNAL void m0_be_list_create(struct m0_be_list        **list,
-				   const struct m0_tl_descr  *desc,
-				   struct m0_be_seg          *seg,
-				   struct m0_be_op           *op,
-				   struct m0_be_tx           *tx)
+/* XXX TODO: m0_be_list_create() should return a pointer to the list. */
+M0_INTERNAL void m0_be_list_create(struct m0_be_list       **list,
+				   const struct m0_tl_descr *desc,
+				   struct m0_be_seg         *seg,
+				   struct m0_be_op          *op,
+				   struct m0_be_tx          *tx)
 {
 	struct m0_be_allocator *alloc = &seg->bs_allocator;
-
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+
 	*list = m0_be_alloc(alloc, tx, op, sizeof(**list), ALLOC_SHIFT);
 	if (*list == NULL)
 		return;

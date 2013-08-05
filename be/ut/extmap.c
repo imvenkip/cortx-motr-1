@@ -47,15 +47,15 @@ static struct m0_be_op         *it_op;
 
 static void emap_alloc(struct m0_be_tx *tx)
 {
-	int                     rc;
-	struct m0_be_tx_credit  cred;
+	M0_BE_TX_CREDIT(cred);
 	struct m0_be_allocator *a = &be_seg->bs_allocator;
+	int                     rc;
 
-	m0_be_tx_credit_init(&cred);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *emap, 0, &cred);
 
 	m0_be_ut_backend_tx_init(&be_ut_emap_backend, tx);
 	m0_be_tx_prep(tx, &cred);
+
 	m0_be_tx_open(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 				M0_TIME_NEVER);
@@ -133,8 +133,8 @@ static void test_obj_fini(struct m0_be_tx *tx)
 
 static void test_init(void)
 {
-	int			 rc;
-	struct m0_be_tx_credit	 cred;
+	M0_BE_TX_CREDIT(cred);
+	int             rc;
 
 	M0_ENTRY();
 
@@ -147,7 +147,6 @@ static void test_init(void)
 	emap_alloc(&tx1);
 	m0_be_emap_init(emap, be_seg);
 
-	m0_be_tx_credit_init(&cred);
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_DESTROY, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_INSERT, 1, &cred);

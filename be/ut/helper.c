@@ -63,12 +63,11 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 			.bc_engine = {
 				.bec_group_nr = 1,
 				.bec_log_size = 1 << 27,
-				.bec_tx_size_max =
-					M0_BE_TX_CREDIT(1 << 20, 1 << 26),
-				.bec_group_size_max =
-					M0_BE_TX_CREDIT(1 << 21, 1 << 27),
-				.bec_group_tx_max = 20,
-				.bec_group_fom_reqh = NULL,
+				.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
+					1 << 20, 1 << 26),
+				.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
+					1 << 21, 1 << 27),
+				.bec_group_tx_max = 20
 			},
 		},
 	};
@@ -200,15 +199,14 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 					 bool init)
 {
 	struct m0_be_allocator *a;
-	struct m0_be_tx_credit	credit;
-	struct m0_be_tx	        tx;
-	int			rc;
+	M0_BE_TX_CREDIT(credit);
+	struct m0_be_tx         tx;
+	int                     rc;
 
 	a = ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
 
 	if (ut_be != NULL) {
 		m0_be_ut_backend_tx_init(ut_be, &tx);
-		m0_be_tx_credit_init(&credit);
 		m0_be_allocator_credit(a, M0_BAO_CREATE, 0, 0, &credit);
 		m0_be_tx_prep(&tx, &credit);
 		m0_be_tx_open(&tx);

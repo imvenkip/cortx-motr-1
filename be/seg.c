@@ -402,7 +402,7 @@ be_seg__io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 	M0_PRE(m0_be__reg_invariant(reg));
 
 	rc = m0_be_io_init(&io, reg->br_seg->bs_stob,
-			   &M0_BE_TX_CREDIT(1, reg->br_size));
+			   &M0_BE_TX_CREDIT_OBJ(1, reg->br_size));
 	if (rc != 0)
 		return rc;
 

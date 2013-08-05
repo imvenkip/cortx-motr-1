@@ -442,8 +442,7 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 
 	*ra = (struct m0_be_reg_area) {
 		.bra_data_copy = data_copy,
-		.bra_prepared  = *prepared,
-		.bra_captured  = M0_BE_TX_CREDIT(0, 0)
+		.bra_prepared  = *prepared
 	};
 
 	rc = m0_be_regmap_init(&ra->bra_map, ops, ra,
@@ -481,7 +480,7 @@ M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
 
 	M0_PRE(m0_be_reg_area__invariant(ra));
 
-	m0_be_tx_credit_init(used);
+	M0_SET0(used);
 	for (rd = m0_be_regmap_first(&ra->bra_map); rd != NULL;
 	     rd = m0_be_regmap_next(&ra->bra_map, rd))
 		m0_be_tx_credit_add(used, &M0_BE_REG_D_CREDIT(rd));
@@ -590,7 +589,7 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
 	m0_be_tx_credit_add(&ra->bra_captured,
-			    &M0_BE_TX_CREDIT(1, rd->rd_reg.br_size));
+			    &M0_BE_TX_CREDIT_OBJ(1, rd->rd_reg.br_size));
 	M0_ASSERT(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
 	m0_be_regmap_add(&ra->bra_map, rd);
 
@@ -626,7 +625,7 @@ M0_INTERNAL void m0_be_reg_area_reset(struct m0_be_reg_area *ra)
 
 	m0_be_regmap_reset(&ra->bra_map);
 	ra->bra_area_used = 0;
-	m0_be_tx_credit_init(&ra->bra_captured);
+	M0_SET0(&ra->bra_captured);
 
 	M0_POST(m0_be_reg_area__invariant(ra));
 }
