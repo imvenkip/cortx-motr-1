@@ -397,7 +397,8 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
 					    struct m0_pdclust_instance *pi,
-					    uint64_t group)
+					    uint64_t group,
+					    struct m0_bitmap *fmap_out)
 {
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
@@ -415,8 +416,13 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		for (i = 0; i < scm->sc_failures_nr; ++i) {
-			if (cobfid.f_container == scm->sc_it.si_fdata[i])
+			if (cobfid.f_container == scm->sc_it.si_fdata[i]) {
 				M0_CNT_INC(group_failures);
+				if (fmap_out != NULL) {
+					M0_ASSERT(fmap_out->b_nr == dpupg);
+					m0_bitmap_set(fmap_out, unit, 1);
+				}
+			}
 		}
 	}
 
@@ -440,7 +446,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                 group = id->ai_lo.u_lo;
                 /* Firstly check if this group has any failed units. */
                 group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
-                                                          pi, group);
+                                                          pi, group, NULL);
                 if (group_failures > 0 ) {
 			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 			       id->ai_hi.u_hi, id->ai_hi.u_lo,

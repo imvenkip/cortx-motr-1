@@ -395,6 +395,16 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 				       uint32_t node_index,
 				       enum m0_pool_nd_state *state_out);
 
+
+/**
+ * Returns true if device is in the spare usage array of pool machine.
+ * @param pm Pool machine pointer in which spare usage array is populated.
+ * @param device_index Index of device which needs to be searched.
+ */
+M0_INTERNAL bool
+m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
+					   uint32_t device_index);
+
 /**
  * Query the {sns repair, spare slot} pair of a specified device.
  * @param pm pool machine.

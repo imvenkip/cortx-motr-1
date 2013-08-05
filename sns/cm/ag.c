@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -16,6 +16,8 @@
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
  * Original creation date: 12/09/2012
+ * Revision: Anup Barve <anup_barve@xyratex.com>
+ * Revision date: 08/05/2013
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
@@ -26,6 +28,7 @@
 #include "lib/misc.h"
 
 #include "fid/fid.h"
+#include "sns/parity_repair.h"
 
 #include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
@@ -63,70 +66,54 @@ M0_INTERNAL void m0_sns_cm_ag_agid_setup(const struct m0_fid *gob_fid, uint64_t 
 }
 
 static int incr_recover_failure_register(struct m0_sns_cm_ag *sag,
-					 struct m0_sns_cm *scm,
+					 struct m0_cm *cm,
 					 const struct m0_fid *fid,
 					 struct m0_pdclust_layout *pl)
 {
-	struct m0_fid               cob_fid;
 	struct m0_cm_cp            *cp;
 	struct m0_net_buffer       *nbuf_head;
-        struct m0_pdclust_src_addr  sa;
-        struct m0_pdclust_tgt_addr  ta;
-        struct m0_pdclust_instance *pi;
 	uint64_t                    group;
-	uint64_t                    unit;
-	int                         start;
-	int                         end;
+	uint32_t                    spare;
 	int                         rc;
 	int                         i;
 
 	M0_PRE(sag != NULL);
-	M0_PRE(scm != NULL);
+	M0_PRE(cm != NULL);
 	M0_PRE(fid != NULL);
 	M0_PRE(pl != NULL);
 
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
-	if (rc != 0)
-		return rc;
-
 	group = agid2group(&sag->sag_base.cag_id);
-        sa.sa_group = group;
-        start = m0_sns_cm_ag_unit_start(scm, pl);
-        end = m0_sns_cm_ag_unit_end(scm, pl);
 
-	for (unit = start; unit < end; ++unit) {
-                M0_SET0(&ta);
-                M0_SET0(&cob_fid);
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cob_fid);
-		for (i = 0; i < scm->sc_failures_nr; ++i) {
-			if (cob_fid.f_container == scm->sc_it.si_fdata[i]) {
-				sag->sag_fc[i].fc_failed_idx = unit;
-				cp = &sag->sag_fc[i].fc_tgt_acc_cp.sc_base;
-				m0_cm_cp_bufvec_merge(cp);
-				nbuf_head = cp_data_buf_tlist_head(
-						&cp->c_buffers);
-				rc = m0_sns_ir_failure_register(
-						&nbuf_head->nb_buffer,
+	for (i = 0; i < sag->sag_fnr; ++i) {
+		rc = m0_sns_repair_spare_map(cm->cm_pm, fid, pl, group,
+					     sag->sag_fc[i].fc_failed_idx,
+					     &spare);
+		if (rc != 0)
+			goto out;
+
+		sag->sag_fc[i].fc_spare_idx = spare;
+		cp = &sag->sag_fc[i].fc_tgt_acc_cp.sc_base;
+		m0_cm_cp_bufvec_merge(cp);
+		nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
+		rc = m0_sns_ir_failure_register(&nbuf_head->nb_buffer,
 						sag->sag_fc[i].fc_failed_idx,
 						&sag->sag_ir);
-				if (rc != 0)
-					goto out;
-			}
-		}
+		if (rc != 0)
+			goto out;
 	}
+
 out:
-	m0_layout_instance_fini(&pi->pi_base);
 	return rc;
 }
 
-static int incr_recover_init(struct m0_sns_cm_ag *sag, struct m0_sns_cm *scm,
+static int incr_recover_init(struct m0_sns_cm_ag *sag, struct m0_cm *cm,
 			     const struct m0_fid *fid,
 			     struct m0_pdclust_layout *pl)
 {
 	int rc;
 
 	M0_PRE(sag != NULL);
-	M0_PRE(scm != NULL);
+	M0_PRE(cm != NULL);
 	M0_PRE(fid != NULL);
 	M0_PRE(pl != NULL);
 
@@ -144,7 +131,7 @@ static int incr_recover_init(struct m0_sns_cm_ag *sag, struct m0_sns_cm *scm,
 		return rc;
 	}
 
-	rc = incr_recover_failure_register(sag, scm, fid, pl);
+	rc = incr_recover_failure_register(sag, cm, fid, pl);
 	if (rc != 0)
 		goto err;
 
@@ -276,14 +263,20 @@ static const struct m0_cm_aggr_group_ops sns_cm_ag_ops = {
 };
 
 static int sns_cm_ag_failure_ctxs_setup(struct m0_sns_cm_ag *sag,
+					const struct m0_bitmap *fmap,
 					struct m0_pdclust_layout *pl)
 {
 	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
 	uint64_t          tgt_unit;
-	uint64_t          fidx;
+	uint64_t          fidx = 0;
+	int               i;
 	int               rc = 0;
 
-	for (fidx = 0; fidx < sag->sag_fnr; ++fidx) {
+	M0_PRE(fmap != NULL);
+
+	for (i = 0; i < fmap->b_nr; ++i) {
+		if (!m0_bitmap_get(fmap, i))
+			continue;
 		tgt_unit = m0_sns_cm_ag_tgt_unit(sag, pl,
 						 scm->sc_it.si_fdata[fidx],
 						 fidx);
@@ -293,7 +286,11 @@ static int sns_cm_ag_failure_ctxs_setup(struct m0_sns_cm_ag *sag,
 			return rc;
 		sag->sag_fc[fidx].fc_tgt_cob_index =
 				m0_sns_cm_ag_unit2cobindex(sag, tgt_unit, pl);
+		sag->sag_fc[fidx].fc_failed_idx = i;
+		++fidx;
 	}
+
+	M0_POST(fidx == sag->sag_fnr);
 
 	return rc;
 }
@@ -308,6 +305,8 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 	struct m0_fid               gfid;
 	struct m0_pdclust_layout   *pl;
 	struct m0_pdclust_instance *pi;
+	struct m0_bitmap            fmap;
+	uint64_t                    dpupg;
 	uint64_t                    fsize;
 	uint64_t                    f_nr;
 	struct m0_fid              *it_gfid;
@@ -341,8 +340,11 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 		m0_layout_put(m0_pdl_to_layout(pl));
 		return rc;
 	}
+
+	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	m0_bitmap_init(&fmap, dpupg);
 	/* calculate actual failed number of units in this group. */
-	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo);
+	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo, &fmap);
 	m0_layout_instance_fini(&pi->pi_base);
 	M0_ASSERT(f_nr != 0);
 	if (f_nr == 0)
@@ -365,15 +367,13 @@ M0_INTERNAL int m0_sns_cm_ag_alloc(struct m0_cm *cm,
 			      &sns_cm_ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(scm, pl);
 	/* Set the target cob fid of accumulators for this aggregation group. */
-	rc = sns_cm_ag_failure_ctxs_setup(sag, pl);
+	rc = sns_cm_ag_failure_ctxs_setup(sag, &fmap, pl);
 	if (rc != 0)
 		goto cleanup_ag;
 
 	/* Initialise the accumulators. */
-	for (i = 0; i < sag->sag_fnr; ++i) {
+	for (i = 0; i < sag->sag_fnr; ++i)
 		m0_sns_cm_acc_cp_init(&sag->sag_fc[i].fc_tgt_acc_cp, sag);
-		sag->sag_fc[i].fc_failed_idx = ~0;
-	}
 
 	/* Acquire buffers and setup the accumulators. */
 	rc = m0_sns_cm_ag_setup(sag, pl);
@@ -397,6 +397,7 @@ cleanup_ag:
 	m0_free(sag->sag_fc);
 	m0_free(sag);
 done:
+	m0_bitmap_fini(&fmap);
 	M0_LEAVE("ag: %p", sag);
 	return rc;
 }
@@ -423,7 +424,7 @@ M0_INTERNAL int m0_sns_cm_ag_setup(struct m0_sns_cm_ag *sag,
 	}
 
 	agid2fid(&sag->sag_base.cag_id, &gfid);
-	rc = incr_recover_init(sag, scm, &gfid, pl);
+	rc = incr_recover_init(sag, sag->sag_base.cag_cm, &gfid, pl);
 	return rc;
 }
 

@@ -158,7 +158,8 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
 					    struct m0_pdclust_instance *pi,
-					    uint64_t group);
+					    uint64_t group,
+					    struct m0_bitmap *fmap_out);
 
 /**
  * Returns true if the given aggregation group corresponding to the id is

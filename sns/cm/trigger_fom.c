@@ -163,6 +163,7 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 
 static int trigger_fom_tick(struct m0_fom *fom)
 {
+	int                          i;
 	int                          rc;
 	struct m0_reqh              *reqh;
 	struct m0_cm                *cm;
@@ -187,9 +188,14 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		switch(m0_fom_phase(fom)) {
 			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
-				scm->sc_it.si_fdata = &treq->fdata;
-				scm->sc_op          = treq->op;
-				M0_CNT_INC(scm->sc_failures_nr);
+				M0_ALLOC_ARR(scm->sc_it.si_fdata,
+						treq->fdata.fd_nr);
+				M0_ASSERT(scm->sc_it.si_fdata != NULL);
+				for (i = 0; i < treq->fdata.fd_nr; ++i)
+					scm->sc_it.si_fdata[i] =
+						treq->fdata.fd_index[i];
+				scm->sc_failures_nr += treq->fdata.fd_nr;
+				scm->sc_op             = treq->op;
 				m0_mutex_lock(&scm->sc_wait_mutex);
 				m0_clink_init(&tclink, NULL);
 				m0_clink_add(&scm->sc_wait, &tclink);

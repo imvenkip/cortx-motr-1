@@ -656,6 +656,21 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 	return 0;
 }
 
+M0_INTERNAL bool
+m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
+					   uint32_t device_index)
+{
+        int i;
+
+        for (i = 0; i < pm->pm_state.pst_max_device_failures; ++i) {
+                if (pm->pm_state.pst_spare_usage_array[i].psu_device_index ==
+                                device_index) {
+                        return true;
+                }
+        }
+        return false;
+}
+
 M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 						   uint32_t device_index,
 						   uint32_t *spare_slot_out)

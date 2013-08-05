@@ -63,7 +63,7 @@ sns_repair_test()
 		return 1
 	fi
 
-	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -F $fail_device
+	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -N 1 -F $fail_device
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $repair_trigger
 
@@ -88,7 +88,7 @@ sns_repair_test()
 	fi
 
 	echo "Starting SNS Re-balance.."
-	rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -F $fail_device
+	rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -N 1 -F $fail_device
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $rebalance_trigger
 	if ! $rebalance_trigger ; then

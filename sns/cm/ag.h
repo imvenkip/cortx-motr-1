@@ -48,6 +48,12 @@ struct m0_sns_cm_ag_failure_ctx {
 	/** Index of the failed unit in aggregation group. */
 	uint32_t                     fc_failed_idx;
 
+	/**
+	 * Index of spare unit corresponding to the failed unit in aggregation
+	 * group.
+	 */
+	uint32_t                     fc_spare_idx;
+
 	/*
 	 * cob fid containing the target unit for the aggregation
 	 * group.

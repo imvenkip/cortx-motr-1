@@ -26,13 +26,18 @@
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 
+struct failure_data {
+	uint32_t  fd_nr;
+	uint64_t *fd_index;
+} M0_XCA_SEQUENCE;
+
 /**
  * Simplistic implementation of sns repair trigger fop for testing purposes
  * only.
  */
 struct trigger_fop {
-	uint64_t          fdata;
-	uint32_t          op;
+	struct failure_data fdata;
+	uint32_t            op;
 } M0_XCA_RECORD;
 
 struct trigger_rep_fop {

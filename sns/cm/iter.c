@@ -383,7 +383,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 			continue;
 		group_fnr = m0_sns_cm_ag_failures_nr(scm, &sfc->sfc_gob_fid,
 						     sfc->sfc_pdlayout,
-						     sfc->sfc_pi, group);
+						     sfc->sfc_pi, group, NULL);
 		if (group_fnr > 0){
 			sfc->sfc_sa.sa_group = group;
 			sfc->sfc_sa.sa_unit =
