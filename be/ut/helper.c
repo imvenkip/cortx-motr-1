@@ -201,39 +201,39 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 {
 	struct m0_be_allocator *a;
 	struct m0_be_tx_credit	credit;
-	struct m0_be_tx	       _tx;
-	struct m0_be_tx	       *tx = &_tx;
+	struct m0_be_tx	        tx;
 	int			rc;
 
-	ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
-	a = ut_seg->bus_allocator;
+	a = ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
 
 	if (ut_be != NULL) {
-		m0_be_ut_backend_tx_init(ut_be, tx);
+		m0_be_ut_backend_tx_init(ut_be, &tx);
 		m0_be_tx_credit_init(&credit);
 		m0_be_allocator_credit(a, M0_BAO_CREATE, 0, 0, &credit);
-		m0_be_tx_prep(tx, &credit);
-		m0_be_tx_open(tx);
-		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
-						    M0_BTS_FAILED),
+		m0_be_tx_prep(&tx, &credit);
+		m0_be_tx_open(&tx);
+		rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE,
+						     M0_BTS_FAILED),
 					M0_TIME_NEVER);
 		M0_ASSERT(rc == 0);
 	}
+
 	if (init) {
 		rc = m0_be_allocator_init(a, &ut_seg->bus_seg);
 		M0_ASSERT(rc == 0);
-		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : tx);
+		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx);
 		M0_ASSERT(rc == 0);
 	} else {
-		m0_be_allocator_destroy(a, ut_be == NULL ? NULL : tx);
+		m0_be_allocator_destroy(a, ut_be == NULL ? NULL : &tx);
 		m0_be_allocator_fini(a);
 	}
+
 	if (ut_be != NULL) {
-		m0_be_tx_close(tx);
-		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
+		m0_be_tx_close(&tx);
+		rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE),
 					M0_TIME_NEVER);
 		M0_ASSERT(rc == 0);
-		m0_be_tx_fini(tx);
+		m0_be_tx_fini(&tx);
 	}
 }
 
