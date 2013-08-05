@@ -117,7 +117,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 	m0_be_op_init(&op);
 	if (*p == NULL) {
 		*p = m0_be_alloc(a, tx, &op, /* XXX */ size, shift);
-		m0_be_op_wait(&op);
+		rc = m0_be_op_wait(&op);
+		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
 		/* XXX */
@@ -127,7 +128,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 		*/
 	} else {
 		m0_be_free(a, tx, &op, /* XXX */ *p);
-		m0_be_op_wait(&op);
+		rc = m0_be_op_wait(&op);
+		M0_UT_ASSERT(rc == 0);
 		*p = NULL;
 	}
 	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);

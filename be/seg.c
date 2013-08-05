@@ -412,8 +412,8 @@ be_seg__io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 	m0_be_op_init(&op);
 	rc = m0_be_io_launch(&io, &op);
 	if (rc == 0) {
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		rc = m0_be_op_wait(&op);
+		M0_ASSERT(rc == 0);
 	}
 	m0_be_op_fini(&op);
 

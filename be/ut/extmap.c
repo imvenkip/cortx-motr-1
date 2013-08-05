@@ -64,8 +64,8 @@ static void emap_alloc(struct m0_be_tx *tx)
 
 	m0_be_op_init(&op);
 	emap = m0_be_alloc(a, tx, &op, sizeof *emap, 0);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 
 	M0_UT_ASSERT(emap != NULL);
@@ -78,21 +78,25 @@ static void emap_alloc(struct m0_be_tx *tx)
 
 static void emap_create(struct m0_be_tx *tx)
 {
+	int rc;
+
 	M0_LOG(M0_INFO, "Create...");
 	m0_be_op_init(&op);
 	m0_be_emap_create(emap, tx, &op, be_seg);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 }
 
 static void emap_destroy(struct m0_be_tx *tx)
 {
+	int rc;
+
 	M0_LOG(M0_INFO, "Destroy...");
 	m0_be_op_init(&op);
 	m0_be_emap_destroy(emap, tx, &op);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 }
 
@@ -102,22 +106,26 @@ static void checkpoint(void)
 
 static void test_obj_init(struct m0_be_tx *tx)
 {
+	int rc;
+
 	M0_LOG(M0_INFO, "obj_insert");
 	m0_be_op_init(&op);
 	m0_be_emap_obj_insert(emap, tx, &op, &prefix, 42);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 	checkpoint();
 }
 
 static void test_obj_fini(struct m0_be_tx *tx)
 {
+	int rc;
+
 	M0_LOG(M0_INFO, "obj_delete");
 	m0_be_op_init(&op);
 	m0_be_emap_obj_delete(emap, tx, &op, &prefix);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_ASSERT(rc == 0);
 	M0_UT_ASSERT(op.bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(&op);
 	checkpoint();
@@ -190,8 +198,8 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 
 	m0_be_op_init(&it->ec_op);
 	m0_be_emap_lookup(emap, prefix, offset, it);
-	m0_be_op_wait(&it->ec_op);
-	M0_ASSERT(m0_be_op_state(&it->ec_op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&it->ec_op);
+	M0_ASSERT(rc == 0);
 	rc = it->ec_op.bo_u.u_emap.e_rc;
 	m0_be_op_fini(&it->ec_op);
 
@@ -258,8 +266,8 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		m0_be_op_init(it_op);
 		m0_be_emap_split(&it, &tx2, &vec);
-		m0_be_op_wait(it_op);
-		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+		rc = m0_be_op_wait(it_op);
+		M0_ASSERT(rc == 0);
 		M0_UT_ASSERT(it.ec_op.bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 		M0_UT_ASSERT(m0_ext_length(&seg->ee_ext) ==
@@ -293,8 +301,8 @@ static void test_print(void)
 			break;
 		m0_be_op_init(it_op);
 		m0_be_emap_next(&it);
-		m0_be_op_wait(it_op);
-		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+		rc = m0_be_op_wait(it_op);
+		M0_ASSERT(rc == 0);
 		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 	}
@@ -312,8 +320,8 @@ static void test_merge(void)
 	while (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 		m0_be_op_init(it_op);
 		m0_be_emap_merge(&it, &tx2, m0_ext_length(&seg->ee_ext));
-		m0_be_op_wait(it_op);
-		M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+		rc = m0_be_op_wait(it_op);
+		M0_ASSERT(rc == 0);
 		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 		m0_be_op_fini(it_op);
 	}
@@ -335,8 +343,8 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 12, NULL, NULL, NULL);
-	m0_be_op_wait(it_op);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(it_op);
+	M0_ASSERT(rc == 0);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 
@@ -373,8 +381,8 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 11, NULL, NULL, NULL);
-	m0_be_op_wait(it_op);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(it_op);
+	M0_ASSERT(rc == 0);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 
@@ -411,8 +419,8 @@ static void test_paste(void)
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx2, &e, 0, NULL, NULL, NULL);
-	m0_be_op_wait(it_op);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(it_op);
+	M0_ASSERT(rc == 0);
 	M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
 	m0_be_op_fini(it_op);
 

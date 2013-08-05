@@ -121,12 +121,15 @@ m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state)
 
 M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op)
 {
+	struct m0_sm *sm = &op->bo_sm;
+
 	grp_lock(op);
-	m0_sm_timedwait(&op->bo_sm, M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
+	m0_sm_timedwait(sm, M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
 			M0_TIME_NEVER);
 	grp_unlock(op);
 
-	return op->bo_sm.sm_rc;
+	M0_POST((sm->sm_rc == 0) == (sm->sm_state == M0_BOS_SUCCESS));
+	return sm->sm_rc;
 }
 
 /** @} end of be group */

@@ -75,18 +75,19 @@ static void be_ut_group_ondisk_pop(struct m0_be_tx_credit *credit)
 
 static void be_ut_group_ondisk_log(void)
 {
-	struct m0_be_op        op;
+	struct m0_be_op op;
+	int             rc;
 
 	m0_be_op_init(&op);
 	m0_be_log_submit(&but_group_ondisk_log, &op, &but_group_ondisk_gr);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 
 	m0_be_op_init(&op);
 	m0_be_log_commit(&but_group_ondisk_log, &op, &but_group_ondisk_gr);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 }
 
@@ -162,7 +163,7 @@ void m0_be_ut_group_ondisk(void)
 				     m0_be_log_stob(&but_group_ondisk_log),
 				     ARRAY_SIZE(but_group_ondisk_tx),
 				     &gr_credit);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	grp_tlist_init(&but_group_ondisk_gr.tg_txs);
 
 	groups_logged = 0;

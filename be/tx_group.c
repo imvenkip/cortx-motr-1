@@ -271,7 +271,6 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 	m0_be_log_submit(gr->tg_log, op, gr);
 	rc = m0_be_op_wait(op);
 	M0_ASSERT(rc == 0);
-	M0_ASSERT(m0_be_op_state(op) == M0_BOS_SUCCESS);
 	/* XXX dirty hack */
 	m0_be_op_fini(op);
 	m0_be_op_init(op);
