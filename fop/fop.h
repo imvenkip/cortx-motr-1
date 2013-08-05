@@ -48,10 +48,6 @@
    The execution of an operation described by fop is carried out by a "fop
    machine" (fom, struct m0_fom).
 
-   This file (fop.h) is a top-level header defining all fop-related data
-   structures and entry points. The bulk of the definitions is in fop_base.h,
-   which is included from this file.
-
    @note "Had I been one of the tragic bums who lurked in the mist of that
           station platform where a brittle young FOP was pacing back and forth,
           I would not have withstood the temptation to destroy him."
@@ -80,16 +76,11 @@ struct m0_fop_data {
 
 /** fop. */
 struct m0_fop {
-	struct m0_ref            f_ref;
-
-	struct m0_fop_type	*f_type;
-	/** Pointer to the data where fop is serialised or will be
-	    serialised. */
-	struct m0_fop_data	 f_data;
-	/**
-	   RPC item for this FOP
-	 */
-	struct m0_rpc_item	 f_item;
+	struct m0_ref       f_ref;
+	struct m0_fop_type *f_type;
+	struct m0_fop_data  f_data;
+	struct m0_rpc_item  f_item;
+	void               *f_opaque;
 };
 
 /**
@@ -213,7 +204,7 @@ extern const struct m0_rpc_item_type_ops m0_fop_default_item_type_ops;
 struct m0_fop_type {
 	/** Operation name. */
 	const char                       *ft_name;
-	/** Linkage into a list of all known operations. */
+	/** Linkage into a list of all known fop types. */
 	struct m0_tlink                   ft_linkage;
 	const struct m0_fop_type_ops     *ft_ops;
 	/** Xcode type representing this fop type. */
