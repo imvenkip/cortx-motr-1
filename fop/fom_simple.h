@@ -55,9 +55,9 @@
  *  FINISH
  * @endverbatim
  *
- * The useful is done by m0_fom_simple::si_tick() function (initialised to the
- * "tick" argument of m0_fom_simple_post()) in INIT state. To terminate the fom,
- * m0_fom_simple::si_tick() should return a negative value.
+ * The useful work is done by m0_fom_simple::si_tick() function (initialised to
+ * the "tick" argument of m0_fom_simple_post()) in INIT state. To terminate the
+ * fom, m0_fom_simple::si_tick() should return a negative value.
  *
  * Typical m0_fom_simple::si_tick() function in such case would look like:
  *
