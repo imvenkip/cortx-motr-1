@@ -54,6 +54,7 @@ static void rem_rpc_notify(struct m0_dtm_remote *rem,
 static int rem_rpc_item_decode(const struct m0_rpc_item_type *item_type,
 			       struct m0_rpc_item **item_out,
 			       struct m0_bufvec_cursor *cur);
+
 static struct m0_fop_type rem_rpc_fopt;
 static const struct m0_fop_type_ops rem_rpc_ftype_ops;
 static struct m0_rpc_item_type_ops rem_rpc_itype_ops;
@@ -129,6 +130,11 @@ M0_EXTERN struct m0_rpc_session *m0_rpc_conn_session0(const struct m0_rpc_conn
 static void rem_rpc_send(struct m0_dtm_remote *rem,
 			 struct m0_dtm_update *update)
 {
+	struct m0_rpc_item *item = &update->upd_comm.uc_body->f_item;
+
+	M0_PRE(update->upd_comm.uc_body != NULL);
+	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
+	m0_rpc_post(item);
 }
 
 static void rem_rpc_resend(struct m0_dtm_remote *rem,
@@ -140,10 +146,10 @@ static void rem_rpc_resend(struct m0_dtm_remote *rem,
 	M0_PRE(M0_IN(update->upd_up.up_state, (M0_DOS_INPROGRESS,
 					       M0_DOS_VOLATILE,
 					       M0_DOS_PERSISTENT)));
-	if (item->ri_reply != NULL) {
-		item->ri_deadline = 0;
-		m0_rpc_post_slot(item, item->ri_slot_refs[0].sr_slot);
-	}
+	m0_rpc_item_delete(item);
+	/* add 1/100 second deadline to give a chance to build a better rpc. */
+	item->ri_deadline = m0_time_from_now(0, 10000000);
+	m0_rpc_post(item);
 }
 
 static const struct m0_dtm_remote_ops rem_rpc_ops = {

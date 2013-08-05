@@ -390,50 +390,13 @@ M0_INTERNAL struct m0_dtm_up *hi_earliest(struct m0_dtm_hi *hi)
 }
 
 
-/**
- * Returns the earliest update in the same history as "up", which
- *
- *     - is not earlier than "up" and
- *
- *     - has version number greater than "since".
- */
-M0_INTERNAL struct m0_dtm_up *history_first(struct m0_dtm_up *up,
-					    m0_dtm_ver_t since)
+M0_INTERNAL struct m0_dtm_up *hi_find(struct m0_dtm_hi *hi, m0_dtm_ver_t ver)
 {
-	M0_PRE(up != NULL);
-
-	while (1) {
-		struct m0_dtm_up *prior = m0_dtm_up_prior(up);
-
-		if (prior == NULL || (prior->up_ver != 0 &&
-				      prior->up_ver <= since))
-			break;
-		up = prior;
-	}
-	return up;
-}
-
-/**
- * Returns the latest update in the same history as "up", which
- *
- *     - is not later than "up" and
- *
- *     - has version number less than "since".
- */
-M0_INTERNAL struct m0_dtm_up *history_last(struct m0_dtm_up *up,
-					   m0_dtm_ver_t upto)
-{
-	M0_PRE(up != NULL);
-
-	while (1) {
-		struct m0_dtm_up *later = m0_dtm_up_later(up);
-
-		if (later == NULL || (later->up_ver != 0 &&
-				      later->up_ver >= upto))
-			break;
-		up = later;
-	}
-	return up;
+	hi_for(hi, up) {
+		if (up->up_ver <= ver)
+			return up;
+	} hi_endfor;
+	return NULL;
 }
 
 M0_INTERNAL m0_dtm_ver_t up_ver(const struct m0_dtm_up *up)

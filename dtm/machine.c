@@ -39,7 +39,6 @@
 static void history_balance(struct m0_dtm_history *history);
 static void history_excite(struct m0_dtm_history *history);
 static void history_calm(struct m0_dtm_history *history);
-static void update_reint(struct m0_dtm_update *update);
 static void undo_done(struct m0_dtm_update *update);
 static void sibling_undo      (struct m0_dtm_history *history,
 			       struct m0_dtm_op *op);
@@ -187,28 +186,6 @@ static void sibling_reset(struct m0_dtm_history *history, struct m0_dtm_op *op)
 			history_excite(other);
 		}
 	} up_endfor;
-}
-
-static void update_reint(struct m0_dtm_update *update)
-{
-	struct m0_dtm_update_comm *comm    = &update->upd_comm;
-	struct m0_dtm_history     *history = UPDATE_HISTORY(update);
-	struct m0_dtm_remote      *rem     = history->h_rem;
-
-	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
-
-	if (comm->uc_body == NULL)
-		return;
-	if (comm->uc_state == M0_DUX_NEW)
-		rem->re_ops->reo_send(rem, update);
-	else if (comm->uc_state == M0_DUX_INFLIGHT &&
-		 comm->uc_instance == history->h_rem->re_instance)
-		;
-	else
-		rem->re_ops->reo_resend(rem, update);
-
-	comm->uc_state    = M0_DUX_INFLIGHT;
-	comm->uc_instance = history->h_rem->re_instance;
 }
 
 static void undo_done(struct m0_dtm_update *update)

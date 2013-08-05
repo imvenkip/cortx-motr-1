@@ -66,17 +66,20 @@ M0_INTERNAL bool m0_dtm_update_invariant(const struct m0_dtm_update *update)
 	enum m0_dtm_state                state  = up->up_state;
 	const struct m0_dtm_update_comm *comm   = &update->upd_comm;
 	enum m0_dtm_update_comm_state    cstate = comm->uc_state;
+	const struct m0_fop             *body   = comm->uc_body;
 	struct m0_dtm_remote            *rem    = UPDATE_REM(update);
 
 	return
 		m0_dtm_up_invariant(up) &&
 		_0C(M0_IN(cstate, (M0_DUX_NEW,
 				   M0_DUX_INFLIGHT, M0_DUX_REPLIED))) &&
-		_0C(ergo(rem == NULL, cstate == M0_DUX_NEW)) &&
+		_0C(ergo(rem == NULL, body == NULL)) &&
+		_0C(ergo(body == NULL, cstate == M0_DUX_NEW)) &&
 		_0C(ergo(state > M0_DOS_INPROGRESS,
-			 cstate == M0_DUX_REPLIED || rem == NULL)) &&
+			 body == NULL || cstate > M0_DUX_NEW)) &&
 		_0C(ergo(cstate == M0_DUX_REPLIED,
-			 comm->uc_body->f_item.ri_reply != NULL));
+			 body->f_item.ri_reply != NULL)) &&
+		_0C(ergo(rem != NULL, comm->uc_instance <= rem->re_instance));
 }
 
 M0_INTERNAL bool m0_dtm_update_is_user(const struct m0_dtm_update *update)
@@ -184,6 +187,35 @@ M0_INTERNAL void m0_dtm_update_list_fini(struct m0_tl *list)
 	oper_tlist_fini(list);
 }
 
+M0_INTERNAL void m0_dtm_update_reint(struct m0_dtm_update *update)
+{
+	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
+	M0_PRE(update->upd_comm.uc_body != NULL);
+	M0_PRE(update->upd_comm.uc_state == M0_DUX_NEW);
+
+	history_lock(UPDATE_HISTORY(update));
+	update_reint(update);
+	history_unlock(UPDATE_HISTORY(update));
+}
+
+static const struct m0_rpc_item_ops dtm_update_item_ops;
+
+M0_INTERNAL void m0_dtm_comm_set(struct m0_dtm_update *update,
+				 struct m0_fop *fop)
+{
+	struct m0_dtm_update_comm *comm = &update->upd_comm;
+
+	M0_PRE(update->upd_up.up_state < M0_DOS_INPROGRESS);
+	M0_PRE(comm->uc_state == M0_DUX_NEW);
+	M0_PRE(comm->uc_body == NULL);
+	M0_PRE(fop->f_item.ri_ops == NULL);
+	M0_PRE(fop->f_opaque == NULL);
+
+	comm->uc_body = fop;
+	fop->f_item.ri_ops = &dtm_update_item_ops;
+	fop->f_opaque = update;
+}
+
 M0_INTERNAL void m0_dtm_update_link(struct m0_tl *list,
 				    struct m0_dtm_update *update, uint32_t nr)
 {
@@ -202,6 +234,49 @@ M0_INTERNAL bool update_is_earlier(struct m0_dtm_update *update0,
 {
 	return up_is_earlier(UPDATE_UP(update0), UPDATE_UP(update1));
 }
+
+M0_INTERNAL void update_reint(struct m0_dtm_update *update)
+{
+	struct m0_dtm_update_comm *comm    = &update->upd_comm;
+	struct m0_dtm_history     *history = UPDATE_HISTORY(update);
+	struct m0_dtm_remote      *rem     = history->h_rem;
+
+	M0_PRE(update->upd_up.up_state == M0_DOS_INPROGRESS);
+
+	if (comm->uc_body == NULL)
+		return;
+	if (comm->uc_state == M0_DUX_NEW)
+		rem->re_ops->reo_send(rem, update);
+	else if (comm->uc_state == M0_DUX_INFLIGHT &&
+		 comm->uc_instance == history->h_rem->re_instance)
+		;
+	else
+		rem->re_ops->reo_resend(rem, update);
+
+	comm->uc_state    = M0_DUX_INFLIGHT;
+	comm->uc_instance = history->h_rem->re_instance;
+}
+
+static void dtm_update_replied(struct m0_rpc_item *item)
+{
+	struct m0_fop *fop                = m0_rpc_item_to_fop(item);
+	struct m0_dtm_update      *update = fop->f_opaque;
+	struct m0_dtm_update_comm *comm   = &update->upd_comm;
+
+	M0_PRE(m0_dtm_update_invariant(update));
+	M0_PRE(fop == comm->uc_body);
+	M0_PRE(comm->uc_state == M0_DUX_INFLIGHT);
+
+	if (!(comm->uc_flags & M0_DUCF_REPLIED_CALLED)) {
+		if (update->upd_ops->updto_replied != NULL)
+			update->upd_ops->updto_replied(update);
+		comm->uc_flags |= M0_DUCF_REPLIED_CALLED;
+	}
+}
+
+static const struct m0_rpc_item_ops dtm_update_item_ops = {
+	.rio_replied = &dtm_update_replied
+};
 
 M0_TL_DESCR_DEFINE(history, "dtm history updates", M0_INTERNAL,
 		   struct m0_dtm_update,

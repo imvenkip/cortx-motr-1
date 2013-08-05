@@ -119,16 +119,13 @@ M0_INTERNAL void oper_lock(const struct m0_dtm_oper *oper);
 M0_INTERNAL void oper_unlock(const struct m0_dtm_oper *oper);
 M0_INTERNAL void history_lock(const struct m0_dtm_history *history);
 M0_INTERNAL void history_unlock(const struct m0_dtm_history *history);
+M0_INTERNAL void update_reint(struct m0_dtm_update *update);
 
 M0_INTERNAL struct m0_dtm_up *hi_latest(struct m0_dtm_hi *hi);
 M0_INTERNAL struct m0_dtm_up *hi_earliest(struct m0_dtm_hi *hi);
+M0_INTERNAL struct m0_dtm_up *hi_find(struct m0_dtm_hi *hi, m0_dtm_ver_t ver);
 M0_INTERNAL struct m0_dtm_up *history_latest(struct m0_dtm_history *history);
 M0_INTERNAL struct m0_dtm_up *history_earliest(struct m0_dtm_history *history);
-
-M0_INTERNAL struct m0_dtm_up *history_first(struct m0_dtm_up *up,
-					    m0_dtm_ver_t since);
-M0_INTERNAL struct m0_dtm_up *history_last(struct m0_dtm_up *up,
-					   m0_dtm_ver_t upto);
 
 M0_INTERNAL m0_dtm_ver_t update_ver(const struct m0_dtm_update *update);
 M0_INTERNAL m0_dtm_ver_t up_ver(const struct m0_dtm_up *up);

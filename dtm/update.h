@@ -55,8 +55,13 @@ enum m0_dtm_update_comm_state {
 	M0_DUX_REPLIED
 };
 
+enum m0_dtm_update_comm_flags {
+	M0_DUCF_REPLIED_CALLED = (1 << 0)
+};
+
 struct m0_dtm_update_comm {
 	enum m0_dtm_update_comm_state  uc_state;
+	uint64_t                       uc_flags;
 	uint64_t                       uc_instance;
 	struct m0_fop                 *uc_body;
 };
@@ -74,8 +79,9 @@ enum {
 };
 
 struct m0_dtm_update_ops {
-	int (*updo_redo)(struct m0_dtm_update *updt);
-	int (*updo_undo)(struct m0_dtm_update *updt);
+	int  (*updo_redo)    (struct m0_dtm_update *updt);
+	int  (*updo_undo)    (struct m0_dtm_update *updt);
+	void (*updto_replied)(struct m0_dtm_update *updt);
 	const struct m0_dtm_update_type *updo_type;
 };
 
@@ -124,6 +130,9 @@ M0_INTERNAL void m0_dtm_update_unpack(struct m0_dtm_update *update,
 M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 				    struct m0_dtm_oper *oper,
 				    const struct m0_dtm_update_descr *updd);
+M0_INTERNAL void m0_dtm_update_reint(struct m0_dtm_update *update);
+M0_INTERNAL void m0_dtm_comm_set    (struct m0_dtm_update *update,
+				     struct m0_fop *fop);
 M0_INTERNAL bool
 m0_dtm_update_matches_descr(const struct m0_dtm_update *update,
 			    const struct m0_dtm_update_descr *updd);

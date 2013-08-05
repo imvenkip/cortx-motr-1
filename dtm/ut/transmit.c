@@ -720,7 +720,7 @@ static void redo_test(void)
 	tgt_init();
 
 	ticked = 0;
-	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 0);
+	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 2);
 	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
 	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();

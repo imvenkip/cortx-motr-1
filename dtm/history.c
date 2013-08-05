@@ -111,9 +111,8 @@ M0_INTERNAL void m0_dtm_history_persistent(struct m0_dtm_history *history,
 	M0_PRE(upto > 0);
 	M0_PRE(m0_dtm_history_invariant(history));
 
-	up = history_earliest(history);
+	up = hi_find(&history->h_hi, upto);
 	if (up != NULL) {
-		up = history_last(up, upto - 1);
 		history->h_persistent = up_update(up);
 		m0_dtm_history_balance(history);
 	}
@@ -129,9 +128,9 @@ M0_INTERNAL void m0_dtm_history_reset(struct m0_dtm_history *history,
 	history_lock(history);
 	M0_PRE(m0_dtm_history_invariant(history));
 
-	up = history_latest(history);
+
+	up = hi_find(&history->h_hi, since);
 	if (up != NULL) {
-		up = history_first(up, since);
 		history->h_reset = up_update(up);
 		history->h_epoch++;
 		m0_dtm_history_balance(history);
@@ -148,9 +147,8 @@ M0_INTERNAL void m0_dtm_history_undo(struct m0_dtm_history *history,
 	history_lock(history);
 	M0_PRE(m0_dtm_history_invariant(history));
 
-	up = history_latest(history);
+	up = hi_find(&history->h_hi, upto);
 	if (up != NULL) {
-		up = history_first(up, upto);
 		history->h_undo = up_update(up);
 		history->h_epoch++;
 		m0_dtm_history_balance(history);
