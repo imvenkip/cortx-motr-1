@@ -87,7 +87,7 @@
    @{
  */
 
-#define XXX_USE_DB5 0
+#define XXX_USE_DB5 1
 
 /* export */
 struct m0_fol;
@@ -157,10 +157,9 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
 #if !XXX_USE_DB5
-/** Fol operations that modify memory. */
+/** Fol operations that modify segment memory. */
 enum m0_fol_op {
-	M0_FO_CREATE,  /**< m0_fol_create() */
-	M0_FO_DESTROY, /**< m0_fol_destroy() */
+	M0_FO_INIT,    /**< m0_fol_init() */
 	M0_FO_REC_ADD  /**< m0_fol_rec_add() */
 };
 /**
@@ -186,6 +185,8 @@ M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 #if XXX_USE_DB5
 			       struct m0_db_tx *tx,
+#else
+			       struct m0_be_tx *tx,
 #endif
 			       struct m0_fol_rec *rec);
 
@@ -204,6 +205,8 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
 #if XXX_USE_DB5
 			       struct m0_db_tx *tx,
+#else
+			       struct m0_be_tx *tx,
 #endif
 			       struct m0_fol_rec_desc *drec,
 			       struct m0_buf *buf);

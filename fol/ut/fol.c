@@ -35,7 +35,6 @@
 #include "lib/ub.h"
 
 static struct m0_fol_rec_header *h;
-static int                       rc;
 
 #if XXX_USE_DB5
 static const char db_name[] = "ut-fol";
@@ -46,14 +45,11 @@ static struct m0_fol_rec_desc *d;
 static struct m0_buf           buf;
 static struct m0_dbenv         db;
 static struct m0_db_tx         tx;
+static int                     rc;
 #else
-extern void m0_be_ut_h_init(struct m0_be_ut_h *h);
-extern void m0_be_ut_h_fini(struct m0_be_ut_h *h);
-
-static struct m0_fol    *fol;
-static struct m0_be_ut_h beh;
-
-static void *ut_be_alloc(m0_bcount_t size);
+static struct m0_fol          *g_fol;
+static struct m0_be_ut_backend g_ut_be;
+static struct m0_be_ut_seg     g_ut_seg;
 #endif
 
 #if XXX_USE_DB5
@@ -83,14 +79,18 @@ static void test_init(void)
 	d = &r.fr_desc;
 	h = &d->rd_header;
 #else
-	struct m0_fol *fol;
+	M0_BE_TX_CREDIT(cred);
+	int rc;
 
-	m0_be_ut_h_init(&beh);
-	/* XXX FIXME: I think that `fol' should be allocated on stack,
-	 * not in the segment.  --vvv */
-	fol = ut_be_alloc(sizeof *fol);
+	backend_init(&g_ut_be, &g_ut_seg);
 
-	rc = m0_fol_init(fol, &beh.buh_seg);
+	g_fol = be_alloc(sizeof *g_fol, &g_ut_seg.bus_seg);
+	M0_UT_ASSERT(g_fol != NULL);
+
+	m0_fol_credit(g_fol, M0_FO_INIT, &cred);
+	tx_begin(&g_tx, &g_ut_be, &cred);
+
+	rc = m0_fol_init(g_fol, &g_tx);
 	M0_UT_ASSERT(rc == 0);
 #endif
 }
@@ -107,9 +107,11 @@ static void test_fini(void)
 	m0_dbenv_fini(&db);
 	m0_buf_free(&buf);
 #else
-	m0_fol_fini(fol);
+	m0_fol_fini(g_fol);
+	tx_end(&g_tx);
 
-	m0_be_ut_h_fini(&beh);
+	be_free(g_fol);
+	backend_fini(&g_ut_be, &g_ut_seg);
 #endif
 }
 
@@ -225,13 +227,12 @@ static void noop(const struct m0_be_tx *tx) {}
 static void *ut_be_alloc(m0_bcount_t size)
 {
 	enum { SHIFT = 0 };
-	struct m0_be_tx_credit cred;
-	struct m0_be_tx        tx;
-	struct m0_be_op        op;
-	void                  *ptr;
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx tx;
+	struct m0_be_op op;
+	void           *ptr;
 
 	/* Prepare the credit needed for the allocation. */
-	m0_be_tx_credit_init(&cred);
 	m0_be_allocator_credit(beh.buh_allocator, M0_BAO_ALLOC, size, SHIFT,
 			       &cred);
 
@@ -275,7 +276,93 @@ static void *ut_be_alloc(m0_bcount_t size)
 	M0_POST(ptr != NULL);
 	return ptr;
 }
+
+/* ------------------------------------------------------------------
+ * BE paraphernalia
+ * ------------------------------------------------------------------ */
 
+static void backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
+{
+	m0_be_ut_backend_init(be);
+	m0_be_ut_seg_init(seg, 1 << 20 /* 1 MB */);
+	m0_be_ut_seg_allocator_init(seg, be);
+}
+
+static void backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
+{
+	m0_be_ut_seg_allocator_fini(seg, be);
+	m0_be_ut_seg_fini(seg);
+	m0_be_ut_backend_fini(be);
+}
+
+static void tx_begin(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
+		     struct m0_be_tx_credit *cred)
+{
+	int rc;
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, cred);
+	m0_be_tx_open(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void tx_end(struct m0_be_tx *tx)
+{
+	int rc;
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BTS_DONE, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_fini(tx);
+}
+
+/** Allocates `size' bytes on segment `seg' synchronously. */
+static void *be_alloc(m0_bcount_t size, struct m0_be_seg *seg)
+{
+	enum { SHIFT = 0 };
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx tx;
+	struct m0_be_op op;
+	void           *ptr;
+	int             rc;
+
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC, fol, SHIFT,
+			       &cred);
+	tx_begin(&tx, &g_ut_be, &cred);
+
+	m0_be_op_init(&op);
+	ptr = m0_be_alloc(&seg->bs_allocator, &tx, &op, size, SHIFT);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_op_fini(&op);
+
+	tx_end(&tx);
+	return ptr;
+}
+
+/** Releases resources obtained by be_alloc(). */
+static void be_free(void *ptr)
+{
+	enum { SHIFT = 0 };
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx tx;
+	struct m0_be_op op;
+	int             rc;
+
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE, fol, SHIFT,
+			       &cred);
+	tx_begin(&tx, &g_ut_be, &cred);
+
+	m0_be_op_init(&op);
+	m0_be_free(&seg->bs_allocator, &tx, &op, ptr);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_op_fini(&op);
+
+	tx_end(&tx);
+}
+
 /* ---------------------------------------------------------------------
  * XXX FIXME: Use m0_fom_simple instead of an "ast thread".
  * See the comment in be/ut/helper.c.
@@ -343,9 +430,9 @@ const struct m0_test_suite fol_ut = {
 	}
 };
 
-/* ---------------------------------------------------------------------
+/* ------------------------------------------------------------------
  * UB
- */
+ * ------------------------------------------------------------------ */
 
 enum { UB_ITER = 100000 };
 
