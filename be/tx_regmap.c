@@ -412,7 +412,7 @@ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
 {
 	return m0_be_regmap__invariant(&ra->bra_map) &&
-	       equi(ra->bra_data_copy, ra->bra_area != NULL) &&
+	       ra->bra_data_copy == (ra->bra_area != NULL) &&
 	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size &&
 	       m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared);
 }
