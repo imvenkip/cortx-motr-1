@@ -955,7 +955,9 @@ void m0_fom_fini(struct m0_fom *fom)
 	struct m0_reqh         *reqh;
 
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
+#if XXX_USE_DB5
         M0_PRE(!m0_db_tx_is_active(&fom->fo_tx.tx_dbtx));
+#endif
 
 	loc  = fom->fo_loc;
 	reqh = loc->fl_dom->fd_reqh;
