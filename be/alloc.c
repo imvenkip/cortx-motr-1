@@ -142,6 +142,10 @@
  * Allocator lock is used to protect all allocator data. Only one allocation or
  * freeing may take place at a some point of time for the same allocator.
  *
+ * Implementation notes:
+ * - If tx parameter is NULL then allocator will not capture segment updates.
+ *   It might be useful in the allocator UT.
+ *
  * Know issues:
  * - op is unconditionally transitioned to state M0_BOS_SUCCESS in m0_be_alloc()
  *   and m0_be_free().
@@ -173,7 +177,6 @@ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
 				   struct m0_be_tx *tx,
 				   struct be_alloc_chunk *c)
 {
-	/** @todo XXX TODO FIXME temporary hack for allocator UT */
 	if (tx == NULL)
 		return;
 	if (c == NULL)
@@ -184,7 +187,6 @@ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
 static void be_alloc_head_capture(struct m0_be_allocator *a,
 				  struct m0_be_tx *tx)
 {
-	/** @todo XXX TODO FIXME temporary hack for allocator UT */
 	if (tx == NULL)
 		return;
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, a->ba_h);
@@ -862,7 +864,7 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
 		if (c != NULL)
 			break;
 	} m0_tl_endfor;
-	if (c != NULL && /* XXX */ tx != NULL) {
+	if (c != NULL && tx != NULL) {
 		memset(&c->bac_mem, 0, c->bac_size);
 		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg,
 						c->bac_size, &c->bac_mem));
