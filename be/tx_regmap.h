@@ -187,6 +187,10 @@ struct m0_be_reg_area {
 	char		      *bra_area;
 	m0_bcount_t	       bra_area_used;
 	struct m0_be_tx_credit bra_prepared;
+	/**
+	 * Sum of all regions that were submitted to m0_be_reg_area_capture().
+	 * Used to catch credit calculation errors.
+	 */
 	struct m0_be_tx_credit bra_captured;
 };
 
