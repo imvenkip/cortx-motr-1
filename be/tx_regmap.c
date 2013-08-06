@@ -265,6 +265,12 @@ M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm)
 	return rm != NULL && m0_be_rdt__invariant(&rm->br_rdt);
 }
 
+static struct m0_be_reg_d *be_regmap_find_fb(struct m0_be_regmap *rm,
+					     const struct m0_be_reg_d *rd)
+{
+	return m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
+}
+
 /** Delete all regions that are completely covered by the given region */
 static void be_regmap_del_all_completely_covered(struct m0_be_regmap *rm,
 						 const struct m0_be_reg_d *rd)
@@ -274,7 +280,7 @@ static void be_regmap_del_all_completely_covered(struct m0_be_regmap *rm,
 	if (rd == NULL || rd->rd_reg.br_size == 0)
 		return;
 
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
+	rdi = be_regmap_find_fb(rm, rd);
 
 	/* if it is an intersection and not complete coverage */
 	if (rdi != NULL && !be_reg_d_is_partof(rd, rdi))
@@ -292,7 +298,7 @@ be_regmap_intersect_first(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
 {
 	struct m0_be_reg_d *rdi;
 
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
+	rdi = be_regmap_find_fb(rm, rd);
 	return rdi != NULL && be_reg_d_size(rd) > 0 &&
 	       m0_be_reg_d_is_in(rdi, be_reg_d_fb(rd)) &&
 	       !m0_be_reg_d_is_in(rdi, be_reg_d_lb1(rd)) ? rdi : NULL;
@@ -342,7 +348,7 @@ M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
 	M0_PRE(rd != NULL);
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
+	rdi = be_regmap_find_fb(rm, rd);
 	if (rdi != NULL && be_reg_d_is_partof(rdi, rd)) {
 		/* old region completely absorbs the new */
 		rm->br_ops->rmo_cpy(rm->br_ops_data, rdi, rd);
