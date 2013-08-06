@@ -50,7 +50,11 @@ struct m0_dtx {
 	   @todo placeholder for now.
 	 */
 	enum m0_dtx_state  tx_state;
+#if XXX_USE_DB5
 	struct m0_db_tx    tx_dbtx;
+#else
+	struct m0_be_tx    tx_dbtx;
+#endif
 	struct m0_fol_rec  tx_fol_rec;
 };
 

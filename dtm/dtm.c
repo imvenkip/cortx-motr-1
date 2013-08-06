@@ -50,6 +50,7 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
 
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
 {
+#if XXX_USE_DB5
 	int result;
 
 	M0_PRE(tx->tx_state == M0_DTX_INIT);
@@ -58,10 +59,15 @@ M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
 	if (result == 0)
 		tx->tx_state = M0_DTX_OPEN;
 	return result;
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+#endif
 }
 
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 {
+#if XXX_USE_DB5
 	int rc = 0;
 
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
@@ -72,6 +78,10 @@ M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 	tx->tx_state = M0_DTX_DONE;
 	m0_dtx_fini(tx);
 	return rc;
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+#endif
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
