@@ -63,7 +63,7 @@ void m0_be_ut_tx_usecase_success(void)
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, 1 << 20);
 
-	data = (uint64_t *) ((char *) seg->bs_addr + seg->bs_reserved);
+	data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
 	*data = 0x101;
 
 	m0_be_ut_tx_init(&tx, &ut_be);

@@ -60,8 +60,7 @@ seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 	seg->bs_addr = addr;
 	seg->bs_size = size;
 
-	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-			    (char *) addr + BE_SEG_HEADER_OFFSET);
+	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf, addr + BE_SEG_HEADER_OFFSET);
 	rc = m0_be_seg__write(&hdr_reg, hdrbuf);
 	m0_free(hdrbuf);
 	return rc;
@@ -119,7 +118,7 @@ bool m0_be__reg_invariant(const struct m0_be_reg *reg)
 		reg->br_size > 0 && reg->br_addr != NULL &&
 		m0_be_seg_contains(reg->br_seg, reg->br_addr) &&
 		m0_be_seg_contains(reg->br_seg,
-				   (char *) reg->br_addr + reg->br_size - 1);
+				   reg->br_addr + reg->br_size - 1);
 }
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
@@ -384,7 +383,7 @@ M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 					 void *addr)
 {
 	M0_PRE(m0_be_seg_contains(seg, addr));
-	return (char *) addr - (char *) seg->bs_addr;
+	return addr - seg->bs_addr;
 }
 
 M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)

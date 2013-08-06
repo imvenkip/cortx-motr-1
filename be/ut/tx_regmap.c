@@ -575,8 +575,7 @@ static char		      be_ut_ra_reg[BE_UT_RA_SIZE];
 
 static m0_bindex_t be_ut_reg_area_addr2offs(void *addr)
 {
-	return (char *) addr - (char *) be_ut_ra_seg->bs_addr -
-	       be_ut_ra_seg->bs_reserved;
+	return addr - be_ut_ra_seg->bs_addr - be_ut_ra_seg->bs_reserved;
 }
 
 static void *be_ut_reg_area_offs2addr(m0_bindex_t offs)
@@ -836,8 +835,8 @@ static m0_bindex_t be_ut_reg_area_merge_addr2offs(void *addr)
 
 static void *be_ut_reg_area_merge_offs2addr(m0_bindex_t offs)
 {
-	return (char *) be_ut_ra_merge_seg->bs_addr +
-		be_ut_ra_merge_seg->bs_reserved + offs;
+	return be_ut_ra_merge_seg->bs_addr +
+	       be_ut_ra_merge_seg->bs_reserved + offs;
 }
 
 static void be_ut_reg_area_merge_ra_add(struct m0_be_reg_area *ra,

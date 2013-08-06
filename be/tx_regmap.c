@@ -86,7 +86,7 @@ static void *be_reg_d_fb1(const struct m0_be_reg_d *rd)
 /** Return address of the last byte inside the region. */
 static void *be_reg_d_lb(const struct m0_be_reg_d *rd)
 {
-	return (char *) rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
+	return rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
 }
 
 /** Return address of the byte after be_reg_d_lb(rd). */
@@ -134,8 +134,8 @@ M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
 		if (!m0_be_reg_d__invariant(&rdt->brt_r[i]))
 			return false;
 	for (i = 0; i + 1 < rdt->brt_size; ++i) {
-		if ((char *) rdt->brt_r[i].rd_reg.br_addr >=
-		    (char *) rdt->brt_r[i + 1].rd_reg.br_addr)
+		if (rdt->brt_r[i].rd_reg.br_addr >=
+		    rdt->brt_r[i + 1].rd_reg.br_addr)
 			return false;
 		if (be_reg_d_are_overlapping(&rdt->brt_r[i],
 					     &rdt->brt_r[i + 1]))
@@ -340,7 +340,7 @@ static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
 	rm->br_ops->rmo_cut(rm->br_ops_data, rd, cut_start, cut_end);
 
 	r->br_size -= cut_start;
-	r->br_addr = (char *) r->br_addr + cut_start;
+	r->br_addr += cut_start;
 
 	r->br_size -= cut_end;
 
@@ -385,15 +385,13 @@ M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
 	rdi = be_regmap_intersect_first(rm, rd);
 	if (rdi != NULL) {
 		cut = be_reg_d_size(rdi);
-		cut -= (char *) be_reg_d_fb(rd) -
-		       (char *) be_reg_d_fb(rdi);
+		cut -= be_reg_d_fb(rd) - be_reg_d_fb(rdi);
 		be_regmap_reg_d_cut(rm, rdi, 0, cut);
 	}
 	rdi = be_regmap_intersect_last(rm, rd);
 	if (rdi != NULL) {
 		cut = be_reg_d_size(rdi);
-		cut -= (char *) be_reg_d_lb(rdi) -
-		       (char *) be_reg_d_lb(rd);
+		cut -= be_reg_d_lb(rdi) - be_reg_d_lb(rd);
 		be_regmap_reg_d_cut(rm, rdi, cut, 0);
 	}
 }
@@ -533,9 +531,8 @@ static void be_reg_area_cpy_copy(void *data, const struct m0_be_reg_d *super,
 	M0_PRE(super->rd_buf != NULL);
 	M0_PRE(rd->rd_buf == NULL);
 
-	rd_offset = (char *) rd->rd_reg.br_addr -
-		    (char *) super->rd_reg.br_addr;
-	be_reg_d_cpy((char *) super->rd_buf + rd_offset, rd);
+	rd_offset = rd->rd_reg.br_addr - super->rd_reg.br_addr;
+	be_reg_d_cpy(super->rd_buf + rd_offset, rd);
 }
 
 /* XXX copy-paste from be_reg_area_cpy_copy() */
@@ -549,16 +546,14 @@ static void be_reg_area_cpy(void *data, const struct m0_be_reg_d *super,
 	M0_PRE(super->rd_buf != NULL);
 	M0_PRE(rd->rd_buf != NULL);
 
-	rd_offset = (char *) rd->rd_reg.br_addr -
-		    (char *) super->rd_reg.br_addr;
-	memcpy((char *) super->rd_buf + rd_offset,
-	       rd->rd_buf, rd->rd_reg.br_size);
+	rd_offset = rd->rd_reg.br_addr - super->rd_reg.br_addr;
+	memcpy(super->rd_buf + rd_offset, rd->rd_buf, rd->rd_reg.br_size);
 }
 
 static void be_reg_area_cut(void *data, struct m0_be_reg_d *rd,
 			    m0_bcount_t cut_at_start, m0_bcount_t cut_at_end)
 {
-	rd->rd_buf = (char *) rd->rd_buf + cut_at_start;
+	rd->rd_buf += cut_at_start;
 }
 
 static const struct m0_be_regmap_ops be_reg_area_copy_ops = {
