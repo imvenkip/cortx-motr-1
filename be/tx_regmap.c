@@ -321,12 +321,10 @@ static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
 				m0_bcount_t cut_start,
 				m0_bcount_t cut_end)
 {
-	struct m0_be_reg *r;
+	struct m0_be_reg *r = &rd->rd_reg;
 
 	M0_PRE(m0_be_reg_d__invariant(rd));
 	M0_PRE(rd->rd_reg.br_size > cut_start + cut_end);
-
-	r = &rd->rd_reg;
 
 	rm->br_ops->rmo_cut(rm->br_ops_data, rd, cut_start, cut_end);
 
