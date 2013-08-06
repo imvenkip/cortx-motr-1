@@ -521,6 +521,8 @@ AC_SUBST([DB_LIBS])
 
 AS_IF([test x$enable_debug = xyes],
       [
+       M0_CPPFLAGS="-DDEBUG $M0_CPPFLAGS"
+       M0_KCPPFLAGS="-DDEBUG $M0_KCPPFLAGS"
        M0_CFLAGS="-g -O0 $M0_CFLAGS"
        M0_KCFLAGS="-g -O0 $M0_KCFLAGS"
        AC_DEFINE([ENABLE_DEBUG])
