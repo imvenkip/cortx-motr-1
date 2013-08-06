@@ -64,10 +64,10 @@ static void destroy_tree(struct m0_be_btree *tree,
 
 void m0_be_ut_btree_simple(void)
 {
-	struct m0_be_ut_backend	 ut_be;
-	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_seg	*seg;
-	struct m0_be_btree	*tree0;
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_ut_seg     ut_seg;
+	struct m0_be_seg       *seg;
+	struct m0_be_btree     *tree0;
 
 	M0_ENTRY();
 	/* Init BE */
@@ -245,6 +245,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
 	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 
+	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
 	m0_buf_init(&key, k, sizeof k);
 	m0_buf_init(&val, v, sizeof v);
 	M0_LOG(M0_INFO, "Inserting...");
@@ -259,6 +260,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
 		M0_UT_ASSERT(rc == 0);
 		m0_be_op_fini(&op);
 	}
+	M0_UT_ASSERT(!m0_be_btree_is_empty(tree));
 
 	M0_LOG(M0_INFO, "Inserting inplace...");
 	/* insert inplace */
@@ -358,15 +360,13 @@ static void destroy_tree(struct m0_be_btree *tree,
 static void cursor_test(struct m0_be_btree *tree)
 {
 	struct m0_be_btree_cursor cursor;
-	struct m0_buf		  start;
 	struct m0_buf		  key;
 	struct m0_buf		  val;
 	char                      sbuf[INSERT_SIZE];
+	struct m0_buf		  start = M0_BUF_INIT(sizeof sbuf, sbuf);
 	int                       v;
 	int                       i;
 	int                       rc;
-
-	start = M0_BUF_INIT(sizeof sbuf, sbuf);
 
 	m0_be_btree_cursor_init(&cursor, tree);
 

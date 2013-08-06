@@ -995,12 +995,6 @@ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
 	m0_rwlock_fini(&tree->bb_lock);
 }
 
-M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree)
-{
-	return tree->bb_root == NULL ?:
-	       tree->bb_root->b_nr_active == 0;
-}
-
 M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op)
@@ -1830,6 +1824,12 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 		*key = op_tree(op)->t_out_key;
 	if (val != NULL)
 		*val = op_tree(op)->t_out_val;
+}
+
+M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree)
+{
+	M0_PRE(tree->bb_root != NULL);
+	return tree->bb_root->b_nr_active == 0;
 }
 
 M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)
