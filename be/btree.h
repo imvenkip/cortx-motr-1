@@ -496,6 +496,11 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 					   struct m0_buf *key,
 					   struct m0_buf *val);
 
+/**
+ * Returns true if btree is empty.
+ */
+M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree);
+
 /** @} end of be group */
 #endif /* __MERO_BE_BTREE_H__ */
 

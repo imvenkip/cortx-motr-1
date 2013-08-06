@@ -88,8 +88,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 				   void **p,
 				   unsigned *seed)
 {
+	M0_BE_TX_CREDIT(credit);
 	enum m0_be_allocator_op optype;
-	struct m0_be_tx_credit	credit;
 	struct m0_be_op		op;
 	struct m0_be_tx		tx_;
 	struct m0_be_tx	       *tx = ut_be == NULL ? NULL : &tx_;
@@ -97,41 +97,39 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 	unsigned		shift;
 	int			rc;
 
-	size = (rand_r(seed) % BE_UT_ALLOC_SIZE) + 1;
+	size = rand_r(seed) % BE_UT_ALLOC_SIZE + 1;
 	shift = rand_r(seed) % BE_UT_ALLOC_SHIFT;
 	optype = *p == NULL ? M0_BAO_ALLOC : M0_BAO_FREE;
+
 	if (ut_be != NULL) {
-		m0_be_ut_backend_tx_init(ut_be, tx);
+		m0_be_ut_tx_init(tx, ut_be);
 		M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 
-		m0_be_tx_credit_init(&credit);
 		m0_be_allocator_credit(a, optype, size, shift, &credit);
 		m0_be_tx_prep(tx, &credit);
 
 		m0_be_tx_open(tx);
-		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+		rc = m0_be_tx_timedwait(tx,
+					M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 					M0_TIME_NEVER);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 	}
+
 	m0_be_op_init(&op);
 	if (*p == NULL) {
 		*p = m0_be_alloc(a, tx, &op, /* XXX */ size, shift);
-		m0_be_op_wait(&op);
+		rc = m0_be_op_wait(&op);
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
-		/* XXX */
-		/*
-		if (*p != NULL)
-			memset(*p, 0xFF, size);
-		*/
 	} else {
 		m0_be_free(a, tx, &op, /* XXX */ *p);
-		m0_be_op_wait(&op);
+		rc = m0_be_op_wait(&op);
 		*p = NULL;
 	}
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
+
 	if (ut_be != NULL) {
 		m0_be_tx_close(tx);
 		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),

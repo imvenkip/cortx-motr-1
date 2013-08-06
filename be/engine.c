@@ -69,7 +69,7 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
 		rc = -ENOMEM;
-		goto free;
+		goto err;
 	}
 
 	m0_be_log_init(&en->eng_log, NULL /* XXX */);
@@ -96,21 +96,20 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_init(&en->eng_txs[i]), true));
 	m0_mutex_init(&en->eng_lock);
-	rc = 0;
-	goto out;
 
-	/* left for reference */
-	m0_be_tx_group_fini(&en->eng_group[0]);
+	M0_ASSERT(rc == 0);
+	M0_POST(m0_be_engine__invariant(en));
+	M0_RETURN(0);
+
 log_destroy:
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_init(&en->eng_groups[i]), true));
 	m0_be_log_destroy(&en->eng_log);
 log_fini:
 	m0_be_log_fini(&en->eng_log);
-free:
 	m0_free(en->eng_group);
-out:
-	M0_POST(ergo(rc == 0, m0_be_engine__invariant(en)));
+err:
+	M0_ASSERT(rc != 0);
 	M0_RETURN(rc);
 }
 

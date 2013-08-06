@@ -56,9 +56,9 @@ struct m0_be_reg_d {
 	struct m0_be_tx *rd_tx; /* XXX DELETEME */
 };
 
-#define M0_BE_REG_D_CREDIT(rd) M0_BE_TX_CREDIT(1, (rd)->rd_reg.br_size)
 #define M0_BE_REG_D(reg, buf) (struct m0_be_reg_d) \
 		{ .rd_reg = (reg), .rd_buf = (buf) }
+#define M0_BE_REG_D_CREDIT(rd) M0_BE_TX_CREDIT_OBJ(1, (rd)->rd_reg.br_size)
 
 /** Regions tree. */
 struct m0_be_reg_d_tree {

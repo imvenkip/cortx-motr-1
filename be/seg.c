@@ -41,7 +41,6 @@
 #define BE_SEG_DEFAULT_ADDR   ((void *)0x400000000000)
 #define BE_SEG_HEADER_OFFSET  (0ULL)
 
-
 static int
 seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 {
@@ -53,20 +52,18 @@ seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 	M0_PRE(size > 0);
 
 	M0_ALLOC_PTR(hdrbuf);
-	if (hdrbuf != NULL) {
-		hdrbuf->bh_addr = addr;
-		hdrbuf->bh_size = size;
-		seg->bs_addr = addr;
-		seg->bs_size = size;
+	if (hdrbuf == NULL)
+		return -ENOMEM;
 
-		hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-				    (char *) addr + BE_SEG_HEADER_OFFSET);
-		rc = m0_be_seg__write(&hdr_reg, hdrbuf);
+	hdrbuf->bh_addr = addr;
+	hdrbuf->bh_size = size;
+	seg->bs_addr = addr;
+	seg->bs_size = size;
 
-		m0_free(hdrbuf);
-	} else {
-		rc = -ENOMEM;
-	}
+	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
+			    (char *) addr + BE_SEG_HEADER_OFFSET);
+	rc = m0_be_seg__write(&hdr_reg, hdrbuf);
+	m0_free(hdrbuf);
 	return rc;
 }
 
@@ -97,17 +94,11 @@ M0_INTERNAL void
 m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob, struct m0_be *be)
 {
 	*seg = (struct m0_be_seg) {
-		.bs_id	     = 0,		/* XXX */
-		.bs_addr     = NULL,
-		.bs_size     = 0,
 		.bs_reserved = sizeof(struct m0_be_seg_hdr),
 		.bs_be	     = be,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
-		.bs_bshift   = 0,
-		.bs_pgshift  = 12,
-		.bs_pgmap    = NULL,
-		.bs_pgnr     = 0,
+		.bs_pgshift  = 12
 	};
 }
 
@@ -155,8 +146,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	/* XXX */
 	seg->bs_size = 1ULL << 48;
 	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-			    (char *) BE_SEG_DEFAULT_ADDR +
-			    BE_SEG_HEADER_OFFSET);
+			    (char *)BE_SEG_DEFAULT_ADDR + BE_SEG_HEADER_OFFSET);
 	rc = m0_be_seg__read(&hdr_reg, hdrbuf);
 	if (rc == 0) {
 		seg_addr0 = hdrbuf->bh_addr;
@@ -171,8 +161,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	/* Allocate page map. */
 	seg->bs_pgnr = (seg_size + (1 << seg->bs_pgshift) - 1) >>
 		seg->bs_pgshift;
-	seg->bs_pgmap = m0_alloc_aligned(sizeof(m0_bcount_t) * seg->bs_pgnr,
-					 3);
+	seg->bs_pgmap = m0_alloc_aligned(sizeof(m0_bcount_t) * seg->bs_pgnr, 3);
 	if (seg->bs_pgmap == NULL)
 		return -ENOMEM;
 	for (i = 0; i < seg->bs_pgnr; i++)
@@ -403,30 +392,32 @@ M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)
 	return m0_be_seg_offset(reg->br_seg, reg->br_addr);
 }
 
-static int be_seg__io(struct m0_be_reg *reg,
-		      void *ptr,
-		      enum m0_stob_io_opcode opcode)
+static int
+be_seg__io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 {
 	struct m0_be_io io;
 	struct m0_be_op op;
-	int		rc;
+	int             rc;
 
 	M0_PRE(m0_be__reg_invariant(reg));
-	m0_be_op_init(&op);
+
 	rc = m0_be_io_init(&io, reg->br_seg->bs_stob,
-			   &M0_BE_TX_CREDIT(1, reg->br_size));
+			   &M0_BE_TX_CREDIT_OBJ(1, reg->br_size));
+	if (rc != 0)
+		return rc;
+
+	m0_be_io_add(&io, ptr, m0_be_reg_offset(reg), reg->br_size);
+	m0_be_io_configure(&io, opcode);
+
+	m0_be_op_init(&op);
+	rc = m0_be_io_launch(&io, &op);
 	if (rc == 0) {
-		m0_be_io_add(&io, ptr, m0_be_reg_offset(reg), reg->br_size);
-		m0_be_io_configure(&io, opcode);
-		rc = m0_be_io_launch(&io, &op);
-		if (rc == 0) {
-			m0_be_op_wait(&op);
-			M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		}
-		m0_be_io_fini(&io);
+		rc = m0_be_op_wait(&op);
+		M0_ASSERT(rc == 0);
 	}
 	m0_be_op_fini(&op);
 
+	m0_be_io_fini(&io);
 	return rc;
 }
 

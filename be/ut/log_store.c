@@ -52,7 +52,7 @@ static void be_ut_log_store_io_read(struct m0_be_log_store *ls,
 	struct m0_be_op op;
 	int		rc;
 
-	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT(1, size));
+	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT_OBJ(1, size));
 	m0_be_io_add(&bio, buf, 0, size);
 	m0_be_io_configure(&bio, SIO_READ);
 
@@ -67,21 +67,23 @@ static void be_ut_log_store_io_read(struct m0_be_log_store *ls,
 }
 
 static void be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr,
-				   m0_bcount_t size)
+				    m0_bcount_t size)
 {
+	int         buf[BE_UT_LOG_STOR_SIZE];
 	m0_bcount_t i;
-	int	    buf[BE_UT_LOG_STOR_SIZE];
 
 	M0_CASSERT(BE_UT_LOG_STOR_CR_NR <= ARRAY_SIZE(buf));
 
-	m0_be_tx_credit_init(cr);
+	M0_SET0(cr);
 	for (i = 0; i < size; ++i)
 		++buf[be_ut_log_store_rand(BE_UT_LOG_STOR_CR_NR)];
-	for (i = 0; i < BE_UT_LOG_STOR_CR_NR; ++i)
+	for (i = 0; i < BE_UT_LOG_STOR_CR_NR; ++i) {
 		if (buf[i] != 0)
-			m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, buf[i]));
+			m0_be_tx_credit_add(cr,
+					    &M0_BE_TX_CREDIT_OBJ(1, buf[i]));
+	}
 	/* wrap credit */
-	m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, 0));
+	m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT_OBJ(1, 0));
 }
 
 static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)

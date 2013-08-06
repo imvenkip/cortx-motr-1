@@ -75,18 +75,19 @@ static void be_ut_group_ondisk_pop(struct m0_be_tx_credit *credit)
 
 static void be_ut_group_ondisk_log(void)
 {
-	struct m0_be_op        op;
+	struct m0_be_op op;
+	int             rc;
 
 	m0_be_op_init(&op);
 	m0_be_log_submit(&but_group_ondisk_log, &op, &but_group_ondisk_gr);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 
 	m0_be_op_init(&op);
 	m0_be_log_commit(&but_group_ondisk_log, &op, &but_group_ondisk_gr);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = m0_be_op_wait(&op);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 }
 
@@ -105,7 +106,8 @@ static int be_ut_group_ondisk_reserve(void)
 
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		rc = m0_be_log_reserve_tx(&but_group_ondisk_log,
-					  &M0_BE_TX_CREDIT(i+1, 10*(i+1)));
+					  &M0_BE_TX_CREDIT_OBJ(i + 1,
+							       10 * (i + 1)));
 		if (rc != 0)
 			return i;
 		grp_tlist_add(&but_group_ondisk_gr.tg_txs,
@@ -116,24 +118,23 @@ static int be_ut_group_ondisk_reserve(void)
 
 void m0_be_ut_group_ondisk(void)
 {
-	struct m0_be_tx_credit gr_credit;
+	M0_BE_TX_CREDIT(gr_credit);
 	struct m0_be_tx_credit tx_credit;
 	struct m0_be_tx_credit reserved;
 	struct m0_be_reg_d     rd[1+2+3];
 	struct m0_be_ut_seg    ut_seg;
 	struct m0_be_seg      *seg = &ut_seg.bus_seg;
-	int		       i;
-	int		       j;
+	int                    i;
+	int                    j;
 	int                    rc;
-	int		       groups_logged;
-	int		       tx_reserved;
+	int                    groups_logged;
+	int                    tx_reserved;
 
 	be_ut_group_ondisk_rb_init();
 	m0_be_ut_seg_init(&ut_seg, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
 
-	m0_be_tx_credit_init(&gr_credit);
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
-		tx_credit = M0_BE_TX_CREDIT(i+1, 10*(i+1));
+		tx_credit = M0_BE_TX_CREDIT_OBJ(i + 1, 10 * (i + 1));
 		rc = m0_be_reg_area_init(&but_group_ondisk_tx[i].t_reg_area,
 					 &tx_credit, true);
 		m0_be_tx_credit_add(&gr_credit, &tx_credit);
@@ -144,7 +145,6 @@ void m0_be_ut_group_ondisk(void)
 			M0_UT_ASSERT(j < ARRAY_SIZE(rd));
 			rd[j] = (struct m0_be_reg_d) {
 				.rd_tx	= &but_group_ondisk_tx[i],
-				.rd_buf = NULL,
 				.rd_reg = M0_BE_REG(seg, i+2, (char *)
 						    seg->bs_addr + i*100 + j*10)
 			};
@@ -162,7 +162,7 @@ void m0_be_ut_group_ondisk(void)
 				     m0_be_log_stob(&but_group_ondisk_log),
 				     ARRAY_SIZE(but_group_ondisk_tx),
 				     &gr_credit);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	grp_tlist_init(&but_group_ondisk_gr.tg_txs);
 
 	groups_logged = 0;

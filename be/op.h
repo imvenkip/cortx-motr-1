@@ -18,12 +18,10 @@
  * Original creation date: 17-Jul-2013
  */
 
-
 #pragma once
 
 #ifndef __MERO_BE_OP_H__
 #define __MERO_BE_OP_H__
-
 
 #include "be/tx.h"
 #include "be/seg.h"
@@ -118,12 +116,8 @@ M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
 M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
 				  int next_state);
 
-
-
 /** @} end of be group */
-
 #endif /* __MERO_BE_OP_H__ */
-
 
 /*
  *  Local variables:

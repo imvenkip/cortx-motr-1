@@ -36,7 +36,6 @@ enum {
 struct test {
 	uint64_t        t_magic;
 	struct m0_tlink t_linkage;
-
 	int             t_payload;
 };
 
@@ -53,65 +52,56 @@ M0_UNUSED static void print(struct m0_be_list *list);
 
 M0_INTERNAL void m0_be_ut_list_api(void)
 {
+	enum { SHIFT = 0 };
+	M0_BE_TX_CREDIT(tcred); /* credits for structs "test" */
+	M0_BE_TX_CREDIT(ccred); /* credits for list creation */
+	M0_BE_TX_CREDIT(icred); /* credits for list insertions */
+	M0_BE_TX_CREDIT(dcred); /* credits for list deletions */
+	M0_BE_TX_CREDIT(cred);  /* total credits */
 	struct m0_be_allocator *a;
-
-	struct m0_be_tx_credit  tcred; /* credits for structs "test" */
-	struct m0_be_tx_credit  ccred; /* credits for list creation */
-	struct m0_be_tx_credit  icred; /* credits for list insertions */
-	struct m0_be_tx_credit  dcred; /* credits for list deletions */
-	struct m0_be_tx_credit  cred;  /* total credits */
-
 	struct m0_be_list      *list;
 	struct m0_be_ut_backend ut_be;
-	struct m0_be_ut_seg	ut_seg;
+	struct m0_be_ut_seg     ut_seg;
 	struct m0_be_seg       *seg;
 	struct m0_be_op         op;
-	struct m0_be_tx         tx = {};
+	struct m0_be_tx         tx;
 	struct test            *elem[10];
-	int rc;
-	int i;
+	int                     rc;
+	int                     i;
 
 	M0_ENTRY();
 
-	/*
-	 * Init BE.
-	 */
+	/* Init BE. */
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_backend_tx_init(&ut_be, &tx);
 	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	a = ut_seg.bus_allocator;
 	seg = &ut_seg.bus_seg;
 
-	/*
-	 * Prepare some credits.
-	 */
-	m0_be_tx_credit_init(&cred);
-	m0_be_tx_credit_init(&ccred);
-	m0_be_tx_credit_init(&tcred);
-	m0_be_tx_credit_init(&icred);
-	m0_be_tx_credit_init(&dcred);
-
 	{ /* XXX: calculate credits properly */
-	struct m0_be_list l;
-	m0_be_list_init(&l, &test_tl, seg);
+		struct m0_be_list l;
 
-	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(elem[0]), 0, &tcred);
-	m0_be_allocator_credit(a, M0_BAO_FREE,  sizeof(elem[0]), 0, &tcred);
-	m0_be_tx_credit_mul(&tcred, ARRAY_SIZE(elem));
+		m0_be_list_init(&l, &test_tl, seg);
 
-	m0_be_list_credit(&l, M0_BLO_CREATE, 1, &ccred);
-	m0_be_list_credit(&l, M0_BLO_INSERT, ARRAY_SIZE(elem), &icred);
-	m0_be_list_credit(&l, M0_BLO_DELETE, ARRAY_SIZE(elem), &dcred);
+		m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(elem[0]), SHIFT,
+				       &tcred);
+		m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(elem[0]), SHIFT,
+				       &tcred);
+		m0_be_tx_credit_mul(&tcred, ARRAY_SIZE(elem));
 
-	m0_be_tx_credit_add(&cred, &ccred);
-	m0_be_tx_credit_add(&cred, &tcred);
-	m0_be_tx_credit_add(&cred, &icred);
-	m0_be_tx_credit_add(&cred, &dcred);
+		m0_be_list_credit(&l, M0_BLO_CREATE, 1, &ccred);
+		m0_be_list_credit(&l, M0_BLO_INSERT, ARRAY_SIZE(elem), &icred);
+		m0_be_list_credit(&l, M0_BLO_DELETE, ARRAY_SIZE(elem), &dcred);
+
+		m0_be_tx_credit_add(&cred, &ccred);
+		m0_be_tx_credit_add(&cred, &tcred);
+		m0_be_tx_credit_add(&cred, &icred);
+		m0_be_tx_credit_add(&cred, &dcred);
 	}
-	/*
-	 * Open tx.
-	 */
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+
+	/* Open the transaction. */
 	m0_be_tx_prep(&tx, &cred);
 	m0_be_tx_open(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
@@ -119,9 +109,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_ASSERT(m0_be_tx_state(&tx) == M0_BTS_ACTIVE);
 
-	/*
-	 * Perform some operations over the list.
-	 */
+	/* Perform some operations over the list. */
 	m0_be_op_init(&op);
 	m0_be_list_create(&list, &test_tl, seg, &op, &tx);
 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
@@ -132,7 +120,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	/* add */
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		m0_be_op_init(&op);
-		elem[i] = m0_be_alloc(a, &tx, &op, sizeof(*elem[0]), 0);
+		elem[i] = m0_be_alloc(a, &tx, &op, sizeof(*elem[0]), SHIFT);
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 		m0_be_op_fini(&op);
@@ -143,19 +131,19 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
 
 		m0_be_op_init(&op);
-		if (i < ARRAY_SIZE(elem)/2)
+		if (i < ARRAY_SIZE(elem) / 2) {
 			if (i % 2 == 0)
 				m0_be_list_add(list, &op, &tx, elem[i]);
 			else
 				m0_be_list_add_tail(list, &op, &tx, elem[i]);
-		else
+		} else {
 			if (i % 2 == 0)
 				m0_be_list_add_after(list, &op, &tx,
 						     elem[i - 1], elem[i]);
 			else
 				m0_be_list_add_before(list, &op, &tx,
 						      elem[i - 1], elem[i]);
-
+		}
 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
 							 M0_BOS_FAILURE)));
 		m0_be_op_fini(&op);
@@ -180,14 +168,12 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
 	}
 
-	/*
-	 * Make things persistent.
-	 */
+	/* Make things persistent. */
 	m0_be_tx_close(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Reload segment and check data */
+	/* Reload segment and check data. */
 	m0_be_ut_seg_check_persistence(&ut_seg);
 	check(list, seg);
 

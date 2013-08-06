@@ -268,49 +268,7 @@ enum m0_be_tx_state {
  */
 typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
 
-#if 0
-/**
- * Transaction engine. Embedded in m0_be.
- */
-struct m0_be_tx_engine {
-	/**
-	 * Per-state lists of transaction. Each non-failed transaction is in one
-	 * of these lists.
-	 */
-	struct m0_tl          te_txs[M0_BTS_NR];
-
-	/** Protects all fields of this struct. */
-	struct m0_rwlock      te_lock;
-
-	/** Transactional log. */
-	struct m0_be_log      te_log;
-
-	/** Transactional group. (Currently there is only one.) */
-	struct m0_be_tx_group te_group;
-
-	/**
-	 * Total space reserved for active transactions.
-	 *
-	 * This space is reserved by m0_tx_open(). When a transaction closes
-	 * (m0_be_tx_close()), the difference between reserved and actually used
-	 * space is released.
-	 */
-	m0_bcount_t           te_reserved;
-
-	/** Pointer to the FOM processing transaction groups. */
-	struct m0_fom        *te_fom;
-};
-
-M0_INTERNAL bool
-m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine);
-
-M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine);
-M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
-#endif
-
-/**
- * Transaction.
- */
+/** Transaction. */
 struct m0_be_tx {
 	struct m0_sm           t_sm;
 
@@ -384,21 +342,21 @@ struct m0_be_tx {
 	struct m0_sm_ast       t_ast_placed;
 	struct m0_sm_ast       t_ast_done;
 	struct m0_be_tx_group *t_group;
+	/** Reference counter. */
 	uint32_t	       t_ref;
 };
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
-			       uint64_t            tid,
-			       struct m0_be_domain   *dom,
-			       struct m0_sm_group *sm_group,
-			       m0_be_tx_cb_t       persistent,
-			       m0_be_tx_cb_t       discarded,
-			       bool                is_part_of_global_tx,
-			       void              (*filler)(struct m0_be_tx *tx,
-							   void *payload),
-			       void               *datum);
+M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
+			       uint64_t             tid,
+			       struct m0_be_domain *dom,
+			       struct m0_sm_group  *sm_group,
+			       m0_be_tx_cb_t        persistent,
+			       m0_be_tx_cb_t        discarded,
+			       void               (*filler)(struct m0_be_tx *tx,
+							    void *payload),
+			       void                *datum);
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 

@@ -22,12 +22,11 @@
 #include "lib/trace.h"
 
 #include "be/tx_group.h"
-
-#include "lib/errno.h"		/* ENOSPC */
-
-#include "be/tx_internal.h"	/* m0_be_tx__reg_area */
-#include "be/log.h"		/* m0_be_log_stob */
-#include "be/engine.h"		/* m0_be_engine__tx_group_open */
+#include "be/tx_internal.h"  /* m0_be_tx__reg_area */
+#include "be/log.h"          /* m0_be_log_stob */
+#include "be/engine.h"       /* m0_be_engine__tx_group_open */
+#include "lib/misc.h"        /* M0_SET0 */
+#include "lib/errno.h"       /* ENOSPC */
 
 /**
  * @addtogroup be
@@ -44,13 +43,13 @@ M0_TL_DEFINE(grp, M0_INTERNAL, struct m0_be_tx);
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob)
 {
-	int rc;
+	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT_INIT(200000, 1ULL << 25);
+	int                    rc;
 
 	gr->tg_lsn = 0ULL;
-	m0_be_tx_credit_init(&gr->tg_used);
+	M0_SET0(&gr->tg_used);
 	grp_tlist_init(&gr->tg_txs);
-	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob,
-				     20, &M0_BE_TX_CREDIT(200000, 1ULL << 25));
+	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob, 20, &cred);
 	M0_ASSERT(rc == 0);
 }
 
@@ -157,7 +156,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
 	M0_PRE(gr->tg_nr_unstable == 0);
 
-	gr->tg_used = M0_BE_TX_CREDIT(0, 0);
+	M0_SET0(&gr->tg_used);
 	m0_be_group_ondisk_reset(&gr->tg_od);
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
@@ -271,7 +270,6 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 	m0_be_log_submit(gr->tg_log, op, gr);
 	rc = m0_be_op_wait(op);
 	M0_ASSERT(rc == 0);
-	M0_ASSERT(m0_be_op_state(op) == M0_BOS_SUCCESS);
 	/* XXX dirty hack */
 	m0_be_op_fini(op);
 	m0_be_op_init(op);

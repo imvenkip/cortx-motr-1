@@ -18,7 +18,6 @@
  * Original creation date: 18-Jul-2013
  */
 
-
 #include "be/domain.h"
 
 /**
@@ -51,7 +50,6 @@ M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
 }
 
 /** @} end of be group */
-
 
 /*
  *  Local variables:
