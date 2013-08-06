@@ -271,51 +271,6 @@ static struct m0_be_reg_d *be_regmap_find_fb(struct m0_be_regmap *rm,
 	return m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
 }
 
-/** Delete all regions that are completely covered by the given region */
-static void be_regmap_del_all_completely_covered(struct m0_be_regmap *rm,
-						 const struct m0_be_reg_d *rd)
-{
-	struct m0_be_reg_d *rdi;
-
-	if (rd == NULL || rd->rd_reg.br_size == 0)
-		return;
-
-	rdi = be_regmap_find_fb(rm, rd);
-
-	/* if it is an intersection and not complete coverage */
-	if (rdi != NULL && !be_reg_d_is_partof(rd, rdi))
-		rdi = m0_be_rdt_next(&rm->br_rdt, rdi);
-
-	/* delete all coverted regions */
-	while (rdi != NULL && be_reg_d_is_partof(rd, rdi)) {
-		rm->br_ops->rmo_del(rm->br_ops_data, rdi);
-		rdi = m0_be_rdt_del(&rm->br_rdt, rdi);
-	}
-}
-
-static struct m0_be_reg_d *
-be_regmap_intersect_first(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
-{
-	struct m0_be_reg_d *rdi;
-
-	rdi = be_regmap_find_fb(rm, rd);
-	return rdi != NULL && be_reg_d_size(rd) > 0 &&
-	       m0_be_reg_d_is_in(rdi, be_reg_d_fb(rd)) &&
-	       !m0_be_reg_d_is_in(rdi, be_reg_d_lb1(rd)) ? rdi : NULL;
-
-}
-
-static struct m0_be_reg_d *
-be_regmap_intersect_last(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
-{
-	struct m0_be_reg_d *rdi;
-
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_lb(rd));
-	return rdi != NULL && be_reg_d_size(rd) > 0 &&
-	       !m0_be_reg_d_is_in(rdi, be_reg_d_fb1(rd)) &&
-	       m0_be_reg_d_is_in(rdi, be_reg_d_lb(rd)) ? rdi : NULL;
-}
-
 static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
 				struct m0_be_reg_d *rd,
 				m0_bcount_t cut_start,
@@ -370,15 +325,24 @@ M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
 	M0_PRE(rd != NULL);
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
-	be_regmap_del_all_completely_covered(rm, rd);
-	rdi = be_regmap_intersect_first(rm, rd);
-	if (rdi != NULL) {
+	/* first intersection */
+	rdi = be_regmap_find_fb(rm, rd);
+	if (rdi != NULL && m0_be_reg_d_is_in(rdi, be_reg_d_fb(rd)) &&
+	    !m0_be_reg_d_is_in(rdi, be_reg_d_lb1(rd)) &&
+	    !be_reg_d_is_partof(rd, rdi)) {
 		cut = be_reg_d_size(rdi);
 		cut -= be_reg_d_fb(rd) - be_reg_d_fb(rdi);
 		be_regmap_reg_d_cut(rm, rdi, 0, cut);
+		rdi = m0_be_rdt_next(&rm->br_rdt, rdi);
 	}
-	rdi = be_regmap_intersect_last(rm, rd);
-	if (rdi != NULL) {
+	/* delete all completely covered regions */
+	while (rdi != NULL && be_reg_d_is_partof(rd, rdi)) {
+		rm->br_ops->rmo_del(rm->br_ops_data, rdi);
+		rdi = m0_be_rdt_del(&rm->br_rdt, rdi);
+	}
+	/* last intersection */
+	if (rdi != NULL && !m0_be_reg_d_is_in(rdi, be_reg_d_fb1(rd)) &&
+	    m0_be_reg_d_is_in(rdi, be_reg_d_lb(rd))) {
 		cut = be_reg_d_size(rdi);
 		cut -= be_reg_d_lb(rdi) - be_reg_d_lb(rd);
 		be_regmap_reg_d_cut(rm, rdi, cut, 0);
