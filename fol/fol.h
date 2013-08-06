@@ -87,7 +87,7 @@
    @{
  */
 
-#define XXX_USE_DB5 1
+#define XXX_USE_DB5 0
 
 /* export */
 struct m0_fol;
@@ -152,7 +152,8 @@ struct m0_fol {
 #if XXX_USE_DB5
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
 #else
-M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
+M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
+			    struct m0_be_tx *tx);
 #endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 

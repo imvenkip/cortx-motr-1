@@ -97,6 +97,8 @@ enum {
  * LSN
  * ------------------------------------------------------------------ */
 
+static m0_bcount_t fol_rec_header_pack_size(struct m0_fol_rec_header *h);
+
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn)
 {
 	return lsn > M0_LSN_RESERVED_NR;
@@ -198,6 +200,10 @@ static const struct m0_be_btree_kv_ops fol_kv_ops = {
  * m0_fol operations
  * ------------------------------------------------------------------ */
 
+static int btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx);
+static void btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx);
+static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx);
+
 #if XXX_USE_DB5
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 {
@@ -241,7 +247,8 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	return result;
 }
 #else
-M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_tx *tx)
+M0_INTERNAL int
+m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
 	struct m0_be_btree *tree = &fol->f_store;
 	int                 rc;
@@ -257,7 +264,7 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_tx *tx)
 			goto err;
 	}
 
-	rc = fol_setup(fol);
+	rc = fol_setup(fol, tx);
 	if (rc == 0)
 		return 0;
 
@@ -292,14 +299,15 @@ M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto)
 M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 			       struct m0_be_tx_credit *accum)
 {
-	struct m0_be_btree *tree = &fol->f_store;
+	const struct m0_be_btree *tree = &fol->f_store;
 
 	switch (optype) {
 	case M0_FO_INIT:
 		m0_be_btree_create_credit(tree, 1, accum);
 		m0_be_btree_insert_credit(tree, 1, FOL_KEY_SIZE,
 					  FOL_REC_MAXSIZE, accum);
-		m0_be_btree_destroy_credit(tree, 1, accum);
+		m0_be_btree_destroy_credit((struct m0_be_btree *)tree /*XXX*/,
+					   1, accum);
 		break;
 	case M0_FO_REC_ADD:
 		m0_be_btree_insert_credit(tree, 1, FOL_KEY_SIZE,
@@ -316,7 +324,7 @@ static int btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	int             rc;
 
 	m0_be_op_init(&op);
-	m0_be_btree_create(&fol->f_store, tx, &op);
+	m0_be_btree_create(tree, tx, &op);
 	rc = m0_be_op_wait(&op);
 	M0_ASSERT(rc == 0);
 	rc = op.bo_u.u_btree.t_rc;
@@ -331,14 +339,14 @@ static void btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	int             rc;
 
 	m0_be_op_init(&op);
-	m0_be_btree_destroy(&fol->f_store, tx, &op);
+	m0_be_btree_destroy(tree, tx, &op);
 	rc = m0_be_op_wait(&op);
 	M0_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 }
 
 /** Inserts first record into the fol. */
-static int fol_zero(struct m0_fol *fol)
+static int fol_zero(struct m0_fol *fol, struct m0_be_tx *tx)
 {
 	struct m0_fol_rec rec;
 	int               rc;
@@ -352,7 +360,7 @@ static int fol_zero(struct m0_fol *fol)
 		.rd_header = { .rh_refcount = 1 },
 		.rd_lsn    = M0_LSN_ANCHOR
 	};
-	rc = m0_fol_rec_add(fol, &rec);
+	rc = m0_fol_rec_add(fol, tx, &rec);
 	if (rc == 0)
 		fol->f_lsn = M0_LSN_ANCHOR + 1;
 
@@ -374,7 +382,7 @@ static int fol_inc(struct m0_fol *fol, struct m0_fol_rec *rec)
 	return rc;
 }
 
-static int fol_setup(struct m0_fol *fol)
+static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx)
 {
 	struct m0_fol_rec rec;
 	int               rc;
@@ -383,7 +391,7 @@ static int fol_setup(struct m0_fol *fol)
 
 	rc = m0_fol_rec_lookup(fol, M0_LSN_ANCHOR, &rec);
 	if (rc == -ENOENT)
-		rc = fol_zero(fol);
+		rc = fol_zero(fol, tx);
 	else if (rc == 0)
 		rc = fol_inc(fol, &rec);
 	else
