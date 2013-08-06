@@ -25,6 +25,7 @@
 #include "be/be.h"              /* m0_be_op */
 #include "lib/memory.h"         /* m0_addr_is_aligned */
 #include "lib/errno.h"          /* ENOSPC */
+#include "lib/misc.h"		/* memset */
 #include "mero/magic.h"
 
 /**
@@ -861,6 +862,11 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
 		if (c != NULL)
 			break;
 	} m0_tl_endfor;
+	if (c != NULL && /* XXX */ tx != NULL) {
+		memset(&c->bac_mem, 0, c->bac_size);
+		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg,
+						c->bac_size, &c->bac_mem));
+	}
 	/* and ends here */
 	m0_mutex_unlock(&a->ba_lock);
 
