@@ -96,8 +96,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_net_xprt_fini(ut_be->but_net_xprt);
 }
 
-void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
-			      struct m0_be_tx *tx)
+void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 {
 	m0_be_tx_init(tx, 0, &ut_be->but_dom, &ut__txs_sm_group, NULL, NULL,
 		      NULL, NULL);
@@ -198,15 +197,15 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 					 struct m0_be_ut_backend *ut_be,
 					 bool init)
 {
-	struct m0_be_allocator *a;
 	M0_BE_TX_CREDIT(credit);
+	struct m0_be_allocator *a;
 	struct m0_be_tx         tx;
 	int                     rc;
 
 	a = ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
 
 	if (ut_be != NULL) {
-		m0_be_ut_backend_tx_init(ut_be, &tx);
+		m0_be_ut_tx_init(&tx, ut_be);
 		m0_be_allocator_credit(a, M0_BAO_CREATE, 0, 0, &credit);
 		m0_be_tx_prep(&tx, &credit);
 		m0_be_tx_open(&tx);

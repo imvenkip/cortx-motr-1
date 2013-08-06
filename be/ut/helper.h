@@ -40,8 +40,7 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
 /* will work with single thread only */
-void m0_be_ut_backend_tx_init(struct m0_be_ut_backend *ut_be,
-			      struct m0_be_tx *tx);
+void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
 
 struct m0_be_ut_seg {
 	struct m0_stob_domain	*bus_dom;

@@ -102,7 +102,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 	optype = *p == NULL ? M0_BAO_ALLOC : M0_BAO_FREE;
 
 	if (ut_be != NULL) {
-		m0_be_ut_backend_tx_init(ut_be, tx);
+		m0_be_ut_tx_init(tx, ut_be);
 		M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 
 		m0_be_allocator_credit(a, optype, size, shift, &credit);

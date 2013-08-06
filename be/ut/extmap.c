@@ -53,7 +53,7 @@ static void emap_alloc(struct m0_be_tx *tx)
 
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *emap, 0, &cred);
 
-	m0_be_ut_backend_tx_init(&be_ut_emap_backend, tx);
+	m0_be_ut_tx_init(tx, &be_ut_emap_backend);
 	m0_be_tx_prep(tx, &cred);
 
 	m0_be_tx_open(tx);
@@ -155,7 +155,7 @@ static void test_init(void)
 	m0_be_emap_credit(emap, M0_BEO_MERGE, 100, &cred);
 	m0_be_emap_credit(emap, M0_BEO_PASTE, 3, &cred);
 
-	m0_be_ut_backend_tx_init(&be_ut_emap_backend, &tx2);
+	m0_be_ut_tx_init(&tx2, &be_ut_emap_backend);
 	m0_be_tx_prep(&tx2, &cred);
 	m0_be_tx_open(&tx2);
 	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),

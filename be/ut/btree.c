@@ -220,7 +220,7 @@ static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
-	m0_be_ut_backend_tx_init(ut_be, tx);
+	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 
 	m0_be_tx_open(tx);
@@ -322,7 +322,7 @@ static void destroy_tree(struct m0_be_btree *tree,
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
-        m0_be_ut_backend_tx_init(ut_be, tx);
+	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 
 	m0_be_tx_open(tx);
