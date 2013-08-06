@@ -130,10 +130,10 @@ M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
 	       _0C(rdt->brt_size <= rdt->brt_size_max) &&
 	       _0C(m0_forall(i, rdt->brt_size,
 			     m0_be_reg_d__invariant(&rdt->brt_r[i]))) &&
-	       _0C(m0_forall(i, rdt->brt_size - 1,
+	       _0C(m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
 			     rdt->brt_r[i].rd_reg.br_addr <
 			     rdt->brt_r[i + 1].rd_reg.br_addr)) &&
-	       _0C(m0_forall(i, rdt->brt_size - 1,
+	       _0C(m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
 			     !be_reg_d_are_overlapping(&rdt->brt_r[i],
 						       &rdt->brt_r[i + 1])));
 }
