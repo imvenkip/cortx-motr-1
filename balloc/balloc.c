@@ -45,6 +45,7 @@
 /* This macro is to control the debug verbose message */
 #define BALLOC_ENABLE_DUMP
 
+#if XXX_USE_DB5
 static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
 {
 #ifdef BALLOC_ENABLE_DUMP
@@ -61,6 +62,7 @@ static void balloc_debug_dump_extent(const char *tag, struct m0_ext *ex)
 		(unsigned long long) ex->e_end);
 #endif
 }
+#endif
 
 M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,
 					    struct m0_balloc_group_info *grp)
@@ -715,6 +717,7 @@ struct m0_balloc_allocation_context {
 	uint32_t		       bac_status;  /* allocation status */
 };
 
+#if XXX_USE_DB5
 static int balloc_init_ac(struct m0_balloc_allocation_context *bac,
 			  struct m0_balloc *mero,
 			  struct m0_db_tx * tx,
@@ -747,7 +750,6 @@ static int balloc_init_ac(struct m0_balloc_allocation_context *bac,
 	M0_LEAVE();
 	return 0;
 }
-
 
 static int balloc_use_prealloc(struct m0_balloc_allocation_context *bac)
 {
@@ -849,6 +851,7 @@ balloc_normalize_request(struct m0_balloc_allocation_context *bac)
 		(unsigned long long) m0_ext_length(&bac->bac_orig));
 	M0_LEAVE();
 }
+#endif
 
 /* called under group lock */
 M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
@@ -934,6 +937,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	return result;
 }
 
+#if XXX_USE_DB5
 /* called under group lock */
 static int balloc_find_extent_exact(struct m0_balloc_allocation_context *bac,
 				    struct m0_balloc_group_info *grp,
@@ -1018,7 +1022,6 @@ repeat:
 	return found;
 }
 
-
 static int balloc_use_best_found(struct m0_balloc_allocation_context *bac)
 {
 	bac->bac_final.e_start = bac->bac_best.e_start;
@@ -1039,6 +1042,7 @@ static int balloc_new_preallocation(struct m0_balloc_allocation_context *bac)
 					          m0_ext_length(&bac->bac_final));
 	return 0;
 }
+#endif /* XXX_USE_DB5 */
 
 enum m0_balloc_update_operation {
 	M0_BALLOC_ALLOC = 1,
@@ -1046,6 +1050,7 @@ enum m0_balloc_update_operation {
 };
 
 
+#if XXX_USE_DB5
 /* the group is under lock now */
 static int balloc_update_db(struct m0_balloc *mero,
 			    struct m0_db_tx *tx,
@@ -1506,6 +1511,7 @@ static int balloc_simple_scan_group(struct m0_balloc_allocation_context *bac,
 	M0_LEAVE();
 	return 0;
 }
+#endif /* XXX_USE_DB5 */
 
 __attribute__((unused))
 static int balloc_aligned_scan_group(struct m0_balloc_allocation_context *bac,
@@ -1529,7 +1535,7 @@ static int balloc_aligned_scan_group(struct m0_balloc_allocation_context *bac,
  */
 #define M0_BALLOC_DEFAULT_MAX_GROUPS_TO_SCAN   5
 
-
+#if XXX_USE_DB5
 static int balloc_check_limits(struct m0_balloc_allocation_context *bac,
 			       struct m0_balloc_group_info *grp,
 			       int end_of_group)
@@ -1850,6 +1856,7 @@ out:
 		rc = -ENOSPC;
 	return rc;
 }
+#endif /* XXX_USE_DB5 */
 
 /**
    Allocate multiple blocks for some object.
@@ -1882,6 +1889,7 @@ out:
 	   result count of blocks = bar_len.
 	   Upon failure, non-zero error number is returned.
  */
+#if XXX_USE_DB5
 static
 int balloc_allocate_internal(struct m0_balloc *ctx,
 			     struct m0_db_tx *tx,
@@ -1919,6 +1927,15 @@ out:
 	M0_LEAVE();
 	return rc;
 }
+#else
+static int balloc_allocate_internal(struct m0_balloc *ctx,
+				    struct m0_be_tx *tx,
+				    struct m0_balloc_allocate_req *req)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+}
+#endif
 
 /**
    Free multiple blocks owned by some object to free space.
@@ -1927,6 +1944,7 @@ out:
    @param req block free request which includes all parameters.
    @return 0 means success. Upon failure, non-zero error number is returned.
  */
+#if XXX_USE_DB5
 static int balloc_free_internal(struct m0_balloc *ctx,
 				struct m0_db_tx *tx,
 				struct m0_balloc_free_req *req)
@@ -1987,6 +2005,14 @@ out:
 	M0_LEAVE();
 	return rc;
 }
+#else
+static int balloc_free_internal(struct m0_balloc *ctx, struct m0_be_tx *tx,
+				struct m0_balloc_free_req *req)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+}
+#endif
 
 /**
    Discard the pre-allocation for object.
