@@ -371,8 +371,8 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
 	return seg->bs_addr <= addr && addr < seg->bs_addr + seg->bs_size;
 }
 
-M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
-				 const struct m0_be_reg *r2)
+M0_INTERNAL bool m0_be_reg_eq(const struct m0_be_reg *r1,
+			      const struct m0_be_reg *r2)
 {
 	return r1->br_seg == r2->br_seg &&
 	       r1->br_size == r2->br_size &&

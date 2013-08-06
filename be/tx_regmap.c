@@ -220,7 +220,7 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 	M0_PRE(m0_be_rdt_size(rdt) > 0);
 
 	index = be_rdt_find_i(rdt, be_reg_d_fb(rd));
-	M0_ASSERT(m0_be_reg_is_eq(&rdt->brt_r[index].rd_reg, &rd->rd_reg));
+	M0_ASSERT(m0_be_reg_eq(&rdt->brt_r[index].rd_reg, &rd->rd_reg));
 
 	for (i = index; i + 1 < rdt->brt_size; ++i)
 		rdt->brt_r[i] = rdt->brt_r[i + 1];
