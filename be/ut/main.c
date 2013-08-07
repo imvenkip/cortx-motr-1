@@ -59,14 +59,14 @@ extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
 
-extern struct m0_sm_group ut__txs_sm_group;
-
 /* ---------------------------------------------------------------------
  * XXX FIXME: Using "ast threads" is a very wrong thing to do.
  * We should use m0_fom_simple instead. (The changes are to be made in
  * be/ut/helper.c, supposedly.)
  *  --vvv
  */
+
+extern struct m0_sm_group ut__txs_sm_group;
 
 static struct {
 	bool             run;
