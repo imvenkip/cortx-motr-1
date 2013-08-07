@@ -45,11 +45,19 @@ static struct m0_fol_rec_desc *d;
 static struct m0_buf           buf;
 static struct m0_dbenv         db;
 static struct m0_db_tx         tx;
-static int                     rc;
 #else
 static struct m0_fol          *g_fol;
 static struct m0_be_ut_backend g_ut_be;
 static struct m0_be_ut_seg     g_ut_seg;
+static struct m0_be_tx         g_tx;
+
+static void backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg);
+static void backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg);
+static void *be_alloc(m0_bcount_t size, struct m0_be_seg *seg);
+static void be_free(void *ptr, m0_bcount_t size, struct m0_be_seg *seg);
+static void tx_begin(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
+		     struct m0_be_tx_credit *cred);
+static void tx_end(struct m0_be_tx *tx);
 #endif
 
 #if XXX_USE_DB5
@@ -59,7 +67,13 @@ static int db_reset(void)
 }
 #endif
 
-static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
+static int verify_part_data(struct m0_fol_rec_part *part,
+#if XXX_USE_DB5
+			    struct m0_db_tx *tx
+#else
+			    struct m0_be_tx *tx
+#endif
+	);
 M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL);
 
 static void test_init(void)
@@ -90,7 +104,7 @@ static void test_init(void)
 	m0_fol_credit(g_fol, M0_FO_INIT, &cred);
 	tx_begin(&g_tx, &g_ut_be, &cred);
 
-	rc = m0_fol_init(g_fol, &g_tx);
+	rc = m0_fol_init(g_fol, &g_ut_seg.bus_seg, &g_tx);
 	M0_UT_ASSERT(rc == 0);
 #endif
 }
@@ -110,13 +124,15 @@ static void test_fini(void)
 	m0_fol_fini(g_fol);
 	tx_end(&g_tx);
 
-	be_free(g_fol);
+	be_free(g_fol, sizeof *g_fol, &g_ut_seg.bus_seg);
 	backend_fini(&g_ut_be, &g_ut_seg);
 #endif
 }
 
 static void test_rec_part_type_reg(void)
 {
+	int rc;
+
 	ut_part_type = M0_FOL_REC_PART_TYPE_XC_OPS("UT record part", m0_fid_xc,
 						   &ut_part_type_ops);
 	rc = m0_fol_rec_part_type_register(&ut_part_type);
@@ -168,7 +184,13 @@ static void test_lookup(void)
 }
 #endif
 
-static int verify_part_data(struct m0_fol_rec_part *part, struct m0_db_tx *tx)
+static int verify_part_data(struct m0_fol_rec_part *part,
+#if XXX_USE_DB5
+			    struct m0_db_tx *_
+#else
+			    struct m0_be_tx *_
+#endif
+	)
 {
 	struct m0_fid *dec_rec;
 
@@ -219,63 +241,7 @@ static void test_fol_rec_part_encdec(void)
 
 	m0_fol_lookup_rec_fini(&dec_rec);
 }
-#endif
-
-#if !XXX_USE_DB5
-static void noop(const struct m0_be_tx *tx) {}
-
-static void *ut_be_alloc(m0_bcount_t size)
-{
-	enum { SHIFT = 0 };
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
-	struct m0_be_op op;
-	void           *ptr;
-
-	/* Prepare the credit needed for the allocation. */
-	m0_be_allocator_credit(beh.buh_allocator, M0_BAO_ALLOC, size, SHIFT,
-			       &cred);
-
-	/* Initialise the transaction. */
-	m0_be_tx_init(&tx, ++beh.buh_tid, &beh.buh_be, &ut__txs_sm_group,
-		      noop, noop, false /* "local" tx */, NULL, NULL);
-
-	/* m0_be_tx_{prep,open,capture,close,timedwait}() require
-	 * transaction's sm_group to be locked. */
-	m0_sm_group_lock(&ut__txs_sm_group);
-
-	/* Get transaction prepared by giving it the credit. */
-	m0_be_tx_prep(&tx, &cred);
-
-	/* Open the transaction and wait for it to become active. */
-	m0_be_tx_open(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	/* Allocate `size' bytes. */
-	m0_be_op_init(&op);
-	ptr = m0_be_alloc(beh.buh_allocator, &tx, &op, size, 0);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	m0_be_op_fini(&op);
-
-	/* Close the transaction and wait for its data to become written to
-	 * segment. */
-	m0_be_tx_close(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	/*
-	 * XXX The placement of this statement does not look right.
-	 * An attempt to get rid of it causes m0_be_ut_h_fini() to fail.
-	 * BE UTs manage without finalising their transactions, somehow...
-	 */
-	m0_be_tx_fini(&tx);
-
-	m0_sm_group_unlock(&ut__txs_sm_group);
-
-	M0_POST(ptr != NULL);
-	return ptr;
-}
+#else
 
 /* ------------------------------------------------------------------
  * BE paraphernalia
@@ -327,7 +293,7 @@ static void *be_alloc(m0_bcount_t size, struct m0_be_seg *seg)
 	void           *ptr;
 	int             rc;
 
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC, fol, SHIFT,
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC, size, SHIFT,
 			       &cred);
 	tx_begin(&tx, &g_ut_be, &cred);
 
@@ -342,7 +308,7 @@ static void *be_alloc(m0_bcount_t size, struct m0_be_seg *seg)
 }
 
 /** Releases resources obtained by be_alloc(). */
-static void be_free(void *ptr)
+static void be_free(void *ptr, m0_bcount_t size, struct m0_be_seg *seg)
 {
 	enum { SHIFT = 0 };
 	M0_BE_TX_CREDIT(cred);
@@ -350,7 +316,7 @@ static void be_free(void *ptr)
 	struct m0_be_op op;
 	int             rc;
 
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE, fol, SHIFT,
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE, size, SHIFT,
 			       &cred);
 	tx_begin(&tx, &g_ut_be, &cred);
 
@@ -368,6 +334,8 @@ static void be_free(void *ptr)
  * See the comment in be/ut/helper.c.
  * XXX Code duplication.
  */
+
+extern struct m0_sm_group ut__txs_sm_group;
 
 static struct {
 	bool             run;
@@ -402,7 +370,7 @@ static int _fini(void)
 	m0_sm_group_fini(&ut__txs_sm_group);
 	return 0;
 }
-#endif
+#endif /* XXX_USE_DB5 */
 
 const struct m0_test_suite fol_ut = {
 	.ts_name = "fol-ut",
