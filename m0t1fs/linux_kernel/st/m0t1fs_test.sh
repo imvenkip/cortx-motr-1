@@ -8,6 +8,9 @@
 . `dirname $0`/m0t1fs_server_inc.sh
 . `dirname $0`/m0t1fs_rsink.sh
 
+NR_DATA=5
+NR_PARITY=2
+POOL_WIDTH=9
 main()
 {
 	NODE_UUID=`uuidgen`

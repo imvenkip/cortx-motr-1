@@ -45,8 +45,9 @@ mount_m0t1fs()
 [$((${#EP[*]} + 3)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
-	      [3: "pool_width=$POOL_WIDTH",
+	      [4: "pool_width=$POOL_WIDTH",
 		  "nr_data_units=$NR_DATA",
+		  "nr_parity_units=$NR_PARITY",
 		  "unit_size=$stride_size"],
 	      [$((${#EP[*]} + 1)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),

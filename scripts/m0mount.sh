@@ -92,6 +92,8 @@ Where:
 
 -d NUM: Use NUM number of data units. (default is $NR_DATA)
 
+-k NUM: Use NUM number of parity units. (default is $NR_PARITY)
+
 -p NUM: Use NUM as pool width. (default is $POOL_WIDTH)
 
 -u NUM: Use NUM Unit size. (default is $UNIT_SIZE)
@@ -101,7 +103,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="aln:d:p:u:qhL"
+OPTIONS_STRING="aln:d:k:p:u:qhL"
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVICES=(
@@ -125,6 +127,7 @@ STOB=linux
 LOCAL_SERVICES_NR=4
 SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
 NR_DATA=3
+NR_PARITY=1
 POOL_WIDTH=5
 UNIT_SIZE=262144
 use_loop_device=0
@@ -579,7 +582,7 @@ main()
 		exit 1
 	}
 
-	l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+	l_run utils/m0layout $NR_DATA $NR_PARITY $POOL_WIDTH $NR_DATA $NR_DATA
 	if [ $? -ne 0 ]; then
 		echo ERROR: Parity configuration is incorrect
 		exit 1
@@ -606,8 +609,9 @@ main()
 [$((SERVICES_NR + 4)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
-              [3: "pool_width=$POOL_WIDTH",
+              [4: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
+		  "nr_parity_units=$NR_PARITY",
                   "unit_size=$UNIT_SIZE"],
               [$((SERVICES_NR + 2)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
@@ -660,9 +664,13 @@ while getopts "$OPTIONS_STRING" OPTION; do
         d)
             NR_DATA="$OPTARG"
             ;;
-        p)
+        k)
+            NR_PARITY="$OPTARG"
+            ;;
+	p)
             POOL_WIDTH="$OPTARG"
             ;;
+
         u)
             UNIT_SIZE="$OPTARG"
             ;;

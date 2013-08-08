@@ -447,27 +447,37 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
 				struct m0_buf *parity)
 {
-	uint32_t ei; /* block element index. */
-	uint32_t ui; /* unit index. */
-	uint32_t block_size = data[0].b_nob;
+	uint32_t	 ei; /* block element index. */
+	uint32_t	 pi; /* parity unit index. */
+	uint32_t	 di; /* data unit index. */
+	m0_parity_elem_t mat_elem;
+	uint32_t	 block_size = data[0].b_nob;
 
-	for (ui = 1; ui < math->pmi_data_count; ++ui)
-		M0_ASSERT(block_size == data[ui].b_nob);
+	for (di = 1; di < math->pmi_data_count; ++di)
+		M0_ASSERT(block_size == data[di].b_nob);
 
-	for (ui = 0; ui < math->pmi_parity_count; ++ui)
-		M0_ASSERT(block_size == parity[ui].b_nob);
+	for (pi = 0; pi < math->pmi_parity_count; ++pi)
+		M0_ASSERT(block_size == parity[pi].b_nob);
 
-	for (ei = 0; ei < block_size; ++ei) {
-		for (ui = 0; ui < math->pmi_data_count; ++ui)
-			*m0_vector_elem_get(&math->pmi_data, ui) =
-				((uint8_t*)data[ui].b_addr)[ei];
+	for (pi = 0; pi < math->pmi_parity_count; ++pi) {
+		for (di = 0; di < math->pmi_data_count; ++di) {
+			mat_elem =
+			*m0_matrix_elem_get(&math->pmi_vandmat_parity_slice,
+					    di, pi);
+			if (mat_elem == 0)
+				continue;
+			for (ei = 0; ei < block_size; ++ei) {
+				if (di == 0)
+					((uint8_t*)parity[pi].b_addr)[ei] =
+						M0_PARITY_ZERO;
 
-		m0_matrix_vec_multiply(&math->pmi_vandmat_parity_slice,
-				&math->pmi_data, &math->pmi_parity, gmul, gadd);
-
-		for (ui = 0; ui < math->pmi_parity_count; ++ui)
-			((uint8_t*)parity[ui].b_addr)[ei] =
-				*m0_vector_elem_get(&math->pmi_parity, ui);
+				((uint8_t*)parity[pi].b_addr)[ei] =
+					gadd(((uint8_t*)parity[pi].b_addr)[ei],
+					     gmul(mat_elem,
+						  ((uint8_t*)data[di].b_addr)
+						  [ei]));
+			}
+		}
 	}
 }
 

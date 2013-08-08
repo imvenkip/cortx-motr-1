@@ -385,30 +385,6 @@ static int fs_params_validate(const struct fs_params *params)
 	if ((params->fs_unit_size & (PAGE_CACHE_SIZE - 1)) != 0)
 		M0_RETERR(-EINVAL,
 			  "Unit size must be a multiple of PAGE_CACHE_SIZE");
-
-	/*
-	 * In parity groups, parity is calculated using "read old" and
-	 * "read rest" approaches.
-	 *
-	 * Read old approach uses calculation of differential parity
-	 * between old and new version of data along with old version
-	 * of parity block.
-	 *
-	 * Calculation of differential parity needs support from
-	 * parity math component. At the moment, only XOR has such
-	 * support.
-	 *
-	 * Parity math component choses the algorithm for parity
-	 * calculation, based on number of parity units. If K == 1,
-	 * XOR is chosen, otherwise Reed-Solomon is chosen.
-	 *
-	 * Since Reed-Solomon does not support differential parity
-	 * calculation at the moment, we restrict the number of parity
-	 * units to 1.
-	 */
-	if (params->fs_nr_parity_units > 1)
-		M0_RETERR(-EINVAL, "Number of parity units must be 1");
-
 	M0_RETURN(0);
 }
 
