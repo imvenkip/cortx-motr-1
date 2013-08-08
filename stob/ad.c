@@ -154,8 +154,14 @@ enum ad_stob_allocation_extent_type {
 };
 
 static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
-				    struct m0_db_tx	   *tx)
+#if XXX_USE_DB5
+				    struct m0_db_tx        *tx
+#else
+				    struct m0_be_tx        *tx
+#endif
+	)
 {
+#if XXX_USE_DB5
 	struct ad_rec_part    *arp;
 	struct m0_stob_domain *dom;
 	struct ad_domain      *adom;
@@ -181,6 +187,10 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 		m0_emap_close(&it);
 	}
 	return rc;
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+#endif
 }
 
 M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo_redo_op,
@@ -398,18 +408,24 @@ static void ad_stob_fini(struct m0_stob *stob)
  */
 static int ad_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 {
+#if XXX_USE_DB5
 	struct ad_domain *adom;
 
 	adom = domain2ad(obj->so_domain);
 	M0_PRE(adom->ad_setup);
 	return m0_emap_obj_insert(&adom->ad_adata, &tx->tx_dbtx,
 				  &obj->so_id.si_bits, AET_NONE);
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+#endif
 }
 
 static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
 		     uint64_t offset, struct m0_dtx *tx,
 		     struct m0_emap_cursor *it)
 {
+#if XXX_USE_DB5
 	int result;
 
 	result = m0_emap_lookup(&adom->ad_adata, &tx->tx_dbtx,
@@ -417,6 +433,10 @@ static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
 	if (result != 0 && result != -ENOENT && result != -ESRCH)
 		M0_STOB_FUNC_FAIL(AD_CURSOR, result);
 	return result;
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+#endif
 }
 
 /**

@@ -98,7 +98,7 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 	M0_PRE(cur != NULL);
 
 	/* Currently MAX slot references in sessions is 1. */
-	return m0_rpc_slot_refs_encdec(cur, item->ri_slot_refs, 1, what) ?:
+	return //XXX_BE_DB m0_rpc_slot_refs_encdec(cur, item->ri_slot_refs, 1, what) ?:
 		m0_fop_encdec(m0_rpc_item_to_fop(item), cur, what);
 }
 

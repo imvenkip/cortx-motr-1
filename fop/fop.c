@@ -78,7 +78,7 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 
 	m0_ref_init(&fop->f_ref, 1, fop_release);
 	fop->f_type = fopt;
-	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
+//XXX_BE_DB 	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_data.fd_data = data;
 	M0_LOG(M0_DEBUG, "fop: %p %s", fop, fop_name(fop));
 
@@ -114,7 +114,7 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 	M0_ENTRY("fop: %p %s", fop, fop_name(fop));
 	M0_PRE(M0_IN(m0_ref_read(&fop->f_ref), (0, 1)));
 
-	m0_rpc_item_fini(&fop->f_item);
+//XXX_BE_DB 	m0_rpc_item_fini(&fop->f_item);
 	if (fop->f_data.fd_data != NULL)
 		m0_xcode_free(&M0_FOP_XCODE_OBJ(fop));
 	M0_LEAVE();
@@ -178,7 +178,7 @@ M0_EXPORTED(m0_fop_opcode);
 void m0_fop_type_fini(struct m0_fop_type *fopt)
 {
 	m0_mutex_lock(&fop_types_lock);
-	m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
+//XXX_BE_DB 	m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
 	ft_tlink_del_fini(fopt);
 	fopt->ft_magix = 0;
 	m0_mutex_unlock(&fop_types_lock);
@@ -204,7 +204,7 @@ int m0_fop_type_init(struct m0_fop_type *ft,
 
 	m0_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
 			 args->sm);
-	m0_rpc_item_type_register(&ft->ft_rpc_item_type);
+//XXX_BE_DB 	m0_rpc_item_type_register(&ft->ft_rpc_item_type);
 	m0_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	m0_mutex_unlock(&fop_types_lock);

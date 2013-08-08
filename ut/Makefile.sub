@@ -6,8 +6,8 @@ ut_libmero_ut_la_SOURCES += ut/cs_fop_foms.c \
                             ut/ut.c \
                             ut/ut.h \
                             ut/user_space/ut.c \
-                            ut/ut_rpc_machine.h \
-                            ut/ut_rpc_machine.c
+                            ut/ut_rpc_machine.h
+#XXX_BE_DB                             ut/ut_rpc_machine.c
 
 XC_FILES   += ut/cs_fop_foms_xc.h
 

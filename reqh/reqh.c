@@ -137,7 +137,11 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 M0_INTERNAL int
 m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 {
+#if 0 /* XXX_BE_DB */
 	int rc;
+#else
+	int rc = -1;
+#endif
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_dbenv   = reqh_args->rhia_db;
@@ -145,6 +149,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
 	reqh->rh_fol     = reqh_args->rhia_fol;
 
+#if 0 /* XXX_BE_DB */
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
 	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
@@ -152,6 +157,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		return rc;
 
 	rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+#endif
 	if (rc != 0)
 		goto layout_dom_fini;
 
@@ -215,16 +221,16 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	return 0;
 
 layout_types_unreg:
-	m0_layout_standard_types_unregister(&reqh->rh_ldom);
+//XXX_BE_DB 	m0_layout_standard_types_unregister(&reqh->rh_ldom);
 layout_dom_fini:
-	m0_layout_domain_fini(&reqh->rh_ldom);
+//XXX_BE_DB 	m0_layout_domain_fini(&reqh->rh_ldom);
 	return rc;
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-	m0_layout_standard_types_unregister(&reqh->rh_ldom);
-	m0_layout_domain_fini(&reqh->rh_ldom);
+//XXX_BE_DB 	m0_layout_standard_types_unregister(&reqh->rh_ldom);
+//XXX_BE_DB 	m0_layout_domain_fini(&reqh->rh_ldom);
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
@@ -238,7 +244,7 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_chan_fini_lock(&reqh->rh_sd_signal); /* deprecated */
 	m0_mutex_fini(&reqh->rh_mutex); /* deprecated */
-	m0_ha_domain_fini(&reqh->rh_hadom);
+//XXX_BE_DB 	m0_ha_domain_fini(&reqh->rh_hadom);
 }
 
 M0_INTERNAL void m0_reqhs_fini(void)
@@ -496,8 +502,13 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)
 
 M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
 {
+#if 0 /* XXX_BE_DB */
 	struct m0_reqh_service *service;
 	int                     rc;
+#else
+	struct m0_reqh_service *service = NULL;
+	int rc = -1;
+#endif
 
 	M0_PRE(reqh != NULL);
         m0_rwlock_write_lock(&reqh->rh_rwlock);
@@ -507,23 +518,23 @@ M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
 	M0_PRE(reqh->rh_mgmt_svc == NULL);
 
 	reqh_state_set(reqh, M0_REQH_ST_MGMT_STARTED);
-	rc = m0_mgmt_service_allocate(&service);
+//XXX_BE_DB 	rc = m0_mgmt_service_allocate(&service);
 	if (rc != 0)
 		goto allocate_failed;
 	m0_reqh_service_init(service, reqh, NULL);
 	reqh->rh_mgmt_svc = service;
 
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	rc = m0_reqh_service_start(service);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 
 	if (rc != 0)
 		goto start_failed;
 	M0_POST(reqh->rh_mgmt_svc == service);
 	M0_POST(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED);
  done:
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
 
  start_failed:
@@ -569,8 +580,10 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
 
 	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
+#if 0 /* XXX_BE_DB */
 		m0_rpc_machine_stats_post_addb(rpcmach);
 		m0_net_tm_stats_post_addb(&rpcmach->rm_tm);
+#endif
 	} m0_tl_endfor;
 
         m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {

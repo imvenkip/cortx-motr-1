@@ -39,7 +39,7 @@
 #include "layout/layout.h"
 #include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
 #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
-#include "mdservice/md_fops_xc.h" /* m0_fop_create */
+//XXX_BE_DB #include "mdservice/md_fops_xc.h" /* m0_fop_create */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "m0t1fs/m0t1fs_addb.h"
 

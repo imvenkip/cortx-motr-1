@@ -107,7 +107,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
 	{ &libm0_init,          &libm0_fini,          "libm0" },
-	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
+//XXX_BE_DB 	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
@@ -119,54 +119,54 @@ struct init_fini_call subsystem[] = {
 	{ &m0_db_init,          &m0_db_fini,          "db" },
 	{ &m0_dtm_init,         &m0_dtm_fini,         "dtm" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
-	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
+//XXX_BE_DB 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	/* fops must be initialised before network, because network build fop
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
-	{ &m0_net_init,         &m0_net_fini,         "net" },
+//XXX_BE_DB 	{ &m0_net_init,         &m0_net_fini,         "net" },
 #ifdef __KERNEL__
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
 #endif
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
 	/* fom-simple must go after reqh init */
 	{ &m0_fom_simples_init, &m0_fom_simples_fini, "fom-simple" },
-	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
+//XXX_BE_DB 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
-	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
-	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
-	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
+//XXX_BE_DB 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
+//XXX_BE_DB 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
+//XXX_BE_DB 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
 	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
-	{ &sim_global_init,     &sim_global_fini,     "desim" },
+//XXX_BE_DB 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 #ifndef __KERNEL__
 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 #endif
-	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
-	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
+//XXX_BE_DB 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
+//XXX_BE_DB 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
 #else
 	{ &m0_backend_init,     &m0_backend_fini,     "be" },
 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
-	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
-	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
-	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
-	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
+//XXX_BE_DB 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
+//XXX_BE_DB 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
+//XXX_BE_DB 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+//XXX_BE_DB 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	/**
 	 * @todo Start rmservice in kernel mode.
 	 */
-	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
-	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
-	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
-	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
-	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
-	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
+//XXX_BE_DB 	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
+//XXX_BE_DB 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
+//XXX_BE_DB 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
+//XXX_BE_DB 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
+//XXX_BE_DB 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
+//XXX_BE_DB 	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
 #endif /* __KERNEL__ */
-	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
+//XXX_BE_DB 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 };
 
 static void fini_nr(int i)

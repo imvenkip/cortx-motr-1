@@ -42,7 +42,11 @@ static char default_node_uuid[M0_UUID_STRLEN + 1] =
 		"00000000-0000-0000-0000-000000000000"; /* nil UUID */
 
 /** flag, which specify whether to use a "real" node uuid or a default one */
+#if 0 /* XXX_BE_DB */
 static bool use_default_node_uuid = false;
+#else
+static bool use_default_node_uuid = true;
+#endif
 
 void m0_addb_kmod_uuid_file_set(const char *path)
 {

@@ -44,6 +44,7 @@ static void buf_dummy(struct m0_net_buffer_pool *bp)
 
 M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 {
+#if XXX_USE_DB5
 	struct m0_db_tx tx;
 	int             rc;
 
@@ -109,6 +110,9 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 
 	m0_reqh_rpc_mach_tlink_init_at_tail(&ctx->rmc_rpc,
 					    &ctx->rmc_reqh.rh_rpc_machines);
+#else
+	M0_IMPOSSIBLE("XXX Not implemented");
+#endif
 }
 
 M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)

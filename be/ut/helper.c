@@ -39,8 +39,40 @@
 
 struct m0_sm_group ut__txs_sm_group;
 
+#if 1 /* XXX_BE_DB */
+static struct m0_reqh ut__reqh;
+
+static void XXX_BE_DB__reqh_init(struct m0_reqh *reqh)
+{
+	static struct m0_fol   fol;
+	static struct m0_dbenv dbenv;
+	int                    rc;
+
+	rc = m0_dbenv_init(&dbenv, "__be_ut_reqh_db", 0);
+	M0_ASSERT(rc == 0);
+
+	rc = M0_REQH_INIT(reqh,
+			  .rhia_dtm     = (void *)1,
+			  .rhia_db      = &dbenv,
+			  .rhia_mdstore = (void *)1,
+			  .rhia_fol     = &fol,
+			  .rhia_svc     = (void *)1);
+	M0_ASSERT(rc == 0);
+	m0_reqh_start(reqh);
+}
+
+static void XXX_BE_DB__reqh_fini(struct m0_reqh *reqh)
+{
+	m0_reqh_shutdown_wait(reqh);
+	m0_reqh_services_terminate(reqh);
+	m0_reqh_fini(reqh);
+	m0_dbenv_fini(reqh->rh_dbenv);
+}
+#endif /* XXX_BE_DB */
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
+#if 0 /* XXX_BE_DB */
 #define NAME(ext) "be-ut" ext
 	static char    *argv[] = {
 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
@@ -48,9 +80,11 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service"
 	};
 	struct m0_reqh *reqh;
+#endif
 	int             rc;
 
 	*ut_be = (struct m0_be_ut_backend) {
+#if 0 /* XXX_BE_DB */
 		.but_net_xprt = &m0_net_lnet_xprt,
 		.but_rpc_sctx = {
 			.rsx_xprts         = &ut_be->but_net_xprt,
@@ -59,6 +93,7 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 			.rsx_argc          = ARRAY_SIZE(argv),
 			.rsx_log_file_name = NAME(".log")
 		},
+#endif
 		.but_dom_cfg = {
 			.bc_engine = {
 				.bec_group_nr = 1,
@@ -67,10 +102,14 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 					1 << 20, 1 << 26),
 				.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
 					1 << 21, 1 << 27),
-				.bec_group_tx_max = 20
+				.bec_group_tx_max = 20,
+#if 1 /* XXX_BE_DB */
+				.bec_group_fom_reqh = &ut__reqh
+#endif
 			},
 		},
 	};
+#if 0 /* XXX_BE_DB */
 #undef NAME
 
 	rc = m0_net_xprt_init(ut_be->but_net_xprt);
@@ -81,6 +120,9 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 	reqh = m0_mero_to_rmach(&ut_be->but_rpc_sctx.rsx_mero_ctx)->rm_reqh;
 	M0_ASSERT(reqh != NULL);
 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = reqh;
+#else
+	XXX_BE_DB__reqh_init(&ut__reqh);
+#endif
 
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT(rc == 0);
@@ -92,8 +134,12 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 {
 	m0_sm_group_unlock(&ut__txs_sm_group);	/* XXX FIXME */
 	m0_be_domain_fini(&ut_be->but_dom);
+#if 0 /* XXX_BE_DB */
 	m0_rpc_server_stop(&ut_be->but_rpc_sctx);
 	m0_net_xprt_fini(ut_be->but_net_xprt);
+#else
+	XXX_BE_DB__reqh_fini(&ut__reqh);
+#endif
 }
 
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)

@@ -376,11 +376,13 @@ static int fom_txn_commit_wait(struct m0_fom *fom)
  */
 static int fom_queue_reply(struct m0_fom *fom)
 {
+#if 0 /* XXX_BE_DB */
 	M0_PRE(fom->fo_rep_fop != NULL);
 
 	if (!fom->fo_local)
 		m0_rpc_reply_post(&fom->fo_fop->f_item,
 				  m0_fop_to_rpc_item(fom->fo_rep_fop));
+#endif
 	return M0_FSO_AGAIN;
 }
 
