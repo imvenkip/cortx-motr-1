@@ -140,7 +140,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 #if 0 /* XXX_BE_DB */
 	int rc;
 #else
-	int rc = -1;
+	int rc = 0;
 #endif
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
