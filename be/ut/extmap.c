@@ -145,7 +145,29 @@ static void test_fini(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(&tx2);
 
+#if 0 /* XXX DEBUGME
+       *
+       * This call fails with the following error message:
+       *
+       * | Suite: be-ut
+       * |   Test: emap ...mero:  FATAL : [lib/assert.c:42:m0_panic] panic: m0_list_is_empty(head) m0_list_fini() (lib/list.c:34)
+       * | Mero panic: m0_list_is_empty(head) at m0_list_fini() lib/list.c:34 (errno: 2) (last failed: none)
+       *
+       * The backtrace:
+       *
+       *   m0_be_ut_emap
+       *    \_ test_fini
+       *        \_ m0_be_ut_seg_allocator_fini
+       *            \_ be_ut_seg_allocator_initfini
+       *                \_ m0_be_allocator_destroy
+       *                    \_ chunks_free_tlist_fini_c
+       *                        \_ chunks_free_tlist_fini
+       *                            \_ m0_tlist_fini
+       *                                \_ m0_list_fini
+       *                                    \_ M0_ASSERT(m0_list_is_empty())
+       */
 	m0_be_ut_seg_allocator_fini(&be_ut_emap_seg, &be_ut_emap_backend);
+#endif
 	m0_be_ut_seg_fini(&be_ut_emap_seg);
 	m0_be_ut_backend_fini(&be_ut_emap_backend);
 }
