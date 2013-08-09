@@ -40,6 +40,8 @@ M0_TL_DESCR_DEFINE(grp, "m0_be_tx_group::tg_txs", M0_INTERNAL,
 
 M0_TL_DEFINE(grp, M0_INTERNAL, struct m0_be_tx);
 
+/* TODO move comments to be/log.[ch] */
+#if 0
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob)
 {
@@ -136,6 +138,7 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 
 	M0_LEAVE();
 }
+#endif
 
 M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
 {
