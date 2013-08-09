@@ -27,7 +27,7 @@ enum {
 	BE_UT_TX_GROUP_ONDISK_SEG_SIZE = 0x10000,
 	BE_UT_TX_GROUP_ONDISK_ITER     = 0x100,
 	BE_UT_TX_GROUP_ONDISK_LOG_SIZE = 1 << 11,
-	BE_UT_TX_GROUP_ONDISK_RB_SIZE  = 0x1000,
+	BE_UT_TX_GROUP_ONDISK_RB_SIZE  = 0x1000
 };
 
 /* XXX rename */
@@ -75,20 +75,10 @@ static void be_ut_group_ondisk_pop(struct m0_be_tx_credit *credit)
 
 static void be_ut_group_ondisk_log(void)
 {
-	struct m0_be_op op;
-	int             rc;
-
-	m0_be_op_init(&op);
-	m0_be_log_submit(&but_group_ondisk_log, &op, &but_group_ondisk_gr);
-	rc = m0_be_op_wait(&op);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_op_fini(&op);
-
-	m0_be_op_init(&op);
-	m0_be_log_commit(&but_group_ondisk_log, &op, &but_group_ondisk_gr);
-	rc = m0_be_op_wait(&op);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_op_fini(&op);
+	M0_BE_OP_SYNC(op, m0_be_log_submit(&but_group_ondisk_log, &op,
+					   &but_group_ondisk_gr));
+	M0_BE_OP_SYNC(op, m0_be_log_commit(&but_group_ondisk_log, &op,
+					   &but_group_ondisk_gr));
 }
 
 static void be_ut_group_ondisk_log_discard(void)

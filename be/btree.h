@@ -386,7 +386,7 @@ struct m0_be_btree_cursor_stack_entry {
 /** Btree configuration constants. */
 enum {
 	BTREE_FAN_OUT    =  5,
-	BTREE_HEIGHT_MAX = 15,
+	BTREE_HEIGHT_MAX = 15
 };
 
 /**
@@ -396,13 +396,12 @@ enum {
  * with m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
  */
 struct m0_be_btree_cursor {
-	struct m0_be_bnode			*bc_node;
-	int					 bc_pos;
-	struct m0_be_btree_cursor_stack_entry	 bc_stack[BTREE_HEIGHT_MAX];
-	int					 bc_stack_pos;
-
-	struct m0_be_btree			*bc_tree;
-	struct m0_be_op				 bc_op;
+	struct m0_be_bnode                   *bc_node;
+	int                                   bc_pos;
+	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
+	int                                   bc_stack_pos;
+	struct m0_be_btree                   *bc_tree;
+	struct m0_be_op                       bc_op; /* XXX DELETEME */
 };
 
 /**

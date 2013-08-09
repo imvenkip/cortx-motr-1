@@ -164,19 +164,12 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 				   struct m0_be_op   *op,
 				   struct m0_be_seg  *db)
 {
-	struct m0_be_op bt_op;
-	int             rc;
-
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
-	m0_be_op_init(&bt_op);
-	m0_be_btree_create(&map->em_mapping, tx, &bt_op);
-	rc = m0_be_op_wait(&bt_op);
-	M0_ASSERT(rc == 0);
-	op->bo_u.u_emap.e_rc = bt_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&bt_op);
-
+	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
+		local_op,
+		m0_be_btree_create(&map->em_mapping, tx, &local_op),
+		bo_u.u_btree.t_rc);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
@@ -184,18 +177,11 @@ M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
 				    struct m0_be_tx   *tx,
 				    struct m0_be_op   *op)
 {
-	struct m0_be_op bt_op;
-	int             rc;
-
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-
-	m0_be_op_init(&bt_op);
-	m0_be_btree_destroy(&map->em_mapping, tx, &bt_op);
-	rc = m0_be_op_wait(&bt_op);
-	M0_ASSERT(rc == 0);
-	op->bo_u.u_emap.e_rc = bt_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&bt_op);
-
+	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
+		local_op,
+		m0_be_btree_destroy(&map->em_mapping, tx, &local_op),
+		bo_u.u_btree.t_rc);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
@@ -289,9 +275,8 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
 				  m0_bindex_t               delta)
 {
-	struct m0_be_op  bt_op;
-	bool             inserted = false;
-	int              rc;
+	bool inserted = false;
+	int  rc;
 
 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
 	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
@@ -299,12 +284,11 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 
-	m0_be_op_init(&bt_op);
-	m0_be_btree_delete(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf);
-	rc = m0_be_op_wait(&bt_op);
-	M0_ASSERT(rc == 0);
-	rc = bt_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&bt_op);
+	rc = M0_BE_OP_SYNC_RET(
+		local_op,
+		m0_be_btree_delete(&it->ec_map->em_mapping, tx, &local_op,
+				   &it->ec_keybuf),
+		bo_u.u_btree.t_rc);
 
 	if (rc == 0 && delta < m0_ext_length(&it->ec_seg.ee_ext)) {
 		it->ec_seg.ee_ext.e_end -= delta;
@@ -317,9 +301,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 			update_next_segment(it, tx, delta, inserted);
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
-
 	it->ec_op.bo_u.u_emap.e_rc = rc;
-
 	m0_be_op_state_set(&it->ec_op, M0_BOS_SUCCESS);
 }
 
@@ -333,7 +315,7 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start);
 	m0_be_op_state_set(&it->ec_op, M0_BOS_SUCCESS);
-	//emap_dump(it);
+
 	M0_ASSERT_EX(be_emap_invariant(it));
 }
 
@@ -493,9 +475,6 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 			         const struct m0_uint128 *prefix,
 				       uint64_t           val)
 {
-	struct m0_be_op bt_op;
-	int             rc;
-
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
 	map->em_key.ek_prefix = *prefix;
@@ -503,13 +482,11 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 
-	m0_be_op_init(&bt_op);
-	m0_be_btree_insert(&map->em_mapping, tx, &bt_op, &map->em_key_buf,
-						     &map->em_val_buf);
-	rc = m0_be_op_wait(&bt_op);
-	M0_ASSERT(rc == 0);
-	op->bo_u.u_emap.e_rc = bt_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&bt_op);
+	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
+		local_op,
+		m0_be_btree_insert(&map->em_mapping, tx, &local_op,
+				   &map->em_key_buf, &map->em_val_buf),
+		bo_u.u_btree.t_rc);
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
@@ -520,7 +497,6 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 				 const struct m0_uint128 *prefix)
 {
 	struct m0_be_emap_cursor it;
-	struct m0_be_op          bt_op;
 	int                      rc;
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
@@ -529,12 +505,11 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	if (rc == 0) {
 		M0_ASSERT(m0_be_emap_ext_is_first(&it.ec_seg.ee_ext) &&
 			  m0_be_emap_ext_is_last(&it.ec_seg.ee_ext));
-		m0_be_op_init(&bt_op);
-		m0_be_btree_delete(&map->em_mapping, tx, &bt_op, &it.ec_keybuf);
-		rc = m0_be_op_wait(&bt_op);
-		M0_ASSERT(rc == 0);
-		rc = bt_op.bo_u.u_btree.t_rc;
-		m0_be_op_fini(&bt_op);
+		rc = M0_BE_OP_SYNC_RET(
+			local_op,
+			m0_be_btree_delete(&map->em_mapping, tx, &local_op,
+					   &it.ec_keybuf),
+			bo_u.u_btree.t_rc);
 	}
 	op->bo_u.u_emap.e_rc = rc;
 
@@ -686,24 +661,18 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	const struct m0_be_emap_seg *ext = &it->ec_seg;
 	struct m0_be_emap_key       *key = &it->ec_key;
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
-	struct m0_be_op              op;
-	int                          rc;
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
 
-	m0_be_op_init(&op);
-	btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
-		   &it->ec_recbuf);
-	rc = m0_be_op_wait(&op);
-	M0_ASSERT(rc == 0);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	it->ec_op.bo_u.u_emap.e_rc = rc;
-	return rc;
+	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
+		op,
+		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
+			   &it->ec_recbuf),
+		bo_u.u_btree.t_rc);
+	return it->ec_op.bo_u.u_emap.e_rc;
 }
 
 static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it)
@@ -792,14 +761,15 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 
 static int be_emap_next(struct m0_be_emap_cursor *it)
 {
-	int rc;
+	struct m0_be_op *op = &it->ec_cursor.bc_op;
+	int              rc;
 
-	m0_be_op_init(&it->ec_cursor.bc_op);
+	m0_be_op_init(op);
 	m0_be_btree_cursor_next(&it->ec_cursor);
-	rc = m0_be_op_wait(&it->ec_cursor.bc_op);
+	rc = m0_be_op_wait(op);
 	M0_ASSERT(rc == 0);
 	rc = emap_it_open(it);
-	m0_be_op_fini(&it->ec_cursor.bc_op);
+	m0_be_op_fini(op);
 
 	return rc;
 }
@@ -890,19 +860,18 @@ be_emap_split(struct m0_be_emap_cursor *it,
 	      struct m0_indexvec       *vec,
 	      m0_bindex_t               scan)
 {
-	uint32_t        i;
-	m0_bcount_t     count;
-	struct m0_be_op bt_op;
-	int             rc;
+	int rc;
 
-	m0_be_op_init(&bt_op);
-	m0_be_btree_delete(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf);
-	rc = m0_be_op_wait(&bt_op);
-	M0_ASSERT(rc == 0);
-	rc = bt_op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&bt_op);
+	rc = M0_BE_OP_SYNC_RET(
+		op,
+		m0_be_btree_delete(&it->ec_map->em_mapping, tx, &op,
+				   &it->ec_keybuf),
+		bo_u.u_btree.t_rc);
 
 	if (rc == 0) {
+		m0_bcount_t count;
+		uint32_t    i;
+
 		for (i = 0; i < vec->iv_vec.v_nr; ++i) {
 			count = vec->iv_vec.v_count[i];
 			if (count == 0)

@@ -262,7 +262,7 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op)
 {
-	int    rc;
+	int rc;
 
 	/** XXX FIXME move somewhere else */
 	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);

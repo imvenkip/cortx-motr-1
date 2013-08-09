@@ -44,30 +44,22 @@ static int be_ut_log_store_rand(int mod)
 	return rand_r(&be_ut_log_store_seed) % mod;
 }
 
-static void be_ut_log_store_io_read(struct m0_be_log_store *ls,
-				   char *buf,
-				   m0_bcount_t size)
+static void
+be_ut_log_store_io_read(struct m0_be_log_store *ls, char *buf, m0_bcount_t size)
 {
 	struct m0_be_io bio;
-	struct m0_be_op op;
-	int		rc;
 
 	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT_OBJ(1, size));
 	m0_be_io_add(&bio, buf, 0, size);
 	m0_be_io_configure(&bio, SIO_READ);
 
-	m0_be_op_init(&op);
-	m0_be_io_launch(&bio, &op);
-	rc = m0_be_op_wait(&op);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	m0_be_op_fini(&op);
+	M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
 
 	m0_be_io_fini(&bio);
 }
 
-static void be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr,
-				    m0_bcount_t size)
+static void
+be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr, m0_bcount_t size)
 {
 	int         buf[BE_UT_LOG_STOR_SIZE];
 	m0_bcount_t i;
@@ -88,31 +80,27 @@ static void be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr,
 
 static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)
 {
-	struct m0_be_op op;
-	int		rc;
+	int rc;
 
-	m0_be_op_init(&op);
 	m0_be_io_configure(bio, SIO_WRITE);
-	rc = m0_be_io_launch(bio, &op);
+	M0_BE_OP_SYNC(op, rc = m0_be_io_launch(bio, &op));
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_op_wait(&op);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_op_fini(&op);
 }
 
-static void be_ut_log_store_io_check(struct m0_be_log_store *ls, m0_bcount_t size)
+static void
+be_ut_log_store_io_check(struct m0_be_log_store *ls, m0_bcount_t size)
 {
 	struct m0_be_log_store_io lsi;
-	struct m0_be_tx_credit	 io_cr_log;
-	struct m0_be_tx_credit	 io_cr_log_cblock;
-	struct m0_be_io		 io_log;
-	struct m0_be_io		 io_log_cblock;
-	m0_bcount_t		 cblock_size;
-	m0_bcount_t		 data_size;
-	int			 cmp;
-	int			 rc;
-	int			 i;
-	char			 rbuf[BE_UT_LOG_STOR_SIZE];
+	struct m0_be_tx_credit    io_cr_log;
+	struct m0_be_tx_credit    io_cr_log_cblock;
+	struct m0_be_io           io_log;
+	struct m0_be_io           io_log_cblock;
+	m0_bcount_t               cblock_size;
+	m0_bcount_t               data_size;
+	int                       cmp;
+	int                       rc;
+	int                       i;
+	char                      rbuf[BE_UT_LOG_STOR_SIZE];
 
 	M0_PRE(size <= ARRAY_SIZE(rbuf));
 
