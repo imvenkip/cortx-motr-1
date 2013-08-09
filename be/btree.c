@@ -1324,10 +1324,10 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
 		}
 		memcpy(kv->val, val->b_addr, val->b_nob);
 		mem_update(btree, tx, kv->val, val->b_nob);
-	} else
-		op_tree(op)->t_rc = -ENOENT;
+	}
 
 	m0_rwlock_write_unlock(&btree->bb_lock);
+	op_tree(op)->t_rc = kv == NULL ? -ENOENT : 0;
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
