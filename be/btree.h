@@ -497,7 +497,7 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 					   struct m0_buf *val);
 
 /**
- * Returns true if btree is empty.
+ * @pre  tree->bb_root != NULL
  */
 M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree);
 
