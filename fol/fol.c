@@ -200,8 +200,6 @@ static const struct m0_be_btree_kv_ops fol_kv_ops = {
  * m0_fol operations
  * ------------------------------------------------------------------ */
 
-static int btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx);
-static void btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx);
 static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx);
 
 #if XXX_USE_DB5
@@ -247,30 +245,37 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	return result;
 }
 #else
-M0_INTERNAL int
-m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg, struct m0_be_tx *tx)
+M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
+			    struct m0_be_tx *tx, struct m0_be_op *op)
 {
 	struct m0_be_btree *tree = &fol->f_store;
 	int                 rc;
 
 	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+
 	m0_mutex_init(&fol->f_lock);
 	m0_be_btree_init(tree, seg, &fol_kv_ops);
 
 	if (tree->bb_root == NULL) {
-		rc = btree_create(tree, tx);
+		rc = M0_BE_OP_SYNC_RET(local_op,
+				       m0_be_btree_create(tree, tx, &local_op),
+				       bo_u.u_btree.t_rc);
 		if (rc != 0)
 			goto err;
 	}
 
 	rc = fol_setup(fol, tx);
-	if (rc == 0)
+	if (rc == 0) {
+		m0_be_op_state_set(op, M0_BOS_SUCCESS);
 		return 0;
+	}
 
-	btree_destroy(tree, tx);
+	M0_BE_OP_SYNC(local_op, m0_be_btree_destroy(tree, tx, &local_op));
 err:
 	m0_fol_fini(fol);
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	return rc;
 }
 #endif
@@ -318,33 +323,6 @@ M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 	}
 }
 
-static int btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx)
-{
-	struct m0_be_op op;
-	int             rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_create(tree, tx, &op);
-	rc = m0_be_op_wait(&op);
-	M0_ASSERT(rc == 0);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	return rc;
-}
-
-static void btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx)
-{
-	struct m0_be_op op;
-	int             rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_destroy(tree, tx, &op);
-	rc = m0_be_op_wait(&op);
-	M0_ASSERT(rc == 0);
-	m0_be_op_fini(&op);
-}
-
 /** Inserts first record into the fol. */
 static int fol_zero(struct m0_fol *fol, struct m0_be_tx *tx)
 {
@@ -360,7 +338,7 @@ static int fol_zero(struct m0_fol *fol, struct m0_be_tx *tx)
 		.rd_header = { .rh_refcount = 1 },
 		.rd_lsn    = M0_LSN_ANCHOR
 	};
-	rc = m0_fol_rec_add(fol, tx, &rec);
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(fol, &rec, tx, &op));
 	if (rc == 0)
 		fol->f_lsn = M0_LSN_ANCHOR + 1;
 
@@ -824,12 +802,9 @@ static int fol_record_decode(struct m0_fol_rec *rec)
  * Adding and searching records
  * ------------------------------------------------------------------ */
 
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 #if XXX_USE_DB5
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 			       struct m0_db_tx *tx,
-#else
-			       struct m0_be_tx *tx,
-#endif
 			       struct m0_fol_rec *rec)
 {
 	struct m0_buf buf;
@@ -837,11 +812,34 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 
 	rc = fol_record_encode(rec, &buf);
 	if (rc == 0) {
-		rc = m0_fol_add_buf(fol, tx, &rec->fr_desc, &buf);
+		rc = m0_fol_add_buf(fol, tx, &rec->fr_desc, &buf));
 		m0_buf_free(&buf);
 	}
 	return rc;
 }
+#else
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
+			       struct m0_fol_rec *rec,
+			       struct m0_be_tx *tx,
+			       struct m0_be_op *op)
+{
+	struct m0_buf buf;
+	int           rc;
+
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+
+	rc = fol_record_encode(rec, &buf);
+	if (rc == 0) {
+		M0_BE_OP_SYNC(local_op,
+			      rc = m0_fol_add_buf(fol, &rec->fr_desc, &buf, tx,
+						  &local_op));
+		m0_buf_free(&buf);
+	}
+
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	return rc;
+}
+#endif
 
 M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
 				     struct m0_fol_rec_part *part)
@@ -864,22 +862,22 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
 	return m0_table_insert(tx, &pair);
 }
 #else
-M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_be_tx *tx,
-			       struct m0_fol_rec_desc *drec, struct m0_buf *buf)
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf,
+			       struct m0_be_tx *tx, struct m0_be_op *op)
 {
-	struct m0_be_op op;
-	int             rc;
+	int rc;
 
 	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
 
-	m0_be_op_init(&op);
-	m0_be_btree_insert(&fol->f_store, tx, &op,
-			   &M0_BUF_INIT(FOL_KEY_SIZE, &drec->rd_lsn), buf);
-	rc = m0_be_op_wait(&op);
-	M0_ASSERT(rc == 0);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+	rc = M0_BE_OP_SYNC_RET(
+		local_op,
+		m0_be_btree_insert(&fol->f_store, tx, &local_op,
+				   &M0_BUF_INIT(FOL_KEY_SIZE, &drec->rd_lsn),
+				   buf),
+		bo_u.u_btree.t_rc);
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	return rc;
 }
 #endif
@@ -932,95 +930,6 @@ out:
 	return rc;
 }
 #endif
-
-/* #if !XXX_USE_DB5 */
-/* M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype, */
-/* 			       struct m0_be_tx_credit *accum) */
-/* { */
-/* 	switch (optype) { */
-/* 	case M0_FO_CREATE: */
-/* 		m0_be_btree_create_credit(&fol->f_store, 1, accum); */
-/* 		break; */
-/* 	case M0_FO_DESTROY: */
-/* 		m0_be_btree_destroy_credit(&fol->f_store, 1, accum); */
-/* 		break; */
-/* 	case M0_FO_REC_ADD: */
-/* 		m0_be_btree_insert_credit(&fol->f_store, 1, FOL_KEY_SIZE, */
-/* 					  FOL_REC_MAXSIZE, accum); */
-/* 		break; */
-/* 	default: */
-/* 		M0_IMPOSSIBLE("Invalid optype"); */
-/* 	} */
-/* } */
-
-/* /\** */
-/*  * Performs `action' over the `tree' transactionally. */
-/*  * Sufficient credit (`cred') should be prepared beforehand. */
-/*  *\/ */
-/* static int btree_transact(void (*action)(struct m0_be_btree *, */
-/* 					 struct m0_be_tx *, */
-/* 					 struct m0_be_op *), */
-/* 			  struct m0_be_btree *tree, */
-/* 			  const struct m0_be_tx_credit *cred) */
-/* { */
-/* 	struct m0_be_tx tx; */
-/* 	struct m0_be_op op; */
-/* 	int             rc; */
-
-/* 	M0_PRE(cred->tc_reg_nr > 0 && cred->tc_reg_size > 0); */
-
-/* 	m0_be_tx_init(&tx, XXX); */
-/* 	m0_be_tx_prep(&tx, cred); */
-
-/* 	m0_be_tx_open(&tx); */
-/* 	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER); */
-/* 	if (rc == 0) { */
-/* 		struct m0_be_op op; */
-/* 		int             rc_wait; */
-
-/* 		m0_be_op_init(&op); */
-/* 		action(tree, &tx, &op); */
-/* 		rc = m0_be_op_wait(&op); */
-/* 		M0_ASSERT(rc == 0); */
-/* 		rc = op.bo_u.u_btree.t_rc; */
-/* 		m0_be_op_fini(&op); */
-
-/* 		m0_be_tx_close(&tx); */
-/* 		rc_wait = m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER); */
-/* 		if (rc == 0) */
-/* 			rc = rc_wait; */
-/* 	} */
-/* 	m0_be_tx_fini(&tx); */
-/* 	return rc; */
-/* } */
-
-/* M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_seg *seg) */
-/* { */
-/* 	struct m0_be_tx_credit cred = {0}; */
-/* 	int rc; */
-
-/* 	m0_mutex_init(&fol->f_lock); */
-/* 	m0_be_btree_init(&fol->f_store, seg, &fol_kv_ops); */
-
-/* 	m0_be_btree_create_credit(&fol->f_store, 1, &cred); */
-/* 	rc = btree_transact(m0_be_btree_create, &fol->f_store, &cred) ?: */
-/* 		fol_start(fol); */
-/* 	if (rc != 0) */
-/* 		m0_fol_fini(fol); */
-/* 	return rc; */
-/* } */
-
-/* M0_INTERNAL int m0_fol_destroy(struct m0_fol *fol) */
-/* { */
-/* 	struct m0_be_tx_credit cred = {0}; */
-/* 	int rc; */
-
-/* 	m0_be_btree_destroy_credit(&fol->f_store, 1, &cred); */
-/* 	rc = btree_transact(m0_be_btree_destroy, &fol->f_store, &cred); */
-/* 	m0_fol_fini(fol); */
-/* 	return rc; */
-/* } */
-/* #endif */
 
 /** @} end of fol group */
 

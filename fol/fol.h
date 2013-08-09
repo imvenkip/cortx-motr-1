@@ -41,13 +41,13 @@
    location in the fol.
 
    A fol record contains the list of fol record parts, belonging to fol record
-   part types, added during updates. These fol record parts provides flexibility
+   part types, added during updates. These fol record parts provide flexibility
    for modules to participate in a transaction without global knowledge.
 
    @see m0_fol_rec_part : FOL record part.
    @see m0_fol_rec_part_type : FOL record part type.
 
-   m0_fol_rec_part_ops contains operations for undo and redo of
+   m0_fol_rec_part_ops structure contains operations for undo and redo of
    FOL record parts.
 
    @see m0_fol_rec_part_init() : Initializes m0_fol_rec_part with
@@ -58,7 +58,7 @@
    @see m0_fol_rec_part_type_deregister() : Deregisters FOL record part type.
 
    FOL record parts list is kept in m0_fol_rec::fr_parts which is
-   initialized in m0_fol_rec_init()
+   initialized in m0_fol_rec_init().
 
    m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
    and parts.
@@ -77,9 +77,9 @@
    After successful execution of updates on server side, in FOM generic phase
    using m0_fom_fol_rec_add() FOL record parts in the list are combined in a
    FOL record and is made persistent. Before this phase all FOL record parts
-   needs to be added in the list after completing their updates.
+   need to be added in the list after completing their updates.
 
-   After retrieving FOL record from data base, FOL record parts are decoded
+   After retrieving FOL record from the storage, FOL record parts are decoded
    based on part type using index and are used in undo or redo operations.
    <hr>
    @section IOFOLDLD-conformance Conformance
@@ -133,7 +133,7 @@ struct m0_fol {
 	/** Table where fol records are stored. */
 	struct m0_table    f_table;
 #else
-	/** KV store of fol records. */
+	/** KV storage of fol records. */
 	struct m0_be_btree f_store;
 #endif
 	/** Next lsn to use in the fol. */
@@ -153,16 +153,17 @@ struct m0_fol {
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
 #else
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
-			    struct m0_be_tx *tx);
+			    struct m0_be_tx *tx, struct m0_be_op *op);
 #endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
 #if !XXX_USE_DB5
-/** Fol operations that modify segment memory. */
+/** Fol operations that modify back-end segment. */
 enum m0_fol_op {
 	M0_FO_INIT,    /**< m0_fol_init() */
 	M0_FO_REC_ADD  /**< m0_fol_rec_add() */
 };
+
 /**
  * Calculates the credit needed to perform one fol operation of type
  * `optype' and adds this credit to `accum'.
@@ -183,13 +184,34 @@ M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
    @pre m0_lsn_is_valid(drec->rd_lsn);
    @see m0_fol_add_buf()
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 #if XXX_USE_DB5
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 			       struct m0_db_tx *tx,
-#else
-			       struct m0_be_tx *tx,
-#endif
 			       struct m0_fol_rec *rec);
+#else
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
+			       struct m0_fol_rec *rec,
+			       struct m0_be_tx *tx,
+			       struct m0_be_op *op);
+#endif
+
+/**
+   Similar to m0_fol_rec_add(), but with a record already packed into a buffer.
+
+   @pre m0_lsn_is_valid(drec->rd_lsn);
+ */
+#if XXX_USE_DB5
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
+			       struct m0_db_tx *tx,
+			       struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf);
+#else
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
+			       struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf,
+			       struct m0_be_tx *tx,
+			       struct m0_be_op *op);
+#endif
 
 /**
    Reserves and returns lsn.
@@ -197,20 +219,6 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
    @post m0_lsn_is_valid(result);
  */
 M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
-
-/**
-   Similar to m0_fol_rec_add(), but with a record already packed into a buffer.
-
-   @pre m0_lsn_is_valid(drec->rd_lsn);
- */
-M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
-#if XXX_USE_DB5
-			       struct m0_db_tx *tx,
-#else
-			       struct m0_be_tx *tx,
-#endif
-			       struct m0_fol_rec_desc *drec,
-			       struct m0_buf *buf);
 
 /**
    Forces the log.

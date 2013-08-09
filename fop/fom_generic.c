@@ -323,14 +323,18 @@ static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
  */
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
-	int rc;
-
 	if (!fom->fo_local) {
+#if XXX_USE_DB5
+		int rc;
+
 		m0_fom_block_enter(fom);
 		rc = m0_fom_fol_rec_add(fom);
 		m0_fom_block_leave(fom);
 		if (rc < 0)
 			return rc;
+#else
+		M0_IMPOSSIBLE("XXX Use m0_be_op_tick_ret()");
+#endif
 	}
 
 	return M0_FSO_AGAIN;
@@ -670,7 +674,12 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	/* @todo an arbitrary number for now */
 	desc->rd_header.rh_refcount = 1;
 
+#if XXX_USE_DB5
 	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
+#else
+	return m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec, &fom->fo_tx.tx_dbtx,
+			      NULL /* XXX FIXME */);
+#endif
 }
 
 /** @} end of fom group */
