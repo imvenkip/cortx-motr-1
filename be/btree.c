@@ -1345,7 +1345,8 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_write_lock(&tree->bb_lock);
 
-	rc = btree_delete_key(tree, tx, tree->bb_root, key->b_addr);
+	op_tree(op)->t_rc = rc = btree_delete_key(tree, tx, tree->bb_root,
+						  key->b_addr);
 	if (rc != 0)
 		op_tree(op)->t_rc = -ENOENT;
 
@@ -1657,6 +1658,7 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 			    tree->bb_ops->ko_vsize(kv->val));
 		m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 			    tree->bb_ops->ko_ksize(kv->key));
+		op_tree(op)->t_rc = 0;
 	}
 
 	m0_rwlock_read_unlock(&tree->bb_lock);
