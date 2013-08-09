@@ -55,7 +55,6 @@ enum m0_parity_cal_algo {
 enum m0_sns_ir_block_status {
 	M0_SI_BLOCK_ALIVE,
 	M0_SI_BLOCK_FAILED,
-	M0_SI_BLOCK_RESTORED,
 };
 
 enum m0_sns_ir_mode {

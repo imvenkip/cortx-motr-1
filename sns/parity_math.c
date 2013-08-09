@@ -120,10 +120,6 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		   m0_parity_elem_t alpha);
 
-static void restored_list_update(struct m0_sns_ir_block *block);
-
-static inline bool is_bitmap_empty(const struct m0_bitmap *bitmap);
-
 static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
 				      uint32_t block_idx);
 
@@ -937,16 +933,15 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 	struct m0_sns_ir_block *alive_block;
 
 	M0_PRE(ir != NULL && bufvec != NULL && bitmap != NULL);
-	M0_PRE(M0_IN(ir->si_mode, (M0_SI_BARE, M0_SI_XFORM)));
+
 	b_set_nr = m0_bitmap_set_nr(bitmap);
 	M0_PRE(b_set_nr > 0);
+	M0_PRE(ergo(b_set_nr > 1, ir->si_mode == M0_SI_XFORM));
 	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
 		    is_valid_block_idx(ir, failed_index)));
-	M0_PRE(ergo(b_set_nr > 1, ir->si_mode == M0_SI_XFORM));
-
 	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
-	       M0_IN(ir->si_blocks[failed_index].sib_status,
-		     (M0_SI_BLOCK_FAILED, M0_SI_BLOCK_RESTORED))));
+	            ir->si_blocks[failed_index].sib_status ==
+		    M0_SI_BLOCK_FAILED));
 	if (b_set_nr == 1) {
 		for (block_idx = 0; block_idx < bitmap->b_nr; ++block_idx) {
 			if (m0_bitmap_get(bitmap, block_idx))
@@ -955,17 +950,17 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 	}
 	blocks = ir->si_blocks;
 	switch (ir->si_mode) {
+	/* Input block is assumed to be an untransformed block, and is used for
+	 * recovering all failed blocks */
 	case M0_SI_BARE:
 		alive_block = &blocks[block_idx];
 		alive_block->sib_addr = bufvec;
-		for (j = 0; j < block_count(ir); ++j) {
-			if (ir->si_blocks[j].sib_status == M0_SI_BLOCK_FAILED) {
+		for (j = 0; j < block_count(ir); ++j)
+			if (ir->si_blocks[j].sib_status == M0_SI_BLOCK_FAILED)
 				incr_recover(&blocks[j], alive_block, ir);
-				if (is_data(ir, j))
-					restored_list_update(&blocks[j]);
-			}
-		}
 		break;
+	/* Input block is assumed to be a transformed block, and is
+	 * cummulatively added to a block with index failed_index. */
 	case M0_SI_XFORM:
 		if (!is_usable(ir, (struct m0_bitmap*) bitmap,
 			       &blocks[failed_index]))
@@ -974,8 +969,6 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		       1);
 		dependency_bitmap_update(&blocks[failed_index],
 					 bitmap);
-		if (is_data(ir, failed_index))
-			restored_list_update(&blocks[failed_index]);
 		break;
 	}
 }
@@ -1068,15 +1061,6 @@ static void dependency_bitmap_update(struct m0_sns_ir_block *block,
 	}
 }
 
-static void restored_list_update(struct m0_sns_ir_block *block)
-{
-	M0_PRE(block != NULL);
-
-	if (is_bitmap_empty(&block->sib_bitmap)) {
-		block->sib_status = M0_SI_BLOCK_RESTORED;
-	}
-}
-
 void m0_sns_ir_local_xform(struct m0_sns_ir *ir)
 {
 	struct m0_sns_ir_block *res_block;
@@ -1085,15 +1069,13 @@ void m0_sns_ir_local_xform(struct m0_sns_ir *ir)
 	uint32_t		j;
 
 	M0_PRE(ir != NULL);
+	M0_PRE(ir->si_mode == M0_SI_BARE);
 	res_block = ir->si_blocks;
 	par_block = ir->si_blocks;
-        /**
-	 * Loop over all recently restored data blocks to use them for recovery
-	 * of failed parity blocks.
-	 */
+
 	for (i = 0; i < block_count(ir); ++i) {
 		if (is_data(ir, ir->si_blocks[i].sib_idx) &&
-		    ir->si_blocks[i].sib_status != M0_SI_BLOCK_ALIVE)
+		    ir->si_blocks[i].sib_status == M0_SI_BLOCK_FAILED)
 			for (j = 0; j < block_count(ir); ++j) {
 				if (!is_data(ir, ir->si_blocks[j].sib_idx) &&
 				    ir->si_blocks[j].sib_status ==
@@ -1104,11 +1086,6 @@ void m0_sns_ir_local_xform(struct m0_sns_ir *ir)
 			}
 	}
 	ir->si_mode = M0_SI_XFORM;
-}
-
-static inline bool is_bitmap_empty(const struct m0_bitmap *bitmap)
-{
-	return m0_bitmap_set_nr(bitmap) == 0;
 }
 
 static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
@@ -1133,8 +1110,6 @@ static bool is_usable(const struct m0_sns_ir *ir,
 	M0_PRE(in_bmap != NULL && failed_block != NULL && ir != NULL);
 	M0_PRE(in_bmap->b_nr == failed_block->sib_bitmap.b_nr);
 
-	if (failed_block->sib_status == M0_SI_BLOCK_RESTORED)
-		return false;
 	last_usable_bid = last_usable_block_id(ir, failed_block->sib_idx);
 	if (last_usable_bid == block_count(ir))
 		return false;

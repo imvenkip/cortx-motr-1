@@ -1047,21 +1047,18 @@ static void sns_ir_nodes_compare(struct sns_ir_node *node, struct m0_bufvec *x,
 
 	ir = node[0].sin_ir;
 	for (i = 0; i < ir.si_data_nr; ++i) {
-		/* Failed data blocks will have status M0_SI_BLOCK_RESTORED
-		 * post-recovery. */
 		if (node[0].sin_ir.si_blocks[i].sib_status ==
-		    M0_SI_BLOCK_RESTORED) {
+		    M0_SI_BLOCK_FAILED) {
 			M0_UT_ASSERT(bufvec_eq(node[0].sin_ir.si_blocks[i].
 					       sib_addr, &x[i]));
 		}
 	}
 	for (; i < ir.si_data_nr + ir.si_parity_nr; ++i) {
-		/* Failed parity blocks will have status M0_SI_BLOCK_FAILED
-		 * post-recovery. */
 		if (node[0].sin_ir.si_blocks[i].sib_status ==
 		    M0_SI_BLOCK_FAILED) {
 			M0_UT_ASSERT(bufvec_eq(node[0].sin_ir.si_blocks[i].
-					       sib_addr, &p[i - ir.si_data_nr]));
+					       sib_addr, &p[i -
+					                    ir.si_data_nr]));
 		}
 	}
 }
@@ -1222,25 +1219,7 @@ static bool bufvec_eq(struct m0_bufvec *bvec_1, struct m0_bufvec *bvec_2)
 		 !m0_bufvec_cursor_move(&bvec_2_cursor, step));
 	return ret == 0;
 }
-#if 0
-static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src)
-{
-	struct m0_bufvec_cursor src_cursor;
-	struct m0_bufvec_cursor des_cursor;
-	m0_bcount_t		step;
 
-	M0_UT_ASSERT(src->ov_vec.v_nr == des->ov_vec.v_nr);
-	m0_bufvec_cursor_init(&src_cursor, src);
-	m0_bufvec_cursor_init(&des_cursor, des);
-	do {
-		memcpy(m0_bufvec_cursor_addr(&des_cursor),
-		       m0_bufvec_cursor_addr(&src_cursor),
-		       src->ov_vec.v_count[0]);
-		step = m0_bufvec_cursor_step(&src_cursor);
-	} while (!m0_bufvec_cursor_move(&src_cursor, step) &&
-		 !m0_bufvec_cursor_move(&des_cursor, step));
-}
-#endif
 static inline uint32_t block_nr(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;
