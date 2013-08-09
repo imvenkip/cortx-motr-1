@@ -100,6 +100,56 @@ struct m0_be_op {
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
 
+/**
+ * Performs the action, waiting for its completion.
+ *
+ * Example:
+ * @code
+ *         struct m0_be_op op;
+ *
+ *         M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));
+ *         M0_BE_OP_SYNC(op, rc = m0_fol_init(fol, seg, tx, &op));
+ * @endcode
+ */
+#define M0_BE_OP_SYNC(op_obj, action)          \
+	do {                                   \
+		struct m0_be_op op_obj;        \
+		int __rc;                      \
+					       \
+		m0_be_op_init(&op_obj);        \
+		action;                        \
+		__rc = m0_be_op_wait(&op_obj); \
+		M0_ASSERT(__rc == 0);          \
+		m0_be_op_fini(&op_obj);        \
+	} while (0)
+
+/**
+ * Performs the action, waits for its completion, and returns numerical
+ * result of operation.
+ *
+ * Example:
+ * @code
+ *         struct m0_be_op op;
+ *         int rc;
+ *
+ *         rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_create(tree, tx, &op),
+ *                                bo_u.u_btree.t_rc);
+ * @endcode
+ */
+#define M0_BE_OP_SYNC_RET(op_obj, action, member) \
+	({                                        \
+		struct m0_be_op op_obj;           \
+		int __rc;                         \
+						  \
+		m0_be_op_init(&op_obj);           \
+		action;                           \
+		__rc = m0_be_op_wait(&op_obj);    \
+		M0_ASSERT(__rc == 0);             \
+		__rc = op_obj.member;             \
+		m0_be_op_fini(&op_obj);           \
+		__rc;                             \
+	})
+
 M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op);
 
 M0_INTERNAL void m0_be_op_state_set(struct m0_be_op *op,
