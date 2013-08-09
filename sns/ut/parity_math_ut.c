@@ -159,7 +159,6 @@ static void bufvec_initialize(struct m0_bufvec **bvec, uint32_t count,
 static void bufvec_fill(struct m0_bufvec *x);
 static void bufvec_fini(struct m0_bufvec *bvec, uint32_t count);
 static bool bufvec_eq(struct m0_bufvec *bvec1, struct m0_bufvec *bvec2);
-//static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src);
 static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len);
 static void buf_free(struct m0_buf *buf, uint32_t count);
 
