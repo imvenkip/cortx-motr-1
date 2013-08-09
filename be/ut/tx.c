@@ -118,6 +118,32 @@ void m0_be_ut_tx_usecase_failure(void)
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+void m0_be_ut_tx_empty(void)
+{
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_tx         tx;
+	int                     rc;
+
+	m0_be_ut_backend_init(&ut_be);
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
+
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_ACTIVE);
+
+	m0_be_tx_close(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_fini(&tx);
+
+	m0_be_ut_backend_fini(&ut_be);
+}
+
 void m0_be_ut_tx_single(void)
 {
 	be_ut_tx_test(1);
