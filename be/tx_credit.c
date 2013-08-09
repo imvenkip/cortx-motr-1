@@ -67,6 +67,13 @@ M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 	       c0->tc_reg_size <= c1->tc_reg_size;
 }
 
+M0_INTERNAL bool m0_be_tx_credit_eq(const struct m0_be_tx_credit *c0,
+				    const struct m0_be_tx_credit *c1)
+{
+	return c0->tc_reg_nr   == c1->tc_reg_nr &&
+	       c0->tc_reg_size == c1->tc_reg_size;
+}
+
 /** @} end of be group */
 
 /*
