@@ -262,10 +262,26 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 	return grp_tlist_length(&gr->tg_txs);
 }
 
+static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
+				     struct m0_be_op *op)
+{
+	M0_BE_TX_CREDIT(zero);
+
+	if (m0_be_tx_credit_eq(&gr->tg_used, &zero)) {
+		m0_be_op_state_set(op, M0_BOS_ACTIVE);
+		m0_be_op_state_set(op, M0_BOS_SUCCESS);
+		return true;
+	}
+	return false;
+}
+
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op)
 {
 	int    rc;
+
+	if (be_tx_group_empty_handle(gr, op))
+		return;
 
 	/** XXX FIXME move somewhere else */
 	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
@@ -282,6 +298,9 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
 				       struct m0_be_op *op)
 {
+	if (be_tx_group_empty_handle(gr, op))
+		return;
+
 	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
 }
 
