@@ -165,11 +165,11 @@ enum m0_fol_op {
 };
 
 /**
- * Calculates the credit needed to perform one fol operation of type
+ * Calculates the credit needed to perform `nr' fol operations of type
  * `optype' and adds this credit to `accum'.
  */
 M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
-			       struct m0_be_tx_credit *accum);
+			       m0_bcount_t nr, struct m0_be_tx_credit *accum);
 #endif
 
 /**

@@ -295,20 +295,26 @@ M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto)
 
 #if !XXX_USE_DB5
 M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
-			       struct m0_be_tx_credit *accum)
+			       m0_bcount_t nr, struct m0_be_tx_credit *accum)
 {
 	const struct m0_be_btree *tree = &fol->f_store;
 
+	M0_PRE(nr > 0);
+
 	switch (optype) {
 	case M0_FO_INIT:
-		m0_be_btree_create_credit(tree, 1, accum);
-		m0_be_btree_insert_credit(tree, 1, FOL_KEY_SIZE,
+		/* Several m0_fol_init()s seem pointless. */
+		M0_ASSERT(nr == 1);
+		m0_be_btree_create_credit(tree, nr, accum);
+		m0_be_btree_insert_credit(tree, nr, FOL_KEY_SIZE,
 					  FOL_REC_MAXSIZE, accum);
-		m0_be_btree_destroy_credit((struct m0_be_btree *)tree /*XXX*/,
-					   1, accum);
+		/* This const-removing typecast is inelegant but it lets `fol'
+		 * parameter be const, while doing no no harm. */
+		m0_be_btree_destroy_credit((struct m0_be_btree *)tree, nr,
+					   accum);
 		break;
 	case M0_FO_REC_ADD:
-		m0_be_btree_insert_credit(tree, 1, FOL_KEY_SIZE,
+		m0_be_btree_insert_credit(tree, nr, FOL_KEY_SIZE,
 					  FOL_REC_MAXSIZE, accum);
 		break;
 	default:
