@@ -280,8 +280,10 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 {
 	int rc;
 
-	if (be_tx_group_empty_handle(gr, op))
+	if (be_tx_group_empty_handle(gr, op)) {
+		gr->tg_log_reserved = M0_BE_TX_CREDIT_OBJ(0, 0);
 		return;
+	}
 
 	/** XXX FIXME move somewhere else */
 	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
