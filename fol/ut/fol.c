@@ -34,22 +34,24 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 
-static struct m0_fol_rec_header *h;
-
 #if XXX_USE_DB5
 static const char db_name[] = "ut-fol";
 
-static struct m0_fol           fol;
-static struct m0_fol_rec       r;
-static struct m0_fol_rec_desc *d;
-static struct m0_buf           buf;
-static struct m0_dbenv         db;
-static struct m0_db_tx         tx;
+static struct m0_fol_rec_header *h;
+static struct m0_fol_rec_desc   *d;
+static struct m0_fol             fol;
+static struct m0_fol_rec         r;
+static struct m0_buf             buf;
+static struct m0_dbenv           db;
+static struct m0_db_tx           tx;
 #else
-static struct m0_fol          *g_fol;
-static struct m0_be_ut_backend g_ut_be;
-static struct m0_be_ut_seg     g_ut_seg;
-static struct m0_be_tx         g_tx;
+static struct m0_fol            *g_fol;
+static struct m0_fol_rec_header *g_hdr;
+static struct m0_fol_rec_desc   *g_desc;
+static struct m0_fol_rec         g_rec;
+static struct m0_be_ut_backend   g_ut_be;
+static struct m0_be_ut_seg       g_ut_seg;
+static struct m0_be_tx           g_tx;
 
 static void backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg);
 static void backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg);
@@ -101,12 +103,21 @@ static void test_init(void)
 	g_fol = be_alloc(sizeof *g_fol, &g_ut_seg.bus_seg);
 	M0_UT_ASSERT(g_fol != NULL);
 
-	m0_fol_credit(g_fol, M0_FO_INIT, &cred);
+	m0_fol_credit(g_fol, M0_FO_INIT, 1, &cred);
+	/*
+	 * There are 3 m0_fol_rec_add() calls --- in functions test_add(),
+	 * test_lookup(), and test_fol_rec_part_encdec().
+	 */
+	m0_fol_credit(g_fol, M0_FO_REC_ADD, 3, &cred);
 	tx_begin(&g_tx, &g_ut_be, &cred);
 
 	M0_BE_OP_SYNC(op,
 		      rc = m0_fol_init(g_fol, &g_ut_seg.bus_seg, &g_tx, &op));
 	M0_UT_ASSERT(rc == 0);
+
+	m0_fol_rec_init(&g_rec);
+	g_desc = &g_rec.fr_desc;
+	g_hdr = &g_desc->rd_header;
 #endif
 }
 
@@ -122,8 +133,32 @@ static void test_fini(void)
 	m0_dbenv_fini(&db);
 	m0_buf_free(&buf);
 #else
-	m0_fol_fini(g_fol);
+	m0_fol_rec_fini(&g_rec);
+
 	tx_end(&g_tx);
+	/*
+	 * The call fails with the following error message:
+	 *
+	 * | Suite: fol-ut
+	 * |   Test: fol-init ...passed  0.221908 sec
+	 * |   Test: fol-rec-part-type-reg ...passed  0.9 sec
+	 * |   Test: fol-add ...passed  0.599 sec
+	 * |   Test: fol-lookup ...passed  0.842 sec
+	 * |   Test: fol-rec-part-test ...passed  0.2984 sec
+	 * |   Test: fol-rec-part-type-unreg ...passed  0.6 sec
+	 * |   Test: fol-fini ...mero:  FATAL : [lib/assert.c:42:m0_panic] panic: m0_vec_count(&io->si_user.ov_vec) > 0 linux_stob_io_launch() (stob/linux_adieu.c:222)
+	 * | Mero panic: m0_vec_count(&io->si_user.ov_vec) > 0 at linux_stob_io_launch() stob/linux_adieu.c:222 (errno: 0) (last failed: none)
+	 *
+	 * The backtrace:
+	 *
+	 * fom_exec
+	 *  \_ tx_group_fom_tick
+	 *      \_ m0_be_tx_group__place
+	 *          \_ m0_be_io_launch
+	 *              \_ m0_stob_io_launch
+	 *                  \_ linux_stob_io_launch
+	 *                      \_ M0_PRE(m0_vec_count(&io->si_user.ov_vec) > 0)	 */
+	m0_fol_fini(g_fol);
 
 	be_free(g_fol, sizeof *g_fol, &g_ut_seg.bus_seg);
 	backend_fini(&g_ut_be, &g_ut_seg);
@@ -149,21 +184,32 @@ static void test_rec_part_type_unreg(void)
 	M0_ASSERT(ut_part_type.rpt_index == 0);
 }
 
-#if XXX_USE_DB5
 static void test_add(void)
 {
+#if XXX_USE_DB5
 	M0_SET0(h);
 	h->rh_refcount = 1;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
 	rc = m0_fol_rec_add(&fol, &tx, &r);
 	M0_ASSERT(rc == 0);
+#else
+	int rc;
+
+	M0_SET0(g_hdr);
+	g_hdr->rh_refcount = 1;
+
+	g_desc->rd_lsn = m0_fol_lsn_allocate(g_fol);
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(g_fol, &g_rec, &g_tx, &op));
+	M0_ASSERT(rc == 0);
+#endif
 }
 
 extern m0_lsn_t lsn_inc(m0_lsn_t lsn);
 
 static void test_lookup(void)
 {
+#if XXX_USE_DB5
 	struct m0_fol_rec dup;
 
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
@@ -182,8 +228,28 @@ static void test_lookup(void)
 
 	rc = m0_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
 	M0_ASSERT(rc == -ENOENT);
-}
+#else
+	struct m0_fol_rec dup;
+	int               rc;
+
+	g_desc->rd_lsn = m0_fol_lsn_allocate(g_fol);
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(g_fol, &g_rec, &g_tx, &op));
+	M0_ASSERT(rc == 0);
+
+	rc = m0_fol_rec_lookup(g_fol, g_desc->rd_lsn, &dup);
+	M0_ASSERT(rc == 0);
+
+	M0_ASSERT(dup.fr_desc.rd_lsn == g_desc->rd_lsn);
+	M0_ASSERT(m0_xcode_cmp(&M0_REC_HEADER_XCODE_OBJ(&g_desc->rd_header),
+			       &M0_REC_HEADER_XCODE_OBJ(&dup.fr_desc.rd_header))
+		  == 0);
+
+	m0_fol_lookup_rec_fini(&dup);
+
+	rc = m0_fol_rec_lookup(g_fol, lsn_inc(g_desc->rd_lsn), &dup);
+	M0_ASSERT(rc == -ENOENT);
 #endif
+}
 
 static int verify_part_data(struct m0_fol_rec_part *part,
 #if XXX_USE_DB5
@@ -201,7 +267,6 @@ static int verify_part_data(struct m0_fol_rec_part *part,
 	return 0;
 }
 
-#if XXX_USE_DB5
 static void test_fol_rec_part_encdec(void)
 {
 	struct m0_fid          *rec;
@@ -209,14 +274,20 @@ static void test_fol_rec_part_encdec(void)
 	struct m0_fol_rec_part  ut_rec_part;
 	m0_lsn_t                lsn;
 	struct m0_fol_rec_part *dec_part;
+#if !XXX_USE_DB5
+	int                     rc;
 
+	m0_fol_rec_init(&g_rec);
+#else
 	m0_fol_rec_init(&r);
+#endif
 
 	M0_ALLOC_PTR(rec);
 	M0_UT_ASSERT(rec != NULL);
 	*rec = (struct m0_fid){ .f_container = 22, .f_key = 33 };
 
 	m0_fol_rec_part_init(&ut_rec_part, rec, &ut_part_type);
+#if XXX_USE_DB5
 	m0_fol_rec_part_add(&r, &ut_rec_part);
 
 	h->rh_refcount = 1;
@@ -239,11 +310,32 @@ static void test_fol_rec_part_encdec(void)
 		/* Call verify_part_data() for each part. */
 		dec_part->rp_ops->rpo_undo(dec_part, &tx);
 	} m0_tl_endfor;
+#else
+	m0_fol_rec_part_add(&g_rec, &ut_rec_part);
 
+	g_hdr->rh_refcount = 1;
+	lsn = g_desc->rd_lsn = m0_fol_lsn_allocate(g_fol);
+
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(g_fol, &g_rec, &g_tx, &op));
+	M0_ASSERT(rc == 0);
+
+	m0_fol_rec_fini(&g_rec);
+
+	tx_end(&g_tx);
+	tx_begin(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT_OBJ(0, 0));
+
+	rc = m0_fol_rec_lookup(g_fol, lsn, &dec_rec);
+	M0_ASSERT(rc == 0);
+
+	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
+		/* Call verify_part_data() for each part. */
+		dec_part->rp_ops->rpo_undo(dec_part, &g_tx);
+	} m0_tl_endfor;
+#endif
 	m0_fol_lookup_rec_fini(&dec_rec);
 }
-#else
 
+#if !XXX_USE_DB5
 /* ------------------------------------------------------------------
  * BE paraphernalia
  * ------------------------------------------------------------------ */
@@ -281,7 +373,7 @@ static void tx_end(struct m0_be_tx *tx)
 	int rc;
 
 	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BTS_DONE, M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(tx);
 }
@@ -377,13 +469,11 @@ const struct m0_test_suite fol_ut = {
 		 * Do not reorder them willy-nilly.
 		 */
 		{ "fol-init",                test_init                },
-#if XXX_USE_DB5
 		{ "fol-rec-part-type-reg",   test_rec_part_type_reg   },
 		{ "fol-add",                 test_add                 },
 		{ "fol-lookup",              test_lookup              },
 		{ "fol-rec-part-test",       test_fol_rec_part_encdec },
 		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
-#endif
 		{ "fol-fini",                test_fini                },
 		{ NULL, NULL }
 	}
@@ -399,13 +489,17 @@ static int ub_init(const char *opts M0_UNUSED)
 {
 #if XXX_USE_DB5
 	db_reset();
-#endif
 	test_init();
 	test_rec_part_type_reg();
 
 	M0_SET0(h);
 
 	h->rh_refcount = 1;
+#else
+	test_init();
+	test_rec_part_type_reg();
+	*g_hdr = (struct m0_fol_rec_header){ .rh_refcount = 1 };
+#endif
 	return 0;
 }
 
