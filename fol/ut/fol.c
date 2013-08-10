@@ -270,7 +270,7 @@ static void tx_begin(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, cred);
 	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 }
 
