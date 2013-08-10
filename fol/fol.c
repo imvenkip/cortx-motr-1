@@ -258,23 +258,16 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
 	m0_mutex_init(&fol->f_lock);
 	m0_be_btree_init(tree, seg, &fol_kv_ops);
 
-	if (tree->bb_root == NULL) {
-		rc = M0_BE_OP_SYNC_RET(local_op,
-				       m0_be_btree_create(tree, tx, &local_op),
-				       bo_u.u_btree.t_rc);
-		if (rc != 0)
-			goto err;
-	}
+	if (tree->bb_root == NULL)
+		M0_BE_OP_SYNC(local_op,
+			      m0_be_btree_create(tree, tx, &local_op));
 
 	rc = fol_setup(fol, tx);
-	if (rc == 0) {
-		m0_be_op_state_set(op, M0_BOS_SUCCESS);
-		return 0;
+	if (rc != 0) {
+		M0_BE_OP_SYNC(local_op,
+			      m0_be_btree_destroy(tree, tx, &local_op));
+		m0_fol_fini(fol);
 	}
-
-	M0_BE_OP_SYNC(local_op, m0_be_btree_destroy(tree, tx, &local_op));
-err:
-	m0_fol_fini(fol);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	return rc;
 }
