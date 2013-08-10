@@ -73,7 +73,7 @@ static struct {
 	struct m0_thread thread;
 } be_ut_ast_thread;
 
-static void be_ut_ast_thread_func(int _ M0_UNUSED)
+static void be_ut_ast_thread_func(int _)
 {
 	struct m0_sm_group *g = &ut__txs_sm_group;
 

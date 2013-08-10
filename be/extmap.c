@@ -166,10 +166,9 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 {
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
-	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
-		local_op,
-		m0_be_btree_create(&map->em_mapping, tx, &local_op),
-		bo_u.u_btree.t_rc);
+	M0_BE_OP_SYNC(local_op,
+		      m0_be_btree_create(&map->em_mapping, tx, &local_op));
+	op->bo_u.u_emap.e_rc = 0;
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
