@@ -22,8 +22,9 @@
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
 #if !XXX_USE_DB5
+#  include "ut/be.h"
 /* XXX FIXME: Do not use ut/ directory of other subsystem. */
-#  include "be/ut/helper.h"   /* m0_be_ut_h */
+#  include "be/ut/helper.h"   /* m0_be_ut_backend */
 #endif
 
 #include "fid/fid_xc.h"
@@ -52,14 +53,6 @@ static struct m0_fol_rec         g_rec;
 static struct m0_be_ut_backend   g_ut_be;
 static struct m0_be_ut_seg       g_ut_seg;
 static struct m0_be_tx           g_tx;
-
-static void backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg);
-static void backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg);
-static void *be_alloc(m0_bcount_t size, struct m0_be_seg *seg);
-static void be_free(void *ptr, m0_bcount_t size, struct m0_be_seg *seg);
-static void tx_begin(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
-		     struct m0_be_tx_credit *cred);
-static void tx_end(struct m0_be_tx *tx);
 #endif
 
 #if XXX_USE_DB5
@@ -98,9 +91,9 @@ static void test_init(void)
 	M0_BE_TX_CREDIT(cred);
 	int rc;
 
-	backend_init(&g_ut_be, &g_ut_seg);
+	m0_ut_backend_init(&g_ut_be, &g_ut_seg);
 
-	g_fol = be_alloc(sizeof *g_fol, &g_ut_seg.bus_seg);
+	g_fol = m0_ut_be_alloc(sizeof *g_fol, &g_ut_seg.bus_seg, &g_ut_be);
 	M0_UT_ASSERT(g_fol != NULL);
 
 	m0_fol_credit(g_fol, M0_FO_INIT, 1, &cred);
@@ -109,7 +102,7 @@ static void test_init(void)
 	 * test_lookup(), and test_fol_rec_part_encdec().
 	 */
 	m0_fol_credit(g_fol, M0_FO_REC_ADD, 3, &cred);
-	tx_begin(&g_tx, &g_ut_be, &cred);
+	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &cred);
 
 	M0_BE_OP_SYNC(op,
 		      rc = m0_fol_init(g_fol, &g_ut_seg.bus_seg, &g_tx, &op));
@@ -135,7 +128,7 @@ static void test_fini(void)
 #else
 	m0_fol_rec_fini(&g_rec);
 
-	tx_end(&g_tx);
+	m0_ut_be_tx_end(&g_tx);
 	/*
 	 * The call fails with the following error message:
 	 *
@@ -160,8 +153,8 @@ static void test_fini(void)
 	 *                      \_ M0_PRE(m0_vec_count(&io->si_user.ov_vec) > 0)	 */
 	m0_fol_fini(g_fol);
 
-	be_free(g_fol, sizeof *g_fol, &g_ut_seg.bus_seg);
-	backend_fini(&g_ut_be, &g_ut_seg);
+	m0_ut_be_free(g_fol, sizeof *g_fol, &g_ut_seg.bus_seg, &g_ut_be);
+	m0_ut_backend_fini(&g_ut_be, &g_ut_seg);
 #endif
 }
 
@@ -321,8 +314,8 @@ static void test_fol_rec_part_encdec(void)
 
 	m0_fol_rec_fini(&g_rec);
 
-	tx_end(&g_tx);
-	tx_begin(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT_OBJ(0, 0));
+	m0_ut_be_tx_end(&g_tx);
+	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT_OBJ(0, 0));
 
 	rc = m0_fol_rec_lookup(g_fol, lsn, &dec_rec);
 	M0_ASSERT(rc == 0);
@@ -336,82 +329,6 @@ static void test_fol_rec_part_encdec(void)
 }
 
 #if !XXX_USE_DB5
-/* ------------------------------------------------------------------
- * BE paraphernalia
- * ------------------------------------------------------------------ */
-
-static void backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
-{
-	m0_be_ut_backend_init(be);
-	m0_be_ut_seg_init(seg, 1 << 20 /* 1 MB */);
-	m0_be_ut_seg_allocator_init(seg, be);
-}
-
-static void backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
-{
-#if 0 /* XXX DEBUGME & RESTOREME */
-	m0_be_ut_seg_allocator_fini(seg, be);
-#endif
-	m0_be_ut_seg_fini(seg);
-	m0_be_ut_backend_fini(be);
-}
-
-static void tx_begin(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
-		     struct m0_be_tx_credit *cred)
-{
-	int rc;
-
-	m0_be_ut_tx_init(tx, ut_be);
-	m0_be_tx_prep(tx, cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-}
-
-static void tx_end(struct m0_be_tx *tx)
-{
-	int rc;
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_tx_fini(tx);
-}
-
-/** Allocates `size' bytes on segment `seg' synchronously. */
-static void *be_alloc(m0_bcount_t size, struct m0_be_seg *seg)
-{
-	enum { SHIFT = 0 };
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
-	void           *ptr;
-
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC, size, SHIFT,
-			       &cred);
-	tx_begin(&tx, &g_ut_be, &cred);
-
-	M0_BE_OP_SYNC(
-		op,
-		ptr = m0_be_alloc(&seg->bs_allocator, &tx, &op, size, SHIFT));
-
-	tx_end(&tx);
-	return ptr;
-}
-
-/** Releases resources obtained by be_alloc(). */
-static void be_free(void *ptr, m0_bcount_t size, struct m0_be_seg *seg)
-{
-	enum { SHIFT = 0 };
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
-
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE, size, SHIFT,
-			       &cred);
-	tx_begin(&tx, &g_ut_be, &cred);
-	M0_BE_OP_SYNC(op, m0_be_free(&seg->bs_allocator, &tx, &op, ptr));
-	tx_end(&tx);
-}
-
 /* ---------------------------------------------------------------------
  * XXX FIXME: Use m0_fom_simple instead of an "ast thread".
  * See the comment in be/ut/helper.c.
