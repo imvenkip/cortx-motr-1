@@ -203,11 +203,8 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	/* start */
 	M0_BE_OP_SYNC(op, tree = m0_be_alloc(a, tx, &op, sizeof *tree, 0));
@@ -250,9 +247,7 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	sprintf(v, "XYZ");
 	M0_BE_OP_SYNC(op, m0_be_btree_update(tree, tx, &op, &key, &val));
 
-	m0_be_tx_close(tx); /* Make things persistent. */
-
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc = m0_be_tx_close_sync(tx); /* Make things persistent. */
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(tx);
 
@@ -281,20 +276,15 @@ static void destroy_tree(struct m0_be_btree *tree,
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	M0_LOG(M0_INFO, "Btree %p destroy...", tree);
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));
 
 	M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, tree));
 
-	m0_be_tx_close(tx); /* Make things persistent. */
-
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc = m0_be_tx_close_sync(tx); /* Make things persistent. */
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(tx);
 

@@ -103,17 +103,12 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(tx, ut_be);
-		M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
 
 		m0_be_allocator_credit(a, optype, size, shift, &credit);
 		m0_be_tx_prep(tx, &credit);
 
-		m0_be_tx_open(tx);
-		rc = m0_be_tx_timedwait(tx,
-					M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-					M0_TIME_NEVER);
+		rc = m0_be_tx_open_sync(tx);
 		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 	}
 
 	m0_be_op_init(&op);
@@ -131,9 +126,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 	m0_be_op_fini(&op);
 
 	if (ut_be != NULL) {
-		m0_be_tx_close(tx);
-		rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
-					M0_TIME_NEVER);
+		rc = m0_be_tx_close_sync(tx);
 		M0_UT_ASSERT(rc == 0);
 		m0_be_tx_fini(tx);
 	}
