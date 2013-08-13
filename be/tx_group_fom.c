@@ -325,6 +325,9 @@ M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *gf,
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stable);
+
+	/* XXX workaround for race condition in tx_group_fom */
+	m0_nanosleep(m0_time(0, 2 * 1000 * 1000), NULL);
 }
 
 static void be_op_reset(struct m0_be_op *op)

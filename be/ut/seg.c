@@ -47,7 +47,7 @@ static void be_ut_seg_rand_reg(struct m0_be_reg *reg,
 {
 	*size	= rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
 	*offset = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
-	reg->br_addr = (char *) seg_addr + BE_UT_SEG_IO_OFFS + *offset;
+	reg->br_addr = seg_addr + BE_UT_SEG_IO_OFFS + *offset;
 	reg->br_size = *size;
 }
 
@@ -72,7 +72,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 	m0_be_ut_seg_init(&ut_seg, BE_UT_SEG_SIZE);
 	seg = &ut_seg.bus_seg;
 	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
-			      (char *) seg->bs_addr + BE_UT_SEG_IO_OFFS);
+			      seg->bs_addr + BE_UT_SEG_IO_OFFS);
 	for (i = 0; i < BE_UT_SEG_IO_ITER; ++i) {
 		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size, &seed);
 		reg.br_seg = seg;

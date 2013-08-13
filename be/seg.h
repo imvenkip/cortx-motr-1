@@ -105,8 +105,8 @@ struct m0_be_reg {
 
 M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg);
 
-M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
-				 const struct m0_be_reg *r2);
+M0_INTERNAL bool m0_be_reg_eq(const struct m0_be_reg *r1,
+			      const struct m0_be_reg *r2);
 
 /*
  * `reg' parameter is not const, because stob IO will update

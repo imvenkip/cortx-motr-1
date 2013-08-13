@@ -14,41 +14,33 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Maxim Medved <Max_Medved@xyratex.com>
- * Original creation date: 18-Jul-2013
+ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original creation date: 13-Aug-2013
  */
 
 #pragma once
 
-#ifndef __MERO_BE_DOMAIN_H__
-#define __MERO_BE_DOMAIN_H__
-
-#include "be/engine.h"
+#ifndef __MERO_UT_AST_THREAD_H__
+#define __MERO_UT_AST_THREAD_H__
 
 /**
- * @defgroup be
+ * @defgroup XXX
+ *
+ * XXX FIXME: Using "ast threads" is a very wrong thing to do.
+ * We should use m0_fom_simple instead.
  *
  * @{
  */
 
-struct m0_be_domain_cfg {
-	struct m0_be_engine_cfg bc_engine;
-};
+/* import */
+struct m0_sm_group;
 
-struct m0_be_domain {
-	struct m0_be_domain_cfg	bd_cfg;
-	struct m0_be_engine	bd_engine;
-};
+M0_INTERNAL int m0_ut_ast_thread_start(struct m0_sm_group *grp);
 
-M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
-				  struct m0_be_domain_cfg *cfg);
+M0_INTERNAL void m0_ut_ast_thread_stop(void);
 
-M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
-
-M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom);
-
-/** @} end of be group */
-#endif /* __MERO_BE_DOMAIN_H__ */
+/** @} end of XXX group */
+#endif /* __MERO_UT_AST_THREAD_H__ */
 
 /*
  *  Local variables:

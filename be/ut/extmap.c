@@ -55,17 +55,13 @@ static void emap_alloc(struct m0_be_tx *tx)
 	m0_be_ut_tx_init(tx, &be_ut_emap_backend);
 	m0_be_tx_prep(tx, &cred);
 
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	M0_BE_OP_SYNC(op, emap = m0_be_alloc(a, tx, &op, sizeof *emap, 0));
 	M0_UT_ASSERT(emap != NULL);
 
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc = m0_be_tx_close_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(tx);
 }
@@ -119,11 +115,8 @@ static void test_init(void)
 
 	m0_be_ut_tx_init(&tx2, &be_ut_emap_backend);
 	m0_be_tx_prep(&tx2, &cred);
-	m0_be_tx_open(&tx2);
-	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(&tx2);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_be_tx_state(&tx2) == M0_BTS_ACTIVE);
 
 	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op, be_seg));
 
@@ -140,8 +133,7 @@ static void test_fini(void)
 
 	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx2, &op));
 
-	m0_be_tx_close(&tx2);
-	rc = m0_be_tx_timedwait(&tx2, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc = m0_be_tx_close_sync(&tx2);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(&tx2);
 

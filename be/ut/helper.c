@@ -252,12 +252,10 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(&tx, ut_be);
-		m0_be_allocator_credit(a, M0_BAO_CREATE, 0, 0, &credit);
+		m0_be_allocator_credit(a, init ? M0_BAO_CREATE : M0_BAO_DESTROY,
+				       0, 0, &credit);
 		m0_be_tx_prep(&tx, &credit);
-		m0_be_tx_open(&tx);
-		rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE,
-						     M0_BTS_FAILED),
-					M0_TIME_NEVER);
+		rc = m0_be_tx_open_sync(&tx);
 		M0_ASSERT(rc == 0);
 	}
 
@@ -272,9 +270,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 	}
 
 	if (ut_be != NULL) {
-		m0_be_tx_close(&tx);
-		rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE),
-					M0_TIME_NEVER);
+		rc = m0_be_tx_close_sync(&tx);
 		M0_ASSERT(rc == 0);
 		m0_be_tx_fini(&tx);
 	}

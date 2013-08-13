@@ -86,7 +86,7 @@ static void *be_reg_d_fb1(const struct m0_be_reg_d *rd)
 /** Return address of the last byte inside the region. */
 static void *be_reg_d_lb(const struct m0_be_reg_d *rd)
 {
-	return (char *) rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
+	return rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
 }
 
 /** Return address of the byte after be_reg_d_lb(rd). */
@@ -125,23 +125,17 @@ M0_INTERNAL void m0_be_rdt_fini(struct m0_be_reg_d_tree *rdt)
 
 M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
 {
-	size_t i;
-
-	if (rdt == NULL || (rdt->brt_r == NULL && rdt->brt_size > 0) ||
-	    rdt->brt_size > rdt->brt_size_max)
-		return false;
-	for (i = 0; i < rdt->brt_size; ++i)
-		if (!m0_be_reg_d__invariant(&rdt->brt_r[i]))
-			return false;
-	for (i = 0; i + 1 < rdt->brt_size; ++i) {
-		if ((char *) rdt->brt_r[i].rd_reg.br_addr >=
-		    (char *) rdt->brt_r[i + 1].rd_reg.br_addr)
-			return false;
-		if (be_reg_d_are_overlapping(&rdt->brt_r[i],
-					     &rdt->brt_r[i + 1]))
-			return false;
-	}
-	return true;
+	return _0C(rdt != NULL) &&
+	       _0C(rdt->brt_r != NULL || rdt->brt_size == 0) &&
+	       _0C(rdt->brt_size <= rdt->brt_size_max) &&
+	       _0C(m0_forall(i, rdt->brt_size,
+			     m0_be_reg_d__invariant(&rdt->brt_r[i]))) &&
+	       _0C(m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
+			     rdt->brt_r[i].rd_reg.br_addr <
+			     rdt->brt_r[i + 1].rd_reg.br_addr)) &&
+	       _0C(m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
+			     !be_reg_d_are_overlapping(&rdt->brt_r[i],
+						       &rdt->brt_r[i + 1])));
 }
 
 M0_INTERNAL size_t m0_be_rdt_size(const struct m0_be_reg_d_tree *rdt)
@@ -226,7 +220,7 @@ M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
 	M0_PRE(m0_be_rdt_size(rdt) > 0);
 
 	index = be_rdt_find_i(rdt, be_reg_d_fb(rd));
-	M0_ASSERT(m0_be_reg_is_eq(&rdt->brt_r[index].rd_reg, &rd->rd_reg));
+	M0_ASSERT(m0_be_reg_eq(&rdt->brt_r[index].rd_reg, &rd->rd_reg));
 
 	for (i = index; i + 1 < rdt->brt_size; ++i)
 		rdt->brt_r[i] = rdt->brt_r[i + 1];
@@ -271,58 +265,10 @@ M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm)
 	return rm != NULL && m0_be_rdt__invariant(&rm->br_rdt);
 }
 
-/** Delete all regions that are completely covered by the given region */
-static void be_regmap_del_all_completely_covered(struct m0_be_regmap *rm,
-						 const struct m0_be_reg_d *rd)
+static struct m0_be_reg_d *be_regmap_find_fb(struct m0_be_regmap *rm,
+					     const struct m0_be_reg_d *rd)
 {
-	struct m0_be_reg_d *rdi;
-
-	if (rd == NULL || rd->rd_reg.br_size == 0)
-		return;
-
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
-
-	/* if it is an intersection and not complete coverage */
-	if (rdi != NULL && !be_reg_d_is_partof(rd, rdi))
-		rdi = m0_be_rdt_next(&rm->br_rdt, rdi);
-
-	/* delete all coverted regions */
-	while (rdi != NULL && be_reg_d_is_partof(rd, rdi)) {
-		rm->br_ops->rmo_del(rm->br_ops_data, rdi);
-		rdi = m0_be_rdt_del(&rm->br_rdt, rdi);
-	}
-}
-
-static struct m0_be_reg_d *
-be_regmap_super(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
-{
-	struct m0_be_reg_d *rdi;
-
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
-	return rdi != NULL && be_reg_d_is_partof(rdi, rd) ? rdi : NULL;
-}
-
-static struct m0_be_reg_d *
-be_regmap_intersect_first(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
-{
-	struct m0_be_reg_d *rdi;
-
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
-	return rdi != NULL && be_reg_d_size(rd) > 0 &&
-	       m0_be_reg_d_is_in(rdi, be_reg_d_fb(rd)) &&
-	       !m0_be_reg_d_is_in(rdi, be_reg_d_lb1(rd)) ? rdi : NULL;
-
-}
-
-static struct m0_be_reg_d *
-be_regmap_intersect_last(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
-{
-	struct m0_be_reg_d *rdi;
-
-	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_lb(rd));
-	return rdi != NULL && be_reg_d_size(rd) > 0 &&
-	       !m0_be_reg_d_is_in(rdi, be_reg_d_fb1(rd)) &&
-	       m0_be_reg_d_is_in(rdi, be_reg_d_lb(rd)) ? rdi : NULL;
+	return m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
 }
 
 static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
@@ -330,17 +276,15 @@ static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
 				m0_bcount_t cut_start,
 				m0_bcount_t cut_end)
 {
-	struct m0_be_reg *r;
+	struct m0_be_reg *r = &rd->rd_reg;
 
 	M0_PRE(m0_be_reg_d__invariant(rd));
 	M0_PRE(rd->rd_reg.br_size > cut_start + cut_end);
 
-	r = &rd->rd_reg;
-
 	rm->br_ops->rmo_cut(rm->br_ops_data, rd, cut_start, cut_end);
 
 	r->br_size -= cut_start;
-	r->br_addr = (char *) r->br_addr + cut_start;
+	r->br_addr += cut_start;
 
 	r->br_size -= cut_end;
 
@@ -357,8 +301,8 @@ M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
 	M0_PRE(rd != NULL);
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
-	rdi = be_regmap_super(rm, rd);
-	if (rdi != NULL) {
+	rdi = be_regmap_find_fb(rm, rd);
+	if (rdi != NULL && be_reg_d_is_partof(rdi, rd)) {
 		/* old region completely absorbs the new */
 		rm->br_ops->rmo_cpy(rm->br_ops_data, rdi, rd);
 	} else {
@@ -381,19 +325,26 @@ M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
 	M0_PRE(rd != NULL);
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
-	be_regmap_del_all_completely_covered(rm, rd);
-	rdi = be_regmap_intersect_first(rm, rd);
-	if (rdi != NULL) {
+	/* first intersection */
+	rdi = be_regmap_find_fb(rm, rd);
+	if (rdi != NULL && m0_be_reg_d_is_in(rdi, be_reg_d_fb(rd)) &&
+	    !m0_be_reg_d_is_in(rdi, be_reg_d_lb1(rd)) &&
+	    !be_reg_d_is_partof(rd, rdi)) {
 		cut = be_reg_d_size(rdi);
-		cut -= (char *) be_reg_d_fb(rd) -
-		       (char *) be_reg_d_fb(rdi);
+		cut -= be_reg_d_fb(rd) - be_reg_d_fb(rdi);
 		be_regmap_reg_d_cut(rm, rdi, 0, cut);
+		rdi = m0_be_rdt_next(&rm->br_rdt, rdi);
 	}
-	rdi = be_regmap_intersect_last(rm, rd);
-	if (rdi != NULL) {
+	/* delete all completely covered regions */
+	while (rdi != NULL && be_reg_d_is_partof(rd, rdi)) {
+		rm->br_ops->rmo_del(rm->br_ops_data, rdi);
+		rdi = m0_be_rdt_del(&rm->br_rdt, rdi);
+	}
+	/* last intersection */
+	if (rdi != NULL && !m0_be_reg_d_is_in(rdi, be_reg_d_fb1(rd)) &&
+	    m0_be_reg_d_is_in(rdi, be_reg_d_lb(rd))) {
 		cut = be_reg_d_size(rdi);
-		cut -= (char *) be_reg_d_lb(rdi) -
-		       (char *) be_reg_d_lb(rd);
+		cut -= be_reg_d_lb(rdi) - be_reg_d_lb(rd);
 		be_regmap_reg_d_cut(rm, rdi, cut, 0);
 	}
 }
@@ -447,6 +398,11 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 			rc = -ENOMEM;
 		}
 	}
+
+	/* invariant should work in each case */
+	if (rc != 0)
+		M0_SET0(ra);
+
 	M0_POST(ergo(rc == 0, m0_be_reg_area__invariant(ra)));
 	return rc;
 }
@@ -461,7 +417,7 @@ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
 {
 	return m0_be_regmap__invariant(&ra->bra_map) &&
-	       equi(ra->bra_data_copy, ra->bra_area != NULL) &&
+	       ra->bra_data_copy == (ra->bra_area != NULL) &&
 	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size &&
 	       m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared);
 }
@@ -533,9 +489,8 @@ static void be_reg_area_cpy_copy(void *data, const struct m0_be_reg_d *super,
 	M0_PRE(super->rd_buf != NULL);
 	M0_PRE(rd->rd_buf == NULL);
 
-	rd_offset = (char *) rd->rd_reg.br_addr -
-		    (char *) super->rd_reg.br_addr;
-	be_reg_d_cpy((char *) super->rd_buf + rd_offset, rd);
+	rd_offset = rd->rd_reg.br_addr - super->rd_reg.br_addr;
+	be_reg_d_cpy(super->rd_buf + rd_offset, rd);
 }
 
 /* XXX copy-paste from be_reg_area_cpy_copy() */
@@ -549,16 +504,14 @@ static void be_reg_area_cpy(void *data, const struct m0_be_reg_d *super,
 	M0_PRE(super->rd_buf != NULL);
 	M0_PRE(rd->rd_buf != NULL);
 
-	rd_offset = (char *) rd->rd_reg.br_addr -
-		    (char *) super->rd_reg.br_addr;
-	memcpy((char *) super->rd_buf + rd_offset,
-	       rd->rd_buf, rd->rd_reg.br_size);
+	rd_offset = rd->rd_reg.br_addr - super->rd_reg.br_addr;
+	memcpy(super->rd_buf + rd_offset, rd->rd_buf, rd->rd_reg.br_size);
 }
 
 static void be_reg_area_cut(void *data, struct m0_be_reg_d *rd,
 			    m0_bcount_t cut_at_start, m0_bcount_t cut_at_end)
 {
-	rd->rd_buf = (char *) rd->rd_buf + cut_at_start;
+	rd->rd_buf += cut_at_start;
 }
 
 static const struct m0_be_regmap_ops be_reg_area_copy_ops = {

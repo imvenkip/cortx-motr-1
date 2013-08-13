@@ -22,7 +22,9 @@
 #ifndef __MERO_BE_TX_H__
 #define __MERO_BE_TX_H__
 
-#include "be/tx_regmap.h"
+#include "lib/misc.h"		/* M0_BITS */
+
+#include "be/tx_regmap.h"	/* m0_be_reg_area */
 
 struct m0_ref;
 struct m0_be_domain;
@@ -389,6 +391,19 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout);
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
+
+static inline int m0_be_tx_open_sync(struct m0_be_tx *tx)
+{
+	m0_be_tx_open(tx);
+	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				  M0_TIME_NEVER);
+}
+
+static inline int m0_be_tx_close_sync(struct m0_be_tx *tx)
+{
+	m0_be_tx_close(tx);
+	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+}
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

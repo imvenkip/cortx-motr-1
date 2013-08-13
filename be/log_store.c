@@ -288,8 +288,8 @@ static void be_log_store_io_add(struct m0_be_log_store_io *lsi,
 		M0_ASSERT(size1 < size);
 
 		be_log_store_io_add_nowrap(lsi, bio, ptr, size1, ls_size);
-		ptr = (char *) ptr + size1;
-		be_log_store_io_add_nowrap(lsi, bio, ptr, size - size1, ls_size);
+		be_log_store_io_add_nowrap(lsi, bio, ptr + size1, size - size1,
+					   ls_size);
 	}
 
 	M0_POST(m0_be_log_store_io__invariant(lsi));
