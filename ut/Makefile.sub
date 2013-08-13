@@ -1,4 +1,6 @@
-ut_libmero_ut_la_SOURCES += ut/cs_fop_foms.c \
+ut_libmero_ut_la_SOURCES += ut/be.c \
+                            ut/be.h \
+                            ut/cs_fop_foms.c \
                             ut/cs_fop_foms.h \
                             ut/cs_fop_foms_xc.c \
                             ut/cs_service.c \
