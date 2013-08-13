@@ -47,6 +47,7 @@ void m0_be_ut_tx_usecase_success(void)
 
 	m0_be_tx_prep(&tx, &credit);
 
+	/* m0_be_tx_open_sync() can be used in UT */
 	m0_be_tx_open(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 				M0_TIME_NEVER);
@@ -56,6 +57,7 @@ void m0_be_ut_tx_usecase_success(void)
 	*data = 0x101;
 	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
 
+	/* m0_be_tx_close_sync() can be used in UT */
 	m0_be_tx_close(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
