@@ -161,7 +161,6 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 
 	M0_SET0(&gr->tg_used);
 	m0_be_group_ondisk_reset(&gr->tg_od);
-	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
 
 M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
