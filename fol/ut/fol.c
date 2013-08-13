@@ -23,6 +23,7 @@
 #include "fol/fol_xc.h"
 #if !XXX_USE_DB5
 #  include "ut/be.h"
+#  include "ut/ast_thread.h"
 /* XXX FIXME: Do not use ut/ directory of other subsystem. */
 #  include "be/ut/helper.h"   /* m0_be_ut_backend */
 #endif
@@ -329,44 +330,17 @@ static void test_fol_rec_part_encdec(void)
 }
 
 #if !XXX_USE_DB5
-/* ---------------------------------------------------------------------
- * XXX FIXME: Use m0_fom_simple instead of an "ast thread".
- * See the comment in be/ut/helper.c.
- * XXX Code duplication.
- */
-
 extern struct m0_sm_group ut__txs_sm_group;
-
-static struct {
-	bool             run;
-	struct m0_thread thread;
-} g_ast;
-
-static void ast_thread(int _)
-{
-	struct m0_sm_group *g = &ut__txs_sm_group;
-
-	while (g_ast.run) {
-		m0_chan_wait(&g->s_clink);
-		m0_sm_group_lock(g);
-		m0_sm_asts_run(g);
-		m0_sm_group_unlock(g);
-	}
-}
 
 static int _init(void)
 {
 	m0_sm_group_init(&ut__txs_sm_group);
-	g_ast.run = true;
-	return M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
-			      "ast_thread");
+	return m0_ut_ast_thread_start(&ut__txs_sm_group);
 }
 
 static int _fini(void)
 {
-	g_ast.run = false;
-	m0_clink_signal(&ut__txs_sm_group.s_clink);
-	m0_thread_join(&g_ast.thread);
+	m0_ut_ast_thread_stop();
 	m0_sm_group_fini(&ut__txs_sm_group);
 	return 0;
 }
