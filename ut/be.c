@@ -29,8 +29,6 @@
 #include "be/ut/helper.h"  /* m0_be_ut_backend */
 #include "lib/misc.h"      /* M0_BITS */
 
-extern struct m0_sm_group ut__txs_sm_group;
-
 M0_INTERNAL void
 m0_ut_backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
 {
@@ -53,6 +51,7 @@ M0_INTERNAL void m0_ut_be_tx_begin(struct m0_be_tx *tx,
 				   struct m0_be_ut_backend *ut_be,
 				   struct m0_be_tx_credit *cred)
 {
+	extern struct m0_sm_group ut__txs_sm_group;
 	int rc;
 
 	m0_be_tx_init(tx, 0, &ut_be->but_dom, &ut__txs_sm_group, NULL, NULL,
