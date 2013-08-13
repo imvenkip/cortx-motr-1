@@ -41,9 +41,10 @@ extern void m0_be_ut_group_ondisk(void);
 
 extern void m0_be_ut_domain(void);
 
+extern void m0_be_ut_tx_states(void);
+extern void m0_be_ut_tx_empty(void);
 extern void m0_be_ut_tx_usecase_success(void);
 extern void m0_be_ut_tx_usecase_failure(void);
-extern void m0_be_ut_tx_empty(void);
 extern void m0_be_ut_tx_single(void);
 extern void m0_be_ut_tx_several(void);
 extern void m0_be_ut_tx_persistence(void);
@@ -123,9 +124,10 @@ const struct m0_test_suite be_ut = {
 		{ "seg-io",              m0_be_ut_seg_io               },
 		{ "group_ondisk",        m0_be_ut_group_ondisk         },
 		{ "domain",              m0_be_ut_domain               },
+		{ "tx-states",		 m0_be_ut_tx_states	       },
+		{ "tx-empty",		 m0_be_ut_tx_empty	       },
 		{ "tx-usecase_success",  m0_be_ut_tx_usecase_success   },
 		{ "tx-usecase_failure",  m0_be_ut_tx_usecase_failure   },
-		{ "tx-empty",		 m0_be_ut_tx_empty	       },
 		{ "tx-single",           m0_be_ut_tx_single            },
 		{ "tx-several",          m0_be_ut_tx_several           },
 		{ "tx-persistence",      m0_be_ut_tx_persistence       },

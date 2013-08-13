@@ -108,6 +108,75 @@ static void *be_ut_tx_alloc(void **alloc, m0_bcount_t size)
 	return ptr;
 }
 
+void m0_be_ut_tx_states(void)
+{
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_tx_credit  credit =
+		M0_BE_TX_CREDIT_INIT(1, sizeof(uint64_t));
+	struct m0_be_ut_seg     ut_seg;
+	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+	struct m0_be_tx         tx;
+	uint64_t               *data;
+	int                     rc;
+
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, 1 << 20);
+
+	/* test success path */
+	m0_be_ut_tx_init(&tx, &ut_be);
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+
+	m0_be_tx_prep(&tx, &credit);
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+
+	/* to check M0_BTS_PLACED state */
+	m0_be_tx_get(&tx);
+
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_ACTIVE);
+
+	data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
+	*data = 0x101;
+	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
+
+	m0_be_tx_close(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PLACED);
+
+	m0_be_tx_put(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_DONE);
+
+	m0_be_tx_fini(&tx);
+
+	/* test failure path */
+	m0_be_ut_tx_init(&tx, &ut_be);
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+
+	m0_be_tx_prep(&tx, &M0_BE_TX_CREDIT_OBJ(1ULL << 48, 1ULL << 48));
+	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
+
+	m0_be_tx_get(&tx);
+
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_FAILED);
+
+	m0_be_tx_put(&tx);
+
+	m0_be_tx_fini(&tx);
+
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
 void m0_be_ut_tx_empty(void)
 {
 	struct m0_be_ut_backend ut_be;
