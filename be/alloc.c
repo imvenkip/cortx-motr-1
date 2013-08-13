@@ -376,9 +376,8 @@ static void chunks_free_tlist_fini_c(struct m0_be_allocator *a,
 static bool be_alloc_is_mem_in_allocator(struct m0_be_allocator *a,
 					 m0_bcount_t size, const void *ptr)
 {
-	return (char *) ptr >= (char *) a->ba_h->bah_addr &&
-	       (char *) ptr + size <= ((char *) a->ba_h->bah_addr) +
-				      a->ba_h->bah_size;
+	return ptr >= a->ba_h->bah_addr &&
+	       ptr + size <= a->ba_h->bah_addr + a->ba_h->bah_size;
 }
 
 static bool be_alloc_is_chunk_in_allocator(struct m0_be_allocator *a,
@@ -391,8 +390,7 @@ static bool be_alloc_chunk_is_not_overlapping(const struct be_alloc_chunk *a,
 					      const struct be_alloc_chunk *b)
 {
 	return a == NULL || b == NULL ||
-	       ((char *) a < (char *) b &&
-		(char *) &a->bac_mem[a->bac_size] <= (char *) b);
+	       (a < b && &a->bac_mem[a->bac_size] <= (char *) b);
 }
 
 static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
