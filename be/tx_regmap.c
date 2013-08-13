@@ -398,6 +398,11 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 			rc = -ENOMEM;
 		}
 	}
+
+	/* invariant should work in each case */
+	if (rc != 0)
+		M0_SET0(ra);
+
 	M0_POST(ergo(rc == 0, m0_be_reg_area__invariant(ra)));
 	return rc;
 }
