@@ -36,8 +36,8 @@ struct m0_be_domain_cfg {
 };
 
 struct m0_be_domain {
-	struct m0_be_domain_cfg *bd_cfg;
-	struct m0_be_engine      bd_engine;
+	struct m0_be_domain_cfg	bd_cfg;
+	struct m0_be_engine	bd_engine;
 };
 
 M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
