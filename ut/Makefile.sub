@@ -1,4 +1,6 @@
-ut_libmero_ut_la_SOURCES += ut/be.c \
+ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
+                            ut/ast_thread.h \
+                            ut/be.c \
                             ut/be.h \
                             ut/cs_fop_foms.c \
                             ut/cs_fop_foms.h \
