@@ -35,6 +35,8 @@
 #include "balloc.h"
 #include "mero/magic.h"
 
+#include "ut/ast_thread.h"	/* XXX_ast_thread_sm_group */ /* XXX_DB_BE */
+
 /**
    M0 Data Block Allocator.
    BALLOC is a multi-block allocator, with pre-allocation. All metadata about
@@ -345,7 +347,7 @@ static void balloc_sb_sync(struct m0_balloc *cb, struct m0_be_tx *tx)
 
 	cb->cb_sb.bsb_state &= ~M0_BALLOC_SB_DIRTY;
 
-	M0_BE_TX_CAPTURE_PTR(cb->cb_be_seg, tx, cb);
+	M0_BE_TX_CAPTURE_PTR(cb->cb_be_seg, tx, sb);
 
 	M0_LEAVE();
 }
@@ -360,8 +362,8 @@ static int sb_update(struct m0_balloc *bal)
 	bal->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 
 	m0_sm_group_init(&sm_grp);
-	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain, &sm_grp,
-					NULL, NULL, NULL, NULL);
+	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
+		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
 	cred = M0_BE_TX_CREDIT_TYPE(bal->cb_sb);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
@@ -518,8 +520,8 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	}
 
 	m0_sm_group_init(&sm_grp);
-	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain, &sm_grp,
-				NULL, NULL, NULL, NULL);
+	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
+		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
 	m0_be_btree_insert_credit(&bal->cb_db_group_extents,
 		2 * sb->bsb_groupcount,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
@@ -535,7 +537,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
 		rc = balloc_group_write(bal, &tx, i);
 
-	m0_be_tx_close_sync(&tx);
+	rc = m0_be_tx_close_sync(&tx);
 	/* XXX error handling is missing here */
 	m0_be_tx_fini(&tx);
 	m0_sm_group_fini(&sm_grp);
@@ -667,12 +669,16 @@ static int balloc_init_internal(struct m0_balloc *bal,
 	bal->cb_group_info = NULL;
 	m0_mutex_init(&bal->cb_sb_mutex);
 	M0_SET0(&bal->cb_sb);
+	/* XXX max: why it is needed?
 	M0_SET0(&bal->cb_db_group_extents);
 	M0_SET0(&bal->cb_db_group_desc);
+	*/
 	M0_SET_ARR0(table_name);
 
+	/* XXX max: m0_be_btree_init() already called
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
 	m0_be_btree_init(&bal->cb_db_group_extents, seg, &ge_btree_ops);
+	*/
 
 	if (bal->cb_sb.bsb_magic != M0_BALLOC_SB_MAGIC) {
 		struct m0_balloc_format_req req = { 0 };
@@ -2241,12 +2247,12 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 	alloc = &seg->bs_allocator;
 
 	m0_sm_group_init(&sm_grp);
-	m0_be_tx_init(&tx, 0, seg->bs_domain, &sm_grp,
-				NULL, NULL, NULL, NULL);
+	m0_be_tx_init(&tx, 0, seg->bs_domain,
+		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *cb, 0, &cred);
-	m0_be_btree_init(&cb->cb_db_group_extents, seg, &ge_btree_ops);
-	m0_be_btree_init(&cb->cb_db_group_desc, seg, &gd_btree_ops);
+	/* XXX tree is not initialized here */
 	m0_be_btree_create_credit(&cb->cb_db_group_extents, 1, &cred);
+	/* XXX tree is not initialized here */
 	m0_be_btree_create_credit(&cb->cb_db_group_desc, 1, &cred);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
@@ -2264,6 +2270,10 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 				cb->cb_container_id = cid;
 				cb->cb_ballroom.ab_ops = &balloc_ops;
 
+				m0_be_btree_init(&cb->cb_db_group_extents,
+						 seg, &ge_btree_ops);
+				m0_be_btree_init(&cb->cb_db_group_desc,
+						 seg, &gd_btree_ops);
 				rc = balloc_trees_create(cb, &tx);
 				if (rc == 0) {
 					M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
