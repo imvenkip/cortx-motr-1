@@ -746,7 +746,7 @@ void m0_be_ut_reg_area_simple(void)
 	int			     i;
 	int			     j;
 
-	m0_be_ut_seg_init(&ut_seg, BE_UT_RA_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_SEG_SIZE);
 	be_ut_ra_seg = &ut_seg.bus_seg;
 
 	be_ut_ra_rand_seed = 0;
@@ -784,7 +784,7 @@ void m0_be_ut_reg_area_random(void)
 	unsigned	    seed = 0;
 	int		    do_insert;
 
-	m0_be_ut_seg_init(&ut_seg, BE_UT_RA_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_SEG_SIZE);
 	be_ut_ra_seg = &ut_seg.bus_seg;
 
 	be_ut_reg_area_init(BE_UT_RA_ITER);
@@ -991,7 +991,7 @@ void m0_be_ut_reg_area_merge(void)
 	int			     j;
 	int			     rc;
 
-	m0_be_ut_seg_init(&ut_seg, BE_UT_RA_MERGE_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_MERGE_SEG_SIZE);
 	be_ut_ra_merge_seg = &ut_seg.bus_seg;
 
 	rc = m0_be_reg_area_init(&ra, &prepared_ra, false);

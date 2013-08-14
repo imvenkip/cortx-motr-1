@@ -72,7 +72,7 @@ void m0_be_ut_btree_simple(void)
 	M0_ENTRY();
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	seg = &ut_seg.bus_seg;
 

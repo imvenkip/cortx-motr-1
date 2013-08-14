@@ -102,8 +102,10 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 		      NULL, NULL);
 }
 
-static void
-be_ut_seg_init(struct m0_be_ut_seg *ut_seg, bool stob_create, m0_bcount_t size)
+static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+			   struct m0_be_ut_backend *ut_be,
+			   m0_bcount_t size,
+			   bool stob_create)
 {
 	struct m0_stob_id stob_id = { .si_bits = M0_UINT128(0, 42) };
 	int               rc;
@@ -127,7 +129,7 @@ be_ut_seg_init(struct m0_be_ut_seg *ut_seg, bool stob_create, m0_bcount_t size)
 		ut_seg->bus_stob = &ut_seg->bus_stob_;
 	}
 
-	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, /* XXX */ NULL);
+	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, &ut_be->but_dom);
 	rc = m0_be_seg_create(&ut_seg->bus_seg, size);
 	M0_ASSERT(rc == 0);
 	rc = m0_be_seg_open(&ut_seg->bus_seg);
@@ -152,9 +154,11 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 	}
 }
 
-void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg, m0_bcount_t size)
+void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+		       struct m0_be_ut_backend *ut_be,
+		       m0_bcount_t size)
 {
-	be_ut_seg_init(ut_seg, false, size);
+	be_ut_seg_init(ut_seg, ut_be, size, false);
 	ut_seg->bus_copy = NULL;
 }
 
