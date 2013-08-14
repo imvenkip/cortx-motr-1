@@ -89,12 +89,14 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 	return 0;
 }
 
-M0_INTERNAL void
-m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob, struct m0_be *be)
+M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+				struct m0_stob *stob,
+				struct m0_be_domain *dom)
 {
 	*seg = (struct m0_be_seg) {
+		/* XXX add BE_SEG_HEADER_OFFSET */
 		.bs_reserved = sizeof(struct m0_be_seg_hdr),
-		.bs_be	     = be,
+		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
 		.bs_pgshift  = 12

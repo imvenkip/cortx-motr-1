@@ -58,7 +58,7 @@ M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
 	struct m0_be_allocator a;
 	int		       rc;
 
-	m0_be_ut_seg_init(&ut_seg, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
 	rc = m0_be_allocator_init(&a, &ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_allocator_fini(&a);
@@ -70,7 +70,7 @@ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 	struct m0_be_ut_seg ut_seg;
 
 	m0_be_ut_backend_init(&be_ut_alloc_backend);
-	m0_be_ut_seg_init(&ut_seg, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
 	m0_be_ut_seg_check_persistence(&ut_seg);
 
 	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
@@ -162,7 +162,7 @@ static void be_ut_alloc_mt(int nr)
 		be_ut_ts[i].ats_nr = nr == 1 ? BE_UT_ALLOC_NR :
 					       BE_UT_ALLOC_MT_NR;
 	}
-	m0_be_ut_seg_init(&be_ut_alloc_seg, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_init(&be_ut_alloc_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
 	m0_be_ut_seg_allocator_init(&be_ut_alloc_seg, NULL);
 	for (i = 0; i < nr; ++i) {
 		rc = M0_THREAD_INIT(&be_ut_ts[i].ats_thread, int, NULL,
@@ -199,7 +199,7 @@ M0_INTERNAL void m0_be_ut_alloc_transactional(void)
 	int			 j;
 
 	m0_be_ut_backend_init(ut_be);
-	m0_be_ut_seg_init(&ut_seg, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
 	m0_be_ut_seg_check_persistence(&ut_seg);
 
 	m0_be_ut_seg_allocator_init(&ut_seg, ut_be);

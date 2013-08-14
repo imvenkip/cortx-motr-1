@@ -35,7 +35,7 @@ M0_INTERNAL void m0_be_ut_seg_open_close(void)
 {
 	struct m0_be_ut_seg ut_seg;
 
-	m0_be_ut_seg_init(&ut_seg, BE_UT_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
 	m0_be_ut_seg_fini(&ut_seg);
 }
 
@@ -69,7 +69,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 	int		    cmp;
 
 	seed = 0;
-	m0_be_ut_seg_init(&ut_seg, BE_UT_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
 	seg = &ut_seg.bus_seg;
 	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
 			      seg->bs_addr + BE_UT_SEG_IO_OFFS);

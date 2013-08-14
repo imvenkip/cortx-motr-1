@@ -55,7 +55,6 @@ struct m0_be_seg {
 	m0_bcount_t	       bs_reserved;
 	struct m0_be_allocator bs_allocator;
 	struct m0_be_domain   *bs_domain;
-	struct m0_be          *bs_be;
 	int                    bs_state;
 	uint32_t               bs_bshift;  /* XXX remove it. STOB block shift */
 	uint32_t               bs_pgshift; /* seg page shift */
@@ -66,7 +65,7 @@ struct m0_be_seg {
 
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
-				struct m0_be *be);
+				struct m0_be_domain *dom);
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg);
 M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg);
 
