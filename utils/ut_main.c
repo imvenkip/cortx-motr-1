@@ -103,7 +103,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&libm0_ut); /* test lib first */
 //XXX_BE_DB	m0_ut_add(&ad_ut);
 //XXX_BE_DB	m0_ut_add(&adieu_ut);
-//XXX_BE_DB	m0_ut_add(&balloc_ut);
+		m0_ut_add(&balloc_ut);
 //XXX_BE_DB	m0_ut_add(&be_ut);
 //XXX_BE_DB	m0_ut_add(&buffer_pool_ut);
 //XXX_BE_DB	m0_ut_add(&bulkio_client_ut);
