@@ -42,6 +42,79 @@
 
  */
 
+/* XXX */
+#define M0_BUF_INIT_PTR(p)      M0_BUF_INIT(sizeof *(p), (p))
+
+static inline int btree_lookup_sync(struct m0_be_btree  *tree,
+			       const struct m0_buf *key,
+			       struct m0_buf       *val)
+{
+	struct m0_be_op op;
+	int		rc;
+
+	m0_be_op_init(&op);
+	m0_be_btree_lookup(tree, &op, key, val);
+	m0_be_op_wait(&op);
+	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+
+	return rc;
+}
+
+static inline int btree_insert_sync(struct m0_be_btree  *tree,
+			       struct m0_be_tx     *tx,
+			       const struct m0_buf *key,
+			       const struct m0_buf *val)
+{
+	struct m0_be_op op;
+	int		rc;
+
+	m0_be_op_init(&op);
+	m0_be_btree_insert(tree, tx, &op, key, val);
+	m0_be_op_wait(&op);
+	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+
+	return rc;
+}
+
+static inline int btree_update_sync(struct m0_be_btree  *tree,
+			       struct m0_be_tx     *tx,
+			       const struct m0_buf *key,
+			       const struct m0_buf *val)
+{
+	struct m0_be_op op;
+	int		rc;
+
+	m0_be_op_init(&op);
+	m0_be_btree_update(tree, tx, &op, key, val);
+	m0_be_op_wait(&op);
+	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+
+	return rc;
+}
+
+static inline int btree_delete_sync(struct m0_be_btree  *tree,
+			       struct m0_be_tx     *tx,
+			       const struct m0_buf *key)
+{
+	struct m0_be_op op;
+	int		rc;
+
+	m0_be_op_init(&op);
+	m0_be_btree_delete(tree, tx, &op, key);
+	m0_be_op_wait(&op);
+	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+
+	return rc;
+}
+
 /* This macro is to control the debug verbose message */
 #define BALLOC_ENABLE_DUMP
 
@@ -287,17 +360,15 @@ static int sb_update(struct m0_balloc *bal)
 	bal->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 
 	m0_sm_group_init(&sm_grp);
-	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_be_domain, &sm_grp,
-					NULL, NULL, false, NULL, NULL);
+	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain, &sm_grp,
+					NULL, NULL, NULL, NULL);
 	cred = M0_BE_TX_CREDIT_TYPE(bal->cb_sb);
 	m0_be_tx_prep(&tx, &cred);
-	m0_be_tx_open(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(&tx);
 	if (rc == 0) {
 		balloc_sb_sync(bal, &tx);
-		m0_be_tx_close(&tx);
-		m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER);
-
+		m0_be_tx_close_sync(&tx);
+		/* XXX error handling is missing here */
 	}
 	m0_be_tx_fini(&tx);
 	m0_sm_group_fini(&sm_grp);
@@ -434,7 +505,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
 	struct m0_sm_group               sm_grp;
 	struct m0_be_tx                  tx = {};
-	struct m0_be_tx_credit           cred;
+	struct m0_be_tx_credit           cred = M0_BE_TX_CREDIT_INIT(0, 0);
 
 	M0_ENTRY();
 
@@ -447,9 +518,8 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	}
 
 	m0_sm_group_init(&sm_grp);
-	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_be_domain, &sm_grp,
-				NULL, NULL, false, NULL, NULL);
-	m0_be_tx_credit_init(&cred);
+	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain, &sm_grp,
+				NULL, NULL, NULL, NULL);
 	m0_be_btree_insert_credit(&bal->cb_db_group_extents,
 		2 * sb->bsb_groupcount,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
@@ -459,14 +529,14 @@ static int balloc_groups_write(struct m0_balloc *bal)
 		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
 		sizeof(struct m0_balloc_group_desc), &cred);
 	m0_be_tx_prep(&tx, &cred);
-	m0_be_tx_open(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(&tx);
+	/* XXX error handling is missing here */
 
 	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
 		rc = balloc_group_write(bal, &tx, i);
 
-	m0_be_tx_close(&tx);
-	m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER);
+	m0_be_tx_close_sync(&tx);
+	/* XXX error handling is missing here */
 	m0_be_tx_fini(&tx);
 	m0_sm_group_fini(&sm_grp);
 
@@ -2155,7 +2225,7 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 	struct m0_be_allocator *alloc = &seg->bs_allocator;
 	struct m0_sm_group      sm_grp;
 	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred;
+	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_INIT(0, 0);
 	struct m0_be_op         op;
 	char                    cid_name[80];
 	int                     rc;
@@ -2171,17 +2241,15 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 	alloc = &seg->bs_allocator;
 
 	m0_sm_group_init(&sm_grp);
-	m0_be_tx_init(&tx, 0, seg->bs_be_domain, &sm_grp,
-				NULL, NULL, false, NULL, NULL);
-	m0_be_tx_credit_init(&cred);
+	m0_be_tx_init(&tx, 0, seg->bs_domain, &sm_grp,
+				NULL, NULL, NULL, NULL);
 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *cb, 0, &cred);
 	m0_be_btree_init(&cb->cb_db_group_extents, seg, &ge_btree_ops);
 	m0_be_btree_init(&cb->cb_db_group_desc, seg, &gd_btree_ops);
 	m0_be_btree_create_credit(&cb->cb_db_group_extents, 1, &cred);
 	m0_be_btree_create_credit(&cb->cb_db_group_desc, 1, &cred);
 	m0_be_tx_prep(&tx, &cred);
-	m0_be_tx_open(&tx);
-	rc = m0_be_tx_timedwait(&tx, M0_BTS_ACTIVE, M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(&tx);
 
 	if (rc == 0) {
 		m0_be_op_init(&op);
@@ -2204,8 +2272,7 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 				}
 			}
 		}
-		m0_be_tx_close(&tx);
-		m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER);
+		rc = m0_be_tx_close_sync(&tx);
 	}
 
 	m0_be_tx_fini(&tx);

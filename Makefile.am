@@ -310,41 +310,41 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 # balloc/ut
 #
 
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/m0blkformat
-endif
-balloc_ut_m0blkformat_CPPFLAGS    = -DM0_TARGET='m0blkformat' $(AM_CPPFLAGS)
-balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/m0blkfree
-endif
-balloc_ut_m0blkfree_CPPFLAGS      = -DM0_TARGET='m0blkfree' $(AM_CPPFLAGS)
-balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/m0blkdump
-endif
-balloc_ut_m0blkdump_CPPFLAGS      = -DM0_TARGET='m0blkdump' $(AM_CPPFLAGS)
-balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/perf
-endif
-balloc_ut_perf_CPPFLAGS           = -DM0_TARGET='balloc-perf' $(AM_CPPFLAGS)
-balloc_ut_perf_LDADD              = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/mperf
-endif
-balloc_ut_mperf_CPPFLAGS          = -DM0_TARGET='mperf' $(AM_CPPFLAGS)
-balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/m0blkformat
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_m0blkformat_CPPFLAGS    = -DM0_TARGET='m0blkformat' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/m0blkfree
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_m0blkfree_CPPFLAGS      = -DM0_TARGET='m0blkfree' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/m0blkdump
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_m0blkdump_CPPFLAGS      = -DM0_TARGET='m0blkdump' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/perf
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_perf_CPPFLAGS           = -DM0_TARGET='balloc-perf' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_perf_LDADD              = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/mperf
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_mperf_CPPFLAGS          = -DM0_TARGET='mperf' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
 #XXX_BE_DB #
 #XXX_BE_DB # m0t1fs/linux_kernel/ut
 #XXX_BE_DB #

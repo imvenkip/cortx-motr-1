@@ -54,6 +54,7 @@ struct m0_be_seg {
 	/** XXX use it in all UTs */
 	m0_bcount_t	       bs_reserved;
 	struct m0_be_allocator bs_allocator;
+	struct m0_be_domain   *bs_domain;
 	struct m0_be          *bs_be;
 	int                    bs_state;
 	uint32_t               bs_bshift;  /* XXX remove it. STOB block shift */

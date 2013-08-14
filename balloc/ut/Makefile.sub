@@ -1,4 +1,4 @@
-ut_libmero_ut_la_SOURCES += balloc/ut/balloc.c
-balloc_ut_m0blkformat_SOURCES = balloc/ut/format.c
-balloc_ut_m0blkfree_SOURCES = balloc/ut/free.c
-balloc_ut_m0blkdump_SOURCES = balloc/ut/dump.c
+#XXX_DB_BE ut_libmero_ut_la_SOURCES += balloc/ut/balloc.c
+#XXX_DB_BE balloc_ut_m0blkformat_SOURCES = balloc/ut/format.c
+#XXX_DB_BE balloc_ut_m0blkfree_SOURCES = balloc/ut/free.c
+#XXX_DB_BE balloc_ut_m0blkdump_SOURCES = balloc/ut/dump.c

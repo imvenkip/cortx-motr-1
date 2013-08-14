@@ -41,7 +41,7 @@ static int be_tx_init_open(struct m0_be_tx *tx,
 {
 	int rc;
 
-	m0_be_ut_backend_tx_init(ut_be, tx);
+	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, cred);
 	m0_be_tx_open(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
@@ -92,9 +92,9 @@ int main(int argc, char **argv)
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	if (result == 0) {
-		m0_be_tx_credit_init(&cred);
+		cred = M0_BE_TX_CREDIT_OBJ(0, 0);
 		mero_balloc->cb_ballroom.ab_ops->bo_free_credit(
-			    &mero_balloc->cb_ballroom, &ext, &cred);
+			    &mero_balloc->cb_ballroom, 1, &cred);
 		result = be_tx_init_open(tx, &ut_be, &cred);
 		M0_ASSERT(result == 0);
 

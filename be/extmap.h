@@ -103,6 +103,7 @@
  */
 
 #include "lib/ext.h"       /* m0_ext */
+#include "lib/ext_xc.h"	   /* m0_ext_xc */
 #include "lib/types.h"     /* struct m0_uint128 */
 #include "be/tx.h"
 #include "be/btree.h"
@@ -182,7 +183,7 @@ struct m0_be_emap_seg {
 	struct m0_ext     ee_ext;
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
-};
+} M0_XCA_RECORD;
 
 /** True iff the extent is the last one in a map. */
 M0_INTERNAL bool m0_be_emap_ext_is_last(const struct m0_ext *ext);

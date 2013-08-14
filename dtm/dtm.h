@@ -24,6 +24,7 @@
 #define __MERO_DTM_DTM_H__
 
 #include "db/db.h"
+#include "be/be.h"
 #include "fol/fol.h"
 
 /**
@@ -50,16 +51,15 @@ struct m0_dtx {
 	   @todo placeholder for now.
 	 */
 	enum m0_dtx_state  tx_state;
-#if XXX_USE_DB5
-	struct m0_db_tx    tx_dbtx;
-#else
-	struct m0_be_tx    tx_dbtx;
-#endif
+	struct m0_be_tx    tx_dbtx;	/* XXX_BE_DB */
+	struct m0_be_tx    tx_betx;	/* XXX_BE_DB */
+	struct m0_sm_group tx_smgrp;
 	struct m0_fol_rec  tx_fol_rec;
 };
 
-M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx);
-M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env);
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
+			     struct m0_be_domain *be_domain);
+M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);
 
