@@ -42,6 +42,8 @@
 #define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
+#define BALLOC_DEBUG
+
 static const int    MAX     = 10;
 static m0_bcount_t  prev_free_blocks;
 m0_bcount_t	   *prev_group_info_free_blocks;
