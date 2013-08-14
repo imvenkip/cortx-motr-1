@@ -45,6 +45,8 @@ M0_INTERNAL void m0_dtm_fini(void)
 M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 			     struct m0_be_domain *be_domain)
 {
+/* XXX_DB_BE */
+#if 0
 	M0_SET0(tx);
 	if (be_domain != NULL)
 		m0_be_tx_init(&tx->tx_betx, 0, be_domain,
@@ -52,19 +54,25 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 			      NULL, NULL, NULL, NULL);
 	tx->tx_state = M0_DTX_INIT;
 	m0_fol_rec_init(&tx->tx_fol_rec);
+#endif
 }
 
 M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx)
 {
+/* XXX_DB_BE */
+#if 0
 	M0_PRE(tx->tx_state == M0_DTX_INIT);
 
 	m0_be_tx_open(&tx->tx_betx);
 	tx->tx_state = M0_DTX_OPEN;
+#endif
 	return 0;
 }
 
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 {
+/* XXX_DB_BE */
+#if 0
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
 
 	if (tx->tx_state == M0_DTX_OPEN) {
@@ -74,15 +82,19 @@ M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 
 	tx->tx_state = M0_DTX_DONE;
 	m0_dtx_fini(tx);
+#endif
 	return 0;
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 {
+/* XXX_DB_BE */
+#if 0
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
 
 	m0_be_tx_fini(&tx->tx_betx);
 	m0_fol_rec_fini(&tx->tx_fol_rec);
+#endif
 }
 
 /** @} end of dtm group */
