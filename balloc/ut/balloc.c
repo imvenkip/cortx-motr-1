@@ -34,6 +34,7 @@
 #include "mero/magic.h"
 #include "db/db.h"
 #include "ut/ut.h"
+#include "ut/ast_thread.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"
 
@@ -333,10 +334,25 @@ void test_balloc()
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+/* XXX copy-paste from fol/ut/fol.c */
+extern struct m0_sm_group ut__txs_sm_group;
+
+static int _init(void)
+{
+	m0_sm_group_init(&ut__txs_sm_group);
+	return m0_ut_ast_thread_start(&ut__txs_sm_group);
+}
+
+static int _fini(void)
+{
+	m0_ut_ast_thread_stop();
+	m0_sm_group_fini(&ut__txs_sm_group);
+	return 0;
+}
 const struct m0_test_suite balloc_ut = {
         .ts_name  = "balloc-ut",
-        .ts_init  = NULL,
-        .ts_fini  = NULL,
+	.ts_init = _init,
+	.ts_fini = _fini,
         .ts_tests = {
                 { "balloc", test_balloc},
 		{ NULL, NULL }
