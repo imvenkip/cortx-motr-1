@@ -33,7 +33,7 @@ M0_INTERNAL void
 m0_ut_backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
 {
 	m0_be_ut_backend_init(be);
-	m0_be_ut_seg_init(seg, 1 << 20 /* 1 MB */);
+	m0_be_ut_seg_init(seg, be, 1 << 20 /* 1 MB */);
 	m0_be_ut_seg_allocator_init(seg, be);
 }
 

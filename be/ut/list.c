@@ -73,7 +73,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 	/* Init BE. */
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	a = ut_seg.bus_allocator;
 	seg = &ut_seg.bus_seg;

@@ -121,7 +121,7 @@ void m0_be_ut_group_ondisk(void)
 	int                    tx_reserved;
 
 	be_ut_group_ondisk_rb_init();
-	m0_be_ut_seg_init(&ut_seg, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
 
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		tx_credit = M0_BE_TX_CREDIT_OBJ(i + 1, 10 * (i + 1));
