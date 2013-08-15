@@ -1378,6 +1378,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 		if (vsize < dest_value->b_nob)
 			dest_value->b_nob = vsize;
 		memcpy(dest_value->b_addr, kv->val, dest_value->b_nob);
+		op_tree(op)->t_rc = 0;
 	} else
 		op_tree(op)->t_rc = -ENOENT;
 

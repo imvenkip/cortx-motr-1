@@ -19,7 +19,7 @@
  */
 
 #include "ut/ut.h"
-#include "ut/ast_thread.h"
+#include "be/ut/helper.h"
 
 extern void m0_be_ut_reg_d_tree(void);
 extern void m0_be_ut_regmap_simple(void);
@@ -62,25 +62,11 @@ extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
 
-extern struct m0_sm_group ut__txs_sm_group;
-
-static int be_ut_init(void)
-{
-	m0_sm_group_init(&ut__txs_sm_group);
-	return m0_ut_ast_thread_start(&ut__txs_sm_group);
-}
-
-static int be_ut_fini(void)
-{
-	m0_ut_ast_thread_stop();
-	m0_sm_group_fini(&ut__txs_sm_group);
-	return 0;
-}
 
 const struct m0_test_suite be_ut = {
 	.ts_name = "be-ut",
-	.ts_init = be_ut_init,
-	.ts_fini = be_ut_fini,
+	.ts_init = m0_be_ut_init,
+	.ts_fini = m0_be_ut_fini,
 	.ts_tests = {
 		{ "reg_d_tree",          m0_be_ut_reg_d_tree           },
 		{ "regmap-simple",       m0_be_ut_regmap_simple        },

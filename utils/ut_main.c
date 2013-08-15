@@ -111,7 +111,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&capa_ut);
 //XXX_BE_DB	m0_ut_add(&cm_cp_ut);
 //XXX_BE_DB	m0_ut_add(&cm_generic_ut);
-//XXX_BE_DB	m0_ut_add(&cob_ut);
+	m0_ut_add(&cob_ut);
 //XXX_BE_DB	m0_ut_add(&conf_ut);
 //XXX_BE_DB	m0_ut_add(&confc_ut);
 //XXX_BE_DB	m0_ut_add(&confstr_ut);

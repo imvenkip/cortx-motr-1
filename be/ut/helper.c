@@ -25,6 +25,7 @@
 #include "lib/misc.h"		/* M0_BITS */
 
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
+#include "ut/ast_thread.h"
 
 #include "stob/stob.h"		/* m0_stob_id */
 #include "stob/linux.h"		/* m0_linux_stob_domain_locate */
@@ -290,6 +291,19 @@ void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be)
 {
 	be_ut_seg_allocator_initfini(ut_seg, ut_be, false);
+}
+
+M0_INTERNAL int m0_be_ut_init(void)
+{
+	m0_sm_group_init(&ut__txs_sm_group);
+	return m0_ut_ast_thread_start(&ut__txs_sm_group);
+}
+
+M0_INTERNAL int m0_be_ut_fini(void)
+{
+	m0_ut_ast_thread_stop();
+	m0_sm_group_fini(&ut__txs_sm_group);
+	return 0;
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -32,13 +32,15 @@
 #include "lib/adt.h"
 #include "lib/bitstring.h"
 #include "addb/addb.h"
-#include "db/db.h"
 #include "fid/fid.h"
 #include "stob/stob.h"
 #include "dtm/verno.h"
+#include "be/btree.h"
 
 /* import */
-struct m0_db_tx;
+struct m0_be_tx;
+struct m0_be_btree;
+struct m0_be_domain;
 
 /**
    @defgroup cob Component objects
@@ -262,19 +264,22 @@ struct m0_cob_domain_id {
    A m0_cob_domain cannot span multiple containers.  Eventually,
    there should be methods for combining/splitting containers and
    therefore cob domains and databases.
+
+   Note: has to be allocated with m0_be_alloc()
 */
 struct m0_cob_domain {
 	struct m0_cob_domain_id cd_id;
-	struct m0_dbenv        *cd_dbenv;
-	struct m0_table         cd_object_index;
-	struct m0_table         cd_namespace;
-	struct m0_table         cd_fileattr_basic;
-	struct m0_table         cd_fileattr_omg;
-	struct m0_table         cd_fileattr_ea;
+	struct m0_be_domain    *cd_dbenv;
+	struct m0_be_btree     *cd_object_index;
+	struct m0_be_btree     *cd_namespace;
+	struct m0_be_btree     *cd_fileattr_basic;
+	struct m0_be_btree     *cd_fileattr_omg;
+	struct m0_be_btree     *cd_fileattr_ea;
 };
 
-int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
-		       const struct m0_cob_domain_id *id);
+int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_domain *env,
+		       struct m0_be_seg	*seg, const struct m0_cob_domain_id *id,
+		       struct m0_sm_group *grp);
 
 void m0_cob_domain_fini(struct m0_cob_domain *dom);
 
@@ -285,7 +290,7 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom);
 M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 				   const struct m0_fid *rootfid,
 				   const struct m0_fid *sessfid,
-				   struct m0_db_tx *tx);
+				   struct m0_be_tx *tx);
 
 /**
  * Flags for cob attributes.
@@ -509,7 +514,6 @@ struct m0_cob {
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
 	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
 	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
-	struct m0_db_pair      co_oipair;   /**< used for object index access */
 	struct m0_addb_ctx     co_addb;     /**< cob private addb ctx */
 };
 
@@ -536,10 +540,10 @@ struct m0_rdpg {
  */
 struct m0_cob_iterator {
 	struct m0_cob         *ci_cob;      /**< the cob we iterate */
-	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
+//BE_INTEGRATION	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_nskey   *ci_key;      /**< current iterator pos */
 	struct m0_cob_nsrec    ci_rec;      /**< current iterator rec */
-	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
+//BE_INTEGRATION	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
 };
 
 /**
@@ -547,10 +551,10 @@ struct m0_cob_iterator {
  */
 struct m0_cob_ea_iterator {
 	struct m0_cob         *ci_cob;      /**< the cob we iterate */
-	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
+//BE_INTEGRATION	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_eakey   *ci_key;      /**< current iterator pos */
 	struct m0_cob_earec   *ci_rec;      /**< current iterator rec */
-	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
+//BE_INTEGRATION	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
 };
 
 /**
@@ -583,7 +587,7 @@ enum m0_cob_flags {
 M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 			      struct m0_cob_nskey *nskey,
 			      uint64_t flags,
-			      struct m0_cob **out, struct m0_db_tx *tx);
+			      struct m0_cob **out, struct m0_be_tx *tx);
 
 /**
  * Locate cob by object index key.
@@ -603,7 +607,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 			      struct m0_cob_oikey *oikey,
 			      uint64_t flags,
-			      struct m0_cob **out, struct m0_db_tx *tx);
+			      struct m0_cob **out, struct m0_be_tx *tx);
 
 /**
  * Add a cob to the namespace.
@@ -623,7 +627,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 			      struct m0_cob_nsrec *nsrec,
 			      struct m0_cob_fabrec *fabrec,
 			      struct m0_cob_omgrec *omgrec,
-			      struct m0_db_tx *tx);
+			      struct m0_be_tx *tx);
 
 /**
  * Delete name with stat data, entry in object index and all file
@@ -637,14 +641,14 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
  *
  * @see m0_cob_delete_put()
  */
-M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx);
+M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx);
 
 /**
  * Deletes and puts cob.
  *
  * @see m0_cob_delete(), m0_cob_put()
  */
-M0_INTERNAL int m0_cob_delete_put(struct m0_cob *cob, struct m0_db_tx *tx);
+M0_INTERNAL int m0_cob_delete_put(struct m0_cob *cob, struct m0_be_tx *tx);
 
 /**
  * Update file attributes of passed cob with @nsrec, @fabrec
@@ -660,7 +664,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 			      struct m0_cob_nsrec *nsrec,
 			      struct m0_cob_fabrec *fabrec,
 			      struct m0_cob_omgrec *omgrec,
-			      struct m0_db_tx *tx);
+			      struct m0_be_tx *tx);
 
 /**
  * Add name to namespace and object index.
@@ -672,7 +676,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 				struct m0_cob_nskey *nskey,
 				struct m0_cob_nsrec *nsrec,
-				struct m0_db_tx *tx);
+				struct m0_be_tx *tx);
 
 /**
  * Delete name from namespace and object index.
@@ -683,7 +687,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
  */
 M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 				struct m0_cob_nskey *nskey,
-				struct m0_db_tx *tx);
+				struct m0_be_tx *tx);
 
 /**
  * Rename old record with new record.
@@ -696,7 +700,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 				   struct m0_cob_nskey *srckey,
 				   struct m0_cob_nskey *tgtkey,
-				   struct m0_db_tx *tx);
+				   struct m0_be_tx *tx);
 
 /** Max possible size of earec. */
 M0_INTERNAL size_t m0_cob_max_earec_size(void);
@@ -715,7 +719,7 @@ M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
 M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
                               struct m0_cob_eakey *eakey,
                               struct m0_cob_earec *out,
-                              struct m0_db_tx *tx);
+                              struct m0_be_tx *tx);
 
 /**
    Add a record to the extended attributes table. If key already exists
@@ -724,14 +728,14 @@ M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
 M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
 			      struct m0_cob_eakey *eakey,
 			      struct m0_cob_earec *earec,
-			      struct m0_db_tx *tx);
+			      struct m0_be_tx *tx);
 
 /**
    Del a record in the extended attributes table
  */
 M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
 			      struct m0_cob_eakey *eakey,
-			      struct m0_db_tx *tx);
+			      struct m0_be_tx *tx);
 
 /**
  * Init ea iterator on passed @cob and @name as a start position.
@@ -739,7 +743,7 @@ M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
 M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 				        struct m0_cob_ea_iterator *it,
 				        struct m0_bitstring *name,
-				        struct m0_db_tx *tx);
+				        struct m0_be_tx *tx);
 
 /**
  * Position to next name in a ea table.
@@ -770,7 +774,7 @@ M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 				     struct m0_cob_iterator *it,
 				     struct m0_bitstring *name,
-				     struct m0_db_tx *tx);
+				     struct m0_be_tx *tx);
 
 /**
  * Position to next name in a dir cob.
@@ -844,8 +848,47 @@ M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
  * Try to allocate new omgid using omg table and terminator record. Save
  * allocated id in @omgid if not NULL.
  */
+/* XXX move tx to the end of the declaration */
 M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
-				   struct m0_db_tx *tx, uint64_t * omgid);
+				   struct m0_be_tx *tx, uint64_t * omgid);
+
+enum m0_cob_op {
+	M0_COB_OP_DOMAIN_MKFS,
+	M0_COB_OP_LOOKUP,
+	M0_COB_OP_LOCATE,
+	M0_COB_OP_CREATE,
+	M0_COB_OP_DELETE,
+	M0_COB_OP_DELETE_PUT,
+	M0_COB_OP_UPDATE,
+	M0_COB_OP_NAME_ADD,
+	M0_COB_OP_NAME_DEL,
+	M0_COB_OP_NAME_UPDATE,
+	M0_COB_OP_ALLOC_OMGID,
+};
+
+M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
+				  enum m0_cob_op optype,
+				  struct m0_be_tx_credit *accum);
+
+/** XXX not yet implemented */
+M0_INTERNAL void m0_cob_ea_get_credit(struct m0_cob *cob,
+				      struct m0_cob_eakey *eakey,
+				      struct m0_cob_earec *out,
+				      struct m0_be_tx_credit *accum);
+/** XXX not yet implemented */
+M0_INTERNAL void m0_cob_ea_set_credit(struct m0_cob *cob,
+				      struct m0_cob_eakey *eakey,
+				      struct m0_cob_earec *earec,
+				      struct m0_be_tx_credit *accum);
+/** XXX not yet implemented */
+M0_INTERNAL void m0_cob_ea_del_credit(struct m0_cob *cob,
+				      struct m0_cob_eakey *eakey,
+				      struct m0_be_tx_credit *accum);
+/** XXX not yet implemented */
+M0_INTERNAL void m0_cob_ea_iterator_init_credit(struct m0_cob *cob,
+						struct m0_cob_ea_iterator *it,
+						struct m0_bitstring *name,
+						struct m0_be_tx_credit *accum);
 
 /**
    Module initializer.

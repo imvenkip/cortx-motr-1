@@ -72,6 +72,9 @@ void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be);
 
+M0_INTERNAL int m0_be_ut_init(void);
+M0_INTERNAL int m0_be_ut_fini(void);
+
 #endif /* __MERO_BE_UT_HELPER_H__ */
 
 /*

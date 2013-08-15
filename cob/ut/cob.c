@@ -20,70 +20,127 @@
 
 #include "ut/ut.h"
 #include "lib/ub.h"
-#include "lib/memory.h"
 #include "lib/misc.h"              /* M0_SET0 */
+#include "lib/memory.h"
 #include "lib/bitstring.h"
+
+#include "be/ut/helper.h"
+#include "be/seg.h"
 #include "cob/cob.h"
+#include "lib/locality.h"
 
 static const char db_name[]    = "ut-cob";
 static const char test_name[]  = "hello_world";
 static const char add_name[]   = "add_name";
 static const char wrong_name[] = "wrong_name";
 static struct m0_cob_domain_id id = { 42 };
-static struct m0_dbenv         db;
+static struct m0_be_ut_backend ut_be;
+static struct m0_be_ut_seg     ut_seg;
 static struct m0_cob_domain    dom;
 static struct m0_cob          *cob;
 
-static int db_reset(void)
+extern struct m0_sm_group      ut__txs_sm_group;
+extern int m0_be_ut_init(void);
+extern int m0_be_ut_fini(void);
+
+static int ut_init(void)
+{
+	m0_be_ut_init();
+	return 0;
+}
+
+static int ut_fini(void)
+{
+	m0_be_ut_fini();
+	return 0;
+}
+
+static void ut_tx_close(struct m0_be_tx *tx)
 {
 	int rc;
 
-	rc = m0_ut_db_reset(db_name);
-	M0_ASSERT(rc == 0);
-	return rc;
+        m0_be_tx_close(tx);
+        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+        M0_UT_ASSERT(rc == 0);
+}
+
+static void ut_tx_open(struct m0_be_tx *tx, struct m0_be_tx_credit *credit)
+{
+	int rc;
+
+        m0_be_ut_tx_init(tx, &ut_be);
+        M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
+        M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+
+	m0_be_tx_prep(tx, credit);
+        M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_PREPARE);
+        M0_UT_ASSERT(tx->t_sm.sm_rc == 0);
+
+        m0_be_tx_open(tx);
+        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+                                M0_TIME_NEVER);
+        M0_UT_ASSERT(rc == 0);
+        M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 }
 
 static void test_mkfs(void)
 {
-	struct m0_db_tx tx;
-	int             rc;
+        struct m0_be_tx  tx_;
+        struct m0_be_tx *tx = &tx_;
+	M0_BE_TX_CREDIT(accum);
+	int rc;
 
-	rc = m0_dbenv_init(&db, db_name, 0);
+        m0_be_ut_backend_init(&ut_be);
+        m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
+        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+
+	rc = m0_cob_domain_init(&dom, &ut_be.but_dom, &ut_seg.bus_seg, &id,
+				&ut__txs_sm_group);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_cob_domain_init(&dom, &db, &id);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_db_tx_init(&tx, &db, 0);
-	M0_UT_ASSERT(rc == 0);
+	m0_cob_tx_credit(&dom, M0_COB_OP_DOMAIN_MKFS, &accum);
+	ut_tx_open(tx, &accum);
 
 	/* Create root and other structures */
 	rc = m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID,
-				&M0_COB_SESSIONS_FID, &tx);
+				&M0_COB_SESSIONS_FID, tx);
 	M0_UT_ASSERT(rc == 0);
-	m0_db_tx_commit(&tx);
 
-	/* Fini everything */
+	ut_tx_close(tx);
+        m0_be_tx_fini(tx);
+#if 0
 	m0_cob_domain_fini(&dom);
-	m0_dbenv_fini(&db);
+
+        /* XXX FIXME something wasn't freed */
+        /* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
+        m0_be_ut_seg_fini(&ut_seg);
+        m0_be_ut_backend_fini(&ut_be);
+#endif
 }
 
 static void test_init(void)
 {
+#if 0
 	int rc;
 
-	rc = m0_dbenv_init(&db, db_name, 0);
-	/* test_init is called by ub_init which hates M0_UT_ASSERT */
-	M0_ASSERT(rc == 0);
+        m0_be_ut_backend_init(&ut_be);
+        m0_be_ut_seg_init(&ut_seg, 1 << 20);
+        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 
-	rc = m0_cob_domain_init(&dom, &db, &id);
-	M0_ASSERT(rc == 0);
+	rc = m0_cob_domain_init(&dom, &ut_be.but_dom, &ut_seg.bus_seg, &id,
+				&ut__txs_sm_group);
+	M0_UT_ASSERT(rc == 0);
+#endif
 }
 
 static void test_fini(void)
 {
 	m0_cob_domain_fini(&dom);
-	m0_dbenv_fini(&db);
+
+        /* XXX FIXME something wasn't freed */
+        /* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
+        m0_be_ut_seg_fini(&ut_seg);
+        m0_be_ut_backend_fini(&ut_be);
 }
 
 static void test_create(void)
@@ -93,8 +150,10 @@ static void test_create(void)
 	struct m0_cob_fabrec *fabrec;
 	struct m0_cob_omgrec  omgrec;
 	struct m0_fid         pfid;
-	struct m0_db_tx       tx;
+        struct m0_be_tx       tx_;
+        struct m0_be_tx      *tx = &tx_;
 	int                   rc;
+	M0_BE_TX_CREDIT(accum);
 
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
@@ -106,103 +165,127 @@ static void test_create(void)
 	m0_fid_set(&nsrec.cnr_fid, 0xabc, 0xdef);
 	nsrec.cnr_nlink = 0;
 
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
 	rc = m0_cob_alloc(&dom, &cob);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_fabrec_make(&fabrec, NULL, 0);
-	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, &tx);
+	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &accum);
+	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_UPDATE, &accum);
+	ut_tx_open(tx, &accum);
+	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
 	M0_UT_ASSERT(rc == 0);
 
 	++nsrec.cnr_nlink;
-	rc = m0_cob_update(cob, &nsrec, NULL, NULL, &tx);
+	rc = m0_cob_update(cob, &nsrec, NULL, NULL, tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
-	m0_db_tx_commit(&tx);
+
+	ut_tx_close(tx);
+	m0_be_tx_fini(tx);
 }
 
 static void test_add_name(void)
 {
 	struct m0_cob_nskey *nskey;
 	struct m0_fid        pfid;
-	struct m0_db_tx      tx;
+        struct m0_be_tx      tx_;
+        struct m0_be_tx     *tx = &tx_;
 	int                  rc;
+	M0_BE_TX_CREDIT(accum);
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
 
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
+	m0_cob_tx_credit(&dom, M0_COB_OP_NAME_ADD, &accum);
+	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
+	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
+	ut_tx_open(tx, &accum);
 
 	/* lookup for cob created before using @test_name. */
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
+	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, tx);
 	M0_UT_ASSERT(rc == 0);
 
 	/* add new name to existing cob */
 	m0_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
 	cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
-	rc = m0_cob_name_add(cob, nskey, &cob->co_nsrec, &tx);
+	rc = m0_cob_name_add(cob, nskey, &cob->co_nsrec, tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 
 	/* lookup for new name */
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
+	rc = m0_cob_lookup(&dom, nskey, 0, &cob, tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 	m0_free(nskey);
 
 	/* lookup for wrong name, should fail. */
 	m0_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
+	rc = m0_cob_lookup(&dom, nskey, 0, &cob, tx);
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
-	m0_db_tx_commit(&tx);
+	ut_tx_close(tx);
+	m0_be_tx_fini(tx);
 }
 
 static void test_del_name(void)
 {
 	struct m0_cob_nskey *nskey;
 	struct m0_fid        pfid;
-	struct m0_db_tx      tx;
+        struct m0_be_tx      tx_;
+        struct m0_be_tx     *tx = &tx_;
 	int                  rc;
+	M0_BE_TX_CREDIT(accum);
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
 
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
+	m0_cob_tx_credit(&dom, M0_COB_OP_NAME_DEL, &accum);
+	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
+	ut_tx_open(tx, &accum);
 
 	/* lookup for cob created before using @test_name. */
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
+	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, tx);
 	M0_UT_ASSERT(rc == 0);
 
 	/* del name that we created in prev test */
 	m0_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
-	rc = m0_cob_name_del(cob, nskey, &tx);
+	rc = m0_cob_name_del(cob, nskey, tx);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 
 	/* lookup for new name */
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
+	rc = m0_cob_lookup(&dom, nskey, 0, &cob, tx);
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
-	m0_db_tx_commit(&tx);
+	ut_tx_close(tx);
+	m0_be_tx_fini(tx);
 }
 
 /** Lookup by name, make sure cfid is right. */
 static void test_lookup(void)
 {
-	struct m0_db_tx      tx;
+        struct m0_be_tx      tx_;
+        struct m0_be_tx     *tx = &tx_;
 	struct m0_cob_nskey *nskey;
 	struct m0_fid        pfid;
 	int                  rc;
+	/* struct m0_be_tx_credit accum = M0_BE_TX_CREDIT_ZERO; */
 
 	m0_fid_set(&pfid, 0x123, 0x456);
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
-	m0_db_tx_commit(&tx);
+	/* XXX: skip this for a while, Max will add stuff to close empty txs */
+	/* m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum); */
+	/* ut_tx_open(tx, &accum); */
+	M0_SET0(tx);
+	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, tx);
+	/* XXX: skip this for a while */
+	/* ut_tx_close(tx); */
+	/* m0_be_tx_fini(tx); */
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cob != NULL);
 	M0_UT_ASSERT(cob->co_dom == &dom);
@@ -218,19 +301,26 @@ static void test_lookup(void)
 
 static int _locate(void)
 {
-	struct m0_db_tx     tx;
+        struct m0_be_tx     tx_;
+        struct m0_be_tx    *tx = &tx_;
 	struct m0_fid       fid;
 	struct m0_cob_oikey oikey;
 	int                 rc;
+	/* struct m0_be_tx_credit accum = M0_BE_TX_CREDIT_ZERO; */
 
 	m0_fid_set(&fid, 0xabc, 0xdef);
 
 	oikey.cok_fid = fid;
 	oikey.cok_linkno = 0;
 
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
-	rc = m0_cob_locate(&dom, &oikey, 0, &cob, &tx);
-	m0_db_tx_commit(&tx);
+	/* XXX: just the same as in test_lookup() */
+	/* m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum); */
+	/* ut_tx_open(tx, &accum); */
+	M0_SET0(tx);
+
+	rc = m0_cob_locate(&dom, &oikey, 0, &cob, tx);
+	/* ut_tx_close(tx); */
+	/* m0_be_tx_fini(tx); */
 
 	return rc;
 }
@@ -259,16 +349,21 @@ static void test_locate(void)
 
 static void test_delete(void)
 {
-	struct m0_db_tx tx;
-	int             rc;
+        struct m0_be_tx  tx_;
+        struct m0_be_tx *tx = &tx_;
+	int              rc;
+	M0_BE_TX_CREDIT(accum);
 
 	/* gets ref */
 	rc = _locate();
 	M0_UT_ASSERT(rc == 0);
 
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
-	rc = m0_cob_delete_put(cob, &tx);
-	m0_db_tx_commit(&tx);
+	m0_cob_tx_credit(&dom, M0_COB_OP_DELETE_PUT, &accum);
+	ut_tx_open(tx, &accum);
+	rc = m0_cob_delete_put(cob, tx);
+	ut_tx_close(tx);
+	m0_be_tx_fini(tx);
+
 	M0_UT_ASSERT(rc == 0);
 
 	/* should fail now */
@@ -278,7 +373,8 @@ static void test_delete(void)
 
 const struct m0_test_suite cob_ut = {
 	.ts_name = "cob-ut",
-	.ts_init = db_reset,
+	.ts_init = ut_init,
+	.ts_fini = ut_fini,
 	.ts_tests = {
 		{ "cob-mkfs",     test_mkfs },
 		{ "cob-init",     test_init },
@@ -293,6 +389,8 @@ const struct m0_test_suite cob_ut = {
 	}
 };
 
+
+#if 0 /* YYY */
 /*
  * UB
  */
@@ -415,6 +513,8 @@ struct m0_ub_set m0_cob_ub = {
 		{ .ub_name = NULL }
 	}
 };
+
+#endif /* YYY */
 
 /*
  *  Local variables:
