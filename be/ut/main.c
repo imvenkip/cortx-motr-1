@@ -61,6 +61,7 @@ extern void m0_be_ut_alloc_transactional(void);
 extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
+extern void m0_be_ut_dict(void);
 
 extern struct m0_sm_group ut__txs_sm_group;
 
@@ -113,6 +114,7 @@ const struct m0_test_suite be_ut = {
 		{ "list",                m0_be_ut_list_api             },
 		{ "btree",               m0_be_ut_btree_simple         },
 		{ "emap",                m0_be_ut_emap                 },
+		{ "dict",                m0_be_ut_dict                 },
 		{ NULL, NULL }
 	}
 };
