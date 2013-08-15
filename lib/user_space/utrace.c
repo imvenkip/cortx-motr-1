@@ -56,7 +56,7 @@ static const char sys_kern_randvspace_fname[] =
 
 static bool use_mmaped_buffer = true;
 
-static int randvspace_check()
+static M0_UNUSED int randvspace_check()
 {
 	int   val;
 	int   result;
@@ -180,9 +180,15 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 
 	setlinebuf(stdout);
 
-	rc = randvspace_check();
-	if (rc != 0)
-		return rc;
+	/*
+	 * we don't need this check since m0_trace_parse() doesn't depend on
+	 * libmero.so to be loaded at the same address for process, which
+	 * produce and parse trace log, because now it's capable to calculate a
+	 * correct offset for trace descriptors
+	 */
+	/*rc = randvspace_check();*/
+	/*if (rc != 0)*/
+		/*return rc;*/
 
 	return m0_trace_use_mmapped_buffer() ? logbuf_map(logbuf_size) : 0;
 }
@@ -395,7 +401,8 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 		}
 
 		patched_td = *td;
-		patch_trace_descr(&patched_td, td_offset);
+		if (tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL)
+			patch_trace_descr(&patched_td, td_offset);
 		trh.trh_descr = &patched_td;
 		size = m0_align(td->td_size + trh.trh_string_data_size,
 				M0_TRACE_REC_ALIGN);
