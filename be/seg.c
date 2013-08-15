@@ -428,10 +428,10 @@ M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg)
 /* ------------------------------------------------------------------
  * Segment dictionary implementation
  * ------------------------------------------------------------------ */
-
+#define BUF_INIT_STR(str) M0_BUF_INIT(strlen(str)+1, (str))
 static m0_bcount_t dict_ksize(const void *key)
 {
-	return strlen(key);
+	return strlen(key)+1;
 }
 
 static m0_bcount_t dict_vsize(const void *data)
@@ -466,8 +466,8 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 {
 	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
 				     seg->bs_addr)->bs_dict;
-	struct m0_buf       key  = M0_BUF_INITS((char*)name);
-	struct m0_buf       val  = M0_BUF_INIT(0, *out);
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(*out), out);
 
 	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, &key, &val),
 				 bo_u.u_btree.t_rc);
@@ -482,8 +482,8 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
 				     seg->bs_addr)->bs_dict;
         struct m0_be_tx    *tx;
-	struct m0_buf       key  = M0_BUF_INITS((char*)name);
-	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(value), value);
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(value), &value);
 	int rc;
 
 	M0_PRE(m0_be__seg_invariant(seg));
@@ -519,7 +519,7 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
 	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
 				     seg->bs_addr)->bs_dict;
         struct m0_be_tx    *tx;
-	struct m0_buf       key  = M0_BUF_INITS((char*)name);
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
 	int rc;
 
 	M0_PRE(m0_be__seg_invariant(seg));
@@ -573,6 +573,8 @@ M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
 
 	m0_be_btree_init(tree, seg, &dict_ops);
 	m0_be_btree_create_credit(tree, 1, &cred);
+	m0_be_tx_credit_add
+		(&cred, &M0_BE_TX_CREDIT_OBJ(1, sizeof(struct m0_be_seg_hdr)));
 	rc = tx_open(seg, &cred, tx, grp);
         if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
                 m0_be_tx_fini(tx);
@@ -581,6 +583,8 @@ M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
         }
 
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
+	m0_be_tx_capture(tx, &M0_BE_REG(seg, sizeof(struct m0_be_seg_hdr),
+				       seg->bs_addr));
 
         m0_be_tx_close(tx);
         rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
