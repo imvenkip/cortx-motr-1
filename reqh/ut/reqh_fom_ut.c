@@ -258,7 +258,7 @@ static int server_init(const char             *stob_path,
 	M0_UT_ASSERT(rc == 0);
 
 	/* Init the rpcmachine */
-        rc = m0_rpc_machine_init(rpc_machine, &srv_mdstore.md_dom, net_dom,
+        rc = m0_rpc_machine_init(rpc_machine, net_dom,
 				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool,
 				 M0_BUFFER_ANY_COLOUR, 0,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
@@ -381,7 +381,6 @@ void test_reqh(void)
 	struct m0_net_domain   net_dom     = { };
 	struct m0_net_domain   srv_net_dom = { };
 	struct m0_dbenv        client_dbenv;
-	struct m0_cob_domain   client_cob_dom;
 	struct m0_stob_domain *bdom;
 	struct m0_stob_id      backid;
 	struct m0_stob        *bstore;
@@ -400,8 +399,6 @@ void test_reqh(void)
 		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rcx_db_name            = CLIENT_DB_NAME,
 		.rcx_dbenv              = &client_dbenv,
-		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-		.rcx_cob_dom            = &client_cob_dom,
 		.rcx_nr_slots           = SESSION_SLOTS,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};

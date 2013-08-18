@@ -268,7 +268,7 @@ static int m0t1fs_rpc_init(void)
 			  .rhia_svc       = (void*)1);
 	if (rc != 0)
 		goto cob_dom_fini;
-	rc = m0_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, reqh,
+	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
 				 buffer_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	if (rc != 0)

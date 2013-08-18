@@ -45,8 +45,6 @@ struct cl_ctx {
 	struct m0_net_domain	 cl_ndom;
 	/* Client db.*/
 	struct m0_dbenv		 cl_dbenv;
-	/* Client cob domain.*/
-	struct m0_cob_domain	 cl_cdom;
 	/* Client rpc context.*/
 	struct m0_rpc_client_ctx cl_ctx;
 };
@@ -216,8 +214,6 @@ static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_bulk_mem_xprt
 };
 
-static int cl_cdom_id = 10001;
-
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
 	MAX_RPC_SLOTS_NR   = 2,
@@ -245,8 +241,6 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	cl_ctx->rcx_remote_addr        = srv_ep_addr;
 	cl_ctx->rcx_db_name            = dbname;
 	cl_ctx->rcx_dbenv              = &cctx->cl_dbenv;
-	cl_ctx->rcx_cob_dom_id         = ++cl_cdom_id;
-	cl_ctx->rcx_cob_dom            = &cctx->cl_cdom;
 	cl_ctx->rcx_nr_slots           = MAX_RPC_SLOTS_NR;
 	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 

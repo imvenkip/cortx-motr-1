@@ -150,8 +150,6 @@ struct m0_rpc_machine {
    components are associated.
 
    @param machine Input rpc_machine object.
-   @param dom cob domain that contains cobs representing slots
-   @todo      remove above dom parameter. It is no more required.
    @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
    @param receive_pool Buffer pool to be attached to TM for provisioning it.
@@ -171,7 +169,6 @@ struct m0_rpc_machine {
    @see m0_rpc_max_msg_size()
  */
 M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
-				    struct m0_cob_domain *dom,
 				    struct m0_net_domain *net_dom,
 				    const char *ep_addr,
 				    struct m0_reqh *reqh,

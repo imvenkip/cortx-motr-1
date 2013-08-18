@@ -142,8 +142,6 @@ static void cobfoms_utinit(void)
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
 	cctx->rcx_dbenv              = &cut->cu_dbenv;
 	cctx->rcx_db_name            = CLIENT_DBNAME;
-	cctx->rcx_cob_dom            = &cut->cu_cob_dom;
-	cctx->rcx_cob_dom_id         = CLIENT_COB_DOM_ID;
 	cctx->rcx_nr_slots           = CLIENT_RPC_SESSION_SLOTS;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 
