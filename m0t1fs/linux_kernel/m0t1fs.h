@@ -412,11 +412,9 @@ struct m0t1fs_globals {
 	/** local endpoint address module parameter */
 	const char               *g_laddr;
 	char                     *g_db_name;
-	struct m0_cob_domain_id   g_cob_dom_id;
 	struct m0_net_domain      g_ndom;
 	struct m0_rpc_machine     g_rpc_machine;
 	struct m0_reqh            g_reqh;
-	struct m0_cob_domain      g_cob_dom;
 	struct m0_dbenv           g_dbenv;
 	struct m0_fol             g_fol;
 	struct m0_net_buffer_pool g_buffer_pool;
