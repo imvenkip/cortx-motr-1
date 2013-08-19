@@ -1957,7 +1957,7 @@ static void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
 {
 	struct m0_balloc		*bal = b2m0(balroom);
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
-	struct m0_be_tx_credit		 cred;
+	struct m0_be_tx_credit		 cred = {0};
 
 	m0_balloc_load_extents_credit(bal, &cred);
 	balloc_db_update_credit(bal, &cred);
@@ -2147,13 +2147,6 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 	rc = balloc_init_internal(mero, db, bshift, container_size,
 				     blocks_per_group, res_groups);
 
-	/*
-	 * Free the memory allocated for mero in
-	 * m0_balloc_allocate() on initialisation failure.
-	 */
-	if (rc != 0)
-	     m0_free(mero);
-
 	M0_LEAVE();
 	return rc;
 }
@@ -2165,7 +2158,6 @@ static void balloc_fini(struct m0_ad_balloc *ballroom)
 	M0_ENTRY();
 
 	balloc_fini_internal(mero);
-	m0_free(mero);
 
 	M0_LEAVE();
 }
