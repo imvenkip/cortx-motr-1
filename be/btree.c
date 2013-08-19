@@ -1030,6 +1030,7 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 	btree_destroy(tree, tx);
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
+	op_tree(op)->t_rc = 0;
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 

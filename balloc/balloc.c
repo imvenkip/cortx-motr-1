@@ -1957,7 +1957,7 @@ static void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
 {
 	struct m0_balloc		*bal = b2m0(balroom);
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
-	struct m0_be_tx_credit		 cred = {0};
+	struct m0_be_tx_credit		 cred = {};
 
 	m0_balloc_load_extents_credit(bal, &cred);
 	balloc_db_update_credit(bal, &cred);
@@ -2204,6 +2204,31 @@ static int balloc_trees_create(struct m0_balloc *bal,
 	return rc;
 }
 
+static int balloc_trees_destroy(struct m0_balloc *bal,
+			        struct m0_be_tx  *tx)
+{
+	int		rc;
+	struct m0_be_op	op;
+
+	m0_be_op_init(&op);
+	m0_be_btree_destroy(&bal->cb_db_group_extents, tx, &op);
+	m0_be_op_wait(&op);
+	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+	if (rc != 0)
+		return rc;
+
+	m0_be_op_init(&op);
+	m0_be_btree_destroy(&bal->cb_db_group_desc, tx, &op);
+	m0_be_op_wait(&op);
+	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+	rc = op.bo_u.u_btree.t_rc;
+	m0_be_op_fini(&op);
+
+	return rc;
+}
+
 M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 				   struct m0_be_seg  *seg,
 				   struct m0_balloc **out)
@@ -2262,11 +2287,10 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 				if (rc == 0) {
 					M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
 					*out = cb;
-					rc = 0;
 				}
 			}
 		}
-		rc = m0_be_tx_close_sync(&tx);
+		m0_be_tx_close_sync(&tx);
 	}
 
 	m0_be_tx_fini(&tx);
@@ -2276,6 +2300,49 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 		rc = m0_be_seg_dict_insert(seg, cid_name, cb);
 
 	return rc;
+}
+
+M0_INTERNAL int m0_balloc_free(struct m0_balloc *bal, struct m0_be_seg *seg)
+{
+	struct m0_be_allocator *alloc = &seg->bs_allocator;
+	struct m0_sm_group      sm_grp;
+	struct m0_be_tx         tx = {};
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_op         op;
+	int                     rc;
+
+	M0_ENTRY();
+
+	M0_PRE(bal != NULL);
+	M0_PRE(seg != NULL);
+
+	alloc = &seg->bs_allocator;
+
+	m0_sm_group_init(&sm_grp);
+	m0_be_tx_init(&tx, 0, seg->bs_domain,
+		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
+	m0_be_allocator_credit(alloc, M0_BAO_FREE, sizeof *bal, 0, &cred);
+	m0_be_btree_destroy_credit(&bal->cb_db_group_extents, 1, &cred);
+	m0_be_btree_destroy_credit(&bal->cb_db_group_desc, 1, &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+
+	if (rc == 0) {
+		rc = balloc_trees_destroy(bal, &tx);
+		if (rc == 0) {
+			m0_be_op_init(&op);
+			m0_be_free(alloc, &tx, &op, bal);
+			m0_be_op_wait(&op);
+			M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+			m0_be_op_fini(&op);
+		}
+		m0_be_tx_close_sync(&tx);
+	}
+
+	m0_be_tx_fini(&tx);
+	m0_sm_group_fini(&sm_grp);
+
+	M0_RETURN(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

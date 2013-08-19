@@ -254,7 +254,6 @@ enum {
    Allocates struct m0_balloc instance on back-end segment @seg
    and initialises struct ad_balloc_ops vector.
    One balloc instance is allocated and initialised per storage domain.
-   @note The allocated struct m0_balloc instance is freed by balloc_fini().
 
    @see struct ad_balloc_ops
    @pre out != NULL
@@ -262,6 +261,11 @@ enum {
 M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 				   struct m0_be_seg  *seg,
 				   struct m0_balloc **out);
+
+/**
+   Frees struct m0_balloc instance from back-end segment @seg.
+ */
+M0_INTERNAL int m0_balloc_free(struct m0_balloc *bal, struct m0_be_seg *seg);
 
 /* Interfaces for UT */
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,

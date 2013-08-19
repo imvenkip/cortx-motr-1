@@ -308,6 +308,9 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			M0_UT_ASSERT(result == 0);
 		}
 
+		result = m0_balloc_free(mero_balloc, seg);
+		M0_UT_ASSERT(result == 0);
+
 		mero_balloc->cb_ballroom.ab_ops->bo_fini(
 			    &mero_balloc->cb_ballroom);
 	}
