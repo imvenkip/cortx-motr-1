@@ -1960,8 +1960,7 @@ int balloc_allocate_internal(struct m0_balloc *ctx,
 		}
 	}
 out:
-	M0_LEAVE();
-	return rc;
+	M0_RETURN(rc);
 }
 
 static void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
@@ -2212,6 +2211,14 @@ static int balloc_trees_create(struct m0_balloc *bal,
 	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	rc = op.bo_u.u_btree.t_rc;
 	m0_be_op_fini(&op);
+
+	if (rc != 0) {
+		m0_be_op_init(&op);
+		m0_be_btree_destroy(&bal->cb_db_group_extents, tx, &op);
+		m0_be_op_wait(&op);
+		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		m0_be_op_fini(&op);
+	}
 
 	return rc;
 }

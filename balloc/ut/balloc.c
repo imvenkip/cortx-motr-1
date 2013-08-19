@@ -200,8 +200,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 		for (i = mero_balloc->cb_sb.bsb_reserved_groups;
 		     i < mero_balloc->cb_sb.bsb_groupcount && result == 0;
 		     ++i) {
-			struct m0_balloc_group_info *grp = m0_balloc_gn2info
-				(mero_balloc, i);
+			struct m0_balloc_group_info *grp =
+				m0_balloc_gn2info(mero_balloc, i);
 
 			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
 			m0_balloc_load_extents_credit(mero_balloc, &cred);
