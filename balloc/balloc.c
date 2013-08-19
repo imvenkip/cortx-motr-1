@@ -156,8 +156,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,
 }
 
 M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
-						   struct m0_balloc_group_info
-						   *grp)
+					struct m0_balloc_group_info *grp)
 {
 #ifdef BALLOC_ENABLE_DUMP
 	m0_bcount_t	 i;
@@ -404,7 +403,7 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 
 	if (number_of_groups <= req->bfr_reserved_groups) {
 		M0_LOG(M0_ERROR, "container is too small");
-		return -EINVAL;
+		M0_RETURN(-EINVAL);
 	}
 
 	gettimeofday(&now, NULL);
@@ -434,8 +433,7 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "super_block update failed: rc=%d", rc);
 
-	M0_LEAVE();
-	return rc;
+	M0_RETURN(rc);
 }
 
 static int balloc_group_write(struct m0_balloc            *bal,
@@ -461,6 +459,7 @@ static int balloc_group_write(struct m0_balloc            *bal,
 		ext.e_end = ext.e_start;
 	else
 		ext.e_end = ext.e_start + sb->bsb_groupsize;
+	balloc_debug_dump_extent("create...", &ext);
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
@@ -515,8 +514,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 					sb->bsb_groupcount);
 	if (bal->cb_group_info == NULL) {
 		M0_LOG(M0_ERROR, "create allocate memory for group info");
-		rc = -ENOMEM;
-		return rc;
+		M0_RETURN(-ENOMEM);
 	}
 
 	m0_sm_group_init(&sm_grp);
@@ -829,20 +827,20 @@ balloc_normalize_request(struct m0_balloc_allocation_context *bac)
 	/* do normalize only for data requests. metadata requests
 	   do not need preallocation */
 	if (!(bac->bac_flags & M0_BALLOC_HINT_DATA))
-		return;
+		goto out;
 
 	/* sometime caller may want exact blocks */
 	if (bac->bac_flags & M0_BALLOC_HINT_GOAL_ONLY)
-		return;
+		goto out;
 
 	/* caller may indicate that preallocation isn't
 	 * required (it's a tail, for example) */
 	if (bac->bac_flags & M0_BALLOC_HINT_NOPREALLOC)
-		return;
+		goto out;
 
 	if (bac->bac_flags & M0_BALLOC_HINT_GROUP_ALLOC) {
 		balloc_normalize_group_request(bac);
-		return;
+		goto out;
 	}
 
 	/* @todo : removing normalisation for time. */
@@ -886,6 +884,7 @@ balloc_normalize_request(struct m0_balloc_allocation_context *bac)
 		(unsigned long long) bac->bac_goal.e_start,
 		(unsigned long long) m0_ext_length(&bac->bac_goal),
 		(unsigned long long) m0_ext_length(&bac->bac_orig));
+out:
 	M0_LEAVE();
 }
 
@@ -910,28 +909,31 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bcount_t		   maxchunk = 0;
 	m0_bcount_t		   count;
 
+	M0_ENTRY();
+
 	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents != NULL) {
-		/* already loaded */
-		return 0;
+		M0_LOG(M0_DEBUG, "Already loaded");
+		M0_RETURN(0);
 	}
 
 	size = (grp->bgi_fragments + 1) * sizeof (struct m0_ext);
 	grp->bgi_extents = m0_alloc(size);
 	if (grp->bgi_extents == NULL)
-		return -ENOMEM;
+		M0_RETURN(-ENOMEM);
 
-	if (grp->bgi_fragments == 0)
-		return 0;
+	if (grp->bgi_fragments == 0) {
+		M0_LOG(M0_NOTICE, "zero bgi_fragments");
+		M0_RETURN(0);
+	}
 
 	m0_be_btree_cursor_init(&cursor, db_ext);
 
 	ex = grp->bgi_extents;
 	ex->e_start = grp->bgi_groupno << cb->cb_sb.bsb_gsbits;
+	key = (struct m0_buf)M0_BUF_INIT_PTR(&ex->e_start);
 
 	for (count = 0; count < grp->bgi_fragments; count++, ex++) {
-		key = (struct m0_buf)M0_BUF_INIT_PTR(&ex->e_start);
-		val = (struct m0_buf)M0_BUF_INIT_PTR(&ex->e_end);
 		m0_be_op_init(&cursor.bc_op);
 		if (count == 0)
 			m0_be_btree_cursor_get(&cursor, &key, true);
@@ -944,16 +946,18 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		if (rc != 0)
 			break;
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+		ex->e_start = *(m0_bindex_t*)key.b_addr;
+		ex->e_end   = *(m0_bindex_t*)val.b_addr;
 
 		if (m0_ext_length(ex) > maxchunk)
 			maxchunk = m0_ext_length(ex);
-		//balloc_debug_dump_extent("loading...", ex);
+		balloc_debug_dump_extent("loading...", ex);
 	}
 
 	m0_be_btree_cursor_fini(&cursor);
 
-	if (rc == -ENOENT && count != grp->bgi_fragments)
-		M0_LOG(M0_INFO, "fragments mismatch: count=%llu fragments=%lld",
+	if (count != grp->bgi_fragments)
+		M0_LOG(M0_ERROR, "fragments mismatch: count=%llu frags=%lld",
 			(unsigned long long)count,
 			(unsigned long long)grp->bgi_fragments);
 	if (rc != 0)
@@ -965,7 +969,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		balloc_gi_sync(cb, tx, grp);
 	}
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /* called under group lock */
@@ -1462,11 +1466,10 @@ static int balloc_find_by_goal(struct m0_balloc_allocation_context *bac)
 	}
 
 	m0_balloc_release_extents(grp);
-	M0_LEAVE();
 out_unlock:
 	m0_balloc_unlock_group(grp);
 out:
-	return ret;
+	M0_RETURN(ret);
 }
 
 /* group is locked */
@@ -1668,26 +1671,22 @@ static int balloc_wild_scan_group(struct m0_balloc_allocation_context *bac,
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
 		if (m0_ext_length(ex) > free) {
-			M0_LOG(M0_DEBUG, "corrupt group=%llu "
+			M0_LOG(M0_WARN, "corrupt group=%llu "
 				"ex=[0x%08llx:0x%08llx)",
 				(unsigned long long)grp->bgi_groupno,
 				(unsigned long long)ex->e_start,
 				(unsigned long long)ex->e_end);
-			M0_LEAVE();
-			return -EINVAL;
+			M0_RETURN(-EINVAL);
 		}
 		balloc_measure_extent(bac, grp, ex);
 
 		free -= m0_ext_length(ex);
-		if (free == 0 || bac->bac_status != M0_BALLOC_AC_CONTINUE) {
-			M0_LEAVE();
-			return 0;
-		}
+		if (free == 0 || bac->bac_status != M0_BALLOC_AC_CONTINUE)
+			M0_RETURN(0);
 	}
 
 	rc = balloc_check_limits(bac, grp, 1);
-	M0_LEAVE();
-	return rc;
+	M0_RETURN(rc);
 }
 
 /*
@@ -1778,20 +1777,13 @@ balloc_regular_allocator(struct m0_balloc_allocation_context *bac)
 		return rc;
 	}
 
-	/* XXX ffs works on little-endian platform? */
-	i = ffs(len);
 	bac->bac_order2 = 0;
 	/*
 	 * We search using buddy data only if the order of the request
 	 * is greater than equal to the threshold.
 	 */
-	if (i >= 2) {
-		/*
-		 * This should tell if fe_len is exactly power of 2
-		 */
-		if ((len & (~(1 << (i - 1)))) == 0)
-			bac->bac_order2 = i - 1;
-	}
+	if (m0_is_po2(len))
+		bac->bac_order2 = ffs(len) - 1;
 
 	cr = bac->bac_order2 ? 0 : 1;
 	/*
@@ -1801,6 +1793,7 @@ balloc_regular_allocator(struct m0_balloc_allocation_context *bac)
 	 */
 repeat:
 	for (;cr < 3 && bac->bac_status == M0_BALLOC_AC_CONTINUE; cr++) {
+		M0_LOG(M0_DEBUG, "cr=%d", cr);
 		bac->bac_criteria = cr;
 		/*
 		 * searching for the right group start
@@ -2229,6 +2222,7 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 {
 	struct m0_balloc       *cb;
 	struct m0_be_allocator *alloc = &seg->bs_allocator;
+	struct m0_be_btree      btree;
 	struct m0_sm_group      sm_grp;
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_INIT(0, 0);
@@ -2250,10 +2244,12 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *cb, 0, &cred);
-	/* XXX tree is not initialized here */
-	m0_be_btree_create_credit(&cb->cb_db_group_extents, 1, &cred);
-	/* XXX tree is not initialized here */
-	m0_be_btree_create_credit(&cb->cb_db_group_desc, 1, &cred);
+	m0_be_btree_init(&btree, seg, &ge_btree_ops);
+	m0_be_btree_create_credit(&btree, 1, &cred);
+	m0_be_btree_fini(&btree);
+	m0_be_btree_init(&btree, seg, &gd_btree_ops);
+	m0_be_btree_create_credit(&btree, 1, &cred);
+	m0_be_btree_fini(&btree);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
 

@@ -161,6 +161,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			result = mero_balloc->cb_ballroom.ab_ops->bo_alloc(
 				    &mero_balloc->cb_ballroom, &dtx, count,
 				    &tmp);
+			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
 				fprintf(stderr, "Error in allocation\n");
 				return result;
@@ -170,6 +171,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 			/* The result extent length should be less than
 			 * or equal to the requested length. */
+			M0_UT_ASSERT(m0_ext_length(&ext[i]) <= count);
 			if (m0_ext_length(&ext[i]) > count) {
 				fprintf(stderr, "Allocation size mismatch: "
 					"requested count = %5d, result = %5d\n",
@@ -241,6 +243,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				mero_balloc->cb_ballroom.ab_ops->bo_free(
 					    &mero_balloc->cb_ballroom, &dtx,
 					    &ext[i]);
+			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
 				fprintf(stderr,"Error during free for size %5d",
 					(int)m0_ext_length(&ext[i]));
@@ -262,6 +265,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			M0_UT_ASSERT(result == 0);
 		}
 
+		M0_UT_ASSERT(mero_balloc->cb_sb.bsb_freeblocks ==
+					prev_free_blocks);
 		if (mero_balloc->cb_sb.bsb_freeblocks != prev_free_blocks) {
 			fprintf(stderr, "Size mismatch during block reclaim\n");
 			result = -EINVAL;
@@ -285,6 +290,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				if (result == 0)
 					m0_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
+				M0_UT_ASSERT(grp->bgi_freeblocks ==
+					mero_balloc->cb_sb.bsb_groupsize);
 				if (grp->bgi_freeblocks !=
 				    mero_balloc->cb_sb.bsb_groupsize) {
 					printf("corrupted grp %d: %llx != %llx\n",
