@@ -657,7 +657,6 @@ static int balloc_init_internal(struct m0_balloc *bal,
 				m0_bcount_t res_groups)
 {
 	struct m0_balloc_group_info	*gi;
-	char                             table_name[MAXPATHLEN];
 	int				 rc;
 	m0_bcount_t			 i;
 
@@ -666,17 +665,9 @@ static int balloc_init_internal(struct m0_balloc *bal,
 	bal->cb_be_seg = seg;
 	bal->cb_group_info = NULL;
 	m0_mutex_init(&bal->cb_sb_mutex);
-	M0_SET0(&bal->cb_sb);
-	/* XXX max: why it is needed?
-	M0_SET0(&bal->cb_db_group_extents);
-	M0_SET0(&bal->cb_db_group_desc);
-	*/
-	M0_SET_ARR0(table_name);
 
-	/* XXX max: m0_be_btree_init() already called
 	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
 	m0_be_btree_init(&bal->cb_db_group_extents, seg, &ge_btree_ops);
-	*/
 
 	if (bal->cb_sb.bsb_magic != M0_BALLOC_SB_MAGIC) {
 		struct m0_balloc_format_req req = { 0 };
@@ -690,8 +681,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		rc = balloc_format(bal, &req);
 		if (rc != 0)
 			balloc_fini_internal(bal);
-		M0_LEAVE();
-		return rc;
+		M0_RETURN(rc);
 	}
 
 	if (bal->cb_sb.bsb_blocksize != 1 << bshift) {
@@ -725,8 +715,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 out:
 	if (rc != 0)
 		balloc_fini_internal(bal);
-	M0_LEAVE();
-	return rc;
+	M0_RETURN(rc);
 }
 
 enum m0_balloc_allocation_status {
