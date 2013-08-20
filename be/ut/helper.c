@@ -39,6 +39,30 @@
 
 struct m0_sm_group ut__txs_sm_group;
 
+enum {
+	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
+	BE_UT_SEG_START_ID   = 42ULL,
+};
+
+static struct m0_atomic64 be_ut_seg_addr;
+static struct m0_atomic64 be_ut_seg_id;
+
+static void *be_ut_seg_allocate_addr(m0_bcount_t size)
+{
+	/* initialize start addr if it wasn't already initialized */
+	m0_atomic64_cas((int64_t *) &be_ut_seg_addr,
+			0, BE_UT_SEG_START_ADDR);
+	size = m0_align(size, m0_pagesize_get());
+	return (void *) (m0_atomic64_add_return(&be_ut_seg_addr, size) - size);
+}
+
+static uint64_t be_ut_seg_allocate_id(void)
+{
+	m0_atomic64_cas((int64_t *) &be_ut_seg_id,
+			0, BE_UT_SEG_START_ID);
+	return m0_atomic64_add_return(&be_ut_seg_id, 1) - 1;
+}
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 #define NAME(ext) "be-ut" ext
@@ -107,7 +131,9 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 			   m0_bcount_t size,
 			   bool stob_create)
 {
-	struct m0_stob_id stob_id = { .si_bits = M0_UINT128(0, 42) };
+	struct m0_stob_id stob_id = {
+		.si_bits = M0_UINT128(0, be_ut_seg_allocate_id())
+	};
 	int               rc;
 
 	rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
@@ -130,7 +156,8 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	}
 
 	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, &ut_be->but_dom);
-	rc = m0_be_seg_create(&ut_seg->bus_seg, size);
+	rc = m0_be_seg_create(&ut_seg->bus_seg, size,
+			      be_ut_seg_allocate_addr(size));
 	M0_ASSERT(rc == 0);
 	rc = m0_be_seg_open(&ut_seg->bus_seg);
 	M0_ASSERT(rc == 0);

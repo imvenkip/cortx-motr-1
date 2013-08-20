@@ -42,6 +42,10 @@ enum m0_be_seg_states {
 	M0_BSS_CLOSED,
 };
 
+enum {
+	M0_BE_SEG_HEADER_OFFSET = 0ULL,
+};
+
 #define M0_BE_SEG_PG_PRESENT       0x8000000000000000ULL
 #define M0_BE_SEG_PG_PIN_CNT_MASK  (~M0_BE_SEG_PG_PRESENT)
 
@@ -74,7 +78,9 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg);
 M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg);
 
 /** Creates the segment of specified size on the storage. */
-M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size);
+M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
+				 m0_bcount_t size,
+				 void *addr);
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg);
 
 M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);

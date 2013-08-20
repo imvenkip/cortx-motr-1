@@ -38,9 +38,6 @@
  * @{
  */
 
-#define BE_SEG_DEFAULT_ADDR   ((void *)0x400000000000)
-#define BE_SEG_HEADER_OFFSET  (0ULL)
-
 static int
 seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 {
@@ -60,13 +57,16 @@ seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 	seg->bs_addr = addr;
 	seg->bs_size = size;
 
-	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf, addr + BE_SEG_HEADER_OFFSET);
+	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
+			    addr + M0_BE_SEG_HEADER_OFFSET);
 	rc = m0_be_seg__write(&hdr_reg, hdrbuf);
 	m0_free(hdrbuf);
 	return rc;
 }
 
-M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
+M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
+				 m0_bcount_t size,
+				 void *addr)
 {
 	M0_PRE(seg->bs_state == M0_BSS_INIT);
 	M0_PRE(seg->bs_stob->so_domain != NULL);
@@ -75,7 +75,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
 	return m0_stob_find(seg->bs_stob->so_domain,
 			    &seg->bs_stob->so_id, &seg->bs_stob) ?:
 		m0_stob_create(seg->bs_stob, NULL) ?:
-		seg_header_create(seg, BE_SEG_DEFAULT_ADDR, size);
+		seg_header_create(seg, addr, size);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -94,8 +94,8 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_be_domain *dom)
 {
 	*seg = (struct m0_be_seg) {
-		/* XXX add BE_SEG_HEADER_OFFSET */
-		.bs_reserved = sizeof(struct m0_be_seg_hdr),
+		.bs_reserved = M0_BE_SEG_HEADER_OFFSET +
+			       sizeof(struct m0_be_seg_hdr),
 		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
@@ -143,11 +143,10 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return -ENOMEM;
 
 	/* Read segment header from storage. */
-	seg->bs_addr = BE_SEG_DEFAULT_ADDR;
-	/* XXX */
-	seg->bs_size = 1ULL << 48;
+	seg->bs_addr = (void *) hdrbuf - M0_BE_SEG_HEADER_OFFSET;
+	seg->bs_size = sizeof *hdrbuf + M0_BE_SEG_HEADER_OFFSET;
 	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-			    (char *)BE_SEG_DEFAULT_ADDR + BE_SEG_HEADER_OFFSET);
+			    seg->bs_addr + M0_BE_SEG_HEADER_OFFSET);
 	rc = m0_be_seg__read(&hdr_reg, hdrbuf);
 	if (rc == 0) {
 		seg_addr0 = hdrbuf->bh_addr;
@@ -176,13 +175,13 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	M0_ASSERT(p == seg_addr0);
 
 	/* Read whole segment from storage. */
+	seg->bs_size = seg_size;
+	seg->bs_addr = seg_addr0;
 	rc = m0_be_seg__read(&M0_BE_REG(seg, seg_size, seg_addr0), seg_addr0);
 	if (rc == 0) {
 		seg->bs_state = M0_BSS_OPENED;
 		for (i = 0; i < seg->bs_pgnr; i++)
 			seg->bs_pgmap[i] |= M0_BE_SEG_PG_PRESENT;
-		seg->bs_size = seg_size;
-		seg->bs_addr = seg_addr0;
 	}
 	return rc;
 }
