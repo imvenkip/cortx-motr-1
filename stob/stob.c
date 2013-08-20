@@ -108,7 +108,8 @@ M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
 				      m0_bcount_t             size,
 				      struct m0_be_tx_credit *accum)
 {
-	dom->sd_ops->sdo_write_credit(dom, size, accum);
+	if (dom->sd_ops->sdo_write_credit != NULL)
+		dom->sd_ops->sdo_write_credit(dom, size, accum);
 }
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
