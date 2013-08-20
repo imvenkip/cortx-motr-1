@@ -33,7 +33,6 @@ extern void m0_be_ut_log_store_reserve(void);
 extern void m0_be_ut_log_store_io(void);
 extern void m0_be_ut_log(void);
 
-extern void m0_be_ut_seg_init_fini(void);
 extern void m0_be_ut_seg_create_destroy(void);
 extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
