@@ -161,15 +161,5 @@ M0_INTERNAL int m0_be_seg__write(struct m0_be_reg *reg, void *src);
 M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg);
 M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg);
 
-/**
- * Simple segment write implementation which has to be removed ASAP.
- * It's introduced because we need straightforward possibility to
- * write data on the disk. This will unblock other tasks in BE. This
- * call will be replaced with m0_be_seg_write() in the nearest future.
- */
-M0_INTERNAL void m0_be_seg_write_simple(struct m0_be_seg *seg,
-					struct m0_be_op *op,
-					struct m0_be_reg_area *area);
-
 /** @} end of be group */
 #endif /* __MERO_BE_SEG_H__ */
