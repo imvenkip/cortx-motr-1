@@ -163,7 +163,7 @@ static int test_ad_init(void)
 
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	db = &ut_seg.bus_seg;
 
@@ -200,7 +200,7 @@ static int test_ad_init(void)
 	buf_size = max_check(MIN_BUF_SIZE
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
-	m0_dtx_init(&tx, db->bs_be_domain);
+	m0_dtx_init(&tx, db->bs_domain);
 	dom_fore->sd_ops->sdo_write_credit(dom_fore,
 				buf_size * (NR * NR / 2) /* test_ad() */ +
 				buf_size * NR, /* test_ad_rw_unordered() */
@@ -387,7 +387,7 @@ static void test_ad_undo(void)
 
 	m0_dtx_done(&tx);
 
-	m0_dtx_init(&tx, db->bs_be_domain);
+	m0_dtx_init(&tx, db->bs_domain);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 
@@ -411,7 +411,7 @@ static void test_ad_undo(void)
 	m0_dtx_done(&tx);
 	m0_dtx_fini(&tx);
 
-	m0_dtx_init(&tx, db->bs_be_domain);
+	m0_dtx_init(&tx, db->bs_domain);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	test_read(1);
