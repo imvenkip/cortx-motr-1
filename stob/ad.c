@@ -1332,9 +1332,15 @@ static void ad_write_credit(struct ad_domain *dom, m0_bcount_t sz,
 			    struct m0_be_tx_credit *acc)
 {
 	sz >>= dom->ad_babshift;
-	dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom, sz, acc);
+
+	if (dom->ad_ballroom->ab_ops->bo_alloc_credit != NULL)
+		dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom, sz,
+							  acc);
 	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, sz, acc);
-	dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom, 3, acc);
+
+	if (dom->ad_ballroom->ab_ops->bo_free_credit != NULL)
+		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom, 3,
+							 acc);
 }
 
 /**
