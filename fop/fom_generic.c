@@ -249,7 +249,7 @@ static int create_loc_ctx(struct m0_fom *fom)
 #endif
 	reqh = m0_fom_reqh(fom);
 
-	m0_dtx_init(&fom->fo_tx, NULL);	/* XXX_BE_DB */
+	m0_dtx_init(&fom->fo_tx, NULL, NULL);	/* XXX_BE_DB */
 	rc = m0_dtx_open(&fom->fo_tx);	/* XXX_BE_DB */
 	if (rc < 0)
 		return rc;

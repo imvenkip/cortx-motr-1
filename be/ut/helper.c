@@ -83,6 +83,8 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 #endif
 	int             rc;
 
+	M0_ENTRY();
+
 	*ut_be = (struct m0_be_ut_backend) {
 #if 0 /* XXX_BE_DB */
 		.but_net_xprt = &m0_net_lnet_xprt,
@@ -128,6 +130,8 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 	M0_ASSERT(rc == 0);
 
 	m0_sm_group_lock(&ut__txs_sm_group); /* XXX fix it using fom-simple */
+
+	M0_LEAVE();
 }
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
@@ -165,7 +169,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 
 	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &ut_seg->bus_dom);
 	M0_ASSERT(rc == 0);
-	m0_dtx_init(&ut_seg->bus_dtx, NULL);	/* XXX_DB_BE */
+	m0_dtx_init(&ut_seg->bus_dtx, NULL, NULL);	/* XXX_DB_BE */
 	if (stob_create) {
 		rc = m0_stob_create_helper(ut_seg->bus_dom, &ut_seg->bus_dtx,
 					   &stob_id, &ut_seg->bus_stob);

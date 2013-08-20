@@ -113,7 +113,7 @@ M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 	rc = m0_linux_stob_domain_locate(BE_LOG_STORAGE_DIR,
 					 &be_log_store_stob_dom);
 	M0_ASSERT(rc == 0);
-	m0_dtx_init(&be_log_store_dtx, NULL);	/* XXX_DB_BE */
+	m0_dtx_init(&be_log_store_dtx, NULL, NULL);	/* XXX_DB_BE */
 
 	rc = m0_stob_create_helper(be_log_store_stob_dom, &be_log_store_dtx,
 				   &be_log_store_stob_id, &ls->ls_stob);

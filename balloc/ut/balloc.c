@@ -359,6 +359,7 @@ static int _fini(void)
 	m0_sm_group_fini(&ut__txs_sm_group);
 	return 0;
 }
+
 const struct m0_test_suite balloc_ut = {
         .ts_name  = "balloc-ut",
 	.ts_init = _init,

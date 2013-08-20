@@ -541,7 +541,7 @@ static int stobsink_header_read(struct stobsink *sink,
 	M0_PRE(!pb->spb_busy);
 
 	dom = sink->ss_stob->so_domain;
-	m0_dtx_init(&pb->spb_tx, NULL);	/* XXX_BE_DB */
+	m0_dtx_init(&pb->spb_tx, NULL, NULL);	/* XXX_BE_DB */
 	rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "header_read tx_make for offset %ld failed %d",
@@ -818,7 +818,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
 	m0_mutex_unlock(&sink->ss_mutex);
-	m0_dtx_init(&pb->spb_tx, NULL);	/* XXX_BE_DB */
+	m0_dtx_init(&pb->spb_tx, NULL, NULL);	/* XXX_BE_DB */
 	rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
 	if (rc != 0) {
 		m0_mutex_lock(&sink->ss_mutex);

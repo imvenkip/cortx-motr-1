@@ -30,6 +30,7 @@
 #include "lib/ub.h"
 #include "lib/assert.h"
 #include "ut/ut.h"
+#include "ut/ast_thread.h"
 
 #include "dtm/dtm.h"     /* m0_dtx */
 #include "stob/stob.h"
@@ -146,11 +147,18 @@ struct mock_balloc mb = {
 	}
 };
 
+extern struct m0_sm_group ut__txs_sm_group;
+
 static int test_ad_init(void)
 {
 	struct m0_be_tx_credit cred = {0};
 	int	i;
 	int	result;
+
+	m0_sm_group_init(&ut__txs_sm_group);
+	result = m0_ut_ast_thread_start(&ut__txs_sm_group);
+	if (result != 0)
+		goto out;
 
 	result = system("rm -fr ./__s");
 	M0_ASSERT(result == 0);
@@ -200,7 +208,7 @@ static int test_ad_init(void)
 	buf_size = max_check(MIN_BUF_SIZE
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
-	m0_dtx_init(&tx, db->bs_domain);
+	m0_dtx_init(&tx, db->bs_domain, &ut__txs_sm_group);
 	dom_fore->sd_ops->sdo_write_credit(dom_fore,
 				buf_size * (NR * NR / 2) /* test_ad() */ +
 				buf_size * NR, /* test_ad_rw_unordered() */
@@ -234,6 +242,7 @@ static int test_ad_init(void)
 		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
+out:
 	return result;
 }
 
@@ -257,6 +266,10 @@ static int test_ad_fini(void)
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
+
+	m0_ut_ast_thread_stop();
+	m0_sm_group_fini(&ut__txs_sm_group);
+
 	return 0;
 }
 
@@ -387,7 +400,7 @@ static void test_ad_undo(void)
 
 	m0_dtx_done(&tx);
 
-	m0_dtx_init(&tx, db->bs_domain);
+	m0_dtx_init(&tx, db->bs_domain, &ut__txs_sm_group);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 
@@ -411,7 +424,7 @@ static void test_ad_undo(void)
 	m0_dtx_done(&tx);
 	m0_dtx_fini(&tx);
 
-	m0_dtx_init(&tx, db->bs_domain);
+	m0_dtx_init(&tx, db->bs_domain, &ut__txs_sm_group);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	test_read(1);
