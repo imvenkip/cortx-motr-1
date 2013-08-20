@@ -27,6 +27,7 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/be.c        	\
 			   be/btree.c     	\
 			   be/extmap.c		\
+			   be/extmap_xc.c	\
 			   be/domain.c		\
 			   be/engine.c       	\
 			   be/io.c        	\
@@ -42,3 +43,5 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/tx_group_ondisk.c \
 			   be/tx_regmap.c 	\
 			   be/tx_service.c
+
+XC_FILES   += be/extmap_xc.h

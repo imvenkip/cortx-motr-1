@@ -820,7 +820,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	cs_ad_stob_bob_init(adstob);
 	astob_tlink_init_at_tail(adstob, &stob->s_adoms);
 
-	rc = m0_balloc_allocate(cid, &cb) ?:
+	rc = m0_balloc_create(cid, &cb) ?:
 		m0_ad_stob_setup(adstob->as_dom, db,
 				 *bstob, &cb->cb_ballroom,
 				 BALLOC_DEF_CONTAINER_SIZE,

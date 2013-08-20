@@ -34,40 +34,35 @@
 #include "db/db.h"
 #include "ut/ut.h"
 #include "balloc/balloc.h"
+#include "be/ut/helper.h"
 
 int main(int argc, char **argv)
 {
-	struct m0_balloc     *mero_balloc;
-	const char           *db_name;
-	struct m0_dbenv       db;
-	struct m0_dtx         dtx;
-	int                   result;
+	struct m0_balloc	*mero_balloc;
+	struct m0_be_ut_backend	 ut_be;
+	struct m0_be_ut_seg	 ut_seg;
+	struct m0_be_seg	*seg;
+	int			 result;
 
-	if (argc != 2) {
-		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
-		return 1;
-	}
-	db_name = argv[1];
+	/* Init BE */
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	seg = &ut_seg.bus_seg;
 
-	result = m0_dbenv_init(&db, db_name, 0);
-	M0_ASSERT(result == 0);
-
-	result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
-	M0_ASSERT(result == 0);
-
-	result = m0_balloc_allocate(0, &mero_balloc);
+	result = m0_balloc_allocate(0, seg, &mero_balloc);
 	M0_ASSERT(result == 0);
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
-		(&mero_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+		(&mero_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
-	result = m0_db_tx_commit(&dtx.tx_dbtx);
-	M0_ASSERT(result == 0);
 	mero_balloc->cb_ballroom.ab_ops->bo_fini(&mero_balloc->cb_ballroom);
 
-	m0_dbenv_fini(&db);
+	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 	printf("done\n");
 	return 0;
 }

@@ -34,14 +34,17 @@
 #include "mero/magic.h"
 #include "db/db.h"
 #include "ut/ut.h"
+#include "ut/ast_thread.h"
 #include "balloc/balloc.h"
+#include "be/ut/helper.h"
 
 #define BALLOC_DBNAME "./__balloc_db"
 
 #define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
-static const char  *db_name = BALLOC_DBNAME;
+#define BALLOC_DEBUG
+
 static const int    MAX     = 10;
 static m0_bcount_t  prev_free_blocks;
 m0_bcount_t	   *prev_group_info_free_blocks;
@@ -82,11 +85,41 @@ bool balloc_ut_invariant(struct m0_balloc *mero_balloc,
 		prev_free_blocks;
 }
 
-int test_balloc_ut_ops()
+static int be_tx_init_open(struct m0_be_tx *tx,
+			   struct m0_be_ut_backend *ut_be,
+			   struct m0_be_tx_credit *cred)
+{
+	int rc;
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, cred);
+	m0_be_tx_open(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
+						M0_BTS_FAILED),
+				    M0_TIME_NEVER);
+	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+
+	return rc;
+}
+
+static int be_tx_close_fini(struct m0_be_tx *tx)
+{
+	int rc;
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
+				    M0_TIME_NEVER);
+	m0_be_tx_fini(tx);
+
+	return rc;
+}
+
+int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 {
 	struct m0_balloc *mero_balloc;
-	struct m0_dbenv	  db;
 	struct m0_dtx	  dtx;
+	struct m0_be_tx_credit cred;
+	struct m0_be_tx  *tx = &dtx.tx_betx;
 	int		  result;
 	struct m0_ext	  ext[MAX];
 	struct m0_ext	  tmp   = { 0 };
@@ -97,14 +130,11 @@ int test_balloc_ut_ops()
 	time(&now);
 	srand(now);
 
-	result = m0_dbenv_init(&db, db_name, 0);
-	M0_UT_ASSERT(result == 0);
-
-	result = m0_balloc_allocate(0, &mero_balloc);
+	result = m0_balloc_create(0, seg, &mero_balloc);
 	M0_UT_ASSERT(result == 0);
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
-		(&mero_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+		(&mero_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
@@ -117,11 +147,12 @@ int test_balloc_ut_ops()
 		}
 
 		for (i = 0; i < MAX; ++i) {
-			do  {
-				count = rand() % 1500;
-			} while (count == 0);
+			count = rand() % 1500 + 1;
 
-			result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			mero_balloc->cb_ballroom.ab_ops->bo_alloc_credit(
+				    &mero_balloc->cb_ballroom, 1, &cred);
+			result = be_tx_init_open(tx, ut_be, &cred);
 			M0_UT_ASSERT(result == 0);
 
 			/* pass last result as goal. comment out this to turn
@@ -130,6 +161,7 @@ int test_balloc_ut_ops()
 			result = mero_balloc->cb_ballroom.ab_ops->bo_alloc(
 				    &mero_balloc->cb_ballroom, &dtx, count,
 				    &tmp);
+			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
 				fprintf(stderr, "Error in allocation\n");
 				return result;
@@ -139,6 +171,7 @@ int test_balloc_ut_ops()
 
 			/* The result extent length should be less than
 			 * or equal to the requested length. */
+			M0_UT_ASSERT(m0_ext_length(&ext[i]) <= count);
 			if (m0_ext_length(&ext[i]) > count) {
 				fprintf(stderr, "Allocation size mismatch: "
 					"requested count = %5d, result = %5d\n",
@@ -159,32 +192,34 @@ int test_balloc_ut_ops()
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end);
 #endif
-			if (result == 0)
-				m0_db_tx_commit(&dtx.tx_dbtx);
-			else
-				m0_db_tx_abort(&dtx.tx_dbtx);
+			result = be_tx_close_fini(tx);
+			M0_UT_ASSERT(result == 0);
+
 		}
 
 		for (i = mero_balloc->cb_sb.bsb_reserved_groups;
 		     i < mero_balloc->cb_sb.bsb_groupcount && result == 0;
 		     ++i) {
-			struct m0_balloc_group_info *grp = m0_balloc_gn2info
-				(mero_balloc, i);
+			struct m0_balloc_group_info *grp =
+				m0_balloc_gn2info(mero_balloc, i);
 
-			result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			m0_balloc_load_extents_credit(mero_balloc, &cred);
+			result = be_tx_init_open(tx, ut_be, &cred);
 			M0_UT_ASSERT(result == 0);
 			if (grp) {
 				m0_balloc_lock_group(grp);
 				result = m0_balloc_load_extents(mero_balloc,
 							     grp,
-							     &dtx.tx_dbtx);
+							     &dtx.tx_betx);
 				if (result == 0)
 					m0_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
-			m0_db_tx_commit(&dtx.tx_dbtx);
+			result = be_tx_close_fini(tx);
+			M0_UT_ASSERT(result == 0);
 		}
 
 		/* randomize the array */
@@ -197,13 +232,18 @@ int test_balloc_ut_ops()
 		}
 
 		for (i = 0; i < MAX && result == 0; ++i) {
-			result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			mero_balloc->cb_ballroom.ab_ops->bo_free_credit(
+				    &mero_balloc->cb_ballroom, 1, &cred);
+			result = be_tx_init_open(tx, ut_be, &cred);
 			M0_UT_ASSERT(result == 0);
+
 			if (ext[i].e_start != 0)
 				result =
 				mero_balloc->cb_ballroom.ab_ops->bo_free(
 					    &mero_balloc->cb_ballroom, &dtx,
 					    &ext[i]);
+			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
 				fprintf(stderr,"Error during free for size %5d",
 					(int)m0_ext_length(&ext[i]));
@@ -221,12 +261,12 @@ int test_balloc_ut_ops()
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end);
 #endif
-			if (result == 0)
-				m0_db_tx_commit(&dtx.tx_dbtx);
-			else
-				m0_db_tx_abort(&dtx.tx_dbtx);
+			result = be_tx_close_fini(tx);
+			M0_UT_ASSERT(result == 0);
 		}
 
+		M0_UT_ASSERT(mero_balloc->cb_sb.bsb_freeblocks ==
+					prev_free_blocks);
 		if (mero_balloc->cb_sb.bsb_freeblocks != prev_free_blocks) {
 			fprintf(stderr, "Size mismatch during block reclaim\n");
 			result = -EINVAL;
@@ -238,16 +278,20 @@ int test_balloc_ut_ops()
 			struct m0_balloc_group_info *grp = m0_balloc_gn2info
 				(mero_balloc, i);
 
-			result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);
+			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			m0_balloc_load_extents_credit(mero_balloc, &cred);
+			result = be_tx_init_open(tx, ut_be, &cred);
 			M0_UT_ASSERT(result == 0);
 			if (grp) {
 				m0_balloc_lock_group(grp);
 				result = m0_balloc_load_extents(mero_balloc,
 								grp,
-								&dtx.tx_dbtx);
+								&dtx.tx_betx);
 				if (result == 0)
 					m0_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
+				M0_UT_ASSERT(grp->bgi_freeblocks ==
+					mero_balloc->cb_sb.bsb_groupsize);
 				if (grp->bgi_freeblocks !=
 				    mero_balloc->cb_sb.bsb_groupsize) {
 					printf("corrupted grp %d: %llx != %llx\n",
@@ -260,16 +304,18 @@ int test_balloc_ut_ops()
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
-			m0_db_tx_commit(&dtx.tx_dbtx);
+			result = be_tx_close_fini(tx);
+			M0_UT_ASSERT(result == 0);
 		}
+
+		result = m0_balloc_destroy(mero_balloc);
+		M0_UT_ASSERT(result == 0);
 
 		mero_balloc->cb_ballroom.ab_ops->bo_fini(
 			    &mero_balloc->cb_ballroom);
 	}
 
 	m0_free(prev_group_info_free_blocks);
-
-	m0_dbenv_fini(&db);
 
 #ifdef BALLOC_DEBUG
 	printf("done. status = %d\n", result);
@@ -279,19 +325,44 @@ int test_balloc_ut_ops()
 
 void test_balloc()
 {
-	int result;
+	struct m0_be_ut_backend	 ut_be;
+	struct m0_be_ut_seg	 ut_seg;
+	struct m0_be_seg	*seg;
+	int			 result;
 
-	result = test_balloc_ut_ops();
+	/* Init BE */
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	seg = &ut_seg.bus_seg;
+
+	result = test_balloc_ut_ops(&ut_be, seg);
 	M0_UT_ASSERT(result == 0);
 
-	result = system("rm -fr " BALLOC_DBNAME);
-	M0_UT_ASSERT(result == 0);
+	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
+/* XXX copy-paste from fol/ut/fol.c */
+extern struct m0_sm_group ut__txs_sm_group;
+
+static int _init(void)
+{
+	m0_sm_group_init(&ut__txs_sm_group);
+	return m0_ut_ast_thread_start(&ut__txs_sm_group);
+}
+
+static int _fini(void)
+{
+	m0_ut_ast_thread_stop();
+	m0_sm_group_fini(&ut__txs_sm_group);
+	return 0;
+}
 const struct m0_test_suite balloc_ut = {
         .ts_name  = "balloc-ut",
-        .ts_init  = NULL,
-        .ts_fini  = NULL,
+	.ts_init = _init,
+	.ts_fini = _fini,
         .ts_tests = {
                 { "balloc", test_balloc},
 		{ NULL, NULL }

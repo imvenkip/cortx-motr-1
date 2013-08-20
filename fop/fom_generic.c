@@ -248,8 +248,9 @@ static int create_loc_ctx(struct m0_fom *fom)
         M0_PRE(!is_tx_initialized(&fom->fo_tx.tx_dbtx));
 #endif
 	reqh = m0_fom_reqh(fom);
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, reqh->rh_dbenv);
+
+	m0_dtx_init(&fom->fo_tx, NULL);	/* XXX_BE_DB */
+	rc = m0_dtx_open(&fom->fo_tx);	/* XXX_BE_DB */
 	if (rc < 0)
 		return rc;
 

@@ -350,22 +350,52 @@ M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg)
 	return true;
 }
 
+/* max: temporary solution for balloc UT. FIXME ASAP */
+
+static const char *dict_item_name = NULL;	/* XXX_DB_BE */
+static void	  *dict_item_addr = NULL;	/* XXX_DB_BE */
+
 M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg, const char *name,
 				      void **out)
 {
-	*out = NULL;
-	return -ENOSYS;
+	int rc;
+
+	if (dict_item_name == NULL || strcmp(name, dict_item_name) == 0) {
+		*out = NULL;
+		rc = -ENOENT;
+	} else {
+		*out = dict_item_addr;
+		rc = 0;
+	}
+	return rc;
 }
 
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg, const char *name,
 				      void *value)
 {
-	return -ENOSYS;
+	int rc;
+
+	if (dict_item_name == NULL) {
+		dict_item_name = strdup(name);
+		dict_item_addr = value;
+		rc = 0;
+	} else {
+		rc = -ENOMEM;
+	}
+	return rc;
 }
 
 M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name)
 {
-	return -ENOSYS;
+	int rc;
+
+	if (dict_item_name == NULL || strcmp(name, dict_item_name) == 0) {
+		rc = -ENOENT;
+	} else {
+		dict_item_name = NULL;	/* TODO memory leak here */
+		rc = 0;
+	}
+	return rc;
 }
 
 M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)

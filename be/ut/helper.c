@@ -166,7 +166,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 
 	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &ut_seg->bus_dom);
 	M0_ASSERT(rc == 0);
-	m0_dtx_init(&ut_seg->bus_dtx);
+	m0_dtx_init(&ut_seg->bus_dtx, NULL);	/* XXX_DB_BE */
 	if (stob_create) {
 		rc = m0_stob_create_helper(ut_seg->bus_dom, &ut_seg->bus_dtx,
 					   &stob_id, &ut_seg->bus_stob);

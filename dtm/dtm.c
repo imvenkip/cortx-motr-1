@@ -25,6 +25,7 @@
 
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/errno.h"             /* ENOMEM */
+#include "lib/locality.h"
 #include "dtm/dtm.h"
 #include "dtm/dtm_update_xc.h"
 
@@ -41,54 +42,59 @@ M0_INTERNAL void m0_dtm_fini(void)
 	m0_xc_verno_fini();
 }
 
-M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx)
+M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
+			     struct m0_be_domain *be_domain)
 {
+/* XXX_DB_BE */
+#if 0
 	M0_SET0(tx);
+	if (be_domain != NULL)
+		m0_be_tx_init(&tx->tx_betx, 0, be_domain,
+			      m0_locality_here()->lo_grp,
+			      NULL, NULL, NULL, NULL);
 	tx->tx_state = M0_DTX_INIT;
 	m0_fol_rec_init(&tx->tx_fol_rec);
+#endif
 }
 
-M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx, struct m0_dbenv *env)
+M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx)
 {
-#if XXX_USE_DB5
-	int result;
-
+/* XXX_DB_BE */
+#if 0
 	M0_PRE(tx->tx_state == M0_DTX_INIT);
 
-	result = m0_db_tx_init(&tx->tx_dbtx, env, 0);
-	if (result == 0)
-		tx->tx_state = M0_DTX_OPEN;
-	return result;
-#else
-	M0_IMPOSSIBLE("XXX Not implemented");
-	return -1;
+	m0_be_tx_open(&tx->tx_betx);
+	tx->tx_state = M0_DTX_OPEN;
 #endif
+	return 0;
 }
 
 M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 {
-#if XXX_USE_DB5
-	int rc = 0;
-
+/* XXX_DB_BE */
+#if 0
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
 
-	if (tx->tx_state == M0_DTX_OPEN)
-		rc = m0_db_tx_commit(&tx->tx_dbtx);
+	if (tx->tx_state == M0_DTX_OPEN) {
+                m0_be_tx_close(&tx->tx_betx);
+                m0_be_tx_timedwait(&tx->tx_betx, M0_BTS_DONE, M0_TIME_NEVER);
+        }
 
 	tx->tx_state = M0_DTX_DONE;
 	m0_dtx_fini(tx);
-	return rc;
-#else
-	M0_IMPOSSIBLE("XXX Not implemented");
-	return -1;
 #endif
+	return 0;
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 {
+/* XXX_DB_BE */
+#if 0
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
 
+	m0_be_tx_fini(&tx->tx_betx);
 	m0_fol_rec_fini(&tx->tx_fol_rec);
+#endif
 }
 
 /** @} end of dtm group */

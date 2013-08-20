@@ -44,7 +44,7 @@ struct m0_chan;
 struct m0_indexvec;
 struct m0_io_scope;
 
-struct m0_db_tx;
+struct m0_be_tx_credit;
 
 /**
    @defgroup stob Storage objects
@@ -151,12 +151,22 @@ struct m0_stob_domain_op {
 	   place.
 	 */
 	int (*sdo_tx_make)(struct m0_stob_domain *dom, struct m0_dtx *tx);
+	/**
+	   Calculates the credit for write operation.
+	 */
+	void (*sdo_write_credit)(struct m0_stob_domain  *dom,
+				 m0_bcount_t             size,
+				 struct m0_be_tx_credit *accum);
 };
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t,
 				     uint64_t dom_id);
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
+
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
+				      m0_bcount_t             size,
+				      struct m0_be_tx_credit *accum);
 
 /**
    m0_stob state specifying its relationship with the underlying storage object.
@@ -220,6 +230,7 @@ struct m0_stob_op {
 	   or cache it in some internal data-structure.
 	 */
 	void (*sop_fini)(struct m0_stob *stob);
+
 	/**
 	  Create an object.
 
@@ -229,6 +240,12 @@ struct m0_stob_op {
 	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	*/
 	int (*sop_create)(struct m0_stob *stob, struct m0_dtx *tx);
+
+	/**
+	  Calculates the BE (Back-End) credit needed to create an object.
+	*/
+	void (*sop_create_credit)(struct m0_stob *stob,
+				  struct m0_be_tx_credit *accum);
 
 	/**
 	   Locate a storage object for this m0_stob.
