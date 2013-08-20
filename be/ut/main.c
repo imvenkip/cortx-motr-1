@@ -36,6 +36,7 @@ extern void m0_be_ut_log(void);
 extern void m0_be_ut_seg_create_destroy(void);
 extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
+extern void m0_be_ut_seg_multiple(void);
 
 extern void m0_be_ut_group_ondisk(void);
 
@@ -94,6 +95,7 @@ const struct m0_test_suite be_ut = {
 		{ "log (XXX NOOP)",      m0_be_ut_log                  },
 		{ "seg-open",            m0_be_ut_seg_open_close       },
 		{ "seg-io",              m0_be_ut_seg_io               },
+		{ "seg-multiple",        m0_be_ut_seg_multiple         },
 		{ "group_ondisk",        m0_be_ut_group_ondisk         },
 		{ "domain",              m0_be_ut_domain               },
 		{ "tx-states",		 m0_be_ut_tx_states	       },

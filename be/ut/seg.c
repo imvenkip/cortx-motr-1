@@ -20,6 +20,10 @@
 
 #include "be/seg.h"		/* m0_be_seg */
 
+#include "lib/thread.h"		/* M0_THREAD_INIT */
+#include "lib/semaphore.h"	/* m0_semaphore */
+#include "lib/misc.h"		/* m0_forall */
+
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
 
@@ -107,4 +111,42 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		M0_UT_ASSERT(cmp == 0);
 	}
 	m0_be_ut_seg_fini(&ut_seg);
+}
+
+enum {
+	BE_UT_SEG_THREAD_NR	= 0x10,
+	BE_UT_SEG_PER_THREAD	= 0x10,
+	BE_UT_SEG_MULTIPLE_SIZE = 0x10000,
+};
+
+static void be_ut_seg_thread_func(struct m0_semaphore *barrier)
+{
+	struct m0_be_ut_seg ut_seg;
+	int		    i;
+
+	m0_semaphore_down(barrier);
+	for (i = 0; i < BE_UT_SEG_PER_THREAD; ++i) {
+		m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_MULTIPLE_SIZE);
+		m0_be_ut_seg_fini(&ut_seg);
+	}
+}
+
+void m0_be_ut_seg_multiple(void)
+{
+	static struct m0_thread threads[BE_UT_SEG_THREAD_NR];
+	struct m0_semaphore	barrier;
+	bool			rc_bool;
+
+	m0_semaphore_init(&barrier, 0);
+	rc_bool = m0_forall(i, ARRAY_SIZE(threads),
+			    M0_THREAD_INIT(&threads[i], struct m0_semaphore *,
+					   NULL, &be_ut_seg_thread_func,
+					   &barrier, "#%dbe-seg-ut", i) == 0);
+	M0_UT_ASSERT(rc_bool);
+	m0_forall(i, ARRAY_SIZE(threads), m0_semaphore_up(&barrier), true);
+	rc_bool = m0_forall(i, ARRAY_SIZE(threads),
+			    m0_thread_join(&threads[i]) == 0);
+	M0_UT_ASSERT(rc_bool);
+	m0_forall(i, ARRAY_SIZE(threads), m0_thread_fini(&threads[i]), true);
+	m0_semaphore_fini(&barrier);
 }
