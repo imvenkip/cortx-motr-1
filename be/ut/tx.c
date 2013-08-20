@@ -200,9 +200,7 @@ void m0_be_ut_tx_empty(void)
 	rc = m0_be_tx_open_sync(&tx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_tx_close_sync(&tx);
-	M0_UT_ASSERT(rc == 0);
-
+	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 
 	m0_be_ut_backend_fini(&ut_be);
@@ -430,9 +428,7 @@ void m0_be_ut_tx_fast(void)
 		struct m0_be_tx *tx = &txs[i % ARRAY_SIZE(txs)];
 
 		if (i >= ARRAY_SIZE(txs)) {
-			rc = m0_be_tx_close_sync(tx);
-			M0_UT_ASSERT(rc == 0);
-
+			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
 

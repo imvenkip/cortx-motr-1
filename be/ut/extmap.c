@@ -61,8 +61,7 @@ static void emap_alloc(struct m0_be_tx *tx)
 	M0_BE_OP_SYNC(op, emap = m0_be_alloc(a, tx, &op, sizeof *emap, 0));
 	M0_UT_ASSERT(emap != NULL);
 
-	rc = m0_be_tx_close_sync(tx);
-	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 }
 
@@ -129,12 +128,9 @@ static void test_init(void)
 
 static void test_fini(void)
 {
-	int rc;
-
 	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx2, &op));
 
-	rc = m0_be_tx_close_sync(&tx2);
-	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_close_sync(&tx2);
 	m0_be_tx_fini(&tx2);
 
 #if 0 /* XXX DEBUGME

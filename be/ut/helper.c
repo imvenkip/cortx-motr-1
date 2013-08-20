@@ -228,8 +228,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 	}
 
 	if (ut_be != NULL) {
-		rc = m0_be_tx_close_sync(&tx);
-		M0_ASSERT(rc == 0);
+		m0_be_tx_close_sync(&tx);
 		m0_be_tx_fini(&tx);
 	}
 }
