@@ -345,7 +345,13 @@ static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
 	size_t i;
 
 	for (i = 0; i < nr; ++i) {
+		/*
+		 * XXX engine lock-unlock is temporary solution
+		 * to prevent deadlock.
+		 */
+		be_engine_unlock(en);
 		m0_be_tx_group_stop(&en->eng_group[i]);
+		be_engine_lock(en);
 		egr_tlist_del(&en->eng_group[i]);
 	}
 }
