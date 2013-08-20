@@ -24,7 +24,7 @@
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
 #include "lib/misc.h"		/* M0_SET0 */
 
-#include "be/ut/helper.c"	/* m0_be_ut_seg */
+#include "be/ut/helper.h"	/* m0_be_ut_seg */
 
 #include <stdio.h>		/* fflush */
 #include <stdlib.h>		/* rand_r */
