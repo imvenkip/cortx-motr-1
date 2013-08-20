@@ -251,21 +251,22 @@ enum {
 };
 
 /**
-   Allocates struct m0_balloc instance on back-end segment @seg
-   and initialises struct ad_balloc_ops vector.
+   Creates struct m0_balloc instance @out with container @id
+   on back-end segment @seg.
+
    One balloc instance is allocated and initialised per storage domain.
 
    @see struct ad_balloc_ops
    @pre out != NULL
  */
-M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
-				   struct m0_be_seg  *seg,
-				   struct m0_balloc **out);
+M0_INTERNAL int m0_balloc_create(uint64_t           cid,
+				 struct m0_be_seg  *seg,
+				 struct m0_balloc **out);
 
 /**
-   Frees struct m0_balloc instance from back-end segment @seg.
+   Destroys struct m0_balloc instance @bal.
  */
-M0_INTERNAL int m0_balloc_free(struct m0_balloc *bal, struct m0_be_seg *seg);
+M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal);
 
 /* Interfaces for UT */
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,

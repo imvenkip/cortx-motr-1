@@ -2229,9 +2229,9 @@ static int balloc_trees_destroy(struct m0_balloc *bal,
 	return rc;
 }
 
-M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
-				   struct m0_be_seg  *seg,
-				   struct m0_balloc **out)
+M0_INTERNAL int m0_balloc_create(uint64_t           cid,
+				 struct m0_be_seg  *seg,
+				 struct m0_balloc **out)
 {
 	struct m0_balloc       *cb;
 	struct m0_be_allocator *alloc = &seg->bs_allocator;
@@ -2302,8 +2302,9 @@ M0_INTERNAL int m0_balloc_allocate(uint64_t           cid,
 	return rc;
 }
 
-M0_INTERNAL int m0_balloc_free(struct m0_balloc *bal, struct m0_be_seg *seg)
+M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal)
 {
+	struct m0_be_seg       *seg = bal->cb_be_seg;
 	struct m0_be_allocator *alloc = &seg->bs_allocator;
 	struct m0_sm_group      sm_grp;
 	struct m0_be_tx         tx = {};
@@ -2312,11 +2313,6 @@ M0_INTERNAL int m0_balloc_free(struct m0_balloc *bal, struct m0_be_seg *seg)
 	int                     rc;
 
 	M0_ENTRY();
-
-	M0_PRE(bal != NULL);
-	M0_PRE(seg != NULL);
-
-	alloc = &seg->bs_allocator;
 
 	m0_sm_group_init(&sm_grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
