@@ -131,7 +131,7 @@ struct m0_reqh *m0_be_ut_reqh_get(void)
 	int			    rc;
 #define NAME(ext) "be-ut" ext
 	static char		   *argv[] = {
-		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+		NAME(""), "-r", "-p", "-T", "linux", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", NAME("_addb.stob"), "-w", "10",
 		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service"
 	};
