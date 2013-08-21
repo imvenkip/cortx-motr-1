@@ -124,7 +124,7 @@ static void be_ut_helper_init_once(void)
 	M0_ASSERT(rc == 0);
 }
 
-static struct m0_reqh *be_ut_reqh_get(void)
+struct m0_reqh *m0_be_ut_reqh_get(void)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	struct m0_reqh		   *reqh;
@@ -162,7 +162,7 @@ static struct m0_reqh *be_ut_reqh_get(void)
 	return reqh;
 }
 
-static void be_ut_reqh_put(struct m0_reqh *reqh)
+void m0_be_ut_reqh_put(struct m0_reqh *reqh)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	struct m0_reqh		   *reqh2;
@@ -261,7 +261,7 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 	int rc;
 
 	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
-	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = be_ut_reqh_get();
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT(rc == 0);
@@ -276,7 +276,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
-	be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+	m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
 }
 
 static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,
