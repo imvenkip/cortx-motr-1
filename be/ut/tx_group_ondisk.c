@@ -23,6 +23,8 @@
 #include "ut/ut.h"
 #include "be/ut/helper.h"
 
+#include "be/tx_group.h"	/* grp_tlist_init */
+
 enum {
 	BE_UT_TX_GROUP_ONDISK_SEG_SIZE = 0x10000,
 	BE_UT_TX_GROUP_ONDISK_ITER     = 0x100,
