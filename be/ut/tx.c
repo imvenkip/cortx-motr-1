@@ -29,14 +29,6 @@
 
 #include <stdlib.h>		/* rand_r */
 
-enum {
-	BE_UT_FAIL_REG_NR   = 1ULL << 60,
-	BE_UT_FAIL_REG_SIZE = 1ULL << 60,
-};
-
-static struct m0_be_tx_credit be_ut_tx_fail_credit =
-	M0_BE_TX_CREDIT_INIT(BE_UT_FAIL_REG_NR, BE_UT_FAIL_REG_SIZE);
-
 void m0_be_ut_tx_usecase_success(void)
 {
 	struct m0_be_ut_backend ut_be;
@@ -86,7 +78,7 @@ void m0_be_ut_tx_usecase_failure(void)
 
 	m0_be_ut_tx_init(&tx, &ut_be);
 
-	m0_be_tx_prep(&tx, &be_ut_tx_fail_credit);
+	m0_be_tx_prep(&tx, &m0_be_tx_credit_invalid);
 
 	m0_be_tx_open(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
@@ -169,7 +161,7 @@ void m0_be_ut_tx_states(void)
 	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
 	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
 
-	m0_be_tx_prep(&tx, &be_ut_tx_fail_credit);
+	m0_be_tx_prep(&tx, &m0_be_tx_credit_invalid);
 	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
 	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
 

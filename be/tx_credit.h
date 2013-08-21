@@ -68,6 +68,9 @@ struct m0_be_tx_credit {
 	m0_bcount_t tc_reg_size;
 };
 
+/* invalid m0_be_tx_credit value */
+extern struct m0_be_tx_credit m0_be_tx_credit_invalid;
+
 #define M0_BE_TX_CREDIT(name) struct m0_be_tx_credit name = {0}
 
 #define M0_BE_TX_CREDIT_INIT(nr, size) \
