@@ -54,7 +54,8 @@ struct be_ut_helper_struct {
 	struct m0_rpc_server_ctx buh_rpc_sctx;
 	int			 buh_reqh_ref_cnt;
 	pthread_once_t		 buh_once_control;
-	struct m0_mutex		 buh_lock;
+	struct m0_mutex		 buh_reqh_lock;
+	struct m0_mutex		 buh_seg_lock;
 	struct m0_stob_domain	*buh_stob_dom;
 	void			*buh_addr;
 	uint64_t		 buh_id;
@@ -74,10 +75,10 @@ static void *be_ut_seg_allocate_addr(struct be_ut_helper_struct *h,
 
 	size = m0_align(size, m0_pagesize_get());
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 	addr	     = h->buh_addr;
 	h->buh_addr += size;
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 
 	return addr;
 }
@@ -86,9 +87,9 @@ static uint64_t be_ut_seg_allocate_id(struct be_ut_helper_struct *h)
 {
 	uint64_t id;
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 	id = h->buh_id++;
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 
 	return id;
 }
@@ -99,7 +100,8 @@ static inline void be_ut_helper_fini(void)
 
 	M0_PRE(h->buh_stob_dom == NULL);
 	M0_PRE(h->buh_storage_ref_cnt == 0);
-	m0_mutex_fini(&h->buh_lock);
+	m0_mutex_fini(&h->buh_reqh_lock);
+	m0_mutex_fini(&h->buh_seg_lock);
 }
 
 /* XXX call this function from m0_init()? */
@@ -112,7 +114,8 @@ static void be_ut_helper_init(void)
 	h->buh_stob_dom	       = NULL,
 	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR,
 	h->buh_id	       = BE_UT_SEG_START_ID,
-	m0_mutex_init(&h->buh_lock);
+	m0_mutex_init(&h->buh_seg_lock);
+	m0_mutex_init(&h->buh_reqh_lock);
 	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
 }
 
@@ -138,7 +141,7 @@ struct m0_reqh *m0_be_ut_reqh_get(void)
 
 	be_ut_helper_init_once();
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_reqh_lock);
 	if (h->buh_reqh_ref_cnt == 0) {
 		h->buh_net_xprt = &m0_net_lnet_xprt;
 		h->buh_rpc_sctx = (struct m0_rpc_server_ctx) {
@@ -157,7 +160,7 @@ struct m0_reqh *m0_be_ut_reqh_get(void)
 	M0_CNT_INC(h->buh_reqh_ref_cnt);
 	reqh = m0_mero_to_rmach(&h->buh_rpc_sctx.rsx_mero_ctx)->rm_reqh;
 	M0_ASSERT(reqh != NULL);
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_reqh_lock);
 
 	return reqh;
 }
@@ -167,7 +170,7 @@ void m0_be_ut_reqh_put(struct m0_reqh *reqh)
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	struct m0_reqh		   *reqh2;
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_reqh_lock);
 	reqh2 = m0_mero_to_rmach(&h->buh_rpc_sctx.rsx_mero_ctx)->rm_reqh;
 	M0_ASSERT(reqh == reqh2);
 	M0_CNT_DEC(h->buh_reqh_ref_cnt);
@@ -175,7 +178,7 @@ void m0_be_ut_reqh_put(struct m0_reqh *reqh)
 		m0_rpc_server_stop(&h->buh_rpc_sctx);
 		m0_net_xprt_fini(h->buh_net_xprt);
 	}
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_reqh_lock);
 }
 
 static pid_t gettid_impl()
@@ -367,7 +370,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 
 	stob_id.si_bits = M0_UINT128(0, be_ut_seg_allocate_id(h));
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 
 	if (h->buh_storage_ref_cnt == 0) {
 		rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
@@ -393,7 +396,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		ut_seg->bus_stob = &ut_seg->bus_stob_;
 	}
 
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 
 	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, &ut_be->but_dom);
 	rc = m0_be_seg_create(&ut_seg->bus_seg, size,
@@ -413,7 +416,7 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 	M0_ASSERT(rc == 0);
 	m0_be_seg_fini(&ut_seg->bus_seg);
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 	if (stob_destroy)
 		m0_stob_put(ut_seg->bus_stob);
 
@@ -426,7 +429,7 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 			M0_ASSERT(rc == 0);
 		}
 	}
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 }
 
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
