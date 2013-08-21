@@ -27,6 +27,8 @@
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
 
+#include <stdlib.h>		/* rand_r */
+
 enum {
 	BE_UT_SEG_SIZE	  = 0x20000,
 	BE_UT_SEG_IO_ITER = 0x400,

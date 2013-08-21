@@ -27,6 +27,7 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "be/ut/helper.h"
 #include "ut/ut.h"
+#include <stdlib.h>	   /* atoi */
 
 extern void btree_dbg_print(struct m0_be_btree *tree);
 
