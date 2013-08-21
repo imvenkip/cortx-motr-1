@@ -22,22 +22,39 @@
 #ifndef __MERO_BE_UT_HELPER_H__
 #define __MERO_BE_UT_HELPER_H__
 
-#include "lib/types.h"   /* bool */
-#include "be/be.h"       /* m0_be */
-#include "be/domain.h"   /* m0_be_domain */
-#include "dtm/dtm.h"     /* m0_dtx */
-#include "net/net.h"     /* m0_net_xprt */
-#include "rpc/rpclib.h"  /* m0_rpc_server_ctx */
+#include "lib/types.h"		/* bool */
+
+#include "sm/sm.h"		/* m0_sm */
+#include "stob/stob.h"		/* m0_stob */
+
+#include "be/be.h"		/* m0_be */
+#include "be/domain.h"		/* m0_be_domain */
+#include "be/seg.h"		/* m0_be_seg */
+
+#include <sys/types.h>		/* pid_t */
+
+struct m0_be_ut_sm_group_thread {
+	struct m0_thread    sgt_thread;
+	pid_t		    sgt_tid;
+	struct m0_semaphore sgt_stop_sem;
+	struct m0_sm_group  sgt_grp;
+};
 
 struct m0_be_ut_backend {
-	struct m0_net_xprt      *but_net_xprt;
-	struct m0_rpc_server_ctx but_rpc_sctx;
-	struct m0_be_domain      but_dom;
-	struct m0_be_domain_cfg  but_dom_cfg;
+	struct m0_be_domain		  but_dom;
+	struct m0_be_domain_cfg		  but_dom_cfg;
+	struct m0_be_ut_sm_group_thread **but_sgt;
+	size_t				  but_sgt_size;
+	struct m0_mutex			  but_sgt_lock;
 };
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
+
+struct m0_sm_group *
+m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be);
+
+void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
 
 /* will work with single thread only */
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);

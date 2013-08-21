@@ -439,36 +439,41 @@ void m0_be_ut_tx_fast(void)
 }
 
 enum {
-	BE_UT_TX_C_SEG_SIZE      = 0x10000,
 	BE_UT_TX_C_THREAD_NR     = 0x10,
-	BE_UT_TX_C_TX_PER_THREAD = 0x100,
+	BE_UT_TX_C_TX_PER_THREAD = 0x40,
 };
 
 struct be_ut_tx_thread_state {
 	struct m0_thread	 tts_thread;
 	struct m0_be_ut_backend *tts_ut_be;
-	struct m0_be_seg	*tts_seg;
 };
 
 static void be_ut_tx_thread(struct be_ut_tx_thread_state *state)
 {
-// XXX:
+	struct m0_be_tx tx;
+	int		i;
+
+	for (i = 0; i < BE_UT_TX_C_TX_PER_THREAD; ++i) {
+		M0_SET0(&tx);
+		m0_be_ut_tx_init(&tx, state->tts_ut_be);
+		m0_be_tx_open_sync(&tx);
+		m0_be_tx_close_sync(&tx);
+		m0_be_tx_fini(&tx);
+	}
+	m0_be_ut_backend_thread_exit(state->tts_ut_be);
 }
 
 void m0_be_ut_tx_concurrent(void)
 {
 	static struct be_ut_tx_thread_state threads[BE_UT_TX_C_THREAD_NR];
 	struct m0_be_ut_backend             ut_be;
-	struct m0_be_ut_seg                 ut_seg;
 	int                                 i;
 	int                                 rc;
 
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_C_SEG_SIZE);
 
 	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
 		threads[i].tts_ut_be = &ut_be;
-		threads[i].tts_seg = &ut_seg.bus_seg;
 		rc = M0_THREAD_INIT(&threads[i].tts_thread,
 				    struct be_ut_tx_thread_state *, NULL,
 				    &be_ut_tx_thread, &threads[i],
@@ -476,11 +481,11 @@ void m0_be_ut_tx_concurrent(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
-		m0_thread_join(&threads[i].tts_thread);
+		rc = m0_thread_join(&threads[i].tts_thread);
+		M0_UT_ASSERT(rc == 0);
 		m0_thread_fini(&threads[i].tts_thread);
 	}
 
-	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
 

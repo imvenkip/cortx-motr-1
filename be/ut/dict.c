@@ -24,12 +24,11 @@
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "ut/ut.h"
 
-extern struct m0_sm_group      ut__txs_sm_group;
-
 void m0_be_ut_dict(void)
 {
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_ut_seg     ut_seg;
+	struct m0_sm_group     *grp;
 	struct m0_be_seg       *seg = &ut_seg.bus_seg;
 	void                   *p;
 	int                     i;
@@ -51,11 +50,12 @@ void m0_be_ut_dict(void)
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 
-	rc = m0_be_seg_dict_create(seg, &ut__txs_sm_group);
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_be_seg_dict_create(seg, grp);
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(dict); ++i) {
-		rc = m0_be_seg_dict_insert(seg, &ut__txs_sm_group, dict[i].name,
+		rc = m0_be_seg_dict_insert(seg, grp, dict[i].name,
 					   dict[i].value);
 		M0_UT_ASSERT(rc == 0);
 	}
@@ -66,8 +66,7 @@ void m0_be_ut_dict(void)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(dict); i+=2) {
-		rc = m0_be_seg_dict_delete(seg, &ut__txs_sm_group,
-					   dict[i].name);
+		rc = m0_be_seg_dict_delete(seg, grp, dict[i].name);
 		M0_UT_ASSERT(rc == 0);
 	}
 
