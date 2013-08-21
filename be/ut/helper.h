@@ -60,7 +60,6 @@ void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
 
 struct m0_be_ut_seg {
-	struct m0_dtx            bus_dtx;
 	/**
 	 * Stob to test. It can point to m0_be_ut_seg.bus_stob_ if
 	 * there is new stob and to existing stob if it isn't new.

@@ -382,9 +382,8 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	}
 	M0_CNT_INC(h->buh_storage_ref_cnt);
 
-	m0_dtx_init(&ut_seg->bus_dtx);
 	if (stob_create) {
-		rc = m0_stob_create_helper(h->buh_stob_dom, &ut_seg->bus_dtx,
+		rc = m0_stob_create_helper(h->buh_stob_dom, NULL,
 					   &stob_id, &ut_seg->bus_stob);
 		M0_ASSERT(rc == 0);
 	} else {
@@ -415,7 +414,6 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 	m0_mutex_lock(&h->buh_lock);
 	if (stob_destroy)
 		m0_stob_put(ut_seg->bus_stob);
-	m0_dtx_fini(&ut_seg->bus_dtx);
 
 	M0_CNT_DEC(h->buh_storage_ref_cnt);
 	if (h->buh_storage_ref_cnt == 0) {
