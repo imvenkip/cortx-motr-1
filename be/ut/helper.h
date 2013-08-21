@@ -48,6 +48,12 @@ struct m0_be_ut_backend {
 	struct m0_mutex			  but_sgt_lock;
 };
 
+/*
+ * Fill cfg with default configuration.
+ * @note bec_group_fom_reqh is not set here
+ */
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 

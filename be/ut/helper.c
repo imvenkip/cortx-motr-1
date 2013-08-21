@@ -241,25 +241,27 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
 	m0_free(sgt);
 }
 
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
+{
+	*cfg = (struct m0_be_domain_cfg) {
+		.bc_engine = {
+			.bec_group_nr = 1,
+			.bec_log_size = 1 << 27,
+			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
+				1 << 20, 1 << 26),
+			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
+				1 << 21, 1 << 27),
+			.bec_group_tx_max = 20,
+		},
+	};
+}
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	int rc;
 
-	*ut_be = (struct m0_be_ut_backend) {
-		.but_dom_cfg = {
-			.bc_engine = {
-				.bec_group_nr = 1,
-				.bec_log_size = 1 << 27,
-				.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
-					1 << 20, 1 << 26),
-				.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
-					1 << 21, 1 << 27),
-				.bec_group_tx_max = 20,
-				.bec_group_fom_reqh = be_ut_reqh_get(),
-			},
-		},
-	};
-
+	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = be_ut_reqh_get();
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT(rc == 0);
