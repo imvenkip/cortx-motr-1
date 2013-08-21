@@ -178,7 +178,7 @@ static void be_ut_reqh_put(struct m0_reqh *reqh)
 	m0_mutex_unlock(&h->buh_lock);
 }
 
-static pid_t gettid()
+static pid_t gettid_impl()
 {
 	return syscall(SYS_gettid);
 }
@@ -203,7 +203,7 @@ static int m0_be_ut_sm_group_thread_init(struct m0_be_ut_sm_group_thread **sgtp)
 	M0_ALLOC_PTR(*sgtp);
 	sgt = *sgtp;
 	if (sgt != NULL) {
-		sgt->sgt_tid = gettid();
+		sgt->sgt_tid = gettid_impl();
 		m0_sm_group_init(&sgt->sgt_grp);
 		m0_semaphore_init(&sgt->sgt_stop_sem, 0);
 		rc = M0_THREAD_INIT(&sgt->sgt_thread,
@@ -297,7 +297,7 @@ static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,
 static size_t be_ut_backend_sm_group_find(struct m0_be_ut_backend *ut_be)
 {
 	size_t i;
-	pid_t  tid = gettid();
+	pid_t  tid = gettid_impl();
 
 	for (i = 0; i < ut_be->but_sgt_size; ++i) {
 		if (ut_be->but_sgt[i]->sgt_tid == tid)
@@ -311,7 +311,7 @@ m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be)
 {
 	struct m0_be_ut_sm_group_thread	*sgt;
 	struct m0_sm_group		*grp = NULL;
-	pid_t				 tid = gettid();
+	pid_t				 tid = gettid_impl();
 	int				 rc;
 
 	m0_mutex_lock(&ut_be->but_sgt_lock);
