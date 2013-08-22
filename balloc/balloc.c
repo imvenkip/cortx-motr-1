@@ -535,8 +535,7 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
 		rc = balloc_group_write(bal, &tx, i);
 
-	rc = m0_be_tx_close_sync(&tx);
-	/* XXX error handling is missing here */
+	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 	m0_sm_group_fini(&sm_grp);
 
@@ -2294,10 +2293,11 @@ M0_INTERNAL int m0_balloc_create(uint64_t           cid,
 	}
 
 	m0_be_tx_fini(&tx);
-	m0_sm_group_fini(&sm_grp);
 
 	if (rc == 0)
-		rc = m0_be_seg_dict_insert(seg, cid_name, cb);
+		rc = m0_be_seg_dict_insert(seg, &sm_grp, cid_name, cb);
+
+	m0_sm_group_fini(&sm_grp);
 
 	return rc;
 }

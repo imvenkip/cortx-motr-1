@@ -38,9 +38,6 @@
  * @{
  */
 
-#define BE_SEG_DEFAULT_ADDR   ((void *)0x400000000000)
-#define BE_SEG_HEADER_OFFSET  (0ULL)
-
 static int
 seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 {
@@ -60,13 +57,16 @@ seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
 	seg->bs_addr = addr;
 	seg->bs_size = size;
 
-	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf, addr + BE_SEG_HEADER_OFFSET);
+	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
+			    addr + M0_BE_SEG_HEADER_OFFSET);
 	rc = m0_be_seg__write(&hdr_reg, hdrbuf);
 	m0_free(hdrbuf);
 	return rc;
 }
 
-M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
+M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
+				 m0_bcount_t size,
+				 void *addr)
 {
 	M0_PRE(seg->bs_state == M0_BSS_INIT);
 	M0_PRE(seg->bs_stob->so_domain != NULL);
@@ -75,7 +75,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
 	return m0_stob_find(seg->bs_stob->so_domain,
 			    &seg->bs_stob->so_id, &seg->bs_stob) ?:
 		m0_stob_create(seg->bs_stob, NULL) ?:
-		seg_header_create(seg, BE_SEG_DEFAULT_ADDR, size);
+		seg_header_create(seg, addr, size);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -94,8 +94,8 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_be_domain *dom)
 {
 	*seg = (struct m0_be_seg) {
-		/* XXX add BE_SEG_HEADER_OFFSET */
-		.bs_reserved = sizeof(struct m0_be_seg_hdr),
+		.bs_reserved = M0_BE_SEG_HEADER_OFFSET +
+			       sizeof(struct m0_be_seg_hdr),
 		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
@@ -143,11 +143,10 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return -ENOMEM;
 
 	/* Read segment header from storage. */
-	seg->bs_addr = BE_SEG_DEFAULT_ADDR;
-	/* XXX */
-	seg->bs_size = 1ULL << 48;
+	seg->bs_addr = (void *) hdrbuf - M0_BE_SEG_HEADER_OFFSET;
+	seg->bs_size = sizeof *hdrbuf + M0_BE_SEG_HEADER_OFFSET;
 	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-			    (char *)BE_SEG_DEFAULT_ADDR + BE_SEG_HEADER_OFFSET);
+			    seg->bs_addr + M0_BE_SEG_HEADER_OFFSET);
 	rc = m0_be_seg__read(&hdr_reg, hdrbuf);
 	if (rc == 0) {
 		seg_addr0 = hdrbuf->bh_addr;
@@ -176,13 +175,13 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	M0_ASSERT(p == seg_addr0);
 
 	/* Read whole segment from storage. */
+	seg->bs_size = seg_size;
+	seg->bs_addr = seg_addr0;
 	rc = m0_be_seg__read(&M0_BE_REG(seg, seg_size, seg_addr0), seg_addr0);
 	if (rc == 0) {
 		seg->bs_state = M0_BSS_OPENED;
 		for (i = 0; i < seg->bs_pgnr; i++)
 			seg->bs_pgmap[i] |= M0_BE_SEG_PG_PRESENT;
-		seg->bs_size = seg_size;
-		seg->bs_addr = seg_addr0;
 	}
 	return rc;
 }
@@ -199,91 +198,6 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 static inline m0_bcount_t be_seg_pgno(const struct m0_be_seg *seg, void *addr)
 {
 	return (addr - seg->bs_addr) >> seg->bs_pgshift;
-}
-
-static inline m0_bcount_t be_seg_blkno(const struct m0_be_seg *seg, void *addr)
-{
-	return (addr - seg->bs_addr) >> seg->bs_bshift;
-}
-
-/** @todo XXX replace it. copy-pasted from above */
-static void iovec_prepare2(struct m0_be_seg *seg, struct m0_be_reg_area *area,
-			   struct m0_indexvec *iv, struct m0_bufvec *bv)
-{
-	struct m0_be_reg_d *rd;
-	int		    nr;
-	int		    i;
-
-	M0_PRE(seg->bs_bshift == 0);
-
-	nr = m0_be_regmap_size(&area->bra_map);
-
-	M0_ALLOC_ARR(bv->ov_vec.v_count, nr);
-	M0_ALLOC_ARR(bv->ov_buf, nr);
-
-	M0_ALLOC_ARR(iv->iv_vec.v_count, nr);
-	M0_ALLOC_ARR(iv->iv_index, nr);
-
-	M0_ASSERT(bv->ov_vec.v_count != NULL && bv->ov_buf   != NULL);
-	M0_ASSERT(iv->iv_vec.v_count != NULL && iv->iv_index != NULL);
-
-	bv->ov_vec.v_nr = nr;
-	iv->iv_vec.v_nr = nr;
-
-	i = 0;
-	for (rd = m0_be_reg_area_first(area); rd != NULL;
-	     rd = m0_be_reg_area_next(area, rd)) {
-		bv->ov_vec.v_count[i] = rd->rd_reg.br_size;
-		bv->ov_buf[i]	      = rd->rd_buf;
-
-		iv->iv_vec.v_count[i] = rd->rd_reg.br_size;
-		iv->iv_index[i]       = be_seg_blkno(seg, rd->rd_reg.br_addr);
-		++i;
-	}
-	M0_ASSERT(i == nr);
-}
-
-static bool be_seg_stobio_cb(struct m0_clink *link)
-{
-	struct m0_be_op   *op = container_of(link, struct m0_be_op,
-					     bo_u.u_segio.si_clink);
-	struct m0_stob_io *io = &op->bo_u.u_segio.si_stobio;
-
-/* XXX: This probably should be deleted, but most likely in m0_be_op_fini() or
-   ->sd_in() of M0_BOS_SUCCESS | M0_BOS_FAILURE states...
- */
-/*        m0_clink_del_lock(link); */
-/*        m0_clink_fini(link); */
-/*        m0_stob_io_fini(io); */
-
-	op->bo_sm.sm_rc = io->si_rc;
-	m0_be_op_state_set(op, io->si_rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
-
-	return io->si_rc == 0;
-}
-
-M0_INTERNAL void m0_be_seg_write_simple(struct m0_be_seg *seg,
-					struct m0_be_op *op,
-					struct m0_be_reg_area *area)
-{
-	struct m0_stob_io *io    = &op->bo_u.u_segio.si_stobio;
-	struct m0_clink   *clink = &op->bo_u.u_segio.si_clink;
-	int                rc;
-
-	/* Set up op, clink and io structs for SEGIO write. */
-	op->bo_utype = M0_BOP_SEGIO;
-	m0_clink_init(clink, &be_seg_stobio_cb);
-
-	m0_stob_io_init(io);
-	io->si_flags        = 0;
-	io->si_opcode       = SIO_WRITE;
-	io->si_fol_rec_part = (void *)1;
-
-	iovec_prepare2(seg, area, &io->si_stob, &io->si_user);
-
-	m0_clink_add_lock(&io->si_wait, clink);
-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-	rc = m0_stob_io_launch(io, seg->bs_stob, NULL, NULL);
 }
 
 M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op)
@@ -348,54 +262,6 @@ M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg)
 			return false;
 	}
 	return true;
-}
-
-/* max: temporary solution for balloc UT. FIXME ASAP */
-
-static const char *dict_item_name = NULL;	/* XXX_DB_BE */
-static void	  *dict_item_addr = NULL;	/* XXX_DB_BE */
-
-M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg, const char *name,
-				      void **out)
-{
-	int rc;
-
-	if (dict_item_name == NULL || strcmp(name, dict_item_name) == 0) {
-		*out = NULL;
-		rc = -ENOENT;
-	} else {
-		*out = dict_item_addr;
-		rc = 0;
-	}
-	return rc;
-}
-
-M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg, const char *name,
-				      void *value)
-{
-	int rc;
-
-	if (dict_item_name == NULL) {
-		dict_item_name = strdup(name);
-		dict_item_addr = value;
-		rc = 0;
-	} else {
-		rc = -ENOMEM;
-	}
-	return rc;
-}
-
-M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name)
-{
-	int rc;
-
-	if (dict_item_name == NULL || strcmp(name, dict_item_name) == 0) {
-		rc = -ENOENT;
-	} else {
-		dict_item_name = NULL;	/* TODO memory leak here */
-		rc = 0;
-	}
-	return rc;
 }
 
 M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
@@ -470,6 +336,175 @@ M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg)
 M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg)
 {
 	return m0_be_seg__write(reg, reg->br_addr);
+}
+
+
+/* ------------------------------------------------------------------
+ * Segment dictionary implementation
+ * ------------------------------------------------------------------ */
+#define BUF_INIT_STR(str) M0_BUF_INIT(strlen(str)+1, (str))
+static m0_bcount_t dict_ksize(const void *key)
+{
+	return strlen(key)+1;
+}
+
+static m0_bcount_t dict_vsize(const void *data)
+{
+	return sizeof(void*);
+}
+
+static int dict_cmp(const void *key0, const void *key1)
+{
+	return strcmp(key0, key1);
+}
+
+static const struct m0_be_btree_kv_ops dict_ops = {
+        .ko_ksize   = dict_ksize,
+        .ko_vsize   = dict_vsize,
+        .ko_compare = dict_cmp
+};
+
+static int tx_open(struct m0_be_seg *seg, struct m0_be_tx_credit *cred,
+		   struct m0_be_tx *tx, struct m0_sm_group *grp)
+{
+        m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+        m0_be_tx_prep(tx, cred);
+        m0_be_tx_open(tx);
+        return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				  M0_TIME_NEVER);
+}
+
+M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
+				      const char *name,
+				      void **out)
+{
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(*out), out);
+
+	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, &key, &val),
+				 bo_u.u_btree.t_rc);
+}
+
+M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name,
+				      void *value)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+        struct m0_be_tx    *tx;
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(value), &value);
+	int rc;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+
+        M0_ALLOC_PTR(tx);
+        if (tx == NULL)
+                return -ENOMEM;
+
+	m0_be_btree_init(tree, seg, &dict_ops);
+	m0_be_btree_insert_credit(tree, 1, dict_ksize(name), dict_vsize(value),
+				  &cred);
+	rc = tx_open(seg, &cred, tx, grp);
+        if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+                m0_be_tx_fini(tx);
+                m0_free(tx);
+                return -EFBIG;
+        }
+
+	M0_BE_OP_SYNC(op, m0_be_btree_insert(tree, tx, &op, &key, &val));
+
+        m0_be_tx_close(tx);
+        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+        m0_be_tx_fini(tx);
+        m0_free(tx);
+        return rc;
+}
+
+M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+        struct m0_be_tx    *tx;
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	int rc;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+
+        M0_ALLOC_PTR(tx);
+        if (tx == NULL)
+                return -ENOMEM;
+
+	m0_be_btree_init(tree, seg, &dict_ops);
+	m0_be_btree_delete_credit(tree, 1, dict_ksize(name), dict_vsize(NULL),
+				  &cred);
+	rc = tx_open(seg, &cred, tx, grp) ?:
+		M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, tx, &op, &key),
+				  bo_u.u_btree.t_rc);
+        if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+                m0_be_tx_fini(tx);
+                m0_free(tx);
+                return -EFBIG;
+        }
+
+        m0_be_tx_close(tx);
+        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+        m0_be_tx_fini(tx);
+        m0_free(tx);
+        return rc;
+}
+
+M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg)
+{
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+	m0_be_btree_init(tree, seg, &dict_ops);
+}
+
+M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+        struct m0_be_tx    *tx;
+	int rc;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+
+        M0_ALLOC_PTR(tx);
+        if (tx == NULL)
+                return -ENOMEM;
+
+	m0_be_btree_init(tree, seg, &dict_ops);
+	m0_be_btree_create_credit(tree, 1, &cred);
+	m0_be_tx_credit_add
+		(&cred, &M0_BE_TX_CREDIT_OBJ(1, sizeof(struct m0_be_seg_hdr)));
+	rc = tx_open(seg, &cred, tx, grp);
+        if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+                m0_be_tx_fini(tx);
+                m0_free(tx);
+                return -EFBIG;
+        }
+
+	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
+	m0_be_tx_capture(tx, &M0_BE_REG(seg, sizeof(struct m0_be_seg_hdr),
+				       seg->bs_addr));
+
+        m0_be_tx_close(tx);
+        rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+        m0_be_tx_fini(tx);
+        m0_free(tx);
+        return rc;
 }
 
 /** @} end of be group */

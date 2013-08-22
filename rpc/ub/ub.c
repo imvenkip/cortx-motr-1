@@ -203,8 +203,6 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 
 	client->rc_ctx = (struct m0_rpc_client_ctx){
 		.rcx_net_dom               = &client->rc_net_dom,
-		.rcx_cob_dom               = &client->rc_cob_dom,
-		.rcx_cob_dom_id            = cob_dom_id,
 		.rcx_dbenv                 = &client->rc_dbenv,
 		.rcx_db_name               = strdup(db_name),
 		.rcx_nr_slots              = g_args.a_nr_slots,

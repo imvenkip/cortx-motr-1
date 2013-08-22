@@ -100,7 +100,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	M0_ASSERT(rc == 0);
 	m0_reqh_start(&ctx->rmc_reqh);
 
-	rc = m0_rpc_machine_init(&ctx->rmc_rpc, &ctx->rmc_cob_dom,
+	rc = m0_rpc_machine_init(&ctx->rmc_rpc,
 				 &ctx->rmc_net_dom, ctx->rmc_ep_addr,
 				 &ctx->rmc_reqh, &ctx->rmc_bufpool,
 				 M0_BUFFER_ANY_COLOUR,
@@ -157,7 +157,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 			  .rhia_svc       = (void*)1);
 	M0_ASSERT(rc == 0);
 	m0_reqh_start(&ctx->rmc_reqh);
-	rc = m0_rpc_machine_init(&ctx->rmc_rpc, &ctx->rmc_cob_dom,
+	rc = m0_rpc_machine_init(&ctx->rmc_rpc,
 				 &ctx->rmc_net_dom, ctx->rmc_ep_addr,
 				 &ctx->rmc_reqh, &ctx->rmc_bufpool,
 				 M0_BUFFER_ANY_COLOUR,

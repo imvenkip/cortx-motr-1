@@ -221,7 +221,9 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_ENTRY();
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
-	rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
+	rc = m0_be_tx_credit_eq(&tx->t_prepared,
+				&m0_be_tx_credit_invalid) ? -EINVAL : 0;
+	rc = rc ?: m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
 
 	be_tx_state_move(tx, rc == 0 ? M0_BTS_OPENING : M0_BTS_FAILED, rc);
 

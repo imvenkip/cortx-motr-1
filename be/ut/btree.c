@@ -27,6 +27,7 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "be/ut/helper.h"
 #include "ut/ut.h"
+#include <stdlib.h>	   /* atoi */
 
 extern void btree_dbg_print(struct m0_be_btree *tree);
 
@@ -247,8 +248,7 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	sprintf(v, "XYZ");
 	M0_BE_OP_SYNC(op, m0_be_btree_update(tree, tx, &op, &key, &val));
 
-	rc = m0_be_tx_close_sync(tx); /* Make things persistent. */
-	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
 
 	btree_dbg_print(tree);
@@ -284,8 +284,7 @@ static void destroy_tree(struct m0_be_btree *tree,
 
 	M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, tree));
 
-	rc = m0_be_tx_close_sync(tx); /* Make things persistent. */
-	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
 
 	btree_dbg_print(tree);

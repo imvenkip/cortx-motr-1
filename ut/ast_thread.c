@@ -30,6 +30,8 @@
  * @{
  */
 
+struct m0_sm_group ut__txs_sm_group;
+
 static struct {
 	bool                run;
 	struct m0_sm_group *grp;
@@ -52,7 +54,7 @@ static void ast_thread(struct m0_sm_group *grp)
 
 M0_INTERNAL int m0_ut_ast_thread_start(struct m0_sm_group *grp)
 {
-	XXX_ast_thread_sm_group = grp;	/* XXX_DB_BE */
+	m0_sm_group_init(grp);
 	g_ast.grp = grp;
 	g_ast.run = true;
 	return M0_THREAD_INIT(&g_ast.thread, struct m0_sm_group *, NULL,
@@ -64,6 +66,7 @@ M0_INTERNAL void m0_ut_ast_thread_stop(void)
 	g_ast.run = false;
 	m0_clink_signal(&g_ast.grp->s_clink);
 	m0_thread_join(&g_ast.thread);
+	m0_sm_group_fini(g_ast.grp);
 }
 
 /** @} end of XXX group */

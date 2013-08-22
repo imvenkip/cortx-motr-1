@@ -400,10 +400,13 @@ static inline int m0_be_tx_open_sync(struct m0_be_tx *tx)
 				  M0_TIME_NEVER);
 }
 
-static inline int m0_be_tx_close_sync(struct m0_be_tx *tx)
+static inline void m0_be_tx_close_sync(struct m0_be_tx *tx)
 {
+	int rc;
+
 	m0_be_tx_close(tx);
-	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
 }
 
 /** @} end of be group */

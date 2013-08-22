@@ -27,6 +27,9 @@
  * @{
  */
 
+struct m0_be_tx_credit m0_be_tx_credit_invalid =
+	M0_BE_TX_CREDIT_INIT(M0_BCOUNT_MAX, M0_BCOUNT_MAX);
+
 M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
 				     const struct m0_be_tx_credit *c1)
 {

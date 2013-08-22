@@ -541,7 +541,7 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 		return -ENOMEM;
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = m0_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep,
+	rc = m0_rpc_machine_init(rpcmach, ndom, ep,
 				 reqh, buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
 	if (rc == 0)

@@ -18,7 +18,7 @@
  * Original creation date: 4-Jul-2013
  */
 
-#include "be/tx_group_ondisk.c"
+#include "be/tx_group_ondisk.h"
 
 #include "ut/ut.h"
 #include "be/ut/helper.h"
