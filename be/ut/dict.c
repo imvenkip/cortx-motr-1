@@ -87,7 +87,6 @@ void m0_be_ut_dict(void)
 		M0_UT_ASSERT(rc == 0 && dict[i].value == p);
 	}
 
-
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
