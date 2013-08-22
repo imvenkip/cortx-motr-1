@@ -45,6 +45,7 @@ struct m0_indexvec;
 struct m0_io_scope;
 
 struct m0_be_tx_credit;
+struct m0_be_seg;
 
 /**
    @defgroup stob Storage objects
@@ -89,6 +90,8 @@ struct m0_stob_type_op {
 	*/
 	int (*sto_domain_locate)(struct m0_stob_type *type,
 				 const char *domain_name,
+				 struct m0_be_seg *be_seg,
+				 struct m0_sm_group *grp,
 				 struct m0_stob_domain **dom,
 				 uint64_t dom_id);
 };
@@ -132,7 +135,7 @@ struct m0_stob_domain_op {
 	/**
 	   Cleanup this domain: e.g. delete itself from the domain list in type.
 	*/
-	void (*sdo_fini)(struct m0_stob_domain *self);
+	void (*sdo_fini)(struct m0_stob_domain *self, struct m0_sm_group *grp);
 	/**
 	   Returns an in-memory representation for the storage object with given
 	   identifier in this domain, either by creating a new m0_stob or

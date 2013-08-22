@@ -95,8 +95,8 @@ static int be_tx_init_open(struct m0_be_tx *tx,
 	m0_be_tx_prep(tx, cred);
 	m0_be_tx_open(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
-						M0_BTS_FAILED),
-				    M0_TIME_NEVER);
+					    M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	return rc;
@@ -358,14 +358,12 @@ extern struct m0_sm_group ut__txs_sm_group;
 
 static int _init(void)
 {
-	m0_sm_group_init(&ut__txs_sm_group);
 	return m0_ut_ast_thread_start(&ut__txs_sm_group);
 }
 
 static int _fini(void)
 {
 	m0_ut_ast_thread_stop();
-	m0_sm_group_fini(&ut__txs_sm_group);
 	return 0;
 }
 

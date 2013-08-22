@@ -122,6 +122,8 @@ M0_INTERNAL void m0_ad_stobs_fini(void);
    @param stob - linux backend stob object for AD.
  */
 M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
+				         struct m0_be_seg *be_seg,
+				         struct m0_sm_group *grp,
 				         struct m0_stob_domain **dom,
 				         struct m0_stob *stob);
 

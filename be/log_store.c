@@ -138,7 +138,7 @@ M0_INTERNAL void m0_be_log_store_destroy(struct m0_be_log_store *ls)
 	m0_stob_put(ls->ls_stob);
 
 	m0_dtx_fini(&be_log_store_dtx);
-	be_log_store_stob_dom->sd_ops->sdo_fini(be_log_store_stob_dom);
+	be_log_store_stob_dom->sd_ops->sdo_fini(be_log_store_stob_dom, NULL);
 
 #ifdef BE_LOG_STOR_DESTOROY_STOB
 	rc = system("rm -rf " BE_LOG_STORAGE_DIR);

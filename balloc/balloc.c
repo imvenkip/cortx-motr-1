@@ -2230,7 +2230,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 				 struct m0_balloc  **out)
 {
 	struct m0_balloc       *cb;
-	struct m0_be_allocator *alloc = &seg->bs_allocator;
+	struct m0_be_allocator *alloc;
 	struct m0_be_btree      btree;
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_INIT(0, 0);

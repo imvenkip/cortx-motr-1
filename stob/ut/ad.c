@@ -85,6 +85,7 @@ static struct m0_dtx tx;
 struct m0_be_ut_backend	 ut_be;
 struct m0_be_ut_seg	 ut_seg;
 static struct m0_be_seg *db;
+static struct m0_sm_group *sm_grp;
 static uint32_t block_shift;
 static uint32_t buf_size;
 
@@ -156,7 +157,6 @@ static int test_ad_init(void)
 	int	i;
 	int	result;
 
-	m0_sm_group_init(&ut__txs_sm_group);
 	result = m0_ut_ast_thread_start(&ut__txs_sm_group);
 	if (result != 0)
 		goto out;
@@ -176,6 +176,8 @@ static int test_ad_init(void)
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	db = &ut_seg.bus_seg;
 
+	sm_grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+
 	result = m0_linux_stob_domain_locate("./__s", &dom_back);
 	M0_ASSERT(result == 0);
 
@@ -187,10 +189,11 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj_back->so_state == CSS_EXISTS);
 
-	result = m0_ad_stob_domain_locate("", &dom_fore, obj_back);
+	result = m0_ad_stob_domain_locate("", db, sm_grp,
+					  &dom_fore, obj_back);
 	M0_ASSERT(result == 0);
 
-	result = m0_ad_stob_setup(dom_fore, db, &ut__txs_sm_group, obj_back,
+	result = m0_ad_stob_setup(dom_fore, db, sm_grp, obj_back,
 				  &mb.mb_ballroom,
 				  BALLOC_DEF_CONTAINER_SIZE,
 				  BALLOC_DEF_BLOCK_SHIFT,
@@ -210,7 +213,7 @@ static int test_ad_init(void)
 	buf_size = max_check(MIN_BUF_SIZE
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
-	m0_dtx_init(&tx, db->bs_domain, &ut__txs_sm_group);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	dom_fore->sd_ops->sdo_write_credit(dom_fore,
 				buf_size * (NR * NR / 2) /* test_ad() */ +
 				buf_size * NR, /* test_ad_rw_unordered() */
@@ -253,11 +256,10 @@ static int test_ad_fini(void)
 	int i;
 
 	m0_dtx_done(&tx);
-	m0_dtx_fini(&tx);
 
 	m0_stob_put(obj_fore);
-	dom_fore->sd_ops->sdo_fini(dom_fore);
-	dom_back->sd_ops->sdo_fini(dom_back);
+	dom_fore->sd_ops->sdo_fini(dom_fore, sm_grp);
+	dom_back->sd_ops->sdo_fini(dom_back, NULL);
 
 	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
@@ -270,7 +272,6 @@ static int test_ad_fini(void)
 		m0_free(read_buf[i]);
 
 	m0_ut_ast_thread_stop();
-	m0_sm_group_fini(&ut__txs_sm_group);
 
 	return 0;
 }
@@ -397,12 +398,16 @@ static void test_ad(void)
 
 static void test_ad_undo(void)
 {
+	struct m0_be_tx_credit  cred = {0};
 	int                     result;
 	struct m0_fol_rec_part *rpart;
 
 	m0_dtx_done(&tx);
 
-	m0_dtx_init(&tx, db->bs_domain, &ut__txs_sm_group);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
+	dom_fore->sd_ops->sdo_write_credit(dom_fore,
+				buf_size * 2, &cred);
+	m0_be_tx_prep(&tx.tx_betx, &cred);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 
@@ -424,9 +429,8 @@ static void test_ad_undo(void)
 	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
 	m0_dtx_done(&tx);
-	m0_dtx_fini(&tx);
 
-	m0_dtx_init(&tx, db->bs_domain, &ut__txs_sm_group);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	test_read(1);
