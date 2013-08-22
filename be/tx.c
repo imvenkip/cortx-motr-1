@@ -32,6 +32,8 @@
 #include "be/domain.h"		/* m0_be_domain_engine */
 #include "be/engine.h"		/* m0_be_engine__tx_state_set */
 
+#include <stddef.h>		/* ptrdiff_t */
+
 /**
  * @addtogroup be
  *
