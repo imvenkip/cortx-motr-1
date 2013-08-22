@@ -99,6 +99,7 @@ static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 }
 
 static int mock_balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+			    struct m0_sm_group *grp,
 			    uint32_t bshift, m0_bindex_t container_size,
 			    m0_bcount_t groupsize, m0_bcount_t res_groups)
 {
@@ -189,7 +190,8 @@ static int test_ad_init(void)
 	result = m0_ad_stob_domain_locate("", &dom_fore, obj_back);
 	M0_ASSERT(result == 0);
 
-	result = m0_ad_stob_setup(dom_fore, db, obj_back, &mb.mb_ballroom,
+	result = m0_ad_stob_setup(dom_fore, db, &ut__txs_sm_group, obj_back,
+				  &mb.mb_ballroom,
 				  BALLOC_DEF_CONTAINER_SIZE,
 				  BALLOC_DEF_BLOCK_SHIFT,
 				  BALLOC_DEF_BLOCKS_PER_GROUP,

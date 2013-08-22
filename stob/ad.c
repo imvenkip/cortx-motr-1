@@ -305,6 +305,7 @@ static uint32_t ad_bshift(const struct ad_domain *adom)
 
 M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
 				 struct m0_be_seg *be_seg,
+				 struct m0_sm_group *grp,
 				 struct m0_stob *bstore,
 				 struct m0_ad_balloc *ballroom,
 				 m0_bcount_t container_size, uint32_t bshift,
@@ -329,7 +330,7 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
 	M0_PRE(container_size > groupsize);
 	M0_PRE(container_size / groupsize > res_groups);
 
-	result = ballroom->ab_ops->bo_init(ballroom, be_seg, bshift,
+	result = ballroom->ab_ops->bo_init(ballroom, be_seg, grp, bshift,
 					   container_size, blocks_per_group,
 					   res_groups);
 	if (result == 0) {

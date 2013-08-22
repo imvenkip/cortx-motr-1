@@ -73,6 +73,7 @@ struct m0_ad_balloc_ops {
 	    @param res_groups # of reserved groups
 	 */
 	int  (*bo_init)(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+			struct m0_sm_group *grp,
 			uint32_t bshift, m0_bcount_t container_size,
 			m0_bcount_t blocks_per_group, m0_bcount_t res_groups);
 	/** Finalises and destroys struct m0_balloc instance. */
@@ -105,10 +106,12 @@ struct m0_ad_balloc_ops {
    @param blocks_per_group - Number of blocks per group;
    @param res_groups - Number of reserved groups.
  */
-M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *adom,
-				 struct m0_be_seg *be, struct m0_stob *bstore,
+M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
+				 struct m0_be_seg *be_seg,
+				 struct m0_sm_group *grp,
+				 struct m0_stob *bstore,
 				 struct m0_ad_balloc *ballroom,
-				 m0_bindex_t container_size, uint32_t bshift,
+				 m0_bcount_t container_size, uint32_t bshift,
 				 m0_bcount_t blocks_per_group,
 				 m0_bcount_t res_groups);
 

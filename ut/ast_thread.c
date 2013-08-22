@@ -38,8 +38,6 @@ static struct {
 	struct m0_thread    thread;
 } g_ast;
 
-struct m0_sm_group *XXX_ast_thread_sm_group;	/* XXX_DB_BE */
-
 static void ast_thread(struct m0_sm_group *grp)
 {
 	struct m0_sm_group *g = grp;
