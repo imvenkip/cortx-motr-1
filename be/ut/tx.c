@@ -29,14 +29,6 @@
 
 #include <stdlib.h>		/* rand_r */
 
-enum {
-	BE_UT_FAIL_REG_NR   = 1ULL << 60,
-	BE_UT_FAIL_REG_SIZE = 1ULL << 60,
-};
-
-static struct m0_be_tx_credit be_ut_tx_fail_credit =
-	M0_BE_TX_CREDIT_INIT(BE_UT_FAIL_REG_NR, BE_UT_FAIL_REG_SIZE);
-
 void m0_be_ut_tx_usecase_success(void)
 {
 	struct m0_be_ut_backend ut_be;
@@ -86,7 +78,7 @@ void m0_be_ut_tx_usecase_failure(void)
 
 	m0_be_ut_tx_init(&tx, &ut_be);
 
-	m0_be_tx_prep(&tx, &be_ut_tx_fail_credit);
+	m0_be_tx_prep(&tx, &m0_be_tx_credit_invalid);
 
 	m0_be_tx_open(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
@@ -169,7 +161,7 @@ void m0_be_ut_tx_states(void)
 	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
 	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
 
-	m0_be_tx_prep(&tx, &be_ut_tx_fail_credit);
+	m0_be_tx_prep(&tx, &m0_be_tx_credit_invalid);
 	M0_UT_ASSERT(tx.t_sm.sm_rc == 0);
 	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_PREPARE);
 
@@ -200,9 +192,7 @@ void m0_be_ut_tx_empty(void)
 	rc = m0_be_tx_open_sync(&tx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_tx_close_sync(&tx);
-	M0_UT_ASSERT(rc == 0);
-
+	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 
 	m0_be_ut_backend_fini(&ut_be);
@@ -430,9 +420,7 @@ void m0_be_ut_tx_fast(void)
 		struct m0_be_tx *tx = &txs[i % ARRAY_SIZE(txs)];
 
 		if (i >= ARRAY_SIZE(txs)) {
-			rc = m0_be_tx_close_sync(tx);
-			M0_UT_ASSERT(rc == 0);
-
+			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
 
@@ -451,36 +439,41 @@ void m0_be_ut_tx_fast(void)
 }
 
 enum {
-	BE_UT_TX_C_SEG_SIZE      = 0x10000,
 	BE_UT_TX_C_THREAD_NR     = 0x10,
-	BE_UT_TX_C_TX_PER_THREAD = 0x100,
+	BE_UT_TX_C_TX_PER_THREAD = 0x40,
 };
 
 struct be_ut_tx_thread_state {
 	struct m0_thread	 tts_thread;
 	struct m0_be_ut_backend *tts_ut_be;
-	struct m0_be_seg	*tts_seg;
 };
 
 static void be_ut_tx_thread(struct be_ut_tx_thread_state *state)
 {
-// XXX:
+	struct m0_be_tx tx;
+	int		i;
+
+	for (i = 0; i < BE_UT_TX_C_TX_PER_THREAD; ++i) {
+		M0_SET0(&tx);
+		m0_be_ut_tx_init(&tx, state->tts_ut_be);
+		m0_be_tx_open_sync(&tx);
+		m0_be_tx_close_sync(&tx);
+		m0_be_tx_fini(&tx);
+	}
+	m0_be_ut_backend_thread_exit(state->tts_ut_be);
 }
 
 void m0_be_ut_tx_concurrent(void)
 {
 	static struct be_ut_tx_thread_state threads[BE_UT_TX_C_THREAD_NR];
 	struct m0_be_ut_backend             ut_be;
-	struct m0_be_ut_seg                 ut_seg;
 	int                                 i;
 	int                                 rc;
 
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_C_SEG_SIZE);
 
 	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
 		threads[i].tts_ut_be = &ut_be;
-		threads[i].tts_seg = &ut_seg.bus_seg;
 		rc = M0_THREAD_INIT(&threads[i].tts_thread,
 				    struct be_ut_tx_thread_state *, NULL,
 				    &be_ut_tx_thread, &threads[i],
@@ -488,11 +481,11 @@ void m0_be_ut_tx_concurrent(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
-		m0_thread_join(&threads[i].tts_thread);
+		rc = m0_thread_join(&threads[i].tts_thread);
+		M0_UT_ASSERT(rc == 0);
 		m0_thread_fini(&threads[i].tts_thread);
 	}
 
-	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
 

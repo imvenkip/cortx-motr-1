@@ -35,8 +35,6 @@
 #include "balloc.h"
 #include "mero/magic.h"
 
-#include "ut/ast_thread.h"	/* XXX_ast_thread_sm_group */ /* XXX_DB_BE */
-
 /**
    M0 Data Block Allocator.
    BALLOC is a multi-block allocator, with pre-allocation. All metadata about
@@ -351,18 +349,16 @@ static void balloc_sb_sync(struct m0_balloc *cb, struct m0_be_tx *tx)
 	M0_LEAVE();
 }
 
-static int sb_update(struct m0_balloc *bal)
+static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 {
-	struct m0_sm_group               sm_grp;
 	struct m0_be_tx                  tx = {};
 	struct m0_be_tx_credit           cred;
 	int				 rc;
 
 	bal->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 
-	m0_sm_group_init(&sm_grp);
 	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
-		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
+		      grp, NULL, NULL, NULL, NULL);
 	cred = M0_BE_TX_CREDIT_TYPE(bal->cb_sb);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
@@ -372,13 +368,13 @@ static int sb_update(struct m0_balloc *bal)
 		/* XXX error handling is missing here */
 	}
 	m0_be_tx_fini(&tx);
-	m0_sm_group_fini(&sm_grp);
 
 	return rc;
 }
 
 static int balloc_sb_write(struct m0_balloc            *bal,
-			   struct m0_balloc_format_req *req)
+			   struct m0_balloc_format_req *req,
+			   struct m0_sm_group          *grp)
 {
 	int				 rc;
 	struct timeval			 now;
@@ -429,7 +425,7 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 	sb->bsb_max_mnt_count	= 1024;
 	sb->bsb_stripe_size	= 0;
 
-	rc = sb_update(bal);
+	rc = sb_update(bal, grp);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "super_block update failed: rc=%d", rc);
 
@@ -499,12 +495,11 @@ static int balloc_group_write(struct m0_balloc            *bal,
 	M0_RETURN(rc);
 }
 
-static int balloc_groups_write(struct m0_balloc *bal)
+static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
 {
 	int				 rc;
 	m0_bcount_t			 i;
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
-	struct m0_sm_group               sm_grp;
 	struct m0_be_tx                  tx = {};
 	struct m0_be_tx_credit           cred = M0_BE_TX_CREDIT_INIT(0, 0);
 
@@ -517,9 +512,8 @@ static int balloc_groups_write(struct m0_balloc *bal)
 		M0_RETURN(-ENOMEM);
 	}
 
-	m0_sm_group_init(&sm_grp);
 	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
-		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
+		      grp, NULL, NULL, NULL, NULL);
 	m0_be_btree_insert_credit(&bal->cb_db_group_extents,
 		2 * sb->bsb_groupcount,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
@@ -535,10 +529,8 @@ static int balloc_groups_write(struct m0_balloc *bal)
 	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
 		rc = balloc_group_write(bal, &tx, i);
 
-	rc = m0_be_tx_close_sync(&tx);
-	/* XXX error handling is missing here */
+	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
-	m0_sm_group_fini(&sm_grp);
 
 	M0_RETURN(rc);
 }
@@ -557,17 +549,18 @@ static int balloc_groups_write(struct m0_balloc *bal)
    @return 0 means success. Otherwise, error number will be returned.
  */
 static int balloc_format(struct m0_balloc *bal,
-			 struct m0_balloc_format_req *req)
+			 struct m0_balloc_format_req *req,
+			 struct m0_sm_group *grp)
 {
 	int rc;
 
 	M0_ENTRY();
 
-	rc = balloc_sb_write(bal, req);
+	rc = balloc_sb_write(bal, req, grp);
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	rc = balloc_groups_write(bal);
+	rc = balloc_groups_write(bal, grp);
 
 	M0_RETURN(rc);
 }
@@ -632,7 +625,7 @@ static int balloc_load_group_info(struct m0_balloc *cb,
 	return rc;
 }
 
-static int sb_mount(struct m0_balloc *bal)
+static int sb_mount(struct m0_balloc *bal, struct m0_sm_group *grp)
 {
 	struct timeval now;
 
@@ -640,7 +633,7 @@ static int sb_mount(struct m0_balloc *bal)
 	bal->cb_sb.bsb_mnt_time = ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
 	++bal->cb_sb.bsb_mnt_count;
 
-	return sb_update(bal);
+	return sb_update(bal, grp);
 }
 
 /*
@@ -651,6 +644,7 @@ static int sb_mount(struct m0_balloc *bal)
  */
 static int balloc_init_internal(struct m0_balloc *bal,
 				struct m0_be_seg *seg,
+				struct m0_sm_group *grp,
 				uint32_t bshift,
 				m0_bcount_t container_size,
 				m0_bcount_t blocks_per_group,
@@ -678,7 +672,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		req.bfr_groupsize = blocks_per_group;
 		req.bfr_reserved_groups = res_groups;
 
-		rc = balloc_format(bal, &req);
+		rc = balloc_format(bal, &req, grp);
 		if (rc != 0)
 			balloc_fini_internal(bal);
 		M0_RETURN(rc);
@@ -711,7 +705,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		/* TODO verify the super_block info based on the group info */
 	}
 
-	rc = sb_mount(bal);
+	rc = sb_mount(bal, grp);
 out:
 	if (rc != 0)
 		balloc_fini_internal(bal);
@@ -2135,6 +2129,7 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 }
 
 static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+		       struct m0_sm_group *grp,
 		       uint32_t bshift, m0_bcount_t container_size,
 		       m0_bcount_t blocks_per_group, m0_bcount_t res_groups)
 {
@@ -2144,7 +2139,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 
 	mero = b2m0(ballroom);
 
-	rc = balloc_init_internal(mero, db, bshift, container_size,
+	rc = balloc_init_internal(mero, db, grp, bshift, container_size,
 				     blocks_per_group, res_groups);
 
 	M0_LEAVE();
@@ -2229,14 +2224,14 @@ static int balloc_trees_destroy(struct m0_balloc *bal,
 	return rc;
 }
 
-M0_INTERNAL int m0_balloc_create(uint64_t           cid,
-				 struct m0_be_seg  *seg,
-				 struct m0_balloc **out)
+M0_INTERNAL int m0_balloc_create(uint64_t            cid,
+				 struct m0_be_seg   *seg,
+				 struct m0_sm_group *grp,
+				 struct m0_balloc  **out)
 {
 	struct m0_balloc       *cb;
-	struct m0_be_allocator *alloc = &seg->bs_allocator;
+	struct m0_be_allocator *alloc;
 	struct m0_be_btree      btree;
-	struct m0_sm_group      sm_grp;
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_INIT(0, 0);
 	struct m0_be_op         op;
@@ -2253,9 +2248,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t           cid,
 
 	alloc = &seg->bs_allocator;
 
-	m0_sm_group_init(&sm_grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
-		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
+		      grp, NULL, NULL, NULL, NULL);
 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *cb, 0, &cred);
 	m0_be_btree_init(&btree, seg, &ge_btree_ops);
 	m0_be_btree_create_credit(&btree, 1, &cred);
@@ -2294,19 +2288,19 @@ M0_INTERNAL int m0_balloc_create(uint64_t           cid,
 	}
 
 	m0_be_tx_fini(&tx);
-	m0_sm_group_fini(&sm_grp);
 
 	if (rc == 0)
-		rc = m0_be_seg_dict_insert(seg, cid_name, cb);
+		rc = m0_be_seg_dict_insert(seg, grp,
+					cid_name, cb);
 
 	return rc;
 }
 
-M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal)
+M0_INTERNAL int m0_balloc_destroy(struct m0_balloc   *bal,
+				  struct m0_sm_group *grp)
 {
 	struct m0_be_seg       *seg = bal->cb_be_seg;
 	struct m0_be_allocator *alloc = &seg->bs_allocator;
-	struct m0_sm_group      sm_grp;
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = {};
 	struct m0_be_op         op;
@@ -2314,9 +2308,8 @@ M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal)
 
 	M0_ENTRY();
 
-	m0_sm_group_init(&sm_grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
-		      XXX_ast_thread_sm_group, NULL, NULL, NULL, NULL);
+		      grp, NULL, NULL, NULL, NULL);
 	m0_be_allocator_credit(alloc, M0_BAO_FREE, sizeof *bal, 0, &cred);
 	m0_be_btree_destroy_credit(&bal->cb_db_group_extents, 1, &cred);
 	m0_be_btree_destroy_credit(&bal->cb_db_group_desc, 1, &cred);
@@ -2336,7 +2329,6 @@ M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal)
 	}
 
 	m0_be_tx_fini(&tx);
-	m0_sm_group_fini(&sm_grp);
 
 	M0_RETURN(rc);
 }

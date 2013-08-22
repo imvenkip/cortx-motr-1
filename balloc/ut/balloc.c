@@ -95,8 +95,8 @@ static int be_tx_init_open(struct m0_be_tx *tx,
 	m0_be_tx_prep(tx, cred);
 	m0_be_tx_open(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
-						M0_BTS_FAILED),
-				    M0_TIME_NEVER);
+					    M0_BTS_FAILED),
+				M0_TIME_NEVER);
 	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	return rc;
@@ -118,6 +118,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 {
 	struct m0_balloc *mero_balloc;
 	struct m0_dtx	  dtx;
+	struct m0_sm_group *grp;
 	struct m0_be_tx_credit cred;
 	struct m0_be_tx  *tx = &dtx.tx_betx;
 	int		  result;
@@ -130,11 +131,12 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	time(&now);
 	srand(now);
 
-	result = m0_balloc_create(0, seg, &mero_balloc);
+	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
+	result = m0_balloc_create(0, seg, grp, &mero_balloc);
 	M0_UT_ASSERT(result == 0);
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
-		(&mero_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
+		(&mero_balloc->cb_ballroom, seg, grp, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
@@ -308,7 +310,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			M0_UT_ASSERT(result == 0);
 		}
 
-		result = m0_balloc_destroy(mero_balloc);
+		result = m0_balloc_destroy(mero_balloc, grp);
 		M0_UT_ASSERT(result == 0);
 
 		mero_balloc->cb_ballroom.ab_ops->bo_fini(
@@ -325,10 +327,11 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 void test_balloc()
 {
+	struct m0_sm_group      *grp;
 	struct m0_be_ut_backend	 ut_be;
 	struct m0_be_ut_seg	 ut_seg;
 	struct m0_be_seg	*seg;
-	int			 result;
+	int			 rc;
 
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
@@ -336,9 +339,15 @@ void test_balloc()
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	seg = &ut_seg.bus_seg;
 
-	result = test_balloc_ut_ops(&ut_be, seg);
-	M0_UT_ASSERT(result == 0);
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_be_seg_dict_create(seg, grp);
+	M0_ASSERT(rc == 0);
 
+	rc = test_balloc_ut_ops(&ut_be, seg);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_seg_dict_destroy(seg, grp);
+	M0_ASSERT(rc == 0);
 	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
@@ -349,16 +358,15 @@ extern struct m0_sm_group ut__txs_sm_group;
 
 static int _init(void)
 {
-	m0_sm_group_init(&ut__txs_sm_group);
 	return m0_ut_ast_thread_start(&ut__txs_sm_group);
 }
 
 static int _fini(void)
 {
 	m0_ut_ast_thread_stop();
-	m0_sm_group_fini(&ut__txs_sm_group);
 	return 0;
 }
+
 const struct m0_test_suite balloc_ut = {
         .ts_name  = "balloc-ut",
 	.ts_init = _init,

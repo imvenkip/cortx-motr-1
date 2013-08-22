@@ -126,8 +126,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 	m0_be_op_fini(&op);
 
 	if (ut_be != NULL) {
-		rc = m0_be_tx_close_sync(tx);
-		M0_UT_ASSERT(rc == 0);
+		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	}
 }

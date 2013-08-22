@@ -130,23 +130,11 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 
 static int dbcob_init(struct m0_rpc_client_ctx *cctx)
 {
-	int rc;
-	struct m0_cob_domain_id cob_dom_id = { .id = cctx->rcx_cob_dom_id };
-
-	rc = m0_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cob_domain_init(cctx->rcx_cob_dom, cctx->rcx_dbenv,
-				&cob_dom_id);
-	if (rc != 0)
-		m0_dbenv_fini(cctx->rcx_dbenv);
-	return rc;
+	return m0_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
 }
 
 static void dbcob_fini(struct m0_rpc_client_ctx *cctx)
 {
-	m0_cob_domain_fini(cctx->rcx_cob_dom);
 	m0_dbenv_fini(cctx->rcx_dbenv);
 }
 
@@ -182,7 +170,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 		goto err;
 	m0_reqh_start(&cctx->rcx_reqh);
 
-	rc = m0_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
+	rc = m0_rpc_machine_init(&cctx->rcx_rpc_machine,
 				 cctx->rcx_net_dom, cctx->rcx_local_addr,
 				 &cctx->rcx_reqh,
 				 &cctx->rcx_buffer_pool, M0_BUFFER_ANY_COLOUR,

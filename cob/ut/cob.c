@@ -40,18 +40,14 @@ static struct m0_cob_domain    dom;
 static struct m0_cob          *cob;
 
 extern struct m0_sm_group      ut__txs_sm_group;
-extern int m0_be_ut_init(void);
-extern int m0_be_ut_fini(void);
 
 static int ut_init(void)
 {
-	m0_be_ut_init();
 	return 0;
 }
 
 static int ut_fini(void)
 {
-	m0_be_ut_fini();
 	return 0;
 }
 

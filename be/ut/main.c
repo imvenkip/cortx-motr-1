@@ -21,6 +21,11 @@
 #include "ut/ut.h"
 #include "be/ut/helper.h"
 
+/*
+ * TODO
+ * - XXX s/rand_r/m0_rnd/g
+ */
+
 extern void m0_be_ut_reg_d_tree(void);
 extern void m0_be_ut_regmap_simple(void);
 extern void m0_be_ut_regmap_random(void);
@@ -33,10 +38,10 @@ extern void m0_be_ut_log_store_reserve(void);
 extern void m0_be_ut_log_store_io(void);
 extern void m0_be_ut_log(void);
 
-extern void m0_be_ut_seg_init_fini(void);
 extern void m0_be_ut_seg_create_destroy(void);
 extern void m0_be_ut_seg_open_close(void);
 extern void m0_be_ut_seg_io(void);
+extern void m0_be_ut_seg_multiple(void);
 
 extern void m0_be_ut_group_ondisk(void);
 
@@ -61,12 +66,13 @@ extern void m0_be_ut_alloc_transactional(void);
 extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
+extern void m0_be_ut_dict(void);
 
 
 const struct m0_test_suite be_ut = {
 	.ts_name = "be-ut",
-	.ts_init = m0_be_ut_init,
-	.ts_fini = m0_be_ut_fini,
+	.ts_init = NULL,
+	.ts_fini = NULL,
 	.ts_tests = {
 		{ "reg_d_tree",          m0_be_ut_reg_d_tree           },
 		{ "regmap-simple",       m0_be_ut_regmap_simple        },
@@ -80,6 +86,7 @@ const struct m0_test_suite be_ut = {
 		{ "log (XXX NOOP)",      m0_be_ut_log                  },
 		{ "seg-open",            m0_be_ut_seg_open_close       },
 		{ "seg-io",              m0_be_ut_seg_io               },
+		{ "seg-multiple",        m0_be_ut_seg_multiple         },
 		{ "group_ondisk",        m0_be_ut_group_ondisk         },
 		{ "domain",              m0_be_ut_domain               },
 		{ "tx-states",           m0_be_ut_tx_states            },
@@ -90,7 +97,7 @@ const struct m0_test_suite be_ut = {
 		{ "tx-several",          m0_be_ut_tx_several           },
 		{ "tx-persistence",      m0_be_ut_tx_persistence       },
 		{ "tx-fast",             m0_be_ut_tx_fast              },
-		{ "tx-concurrent (XXX WIP)", m0_be_ut_tx_concurrent    },
+		{ "tx-concurrent",	 m0_be_ut_tx_concurrent	       },
 		{ "alloc-init",          m0_be_ut_alloc_init_fini      },
 		{ "alloc-create",        m0_be_ut_alloc_create_destroy },
 		{ "alloc-multiple",      m0_be_ut_alloc_multiple       },
@@ -99,6 +106,7 @@ const struct m0_test_suite be_ut = {
 		{ "list",                m0_be_ut_list_api             },
 		{ "btree",               m0_be_ut_btree_simple         },
 		{ "emap",                m0_be_ut_emap                 },
+		{ "dict",                m0_be_ut_dict                 },
 		{ NULL, NULL }
 	}
 };

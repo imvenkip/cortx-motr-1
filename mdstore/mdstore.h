@@ -92,6 +92,7 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore      *md,
 M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 				struct m0_cob_domain_id *id,
 				struct m0_dbenv         *db,
+				//struct m0_be_seg        *seg,
 				bool                     init_root);
 
 /**

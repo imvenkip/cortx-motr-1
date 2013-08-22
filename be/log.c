@@ -26,6 +26,7 @@
 #include "lib/errno.h"		/* ENOSYS */
 
 #include "be/tx_group_ondisk.h"	/* m0_be_group_ondisk_serialize */
+#include "be/tx_group.h"	/* m0_be_tx_group */
 
 /**
  * @addtogroup be

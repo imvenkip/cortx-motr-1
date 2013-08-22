@@ -99,7 +99,8 @@ static void linux_stob_type_fini(struct m0_stob_type *stype)
 
    Finalizes all still existing in-memory objects.
  */
-static void linux_domain_fini(struct m0_stob_domain *self)
+static void linux_domain_fini(struct m0_stob_domain *self,
+			      struct m0_sm_group *grp)
 {
 	struct linux_domain *ldom;
 
@@ -121,6 +122,8 @@ static void linux_domain_fini(struct m0_stob_domain *self)
  */
 static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 					 const char *domain_name,
+					 struct m0_be_seg *be_seg,
+				         struct m0_sm_group *grp,
 					 struct m0_stob_domain **out,
 					 uint64_t dom_id)
 {
@@ -142,7 +145,7 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 		if (result == 0)
 			*out = dom;
 		else
-			linux_domain_fini(dom);
+			linux_domain_fini(dom, NULL);
 		ldom->sdl_use_directio = false;
 		dom->sd_name = ldom->sdl_path;
 	} else {
@@ -159,7 +162,7 @@ M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
 
 	return lstat(domain_name, &info) ?:
 	       M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_domain_locate,
-			       domain_name, dom, info.st_ino);
+			       domain_name, NULL, NULL, dom, info.st_ino);
 }
 
 

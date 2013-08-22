@@ -135,14 +135,15 @@ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map);
 /**
     Create maps collection.
 
+    m0_be_emap_init() should be called beforehand.
+
     @param db - data-base environment used for persistency and transactional
     support.
     @note m0_be_emap_init() should be called before this routine.
  */
 M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 				   struct m0_be_tx   *tx,
-				   struct m0_be_op   *op,
-				   struct m0_be_seg  *db);
+				   struct m0_be_op   *op);
 
 /** Destroy maps collection. */
 M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
@@ -364,6 +365,10 @@ M0_INTERNAL void m0_be_emap_caret_fini(struct m0_be_emap_caret *car);
  */
 M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 				      m0_bcount_t              count);
+
+/** Synchronous equivalent of m0_be_emap_caret_move(). */
+M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
+				           m0_bcount_t              count);
 
 /** Returns how far is the end of extent. */
 M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret*);

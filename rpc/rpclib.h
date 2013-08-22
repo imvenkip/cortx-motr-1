@@ -85,7 +85,7 @@ struct m0_rpc_server_ctx {
 
   @param sctx  Initialized rpc context structure.
 
-  @pre sctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
+  @pre sctx->rcx_dbenv is initialized
 */
 int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx);
 
@@ -133,15 +133,6 @@ struct m0_rpc_client_ctx {
 	 * m0_rpc_client_start()
 	 */
 	struct m0_dbenv           *rcx_dbenv;
-
-	/** Identity of cob used by the RPC machine */
-	uint32_t                   rcx_cob_dom_id;
-
-	/**
-	 * A pointer to cob domain struct which will be initialized and used by
-	 * m0_rpc_client_start()
-	 */
-	struct m0_cob_domain      *rcx_cob_dom;
 
 	/** Number of session slots */
 	uint32_t		   rcx_nr_slots;

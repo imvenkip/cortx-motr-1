@@ -125,11 +125,7 @@ static struct m0_net_tm_callbacks m0_rpc_tm_callbacks = {
 	.ntc_event_cb = rpc_tm_event_cb
 };
 
-/**
-   @todo Remove dom:m0_cob_domain parameter. It is no more required.
- */
 M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
-				    struct m0_cob_domain *dom,
 				    struct m0_net_domain *net_dom,
 				    const char *ep_addr,
 				    struct m0_reqh *reqh,
@@ -139,9 +135,8 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 {
 	int rc;
 
-	M0_ENTRY("machine: %p, com_dom: %p, net_dom: %p, ep_addr: %s, "
-		 "reqh:%p", machine, dom, net_dom, (char *)ep_addr, reqh);
-	M0_PRE(dom	    != NULL);
+	M0_ENTRY("machine: %p, net_dom: %p, ep_addr: %s, "
+		 "reqh:%p", machine, net_dom, (char *)ep_addr, reqh);
 	M0_PRE(machine	    != NULL);
 	M0_PRE(ep_addr	    != NULL);
 	M0_PRE(net_dom	    != NULL);

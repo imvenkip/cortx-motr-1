@@ -115,6 +115,8 @@ struct m0_fol_rec;
 struct m0_dbenv;
 struct m0_db_tx;
 #endif
+struct m0_be_tx;
+struct m0_epoch_id;
 
 /**
    In-memory representation of a fol.

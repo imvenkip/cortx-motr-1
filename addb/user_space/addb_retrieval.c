@@ -288,7 +288,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	sri_buf_ov_buf = m0_stob_addr_pack(sri_buf.ov_buf[0], bshift);
 
 	dom = stob->so_domain;
-	m0_dtx_init(&sri_tx, NULL);	/* XXX_DB_BE */
+	m0_dtx_init(&sri_tx, NULL, NULL);	/* XXX_DB_BE */
 	rc = dom->sd_ops->sdo_tx_make(dom, &sri_tx);
 	if (rc != 0)
 		goto fail_tx;
@@ -338,7 +338,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 	stob = si->ssi_stob;
 	dom = stob->so_domain;
 	offset = si->ssi_base.asi_segsize >> si->ssi_bshift;
-	m0_dtx_init(&tx, NULL);	/* XXX_DB_BE */
+	m0_dtx_init(&tx, NULL, NULL);	/* XXX_DB_BE */
 	rc = dom->sd_ops->sdo_tx_make(dom, &tx);
 	if (rc != 0)
 		goto fail;

@@ -440,7 +440,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	M0_ASSERT(cctx != NULL);
 
 	cctx->rcx_remote_addr           = saddr;
-	cctx->rcx_cob_dom_id            = IO_CLIENT_COBDOM_ID;
 	cctx->rcx_nr_slots              = IO_RPC_SESSION_SLOTS;
 	cctx->rcx_max_rpcs_in_flight    = IO_RPC_MAX_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -453,7 +452,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	strcpy(cdbname, IO_CLIENT_DBNAME);
 	cctx->rcx_db_name = cdbname;
 	cctx->rcx_dbenv   = &bp->bp_cdbenv;
-	cctx->rcx_cob_dom = &bp->bp_ccbdom;
 
 	rc = m0_rpc_client_start(cctx);
 	M0_ASSERT(rc == 0);

@@ -166,16 +166,12 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 	}
 
 	/* Make things persistent. */
-	rc = m0_be_tx_close_sync(&tx);
-	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
 
 	/* Reload segment and check data. */
 	m0_be_ut_seg_check_persistence(&ut_seg);
 	check(list, seg);
-
-	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_tx_fini(&tx);
 
 	/* XXX can't destroy allocator because some memory wasn't freed */
 	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */

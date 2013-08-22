@@ -35,8 +35,6 @@
 /* import */
 struct m0_sm_group;
 
-extern struct m0_sm_group *XXX_ast_thread_sm_group;	/* XXX_DB_BE */
-
 M0_INTERNAL int m0_ut_ast_thread_start(struct m0_sm_group *grp);
 
 M0_INTERNAL void m0_ut_ast_thread_stop(void);

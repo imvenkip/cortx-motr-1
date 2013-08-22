@@ -18,10 +18,12 @@
  * Original creation date: 4-Jul-2013
  */
 
-#include "be/tx_group_ondisk.c"
+#include "be/tx_group_ondisk.h"
 
 #include "ut/ut.h"
 #include "be/ut/helper.h"
+
+#include "be/tx_group.h"	/* grp_tlist_init */
 
 enum {
 	BE_UT_TX_GROUP_ONDISK_SEG_SIZE = 0x10000,

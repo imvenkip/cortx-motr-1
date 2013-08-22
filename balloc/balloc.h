@@ -261,12 +261,14 @@ enum {
  */
 M0_INTERNAL int m0_balloc_create(uint64_t           cid,
 				 struct m0_be_seg  *seg,
+				 struct m0_sm_group *grp,
 				 struct m0_balloc **out);
 
 /**
    Destroys struct m0_balloc instance @bal.
  */
-M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal);
+M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal,
+				  struct m0_sm_group *grp);
 
 /* Interfaces for UT */
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
