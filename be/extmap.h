@@ -366,6 +366,10 @@ M0_INTERNAL void m0_be_emap_caret_fini(struct m0_be_emap_caret *car);
 M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 				      m0_bcount_t              count);
 
+/** Synchronous equivalent of m0_be_emap_caret_move(). */
+M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
+				           m0_bcount_t              count);
+
 /** Returns how far is the end of extent. */
 M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret*);
 
