@@ -263,6 +263,7 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	int rc;
 
+	M0_SET0(ut_be);
 	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 	m0_mutex_init(&ut_be->but_sgt_lock);
