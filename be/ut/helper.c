@@ -30,7 +30,6 @@
 
 #include "stob/stob.h"		/* m0_stob_id */
 #include "stob/linux.h"		/* m0_linux_stob_domain_locate */
-#include "dtm/dtm.h"		/* m0_dtx_init */
 #include "rpc/rpclib.h"		/* m0_rpc_server_start */
 #include "net/net.h"		/* m0_net_xprt */
 
@@ -54,7 +53,8 @@ struct be_ut_helper_struct {
 	struct m0_rpc_server_ctx buh_rpc_sctx;
 	int			 buh_reqh_ref_cnt;
 	pthread_once_t		 buh_once_control;
-	struct m0_mutex		 buh_lock;
+	struct m0_mutex		 buh_reqh_lock;
+	struct m0_mutex		 buh_seg_lock;
 	struct m0_stob_domain	*buh_stob_dom;
 	void			*buh_addr;
 	uint64_t		 buh_id;
@@ -74,10 +74,10 @@ static void *be_ut_seg_allocate_addr(struct be_ut_helper_struct *h,
 
 	size = m0_align(size, m0_pagesize_get());
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 	addr	     = h->buh_addr;
 	h->buh_addr += size;
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 
 	return addr;
 }
@@ -86,9 +86,9 @@ static uint64_t be_ut_seg_allocate_id(struct be_ut_helper_struct *h)
 {
 	uint64_t id;
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 	id = h->buh_id++;
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 
 	return id;
 }
@@ -99,7 +99,8 @@ static inline void be_ut_helper_fini(void)
 
 	M0_PRE(h->buh_stob_dom == NULL);
 	M0_PRE(h->buh_storage_ref_cnt == 0);
-	m0_mutex_fini(&h->buh_lock);
+	m0_mutex_fini(&h->buh_reqh_lock);
+	m0_mutex_fini(&h->buh_seg_lock);
 }
 
 /* XXX call this function from m0_init()? */
@@ -112,7 +113,8 @@ static void be_ut_helper_init(void)
 	h->buh_stob_dom	       = NULL,
 	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR,
 	h->buh_id	       = BE_UT_SEG_START_ID,
-	m0_mutex_init(&h->buh_lock);
+	m0_mutex_init(&h->buh_seg_lock);
+	m0_mutex_init(&h->buh_reqh_lock);
 	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
 }
 
@@ -125,21 +127,21 @@ static void be_ut_helper_init_once(void)
 }
 
 #if 0
-static struct m0_reqh *be_ut_reqh_get(void)
+struct m0_reqh *m0_be_ut_reqh_get(void)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	struct m0_reqh		   *reqh;
 	int			    rc;
 #define NAME(ext) "be-ut" ext
 	static char		   *argv[] = {
-		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+		NAME(""), "-r", "-p", "-T", "linux", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", NAME("_addb.stob"), "-w", "10",
 		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service"
 	};
 
 	be_ut_helper_init_once();
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_reqh_lock);
 	if (h->buh_reqh_ref_cnt == 0) {
 		h->buh_net_xprt = &m0_net_lnet_xprt;
 		h->buh_rpc_sctx = (struct m0_rpc_server_ctx) {
@@ -158,17 +160,17 @@ static struct m0_reqh *be_ut_reqh_get(void)
 	M0_CNT_INC(h->buh_reqh_ref_cnt);
 	reqh = m0_mero_to_rmach(&h->buh_rpc_sctx.rsx_mero_ctx)->rm_reqh;
 	M0_ASSERT(reqh != NULL);
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_reqh_lock);
 
 	return reqh;
 }
 
-static void be_ut_reqh_put(struct m0_reqh *reqh)
+void m0_be_ut_reqh_put(struct m0_reqh *reqh)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	struct m0_reqh		   *reqh2;
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_reqh_lock);
 	reqh2 = m0_mero_to_rmach(&h->buh_rpc_sctx.rsx_mero_ctx)->rm_reqh;
 	M0_ASSERT(reqh == reqh2);
 	M0_CNT_DEC(h->buh_reqh_ref_cnt);
@@ -176,11 +178,11 @@ static void be_ut_reqh_put(struct m0_reqh *reqh)
 		m0_rpc_server_stop(&h->buh_rpc_sctx);
 		m0_net_xprt_fini(h->buh_net_xprt);
 	}
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_reqh_lock);
 }
 #endif
 
-static pid_t gettid()
+static pid_t gettid_impl()
 {
 	return syscall(SYS_gettid);
 }
@@ -205,7 +207,7 @@ static int m0_be_ut_sm_group_thread_init(struct m0_be_ut_sm_group_thread **sgtp)
 	M0_ALLOC_PTR(*sgtp);
 	sgt = *sgtp;
 	if (sgt != NULL) {
-		sgt->sgt_tid = gettid();
+		sgt->sgt_tid = gettid_impl();
 		m0_sm_group_init(&sgt->sgt_grp);
 		m0_semaphore_init(&sgt->sgt_stop_sem, 0);
 		rc = M0_THREAD_INIT(&sgt->sgt_thread,
@@ -243,6 +245,21 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
 	m0_free(sgt);
 }
 
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
+{
+	*cfg = (struct m0_be_domain_cfg) {
+		.bc_engine = {
+			.bec_group_nr = 1,
+			.bec_log_size = 1 << 27,
+			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
+				1 << 20, 1 << 26),
+			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
+				1 << 21, 1 << 27),
+			.bec_group_tx_max = 20,
+		},
+	};
+}
+
 #if 1 /* XXX_BE_DB */
 static struct m0_reqh ut__reqh;
 
@@ -278,27 +295,15 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	int rc;
 
-	*ut_be = (struct m0_be_ut_backend) {
-		.but_dom_cfg = {
-			.bc_engine = {
-				.bec_group_nr = 1,
-				.bec_log_size = 1 << 27,
-				.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
-					1 << 20, 1 << 26),
-				.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
-					1 << 21, 1 << 27),
-				.bec_group_tx_max = 20,
-#if 0
-				.bec_group_fom_reqh = be_ut_reqh_get(),
-#else
-				.bec_group_fom_reqh = &ut__reqh,
-#endif
-			},
-		},
-	};
-
 	XXX_BE_DB__reqh_init(&ut__reqh);
 
+	M0_SET0(ut_be);
+	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+#if 0 /* XXX_BE_DB */
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
+#else
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = &ut__reqh;
+#endif
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT(rc == 0);
@@ -315,7 +320,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	XXX_BE_DB__reqh_fini(&ut__reqh);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 #if 0 /* XXX_BE_DB */
-	be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+	m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
 #endif
 }
 
@@ -339,7 +344,7 @@ static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,
 static size_t be_ut_backend_sm_group_find(struct m0_be_ut_backend *ut_be)
 {
 	size_t i;
-	pid_t  tid = gettid();
+	pid_t  tid = gettid_impl();
 
 	for (i = 0; i < ut_be->but_sgt_size; ++i) {
 		if (ut_be->but_sgt[i]->sgt_tid == tid)
@@ -353,7 +358,7 @@ m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be)
 {
 	struct m0_be_ut_sm_group_thread	*sgt;
 	struct m0_sm_group		*grp = NULL;
-	pid_t				 tid = gettid();
+	pid_t				 tid = gettid_impl();
 	int				 rc;
 
 	m0_mutex_lock(&ut_be->but_sgt_lock);
@@ -407,7 +412,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 
 	stob_id.si_bits = M0_UINT128(0, be_ut_seg_allocate_id(h));
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 
 	if (h->buh_storage_ref_cnt == 0) {
 		rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
@@ -424,9 +429,8 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	}
 	M0_CNT_INC(h->buh_storage_ref_cnt);
 
-	m0_dtx_init(&ut_seg->bus_dtx, NULL, NULL);
 	if (stob_create) {
-		rc = m0_stob_create_helper(h->buh_stob_dom, &ut_seg->bus_dtx,
+		rc = m0_stob_create_helper(h->buh_stob_dom, NULL,
 					   &stob_id, &ut_seg->bus_stob);
 		M0_ASSERT(rc == 0);
 	} else {
@@ -434,7 +438,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		ut_seg->bus_stob = &ut_seg->bus_stob_;
 	}
 
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 
 	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, &ut_be->but_dom);
 	rc = m0_be_seg_create(&ut_seg->bus_seg, size,
@@ -454,10 +458,9 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 	M0_ASSERT(rc == 0);
 	m0_be_seg_fini(&ut_seg->bus_seg);
 
-	m0_mutex_lock(&h->buh_lock);
+	m0_mutex_lock(&h->buh_seg_lock);
 	if (stob_destroy)
 		m0_stob_put(ut_seg->bus_stob);
-	m0_dtx_fini(&ut_seg->bus_dtx);
 
 	M0_CNT_DEC(h->buh_storage_ref_cnt);
 	if (h->buh_storage_ref_cnt == 0) {
@@ -468,7 +471,7 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 			M0_ASSERT(rc == 0);
 		}
 	}
-	m0_mutex_unlock(&h->buh_lock);
+	m0_mutex_unlock(&h->buh_seg_lock);
 }
 
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,

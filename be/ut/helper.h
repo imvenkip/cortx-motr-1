@@ -48,8 +48,17 @@ struct m0_be_ut_backend {
 	struct m0_mutex			  but_sgt_lock;
 };
 
+/*
+ * Fill cfg with default configuration.
+ * @note bec_group_fom_reqh is not set here
+ */
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
+
+struct m0_reqh *m0_be_ut_reqh_get(void);
+void m0_be_ut_reqh_put(struct m0_reqh *reqh);
 
 struct m0_sm_group *
 m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be);
@@ -60,7 +69,6 @@ void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
 
 struct m0_be_ut_seg {
-	struct m0_dtx            bus_dtx;
 	/**
 	 * Stob to test. It can point to m0_be_ut_seg.bus_stob_ if
 	 * there is new stob and to existing stob if it isn't new.

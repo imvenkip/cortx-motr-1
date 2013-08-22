@@ -24,14 +24,15 @@
 #ifndef __MERO_BE_LOG_H__
 #define __MERO_BE_LOG_H__
 
-#include "be/log_store.h"
-#include "be/tx_group.h"
+#include "be/log_store.h"	/* m0_be_log_store */
 
 /**
  * @defgroup be
  *
  * @{
  */
+
+struct m0_be_tx_group;
 
 struct m0_be_log;
 typedef void (*m0_be_log_got_space_cb_t)(struct m0_be_log *log);
