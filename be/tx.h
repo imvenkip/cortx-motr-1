@@ -214,7 +214,7 @@ enum m0_be_tx_state {
 	 * failing to allocate internal memory in m0_be_tx_open() call or by
 	 * growing too large (larger than the total log space) in prepare state.
 	 */
-	M0_BTS_FAILED,
+	M0_BTS_FAILED = 1,
 	/**
 	 * State in which transaction is being prepared to opening; initial
 	 * state after m0_be_tx_init().
