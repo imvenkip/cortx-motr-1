@@ -81,6 +81,7 @@ static void ut_tx_open(struct m0_be_tx *tx, struct m0_be_tx_credit *credit)
 
 static void test_mkfs(void)
 {
+	struct m0_sm_group *grp;
         struct m0_be_tx  tx_;
         struct m0_be_tx *tx = &tx_;
 	M0_BE_TX_CREDIT(accum);
@@ -90,8 +91,9 @@ static void test_mkfs(void)
         m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
         m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_cob_domain_init(&dom, &ut_be.but_dom, &ut_seg.bus_seg, &id,
-				&ut__txs_sm_group);
+				grp);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cob_tx_credit(&dom, M0_COB_OP_DOMAIN_MKFS, &accum);
