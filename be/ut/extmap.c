@@ -117,7 +117,7 @@ static void test_init(void)
 	rc = m0_be_tx_open_sync(&tx2);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op, be_seg));
+	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op));
 
 	m0_uint128_init(&prefix, "some random iden");
 	seg = m0_be_emap_seg_get(&it);

@@ -152,6 +152,7 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
 	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
+	map->em_seg = db;
 }
 
 M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
@@ -161,11 +162,11 @@ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
 
 M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 				   struct m0_be_tx   *tx,
-				   struct m0_be_op   *op,
-				   struct m0_be_seg  *db)
+				   struct m0_be_op   *op)
 {
+	M0_PRE(map->em_seg != NULL);
+
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
 	M0_BE_OP_SYNC(local_op,
 		      m0_be_btree_create(&map->em_mapping, tx, &local_op));
 	op->bo_u.u_emap.e_rc = 0;
