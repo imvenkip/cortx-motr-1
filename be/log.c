@@ -37,7 +37,7 @@
 M0_INTERNAL void m0_be_log_init(struct m0_be_log *log,
 				m0_be_log_got_space_cb_t got_space_cb)
 {
-	log->lg_got_space_cb = got_space_cb == NULL ? NULL : got_space_cb;
+	log->lg_got_space_cb = got_space_cb;
 	m0_be_log_store_init(&log->lg_store);
 	M0_POST(m0_be_log__invariant(log));
 }
