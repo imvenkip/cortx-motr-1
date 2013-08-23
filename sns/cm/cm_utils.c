@@ -354,6 +354,92 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
         return rc;
 }
 
+
+/**
+ * Callback for async getattr.
+ *
+ * This callback should tell the original cm the result and post event to let it
+ * continue execution.
+ *
+ * Note: The following code are only for sample purpose to use async getattr.
+ *
+ */
+static void getattr_callback(void *arg, int rc)
+{
+	struct m0_cm *cm = arg;
+
+	if (rc == 0) {
+		/* getattr succeeded. */
+	}
+	/* TODO:
+	 * To inform the original caller to continue execution.
+	 */
+	(void)cm;
+}
+
+/**
+ * getattr sync
+ *
+ * @retval 0, succeeded to sent out the request asynchronously.
+ *            Caller of this function should relinquish current execution,
+ *            i.e. return M0_FSO_WAIT to reqh.
+ * @retval non-zero, failure happened. No callback will be issued.
+ *            Caller should continue handling error case.
+ *
+ * XXX: maybe a pointer to the current fom is needed here as an argument.
+ *      So the callback can wake up the fom.
+ */
+M0_INTERNAL int
+m0_sns_cm_file_attr_fetch_async(struct m0_cm *cm,
+				struct m0_fid *gfid,
+				struct m0_cob_attr *attr)
+{
+	struct m0_reqh *reqh = cm->cm_service.rs_reqh;
+	int             rc;
+
+	M0_PRE(cm != NULL);
+	M0_PRE(gfid != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	rc = m0_ios_mds_getattr_async(reqh, gfid, attr, &getattr_callback, cm);
+	return rc;
+}
+
+static void layout_callback(void *arg, int rc)
+{
+	struct m0_cm *cm = arg;
+
+	if (rc == 0) {
+		/* getlayout succeeded. */
+	}
+	/* TODO:
+	 * To inform the original caller to continue execution.
+	 */
+	(void)cm;
+}
+
+/**
+ * getlayout async.
+ */
+M0_INTERNAL int
+m0_sns_cm_file_layout_fetch_async(struct m0_cm *cm,
+				  uint64_t lid,
+				  struct m0_layout **l_out)
+{
+	struct m0_layout_domain  *ldom;
+	struct m0_reqh           *reqh = cm->cm_service.rs_reqh;
+	int                       rc;
+
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	ldom = &reqh->rh_ldom;
+
+	rc = m0_ios_mds_layout_get_async(reqh, ldom, lid, l_out,
+					 &layout_callback, cm);
+	return rc;
+}
+
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 					 struct m0_fid *cfid)
 {
