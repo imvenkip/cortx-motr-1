@@ -678,7 +678,7 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 #if XXX_USE_DB5
 	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
 #else
-	return m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec, &fom->fo_tx.tx_dbtx,
+	return m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec, &fom->fo_tx.tx_betx,
 			      NULL /* XXX FIXME */);
 #endif
 }

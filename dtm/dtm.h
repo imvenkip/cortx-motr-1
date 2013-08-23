@@ -51,9 +51,7 @@ struct m0_dtx {
 	   @todo placeholder for now.
 	 */
 	enum m0_dtx_state  tx_state;
-	struct m0_be_tx    tx_dbtx;	/* XXX_BE_DB */
-	struct m0_be_tx    tx_betx;	/* XXX_BE_DB */
-	struct m0_sm_group tx_smgrp;
+	struct m0_be_tx    tx_betx;
 	struct m0_fol_rec  tx_fol_rec;
 };
 
