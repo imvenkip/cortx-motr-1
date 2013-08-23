@@ -63,7 +63,7 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 				     &en_cfg->bec_group_size_max));
 	M0_ASSERT(en_cfg->bec_log_size >=
 		  en_cfg->bec_group_size_max.tc_reg_size);
-	/* XXX temporary */
+	/* only one group is supported at the moment */
 	M0_ASSERT(en_cfg->bec_group_nr == 1);
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
