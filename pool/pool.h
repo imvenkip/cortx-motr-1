@@ -416,6 +416,18 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 						   uint32_t *spare_slot_out);
 
 /**
+ * Returns true if the spare slot now contains data. This case would be true
+ * when repair has already been invoked atleast once, due to which some failed
+ * data unit has been repaired onto the given spare slot.
+ * @param pm pool machine.
+ * @param spare_slot the slot index which needs to be checked.
+ */
+M0_INTERNAL bool
+m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *pm,
+					   uint32_t spare_slot);
+
+
+/**
  * Query the {sns rebalance, spare slot} pair of a specified device.
  * @param pm pool machine.
  * @param device_index the index of the device to query.

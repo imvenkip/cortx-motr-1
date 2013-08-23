@@ -27,6 +27,7 @@
 #include "mero/setup.h"
 #include "ioservice/io_service.h"
 
+#include "pool/pool.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm_utils.h"
@@ -238,6 +239,15 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 	}
 
 	return false;
+}
+
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
+					 const struct m0_pdclust_layout *pl,
+					 int unit)
+{
+        return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE &&
+	       !m0_poolmach_sns_repair_spare_contains_data(scm->sc_base.cm_pm,
+							   unit);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
@@ -489,23 +499,25 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
 	struct m0_fid              cobfid;
-	uint64_t                   dpupg;
+	uint64_t                   upg;
 	uint64_t                   unit;
 	size_t                     group_failures = 0;
 	int                        i;
 
 	M0_PRE(scm != NULL && pl != NULL);
 
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	sa.sa_group = group;
-	for (unit = 0; unit < dpupg; ++unit) {
+	for (unit = 0; unit < upg; ++unit) {
+		if (m0_sns_cm_unit_is_spare(scm, pl, unit))
+			continue;
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		for (i = 0; i < scm->sc_failures_nr; ++i) {
 			if (cobfid.f_container == scm->sc_it.si_fdata[i]) {
 				M0_CNT_INC(group_failures);
 				if (fmap_out != NULL) {
-					M0_ASSERT(fmap_out->b_nr == dpupg);
+					M0_ASSERT(fmap_out->b_nr == upg);
 					m0_bitmap_set(fmap_out, unit, 1);
 				}
 			}
