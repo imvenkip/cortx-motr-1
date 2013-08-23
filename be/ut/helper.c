@@ -255,6 +255,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
 				1 << 21, 1 << 27),
 			.bec_group_tx_max = 20,
+			.bec_log_replay = false,
 		},
 	};
 }
@@ -265,6 +266,23 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 
 	M0_SET0(ut_be);
 	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	/*
+	 * XXX
+	 * There is strange bug here. If m0_be_ut_stob_get() called before
+	 * m0_be_ut_reqh_get(), then all tests pass. Otherwise tests fail
+	 * with the following assertion failure:
+	 * FATAL : [lib/assert.c:42:m0_panic] panic:
+	 * m0_net__buffer_invariant(nb) nlx_xo_core_bev_to_net_bev()
+	 * (/work/mero-backend/net/lnet/lnet_tm.c:292)
+	 * Mero panic: m0_net__buffer_invariant(nb) at
+	 * nlx_xo_core_bev_to_net_bev()
+	 * /work/mero-backend/net/lnet/lnet_tm.c:292 (errno: 110) (last failed:
+	 * none)
+	 *
+	 * This bug is similar to the one already encountered, and that bug was
+	 * not fixed.
+	 */
+	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
@@ -281,6 +299,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 	m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+	m0_be_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob, true);
 }
 
 static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,

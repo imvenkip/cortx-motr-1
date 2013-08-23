@@ -73,7 +73,8 @@ struct m0_be_log_store_io {
 	m0_bindex_t	       lsi_end;
 };
 
-M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls);
+M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls,
+				      struct m0_stob *stob);
 M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls);
 M0_INTERNAL bool m0_be_log_store__invariant(struct m0_be_log_store *ls);
 

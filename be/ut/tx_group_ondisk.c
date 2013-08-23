@@ -116,6 +116,7 @@ void m0_be_ut_group_ondisk(void)
 	struct m0_be_reg_d     rd[1+2+3];
 	struct m0_be_ut_seg    ut_seg;
 	struct m0_be_seg      *seg = &ut_seg.bus_seg;
+	struct m0_stob	      *stob;
 	int                    i;
 	int                    j;
 	int                    rc;
@@ -145,7 +146,8 @@ void m0_be_ut_group_ondisk(void)
 		}
 	}
 
-	m0_be_log_init(&but_group_ondisk_log, /* XXX */ NULL);
+	stob = m0_be_ut_stob_get(true);
+	m0_be_log_init(&but_group_ondisk_log, stob, /* XXX */ NULL);
 	rc = m0_be_log_create(&but_group_ondisk_log,
 			      BE_UT_TX_GROUP_ONDISK_LOG_SIZE);
 	M0_UT_ASSERT(rc == 0);
@@ -180,6 +182,7 @@ void m0_be_ut_group_ondisk(void)
 
 	m0_be_log_destroy(&but_group_ondisk_log);
 	m0_be_log_fini(&but_group_ondisk_log);
+	m0_be_ut_stob_put(stob, true);
 
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		grp_tlink_fini(&but_group_ondisk_tx[i]);

@@ -48,8 +48,10 @@
  * @{
  */
 
-M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls)
+M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls,
+				      struct m0_stob *stob)
 {
+	ls->ls_stob = stob;
 }
 
 M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls)
@@ -78,72 +80,21 @@ M0_INTERNAL void m0_be_log_store_close(struct m0_be_log_store *ls)
 	M0_IMPOSSIBLE("Not implemented yet");
 }
 
-/* XXX copy-paste from be/ut/helper.c */
-#define BE_LOG_STORAGE_DIR "./tx_log_stob"
-
-enum {
-	BE_LOG_STOR_STOB_ID = 0x100,
-};
-
-static struct m0_stob_id be_log_store_stob_id = {
-	.si_bits = M0_UINT128(0, BE_LOG_STOR_STOB_ID),
-};
-
-static struct m0_stob_domain *be_log_store_stob_dom;
-static struct m0_dtx	      be_log_store_dtx;
-
 M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 				       m0_bcount_t ls_size)
 {
-	int rc;
-
 	M0_PRE(m0_be_log_store__invariant(ls));
-
-	rc = mkdir(BE_LOG_STORAGE_DIR, 0700);
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	M0_ASSERT(rc == 0);
-#endif
-
-	rc = mkdir(BE_LOG_STORAGE_DIR "/o", 0700);
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	M0_ASSERT(rc == 0);
-#endif
-
-	rc = m0_linux_stob_domain_locate(BE_LOG_STORAGE_DIR,
-					 &be_log_store_stob_dom);
-	M0_ASSERT(rc == 0);
-	m0_dtx_init(&be_log_store_dtx);
-
-	rc = m0_stob_create_helper(be_log_store_stob_dom, &be_log_store_dtx,
-				   &be_log_store_stob_id, &ls->ls_stob);
-	M0_ASSERT(rc == 0);
 
 	ls->ls_size = ls_size;
 
 	M0_POST(m0_be_log_store__invariant(ls));
 
-	return rc;
+	return 0;
 }
 
 M0_INTERNAL void m0_be_log_store_destroy(struct m0_be_log_store *ls)
 {
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	int rc;
-#endif
-
 	M0_PRE(m0_be_log_store__invariant(ls));
-
-	m0_stob_put(ls->ls_stob);
-
-	m0_dtx_fini(&be_log_store_dtx);
-	be_log_store_stob_dom->sd_ops->sdo_fini(be_log_store_stob_dom);
-
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	rc = system("rm -rf " BE_LOG_STORAGE_DIR);
-	M0_ASSERT(rc == 0);
-#endif
-
-	M0_POST(m0_be_log_store__invariant(ls));
 }
 
 M0_INTERNAL struct m0_stob *m0_be_log_store_stob(struct m0_be_log_store *ls)

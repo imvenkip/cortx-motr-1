@@ -72,6 +72,7 @@ struct m0_be_log {
 };
 
 M0_INTERNAL void m0_be_log_init(struct m0_be_log *log,
+				struct m0_stob *stob,
 				m0_be_log_got_space_cb_t got_space_cb);
 M0_INTERNAL void m0_be_log_fini(struct m0_be_log *log);
 M0_INTERNAL bool m0_be_log__invariant(struct m0_be_log *log);
