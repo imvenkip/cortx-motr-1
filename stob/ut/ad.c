@@ -149,17 +149,11 @@ struct mock_balloc mb = {
 	}
 };
 
-extern struct m0_sm_group ut__txs_sm_group;
-
 static int test_ad_init(void)
 {
 	struct m0_be_tx_credit cred = {0};
 	int	i;
 	int	result;
-
-	result = m0_ut_ast_thread_start(&ut__txs_sm_group);
-	if (result != 0)
-		goto out;
 
 	result = system("rm -fr ./__s");
 	M0_ASSERT(result == 0);
@@ -247,7 +241,7 @@ static int test_ad_init(void)
 		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
-out:
+
 	return result;
 }
 
@@ -270,8 +264,6 @@ static int test_ad_fini(void)
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
-
-	m0_ut_ast_thread_stop();
 
 	return 0;
 }

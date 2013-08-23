@@ -353,24 +353,10 @@ void test_balloc()
 	m0_be_ut_backend_fini(&ut_be);
 }
 
-/* XXX copy-paste from fol/ut/fol.c */
-extern struct m0_sm_group ut__txs_sm_group;
-
-static int _init(void)
-{
-	return m0_ut_ast_thread_start(&ut__txs_sm_group);
-}
-
-static int _fini(void)
-{
-	m0_ut_ast_thread_stop();
-	return 0;
-}
-
 const struct m0_test_suite balloc_ut = {
         .ts_name  = "balloc-ut",
-	.ts_init = _init,
-	.ts_fini = _fini,
+	.ts_init = NULL,
+	.ts_fini = NULL,
         .ts_tests = {
                 { "balloc", test_balloc},
 		{ NULL, NULL }
