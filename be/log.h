@@ -62,7 +62,7 @@ struct m0_be_log {
 	 * a sequence of regions in segments, linked to each other through
 	 * header blocks.
 	 */
-	struct m0_be_log_store	 lg_stor;
+	struct m0_be_log_store	 lg_store;
 
 	/**
 	 * lsn to be used for the next log element.

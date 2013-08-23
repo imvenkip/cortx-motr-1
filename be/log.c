@@ -38,14 +38,14 @@ M0_INTERNAL void m0_be_log_init(struct m0_be_log *log,
 				m0_be_log_got_space_cb_t got_space_cb)
 {
 	log->lg_got_space_cb = got_space_cb == NULL ? NULL : got_space_cb;
-	m0_be_log_store_init(&log->lg_stor);
+	m0_be_log_store_init(&log->lg_store);
 	M0_POST(m0_be_log__invariant(log));
 }
 
 M0_INTERNAL void m0_be_log_fini(struct m0_be_log *log)
 {
 	M0_PRE(m0_be_log__invariant(log));
-	m0_be_log_store_fini(&log->lg_stor);
+	m0_be_log_store_fini(&log->lg_store);
 }
 
 M0_INTERNAL bool m0_be_log__invariant(struct m0_be_log *log)
@@ -64,17 +64,17 @@ M0_INTERNAL void m0_be_log_close(struct m0_be_log *log)
 
 M0_INTERNAL int m0_be_log_create(struct m0_be_log *log, m0_bcount_t log_size)
 {
-	return m0_be_log_store_create(&log->lg_stor, log_size);
+	return m0_be_log_store_create(&log->lg_store, log_size);
 }
 
 M0_INTERNAL void m0_be_log_destroy(struct m0_be_log *log)
 {
-	m0_be_log_store_destroy(&log->lg_stor);
+	m0_be_log_store_destroy(&log->lg_store);
 }
 
 M0_INTERNAL struct m0_stob *m0_be_log_stob(struct m0_be_log *log)
 {
-	return m0_be_log_store_stob(&log->lg_stor);
+	return m0_be_log_store_stob(&log->lg_store);
 }
 
 M0_INTERNAL void
@@ -107,14 +107,14 @@ M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 	size_t		       tx_nr;
 
 	m0_be_group_ondisk_reserved(&group->gr_od, group, &reserved, &tx_nr);
-	m0_be_log_store_discard(&log->lg_stor, reserved.tx_reg_size);
+	m0_be_log_store_discard(&log->lg_store, reserved.tx_reg_size);
 }
 */
 
 M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 				   struct m0_be_tx_credit *reserved)
 {
-	m0_be_log_store_discard(&log->lg_stor, reserved->tc_reg_size);
+	m0_be_log_store_discard(&log->lg_store, reserved->tc_reg_size);
 
 	if (log->lg_got_space_cb != NULL)
 		log->lg_got_space_cb(log);
@@ -130,7 +130,7 @@ m0_be_log_reserve_tx(struct m0_be_log *log, struct m0_be_tx_credit *prepared)
 	M0_PRE(m0_be_log__invariant(log));
 
 	be_log_io_credit_tx(&io_tx, prepared);
-	rc = m0_be_log_store_reserve(&log->lg_stor, io_tx.tc_reg_size);
+	rc = m0_be_log_store_reserve(&log->lg_store, io_tx.tc_reg_size);
 
 	M0_POST(m0_be_log__invariant(log));
 	M0_RETURN(rc);
