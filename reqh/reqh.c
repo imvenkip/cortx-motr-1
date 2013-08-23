@@ -172,35 +172,10 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	    io (invocation of m0_stob_io_launch(), etc) apis. Need to validate
 	    this.
 	 */
-	if (reqh_args->rhia_addb_stob != NULL) {
-#ifndef __KERNEL__
-		/**
-		 * @todo Need to replace these 3 with conf parameters and
-		 * correct values, these are temporary
-		 */
-		m0_bcount_t addb_stob_seg_size =
-		    M0_RPC_DEF_MAX_RPC_MSG_SIZE * 2;
-		m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
-		m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
 
-		rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
-						    reqh_args->rhia_addb_stob,
-						    addb_stob_seg_size,
-						    addb_stob_size,
-						    addb_stob_timeout);
-		if (rc != 0)
-			goto layout_types_unreg;
-
-		m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
-		if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
-			m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
-		M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
-				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-#endif
-	} else { /* for UT specifically */
-		M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
-				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-	}
+	/* for UT specifically */
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
+			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 
 	reqh->rh_fom_dom.fd_reqh = reqh;
 	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
@@ -258,6 +233,39 @@ M0_INTERNAL int m0_reqhs_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_reqh_mod);
 	m0_bob_type_tlist_init(&rqsvc_bob, &m0_reqh_svc_tl);
 	return 0;
+}
+
+M0_INTERNAL int
+m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
+{
+#ifndef __KERNEL__
+	/**
+	 * @todo Need to replace these 3 with conf parameters and
+	 * correct values, these are temporary
+	 */
+	m0_bcount_t addb_stob_seg_size =
+	    M0_RPC_DEF_MAX_RPC_MSG_SIZE * 2;
+	m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
+	m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
+	int rc;
+
+	rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
+					    stob,
+					    addb_stob_seg_size,
+					    addb_stob_size,
+					    addb_stob_timeout);
+	if (rc != 0)
+		return rc;
+
+	m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
+	if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
+		m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
+	M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
+			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
+	return rc;
+#else
+	return 0;
+#endif
 }
 
 M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)

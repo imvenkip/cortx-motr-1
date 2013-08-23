@@ -231,6 +231,9 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
  */
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
 
+M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
+				       struct m0_stob *stob);
+
 /**
    Get the state of the request handler.
  */
