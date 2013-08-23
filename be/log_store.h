@@ -58,7 +58,6 @@ struct m0_stob;
  */
 struct m0_be_log_store {
 	struct m0_stob    *ls_stob;
-	uint32_t	   ls_bshift;		/**< stob block shift */
 	m0_bcount_t	   ls_size;
 
 	m0_bindex_t        ls_discarded;

@@ -119,7 +119,6 @@ M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 				   &be_log_store_stob_id, &ls->ls_stob);
 	M0_ASSERT(rc == 0);
 
-	ls->ls_bshift = ls->ls_stob->so_op->sop_block_shift(ls->ls_stob);
 	ls->ls_size = ls_size;
 
 	M0_POST(m0_be_log_store__invariant(ls));
