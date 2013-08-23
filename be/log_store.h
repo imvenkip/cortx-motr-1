@@ -35,6 +35,8 @@
  * @{
  */
 
+struct m0_stob;
+
 /**
  * @verbatim
  * v
