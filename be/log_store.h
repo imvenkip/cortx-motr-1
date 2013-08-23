@@ -26,7 +26,6 @@
 
 
 #include "lib/types.h"		/* m0_bcount_t */
-#include "stob/stob.h"		/* m0_stob_io */
 
 #include "be/io.h"
 
