@@ -50,7 +50,6 @@
 
 M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls)
 {
-	M0_SET0(ls);
 }
 
 M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls)
