@@ -214,7 +214,7 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
  * @see m0_be_alloc(), M0_ALLOC_PTR(), M0_BE_ALLOC_ARR().
  */
 #define M0_BE_ALLOC_PTR(seg, tx, op, shift, ptr)			\
-		M0_ALLOC_ARR(seg, tx, op, shift, ptr, 1)
+		M0_BE_ALLOC_ARR(seg, tx, op, shift, ptr, 1)
 
 /** @} end of be group */
 #endif /* __MERO_BE_ALLOC_H__ */
