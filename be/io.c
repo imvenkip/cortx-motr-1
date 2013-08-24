@@ -152,9 +152,10 @@ static bool be_io_cb(struct m0_clink *link)
 	return io->si_rc == 0;
 }
 
-M0_INTERNAL int m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
+M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 {
 	struct m0_stob_io *io = &bio->bio_io;
+	int		   rc;
 
 	M0_PRE(m0_be_io__invariant(bio));
 
@@ -163,8 +164,13 @@ M0_INTERNAL int m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 
 	m0_clink_add_lock(&io->si_wait, &bio->bio_clink);
 
-	return m0_stob_io_launch(io, bio->bio_stob,
-				 NULL /* XXX */, NULL /* XXX */);
+	rc = m0_stob_io_launch(io, bio->bio_stob,
+			       NULL /* XXX */, NULL /* XXX */);
+	if (rc != 0) {
+		m0_clink_del_lock(&bio->bio_clink);
+		op->bo_sm.sm_rc = rc;
+		m0_be_op_state_set(op, M0_BOS_FAILURE);
+	}
 }
 
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio)

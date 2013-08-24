@@ -66,7 +66,7 @@ M0_INTERNAL void m0_be_io_add(struct m0_be_io *bio,
 M0_INTERNAL void m0_be_io_configure(struct m0_be_io *bio,
 				    enum m0_stob_io_opcode opcode);
 
-M0_INTERNAL int m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op);
+M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op);
 
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio);
 

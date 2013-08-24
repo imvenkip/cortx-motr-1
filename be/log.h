@@ -88,13 +88,13 @@ M0_INTERNAL struct m0_stob *m0_be_log_stob(struct m0_be_log *log);
 M0_INTERNAL void m0_be_log_cblock_credit(struct m0_be_tx_credit *credit,
 					 m0_bcount_t cblock_size);
 
-M0_INTERNAL int m0_be_log_submit(struct m0_be_log *log,
-				 struct m0_be_op *op,
-				 struct m0_be_tx_group *group);
+M0_INTERNAL void m0_be_log_submit(struct m0_be_log *log,
+				  struct m0_be_op *op,
+				  struct m0_be_tx_group *group);
 
-M0_INTERNAL int m0_be_log_commit(struct m0_be_log *log,
-				 struct m0_be_op *op,
-				 struct m0_be_tx_group *group);
+M0_INTERNAL void m0_be_log_commit(struct m0_be_log *log,
+				  struct m0_be_op *op,
+				  struct m0_be_tx_group *group);
 
 /*
 M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,

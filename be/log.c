@@ -84,20 +84,19 @@ m0_be_log_cblock_credit(struct m0_be_tx_credit *credit, m0_bcount_t cblock_size)
 	m0_be_log_store_cblock_io_credit(credit, cblock_size);
 }
 
-M0_INTERNAL int m0_be_log_submit(struct m0_be_log *log,
-				 struct m0_be_op *op,
-				 struct m0_be_tx_group *group)
+M0_INTERNAL void m0_be_log_submit(struct m0_be_log *log,
+				  struct m0_be_op *op,
+				  struct m0_be_tx_group *group)
 {
 	m0_be_group_ondisk_serialize(&group->tg_od, group, log);
-
-	return m0_be_io_launch(&group->tg_od.go_io_log, op);
+	m0_be_io_launch(&group->tg_od.go_io_log, op);
 }
 
-M0_INTERNAL int m0_be_log_commit(struct m0_be_log *log,
-				 struct m0_be_op *op,
-				 struct m0_be_tx_group *group)
+M0_INTERNAL void m0_be_log_commit(struct m0_be_log *log,
+				  struct m0_be_op *op,
+				  struct m0_be_tx_group *group)
 {
-	return m0_be_io_launch(&group->tg_od.go_io_log_cblock, op);
+	m0_be_io_launch(&group->tg_od.go_io_log_cblock, op);
 }
 
 /*

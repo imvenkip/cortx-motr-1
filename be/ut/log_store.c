@@ -82,11 +82,8 @@ be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr, m0_bcount_t size)
 
 static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)
 {
-	int rc;
-
 	m0_be_io_configure(bio, SIO_WRITE);
-	M0_BE_OP_SYNC(op, rc = m0_be_io_launch(bio, &op));
-	M0_UT_ASSERT(rc == 0);
+	M0_BE_OP_SYNC(op, m0_be_io_launch(bio, &op));
 }
 
 static void

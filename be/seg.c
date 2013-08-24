@@ -293,7 +293,6 @@ static int
 be_seg__io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 {
 	struct m0_be_io io;
-	struct m0_be_op op;
 	int             rc;
 
 	M0_PRE(m0_be__reg_invariant(reg));
@@ -306,13 +305,7 @@ be_seg__io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 	m0_be_io_add(&io, ptr, m0_be_reg_offset(reg), reg->br_size);
 	m0_be_io_configure(&io, opcode);
 
-	m0_be_op_init(&op);
-	rc = m0_be_io_launch(&io, &op);
-	if (rc == 0) {
-		rc = m0_be_op_wait(&op);
-		M0_ASSERT(rc == 0);
-	}
-	m0_be_op_fini(&op);
+	M0_BE_OP_SYNC(op, m0_be_io_launch(&io, &op));
 
 	m0_be_io_fini(&io);
 	return rc;
