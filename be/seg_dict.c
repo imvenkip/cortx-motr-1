@@ -1,0 +1,216 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 24-Aug-2013
+ */
+
+#include "be/seg_dict.h"
+
+#include "lib/memory.h"       /* M0_ALLOC_PTR */
+#include "lib/errno.h"        /* ENOMEM */
+
+#include "be/seg.h"
+#include "be/seg_internal.h"  /* m0_be_seg_hdr */
+
+/**
+ * @addtogroup be
+ *
+ * @{
+ */
+
+#define BUF_INIT_STR(str) M0_BUF_INIT(strlen(str)+1, (str))
+static m0_bcount_t dict_ksize(const void *key)
+{
+	return strlen(key)+1;
+}
+
+static m0_bcount_t dict_vsize(const void *data)
+{
+	return sizeof(void*);
+}
+
+static int dict_cmp(const void *key0, const void *key1)
+{
+	return strcmp(key0, key1);
+}
+
+static const struct m0_be_btree_kv_ops dict_ops = {
+	.ko_ksize   = dict_ksize,
+	.ko_vsize   = dict_vsize,
+	.ko_compare = dict_cmp
+};
+
+static int tx_open(struct m0_be_seg *seg, struct m0_be_tx_credit *cred,
+		   struct m0_be_tx *tx, struct m0_sm_group *grp)
+{
+	m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, cred);
+	m0_be_tx_open(tx);
+	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				  M0_TIME_NEVER);
+}
+
+M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
+				      const char *name,
+				      void **out)
+{
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(*out), out);
+
+	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, &key, &val),
+				 bo_u.u_btree.t_rc);
+}
+
+M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name,
+				      void *value)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+	struct m0_be_tx    *tx;
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(value), &value);
+	int rc;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+
+	M0_ALLOC_PTR(tx);
+	if (tx == NULL)
+		return -ENOMEM;
+
+	m0_be_btree_init(tree, seg, &dict_ops);
+	m0_be_btree_insert_credit(tree, 1, dict_ksize(name), dict_vsize(value),
+				  &cred);
+	rc = tx_open(seg, &cred, tx, grp);
+	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+		m0_be_tx_fini(tx);
+		m0_free(tx);
+		return -EFBIG;
+	}
+
+	M0_BE_OP_SYNC(op, m0_be_btree_insert(tree, tx, &op, &key, &val));
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	return rc;
+}
+
+M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+	struct m0_be_tx    *tx;
+	struct m0_buf       key  = BUF_INIT_STR((char*)name);
+	int rc;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+
+	M0_ALLOC_PTR(tx);
+	if (tx == NULL)
+		return -ENOMEM;
+
+	m0_be_btree_init(tree, seg, &dict_ops);
+	m0_be_btree_delete_credit(tree, 1, dict_ksize(name), dict_vsize(NULL),
+				  &cred);
+	rc = tx_open(seg, &cred, tx, grp) ?:
+		M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, tx, &op, &key),
+				  bo_u.u_btree.t_rc);
+	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+		m0_be_tx_fini(tx);
+		m0_free(tx);
+		return -EFBIG;
+	}
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	return rc;
+}
+
+M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg)
+{
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+	m0_be_btree_init(tree, seg, &dict_ops);
+}
+
+M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_btree *tree = &((struct m0_be_seg_hdr *)
+				     seg->bs_addr)->bs_dict;
+	struct m0_be_tx    *tx;
+	int rc;
+
+	M0_PRE(m0_be__seg_invariant(seg));
+
+	M0_ALLOC_PTR(tx);
+	if (tx == NULL)
+		return -ENOMEM;
+
+	m0_be_btree_init(tree, seg, &dict_ops);
+	m0_be_btree_create_credit(tree, 1, &cred);
+	m0_be_tx_credit_add
+		(&cred, &M0_BE_TX_CREDIT_OBJ(1, sizeof(struct m0_be_seg_hdr)));
+	rc = tx_open(seg, &cred, tx, grp);
+	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+		m0_be_tx_fini(tx);
+		m0_free(tx);
+		return -EFBIG;
+	}
+
+	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
+	m0_be_tx_capture(tx, &M0_BE_REG(seg, sizeof(struct m0_be_seg_hdr),
+				       seg->bs_addr));
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+	return rc;
+}
+
+#undef BUF_INIT_STR
+
+/** @} end of be group */
+
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

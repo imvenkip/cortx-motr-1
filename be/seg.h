@@ -22,7 +22,9 @@
 #ifndef __MERO_BE_SEG_H__
 #define __MERO_BE_SEG_H__
 
-#include "be/alloc.h"   /* m0_be_allocator */
+#include "be/alloc.h"		/* m0_be_allocator */
+#include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
+
 #include "stob/stob.h"  /* m0_stob */
 
 struct m0_be;
@@ -91,17 +93,6 @@ M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 /* ---------------------------------------------------------------------------
  * Dictionary interface
  * ------------------------------------------------------------------------- */
-M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg);
-M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp);
-M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
-				      const char *name,	void **out);
-M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name,	void *value);
-M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name);
 
 struct m0_be_reg {
 	struct m0_be_seg *br_seg;
