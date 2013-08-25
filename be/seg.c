@@ -38,40 +38,24 @@
  * @{
  */
 
-static int
-seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
-{
-	struct m0_be_seg_hdr *hdrbuf;
-	struct m0_be_reg      hdr_reg;
-	int                   rc;
-
-	M0_PRE(addr != NULL);
-	M0_PRE(size > 0);
-
-	M0_ALLOC_PTR(hdrbuf);
-	if (hdrbuf == NULL)
-		return -ENOMEM;
-
-	hdrbuf->bh_addr = addr;
-	hdrbuf->bh_size = size;
-	seg->bs_addr = addr;
-	seg->bs_size = size;
-
-	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-			    addr + M0_BE_SEG_HEADER_OFFSET);
-	rc = m0_be_seg__write(&hdr_reg, hdrbuf);
-	m0_free(hdrbuf);
-	return rc;
-}
-
 M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 				 m0_bcount_t size,
 				 void *addr)
 {
+	struct m0_be_seg_hdr hdr;
+
 	M0_PRE(seg->bs_state == M0_BSS_INIT);
 	M0_PRE(seg->bs_stob->so_domain != NULL);
+	M0_PRE(addr != NULL);
+	M0_PRE(size > 0);
 
-	return seg_header_create(seg, addr, size);
+	hdr = (struct m0_be_seg_hdr) {
+		.bh_addr = addr,
+		.bh_size = size,
+	};
+	return m0_be_io_sync(seg->bs_stob,
+			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr,
+			     SIO_WRITE);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -117,46 +101,30 @@ bool m0_be__reg_invariant(const struct m0_be_reg *reg)
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
-	int                   rc;
-	struct m0_be_seg_hdr *hdrbuf;      /* seg hdr buffer */
-	struct m0_be_reg      hdr_reg;
-	void                 *seg_addr0;
-	m0_bcount_t           seg_size;
+	struct m0_be_seg_hdr  hdr;
 	void                 *p;
+	int                   rc;
 
-	/* Allocate buffer for segment header. */
-	M0_ALLOC_PTR(hdrbuf);
-	if (hdrbuf == NULL)
-		return -ENOMEM;
-
-	/* Read segment header from storage. */
-	seg->bs_addr = (void *) hdrbuf - M0_BE_SEG_HEADER_OFFSET;
-	seg->bs_size = sizeof *hdrbuf + M0_BE_SEG_HEADER_OFFSET;
-	hdr_reg = M0_BE_REG(seg, sizeof *hdrbuf,
-			    seg->bs_addr + M0_BE_SEG_HEADER_OFFSET);
-	rc = m0_be_seg__read(&hdr_reg, hdrbuf);
-	if (rc == 0) {
-		seg_addr0 = hdrbuf->bh_addr;
-		seg_size  = hdrbuf->bh_size;
-		M0_ASSERT(seg_addr0 != NULL);
-	}
-	m0_free(hdrbuf);
+	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
+	rc = m0_be_io_sync(seg->bs_stob,
+			   &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr,
+			   SIO_READ);
 	if (rc != 0)
 		return rc;
+	/* XXX check for magic */
 
-	/* mmap an area at bh_addr of bh_size. */
-	p = mmap(seg_addr0, seg_size, PROT_READ|PROT_WRITE,
+	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ|PROT_WRITE,
 		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-	if (p == MAP_FAILED)
+	if (p != hdr.bh_addr)
 		return -errno;
-	M0_ASSERT(p == seg_addr0);
 
-	/* Read whole segment from storage. */
-	seg->bs_size = seg_size;
-	seg->bs_addr = seg_addr0;
-	rc = m0_be_seg__read(&M0_BE_REG(seg, seg_size, seg_addr0), seg_addr0);
+	rc = m0_be_io_sync(seg->bs_stob, hdr.bh_addr, 0, hdr.bh_size, SIO_READ);
 	if (rc == 0) {
+		seg->bs_size  = hdr.bh_size;
+		seg->bs_addr  = hdr.bh_addr;
 		seg->bs_state = M0_BSS_OPENED;
+	} else {
+		munmap(hdr.bh_addr, hdr.bh_size);
 	}
 	return rc;
 }
