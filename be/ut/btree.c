@@ -84,6 +84,7 @@ void m0_be_ut_btree_simple(void)
 	/* XXX: this needs investigation, some parts of btree may stay
 	 * uncaptured and this is a valid scenario */
 	/* m0_be_ut_seg_check_persistence(&ut_seg); */
+	m0_be_ut_seg_reload(&ut_seg);
 
 	check(tree0, &ut_be, seg);
 	destroy_tree(tree0, &ut_be, seg);
@@ -91,6 +92,7 @@ void m0_be_ut_btree_simple(void)
 	/* XXX: this needs investigation, some parts of btree may stay
 	 * uncaptured and this is a valid scenario */
 	/* m0_be_ut_seg_check_persistence(&ut_seg); */
+	m0_be_ut_seg_reload(&ut_seg);
 
 	/* XXX FIXME something wasn't freed */
 	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
