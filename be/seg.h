@@ -90,10 +90,6 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
 M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 					 void *addr);
 
-/* ---------------------------------------------------------------------------
- * Dictionary interface
- * ------------------------------------------------------------------------- */
-
 struct m0_be_reg {
 	struct m0_be_seg *br_seg;
 	m0_bcount_t       br_size;
