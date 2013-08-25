@@ -290,35 +290,20 @@ M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)
 }
 
 static int
-be_seg__io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
+be_seg_io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 {
-	struct m0_be_io io;
-	int             rc;
-
-	M0_PRE(m0_be__reg_invariant(reg));
-
-	rc = m0_be_io_init(&io, reg->br_seg->bs_stob,
-			   &M0_BE_TX_CREDIT_OBJ(1, reg->br_size));
-	if (rc != 0)
-		return rc;
-
-	m0_be_io_add(&io, ptr, m0_be_reg_offset(reg), reg->br_size);
-	m0_be_io_configure(&io, opcode);
-
-	M0_BE_OP_SYNC(op, m0_be_io_launch(&io, &op));
-
-	m0_be_io_fini(&io);
-	return rc;
+	return m0_be_io_sync(reg->br_seg->bs_stob,
+			     ptr, m0_be_reg_offset(reg), reg->br_size, opcode);
 }
 
 M0_INTERNAL int m0_be_seg__read(struct m0_be_reg *reg, void *dst)
 {
-	return be_seg__io(reg, dst, SIO_READ);
+	return be_seg_io(reg, dst, SIO_READ);
 }
 
 M0_INTERNAL int m0_be_seg__write(struct m0_be_reg *reg, void *src)
 {
-	return be_seg__io(reg, src, SIO_WRITE);
+	return be_seg_io(reg, src, SIO_WRITE);
 }
 
 M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg)
