@@ -71,10 +71,10 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op);
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio);
 
 M0_INTERNAL int m0_be_io_sync(struct m0_stob *stob,
+			      enum m0_stob_io_opcode opcode,
 			      void *ptr_user,
 			      m0_bindex_t offset_stob,
-			      m0_bcount_t size,
-			      enum m0_stob_io_opcode opcode);
+			      m0_bcount_t size);
 
 /** @} end of be group */
 
