@@ -972,6 +972,7 @@ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
 	(op)->bo_u.u_btree.t_op     = optype;          \
 	(op)->bo_u.u_btree.t_in     = NULL;            \
 	(op)->bo_u.u_btree.t_anchor = (anchor);        \
+	(op)->bo_u.u_btree.t_rc	    = 0;	       \
 	})
 
 static struct m0_be_op__btree *op_tree(struct m0_be_op *op);
