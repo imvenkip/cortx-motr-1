@@ -274,6 +274,8 @@ allocate_btree_node(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 	/* Initialize the linked list pointer to NULL */
 	node->b_next = NULL;
 
+	mem_update(btree, tx, node, sizeof *node);
+
 	return node;
 }
 
@@ -1056,9 +1058,9 @@ static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(1, KV_SIZE));
 	/* children update */
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(1, CHILDREN_SIZE));
-	/* struct m0_be_bnode update */
-	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
-				    1, sizeof(struct m0_be_bnode)));
+	/* struct m0_be_bnode update x2 */
+	m0_be_tx_credit_mac(&cred, &M0_BE_TX_CREDIT_OBJ(
+				    1, sizeof(struct m0_be_bnode)), 2);
 
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
