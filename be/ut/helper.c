@@ -504,6 +504,12 @@ void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 	}
 }
 
+void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
+{
+	m0_be_seg_close(&ut_seg->bus_seg);
+	m0_be_seg_open(&ut_seg->bus_seg);
+}
+
 static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 					 struct m0_be_ut_backend *ut_be,
 					 bool init)

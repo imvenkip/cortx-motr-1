@@ -88,6 +88,7 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		       m0_bcount_t size);
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 
 /* m0_be_allocator_{init,create,open} */
 void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
