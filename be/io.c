@@ -188,6 +188,25 @@ M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio)
 	io->si_obj = NULL;
 }
 
+M0_INTERNAL int m0_be_io_sync(struct m0_stob *stob,
+			      void *ptr_user,
+			      m0_bindex_t offset_stob,
+			      m0_bcount_t size,
+			      enum m0_stob_io_opcode opcode)
+{
+	struct m0_be_io bio;
+	int             rc;
+
+	rc = m0_be_io_init(&bio, stob, &M0_BE_TX_CREDIT_OBJ(1, size));
+	if (rc == 0) {
+		m0_be_io_add(&bio, ptr_user, offset_stob, size);
+		m0_be_io_configure(&bio, opcode);
+		M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
+		m0_be_io_fini(&bio);
+	}
+	return rc;
+}
+
 /** @} end of be group */
 
 
