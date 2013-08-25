@@ -61,7 +61,7 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 {
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 
-	/* XXX TODO: stob destroy ... */
+	/* XXX TODO: seg destroy ... */
 
 	return 0;
 }
