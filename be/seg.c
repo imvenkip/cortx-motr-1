@@ -70,19 +70,13 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 {
 	M0_PRE(seg->bs_state == M0_BSS_INIT);
 	M0_PRE(seg->bs_stob->so_domain != NULL);
-	M0_PRE(seg->bs_stob->so_state != CSS_EXISTS);
 
-	return m0_stob_find(seg->bs_stob->so_domain,
-			    &seg->bs_stob->so_id, &seg->bs_stob) ?:
-		m0_stob_create(seg->bs_stob, NULL) ?:
-		seg_header_create(seg, addr, size);
+	return seg_header_create(seg, addr, size);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 {
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
-
-	m0_stob_put(seg->bs_stob);
 
 	/* XXX TODO: stob destroy ... */
 

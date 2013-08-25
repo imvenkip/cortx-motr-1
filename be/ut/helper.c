@@ -449,7 +449,7 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	int			    rc;
 
-	m0_be_seg_init(&ut_seg->bus_seg, m0_be_ut_stob_get(false),
+	m0_be_seg_init(&ut_seg->bus_seg, m0_be_ut_stob_get(true),
 		       &ut_be->but_dom);
 	rc = m0_be_seg_create(&ut_seg->bus_seg, size,
 			      be_ut_seg_allocate_addr(h, size));
@@ -472,7 +472,7 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 	M0_ASSERT(rc == 0);
 	m0_be_seg_fini(&ut_seg->bus_seg);
 
-	m0_be_ut_stob_put(stob, false);
+	m0_be_ut_stob_put(stob, true);
 }
 
 static void be_ut_data_save(const char *filename, m0_bcount_t size, void *addr)
