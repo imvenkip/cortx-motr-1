@@ -62,10 +62,6 @@ struct m0_be_seg {
 	struct m0_be_allocator bs_allocator;
 	struct m0_be_domain   *bs_domain;
 	int                    bs_state;
-	uint32_t               bs_bshift;  /* XXX remove it. STOB block shift */
-	uint32_t               bs_pgshift; /* seg page shift */
-	m0_bcount_t           *bs_pgmap;
-	m0_bcount_t            bs_pgnr;
 };
 
 

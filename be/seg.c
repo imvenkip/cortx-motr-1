@@ -93,7 +93,6 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
-		.bs_pgshift  = 12
 	};
 }
 
@@ -104,8 +103,7 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 
 M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg)
 {
-	return seg != NULL && seg->bs_addr != NULL && seg->bs_size > 0
-		&& seg->bs_pgmap != NULL && seg->bs_pgnr > 0;
+	return seg != NULL && seg->bs_addr != NULL && seg->bs_size > 0;
 }
 
 bool m0_be__reg_invariant(const struct m0_be_reg *reg)
@@ -124,14 +122,9 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	struct m0_be_reg      hdr_reg;
 	void                 *seg_addr0;
 	m0_bcount_t           seg_size;
-	m0_bcount_t           i;
 	void                 *p;
 
 	/* Allocate buffer for segment header. */
-	seg->bs_bshift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
-	if (seg->bs_pgshift < seg->bs_bshift) {
-		seg->bs_pgshift = seg->bs_bshift;
-	}
 	M0_ALLOC_PTR(hdrbuf);
 	if (hdrbuf == NULL)
 		return -ENOMEM;
@@ -146,20 +139,10 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		seg_addr0 = hdrbuf->bh_addr;
 		seg_size  = hdrbuf->bh_size;
 		M0_ASSERT(seg_addr0 != NULL);
-		M0_ASSERT(m0_addr_is_aligned(seg_addr0, seg->bs_bshift));
 	}
 	m0_free(hdrbuf);
 	if (rc != 0)
 		return rc;
-
-	/* Allocate page map. */
-	seg->bs_pgnr = (seg_size + (1 << seg->bs_pgshift) - 1) >>
-		seg->bs_pgshift;
-	seg->bs_pgmap = m0_alloc_aligned(sizeof(m0_bcount_t) * seg->bs_pgnr, 3);
-	if (seg->bs_pgmap == NULL)
-		return -ENOMEM;
-	for (i = 0; i < seg->bs_pgnr; i++)
-		seg->bs_pgmap[i] = 0; /* not present yet */
 
 	/* mmap an area at bh_addr of bh_size. */
 	p = mmap(seg_addr0, seg_size, PROT_READ|PROT_WRITE,
@@ -174,8 +157,6 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	rc = m0_be_seg__read(&M0_BE_REG(seg, seg_size, seg_addr0), seg_addr0);
 	if (rc == 0) {
 		seg->bs_state = M0_BSS_OPENED;
-		for (i = 0; i < seg->bs_pgnr; i++)
-			seg->bs_pgmap[i] |= M0_BE_SEG_PG_PRESENT;
 	}
 	return rc;
 }
@@ -184,77 +165,28 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 {
 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
 
-	m0_free(seg->bs_pgmap);
 	munmap(seg->bs_addr, seg->bs_size);
 	seg->bs_state = M0_BSS_CLOSED;
 }
 
-static inline m0_bcount_t be_seg_pgno(const struct m0_be_seg *seg, void *addr)
-{
-	return (addr - seg->bs_addr) >> seg->bs_pgshift;
-}
-
 M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op)
 {
-	m0_bcount_t n;
-
-	M0_PRE(m0_be__reg_invariant(reg) && op != NULL);
-
-	op->bo_utype   = M0_BOP_REG;
-	op->bo_u.u_reg = *reg;
-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
-
-	for (n = be_seg_pgno(reg->br_seg, reg->br_addr);
-	     n <= be_seg_pgno(reg->br_seg, reg->br_addr + reg->br_size); n++) {
-		/* XXX: launch stobio if page is not present. */
-		M0_ASSERT(reg->br_seg->bs_pgmap[n] & M0_BE_SEG_PG_PRESENT);
-		reg->br_seg->bs_pgmap[n]++;
-	}
-
-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+	/* XXX not implemented */
 }
 
 M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg)
 {
-	m0_bcount_t n;
-
-	M0_PRE(m0_be__reg_invariant(reg) && m0_be__reg_is_pinned(reg));
-
-	for (n = be_seg_pgno(reg->br_seg, reg->br_addr);
-	     n <= be_seg_pgno(reg->br_seg, reg->br_addr + reg->br_size); n++) {
-		M0_ASSERT(reg->br_seg->bs_pgmap[n] & M0_BE_SEG_PG_PRESENT);
-		reg->br_seg->bs_pgmap[n]++;
-	}
+	/* XXX not implemented */
 }
 
 M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg)
 {
-	m0_bcount_t n;
-
-	M0_PRE(m0_be__reg_invariant(reg) && m0_be__reg_is_pinned(reg));
-
-	for (n = be_seg_pgno(reg->br_seg, reg->br_addr);
-	     n <= be_seg_pgno(reg->br_seg, reg->br_addr + reg->br_size); n++) {
-		M0_ASSERT(reg->br_seg->bs_pgmap[n] & M0_BE_SEG_PG_PRESENT);
-		M0_ASSERT((reg->br_seg->bs_pgmap[n] &
-			   M0_BE_SEG_PG_PIN_CNT_MASK) > 0);
-		reg->br_seg->bs_pgmap[n]--;
-	}
+	/* XXX not implemented */
 }
 
 M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg)
 {
-	m0_bcount_t n;
-
-	M0_PRE(m0_be__reg_invariant(reg));
-
-	for (n = be_seg_pgno(reg->br_seg, reg->br_addr);
-	     n <= be_seg_pgno(reg->br_seg, reg->br_addr + reg->br_size); n++) {
-		if (! (reg->br_seg->bs_pgmap[n] & M0_BE_SEG_PG_PRESENT)
-		    || (reg->br_seg->bs_pgmap[n] &
-			M0_BE_SEG_PG_PIN_CNT_MASK) == 0)
-			return false;
-	}
+	/* XXX not implemented */
 	return true;
 }
 
