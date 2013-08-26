@@ -102,12 +102,12 @@ M0_INTERNAL struct m0_stob *m0_be_log_store_stob(struct m0_be_log_store *ls)
 	return ls->ls_stob;
 }
 
-static m0_bcount_t be_log_store_free(struct m0_be_log_store *ls)
+M0_INTERNAL m0_bcount_t m0_be_log_store_free(const struct m0_be_log_store *ls)
 {
 	return ls->ls_size - (ls->ls_reserved - ls->ls_discarded);
 }
 
-static m0_bcount_t be_log_store_size(const struct m0_be_log_store *ls)
+M0_INTERNAL m0_bcount_t m0_be_log_store_size(const struct m0_be_log_store *ls)
 {
 	return ls->ls_size;
 }
@@ -120,7 +120,7 @@ M0_INTERNAL int m0_be_log_store_reserve(struct m0_be_log_store *ls,
 	M0_ENTRY("size = %lu", size);
 
 	M0_PRE(m0_be_log_store__invariant(ls));
-	if (be_log_store_free(ls) < size) {
+	if (m0_be_log_store_free(ls) < size) {
 		rc = -EAGAIN;
 	} else {
 		ls->ls_reserved += size;
@@ -153,11 +153,19 @@ static void be_log_store_pos_advance(struct m0_be_log_store *ls,
 	M0_PRE(m0_be_log_store__invariant(ls));
 	M0_PRE(ls->ls_pos + size <= ls->ls_reserved);
 
-	*pos_prev = ls->ls_pos;
+	if (pos_prev != NULL)
+		*pos_prev = ls->ls_pos;
 	ls->ls_pos += size;
-	*pos_curr = ls->ls_pos;
+	if (pos_curr != NULL)
+		*pos_curr = ls->ls_pos;
 
 	M0_POST(m0_be_log_store__invariant(ls));
+}
+
+M0_INTERNAL void m0_be_log_store_pos_advance(struct m0_be_log_store *ls,
+					     m0_bcount_t size)
+{
+	be_log_store_pos_advance(ls, size, NULL, NULL);
 }
 
 M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit,
@@ -221,7 +229,7 @@ static void be_log_store_io_add(struct m0_be_log_store_io *lsi,
 			       void *ptr,
 			       m0_bcount_t size)
 {
-	m0_bcount_t ls_size = be_log_store_size(lsi->lsi_ls);
+	m0_bcount_t ls_size = m0_be_log_store_size(lsi->lsi_ls);
 	m0_bcount_t size1;
 	m0_bindex_t wrap_point;
 

@@ -117,6 +117,7 @@ M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr);
 /** Adds the transaction to m0_be_tx_group::tg_txs. */
 M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 				      struct m0_be_tx *tx);
+M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr);
 
 M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr);
 

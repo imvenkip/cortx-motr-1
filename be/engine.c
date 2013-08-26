@@ -131,6 +131,7 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	}
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_fini(&en->eng_groups[i]), true));
+	M0_ASSERT(m0_be_log_size(&en->eng_log) == m0_be_log_free(&en->eng_log));
 	m0_be_log_destroy(&en->eng_log);
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);

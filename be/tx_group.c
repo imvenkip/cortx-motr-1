@@ -160,6 +160,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	M0_PRE(gr->tg_nr_unstable == 0);
 
 	M0_SET0(&gr->tg_used);
+	M0_SET0(&gr->tg_log_reserved);
 	m0_be_group_ondisk_reset(&gr->tg_od);
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
@@ -237,6 +238,11 @@ M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr)
 	} M0_BE_TX_GROUP_TX_ENDFOR;
 }
 
+M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr)
+{
+	return grp_tlist_length(&gr->tg_txs);
+}
+
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr)
 {
 	m0_be_engine__tx_group_open(gr->tg_engine, gr);
@@ -281,7 +287,10 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 	int rc;
 
 	if (be_tx_group_empty_handle(gr, op)) {
-		gr->tg_log_reserved = M0_BE_TX_CREDIT_OBJ(0, 0);
+		be_log_io_credit_group(&gr->tg_log_reserved,
+				       m0_be_tx_group_tx_nr(gr),
+				       &M0_BE_TX_CREDIT_OBJ(0, 0));
+		m0_be_log_fake_io(gr->tg_log, &gr->tg_log_reserved);
 		return;
 	}
 

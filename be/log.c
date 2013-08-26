@@ -78,6 +78,16 @@ M0_INTERNAL struct m0_stob *m0_be_log_stob(struct m0_be_log *log)
 	return m0_be_log_store_stob(&log->lg_store);
 }
 
+M0_INTERNAL m0_bcount_t m0_be_log_size(const struct m0_be_log *log)
+{
+	return m0_be_log_store_size(&log->lg_store);
+}
+
+M0_INTERNAL m0_bcount_t m0_be_log_free(const struct m0_be_log *log)
+{
+	return m0_be_log_store_free(&log->lg_store);
+}
+
 M0_INTERNAL void
 m0_be_log_cblock_credit(struct m0_be_tx_credit *credit, m0_bcount_t cblock_size)
 {
@@ -118,6 +128,12 @@ M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 
 	if (log->lg_got_space_cb != NULL)
 		log->lg_got_space_cb(log);
+}
+
+M0_INTERNAL void m0_be_log_fake_io(struct m0_be_log *log,
+				   struct m0_be_tx_credit *reserved)
+{
+	m0_be_log_store_pos_advance(&log->lg_store, reserved->tc_reg_size);
 }
 
 M0_INTERNAL int

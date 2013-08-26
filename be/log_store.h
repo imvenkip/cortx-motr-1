@@ -91,6 +91,10 @@ M0_INTERNAL int  m0_be_log_store_reserve(struct m0_be_log_store *ls,
 					m0_bcount_t size);
 M0_INTERNAL void m0_be_log_store_discard(struct m0_be_log_store *ls,
 					m0_bcount_t size);
+M0_INTERNAL void m0_be_log_store_pos_advance(struct m0_be_log_store *ls,
+					     m0_bcount_t size);
+M0_INTERNAL m0_bcount_t m0_be_log_store_size(const struct m0_be_log_store *ls);
+M0_INTERNAL m0_bcount_t m0_be_log_store_free(const struct m0_be_log_store *ls);
 
 M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit,
 						 m0_bcount_t cblock_size);

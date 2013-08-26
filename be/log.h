@@ -84,6 +84,8 @@ M0_INTERNAL int  m0_be_log_create(struct m0_be_log *log, m0_bcount_t log_size);
 M0_INTERNAL void m0_be_log_destroy(struct m0_be_log *log);
 
 M0_INTERNAL struct m0_stob *m0_be_log_stob(struct m0_be_log *log);
+M0_INTERNAL m0_bcount_t m0_be_log_size(const struct m0_be_log *log);
+M0_INTERNAL m0_bcount_t m0_be_log_free(const struct m0_be_log *log);
 
 M0_INTERNAL void m0_be_log_cblock_credit(struct m0_be_tx_credit *credit,
 					 m0_bcount_t cblock_size);
@@ -107,6 +109,8 @@ M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 M0_INTERNAL int m0_be_log_reserve_tx(struct m0_be_log *log,
 				     struct m0_be_tx_credit *prepared);
 
+M0_INTERNAL void m0_be_log_fake_io(struct m0_be_log *log,
+				   struct m0_be_tx_credit *reserved);
 /** @} end of be group */
 
 #endif /* __MERO_BE_LOG_H__ */
