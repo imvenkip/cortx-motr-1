@@ -286,16 +286,14 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 {
 	int rc;
 
+	/** XXX FIXME move somewhere else */
+	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
+
 	if (be_tx_group_empty_handle(gr, op)) {
-		be_log_io_credit_group(&gr->tg_log_reserved,
-				       m0_be_tx_group_tx_nr(gr),
-				       &M0_BE_TX_CREDIT_OBJ(0, 0));
 		m0_be_log_fake_io(gr->tg_log, &gr->tg_log_reserved);
 		return;
 	}
 
-	/** XXX FIXME move somewhere else */
-	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
 	/** XXX FIXME: write with single call to m0_be_log function */
 	m0_be_log_submit(gr->tg_log, op, gr);
 	rc = m0_be_op_wait(op);
