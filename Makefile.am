@@ -185,7 +185,7 @@ include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/m0t1fs/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mdservice/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mdstore/Makefile.sub
+include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mgmt/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mw/Makefile.sub
