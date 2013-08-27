@@ -436,7 +436,10 @@ static void get_max_key_pos(struct m0_be_btree *btree,
 		;
 
 	pos->p_node  = node;
-	pos->p_index = node != NULL ? node->b_nr_active - 1 : 0;
+	if (node != NULL && node->b_nr_active > 0)
+		pos->p_index = node->b_nr_active - 1;
+	else
+		pos->p_index = 0;
 }
 
 /**
@@ -904,7 +907,10 @@ static void *btree_get_max_key(struct m0_be_btree *btree)
 	struct node_pos node_pos;
 
 	get_max_key_pos(btree, btree->bb_root, &node_pos);
-	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
+	if (node_pos.p_node->b_key_vals[0] == NULL)
+		return NULL;
+	else
+		return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
 }
 
 /**
@@ -917,7 +923,10 @@ static void *btree_get_min_key(struct m0_be_btree *btree)
 	struct node_pos node_pos;
 
 	get_min_key_pos(btree, btree->bb_root, &node_pos);
-	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
+	if (node_pos.p_node->b_key_vals[0] == NULL)
+		return NULL;
+	else
+		return node_pos.p_node->b_key_vals[0]->key;
 }
 
 static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,

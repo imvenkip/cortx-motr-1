@@ -38,7 +38,7 @@ static int tree_cmp(const void *key0, const void *key1)
 
 static m0_bcount_t tree_kv_size(const void *kv)
 {
-	return strlen(kv) + 1;
+	return kv != NULL ? strlen(kv) + 1 : 0;
 }
 
 static const struct m0_be_btree_kv_ops kv_ops = {
@@ -215,6 +215,12 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
 	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
+
+	M0_BE_OP_SYNC(op, m0_be_btree_minkey(tree, &op, &key));
+	M0_UT_ASSERT(key.b_addr == NULL);
+
+	M0_BE_OP_SYNC(op, m0_be_btree_maxkey(tree, &op, &key));
+	M0_UT_ASSERT(key.b_addr == NULL);
 
 	m0_buf_init(&key, k, sizeof k);
 	m0_buf_init(&val, v, sizeof v);
