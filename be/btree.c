@@ -1814,6 +1814,36 @@ out:
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
+M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *cur)
+{
+	struct m0_be_op *op = &cur->bc_op;
+	int              rc;
+
+	m0_be_op_init(op);
+	m0_be_btree_cursor_next(cur);
+	rc = m0_be_op_wait(op);
+	M0_ASSERT(rc == 0);
+	rc = op_tree(op)->t_rc;
+	m0_be_op_fini(op);
+
+	return rc;
+}
+
+M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
+{
+	struct m0_be_op *op = &cur->bc_op;
+	int              rc;
+
+	m0_be_op_init(op);
+	m0_be_btree_cursor_prev(cur);
+	rc = m0_be_op_wait(op);
+	M0_ASSERT(rc == 0);
+	rc = op_tree(op)->t_rc;
+	m0_be_op_fini(op);
+
+	return rc;
+}
+
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)
 {
 }
