@@ -277,7 +277,7 @@ struct m0_cob_domain {
 	struct m0_be_btree     *cd_fileattr_ea;
 };
 
-int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_domain *env,
+int m0_cob_domain_init(struct m0_cob_domain *dom,
 		       struct m0_be_seg	*seg, const struct m0_cob_domain_id *id,
 		       struct m0_sm_group *grp);
 

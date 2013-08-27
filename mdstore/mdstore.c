@@ -75,8 +75,7 @@ M0_INTERNAL void m0_mdstore_mod_fini(void)
 #define M0_MD_FAKE_VOLUME    250000
 
 M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore        *md,
-				  struct m0_statfs         *statfs,
-				  struct m0_db_tx          *tx)
+				  struct m0_statfs         *statfs)
 {
 	/**
 	   We need statfs mostly to provide mdstore root fid to
@@ -98,43 +97,35 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore        *md,
 	return 0;
 }
 
-M0_INTERNAL int m0_mdstore_init(struct m0_mdstore          *md,
-				struct m0_cob_domain_id    *id,
-				struct m0_dbenv            *db,
-				bool                        init_root)
+M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
+				struct m0_cob_domain_id *id,
+				struct m0_be_seg        *db,
+				struct m0_sm_group      *grp,
+				bool                     init_root)
 {
-	struct m0_db_tx        tx;
 	int                    rc;
 
 	M0_PRE(md != NULL && id != NULL && db != NULL);
 
 	M0_SET0(md);
-	rc = m0_cob_domain_init(&md->md_dom, db, id);
+	rc = m0_cob_domain_init(&md->md_dom, db, id, grp);
 	if (rc != 0)
 		return rc;
+
 	if (init_root) {
 		struct m0_buf name;
 
-		rc = m0_db_tx_init(&tx, db, 0);
-		if (rc != 0)
-			goto out;
 		m0_buf_init(&name, (char *)M0_COB_ROOT_NAME, strlen(M0_COB_ROOT_NAME));
-		rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root, &tx);
+		rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root);
 		MDSTORE_FUNC_FAIL(INIT_1, rc);
-		if (rc != 0) {
-			m0_db_tx_abort(&tx);
-		} else {
+		if (rc == 0) {
 			/**
 			 * Check if omgid can be allocated.
 			 */
-			rc = m0_cob_alloc_omgid(&md->md_dom, &tx, NULL);
-			if (rc != 0)
-				m0_db_tx_abort(&tx);
-			else
-				m0_db_tx_commit(&tx);
+			rc = m0_cob_alloc_omgid(&md->md_dom, NULL);
 		}
 	}
-out:
+
 	MDSTORE_FUNC_FAIL(INIT_2, rc);
 	if (rc != 0)
 		m0_mdstore_fini(md);
@@ -149,10 +140,17 @@ M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
 	m0_cob_domain_fini(&md->md_dom);
 }
 
+M0_INTERNAL void
+m0_mdstore_dir_nlink_update_credit(struct m0_mdstore *md,
+				   struct m0_be_tx_credit *accum)
+{
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+}
+
 M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 					    struct m0_fid       *fid,
 					    int                  inc,
-					    struct m0_db_tx     *tx)
+					    struct m0_be_tx     *tx)
 {
 	struct m0_cob         *cob;
 	struct m0_cob_oikey    oikey;
@@ -165,7 +163,7 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 	 * be found by oikey(fid, 0):
 	 */
 	m0_cob_oikey_make(&oikey, fid, 0);
-	rc = m0_cob_locate(&md->md_dom, &oikey, 0, &cob, tx);
+	rc = m0_cob_locate(&md->md_dom, &oikey, 0, &cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cannot locate stat data for dir[%lx:%lx] "
 		       "- %d", fid->f_container, fid->f_key, rc);
@@ -186,11 +184,19 @@ out:
 	return rc;
 }
 
+M0_INTERNAL void
+m0_mdstore_create_credit(struct m0_mdstore *md,
+			 struct m0_be_tx_credit *accum)
+{
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_CREATE, accum);
+	m0_mdstore_dir_nlink_update_credit(md, accum);
+}
+
 M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob_attr    *attr,
 				  struct m0_cob        **out,
-				  struct m0_db_tx       *tx)
+				  struct m0_be_tx       *tx)
 {
 	struct m0_cob         *cob;
 	struct m0_cob_nskey   *nskey;
@@ -259,11 +265,19 @@ out:
 	return rc;
 }
 
+M0_INTERNAL void
+m0_mdstore_link_credit(struct m0_mdstore *md,
+		       struct m0_be_tx_credit *accum)
+{
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_NAME_ADD, accum);
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+}
+
 M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 				struct m0_fid           *pfid,
 				struct m0_cob           *cob,
 				struct m0_buf           *name,
-				struct m0_db_tx         *tx)
+				struct m0_be_tx         *tx)
 {
 	struct m0_cob_nskey   *nskey;
 	struct m0_cob_nsrec    nsrec;
@@ -315,15 +329,14 @@ out:
  * @retval -ENOMEM     Memory allocation error.
  */
 M0_INTERNAL int m0_mdstore_dir_empty_check(struct m0_mdstore *md,
-					   struct m0_cob     *cob,
-					   struct m0_db_tx   *tx)
+					   struct m0_cob     *cob)
 {
 	struct m0_cob_iterator  it;
 	struct m0_bitstring     empty = {.b_len = 0};
 	int                     rc;
 
 	M0_ENTRY();
-	rc = m0_cob_iterator_init(cob, &it, &empty, tx);
+	rc = m0_cob_iterator_init(cob, &it, &empty);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "iterator init: %d", rc);
 		goto out;
@@ -348,11 +361,20 @@ out:
 	return rc;
 }
 
+M0_INTERNAL void
+m0_mdstore_unlink_credit(struct m0_mdstore *md,
+		         struct m0_be_tx_credit *accum)
+{
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_NAME_UPDATE, accum);
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_DELETE, accum);
+}
+
 M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob         *cob,
 				  struct m0_buf         *name,
-				  struct m0_db_tx       *tx)
+				  struct m0_be_tx       *tx)
 {
 	struct m0_cob         *ncob;
 	struct m0_cob_nskey   *nskey;
@@ -411,7 +433,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				m0_cob_oikey_make(&oikey, cob->co_fid,
 						  cob->co_nsrec.cnr_linkno + 1);
 
-				rc = m0_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
+				rc = m0_cob_locate(&md->md_dom, &oikey, 0, &ncob);
 				if (rc != 0) {
 					M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate "
 					       "failed with %d", rc);
@@ -459,7 +481,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 		 * TODO: we must take some sort of a lock
 		 * when doing check-before-modify update to directory.
 		 */
-		rc = m0_mdstore_dir_empty_check(md, cob, tx);
+		rc = m0_mdstore_dir_empty_check(md, cob);
 		if (rc != 0)
 			goto out;
 		rc = m0_cob_delete(cob, tx);
@@ -478,7 +500,7 @@ out:
 M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 				struct m0_cob           *cob,
 				m0_mdstore_locate_flags_t flags,
-				struct m0_db_tx         *tx)
+				struct m0_be_tx         *tx)
 {
 	int rc = 0;
 
@@ -494,7 +516,7 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 
 M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 				 struct m0_cob          *cob,
-				 struct m0_db_tx        *tx)
+				 struct m0_be_tx        *tx)
 {
 	int rc = 0;
 
@@ -510,6 +532,14 @@ M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 	return rc;
 }
 
+M0_INTERNAL void
+m0_mdstore_rename_credit(struct m0_mdstore *md,
+		         struct m0_be_tx_credit *accum)
+{
+	m0_mdstore_unlink_credit(md, accum);
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_NAME_UPDATE, accum);
+}
+
 M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid_tgt,
 				  struct m0_fid         *pfid_src,
@@ -517,7 +547,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 				  struct m0_cob         *cob_src,
 				  struct m0_buf         *tname,
 				  struct m0_buf         *sname,
-				  struct m0_db_tx       *tx)
+				  struct m0_be_tx       *tx)
 {
 	struct m0_cob_nskey  *srckey = NULL;
 	struct m0_cob_nskey  *tgtkey = NULL;
@@ -535,7 +565,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 	/*
 	 * Let's kill existing target name.
 	 */
-	rc = m0_mdstore_lookup(md, pfid_tgt, tname, &tncob, tx);
+	rc = m0_mdstore_lookup(md, pfid_tgt, tname, &tncob);
 	unlink = (tncob != NULL &&
 	    m0_cob_nskey_cmp(tncob->co_nskey, cob_tgt->co_nskey) != 0);
 
@@ -565,10 +595,17 @@ out:
 	return rc;
 }
 
+M0_INTERNAL void
+m0_mdstore_setattr_credit(struct m0_mdstore *md,
+		          struct m0_be_tx_credit *accum)
+{
+	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+}
+
 M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
 				   struct m0_cob_attr   *attr,
-				   struct m0_db_tx      *tx)
+				   struct m0_be_tx      *tx)
 {
 	struct m0_cob_nsrec   *nsrec = NULL;
 	struct m0_cob_fabrec  *fabrec = NULL;
@@ -634,8 +671,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 
 M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 				   struct m0_cob           *cob,
-				   struct m0_cob_attr      *attr,
-				   struct m0_db_tx         *tx)
+				   struct m0_cob_attr      *attr)
 {
 	int                rc = 0;
 
@@ -695,8 +731,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 
 M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 				   struct m0_cob           *cob,
-				   struct m0_rdpg          *rdpg,
-				   struct m0_db_tx         *tx)
+				   struct m0_rdpg          *rdpg)
 {
 	struct m0_cob_iterator         it;
 	struct m0_dirent              *ent;
@@ -737,7 +772,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 		dot = 0;
 	}
 
-	rc = m0_cob_iterator_init(cob, &it, dot ? &empty : pos, tx);
+	rc = m0_cob_iterator_init(cob, &it, dot ? &empty : pos);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "Iterator failed to position with %d", rc);
 		goto out;
@@ -810,8 +845,7 @@ out:
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 				  const struct m0_fid   *fid,
 				  struct m0_cob        **cob,
-				  int                    flags,
-				  struct m0_db_tx       *tx)
+				  int                    flags)
 {
 	struct m0_cob_oikey oikey;
 	int                 rc;
@@ -821,7 +855,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 
 	if (flags == M0_MD_LOCATE_STORED) {
 		rc = m0_cob_locate(&md->md_dom, &oikey,
-				   (M0_CA_FABREC | M0_CA_OMGREC), cob, tx);
+				   (M0_CA_FABREC | M0_CA_OMGREC), cob);
 	} else {
 		/*
 		 * @todo: locate cob in opened cobs table.
@@ -845,8 +879,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_buf         *name,
-				  struct m0_cob        **cob,
-				  struct m0_db_tx       *tx)
+				  struct m0_cob        **cob)
 {
 	struct m0_cob_nskey *nskey;
 	int flags;
@@ -858,11 +891,11 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 
 	rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
 	if (rc != 0)
-		return rc;
+		goto out;
 	flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
-	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob, tx);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
+out:
+	M0_RETURN(rc);
 }
 
 #define MDSTORE_PATH_MAX 1024
@@ -874,7 +907,6 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 {
 	struct m0_cob   *cob;
 	struct m0_fid    pfid;
-	struct m0_db_tx  tx;
 	int              rc;
 
 	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
@@ -885,17 +917,10 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 restart:
 	pfid = *fid;
 
-	rc = m0_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
-	if (rc != 0) {
-		m0_free(*path);
-		*path = NULL;
-		return rc;
-	}
-
 	do {
 		char name[MDSTORE_NAME_MAX] = {0,};
 
-		rc = m0_mdstore_locate(md, &pfid, &cob, M0_MD_LOCATE_STORED, &tx);
+		rc = m0_mdstore_locate(md, &pfid, &cob, M0_MD_LOCATE_STORED);
 		if (rc != 0)
 			goto out;
 
@@ -914,15 +939,12 @@ restart:
 	} while (!m0_fid_eq(&pfid, &M0_COB_ROOT_FID));
 out:
 	if (rc != 0) {
-		m0_db_tx_abort(&tx);
 		if (rc == -EDEADLK) {
 			memset(*path, 0, MDSTORE_PATH_MAX);
 			goto restart;
 		}
 		m0_free(*path);
 		*path = NULL;
-	} else {
-		m0_db_tx_commit(&tx);
 	}
 	M0_LEAVE("rc: %d, path: %s", rc, *path);
 	return rc;

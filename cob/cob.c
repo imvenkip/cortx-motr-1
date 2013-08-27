@@ -451,7 +451,7 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
 
    XXX: for now grp is passed from the top level code, in future -- undetermined.
   */
-int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_domain *env,
+int m0_cob_domain_init(struct m0_cob_domain *dom,
 		       struct m0_be_seg	*seg, const struct m0_cob_domain_id *id,
 		       struct m0_sm_group *grp)
 {
@@ -475,7 +475,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_domain *env,
 	M0_PRE(id->id != 0);
 
 	dom->cd_id    = *id;
-	dom->cd_dbenv = env;
+	dom->cd_dbenv = seg->bs_domain;
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)

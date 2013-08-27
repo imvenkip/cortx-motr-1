@@ -25,10 +25,10 @@
 
 #include "cob/cob.h"
 
+struct m0_sm_group;
 struct m0_cob_domain_id;
 struct m0_stob_id;
-struct m0_db_tx;
-struct m0_dbenv;
+struct m0_be_tx;
 struct m0_fid;
 struct m0_fop;
 struct m0_cob;
@@ -82,8 +82,7 @@ typedef enum m0_mdstore_locate_flags m0_mdstore_locate_flags_t;
  * Populate @statfs with storage data such as free files, etc.
  */
 M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore      *md,
-                                  struct m0_statfs       *statfs,
-                                  struct m0_db_tx        *tx);
+                                  struct m0_statfs       *statfs);
 
 /**
  * Init mdstore and get it ready to work. If init_root == !0
@@ -91,8 +90,8 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore      *md,
  */
 M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 				struct m0_cob_domain_id *id,
-				struct m0_dbenv         *db,
-				//struct m0_be_seg        *seg,
+				struct m0_be_seg        *db,
+				struct m0_sm_group      *grp,
 				bool                     init_root);
 
 /**
@@ -109,7 +108,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 				struct m0_fid           *pfid,
 				struct m0_cob           *cob,
 				struct m0_buf           *name,
-				struct m0_db_tx         *tx);
+				struct m0_be_tx         *tx);
 
 /**
  * Handle unlink operation described by @pfid and @name. Input
@@ -120,7 +119,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob         *cob,
 				  struct m0_buf         *name,
-				  struct m0_db_tx       *tx);
+				  struct m0_be_tx       *tx);
 
 /**
  * Handle rename operation described by params. Input cobs are
@@ -136,7 +135,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 				  struct m0_cob         *cob_src,
 				  struct m0_buf         *tname,
 				  struct m0_buf         *sname,
-				  struct m0_db_tx       *tx);
+				  struct m0_be_tx       *tx);
 
 /**
  * Handle create operation described by @attr on @cob. Input @cob
@@ -148,7 +147,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob_attr    *attr,
 				  struct m0_cob        **out,
-				  struct m0_db_tx       *tx);
+				  struct m0_be_tx       *tx);
 
 /**
  * Handle open operation described by @flags on @cob. Input @cob
@@ -158,7 +157,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
 M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 				struct m0_cob           *cob,
 				m0_mdstore_locate_flags_t flags,
-				struct m0_db_tx         *tx);
+				struct m0_be_tx         *tx);
 
 /**
  * Handle close operation on @cob. Input @cob is so called statdata
@@ -168,7 +167,7 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 */
 M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 				 struct m0_cob          *cob,
-				 struct m0_db_tx        *tx);
+				 struct m0_be_tx        *tx);
 
 /**
  * Handle setattr operation described by @attr on @cob. Input @cob
@@ -179,7 +178,7 @@ M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
 				   struct m0_cob_attr   *attr,
-				   struct m0_db_tx      *tx);
+				   struct m0_be_tx      *tx);
 
 /**
  * Get attributes of @cob into passed @attr. Input @cob
@@ -189,8 +188,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 */
 M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
-				   struct m0_cob_attr   *attr,
-				   struct m0_db_tx      *tx);
+				   struct m0_cob_attr   *attr);
 
 /**
  * Handle readdir operation described by @rdpg on @cob. Input @cob
@@ -200,8 +198,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore    *md,
 */
 M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
-				   struct m0_rdpg       *rdpg,
-				   struct m0_db_tx      *tx);
+				   struct m0_rdpg       *rdpg);
 
 /**
  * Find cob by fid.
@@ -209,8 +206,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore    *md,
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 				  const struct m0_fid   *fid,
 				  struct m0_cob        **cob,
-				  int                    flags,
-				  struct m0_db_tx       *tx);
+				  int                    flags);
 
 /**
  * Find cob by parent fid and name.
@@ -218,8 +214,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_buf         *name,
-				  struct m0_cob        **cob,
-				  struct m0_db_tx       *tx);
+				  struct m0_cob        **cob);
 
 /**
  * Get path by @fid. Path @path is allocated by
@@ -230,6 +225,26 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 				struct m0_fid           *fid,
 				char                   **path);
+
+M0_INTERNAL void
+m0_mdstore_create_credit(struct m0_mdstore *md,
+			 struct m0_be_tx_credit *accum);
+
+M0_INTERNAL void
+m0_mdstore_link_credit(struct m0_mdstore *md,
+		       struct m0_be_tx_credit *accum);
+
+M0_INTERNAL void
+m0_mdstore_unlink_credit(struct m0_mdstore *md,
+		         struct m0_be_tx_credit *accum);
+
+M0_INTERNAL void
+m0_mdstore_rename_credit(struct m0_mdstore *md,
+		         struct m0_be_tx_credit *accum);
+
+M0_INTERNAL void
+m0_mdstore_setattr_credit(struct m0_mdstore *md,
+		          struct m0_be_tx_credit *accum);
 
 /**
    ADDB module initializer.
