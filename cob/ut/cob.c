@@ -92,8 +92,7 @@ static void test_mkfs(void)
         m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_cob_domain_init(&dom, &ut_be.but_dom, &ut_seg.bus_seg, &id,
-				grp);
+	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id, grp);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cob_tx_credit(&dom, M0_COB_OP_DOMAIN_MKFS, &accum);
@@ -193,15 +192,12 @@ static void test_add_name(void)
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
 
-	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
 	m0_cob_tx_credit(&dom, M0_COB_OP_NAME_ADD, &accum);
-	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
-	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
 	ut_tx_open(tx, &accum);
 
 	/* lookup for cob created before using @test_name. */
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, tx);
+	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
 
 	/* add new name to existing cob */
@@ -212,14 +208,14 @@ static void test_add_name(void)
 	m0_cob_put(cob);
 
 	/* lookup for new name */
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob, tx);
+	rc = m0_cob_lookup(&dom, nskey, 0, &cob);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 	m0_free(nskey);
 
 	/* lookup for wrong name, should fail. */
 	m0_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob, tx);
+	rc = m0_cob_lookup(&dom, nskey, 0, &cob);
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
@@ -239,14 +235,12 @@ static void test_del_name(void)
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
 
-	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
 	m0_cob_tx_credit(&dom, M0_COB_OP_NAME_DEL, &accum);
-	m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum);
 	ut_tx_open(tx, &accum);
 
 	/* lookup for cob created before using @test_name. */
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, tx);
+	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
 
 	/* del name that we created in prev test */
@@ -256,7 +250,7 @@ static void test_del_name(void)
 	m0_cob_put(cob);
 
 	/* lookup for new name */
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob, tx);
+	rc = m0_cob_lookup(&dom, nskey, 0, &cob);
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
@@ -267,23 +261,13 @@ static void test_del_name(void)
 /** Lookup by name, make sure cfid is right. */
 static void test_lookup(void)
 {
-        struct m0_be_tx      tx_;
-        struct m0_be_tx     *tx = &tx_;
 	struct m0_cob_nskey *nskey;
 	struct m0_fid        pfid;
 	int                  rc;
-	/* struct m0_be_tx_credit accum = M0_BE_TX_CREDIT_ZERO; */
 
 	m0_fid_set(&pfid, 0x123, 0x456);
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	/* XXX: skip this for a while, Max will add stuff to close empty txs */
-	/* m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum); */
-	/* ut_tx_open(tx, &accum); */
-	M0_SET0(tx);
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, tx);
-	/* XXX: skip this for a while */
-	/* ut_tx_close(tx); */
-	/* m0_be_tx_fini(tx); */
+	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cob != NULL);
 	M0_UT_ASSERT(cob->co_dom == &dom);
@@ -299,26 +283,16 @@ static void test_lookup(void)
 
 static int _locate(void)
 {
-        struct m0_be_tx     tx_;
-        struct m0_be_tx    *tx = &tx_;
 	struct m0_fid       fid;
 	struct m0_cob_oikey oikey;
 	int                 rc;
-	/* struct m0_be_tx_credit accum = M0_BE_TX_CREDIT_ZERO; */
 
 	m0_fid_set(&fid, 0xabc, 0xdef);
 
 	oikey.cok_fid = fid;
 	oikey.cok_linkno = 0;
 
-	/* XXX: just the same as in test_lookup() */
-	/* m0_cob_tx_credit(&dom, M0_COB_OP_LOOKUP, &accum); */
-	/* ut_tx_open(tx, &accum); */
-	M0_SET0(tx);
-
-	rc = m0_cob_locate(&dom, &oikey, 0, &cob, tx);
-	/* ut_tx_close(tx); */
-	/* m0_be_tx_fini(tx); */
+	rc = m0_cob_locate(&dom, &oikey, 0, &cob);
 
 	return rc;
 }
@@ -480,7 +454,7 @@ static void ub_lookup(int i)
 	/* pfid == cfid for data objects */
 	m0_fid_set(&fid, 0xAA, i);
 	m0_cob_nskey_make(&key, &fid, "", 0);
-	rc = m0_cob_lookup(&dom, key, M0_CA_NSKEY_FREE, &cob, &cob_ub_tx);
+	rc = m0_cob_lookup(&dom, key, M0_CA_NSKEY_FREE, &cob);
 	M0_UB_ASSERT(rc == 0);
 	M0_UB_ASSERT(cob != NULL);
 	M0_UB_ASSERT(cob->co_dom == &dom);

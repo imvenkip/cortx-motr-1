@@ -587,7 +587,7 @@ enum m0_cob_flags {
 M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 			      struct m0_cob_nskey *nskey,
 			      uint64_t flags,
-			      struct m0_cob **out, struct m0_be_tx *tx);
+			      struct m0_cob **out);
 
 /**
  * Locate cob by object index key.
@@ -607,7 +607,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 			      struct m0_cob_oikey *oikey,
 			      uint64_t flags,
-			      struct m0_cob **out, struct m0_be_tx *tx);
+			      struct m0_cob **out);
 
 /**
  * Add a cob to the namespace.
@@ -849,8 +849,7 @@ M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
  * allocated id in @omgid if not NULL.
  */
 /* XXX move tx to the end of the declaration */
-M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
-				   struct m0_be_tx *tx, uint64_t * omgid);
+M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,uint64_t * omgid);
 
 enum m0_cob_op {
 	M0_COB_OP_DOMAIN_MKFS,
@@ -863,7 +862,6 @@ enum m0_cob_op {
 	M0_COB_OP_NAME_ADD,
 	M0_COB_OP_NAME_DEL,
 	M0_COB_OP_NAME_UPDATE,
-	M0_COB_OP_ALLOC_OMGID,
 };
 
 M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,

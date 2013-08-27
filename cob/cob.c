@@ -801,9 +801,9 @@ M0_INTERNAL int m0_cob_alloc(struct m0_cob_domain *dom, struct m0_cob **out)
 	return 0;
 }
 
-static int cob_ns_lookup(struct m0_cob *cob, struct m0_be_tx *tx);
-static int cob_oi_lookup(struct m0_cob *cob, struct m0_be_tx *tx);
-static int cob_fab_lookup(struct m0_cob *cob, struct m0_be_tx *tx);
+static int cob_ns_lookup(struct m0_cob *cob);
+static int cob_oi_lookup(struct m0_cob *cob);
+static int cob_fab_lookup(struct m0_cob *cob);
 
 /**
    Search for a record in the namespace table
@@ -813,7 +813,7 @@ static int cob_fab_lookup(struct m0_cob *cob, struct m0_be_tx *tx);
 
    @see cob_oi_lookup
  */
-static int cob_ns_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
+static int cob_ns_lookup(struct m0_cob *cob)
 {
 	struct m0_buf   key;
 	struct m0_buf   val;
@@ -846,7 +846,7 @@ static int cob_ns_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
 
    @see cob_ns_lookup
  */
-static int cob_oi_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
+static int cob_oi_lookup(struct m0_cob *cob)
 {
 	struct m0_be_btree_cursor cursor;
 	struct m0_buf		  start;
@@ -912,7 +912,7 @@ out:
    @see cob_ns_lookup
    @see cob_oi_lookup
  */
-static int cob_fab_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
+static int cob_fab_lookup(struct m0_cob *cob)
 {
 	struct m0_cob_fabkey fabkey;
 	struct m0_be_op      op;
@@ -949,7 +949,7 @@ static int cob_fab_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
    Search for a record in the fileattr_omg table.
    @see cob_fab_lookup
  */
-static int cob_omg_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
+static int cob_omg_lookup(struct m0_cob *cob)
 {
 	struct m0_cob_omgkey omgkey;
 	struct m0_be_op      op;
@@ -982,13 +982,12 @@ static int cob_omg_lookup(struct m0_cob *cob, struct m0_be_tx *tx)
 /**
    Load fab and omg records according with @need flags.
  */
-static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags,
-			  struct m0_be_tx *tx)
+static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags)
 {
 	int rc = 0;
 
 	if (flags & M0_CA_FABREC) {
-		rc = cob_fab_lookup(cob, tx);
+		rc = cob_fab_lookup(cob);
 		if (rc != 0)
 			return rc;
 	}
@@ -997,7 +996,7 @@ static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags,
 	 * Get omg attributes as well if we need it.
 	 */
 	if (flags & M0_CA_OMGREC) {
-		rc = cob_omg_lookup(cob, tx);
+		rc = cob_omg_lookup(cob);
 		if (rc != 0)
 			return rc;
 	}
@@ -1006,7 +1005,7 @@ static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags,
 
 M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 			      struct m0_cob_nskey *nskey, uint64_t flags,
-			      struct m0_cob **out, struct m0_be_tx *tx)
+			      struct m0_cob **out)
 {
 	struct m0_cob *cob;
 	int            rc;
@@ -1024,13 +1023,13 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 	if (flags & M0_CA_NSKEY_FREE)
 		cob->co_flags |= M0_CA_NSKEY_FREE;
 
-	rc = cob_ns_lookup(cob, tx);
+	rc = cob_ns_lookup(cob);
 	if (rc != 0) {
 		m0_cob_put(cob);
 		return rc;
 	}
 
-	rc = cob_get_fabomg(cob, flags, tx);
+	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
 		m0_cob_put(cob);
 		return rc;
@@ -1042,7 +1041,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 
 M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 			      struct m0_cob_oikey *oikey, uint64_t flags,
-			      struct m0_cob **out, struct m0_be_tx *tx)
+			      struct m0_cob **out)
 {
 	struct m0_cob *cob;
 	int rc;
@@ -1062,21 +1061,21 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 		return rc;
 
 	cob->co_oikey = *oikey;
-	rc = cob_oi_lookup(cob, tx);
+	rc = cob_oi_lookup(cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_oi_lookup() failed with %d", rc);
 		m0_cob_put(cob);
 		return rc;
 	}
 
-	rc = cob_ns_lookup(cob, tx);
+	rc = cob_ns_lookup(cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_ns_lookup() failed with %d", rc);
 		m0_cob_put(cob);
 		return rc;
 	}
 
-	rc = cob_get_fabomg(cob, flags, tx);
+	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_get_fabomg() failed with %d", rc);
 		m0_cob_put(cob);
@@ -1233,8 +1232,7 @@ static bool m0_cob_is_valid(struct m0_cob *cob)
 	return m0_fid_is_set(cob->co_fid);
 }
 
-M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
-				   struct m0_be_tx *tx, uint64_t *omgid)
+M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 {
 	struct m0_be_btree_cursor cursor;
 	struct m0_cob_omgkey      omgkey;
@@ -1306,7 +1304,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	M0_PRE(m0_fid_is_set(&nsrec->cnr_fid));
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 
-	rc = m0_cob_alloc_omgid(cob->co_dom, tx, &nsrec->cnr_omgid);
+	rc = m0_cob_alloc_omgid(cob->co_dom, &nsrec->cnr_omgid);
 	if (rc != 0)
 		goto out;
 
@@ -1396,7 +1394,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 	M0_PRE(cob->co_flags & M0_CA_NSKEY);
 
 	m0_cob_oikey_make(&oikey, cob->co_fid, 0);
-	rc = m0_cob_locate(cob->co_dom, &oikey, 0, &sdcob, tx);
+	rc = m0_cob_locate(cob->co_dom, &oikey, 0, &sdcob);
 	if (rc != 0)
 		goto out;
 	sdname = (m0_cob_nskey_cmp(cob->co_nskey, sdcob->co_nskey) == 0);
@@ -1779,7 +1777,6 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 	case M0_COB_OP_LOCATE:
 		break;
 	case M0_COB_OP_CREATE:
-		m0_cob_tx_credit(dom, M0_COB_OP_ALLOC_OMGID, accum);
 		m0_cob_tx_credit(dom, M0_COB_OP_NAME_ADD, accum);
 		TCREDIT(dom->cd_fileattr_basic, INSERT, FAB, accum);
 		TCREDIT(dom->cd_fileattr_omg, INSERT, OMG, accum);
@@ -1808,8 +1805,6 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 		TCREDIT(dom->cd_namespace, INSERT, NS, accum);
 		TCREDIT(dom->cd_namespace, DELETE, NS, accum);
 		TCREDIT(dom->cd_object_index, UPDATE, OI, accum);
-		break;
-	case M0_COB_OP_ALLOC_OMGID:
 		break;
 	default:
 		M0_IMPOSSIBLE("Impossible cob optype");
