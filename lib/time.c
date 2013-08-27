@@ -73,14 +73,14 @@ M0_EXPORTED(m0_time_sub);
 
 uint64_t m0_time_seconds(const m0_time_t time)
 {
-	return time / M0_TIME_ONE_BILLION;
+	return time / M0_TIME_ONE_SECOND;
 }
 M0_EXPORTED(m0_time_seconds);
 
 uint64_t m0_time_nanoseconds(const m0_time_t time)
 {
 
-        return time % M0_TIME_ONE_BILLION;
+        return time % M0_TIME_ONE_SECOND;
 }
 M0_EXPORTED(m0_time_nanoseconds);
 
