@@ -1086,12 +1086,9 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 	return rc;
 }
 
-#if 0 /* skip iterators for now */
-
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 				     struct m0_cob_iterator *it,
-				     struct m0_bitstring *name,
-				     struct m0_be_tx *tx)
+				     struct m0_bitstring *name)
 {
 	int rc;
 
@@ -1104,30 +1101,25 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 	if (rc != 0)
 		return rc;
 
-	/*
-	 * Init iterator cursor with max possible key size.
-	 */
-	m0_db_pair_setup(&it->ci_pair, cob->co_dom->cd_namespace,
-			 it->ci_key, m0_cob_max_nskey_size(it->ci_key),
-			 &it->ci_rec, sizeof it->ci_rec);
-
-	rc = m0_db_cursor_init(&it->ci_cursor,
-			       cob->co_dom->cd_namespace, tx, 0);
-	if (rc != 0) {
-		m0_db_pair_release(&it->ci_pair);
-		m0_db_pair_fini(&it->ci_pair);
-		m0_free(it->ci_key);
-		return rc;
-	}
+	m0_be_btree_cursor_init(&it->ci_cursor, cob->co_dom->cd_namespace);
 	it->ci_cob = cob;
 	return rc;
 }
 
+M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)
+{
+	m0_be_btree_cursor_fini(&it->ci_cursor);
+	m0_free(it->ci_key);
+}
+
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 {
+	struct m0_buf key;
 	int rc;
+
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
-	rc = m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+	m0_buf_init(&key, it->ci_key, m0_cob_nskey_size(it->ci_key));
+	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
 		rc = -ENOENT;
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
@@ -1138,25 +1130,16 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
 	int rc;
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
-	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
 		rc = -ENOENT;
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
 }
 
-M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)
-{
-	m0_db_pair_release(&it->ci_pair);
-	m0_db_pair_fini(&it->ci_pair);
-	m0_db_cursor_fini(&it->ci_cursor);
-	m0_free(it->ci_key);
-}
-
 M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 				        struct m0_cob_ea_iterator *it,
-				        struct m0_bitstring *name,
-				        struct m0_be_tx *tx)
+				        struct m0_bitstring *name)
 {
 	int rc;
 
@@ -1175,36 +1158,24 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 		return rc;
         }
 
-	/*
-	 * Init iterator cursor with max possible key and rec size.
-	 */
-	m0_db_pair_setup(&it->ci_pair, cob->co_dom->cd_fileattr_ea,
-			 it->ci_key, m0_cob_max_eakey_size(it->ci_key),
-			 it->ci_rec, m0_cob_max_earec_size());
-
-	rc = m0_db_cursor_init(&it->ci_cursor,
-			       cob->co_dom->cd_fileattr_ea, tx, 0);
-	if (rc != 0) {
-		m0_db_pair_release(&it->ci_pair);
-		m0_db_pair_fini(&it->ci_pair);
-		m0_free(it->ci_key);
-		m0_free(it->ci_rec);
-		return rc;
-	}
+	m0_be_btree_cursor_init(&it->ci_cursor, cob->co_dom->cd_fileattr_ea);
 	it->ci_cob = cob;
 	return rc;
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 {
-	return m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+	struct m0_buf key;
+
+	m0_buf_init(&key, it->ci_key, m0_cob_eakey_size(it->ci_key));
+	return m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 {
 	int rc;
 
-	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 
 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
 		return -ENOENT;
@@ -1214,15 +1185,9 @@ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 
 M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
 {
-	m0_db_pair_release(&it->ci_pair);
-	m0_db_pair_fini(&it->ci_pair);
-	m0_db_cursor_fini(&it->ci_cursor);
 	m0_free(it->ci_key);
 	m0_free(it->ci_rec);
 }
-
-#endif /* /skip iterators */
-
 
 /**
    For assertions only.

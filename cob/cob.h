@@ -539,22 +539,20 @@ struct m0_rdpg {
  * Cob iterator. Holds current position inside a cob (used by readdir).
  */
 struct m0_cob_iterator {
-	struct m0_cob         *ci_cob;      /**< the cob we iterate */
-//BE_INTEGRATION	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
-	struct m0_cob_nskey   *ci_key;      /**< current iterator pos */
-	struct m0_cob_nsrec    ci_rec;      /**< current iterator rec */
-//BE_INTEGRATION	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
+	struct m0_cob            *ci_cob;      /**< the cob we iterate */
+	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_nskey      *ci_key;      /**< current iterator pos */
+	struct m0_cob_nsrec       ci_rec;      /**< current iterator rec */
 };
 
 /**
  * Cob EA iterator. Holds current position inside EA table.
  */
 struct m0_cob_ea_iterator {
-	struct m0_cob         *ci_cob;      /**< the cob we iterate */
-//BE_INTEGRATION	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
-	struct m0_cob_eakey   *ci_key;      /**< current iterator pos */
-	struct m0_cob_earec   *ci_rec;      /**< current iterator rec */
-//BE_INTEGRATION	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
+	struct m0_cob            *ci_cob;      /**< the cob we iterate */
+	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_eakey      *ci_key;      /**< current iterator pos */
+	struct m0_cob_earec      *ci_rec;      /**< current iterator rec */
 };
 
 /**
@@ -742,8 +740,7 @@ M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
  */
 M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 				        struct m0_cob_ea_iterator *it,
-				        struct m0_bitstring *name,
-				        struct m0_be_tx *tx);
+				        struct m0_bitstring *name);
 
 /**
  * Position to next name in a ea table.
@@ -773,8 +770,7 @@ M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
  */
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 				     struct m0_cob_iterator *it,
-				     struct m0_bitstring *name,
-				     struct m0_be_tx *tx);
+				     struct m0_bitstring *name);
 
 /**
  * Position to next name in a dir cob.
