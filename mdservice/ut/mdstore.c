@@ -52,7 +52,7 @@ static struct m0_be_seg		*be_seg;
 static struct m0_mdstore        md;
 static struct m0_reqh           reqh;
 static struct m0_local_service  svc;
-static struct m0_fol            fol;
+static struct m0_fol           *fol;
 
 int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data);
 
@@ -156,22 +156,20 @@ static void test_init(void)
 {
         struct m0_be_tx		 tx;
         struct m0_be_tx_credit	 cred = {};
-	struct m0_be_op		 op;
 	int			 rc;
 
 	m0_mutex_init(&mutex);
         m0_chan_init(&test_signal, &mutex);
 
-	m0_fol_credit(&fol, M0_FO_INIT, 1, &cred);
+	fol = m0_ut_be_alloc(sizeof *fol, be_seg, &ut_be);
+	M0_UT_ASSERT(fol != NULL);
+
+        m0_fol_init(fol, be_seg);
+	m0_fol_credit(fol, M0_FO_CREATE, 1, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-
-	m0_be_op_init(&op);
-        rc = m0_fol_init(&fol, be_seg, &tx, &op);
-        M0_ASSERT(rc == 0);
-	rc = m0_be_op_wait(&op);
-	M0_ASSERT(rc == 0);
-	m0_be_op_fini(&op);
-
+	M0_BE_OP_SYNC(op,
+		      rc = m0_fol_create(fol, &tx, &op));
+	M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 
         rc = m0_mdstore_init(&md, &id, be_seg, grp, true);
@@ -184,7 +182,7 @@ static void test_init(void)
 		          .rhia_dtm       = NULL,
 		          .rhia_db        = be_seg,
 		          .rhia_mdstore   = &md,
-		          .rhia_fol       = &fol,
+		          .rhia_fol       = fol,
 		          .rhia_svc       = &svc,
 		          .rhia_addb_stob = NULL);
         M0_ASSERT(rc == 0);
@@ -255,12 +253,20 @@ again:
 
 static void test_fini(void)
 {
-	int rc;
+        struct m0_be_tx		 tx;
+	struct m0_be_tx_credit	 cred = {};
+	int			 rc;
 
         m0_reqh_shutdown_wait(&reqh);
 	m0_reqh_services_terminate(&reqh);
         m0_reqh_fini(&reqh);
-        m0_fol_fini(&fol);
+
+	m0_fol_credit(fol, M0_FO_DESTROY, 1, &cred);
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx, &op));
+	m0_ut_be_tx_end(&tx);
+
+        m0_fol_fini(fol);
         m0_mdstore_fini(&md);
         m0_chan_fini_lock(&test_signal);
         m0_mutex_fini(&mutex);
