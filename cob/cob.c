@@ -458,24 +458,41 @@ int m0_cob_domain_init(struct m0_cob_domain *dom,
 	struct {
 		struct m0_be_btree             **tree;
 		const struct m0_be_btree_kv_ops *ops;
+		const char                      *name;
 	} tables[] = {
-		{ &dom->cd_namespace,      &cob_ns_ops  },
-		{ &dom->cd_object_index,   &cob_oi_ops  },
-		{ &dom->cd_fileattr_basic, &cob_fab_ops },
-		{ &dom->cd_fileattr_omg,   &cob_omg_ops },
-		{ &dom->cd_fileattr_ea,    &cob_ea_ops  },
+		{ &dom->cd_namespace,      &cob_ns_ops  , "ns" },
+		{ &dom->cd_object_index,   &cob_oi_ops  , "oi" },
+		{ &dom->cd_fileattr_basic, &cob_fab_ops , "fb" },
+		{ &dom->cd_fileattr_omg,   &cob_omg_ops , "fo" },
+		{ &dom->cd_fileattr_ea,    &cob_ea_ops  , "ea" },
 	};
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_op        op;
 	struct m0_be_tx       *tx;
 	struct m0_be_btree     dummy = { .bb_seg = seg };
 	int i;
+	int tables_read;
 	int rc;
 
 	M0_PRE(id->id != 0);
 
 	dom->cd_id    = *id;
 	dom->cd_dbenv = seg->bs_domain;
+
+
+	for (rc = 0, tables_read = 0, i = 0; i < ARRAY_SIZE(tables); ++i) {
+		rc = m0_be_seg_dict_lookup(seg, tables[i].name,
+					   (void**)tables[i].tree);
+		if (rc == 0) {
+			m0_be_btree_init(*tables[i].tree, seg, tables[i].ops);
+			tables_read++;
+		}
+	}
+
+	if (tables_read == ARRAY_SIZE(tables))
+		return rc;
+	if (tables_read > 0)
+		return -ENOENT;
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
@@ -517,6 +534,16 @@ int m0_cob_domain_init(struct m0_cob_domain *dom,
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
+
+	if (rc == 0) { /* XXX: seems it's OK not to do any cleanup here */
+		for (i = 0; i < ARRAY_SIZE(tables); ++i) {
+			rc = m0_be_seg_dict_insert(seg, grp, tables[i].name,
+						            *tables[i].tree);
+			if (rc != 0)
+				return rc;
+		}
+	}
+
 	return rc;
 }
 

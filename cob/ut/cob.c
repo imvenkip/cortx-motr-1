@@ -90,6 +90,9 @@ static void test_mkfs(void)
         m0_be_ut_backend_init(&ut_be);
         m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
         m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	rc = m0_be_seg_dict_create(&ut_seg.bus_seg,
+				   m0_be_ut_backend_sm_group_lookup(&ut_be));
+	M0_UT_ASSERT(rc == 0);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id, grp);
@@ -105,29 +108,24 @@ static void test_mkfs(void)
 
 	ut_tx_close(tx);
         m0_be_tx_fini(tx);
-#if 0
 	m0_cob_domain_fini(&dom);
 
         /* XXX FIXME something wasn't freed */
         /* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
-        m0_be_ut_seg_fini(&ut_seg);
-        m0_be_ut_backend_fini(&ut_be);
-#endif
+	m0_be_seg_close(&ut_seg.bus_seg);
 }
 
 static void test_init(void)
 {
-#if 0
+	struct m0_sm_group *grp;
 	int rc;
 
-        m0_be_ut_backend_init(&ut_be);
-        m0_be_ut_seg_init(&ut_seg, 1 << 20);
-        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-
-	rc = m0_cob_domain_init(&dom, &ut_be.but_dom, &ut_seg.bus_seg, &id,
-				&ut__txs_sm_group);
+	rc = m0_be_seg_open(&ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
-#endif
+
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id, grp);
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void test_fini(void)

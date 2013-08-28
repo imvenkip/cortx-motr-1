@@ -234,6 +234,7 @@ static void node_update(struct m0_be_bnode       *node,
 static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
 	btree->bb_root = allocate_btree_node(btree, tx);
+	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 
 	/* memory for the node has to be reserved by m0_be_tx_open() */
 	M0_ASSERT(btree->bb_root != NULL);
