@@ -97,7 +97,9 @@ static void test_init(void)
 	g_fol = m0_ut_be_alloc(sizeof *g_fol, &g_ut_seg.bus_seg, &g_ut_be);
 	M0_UT_ASSERT(g_fol != NULL);
 
-	m0_fol_credit(g_fol, M0_FO_INIT, 1, &cred);
+	m0_fol_init(g_fol, &g_ut_seg.bus_seg);
+	m0_fol_credit(g_fol, M0_FO_CREATE, 1, &cred);
+	m0_fol_credit(g_fol, M0_FO_DESTROY, 1, &cred);
 	/*
 	 * There are 3 m0_fol_rec_add() calls --- in functions test_add(),
 	 * test_lookup(), and test_fol_rec_part_encdec().
@@ -106,7 +108,7 @@ static void test_init(void)
 	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &cred);
 
 	M0_BE_OP_SYNC(op,
-		      rc = m0_fol_init(g_fol, &g_ut_seg.bus_seg, &g_tx, &op));
+		      rc = m0_fol_create(g_fol, &g_tx, &op));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fol_rec_init(&g_rec);
@@ -129,6 +131,7 @@ static void test_fini(void)
 #else
 	m0_fol_rec_fini(&g_rec);
 
+	M0_BE_OP_SYNC(op, m0_fol_destroy(g_fol, &g_tx, &op));
 	m0_ut_be_tx_end(&g_tx);
 	/*
 	 * The call fails with the following error message:

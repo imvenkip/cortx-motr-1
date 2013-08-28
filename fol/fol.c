@@ -245,8 +245,16 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
 	return result;
 }
 #else
-M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
-			    struct m0_be_tx *tx, struct m0_be_op *op)
+M0_INTERNAL void m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_be_btree *tree = &fol->f_store;
+
+	m0_mutex_init(&fol->f_lock);
+	m0_be_btree_init(tree, seg, &fol_kv_ops);
+}
+
+M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_tx *tx,
+			      struct m0_be_op *op)
 {
 	struct m0_be_btree *tree = &fol->f_store;
 	int                 rc;
@@ -254,9 +262,6 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
 	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
-
-	m0_mutex_init(&fol->f_lock);
-	m0_be_btree_init(tree, seg, &fol_kv_ops);
 
 	if (tree->bb_root == NULL)
 		M0_BE_OP_SYNC(local_op,
@@ -270,6 +275,22 @@ M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
 	}
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	return rc;
+}
+
+M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol, struct m0_be_tx *tx,
+			        struct m0_be_op *op)
+{
+	struct m0_be_btree *tree = &fol->f_store;
+
+	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+
+	if (tree->bb_root == NULL)
+		M0_BE_OP_SYNC(local_op,
+			      m0_be_btree_destroy(tree, tx, &local_op));
+
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 #endif
 
@@ -302,7 +323,7 @@ M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 	M0_PRE(nr > 0);
 
 	switch (optype) {
-	case M0_FO_INIT:
+	case M0_FO_CREATE:
 		/* Several m0_fol_init()s seem pointless. */
 		M0_ASSERT(nr == 1);
 		m0_be_btree_create_credit(tree, nr, accum);
@@ -310,6 +331,10 @@ M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 					  FOL_REC_MAXSIZE, accum);
 		/* This const-removing typecast is inelegant but it lets `fol'
 		 * parameter be const, while doing no no harm. */
+		m0_be_btree_destroy_credit((struct m0_be_btree *)tree, nr,
+					   accum);
+		break;
+	case M0_FO_DESTROY:
 		m0_be_btree_destroy_credit((struct m0_be_btree *)tree, nr,
 					   accum);
 		break;

@@ -154,15 +154,21 @@ struct m0_fol {
 #if XXX_USE_DB5
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
 #else
-M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg,
-			    struct m0_be_tx *tx, struct m0_be_op *op);
+M0_INTERNAL void m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
+
+M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_tx *tx,
+			      struct m0_be_op *op);
+
+M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol, struct m0_be_tx *tx,
+			        struct m0_be_op *op);
 #endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
 #if !XXX_USE_DB5
 /** Fol operations that modify back-end segment. */
 enum m0_fol_op {
-	M0_FO_INIT,    /**< m0_fol_init() */
+	M0_FO_CREATE,    /**< m0_fol_create() */
+	M0_FO_DESTROY,   /**< m0_fol_destroy() */
 	M0_FO_REC_ADD  /**< m0_fol_rec_add() */
 };
 
