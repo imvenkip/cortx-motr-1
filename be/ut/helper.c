@@ -269,15 +269,11 @@ static struct m0_reqh ut__reqh;
 static void XXX_BE_DB__reqh_init(struct m0_reqh *reqh)
 {
 	static struct m0_fol   fol;
-	static struct m0_dbenv dbenv;
 	int                    rc;
-
-	rc = m0_dbenv_init(&dbenv, "__be_ut_reqh_db", 0);
-	M0_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm     = (void *)1,
-			  .rhia_db      = &dbenv,
+			  .rhia_db      = (void *)1,
 			  .rhia_mdstore = (void *)1,
 			  .rhia_fol     = &fol,
 			  .rhia_svc     = (void *)1);
@@ -290,7 +286,6 @@ static void XXX_BE_DB__reqh_fini(struct m0_reqh *reqh)
 	m0_reqh_shutdown_wait(reqh);
 	m0_reqh_services_terminate(reqh);
 	m0_reqh_fini(reqh);
-	m0_dbenv_fini(reqh->rh_dbenv);
 }
 #endif /* XXX_BE_DB */
 

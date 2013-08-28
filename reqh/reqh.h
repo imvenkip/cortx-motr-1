@@ -112,7 +112,7 @@ struct m0_reqh {
 	struct m0_dtm		*rh_dtm;
 
 	/** Database environment for this request handler. */
-	struct m0_dbenv         *rh_dbenv;
+	struct m0_be_seg        *rh_dbenv;
 
 	/** Mdstore for this request handler. */
 	struct m0_mdstore       *rh_mdstore;
@@ -188,7 +188,7 @@ struct m0_reqh {
 struct m0_reqh_init_args {
 	struct m0_dtm           *rhia_dtm;
 	/** Database environment for this request handler */
-	struct m0_dbenv         *rhia_db;
+	struct m0_be_seg        *rhia_db;
 	struct m0_mdstore       *rhia_mdstore;
 	/** fol File operation log to record fop execution */
 	struct m0_fol           *rhia_fol;
