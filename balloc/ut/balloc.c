@@ -34,6 +34,7 @@
 #include "mero/magic.h"
 #include "db/db.h"
 #include "ut/ut.h"
+#include "ut/be.h"
 #include "ut/ast_thread.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"
@@ -85,35 +86,6 @@ bool balloc_ut_invariant(struct m0_balloc *mero_balloc,
 		prev_free_blocks;
 }
 
-static int be_tx_init_open(struct m0_be_tx *tx,
-			   struct m0_be_ut_backend *ut_be,
-			   struct m0_be_tx_credit *cred)
-{
-	int rc;
-
-	m0_be_ut_tx_init(tx, ut_be);
-	m0_be_tx_prep(tx, cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
-					    M0_BTS_FAILED),
-				M0_TIME_NEVER);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
-
-	return rc;
-}
-
-static int be_tx_close_fini(struct m0_be_tx *tx)
-{
-	int rc;
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
-				    M0_TIME_NEVER);
-	m0_be_tx_fini(tx);
-
-	return rc;
-}
-
 int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 {
 	struct m0_balloc *mero_balloc;
@@ -154,8 +126,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
 			mero_balloc->cb_ballroom.ab_ops->bo_alloc_credit(
 				    &mero_balloc->cb_ballroom, 1, &cred);
-			result = be_tx_init_open(tx, ut_be, &cred);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_begin(tx, ut_be, &cred);
 
 			/* pass last result as goal. comment out this to turn
 			   off goal */
@@ -194,9 +165,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end);
 #endif
-			result = be_tx_close_fini(tx);
-			M0_UT_ASSERT(result == 0);
-
+			m0_ut_be_tx_end(tx);
 		}
 
 		for (i = mero_balloc->cb_sb.bsb_reserved_groups;
@@ -207,8 +176,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
 			m0_balloc_load_extents_credit(mero_balloc, &cred);
-			result = be_tx_init_open(tx, ut_be, &cred);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_begin(tx, ut_be, &cred);
 			if (grp) {
 				m0_balloc_lock_group(grp);
 				result = m0_balloc_load_extents(mero_balloc,
@@ -220,8 +188,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
-			result = be_tx_close_fini(tx);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_end(tx);
 		}
 
 		/* randomize the array */
@@ -237,8 +204,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
 			mero_balloc->cb_ballroom.ab_ops->bo_free_credit(
 				    &mero_balloc->cb_ballroom, 1, &cred);
-			result = be_tx_init_open(tx, ut_be, &cred);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_begin(tx, ut_be, &cred);
 
 			if (ext[i].e_start != 0)
 				result =
@@ -263,8 +229,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end);
 #endif
-			result = be_tx_close_fini(tx);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_end(tx);
 		}
 
 		M0_UT_ASSERT(mero_balloc->cb_sb.bsb_freeblocks ==
@@ -282,8 +247,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
 			m0_balloc_load_extents_credit(mero_balloc, &cred);
-			result = be_tx_init_open(tx, ut_be, &cred);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_begin(tx, ut_be, &cred);
 			if (grp) {
 				m0_balloc_lock_group(grp);
 				result = m0_balloc_load_extents(mero_balloc,
@@ -306,8 +270,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
-			result = be_tx_close_fini(tx);
-			M0_UT_ASSERT(result == 0);
+			m0_ut_be_tx_end(tx);
 		}
 
 		result = m0_balloc_destroy(mero_balloc, grp);

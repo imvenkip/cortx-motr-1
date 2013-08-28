@@ -23,7 +23,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
 #include "lib/misc.h"              /* M0_SET0 */
@@ -35,6 +34,8 @@
 #include "reqh/reqh.h"
 #include "mdstore/mdstore.h"
 #include "net/net.h"
+#include "ut/ut.h"
+#include "ut/be.h"
 #include "be/ut/helper.h"
 
 #include "mdservice/ut/mdstore.h"
@@ -101,35 +102,6 @@ static int db_reset(void)
         return rc;
 }
 
-static int be_tx_init_open(struct m0_be_tx *tx,
-			   struct m0_be_ut_backend *ut_be,
-			   struct m0_be_tx_credit *cred)
-{
-	int rc;
-
-	m0_be_ut_tx_init(tx, ut_be);
-	m0_be_tx_prep(tx, cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE,
-					    M0_BTS_FAILED),
-				M0_TIME_NEVER);
-	M0_UT_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
-
-	return rc;
-}
-
-static int be_tx_close_fini(struct m0_be_tx *tx)
-{
-	int rc;
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE),
-				    M0_TIME_NEVER);
-	m0_be_tx_fini(tx);
-
-	return rc;
-}
-
 static void test_mkfs(void)
 {
         struct m0_md_lustre_fid	 testroot;
@@ -159,8 +131,7 @@ static void test_mkfs(void)
         M0_UT_ASSERT(rc == 0);
 
 	m0_cob_tx_credit(&md.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
-	rc = be_tx_init_open(&tx, &ut_be, &cred);
-        M0_UT_ASSERT(rc == 0);
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
 
         /* Create root and other structures */
         m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
@@ -168,8 +139,7 @@ static void test_mkfs(void)
 				&M0_COB_SESSIONS_FID, &tx);
         M0_UT_ASSERT(rc == 0);
 
-	rc = be_tx_close_fini(&tx);
-	M0_UT_ASSERT(rc == 0);
+	m0_ut_be_tx_end(&tx);
 
         /* Fini old mdstore */
         m0_mdstore_fini(&md);
@@ -193,8 +163,7 @@ static void test_init(void)
         m0_chan_init(&test_signal, &mutex);
 
 	m0_fol_credit(&fol, M0_FO_INIT, 1, &cred);
-	rc = be_tx_init_open(&tx, &ut_be, &cred);
-        M0_UT_ASSERT(rc == 0);
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
 
 	m0_be_op_init(&op);
         rc = m0_fol_init(&fol, be_seg, &tx, &op);
@@ -203,8 +172,7 @@ static void test_init(void)
 	M0_ASSERT(rc == 0);
 	m0_be_op_fini(&op);
 
-	rc = be_tx_close_fini(&tx);
-	M0_UT_ASSERT(rc == 0);
+	m0_ut_be_tx_end(&tx);
 
         rc = m0_mdstore_init(&md, &id, be_seg, grp, true);
         M0_ASSERT(rc == 0);
