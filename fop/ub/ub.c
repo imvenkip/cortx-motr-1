@@ -438,8 +438,7 @@ static int _init(const char *opts M0_UNUSED)
 			  .rhia_db        = &dbenv,
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = &g_fol,
-			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = NULL);
+			  .rhia_svc       = NULL);
 	M0_UB_ASSERT(rc == 0);
 	m0_reqh_start(&g_reqh);
 

@@ -162,8 +162,7 @@ static void test_init(void)
 		          .rhia_db        = &db,
 		          .rhia_mdstore   = &md,
 		          .rhia_fol       = &fol,
-		          .rhia_svc       = &svc,
-		          .rhia_addb_stob = NULL);
+		          .rhia_svc       = &svc);
         M0_ASSERT(rc == 0);
 	m0_reqh_start(&reqh);
 }
