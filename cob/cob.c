@@ -769,7 +769,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	return rc;
 }
 
-#endif
+#endif /* ! __KERNEL__ */
 
 static void cob_free_cb(struct m0_ref *ref);
 

@@ -101,10 +101,10 @@ void add_uts(void)
 {
 //XXX_BE_DB	/* sort test suites in alphabetic order */
 //XXX_BE_DB	m0_ut_add(&libm0_ut); /* test lib first */
-		m0_ut_add(&ad_ut);
+	m0_ut_add(&ad_ut);
 //XXX_BE_DB	m0_ut_add(&adieu_ut);
-		m0_ut_add(&balloc_ut);
-		m0_ut_add(&be_ut);
+	m0_ut_add(&balloc_ut);
+	m0_ut_add(&be_ut);
 //XXX_BE_DB	m0_ut_add(&buffer_pool_ut);
 //XXX_BE_DB	m0_ut_add(&bulkio_client_ut);
 //XXX_BE_DB	m0_ut_add(&bulkio_server_ut);
@@ -120,7 +120,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&db_ut);
 //XXX_BE_DB	m0_ut_add(&emap_ut);
 //XXX_BE_DB	m0_ut_add(&fit_ut);
-		m0_ut_add(&fol_ut);
+	m0_ut_add(&fol_ut);
 //XXX_BE_DB	m0_ut_add(&frm_ut);
 //XXX_BE_DB	m0_ut_add(&ios_bufferpool_ut);
 //XXX_BE_DB	m0_ut_add(&item_ut);
@@ -159,7 +159,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&xcode_ff2c_ut);
 //XXX_BE_DB	m0_ut_add(&xcode_ut);
 //XXX_BE_DB        m0_ut_add(&cobfoms_ut);
-//XXX_BE_DB        m0_ut_add(&mdservice_ut);
+	m0_ut_add(&mdservice_ut);
 //XXX_BE_DB	/* These tests have redirection of messages. */
 //XXX_BE_DB	m0_ut_add(&console_ut);
 //XXX_BE_DB	m0_ut_add(&yaml2db_ut);

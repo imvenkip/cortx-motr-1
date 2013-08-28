@@ -115,7 +115,8 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 	if (init_root) {
 		struct m0_buf name;
 
-		m0_buf_init(&name, (char *)M0_COB_ROOT_NAME, strlen(M0_COB_ROOT_NAME));
+		m0_buf_init(&name, (char*)M0_COB_ROOT_NAME,
+				   strlen(M0_COB_ROOT_NAME));
 		rc = m0_mdstore_lookup(md, NULL, &name, &md->md_root);
 		MDSTORE_FUNC_FAIL(INIT_1, rc);
 		if (rc == 0) {

@@ -184,7 +184,7 @@ include $(top_srcdir)/fop/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/m0t1fs/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mdservice/Makefile.sub
+include $(top_srcdir)/mdservice/Makefile.sub
 include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mgmt/Makefile.sub
@@ -227,11 +227,11 @@ include $(top_srcdir)/cob/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/fop/ub/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/fop/ut/Makefile.sub
+include $(top_srcdir)/fop/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/ioservice/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/layout/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/lib/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mdservice/ut/Makefile.sub
+include $(top_srcdir)/mdservice/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mero/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mgmt/ut/Makefile.sub
