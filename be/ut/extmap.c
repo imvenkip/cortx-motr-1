@@ -44,7 +44,7 @@ static struct m0_be_emap_seg   *seg; /* cursor segment */
 static struct m0_be_seg        *be_seg;
 static struct m0_be_op         *it_op;
 
-static void emap_alloc(struct m0_be_tx *tx)
+static void emap_be_alloc(struct m0_be_tx *tx)
 {
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_allocator *a = &be_seg->bs_allocator;
@@ -60,6 +60,26 @@ static void emap_alloc(struct m0_be_tx *tx)
 
 	M0_BE_OP_SYNC(op, emap = m0_be_alloc(a, tx, &op, sizeof *emap, 0));
 	M0_UT_ASSERT(emap != NULL);
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+}
+
+static void emap_be_free(struct m0_be_tx *tx)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_allocator *a = &be_seg->bs_allocator;
+	int                     rc;
+
+	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof *emap, 0, &cred);
+
+	m0_be_ut_tx_init(tx, &be_ut_emap_backend);
+	m0_be_tx_prep(tx, &cred);
+
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, emap));
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -101,7 +121,7 @@ static void test_init(void)
 	m0_be_ut_seg_allocator_init(&be_ut_emap_seg, &be_ut_emap_backend);
 	be_seg = &be_ut_emap_seg.bus_seg;
 
-	emap_alloc(&tx1);
+	emap_be_alloc(&tx1);
 	m0_be_emap_init(emap, be_seg);
 
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
@@ -133,29 +153,9 @@ static void test_fini(void)
 	m0_be_tx_close_sync(&tx2);
 	m0_be_tx_fini(&tx2);
 
-#if 0 /* XXX DEBUGME
-       *
-       * This call fails with the following error message:
-       *
-       * | Suite: be-ut
-       * |   Test: emap ...mero:  FATAL : [lib/assert.c:42:m0_panic] panic: m0_list_is_empty(head) m0_list_fini() (lib/list.c:34)
-       * | Mero panic: m0_list_is_empty(head) at m0_list_fini() lib/list.c:34 (errno: 2) (last failed: none)
-       *
-       * The backtrace:
-       *
-       *   m0_be_ut_emap
-       *    \_ test_fini
-       *        \_ m0_be_ut_seg_allocator_fini
-       *            \_ be_ut_seg_allocator_initfini
-       *                \_ m0_be_allocator_destroy
-       *                    \_ chunks_free_tlist_fini_c
-       *                        \_ chunks_free_tlist_fini
-       *                            \_ m0_tlist_fini
-       *                                \_ m0_list_fini
-       *                                    \_ M0_ASSERT(m0_list_is_empty())
-       */
+	emap_be_free(&tx1);
+
 	m0_be_ut_seg_allocator_fini(&be_ut_emap_seg, &be_ut_emap_backend);
-#endif
 	m0_be_ut_seg_fini(&be_ut_emap_seg);
 	m0_be_ut_backend_fini(&be_ut_emap_backend);
 }

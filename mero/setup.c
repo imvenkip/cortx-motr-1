@@ -1315,6 +1315,15 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		return rc;
 	}
 
+	rc = M0_REQH_INIT(&rctx->rc_reqh,
+			  .rhia_dtm       = NULL,
+			  .rhia_db        = &rctx->rc_db,
+			  .rhia_mdstore   = &rctx->rc_mdstore,
+			  .rhia_fol       = &rctx->rc_fol,
+			  .rhia_svc       = NULL);
+	if (rc != 0)
+		return rc;
+
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
 		if (rc != 0) {
@@ -1332,6 +1341,11 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	}
 
 	rc = cs_addb_storage_init(rctx);
+	if (rc != 0)
+		goto cleanup_addb_stob;
+
+	rc = m0_reqh_addb_mc_config(&rctx->rc_reqh,
+				    rctx->rc_addb_stob.cas_stob);
 	if (rc != 0)
 		goto cleanup_addb_stob;
 
@@ -1370,13 +1384,6 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		goto cleanup_mdstore;
 	}
 
-	rc = M0_REQH_INIT(&rctx->rc_reqh,
-			  .rhia_dtm       = NULL,
-			  .rhia_db        = &rctx->rc_db,
-			  .rhia_mdstore   = &rctx->rc_mdstore,
-			  .rhia_fol       = &rctx->rc_fol,
-			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = rctx->rc_addb_stob.cas_stob);
 	if (rc == 0) {
 		rctx->rc_state = RC_INITIALISED;
 		return 0;
