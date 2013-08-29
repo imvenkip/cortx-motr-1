@@ -248,6 +248,8 @@ static int create_loc_ctx(struct m0_fom *fom)
 #endif
 	reqh = m0_fom_reqh(fom);
 
+	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, &fom->fo_tx.tx_betx_cred);
+
 	m0_dtx_init(&fom->fo_tx, reqh->rh_dbenv->bs_domain,
 		    &fom->fo_loc->fl_group);
 	m0_dtx_open(&fom->fo_tx);
