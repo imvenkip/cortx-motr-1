@@ -139,14 +139,6 @@ struct m0_sns_cm_helpers {
 	uint64_t (*sch_ag_unit_end)(const struct m0_pdclust_layout *pl);
 
 	/**
-	 * Returns index of target unit, viz. spare unit or failed data unit
-	 * within the given aggregation group.
-	 */
-	uint64_t (*sch_ag_target_unit)(struct m0_sns_cm_ag *sag,
-				       struct m0_pdclust_layout *pl,
-				       uint64_t fdata, uint64_t fidx);
-
-	/**
 	 * Returns true iff the given aggregation group has any incoming copy
 	 * packets from other replicas, else false.
 	 */
@@ -157,20 +149,16 @@ struct m0_sns_cm_helpers {
 				       struct m0_pdclust_instance *pi);
 
 	/**
-	 * Returns true if the relevant aggregation group (i.e. aggregation
-	 * group with incoming copy packets.) processing is complete, else
-	 * false.
-	 */
-	bool     (*sch_ag_relevant_is_done)(const struct m0_sns_cm_ag *sag,
-					    uint64_t nr_cps_fini);
-
-	/**
 	 * Returns true if all the necessary copy packets are transformed or
 	 * accumulated into the aggregation group accumulator for a given
 	 * copy machine operation, viz. sns-repair or sns-rebalance.
 	 */
 	bool     (*sch_ag_accumulator_is_full)(const struct m0_sns_cm_ag *sag,
 					       int xform_cp_nr);
+
+	int      (*sch_ag_setup)(struct m0_sns_cm_ag *sag,
+				 struct m0_pdclust_layout *pl);
+
 };
 
 struct m0_sns_cm {
@@ -249,6 +237,29 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm);
 
+M0_INTERNAL struct m0_cm_cp *m0_sns_cm_cp_alloc(struct m0_cm *cm);
+
+M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm);
+
+M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm);
+
+M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm);
+
+M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm);
+
+M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
+				  const struct m0_cm_ag_id id_curr,
+				  struct m0_cm_ag_id *id_next);
+
+M0_INTERNAL void m0_sns_cm_complete(struct m0_cm *cm);
+
+M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm);
+
+M0_INTERNAL uint64_t
+m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
+				const struct m0_cm_ag_id *id,
+				struct m0_pdclust_layout *pl);
+
 M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 					   struct m0_pdclust_layout *pl);
 
@@ -257,12 +268,14 @@ M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool);
 M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
                                          uint64_t data_seg_nr);
 
-M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
-						 struct m0_cm_aggr_group *ag);
+M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_sns_cm *scm,
+						 struct m0_cm_aggr_group *ag,
+						 struct m0_pdclust_layout *pl,
+						 uint64_t nr_res_bufs);
 
-M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm,
-				     const struct m0_cm_ag_id *id,
-                                     struct m0_pdclust_layout *pl);
+M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
+					 struct m0_pdclust_layout *pl,
+					 uint64_t nr_bufs);
 
 /**
  * Returns state of SNS repair process with respect to @gfid.

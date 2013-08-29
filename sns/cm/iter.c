@@ -453,7 +453,7 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 				     has_incoming);
 	M0_ASSERT(ag != NULL);
 	sag = ag2snsag(ag);
-	rc = m0_sns_cm_ag_setup(sag, sfc->sfc_pdlayout);
+	rc = scm->sc_helpers->sch_ag_setup(sag, sfc->sfc_pdlayout);
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);
 
@@ -466,6 +466,8 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 static int iter_cp_setup(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm                *scm = it2sns(it);
+	struct m0_cm                    *cm = &scm->sc_base;
+	struct m0_pdclust_layout        *pl;
 	struct m0_cm_ag_id               agid;
 	struct m0_cm_aggr_group         *ag;
 	struct m0_sns_cm_file_context   *sfc;
@@ -478,9 +480,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
+	pl = sfc->sfc_pdlayout;
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
-	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
-	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
+	has_incoming = __has_incoming(scm, pl, &agid);
+	ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
 	if (ag == NULL) {
 		/*
 		 * Allocate new aggregation group for the given aggregation
@@ -492,17 +495,19 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		 * group was already processed and we proceed to next group.
 		 */
 		if (has_incoming) {
-			if (m0_cm_ag_id_cmp(&agid, &scm->sc_base.cm_last_saved_sw_hi) <= 0)
+			if (m0_cm_ag_id_cmp(&agid,
+					    &cm->cm_last_saved_sw_hi) <= 0)
 				goto out;
 		}
-		if (has_incoming && !m0_sns_cm_has_space(&scm->sc_base, &agid,
-							 sfc->sfc_pdlayout)) {
+		if (has_incoming &&
+		    !cm->cm_ops->cmo_has_space(cm, &agid,
+					       m0_pdl_to_layout(pl))) {
 			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 			       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 			       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
 			M0_RETURN(-ENOBUFS);
 		}
-		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
+		rc = m0_cm_aggr_group_alloc(cm, &agid,
 					    has_incoming, &ag);
 		if (rc != 0) {
 			if (rc == -ENOBUFS)

@@ -268,15 +268,6 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(const struct m0_sns_cm *scm,
 	return scm->sc_helpers->sch_ag_unit_end(pl);
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_tgt_unit(struct m0_sns_cm_ag *sag,
-					   struct m0_pdclust_layout *pl,
-					   uint64_t fdata, uint64_t f_idx)
-{
-	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
-
-	return scm->sc_helpers->sch_ag_target_unit(sag, pl, fdata, f_idx);
-}
-
 M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 					  uint64_t tgt_unit,
 					  struct m0_pdclust_layout *pl,
@@ -559,15 +550,6 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         return result;
 }
 
-M0_INTERNAL bool m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
-					       uint64_t nr_cps_fini)
-{
-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
-	struct m0_sns_cm    *scm = cm2sns(ag->cag_cm);
-
-	return scm->sc_helpers->sch_ag_relevant_is_done(sag, nr_cps_fini);
-}
-
 M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(ag);
@@ -582,28 +564,6 @@ m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
 	return scm->sc_helpers->sch_ag_max_incoming_units(scm, pl);
-}
-
-M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
-						  int acc_idx)
-{
-	struct m0_sns_cm         *scm;
-	struct m0_cm_cp          *acc_cp;
-	uint64_t                  global_cp_nr;
-	int                       i;
-	uint64_t                  xform_cnt = 0;
-
-	M0_PRE(sag != NULL);
-
-	acc_cp = &sag->sag_fc[acc_idx].fc_tgt_acc_cp.sc_base;
-	scm = cm2sns(sag->sag_base.cag_cm);
-	global_cp_nr = sag->sag_base.cag_cp_global_nr;
-	for (i = 0; i < global_cp_nr; ++i) {
-		if (m0_bitmap_get(&acc_cp->c_xform_cp_indices, i))
-			M0_CNT_INC(xform_cnt);
-	}
-
-	return scm->sc_helpers->sch_ag_accumulator_is_full(sag, xform_cnt);
 }
 
 #undef M0_TRACE_SUBSYSTEM

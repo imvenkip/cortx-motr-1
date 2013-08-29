@@ -31,11 +31,9 @@
 #include "lib/finject.h"
 
 #include "reqh/reqh_service.h"
-#include "sns/cm/trigger_fop.h"
 #include "sns/cm/cm.h"
 #include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
-#include "sns/cm/sw_onwire_fop.h"
 
 #include "sns/sns_addb.h"
 
@@ -46,31 +44,6 @@
   @{
 */
 
-/** Copy machine service type operations.*/
-static int svc_allocate(struct m0_reqh_service **service,
-			struct m0_reqh_service_type *stype,
-			struct m0_reqh_context *rctx);
-
-static const struct m0_reqh_service_type_ops svc_type_ops = {
-	.rsto_service_allocate = svc_allocate,
-};
-
-/** Copy machine service operations.*/
-static int svc_start(struct m0_reqh_service *service);
-static void svc_stop(struct m0_reqh_service *service);
-static void svc_fini(struct m0_reqh_service *service);
-
-static const struct m0_reqh_service_ops svc_ops = {
-	.rso_start = svc_start,
-	.rso_stop  = svc_stop,
-	.rso_fini  = svc_fini
-};
-
-extern struct m0_addb_ctx_type m0_addb_ct_sns_cm;
-
-M0_CM_TYPE_DECLARE(sns, &svc_type_ops, "sns_cm", &m0_addb_ct_sns_cm);
-
-extern const struct m0_cm_ops cm_ops;
 struct m0_addb_ctx m0_sns_mod_addb_ctx;
 struct m0_addb_ctx m0_sns_cm_addb_ctx;
 struct m0_addb_ctx m0_sns_ag_addb_ctx;
@@ -81,9 +54,11 @@ struct m0_addb_ctx m0_sns_cp_addb_ctx;
  * This allocates struct m0_sns_cm and invokes m0_cm_init() to initialise
  * m0_sns_cm::rc_base.
  */
-static int svc_allocate(struct m0_reqh_service **service,
-			struct m0_reqh_service_type *stype,
-			struct m0_reqh_context *rctx)
+M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
+				       struct m0_reqh_service_type *stype,
+				       struct m0_reqh_context *rctx,
+				       const struct m0_reqh_service_ops *svc_ops,
+				       const struct m0_cm_ops *cm_ops)
 {
 	struct m0_sns_cm *sns_cm;
 	struct m0_cm     *cm;
@@ -99,10 +74,10 @@ static int svc_allocate(struct m0_reqh_service **service,
 	cm = &sns_cm->sc_base;
 
 	*service = &cm->cm_service;
-	(*service)->rs_ops = &svc_ops;
+	(*service)->rs_ops = svc_ops;
 
 	rc = m0_cm_init(cm, container_of(stype, struct m0_cm_type, ct_stype),
-			&cm_ops);
+			cm_ops);
 	if (rc != 0)
 		m0_free(sns_cm);
 
@@ -123,7 +98,7 @@ static void addb_init()
 /**
  * Registers SNS copy machine specific FOP types.
  */
-static int svc_start(struct m0_reqh_service *service)
+M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 {
 	struct m0_cm                *cm;
 	int                          rc;
@@ -137,8 +112,7 @@ static int svc_start(struct m0_reqh_service *service)
 	addb_init();
 
 	cm = container_of(service, struct m0_cm, cm_service);
-	rc = m0_cm_setup(cm) ?: m0_sns_repair_trigger_fop_init() ?:
-	     m0_sns_cpx_init() ?: m0_sns_cm_sw_onwire_fop_init();
+	rc = m0_cm_setup(cm);
 
 	/* The following shows how to retrieve ioservice endpoints list.
 	 * Copy machine can establish connections to all ioservices,
@@ -162,7 +136,7 @@ static int svc_start(struct m0_reqh_service *service)
 /**
  * Destroys SNS copy machine specific FOP types and stops the copy machine.
  */
-static void svc_stop(struct m0_reqh_service *service)
+M0_INTERNAL void m0_sns_cm_svc_stop(struct m0_reqh_service *service)
 {
 	struct m0_cm *cm;
 
@@ -175,9 +149,6 @@ static void svc_stop(struct m0_reqh_service *service)
 	 * stopped.
 	 */
 	m0_cm_fini(cm);
-	m0_sns_repair_trigger_fop_fini();
-	m0_sns_cpx_fini();
-	m0_sns_cm_sw_onwire_fop_fini();
 
 	M0_LEAVE();
 }
@@ -185,7 +156,7 @@ static void svc_stop(struct m0_reqh_service *service)
 /**
  * Destorys SNS copy machine copy machine.
  */
-static void svc_fini(struct m0_reqh_service *service)
+M0_INTERNAL void m0_sns_cm_svc_fini(struct m0_reqh_service *service)
 {
 	struct m0_cm     *cm;
 	struct m0_sns_cm *sns_cm;

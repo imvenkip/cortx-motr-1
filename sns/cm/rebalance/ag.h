@@ -20,13 +20,10 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_CM_AG_H__
-#define __MERO_SNS_CM_AG_H__
+#ifndef __MERO_SNS_CM_REBALANCE_AG_H__
+#define __MERO_SNS_CM_REBALANCE_AG_H__
 
-
-#include "cm/ag.h"
-#include "sns/cm/cm.h"
-#include "sns/cm/cp.h"
+#include "sns/cm/ag.h"
 
 /**
    @defgroup SNSCMAG SNS copy machine aggregation group
@@ -35,20 +32,13 @@
    @{
  */
 
-struct m0_sns_cm;
-
-struct m0_sns_cm_ag {
+struct m0_sns_cm_rebalance_ag {
 	/** Base aggregation group. */
-	struct m0_cm_aggr_group          sag_base;
+	struct m0_sns_cm_ag  rag_base;
 
-	/** Total number of failure units in this aggregation group. */
-	uint32_t                         sag_fnr;
-
-	struct m0_bitmap                 sag_fmap;
-
-	/** If this aggregation group has local spare units on the replica. */
-	bool                             sag_is_relevant;
+	uint32_t             rag_incoming_nr;
 };
+
 
 /**
  * Allocates and initializes aggregation group for the given m0_cm_ag_id.
@@ -59,27 +49,14 @@ struct m0_sns_cm_ag {
  * Caller is responsible to lock the copy machine before calling this function.
  * @pre m0_cm_is_locked(cm) == true
  */
-M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
-				  struct m0_cm *cm,
-				  const struct m0_cm_ag_id *id,
-				  const struct m0_cm_aggr_group_ops *ag_ops,
-				  bool has_incoming);
-
-M0_INTERNAL uint64_t m0_sns_cm_ag_local_cp_nr(const struct m0_cm_aggr_group *ag);
-
-M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag);
-
-M0_INTERNAL void agid2fid(const struct m0_cm_ag_id *id,
-			  struct m0_fid *fid);
-
-M0_INTERNAL uint64_t agid2group(const struct m0_cm_ag_id *id);
-
-M0_INTERNAL void m0_sns_cm_ag_agid_setup(const struct m0_fid *gob_fid, uint64_t group,
-					 struct m0_cm_ag_id *agid);
+M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
+					  const struct m0_cm_ag_id *id,
+					  bool has_incoming,
+					  struct m0_cm_aggr_group **out);
 
 /** @} SNSCMAG */
 
-#endif /* __MERO_SNS_CM_AG_H__ */
+#endif /* __MERO_SNS_CM_REBALANCE_AG_H__ */
 
 /*
  *  Local variables:

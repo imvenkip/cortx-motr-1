@@ -21,28 +21,32 @@
 #include "fop/fop.h"
 
 #include "sns/cm/cm.h"
-#include "sns/cm/cp.h"
-#include "rpc/rpc_opcodes.h"
+#include "sns/cm/sns_cp_onwire.h"
+#include "sns/cm/sns_cp_onwire_xc.h"
 
-extern const struct m0_fom_type_ops cp_fom_type_ops;
+struct m0_fop_type m0_sns_repair_cpx_fopt;
+struct m0_fop_type m0_sns_repair_cpx_reply_fopt;
+extern struct m0_cm_type sns_repair_cmt;
 
-M0_INTERNAL int m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
-				const char *name, const struct m0_xcode_type *xt,
-				uint64_t rpc_flags, struct m0_cm_type *cmt)
+M0_INTERNAL int m0_sns_cm_repair_cpx_init(void)
 {
-        return M0_FOP_TYPE_INIT(ft,
-                                .name      = name,
-                                .opcode    = op,
-                                .xt        = xt,
-                                .rpc_flags = rpc_flags,
-                                .fom_ops   = &cp_fom_type_ops,
-                                .sm        = &m0_generic_conf,
-                                .svc_type  = &cmt->ct_stype);
+        return m0_sns_cpx_init(&m0_sns_repair_cpx_fopt,
+			       M0_SNS_CM_REPAIR_CP_OPCODE,
+			       "SNS Repair copy packet", m0_sns_cpx_xc,
+                               M0_RPC_ITEM_TYPE_REQUEST |
+			       M0_RPC_ITEM_TYPE_MUTABO,
+                               &sns_repair_cmt) ?:
+               m0_sns_cpx_init(&m0_sns_repair_cpx_reply_fopt,
+			       M0_SNS_CM_REPAIR_CP_REP_OPCODE,
+			       "SNS Repair copy packet reply",
+			       m0_sns_cpx_reply_xc, M0_RPC_ITEM_TYPE_REPLY,
+                               &sns_repair_cmt);
 }
 
-M0_INTERNAL void m0_sns_cpx_fini(struct m0_fop_type *ft)
+M0_INTERNAL void m0_sns_cm_repair_cpx_fini(void)
 {
-        m0_fop_type_fini(ft);
+        m0_sns_cpx_fini(&m0_sns_repair_cpx_fopt);
+        m0_sns_cpx_fini(&m0_sns_repair_cpx_reply_fopt);
 }
 
 /*

@@ -25,6 +25,9 @@
 
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
+#include "rpc/rpc_opcodes.h"
+
+#include "cm/cm.h"
 
 struct failure_data {
 	uint32_t  fd_nr;
@@ -44,8 +47,14 @@ struct trigger_rep_fop {
 	uint32_t rc;
 } M0_XCA_RECORD;
 
-int m0_sns_repair_trigger_fop_init(void);
-void m0_sns_repair_trigger_fop_fini(void);
+M0_INTERNAL int m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
+                                           enum M0_RPC_OPCODES op,
+                                           const char *name,
+                                           const struct m0_xcode_type *xt,
+                                           uint64_t rpc_flags,
+                                           struct m0_cm_type *cmt);
+
+M0_INTERNAL void m0_sns_cm_trigger_fop_fini(struct m0_fop_type *ft);
 
 #endif
 /*

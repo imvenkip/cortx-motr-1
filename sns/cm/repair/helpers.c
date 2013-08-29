@@ -20,9 +20,12 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
+#include "sns/parity_repair.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
 
+M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
+					  struct m0_pdclust_layout *pl);
 
 static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm *scm,
 					  const struct m0_pdclust_layout *pl)
@@ -44,13 +47,6 @@ static uint64_t repair_ag_unit_start(const struct m0_pdclust_layout *pl)
 static uint64_t repair_ag_unit_end(const struct m0_pdclust_layout *pl)
 {
 	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
-}
-
-static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
-				      struct m0_pdclust_layout *pl,
-				      uint64_t fdata, uint64_t fidx)
-{
-	return m0_sns_cm_ag_spare_unit_nr(pl, fidx);
 }
 
 static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
@@ -84,29 +80,13 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	return result;
 }
 
-static bool repair_ag_relevant_is_done(const struct m0_sns_cm_ag *sag,
-				       uint64_t nr_cps_fini)
-{
-	return nr_cps_fini == sag->sag_base.cag_cp_global_nr - sag->sag_fnr;
-}
-
-static bool repair_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
-					  int xform_cp_nr)
-{
-	uint64_t global_cp_nr = sag->sag_base.cag_cp_global_nr;
-
-	return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
-}
-
 const struct m0_sns_cm_helpers repair_helpers = {
 	.sch_ag_nr_global_units     = repair_ag_nr_global_units,
 	.sch_ag_max_incoming_units  = repair_ag_max_incoming_units,
 	.sch_ag_unit_start          = repair_ag_unit_start,
 	.sch_ag_unit_end            = repair_ag_unit_end,
-	.sch_ag_target_unit         = repair_ag_target_unit,
 	.sch_ag_is_relevant         = repair_ag_is_relevant,
-	.sch_ag_relevant_is_done    = repair_ag_relevant_is_done,
-	.sch_ag_accumulator_is_full = repair_ag_accumulator_is_full
+	.sch_ag_setup               = m0_sns_cm_repair_ag_setup,
 };
 
 #undef M0_TRACE_SUBSYSTEM

@@ -50,6 +50,7 @@ static int device_index_get(const struct m0_fid *fid,
         m0_pdclust_instance_map(pi, &sa, &ta);
 	m0_layout_enum_get(le, ta.ta_obj, fid, &cob_fid);
 	*device_index_out = cob_fid.f_container;
+	m0_layout_instance_fini(&pi->pi_base);
 
 	return 0;
 }
@@ -107,6 +108,7 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 	 */
         if (rc == 0)
                 *spare_slot_out += m0_pdclust_N(pl) + m0_pdclust_K(pl);
+
         return rc;
 }
 

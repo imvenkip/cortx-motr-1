@@ -36,6 +36,9 @@
 struct m0_sns_cm_cp {
 	struct m0_cm_cp        sc_base;
 
+	/*cob fid of the cob this copy packet is targeted for*/
+	struct m0_fid          sc_cobfid;
+
 	/** Read/write stob id. */
 	struct m0_stob_id      sc_sid;
 
@@ -72,13 +75,11 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp);
 
 M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp);
 
-extern const struct m0_cm_cp_ops m0_sns_cm_cp_ops;
+extern const struct m0_cm_cp_ops m0_sns_cm_repair_cp_ops;
+extern const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops;
 extern const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops;
 
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp);
-
-/** Transformation phase function for copy packet. */
-M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp);
 
 /** Copy packet read phase function. */
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp);
@@ -91,7 +92,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp);
 
-M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft);
 
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp);
 
@@ -99,7 +100,8 @@ M0_INTERNAL int m0_sns_cm_cp_buf_acquire(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp);
 
-M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
+				       struct m0_fop_type *ft);
 
 M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp);
 
@@ -110,6 +112,11 @@ M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp);
+
+M0_INTERNAL void m0_sns_cm_cp_tgt_info_fill(struct m0_sns_cm_cp *scp,
+					    const struct m0_fid *cob_fid,
+					    uint64_t stob_offset,
+					    uint64_t ag_cp_idx);
 
 M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   const struct m0_fid *cob_fid,

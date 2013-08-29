@@ -15,49 +15,52 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 06/07/2013
+ * Original creation date: 08/25/2013
  */
 
-#pragma once
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 
-#ifndef __MERO_SNS_CM_SW_ONWIRE_FOP_H__
-#define __MERO_SNS_CM_SW_ONWIRE_FOP_H__
-
-#include "xcode/xcode_attr.h"
-#include "rpc/rpc_opcodes.h"
+#include "fop/fop.h"
 
 #include "cm/cm.h"
-#include "cm/sw.h"
-#include "cm/sw_xc.h"
+#include "sns/sns_addb.h"
+#include "sns/cm/sw_onwire_fop.h"
 
 /**
-   @defgroup SNSCMSW SNS sliding window
-   @ingroup SNSCM
+   @addtogroup SNSCMSW
 
    @{
  */
 
-struct m0_sns_cm_sw_onwire {
-	struct m0_cm_sw_onwire swo_base;
-}M0_XCA_RECORD;
+struct m0_fop_type rebalance_sw_onwire_fopt;
+extern struct m0_cm_type sns_rebalance_cmt;
 
-M0_INTERNAL int m0_sns_cm_sw_onwire_fop_init(struct m0_fop_type *ft,
-					     enum M0_RPC_OPCODES op,
-					     struct m0_cm_type *cmt);
+M0_INTERNAL int m0_sns_cm_rebalance_sw_onwire_fop_init(void)
+{
+        return m0_sns_cm_sw_onwire_fop_init(&rebalance_sw_onwire_fopt,
+					    M0_SNS_CM_REBALANCE_SW_FOP_OPCODE,
+					    &sns_rebalance_cmt);
+}
 
-M0_INTERNAL void m0_sns_cm_sw_onwire_fop_fini(struct m0_fop_type *ft);
+M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void)
+{
+	m0_sns_cm_sw_onwire_fop_fini(&rebalance_sw_onwire_fopt);
+}
 
 M0_INTERNAL int
-m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
-			      struct m0_fop *fop,
-			      void (*fop_release)(struct m0_ref *),
-			      const char *local_ep, const struct m0_cm_sw *sw);
+m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
+					void (*fop_release)(struct m0_ref *),
+					const char *local_ep,
+					const struct m0_cm_sw *sw)
+{
+	return m0_sns_cm_sw_onwire_fop_setup(cm, &rebalance_sw_onwire_fopt, fop,
+					     fop_release, local_ep, sw);
 
-extern struct m0_fop_type m0_sns_cm_sw_onwire_fopt;
+}
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} SNSCMSW */
-
-#endif /* __MERO_SNS_CM_SW_ONWIRE_FOP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -85,10 +85,6 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm *scm,
 						  const struct m0_pdclust_layout
 						  *pl);
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_tgt_unit(struct m0_sns_cm_ag *sag,
-					   struct m0_pdclust_layout *pl,
-					   uint64_t fdata, uint64_t f_idx);
-
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_pdclust_layout *pl);

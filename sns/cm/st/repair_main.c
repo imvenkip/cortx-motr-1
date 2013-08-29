@@ -39,6 +39,7 @@
 #include "rpc/rpclib.h"
 #include "rpc/rpc_opcodes.h"
 
+#include "sns/cm/cm.h"
 #include "sns/cm/trigger_fop.h"
 #include "sns/cm/trigger_fop_xc.h"
 
@@ -56,7 +57,14 @@ extern struct m0_rpc_client_ctx cl_ctx;
 extern const char *cl_ep_addr;
 extern const char *srv_ep_addr[MAX_SERVERS];
 
-extern struct m0_fop_type trigger_fop_fopt;
+extern struct m0_fop_type repair_trigger_fopt;
+extern struct m0_fop_type rebalance_trigger_fopt;
+
+M0_INTERNAL int m0_sns_cm_repair_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
+
+M0_INTERNAL int m0_sns_cm_rebalance_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
 
 static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 {
@@ -67,7 +75,8 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 	if (item->ri_error == 0) {
 		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
 		M0_ASSERT(M0_IN(m0_fop_opcode(rep_fop),
-					(M0_SNS_REPAIR_TRIGGER_REP_OPCODE)));
+					(M0_SNS_REPAIR_TRIGGER_REP_OPCODE,
+					 M0_SNS_REBALANCE_TRIGGER_REP_OPCODE)));
 	}
 	M0_CNT_INC(srv_rep_cnt);
 	if (srv_rep_cnt == srv_cnt) {
@@ -124,7 +133,9 @@ int main(int argc, char *argv[])
 
 	rc = m0_init();
 	M0_ASSERT(rc == 0);
-	rc = m0_sns_repair_trigger_fop_init();
+	rc = m0_sns_cm_repair_trigger_fop_init();
+	M0_ASSERT(rc == 0);
+	rc = m0_sns_cm_rebalance_trigger_fop_init();
 	M0_ASSERT(rc == 0);
 	repair_client_init();
 
@@ -142,9 +153,11 @@ int main(int argc, char *argv[])
 	m0_mutex_unlock(&repair_wait_mutex);
 	start = m0_time_now();
 	for (i = 0; i < srv_cnt; ++i) {
-		struct m0_fop *fop;
-
-		fop = m0_fop_alloc(&trigger_fop_fopt, NULL);
+		struct m0_fop *fop = NULL;
+		if (op == SNS_REPAIR)
+			fop = m0_fop_alloc(&repair_trigger_fopt, NULL);
+		else if (op == SNS_REBALANCE)
+			fop = m0_fop_alloc(&rebalance_trigger_fopt, NULL);
 		treq = m0_fop_data(fop);
 		treq->fdata.fd_nr = n;
 		M0_ALLOC_ARR(treq->fdata.fd_index, n);
@@ -168,7 +181,8 @@ int main(int argc, char *argv[])
 	for (i = 0; i < srv_cnt; ++i)
 		repair_rpc_ctx_fini(&ctxs[i]);
 	repair_client_fini();
-	m0_sns_repair_trigger_fop_fini();
+	m0_sns_cm_repair_trigger_fop_fini();
+	m0_sns_cm_rebalance_trigger_fop_fini();
 	m0_fini();
 
 	return rc;

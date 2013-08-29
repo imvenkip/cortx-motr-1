@@ -19,10 +19,16 @@
 
 #include "sns/sns_addb.h"
 #include "sns/sns.h"
+#include "sns/cm/trigger_fop_xc.h"
+#include "sns/cm/sw_onwire_fop_xc.h"
+#include "sns/cm/sns_cp_onwire_xc.h"
+#include "cm/cp_onwire_xc.h"
 #include "sns/cm/cm.h"
 
 M0_INTERNAL int m0_sns_init()
 {
+	int rc;
+
 #undef CT_REG
 #define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_sns_##n)
         CT_REG(mod);
@@ -43,11 +49,19 @@ M0_INTERNAL int m0_sns_init()
 	RT_REG(repair_progress);
 #undef RT_REG
 
-	return m0_sns_cm_type_register();
+	m0_xc_sns_cp_onwire_init();
+	m0_xc_sw_onwire_fop_init();
+	m0_xc_trigger_fop_init();
+	rc = m0_sns_cm_type_register();
+
+	return rc;
 }
 
 M0_INTERNAL void m0_sns_fini()
 {
+	m0_xc_sns_cp_onwire_fini();
+	m0_xc_sw_onwire_fop_fini();
+	m0_xc_trigger_fop_fini();
 	m0_sns_cm_type_deregister();
 }
 

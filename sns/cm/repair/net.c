@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
@@ -14,36 +15,34 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anup Barve <anup_barve@xyratex.com>
- * Original creation date: 08/01/2013
+ * Original creation date: 02/27/2013
  */
 
-#pragma once
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/memory.h"
+#include "lib/trace.h"
 
-#ifndef __MERO_SNS_PARITY_REPAIR_H__
-#define __MERO_SNS_PARITY_REPAIR_H__
-
-#include "layout/pdclust.h"
-#include "fid/fid.h"
-#include "pool/pool.h"
+#include "sns/cm/cp.h"
 
 /**
- * Map the {failed device, spare slot} pair of a specified device.
- * @param pm pool machine.
- * @param fid Global file id.
- * @param pl pdclust layout instance.
- * @param group_number Parity group number for a given file.
- * @param unit_number Unit number in the parity group.
- * @param spare_slot_out the output spair slot.
+ * @addtogroup SNSCMCP
+ * @{
  */
-M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
-					const struct m0_fid *fid,
-					struct m0_pdclust_layout *pl,
-					uint64_t group_number,
-					uint64_t unit_number,
-					uint32_t *spare_slot_out);
 
-#endif /* __MERO_SNS_PARITY_REPAIR_H__ */
+extern struct m0_fop_type m0_sns_repair_cpx_fopt;
+extern struct m0_fop_type m0_sns_repair_cpx_reply_fopt;
 
+M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp)
+{
+	return m0_sns_cm_cp_send(cp, &m0_sns_repair_cpx_fopt);
+}
+
+M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp)
+{
+	return m0_sns_cm_cp_recv_wait(cp, &m0_sns_repair_cpx_reply_fopt);
+}
+
+/** @} SNSCMCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

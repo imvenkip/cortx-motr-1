@@ -23,8 +23,12 @@
 #ifndef __MERO_SNS_CM_CP_ONWIRE_H__
 #define __MERO_SNS_CM_CP_ONWIRE_H__
 
+#include "rpc/rpc_opcodes.h"
+
 #include "cm/cp_onwire.h"
 #include "cm/cp_onwire_xc.h"
+
+struct m0_cm_type;
 
 /** SNS specific onwire copy packet structure. */
 struct m0_sns_cpx {
@@ -49,11 +53,11 @@ struct m0_sns_cpx_reply {
         struct m0_cpx_reply scr_cp_rep;
 } M0_XCA_RECORD;
 
-M0_INTERNAL int m0_sns_cpx_init(void);
-M0_INTERNAL void m0_sns_cpx_fini(void);
+M0_INTERNAL int m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
+				const char *name, const struct m0_xcode_type *xt,
+				uint64_t rpc_flags, struct m0_cm_type *cmt);
 
-extern struct m0_fop_type m0_sns_cpx_fopt;
-extern struct m0_fop_type m0_sns_cpx_reply_fopt;
+M0_INTERNAL void m0_sns_cpx_fini(struct m0_fop_type *ft);
 
 #endif /* __MERO_SNS_CM_CP_ONWIRE_H__ */
 /*

@@ -154,46 +154,51 @@ enum M0_RPC_OPCODES {
 
 	M0_SNS_REPAIR_TRIGGER_OPCODE        = 85,
 	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 86,
+	M0_SNS_REBALANCE_TRIGGER_OPCODE     = 87,
+	M0_SNS_REBALANCE_TRIGGER_REP_OPCODE = 88,
 
 	/* RPC UT */
-	M0_RPC_ARROW_OPCODE                 = 87,
+	M0_RPC_ARROW_OPCODE                 = 89,
 
 	/** Resource manager opcodes */
-	M0_RM_FOP_BORROW                    = 88,
-	M0_RM_FOP_BORROW_REPLY              = 89,
-	M0_RM_FOP_REVOKE                    = 90,
-	M0_RM_FOP_REVOKE_REPLY              = 91,
-	M0_RM_FOP_CANCEL                    = 92,
+	M0_RM_FOP_BORROW                    = 90,
+	M0_RM_FOP_BORROW_REPLY              = 91,
+	M0_RM_FOP_REVOKE                    = 92,
+	M0_RM_FOP_REVOKE_REPLY              = 93,
+	M0_RM_FOP_CANCEL                    = 94,
 
-	M0_LAYOUT_OPCODE                    = 93,
-	M0_LAYOUT_REP_OPCODE                = 94,
+	M0_LAYOUT_OPCODE                    = 95,
+	M0_LAYOUT_REP_OPCODE                = 96,
 
 	/* Request handler ut dummy opcode */
-	M0_REQH_UT_DUMMY_OPCODE             = 95,
+	M0_REQH_UT_DUMMY_OPCODE             = 97,
 
 	/* SNS copy packet. */
-	M0_SNS_CM_CP_OPCODE                 = 96,
-	M0_SNS_CM_CP_REP_OPCODE             = 97,
+	M0_SNS_CM_REPAIR_CP_OPCODE          = 98,
+	M0_SNS_CM_REPAIR_CP_REP_OPCODE      = 99,
+	M0_SNS_CM_REBALANCE_CP_OPCODE       = 100,
+	M0_SNS_CM_REBALANCE_CP_REP_OPCODE   = 101,
 
 	/* RPC UB */
-	M0_RPC_UB_REQ_OPCODE                = 98,
-	M0_RPC_UB_RESP_OPCODE               = 99,
+	M0_RPC_UB_REQ_OPCODE                = 102,
+	M0_RPC_UB_RESP_OPCODE               = 103,
 
 	/* Management service opcodes */
-	M0_MGMT_SERVICE_STATE_REPLY_OPCODE  = 100,
-	M0_MGMT_SERVICE_STATE_OPCODE        = 101,
-	M0_MGMT_SERVICE_TERMINATE_OPCODE    = 102,
-	M0_MGMT_SERVICE_RUN_OPCODE          = 103,
-	M0_MGMT_SERVICE_UT_FAKE_FOP_OPCODE  = 104,
+	M0_MGMT_SERVICE_STATE_REPLY_OPCODE  = 104,
+	M0_MGMT_SERVICE_STATE_OPCODE        = 105,
+	M0_MGMT_SERVICE_TERMINATE_OPCODE    = 106,
+	M0_MGMT_SERVICE_RUN_OPCODE          = 107,
+	M0_MGMT_SERVICE_UT_FAKE_FOP_OPCODE  = 108,
 
 	/*SNS sliding window update fop. */
-	M0_SNS_CM_SW_ONWIRE_FOP_OPCODE      = 105,
+	M0_SNS_CM_REPAIR_SW_FOP_OPCODE      = 109,
+	M0_SNS_CM_REBALANCE_SW_FOP_OPCODE   = 110,
 
 	/* Pool */
-	M0_POOLMACHINE_QUERY_OPCODE         = 106,
-	M0_POOLMACHINE_QUERY_REP_OPCODE     = 107,
-	M0_POOLMACHINE_SET_OPCODE           = 108,
-	M0_POOLMACHINE_SET_REP_OPCODE       = 109,
+	M0_POOLMACHINE_QUERY_OPCODE         = 111,
+	M0_POOLMACHINE_QUERY_REP_OPCODE     = 112,
+	M0_POOLMACHINE_SET_OPCODE           = 113,
+	M0_POOLMACHINE_SET_REP_OPCODE       = 114,
 };
 /** @} endgroup rpc_layer_core */
 

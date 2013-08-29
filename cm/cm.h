@@ -287,6 +287,9 @@ struct m0_cm_ops {
 			   const struct m0_cm_ag_id id_curr,
 			   struct m0_cm_ag_id *id_next);
 
+	bool (*cmo_has_space)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
+			      struct m0_layout *l);
+
 	/**
 	 * Initialises the given fop with copy machine specific sliding window
 	 * update fop type and given information.

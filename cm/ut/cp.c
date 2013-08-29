@@ -122,6 +122,18 @@ static int dummy_cp_init(struct m0_cm_cp *cp)
 	return rc;
 }
 
+static int dummy_cp_phase_next(struct m0_cm_cp *cp)
+{
+	int phase = m0_fom_phase(&cp->c_fom);
+
+	if (phase == M0_CCP_XFORM) {
+		phase = M0_CCP_WRITE;
+		m0_fom_phase_set(&cp->c_fom, phase);
+		return M0_FSO_AGAIN;
+	} else
+		return m0_sns_cm_cp_phase_next(cp);
+}
+
 const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
         .co_action = {
                 [M0_CCP_INIT]         = &dummy_cp_init,
@@ -137,7 +149,7 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
                 [M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
         },
         .co_action_nr          = M0_CCP_NR,
-        .co_phase_next         = &m0_sns_cm_cp_phase_next,
+        .co_phase_next         = &dummy_cp_phase_next,
         .co_invariant          = &m0_sns_cm_cp_invariant,
         .co_home_loc_helper    = &cp_home_loc_helper,
         .co_complete           = &m0_sns_cm_cp_complete,

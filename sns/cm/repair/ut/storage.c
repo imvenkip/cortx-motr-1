@@ -26,7 +26,7 @@
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
-#include "sns/cm/ut/cp_common.h"
+#include "sns/cm/repair/ut/cp_common.h"
 
 struct m0_reqh_service          *service;
 static struct m0_reqh           *reqh;
@@ -204,6 +204,8 @@ void write_post(void)
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	w_sns_cp.sc_sid = sid;
+	w_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
+	w_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
@@ -271,6 +273,8 @@ static void read_post(void)
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sag.sag_fnr = 1;
 	r_sns_cp.sc_sid = sid;
+	r_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
+	r_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 
         /* Wait till ast gets posted. */
@@ -290,7 +294,7 @@ static void test_cp_write_read(void)
 	rc = sns_cm_ut_server_start();
 	M0_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
+	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
 	M0_UT_ASSERT(reqh != NULL);
 
 	/*

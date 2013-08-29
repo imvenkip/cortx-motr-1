@@ -500,7 +500,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			}
 		}
 		break;
-	case M0_PNDS_SNS_REPAIRING:
+	case M0_PNDS_FAILED:
 		/* alloc a sns repare spare slot */
 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index ==
@@ -519,6 +519,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			/* TODO add ADDB error message here */
 		}
 		break;
+	case M0_PNDS_SNS_REPAIRING:
 	case M0_PNDS_SNS_REPAIRED:
 	case M0_PNDS_SNS_REBALANCING:
 		/* change the repair spare slot usage */
@@ -688,14 +689,16 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	rc = -ENOENT;
 	m0_rwlock_read_lock(&pm->pm_lock);
 	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
-	if (!M0_IN(device_state, (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)))
+	if (!M0_IN(device_state, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
+				  M0_PNDS_SNS_REPAIRED)))
 		goto out;
 
 	spare_usage_array = pm->pm_state.pst_spare_usage_array;
 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
 		if (spare_usage_array[i].psu_device_index == device_index) {
 			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
-						(M0_PNDS_SNS_REPAIRING,
+						(M0_PNDS_FAILED,
+						 M0_PNDS_SNS_REPAIRING,
 						 M0_PNDS_SNS_REPAIRED)));
 			*spare_slot_out = i;
 			rc = 0;
