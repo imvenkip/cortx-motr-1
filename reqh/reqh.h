@@ -193,10 +193,6 @@ struct m0_reqh_init_args {
 	/** fol File operation log to record fop execution */
 	struct m0_fol           *rhia_fol;
 	struct m0_local_service *rhia_svc;
-	/** Hard-coded stob to store ADDB records
-	    @see cs_addb_storage_init()
-	  */
-	struct m0_stob          *rhia_addb_stob;
 };
 
 /**

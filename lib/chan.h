@@ -277,6 +277,7 @@ struct m0_clink {
 	/** Linkage into m0_chan::ch_links */
 	struct m0_tlink     cl_linkage;
 	struct m0_semaphore cl_wait;
+	bool                cl_is_oneshot;
 	uint64_t            cl_magic;
 };
 

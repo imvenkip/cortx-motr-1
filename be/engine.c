@@ -63,8 +63,10 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 				     &en_cfg->bec_group_size_max));
 	M0_ASSERT(en_cfg->bec_log_size >=
 		  en_cfg->bec_group_size_max.tc_reg_size);
-	/* XXX temporary */
+	/* only one group is supported at the moment */
 	M0_ASSERT(en_cfg->bec_group_nr == 1);
+	/* recovery isn't implemented */
+	M0_ASSERT(!en_cfg->bec_log_replay);
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
@@ -72,7 +74,7 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		goto err;
 	}
 
-	m0_be_log_init(&en->eng_log, NULL /* XXX */);
+	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob, NULL /* XXX */);
 	rc = m0_be_log_create(&en->eng_log, en_cfg->bec_log_size);
 	if (rc != 0)
 		goto log_fini;
@@ -129,6 +131,7 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	}
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_fini(&en->eng_groups[i]), true));
+	M0_ASSERT(m0_be_log_size(&en->eng_log) == m0_be_log_free(&en->eng_log));
 	m0_be_log_destroy(&en->eng_log);
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);

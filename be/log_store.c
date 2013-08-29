@@ -48,9 +48,10 @@
  * @{
  */
 
-M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls)
+M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls,
+				      struct m0_stob *stob)
 {
-	M0_SET0(ls);
+	ls->ls_stob = stob;
 }
 
 M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls)
@@ -79,73 +80,21 @@ M0_INTERNAL void m0_be_log_store_close(struct m0_be_log_store *ls)
 	M0_IMPOSSIBLE("Not implemented yet");
 }
 
-/* XXX copy-paste from be/ut/helper.c */
-#define BE_LOG_STORAGE_DIR "./tx_log_stob"
-
-enum {
-	BE_LOG_STOR_STOB_ID = 0x100,
-};
-
-static struct m0_stob_id be_log_store_stob_id = {
-	.si_bits = M0_UINT128(0, BE_LOG_STOR_STOB_ID),
-};
-
-static struct m0_stob_domain *be_log_store_stob_dom;
-static struct m0_dtx	      be_log_store_dtx;
-
 M0_INTERNAL int  m0_be_log_store_create(struct m0_be_log_store *ls,
 				       m0_bcount_t ls_size)
 {
-	int rc;
-
 	M0_PRE(m0_be_log_store__invariant(ls));
 
-	rc = mkdir(BE_LOG_STORAGE_DIR, 0700);
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	M0_ASSERT(rc == 0);
-#endif
-
-	rc = mkdir(BE_LOG_STORAGE_DIR "/o", 0700);
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	M0_ASSERT(rc == 0);
-#endif
-
-	rc = m0_linux_stob_domain_locate(BE_LOG_STORAGE_DIR,
-					 &be_log_store_stob_dom);
-	M0_ASSERT(rc == 0);
-	m0_dtx_init(&be_log_store_dtx, NULL, NULL);	/* XXX_DB_BE */
-
-	rc = m0_stob_create_helper(be_log_store_stob_dom, &be_log_store_dtx,
-				   &be_log_store_stob_id, &ls->ls_stob);
-	M0_ASSERT(rc == 0);
-
-	ls->ls_bshift = ls->ls_stob->so_op->sop_block_shift(ls->ls_stob);
 	ls->ls_size = ls_size;
 
 	M0_POST(m0_be_log_store__invariant(ls));
 
-	return rc;
+	return 0;
 }
 
 M0_INTERNAL void m0_be_log_store_destroy(struct m0_be_log_store *ls)
 {
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	int rc;
-#endif
-
 	M0_PRE(m0_be_log_store__invariant(ls));
-
-	m0_stob_put(ls->ls_stob);
-
-	m0_dtx_fini(&be_log_store_dtx);
-	be_log_store_stob_dom->sd_ops->sdo_fini(be_log_store_stob_dom, NULL);
-
-#ifdef BE_LOG_STOR_DESTOROY_STOB
-	rc = system("rm -rf " BE_LOG_STORAGE_DIR);
-	M0_ASSERT(rc == 0);
-#endif
-
-	M0_POST(m0_be_log_store__invariant(ls));
 }
 
 M0_INTERNAL struct m0_stob *m0_be_log_store_stob(struct m0_be_log_store *ls)
@@ -153,12 +102,12 @@ M0_INTERNAL struct m0_stob *m0_be_log_store_stob(struct m0_be_log_store *ls)
 	return ls->ls_stob;
 }
 
-static m0_bcount_t be_log_store_free(struct m0_be_log_store *ls)
+M0_INTERNAL m0_bcount_t m0_be_log_store_free(const struct m0_be_log_store *ls)
 {
 	return ls->ls_size - (ls->ls_reserved - ls->ls_discarded);
 }
 
-static m0_bcount_t be_log_store_size(const struct m0_be_log_store *ls)
+M0_INTERNAL m0_bcount_t m0_be_log_store_size(const struct m0_be_log_store *ls)
 {
 	return ls->ls_size;
 }
@@ -171,7 +120,7 @@ M0_INTERNAL int m0_be_log_store_reserve(struct m0_be_log_store *ls,
 	M0_ENTRY("size = %lu", size);
 
 	M0_PRE(m0_be_log_store__invariant(ls));
-	if (be_log_store_free(ls) < size) {
+	if (m0_be_log_store_free(ls) < size) {
 		rc = -EAGAIN;
 	} else {
 		ls->ls_reserved += size;
@@ -204,11 +153,19 @@ static void be_log_store_pos_advance(struct m0_be_log_store *ls,
 	M0_PRE(m0_be_log_store__invariant(ls));
 	M0_PRE(ls->ls_pos + size <= ls->ls_reserved);
 
-	*pos_prev = ls->ls_pos;
+	if (pos_prev != NULL)
+		*pos_prev = ls->ls_pos;
 	ls->ls_pos += size;
-	*pos_curr = ls->ls_pos;
+	if (pos_curr != NULL)
+		*pos_curr = ls->ls_pos;
 
 	M0_POST(m0_be_log_store__invariant(ls));
+}
+
+M0_INTERNAL void m0_be_log_store_pos_advance(struct m0_be_log_store *ls,
+					     m0_bcount_t size)
+{
+	be_log_store_pos_advance(ls, size, NULL, NULL);
 }
 
 M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit,
@@ -272,7 +229,7 @@ static void be_log_store_io_add(struct m0_be_log_store_io *lsi,
 			       void *ptr,
 			       m0_bcount_t size)
 {
-	m0_bcount_t ls_size = be_log_store_size(lsi->lsi_ls);
+	m0_bcount_t ls_size = m0_be_log_store_size(lsi->lsi_ls);
 	m0_bcount_t size1;
 	m0_bindex_t wrap_point;
 

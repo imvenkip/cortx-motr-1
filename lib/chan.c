@@ -120,14 +120,19 @@ M0_EXPORTED(m0_chan_fini_lock);
 
 static void clink_signal(struct m0_clink *clink)
 {
-	bool rc = false;
+	struct m0_clink *grp = clink->cl_group;
+	int              rc    = 0;
+
+	if (clink->cl_is_oneshot)
+		m0_clink_del(clink);
+
 	if (clink->cl_cb != NULL) {
 		m0_enter_awkward();
 		rc = clink->cl_cb(clink);
 		m0_exit_awkward();
 	}
-	if (!rc)
-		m0_semaphore_up(&clink->cl_group->cl_wait);
+	if (rc == 0)
+		m0_semaphore_up(&grp->cl_wait);
 }
 
 static void chan_signal_nr(struct m0_chan *chan, uint32_t nr)
@@ -183,9 +188,10 @@ M0_INTERNAL bool m0_chan_has_waiters(struct m0_chan *chan)
 static void clink_init(struct m0_clink *link,
 		       struct m0_clink *group, m0_chan_cb_t cb)
 {
-	link->cl_group = group;
-	link->cl_chan  = NULL;
-	link->cl_cb    = cb;
+	link->cl_group      = group;
+	link->cl_chan       = NULL;
+	link->cl_cb         = cb;
+	link->cl_is_oneshot = false;
 	clink_tlink_init(link);
 	M0_POST(clink_is_head(group));
 }

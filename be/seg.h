@@ -22,7 +22,9 @@
 #ifndef __MERO_BE_SEG_H__
 #define __MERO_BE_SEG_H__
 
-#include "be/alloc.h"   /* m0_be_allocator */
+#include "be/alloc.h"		/* m0_be_allocator */
+#include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
+
 #include "stob/stob.h"  /* m0_stob */
 
 struct m0_be;
@@ -60,10 +62,6 @@ struct m0_be_seg {
 	struct m0_be_allocator bs_allocator;
 	struct m0_be_domain   *bs_domain;
 	int                    bs_state;
-	uint32_t               bs_bshift;  /* XXX remove it. STOB block shift */
-	uint32_t               bs_pgshift; /* seg page shift */
-	m0_bcount_t           *bs_pgmap;
-	m0_bcount_t            bs_pgnr;
 };
 
 
@@ -88,6 +86,7 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
 M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 					 void *addr);
 
+<<<<<<< HEAD
 /* ---------------------------------------------------------------------------
  * Dictionary interface
  * ------------------------------------------------------------------------- */

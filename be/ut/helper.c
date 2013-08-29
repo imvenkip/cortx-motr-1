@@ -259,6 +259,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
 				1 << 21, 1 << 27),
 			.bec_group_tx_max = 20,
+			.bec_log_replay = false,
 		},
 	};
 }
@@ -297,6 +298,23 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 
 	M0_SET0(ut_be);
 	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	/*
+	 * XXX
+	 * There is strange bug here. If m0_be_ut_stob_get() called before
+	 * m0_be_ut_reqh_get(), then all tests pass. Otherwise tests fail
+	 * with the following assertion failure:
+	 * FATAL : [lib/assert.c:42:m0_panic] panic:
+	 * m0_net__buffer_invariant(nb) nlx_xo_core_bev_to_net_bev()
+	 * (/work/mero-backend/net/lnet/lnet_tm.c:292)
+	 * Mero panic: m0_net__buffer_invariant(nb) at
+	 * nlx_xo_core_bev_to_net_bev()
+	 * /work/mero-backend/net/lnet/lnet_tm.c:292 (errno: 110) (last failed:
+	 * none)
+	 *
+	 * This bug is similar to the one already encountered, and that bug was
+	 * not fixed.
+	 */
+	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
 #if 0 /* XXX_BE_DB */
 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 #else
@@ -317,9 +335,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_be_domain_fini(&ut_be->but_dom);
 	XXX_BE_DB__reqh_fini(&ut__reqh);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
-#if 0 /* XXX_BE_DB */
-	m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
-#endif
+	m0_be_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob, true);
 }
 
 static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,
@@ -397,21 +413,21 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 		      NULL, NULL, NULL, NULL);
 }
 
-static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
-			   struct m0_be_ut_backend *ut_be,
-			   m0_bcount_t size,
-			   bool stob_create)
+struct m0_stob *m0_be_ut_stob_get(bool stob_create)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	struct m0_stob_id	    stob_id;
+	struct m0_stob		   *stob;
 	int			    rc;
 
 	be_ut_helper_init_once();
 
 	stob_id.si_bits = M0_UINT128(0, be_ut_seg_allocate_id(h));
 
-	m0_mutex_lock(&h->buh_seg_lock);
+	M0_ALLOC_PTR(stob);
+	M0_ASSERT(stob != NULL);
 
+	m0_mutex_lock(&h->buh_seg_lock);
 	if (h->buh_storage_ref_cnt == 0) {
 		rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
 		M0_ASSERT(rc == 0);
@@ -428,37 +444,24 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	M0_CNT_INC(h->buh_storage_ref_cnt);
 
 	if (stob_create) {
-		rc = m0_stob_create_helper(h->buh_stob_dom, NULL,
-					   &stob_id, &ut_seg->bus_stob);
+		rc = m0_stob_create_helper(h->buh_stob_dom, NULL, &stob_id,
+					   &stob);
 		M0_ASSERT(rc == 0);
 	} else {
-		m0_stob_init(&ut_seg->bus_stob_, &stob_id, h->buh_stob_dom);
-		ut_seg->bus_stob = &ut_seg->bus_stob_;
+		m0_stob_init(stob, &stob_id, h->buh_stob_dom);
 	}
-
 	m0_mutex_unlock(&h->buh_seg_lock);
-
-	m0_be_seg_init(&ut_seg->bus_seg, ut_seg->bus_stob, &ut_be->but_dom);
-	rc = m0_be_seg_create(&ut_seg->bus_seg, size,
-			      be_ut_seg_allocate_addr(h, size));
-	M0_ASSERT(rc == 0);
-	rc = m0_be_seg_open(&ut_seg->bus_seg);
-	M0_ASSERT(rc == 0);
+	return stob;
 }
 
-static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
+void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
 	int			    rc;
 
-	m0_be_seg_close(&ut_seg->bus_seg);
-	rc = m0_be_seg_destroy(&ut_seg->bus_seg);
-	M0_ASSERT(rc == 0);
-	m0_be_seg_fini(&ut_seg->bus_seg);
-
 	m0_mutex_lock(&h->buh_seg_lock);
 	if (stob_destroy)
-		m0_stob_put(ut_seg->bus_stob);
+		m0_stob_put(stob);
 
 	M0_CNT_DEC(h->buh_storage_ref_cnt);
 	if (h->buh_storage_ref_cnt == 0) {
@@ -470,20 +473,42 @@ static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg, bool stob_destroy)
 		}
 	}
 	m0_mutex_unlock(&h->buh_seg_lock);
+
+	/* XXX memory leak here */
+	/* m0_free(stob); */
 }
 
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		       struct m0_be_ut_backend *ut_be,
 		       m0_bcount_t size)
 {
-	be_ut_seg_init(ut_seg, ut_be, size, false);
+	struct be_ut_helper_struct *h = &be_ut_helper;
+	int			    rc;
+
+	m0_be_seg_init(&ut_seg->bus_seg, m0_be_ut_stob_get(true),
+		       &ut_be->but_dom);
+	rc = m0_be_seg_create(&ut_seg->bus_seg, size,
+			      be_ut_seg_allocate_addr(h, size));
+	M0_ASSERT(rc == 0);
+	rc = m0_be_seg_open(&ut_seg->bus_seg);
+	M0_ASSERT(rc == 0);
+
 	ut_seg->bus_copy = NULL;
 }
 
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 {
+	struct m0_stob *stob = ut_seg->bus_seg.bs_stob;
+	int		rc;
+
 	m0_free(ut_seg->bus_copy);
-	be_ut_seg_fini(ut_seg, false);
+
+	m0_be_seg_close(&ut_seg->bus_seg);
+	rc = m0_be_seg_destroy(&ut_seg->bus_seg);
+	M0_ASSERT(rc == 0);
+	m0_be_seg_fini(&ut_seg->bus_seg);
+
+	m0_be_ut_stob_put(stob, true);
 }
 
 static void be_ut_data_save(const char *filename, m0_bcount_t size, void *addr)
@@ -513,6 +538,12 @@ void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
 		be_ut_data_save("memory.dat", seg->bs_size, seg->bs_addr);
 		M0_IMPOSSIBLE("Segment data differs from stob data");
 	}
+}
+
+void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
+{
+	m0_be_seg_close(&ut_seg->bus_seg);
+	m0_be_seg_open(&ut_seg->bus_seg);
 }
 
 static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,

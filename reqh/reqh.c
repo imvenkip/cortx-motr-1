@@ -260,6 +260,7 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 	m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
 	if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
 		m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
+	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 	return rc;

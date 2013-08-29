@@ -24,6 +24,8 @@
 #include "lib/misc.h"		/* M0_SET0 */
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 
+#include "be/ut/helper.h"	/* m0_be_ut_stob_get */
+
 #include <stdlib.h>		/* rand_r */
 
 enum {
@@ -80,11 +82,8 @@ be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr, m0_bcount_t size)
 
 static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)
 {
-	int rc;
-
 	m0_be_io_configure(bio, SIO_WRITE);
-	M0_BE_OP_SYNC(op, rc = m0_be_io_launch(bio, &op));
-	M0_UT_ASSERT(rc == 0);
+	M0_BE_OP_SYNC(op, m0_be_io_launch(bio, &op));
 }
 
 static void
@@ -161,15 +160,17 @@ static void be_ut_log_store_io_check_nop(struct m0_be_log_store *ls,
 
 static void be_ut_log_store(bool fake_io)
 {
-	struct m0_be_log_store ls;
+	struct m0_be_log_store	ls;
+	struct m0_stob	       *stob;
 	const m0_bcount_t     log_size = BE_UT_LOG_STOR_SIZE;
 	m0_bcount_t	      used;
 	m0_bcount_t	      step;
 	int		      rc;
 	int		      i;
 
+	stob = m0_be_ut_stob_get(true);
 	M0_SET0(&ls);
-	m0_be_log_store_init(&ls);
+	m0_be_log_store_init(&ls, stob);
 
 	rc = m0_be_log_store_create(&ls, log_size);
 	M0_UT_ASSERT(rc == 0);
@@ -201,6 +202,7 @@ static void be_ut_log_store(bool fake_io)
 
 	m0_be_log_store_destroy(&ls);
 	m0_be_log_store_fini(&ls);
+	m0_be_ut_stob_put(stob, true);
 }
 
 void m0_be_ut_log_store_reserve(void)

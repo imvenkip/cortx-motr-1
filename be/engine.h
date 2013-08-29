@@ -34,6 +34,7 @@
 
 struct m0_be_tx_group;
 struct m0_reqh;
+struct m0_stob;
 
 /**
  * @defgroup be
@@ -55,6 +56,8 @@ struct m0_be_engine_cfg {
 	struct m0_be_tx_credit bec_group_size_max;
 	size_t		       bec_group_tx_max;
 	struct m0_reqh	      *bec_group_fom_reqh;
+	bool		       bec_log_replay;
+	struct m0_stob	      *bec_log_stob;
 };
 
 struct m0_be_engine {

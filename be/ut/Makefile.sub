@@ -10,7 +10,7 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/log_store.c       \
                             be/ut/main.c            \
                             be/ut/seg.c             \
-                            be/ut/dict.c            \
+                            be/ut/seg_dict.c        \
                             be/ut/tx.c              \
                             be/ut/tx_group_ondisk.c \
                             be/ut/tx_regmap.c

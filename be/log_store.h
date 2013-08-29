@@ -26,7 +26,6 @@
 
 
 #include "lib/types.h"		/* m0_bcount_t */
-#include "stob/stob.h"		/* m0_stob_io */
 
 #include "be/io.h"
 
@@ -35,6 +34,8 @@
  *
  * @{
  */
+
+struct m0_stob;
 
 /**
  * @verbatim
@@ -57,7 +58,6 @@
  */
 struct m0_be_log_store {
 	struct m0_stob    *ls_stob;
-	uint32_t	   ls_bshift;		/**< stob block shift */
 	m0_bcount_t	   ls_size;
 
 	m0_bindex_t        ls_discarded;
@@ -73,7 +73,8 @@ struct m0_be_log_store_io {
 	m0_bindex_t	       lsi_end;
 };
 
-M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls);
+M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls,
+				      struct m0_stob *stob);
 M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls);
 M0_INTERNAL bool m0_be_log_store__invariant(struct m0_be_log_store *ls);
 
@@ -90,6 +91,10 @@ M0_INTERNAL int  m0_be_log_store_reserve(struct m0_be_log_store *ls,
 					m0_bcount_t size);
 M0_INTERNAL void m0_be_log_store_discard(struct m0_be_log_store *ls,
 					m0_bcount_t size);
+M0_INTERNAL void m0_be_log_store_pos_advance(struct m0_be_log_store *ls,
+					     m0_bcount_t size);
+M0_INTERNAL m0_bcount_t m0_be_log_store_size(const struct m0_be_log_store *ls);
+M0_INTERNAL m0_bcount_t m0_be_log_store_free(const struct m0_be_log_store *ls);
 
 M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit,
 						 m0_bcount_t cblock_size);

@@ -184,16 +184,25 @@ void m0_be_ut_tx_empty(void)
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_tx         tx;
 	int                     rc;
+	int			i;
+	struct m0_be_tx_credit  credit[] = {
+		M0_BE_TX_CREDIT_INIT(0, 0),
+		M0_BE_TX_CREDIT_INIT(1, sizeof(void *)),
+	};
 
 	m0_be_ut_backend_init(&ut_be);
 
-	m0_be_ut_tx_init(&tx, &ut_be);
+	for (i = 0; i < ARRAY_SIZE(credit); ++i) {
+		m0_be_ut_tx_init(&tx, &ut_be);
 
-	rc = m0_be_tx_open_sync(&tx);
-	M0_UT_ASSERT(rc == 0);
+		m0_be_tx_prep(&tx, &credit[i]);
 
-	m0_be_tx_close_sync(&tx);
-	m0_be_tx_fini(&tx);
+		rc = m0_be_tx_open_sync(&tx);
+		M0_UT_ASSERT(rc == 0);
+
+		m0_be_tx_close_sync(&tx);
+		m0_be_tx_fini(&tx);
+	}
 
 	m0_be_ut_backend_fini(&ut_be);
 }

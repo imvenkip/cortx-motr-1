@@ -246,8 +246,7 @@ static int server_init(const char             *stob_path,
 			  .rhia_db        = &srv_db,
 			  .rhia_mdstore   = &srv_mdstore,
 			  .rhia_fol       = &srv_fol,
-			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = NULL);
+			  .rhia_svc       = NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_start(&reqh);
 

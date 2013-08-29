@@ -275,6 +275,8 @@ allocate_btree_node(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 	/* Initialize the linked list pointer to NULL */
 	node->b_next = NULL;
 
+	mem_update(btree, tx, node, sizeof *node);
+
 	return node;
 }
 
@@ -435,7 +437,10 @@ static void get_max_key_pos(struct m0_be_btree *btree,
 		;
 
 	pos->p_node  = node;
-	pos->p_index = node != NULL ? node->b_nr_active - 1 : 0;
+	if (node != NULL && node->b_nr_active > 0)
+		pos->p_index = node->b_nr_active - 1;
+	else
+		pos->p_index = 0;
 }
 
 /**
@@ -903,7 +908,10 @@ static void *btree_get_max_key(struct m0_be_btree *btree)
 	struct node_pos node_pos;
 
 	get_max_key_pos(btree, btree->bb_root, &node_pos);
-	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
+	if (node_pos.p_node->b_key_vals[0] == NULL)
+		return NULL;
+	else
+		return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
 }
 
 /**
@@ -916,7 +924,10 @@ static void *btree_get_min_key(struct m0_be_btree *btree)
 	struct node_pos node_pos;
 
 	get_min_key_pos(btree, btree->bb_root, &node_pos);
-	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
+	if (node_pos.p_node->b_key_vals[0] == NULL)
+		return NULL;
+	else
+		return node_pos.p_node->b_key_vals[0]->key;
 }
 
 static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
@@ -973,6 +984,7 @@ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
 	(op)->bo_u.u_btree.t_op     = optype;          \
 	(op)->bo_u.u_btree.t_in     = NULL;            \
 	(op)->bo_u.u_btree.t_anchor = (anchor);        \
+	(op)->bo_u.u_btree.t_rc	    = 0;	       \
 	})
 
 static struct m0_be_op__btree *op_tree(struct m0_be_op *op);
@@ -1057,9 +1069,9 @@ static void btree_node_update_credit(struct m0_be_tx_credit *accum,
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(1, KV_SIZE));
 	/* children update */
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(1, CHILDREN_SIZE));
-	/* struct m0_be_bnode update */
-	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_OBJ(
-				    1, sizeof(struct m0_be_bnode)));
+	/* struct m0_be_bnode update x2 */
+	m0_be_tx_credit_mac(&cred, &M0_BE_TX_CREDIT_OBJ(
+				    1, sizeof(struct m0_be_bnode)), 2);
 
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
