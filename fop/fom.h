@@ -787,6 +787,9 @@ M0_INTERNAL void m0_fom_callback_fini(struct m0_fom_callback *cb);
  * It is guaranteed that call-back function won't be executing after this
  * function returns (either because it already completed, or because the
  * call-back was cancelled).
+ *
+ * @note: the channel the callback was registered on must be protected
+ *        by the user with external lock.
  */
 M0_INTERNAL void m0_fom_callback_cancel(struct m0_fom_callback *cb);
 
