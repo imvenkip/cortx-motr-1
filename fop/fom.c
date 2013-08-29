@@ -1095,7 +1095,7 @@ static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 M0_INTERNAL void m0_fom_callback_init(struct m0_fom_callback *cb)
 {
 	cb->fc_state = M0_FCS_DONE;
-	m0_clink_init(&cb->fc_clink, &fom_clink_cb);
+	m0_clink_init(&cb->fc_clink, fom_clink_cb);
 }
 
 M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,

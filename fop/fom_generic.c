@@ -241,7 +241,6 @@ static int fom_auth_wait(struct m0_fom *fom)
  */
 static int create_loc_ctx(struct m0_fom *fom)
 {
-	int		rc;
 	struct m0_reqh *reqh;
 
 #if XXX_USE_DB5
@@ -249,12 +248,12 @@ static int create_loc_ctx(struct m0_fom *fom)
 #endif
 	reqh = m0_fom_reqh(fom);
 
-	m0_dtx_init(&fom->fo_tx, NULL, NULL);	/* XXX_BE_DB */
-	rc = m0_dtx_open(&fom->fo_tx);	/* XXX_BE_DB */
-	if (rc < 0)
-		return rc;
+	m0_dtx_init(&fom->fo_tx, reqh->rh_dbenv->bs_domain,
+		    &fom->fo_loc->fl_group);
+	m0_dtx_open(&fom->fo_tx);
+	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
 
-	return M0_FSO_AGAIN;
+	return M0_FSO_WAIT;
 }
 
 /**
@@ -263,6 +262,14 @@ static int create_loc_ctx(struct m0_fom *fom)
  */
 static int create_loc_ctx_wait(struct m0_fom *fom)
 {
+	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+
+	M0_PRE((M0_BITS(m0_be_tx_state(tx)) &
+	        M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)) != 0);
+
+	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
+		return -EAGAIN;
+
 	return M0_FSO_AGAIN;
 }
 
@@ -325,17 +332,11 @@ static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
 	if (!fom->fo_local) {
-#if XXX_USE_DB5
 		int rc;
 
-		m0_fom_block_enter(fom);
 		rc = m0_fom_fol_rec_add(fom);
-		m0_fom_block_leave(fom);
 		if (rc < 0)
 			return rc;
-#else
-		M0_IMPOSSIBLE("XXX Use m0_be_op_tick_ret()");
-#endif
 	}
 
 	return M0_FSO_AGAIN;
@@ -354,8 +355,9 @@ static int fom_txn_commit(struct m0_fom *fom)
 		set_gen_err_reply(fom);
 		return rc;
 	}
+	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
 
-	return M0_FSO_AGAIN;
+	return M0_FSO_WAIT;
 }
 
 /**
@@ -364,6 +366,16 @@ static int fom_txn_commit(struct m0_fom *fom)
  */
 static int fom_txn_commit_wait(struct m0_fom *fom)
 {
+	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+
+	while (m0_be_tx_state(tx) != M0_BTS_DONE) {
+		m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan,
+					&fom->fo_cb);
+		return M0_FSO_WAIT;
+	}
+
+	m0_dtx_fini(&fom->fo_tx);
+
 	return M0_FSO_AGAIN;
 }
 
@@ -459,7 +471,7 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_auth_wait",
 					      1 << M0_FOPH_AUTHORISATION_WAIT },
 	[M0_FOPH_TXN_CONTEXT] =		   { &create_loc_ctx,
-					      M0_FOPH_TYPE_SPECIFIC,
+					      M0_FOPH_TXN_CONTEXT_WAIT,
 					     "create_loc_ctx",
 					      1 << M0_FOPH_TXN_CONTEXT },
 	[M0_FOPH_TXN_CONTEXT_WAIT] =	   { &create_loc_ctx_wait,
@@ -479,7 +491,7 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_fol_rec_add",
 					      1 << M0_FOPH_FOL_REC_ADD },
 	[M0_FOPH_TXN_COMMIT] =		   { &fom_txn_commit,
-					      M0_FOPH_QUEUE_REPLY,
+					      M0_FOPH_TXN_COMMIT_WAIT,
 					     "fom_txn_commit",
 					      1 << M0_FOPH_TXN_COMMIT },
 	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_txn_commit_wait,
@@ -650,7 +662,12 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
-	} else if (rc == M0_FSO_AGAIN) {
+	} else {
+		if (m0_fom_phase(fom) < M0_FOPH_NR &&
+		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
+			M0_LOG(M0_DEBUG, "phase set: %s -> %s",
+			    fpd_phase->fpd_name,
+			    fpd_table[fpd_phase->fpd_nextphase].fpd_name);
 		m0_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
@@ -664,6 +681,7 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
 	struct m0_fol_rec_desc *desc;
 	struct m0_fol	       *fol;
+	int                     rc;
 
 	M0_PRE(fom != NULL);
 
@@ -678,8 +696,9 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 #if XXX_USE_DB5
 	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
 #else
-	return m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec, &fom->fo_tx.tx_betx,
-			      NULL /* XXX FIXME */);
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec,
+					      &fom->fo_tx.tx_betx, &op));
+	return rc;
 #endif
 }
 
