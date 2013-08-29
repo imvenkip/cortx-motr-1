@@ -193,7 +193,9 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {
+		m0_mutex_lock(&stio->si_mutex);
 		m0_fom_callback_cancel(&cp_fom->fo_cb);
+		m0_mutex_unlock(&stio->si_mutex);
 		m0_indexvec_free(&stio->si_stob);
 		bufvec_free(&stio->si_user);
 		goto err_stio;

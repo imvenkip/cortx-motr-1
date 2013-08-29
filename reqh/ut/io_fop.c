@@ -455,7 +455,9 @@ static int stob_read_fom_tick(struct m0_fom *fom)
                         result = m0_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                m0_mutex_lock(&stio->si_mutex);
                                 m0_fom_callback_cancel(&fom->fo_cb);
+                                m0_mutex_unlock(&stio->si_mutex);
                                 m0_fom_phase_move(fom, result, M0_FOPH_FAILURE);
                         } else {
                                 m0_fom_phase_set(fom, M0_FOPH_READ_STOB_IO_WAIT);
@@ -570,7 +572,9 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 						   stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                m0_mutex_lock(&stio->si_mutex);
                                 m0_fom_callback_cancel(&fom->fo_cb);
+                                m0_mutex_unlock(&stio->si_mutex);
                                 m0_fom_phase_move(fom, result, M0_FOPH_FAILURE);
                         } else {
                                 m0_fom_phase_set(fom,
