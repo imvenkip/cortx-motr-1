@@ -253,6 +253,8 @@ static int create_loc_ctx(struct m0_fom *fom)
 	m0_dtx_open(&fom->fo_tx);
 	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
 
+	m0_fom_phase_set(fom, M0_FOPH_TXN_CONTEXT_WAIT);
+
 	return M0_FSO_WAIT;
 }
 
@@ -356,6 +358,8 @@ static int fom_txn_commit(struct m0_fom *fom)
 		return rc;
 	}
 	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
+
+	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
 
 	return M0_FSO_WAIT;
 }
@@ -662,7 +666,7 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
-	} else {
+	} else if (rc == M0_FSO_AGAIN) {
 		if (m0_fom_phase(fom) < M0_FOPH_NR &&
 		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
 			M0_LOG(M0_DEBUG, "phase set: %s -> %s",
