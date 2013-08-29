@@ -113,6 +113,14 @@ M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
 	body->b_version = attr->ca_version;
 }
 
+static void m0_md_create_credit(struct m0_mdstore *md,
+				struct m0_be_tx_credit *accum)
+{
+	m0_mdstore_create_credit(md, accum);
+	m0_mdstore_link_credit(md, accum);
+	m0_mdstore_setattr_credit(md, accum);
+}
+
 /**
    Create object in @pfid with @tfid and attributes from @attr.
    Handle possible variants for existing/missing objects and
@@ -175,6 +183,7 @@ static inline int m0_md_tick_generic(struct m0_fom *fom)
 
 static int m0_md_tick_create(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_cob_attr        attr;
 	struct m0_fop_cob        *body;
 	struct m0_fop_create     *req;
@@ -182,6 +191,13 @@ static int m0_md_tick_create(struct m0_fom *fom)
 	struct m0_fop            *fop;
 	struct m0_fop            *fop_rep;
 	int                       rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
+		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
+	}
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -218,10 +234,8 @@ static int m0_md_tick_create(struct m0_fom *fom)
 		m0_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
 	}
 
-	m0_fom_block_enter(fom);
-	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
+	rc = m0_md_create(md, &body->b_pfid,
 			  &body->b_tfid, &attr, &fom->fo_tx.tx_betx);
-	m0_fom_block_leave(fom);
 out:
 	M0_LOG(M0_DEBUG, "Create finished with %d", rc);
 	rep->c_body.b_rc = rc;

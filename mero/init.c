@@ -154,7 +154,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
 //XXX_BE_DB 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
 //XXX_BE_DB 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
-//XXX_BE_DB 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
 //XXX_BE_DB 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	/**
 	 * @todo Start rmservice in kernel mode.
