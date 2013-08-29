@@ -499,6 +499,7 @@ out:
 
 static int m0_md_tick_open(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_fop_cob        *body;
 	struct m0_cob            *cob;
 	struct m0_fop_open       *req;
@@ -507,6 +508,13 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	struct m0_fop            *fop_rep;
 	struct m0_cob_attr        attr;
 	int                       rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
+		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+	}
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -531,11 +539,9 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	body = &req->o_body;
 	m0_md_cob_wire2mem(&attr, body);
 
-	m0_fom_block_enter(fom);
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc == 0) {
-		rc = m0_mdstore_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+		rc = m0_mdstore_open(md,
 				     cob, body->b_flags, &fom->fo_tx.tx_betx);
 		if (rc == 0 &&
 		    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
@@ -544,8 +550,7 @@ static int m0_md_tick_open(struct m0_fom *fom)
 			 * to store to db.
 			 */
 			attr.ca_valid &= ~M0_COB_MODE;
-			rc = m0_mdstore_setattr(
-				fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+			rc = m0_mdstore_setattr(md,
 				cob, &attr, &fom->fo_tx.tx_betx);
 		}
 		m0_cob_put(cob);
@@ -557,11 +562,9 @@ static int m0_md_tick_open(struct m0_fom *fom)
 		 */
 		/* M0_ASSERT(!(body->b_flags & M0_MD_OPEN_CREAT)); */
 	} else if (rc != 0) {
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
-	m0_fom_block_leave(fom);
 out:
 	rep->o_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -570,6 +573,7 @@ out:
 
 static int m0_md_tick_close(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_fop_cob        *body;
 	struct m0_cob            *cob;
 	struct m0_fop_close      *req;
@@ -578,6 +582,13 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	struct m0_fop            *fop_rep;
 	struct m0_cob_attr        attr;
 	int                       rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
+		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+	}
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -602,7 +613,6 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	body = &req->c_body;
 	m0_md_cob_wire2mem(&attr, body);
 
-	m0_fom_block_enter(fom);
 	/*
 	 * @TODO: This should lookup for cobs in special opened
 	 * cobs table. But so far orphans and open/close are not
@@ -612,7 +622,6 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
 			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
@@ -625,11 +634,9 @@ static int m0_md_tick_close(struct m0_fom *fom)
 		 * to store to db.
 		 */
 		attr.ca_valid &= ~M0_COB_MODE;
-		rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-					cob, &attr, &fom->fo_tx.tx_betx);
+		rc = m0_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_betx);
 	}
 	m0_cob_put(cob);
-	m0_fom_block_leave(fom);
 out:
 	rep->c_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
