@@ -46,9 +46,11 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 			     struct m0_be_domain *be_domain,
 			     struct m0_sm_group  *sm_group)
 {
-	if (be_domain != NULL)
+	if (be_domain != NULL) {
 		m0_be_tx_init(&tx->tx_betx, 0, be_domain, sm_group,
 			      NULL, NULL, NULL, NULL);
+		m0_be_tx_prep(&tx->tx_betx, &tx->tx_betx_cred);
+	}
 	tx->tx_state = M0_DTX_INIT;
 	m0_fol_rec_init(&tx->tx_fol_rec);
 }
@@ -61,13 +63,6 @@ M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx)
 
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE) {
 		m0_be_tx_open(&tx->tx_betx);
-		rc = m0_be_tx_timedwait(&tx->tx_betx, M0_BITS(M0_BTS_ACTIVE,
-							      M0_BTS_FAILED),
-					M0_TIME_NEVER);
-		if (rc == 0) {
-			if (m0_be_tx_state(&tx->tx_betx) != M0_BTS_ACTIVE)
-				rc = -EAGAIN;
-		}
 	}
 	if (rc == 0)
 		tx->tx_state = M0_DTX_OPEN;
@@ -81,11 +76,9 @@ M0_INTERNAL int m0_dtx_done(struct m0_dtx *tx)
 
 	if (m0_be_tx_state(&tx->tx_betx) != 0) {
                 m0_be_tx_close(&tx->tx_betx);
-                m0_be_tx_timedwait(&tx->tx_betx, M0_BTS_DONE, M0_TIME_NEVER);
         }
 
 	tx->tx_state = M0_DTX_DONE;
-	m0_dtx_fini(tx);
 
 	return 0;
 }

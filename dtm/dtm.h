@@ -52,6 +52,7 @@ struct m0_dtx {
 	 */
 	enum m0_dtx_state  tx_state;
 	struct m0_be_tx    tx_betx;
+	struct m0_be_tx_credit tx_betx_cred;
 	struct m0_fol_rec  tx_fol_rec;
 };
 
