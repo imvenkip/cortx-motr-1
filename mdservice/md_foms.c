@@ -638,6 +638,7 @@ out:
 
 static int m0_md_tick_setattr(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
 	struct m0_cob_attr             attr;
 	struct m0_fop_cob             *body;
 	struct m0_cob                 *cob;
@@ -646,6 +647,13 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	struct m0_fop                 *fop;
 	struct m0_fop                 *fop_rep;
 	int                            rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
+		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+	}
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -673,8 +681,6 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
-
 	/*
 	 * Setattr fop does not carry enough information to create
 	 * an object in case there is no target yet. This is why
@@ -689,10 +695,8 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 		goto out;
 	}
 
-	rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
-				&attr, &fom->fo_tx.tx_betx);
+	rc = m0_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_betx);
 	m0_cob_put(cob);
-	m0_fom_block_leave(fom);
 out:
 	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] finished with %d",
 	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
