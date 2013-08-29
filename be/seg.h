@@ -86,24 +86,6 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
 M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 					 void *addr);
 
-<<<<<<< HEAD
-/* ---------------------------------------------------------------------------
- * Dictionary interface
- * ------------------------------------------------------------------------- */
-M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg);
-M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp);
-M0_INTERNAL int m0_be_seg_dict_destroy(struct m0_be_seg *seg,
-				       struct m0_sm_group *grp);
-M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
-				      const char *name,	void **out);
-M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name,	void *value);
-M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name);
-
 struct m0_be_reg {
 	struct m0_be_seg *br_seg;
 	m0_bcount_t       br_size;
