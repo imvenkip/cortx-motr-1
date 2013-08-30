@@ -25,7 +25,6 @@
 
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/errno.h"             /* ENOMEM */
-#include "lib/locality.h"
 #include "dtm/dtm.h"
 #include "dtm/dtm_update_xc.h"
 

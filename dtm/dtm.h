@@ -23,7 +23,6 @@
 #ifndef __MERO_DTM_DTM_H__
 #define __MERO_DTM_DTM_H__
 
-#include "db/db.h"
 #include "be/be.h"
 #include "fol/fol.h"
 
