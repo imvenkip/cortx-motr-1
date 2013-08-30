@@ -99,7 +99,6 @@ static void test_init(void)
 
 	m0_fol_init(g_fol, &g_ut_seg.bus_seg);
 	m0_fol_credit(g_fol, M0_FO_CREATE, 1, &cred);
-	m0_fol_credit(g_fol, M0_FO_DESTROY, 1, &cred);
 	/*
 	 * There are 3 m0_fol_rec_add() calls --- in functions test_add(),
 	 * test_lookup(), and test_fol_rec_part_encdec().
@@ -129,32 +128,15 @@ static void test_fini(void)
 	m0_dbenv_fini(&db);
 	m0_buf_free(&buf);
 #else
-	m0_fol_rec_fini(&g_rec);
+	M0_BE_TX_CREDIT(cred);
 
+	m0_fol_rec_fini(&g_rec);
+	m0_ut_be_tx_end(&g_tx);
+
+	m0_fol_credit(g_fol, M0_FO_DESTROY, 1, &cred);
+	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &cred);
 	M0_BE_OP_SYNC(op, m0_fol_destroy(g_fol, &g_tx, &op));
 	m0_ut_be_tx_end(&g_tx);
-	/*
-	 * The call fails with the following error message:
-	 *
-	 * | Suite: fol-ut
-	 * |   Test: fol-init ...passed  0.221908 sec
-	 * |   Test: fol-rec-part-type-reg ...passed  0.9 sec
-	 * |   Test: fol-add ...passed  0.599 sec
-	 * |   Test: fol-lookup ...passed  0.842 sec
-	 * |   Test: fol-rec-part-test ...passed  0.2984 sec
-	 * |   Test: fol-rec-part-type-unreg ...passed  0.6 sec
-	 * |   Test: fol-fini ...mero:  FATAL : [lib/assert.c:42:m0_panic] panic: m0_vec_count(&io->si_user.ov_vec) > 0 linux_stob_io_launch() (stob/linux_adieu.c:222)
-	 * | Mero panic: m0_vec_count(&io->si_user.ov_vec) > 0 at linux_stob_io_launch() stob/linux_adieu.c:222 (errno: 0) (last failed: none)
-	 *
-	 * The backtrace:
-	 *
-	 * fom_exec
-	 *  \_ tx_group_fom_tick
-	 *      \_ m0_be_tx_group__place
-	 *          \_ m0_be_io_launch
-	 *              \_ m0_stob_io_launch
-	 *                  \_ linux_stob_io_launch
-	 *                      \_ M0_PRE(m0_vec_count(&io->si_user.ov_vec) > 0)	 */
 	m0_fol_fini(g_fol);
 
 	m0_ut_be_free(g_fol, sizeof *g_fol, &g_ut_seg.bus_seg, &g_ut_be);
