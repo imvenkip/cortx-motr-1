@@ -272,6 +272,7 @@ static void XXX_BE_DB__reqh_init(struct m0_reqh *reqh)
 	static struct m0_fol   fol;
 	int                    rc;
 
+	M0_SET0(reqh);
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm     = (void *)1,
 			  .rhia_db      = (void *)1,
