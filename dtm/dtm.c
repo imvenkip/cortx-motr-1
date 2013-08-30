@@ -46,11 +46,12 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 			     struct m0_be_domain *be_domain,
 			     struct m0_sm_group  *sm_group)
 {
-	if (be_domain != NULL) {
-		m0_be_tx_init(&tx->tx_betx, 0, be_domain, sm_group,
-			      NULL, NULL, NULL, NULL);
-		m0_be_tx_prep(&tx->tx_betx, &tx->tx_betx_cred);
-	}
+	M0_PRE(be_domain != NULL);
+
+	m0_be_tx_init(&tx->tx_betx, 0, be_domain, sm_group,
+		      NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(&tx->tx_betx, &tx->tx_betx_cred);
+
 	tx->tx_state = M0_DTX_INIT;
 	m0_fol_rec_init(&tx->tx_fol_rec);
 }
@@ -58,9 +59,9 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx)
 {
 	M0_PRE(tx->tx_state == M0_DTX_INIT);
+	M0_PRE(m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE);
 
-	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE)
-		m0_be_tx_open(&tx->tx_betx);
+	m0_be_tx_open(&tx->tx_betx);
 
 	tx->tx_state = M0_DTX_OPEN;
 }
@@ -69,9 +70,7 @@ M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
 
-	if (m0_be_tx_state(&tx->tx_betx) != 0)
-                m0_be_tx_close(&tx->tx_betx);
-
+	m0_be_tx_close(&tx->tx_betx);
 	tx->tx_state = M0_DTX_DONE;
 }
 
@@ -79,8 +78,7 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
 
-	if (m0_be_tx_state(&tx->tx_betx) != 0)
-		m0_be_tx_fini(&tx->tx_betx);
+	m0_be_tx_fini(&tx->tx_betx);
 	m0_fol_rec_fini(&tx->tx_fol_rec);
 }
 
