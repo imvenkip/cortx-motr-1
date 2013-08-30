@@ -108,6 +108,10 @@ M0_INTERNAL uint64_t
 m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 			   uint64_t fidx);
 
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
+					 const struct m0_pdclust_layout *pl,
+					 int unit);
+
 /**
  * Returns starting index of the unit in the aggregation group relevant to
  * the sns copy machine operation.

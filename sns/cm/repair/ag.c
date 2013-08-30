@@ -247,7 +247,7 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	int                  rc = 0;
 
 	M0_PRE(fmap != NULL);
-	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + m0_pdclust_K(pl)));
+	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl)));
 
 	for (i = 0; i < fmap->b_nr; ++i) {
 		if (!m0_bitmap_get(fmap, i))

@@ -199,11 +199,6 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 	M0_RETURN(rc);
 }
 
-static bool unit_is_spare(const struct m0_pdclust_layout *pl, int unit)
-{
-	return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE;
-}
-
 /**
  * Calculates COB fid for m0_sns_cm_file_context::sfc_sa.
  * Saves calculated struct m0_pdclust_tgt_addr in
@@ -212,18 +207,23 @@ static bool unit_is_spare(const struct m0_pdclust_layout *pl, int unit)
 static void unit_to_cobfid(struct m0_sns_cm_file_context *sfc,
 			   struct m0_fid *cob_fid_out)
 {
+	struct m0_sns_cm_iter       *it;
+	struct m0_sns_cm            *scm;
 	struct m0_pdclust_instance  *pi;
 	struct m0_pdclust_layout    *pl;
 	struct m0_pdclust_src_addr  *sa;
 	struct m0_pdclust_tgt_addr  *ta;
 	struct m0_fid               *fid;
 
+	it = container_of(sfc, struct m0_sns_cm_iter, si_fc);
+	scm = it2sns(it);
 	fid = &sfc->sfc_gob_fid;
 	pi = sfc->sfc_pi;
 	pl = sfc->sfc_pdlayout;
 	sa = &sfc->sfc_sa;
 	ta = &sfc->sfc_ta;
-	sfc->sfc_cob_is_spare_unit = unit_is_spare(pl, sa->sa_unit);
+	sfc->sfc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(scm, pl,
+							     sa->sa_unit);
 	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
 }
 

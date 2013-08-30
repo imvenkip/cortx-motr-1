@@ -139,7 +139,6 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	struct m0_fid               gfid;
 	struct m0_pdclust_layout   *pl;
 	struct m0_pdclust_instance *pi;
-	struct m0_bitmap            fmap;
 	uint64_t                    upg;
 	uint64_t                    fsize;
 	uint64_t                    f_nr;
@@ -175,7 +174,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	}
 
 	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-	m0_bitmap_init(&fmap, upg);
+	m0_bitmap_init(&sag->sag_fmap, upg);
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
 					&sag->sag_fmap);

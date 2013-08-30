@@ -20,6 +20,8 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
+#include "lib/misc.h"
+
 #include "sns/parity_repair.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
@@ -30,7 +32,18 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm *scm,
 					  const struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	uint64_t dpupg;
+	uint64_t upg;
+	int      unit;
+
+	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	for (unit = dpupg; unit < upg; ++unit) {
+		if (!m0_sns_cm_unit_is_spare(scm, pl, unit))
+			M0_CNT_INC(dpupg);
+	}
+
+	return dpupg;
 }
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
