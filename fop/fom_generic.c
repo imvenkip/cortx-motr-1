@@ -352,13 +352,7 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  */
 static int fom_txn_commit(struct m0_fom *fom)
 {
-	int rc;
-
-	rc = m0_dtx_done(&fom->fo_tx);
-	if (rc < 0) {
-		set_gen_err_reply(fom);
-		return rc;
-	}
+	m0_dtx_done(&fom->fo_tx);
 	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
 
 	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
