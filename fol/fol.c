@@ -286,7 +286,7 @@ M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol, struct m0_be_tx *tx,
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
-	if (tree->bb_root == NULL)
+	if (tree->bb_root != NULL)
 		M0_BE_OP_SYNC(local_op,
 			      m0_be_btree_destroy(tree, tx, &local_op));
 
