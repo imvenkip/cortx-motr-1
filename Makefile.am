@@ -230,7 +230,7 @@ include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/ioservice/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/layout/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/lib/ut/Makefile.sub
+include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mero/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mgmt/svc/ut/Makefile.sub

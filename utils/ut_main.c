@@ -100,7 +100,7 @@ extern const struct m0_test_suite yaml2db_ut;
 void add_uts(void)
 {
 //XXX_BE_DB	/* sort test suites in alphabetic order */
-//XXX_BE_DB	m0_ut_add(&libm0_ut); /* test lib first */
+	m0_ut_add(&libm0_ut); /* test lib first */
 	m0_ut_add(&ad_ut);
 //XXX_BE_DB	m0_ut_add(&adieu_ut);
 	m0_ut_add(&balloc_ut);
