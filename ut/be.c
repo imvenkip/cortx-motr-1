@@ -40,9 +40,7 @@ m0_ut_backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
 M0_INTERNAL void
 m0_ut_backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
 {
-#if 0 /* XXX DEBUGME & RESTOREME */
 	m0_be_ut_seg_allocator_fini(seg, be);
-#endif
 	m0_be_ut_seg_fini(seg);
 	m0_be_ut_backend_fini(be);
 }
