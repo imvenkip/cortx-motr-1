@@ -202,6 +202,7 @@ static void test_fini(void)
 	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx, &op));
 	m0_ut_be_tx_end(&tx);
 	m0_fol_fini(fol);
+	m0_ut_be_free(fol, sizeof *fol, be_seg, &ut_be);
 
 	rc = m0_mdstore_destroy(&md, grp);
 	M0_UT_ASSERT(rc == 0);
