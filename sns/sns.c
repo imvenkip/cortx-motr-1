@@ -27,8 +27,6 @@
 
 M0_INTERNAL int m0_sns_init()
 {
-	int rc;
-
 #undef CT_REG
 #define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_sns_##n)
         CT_REG(mod);
@@ -52,9 +50,7 @@ M0_INTERNAL int m0_sns_init()
 	m0_xc_sns_cp_onwire_init();
 	m0_xc_sw_onwire_fop_init();
 	m0_xc_trigger_fop_init();
-	rc = m0_sns_cm_type_register();
-
-	return rc;
+	return m0_sns_cm_type_register();
 }
 
 M0_INTERNAL void m0_sns_fini()

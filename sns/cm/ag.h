@@ -44,6 +44,7 @@ struct m0_sns_cm_ag {
 	/** Total number of failure units in this aggregation group. */
 	uint32_t                         sag_fnr;
 
+	/** Bitmap of failed units in the aggregation group. */
 	struct m0_bitmap                 sag_fmap;
 
 	/** If this aggregation group has local spare units on the replica. */
@@ -51,13 +52,8 @@ struct m0_sns_cm_ag {
 };
 
 /**
- * Allocates and initializes aggregation group for the given m0_cm_ag_id.
- * Every sns copy machine aggregation group maintains accumulator copy packets,
- * equivalent to the number of failed units in the aggregation group. During
- * initialisation, the buffers are acquired for the accumulator copy packets
- * from the copy machine buffer pool.
- * Caller is responsible to lock the copy machine before calling this function.
- * @pre m0_cm_is_locked(cm) == true
+ * Initialises given sns specific generic aggregation group.
+ * Invokes m0_cm_aggr_group_init().
  */
 M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 				  struct m0_cm *cm,
@@ -65,6 +61,16 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 				  const struct m0_cm_aggr_group_ops *ag_ops,
 				  bool has_incoming);
 
+/**
+ * Finalises given sns specific generic aggregation group.
+ * Invokes m0_cm_aggr_group_fini().
+ */
+M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag);
+
+/**
+ * Returns number of copy packets corresponding to the units local to the
+ * given node for an aggregation group.
+ */
 M0_INTERNAL uint64_t m0_sns_cm_ag_local_cp_nr(const struct m0_cm_aggr_group *ag);
 
 M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag);

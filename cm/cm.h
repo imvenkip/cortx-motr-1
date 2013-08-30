@@ -287,6 +287,10 @@ struct m0_cm_ops {
 			   const struct m0_cm_ag_id id_curr,
 			   struct m0_cm_ag_id *id_next);
 
+	/**
+	 * Returns true if copy machine has enough buffers for all the incoming
+	 * copy packets.
+	 */
 	bool (*cmo_has_space)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 			      struct m0_layout *l);
 

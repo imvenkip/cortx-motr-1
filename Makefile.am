@@ -199,6 +199,8 @@ include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
 include $(top_srcdir)/sns/Makefile.sub
 include $(top_srcdir)/sns/cm/Makefile.sub
+include $(top_srcdir)/sns/cm/repair/Makefile.sub
+include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub

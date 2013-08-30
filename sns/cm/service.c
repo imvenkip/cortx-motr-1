@@ -38,8 +38,7 @@
 #include "sns/sns_addb.h"
 
 /**
-  @defgroup SNSCMSVC SNS copy machine service
-  @ingroup SNSCM
+  @addtogroup SNSCMSVC
 
   @{
 */
@@ -49,11 +48,6 @@ struct m0_addb_ctx m0_sns_cm_addb_ctx;
 struct m0_addb_ctx m0_sns_ag_addb_ctx;
 struct m0_addb_ctx m0_sns_cp_addb_ctx;
 
-/**
- * Allocates and initialises SNS copy machine.
- * This allocates struct m0_sns_cm and invokes m0_cm_init() to initialise
- * m0_sns_cm::rc_base.
- */
 M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 				       struct m0_reqh_service_type *stype,
 				       struct m0_reqh_context *rctx,
@@ -95,9 +89,6 @@ static void addb_init()
 			 &m0_addb_ct_sns_cp, &m0_sns_ag_addb_ctx);
 }
 
-/**
- * Registers SNS copy machine specific FOP types.
- */
 M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 {
 	struct m0_cm                *cm;
@@ -133,9 +124,6 @@ M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 	return rc;
 }
 
-/**
- * Destroys SNS copy machine specific FOP types and stops the copy machine.
- */
 M0_INTERNAL void m0_sns_cm_svc_stop(struct m0_reqh_service *service)
 {
 	struct m0_cm *cm;
@@ -153,9 +141,6 @@ M0_INTERNAL void m0_sns_cm_svc_stop(struct m0_reqh_service *service)
 	M0_LEAVE();
 }
 
-/**
- * Destorys SNS copy machine copy machine.
- */
 M0_INTERNAL void m0_sns_cm_svc_fini(struct m0_reqh_service *service)
 {
 	struct m0_cm     *cm;

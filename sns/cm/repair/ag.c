@@ -35,7 +35,6 @@
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
-#include "sns/cm/iter.h"
 
 /**
    @addtogroup SNSCMAG
@@ -51,16 +50,32 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       uint64_t tgt_cob_index,
 				       uint64_t data_seg_nr);
 
-M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
-						const struct m0_cm_ag_id *id,
-						struct m0_pdclust_layout *pl);
-
-M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag);
-
 M0_INTERNAL struct m0_sns_cm_repair_ag *
 sag2repairag(const struct m0_sns_cm_ag *sag)
 {
 	return container_of(sag, struct m0_sns_cm_repair_ag, rag_base);
+}
+
+M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
+                                                const struct m0_cm_ag_id *id,
+                                                struct m0_pdclust_layout *pl)
+{
+	uint64_t nr_cp_bufs;
+	uint64_t cp_data_seg_nr;
+	uint64_t nr_acc_bufs;
+	uint64_t nr_in_bufs;
+
+	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
+	/*
+	 * Calculate number of buffers required for a copy packet.
+	 * This depends on the unit size and the max buffer size.
+	 */
+	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
+	/* Calculate number of buffers required for incoming copy packets. */
+	nr_in_bufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl);
+	/* Calculate number of buffers required for accumulator copy packets. */
+	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
+	return  nr_in_bufs + nr_acc_bufs;
 }
 
 static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
@@ -244,12 +259,6 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 					       &rag->rag_fc[fidx].fc_tgt_cobfid);
 		if (rc != 0)
 			return rc;
-/*
-		rc = m0_sns_repair_spare_map(cm->cm_pm, fid, pl, group,
-					     i, &spare);
-		if (rc != 0)
-			return rc;
-*/
 		rag->rag_fc[fidx].fc_failed_idx = i;
 		rag->rag_fc[fidx].fc_tgt_idx = tgt_unit;
 		rag->rag_fc[fidx].fc_tgt_cob_index =

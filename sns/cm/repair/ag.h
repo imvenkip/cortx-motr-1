@@ -71,7 +71,7 @@ struct m0_sns_cm_repair_ag {
 	uint32_t                         rag_acc_freed;
 
 	/**
-	 * Accumulator copy packet, target unit cob id offset within the cob.
+	 * Aggregation group failure context.
 	 * Number of failure contexts are equivalent to number of failures in
 	 * the aggregation group, i.e. m0_sns_cm_ag::sag_fnr.
 	 */
@@ -111,8 +111,20 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *ag,
 					  struct m0_pdclust_layout *pl);
 
+/**
+ * Returns true if all the local copy packets are transformed in the accumulator
+ * copy packet.
+ * @see struct m0_sns_cm_repair_ag_failure_ctx::fc_tgt_acc_cp
+ */
 M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
 						  int acc_idx);
+
+/**
+ * Calculates number of buffers required for all the incoming copy packets.
+ */
+M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
+						const struct m0_cm_ag_id *id,
+						struct m0_pdclust_layout *pl);
 
 M0_INTERNAL struct m0_sns_cm_repair_ag *
 sag2repairag(const struct m0_sns_cm_ag *sag);

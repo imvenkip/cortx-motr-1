@@ -20,16 +20,12 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
-#include "lib/memory.h"
 
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
-#include "sns/cm/cm_utils.h"
-#include "sns/parity_math.h"
 
 /**
  * @addtogroup SNSCMCP
@@ -75,7 +71,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 	/* Calculate target info */
 	M0_ASSERT(m0_fid_is_set(&scp->sc_cobfid));
 	rc = m0_sns_cm_rebalance_tgt_info(sns_ag, scp);
-	M0_ASSERT(rc == 0);
 	M0_ASSERT(m0_fid_is_set(&scp->sc_cobfid));
 	if (rc != 0) {
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);

@@ -32,8 +32,9 @@
 
 #include "reqh/reqh_service.h"
 #include "sns/cm/trigger_fop.h"
+#include "sns/cm/service.h"
 #include "sns/cm/cm.h"
-#include "mero/setup.h"
+//#include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
 #include "sns/cm/sw_onwire_fop.h"
 
@@ -45,12 +46,6 @@
 
   @{
 */
-
-M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
-				       struct m0_reqh_service_type *stype,
-				       struct m0_reqh_context *rctx,
-				       const struct m0_reqh_service_ops *svc_ops,
-				       const struct m0_cm_ops *cm_ops);
 
 /** Copy machine service type operations.*/
 static int rebalance_svc_allocate(struct m0_reqh_service **service,
@@ -65,10 +60,6 @@ extern struct m0_addb_ctx_type m0_addb_ct_sns_cm;
 
 M0_CM_TYPE_DECLARE(sns_rebalance, &rebalance_svc_type_ops, "sns_rebalance",
 		   &m0_addb_ct_sns_cm);
-
-M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service);
-M0_INTERNAL void m0_sns_cm_svc_stop(struct m0_reqh_service *service);
-M0_INTERNAL void m0_sns_cm_svc_fini(struct m0_reqh_service *service);
 
 /** Copy machine service operations.*/
 static int rebalance_svc_start(struct m0_reqh_service *service);

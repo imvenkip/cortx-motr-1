@@ -23,30 +23,19 @@
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/trace.h"
-#include "lib/misc.h"
-#include "lib/finject.h"
 
 #include "fop/fop.h"
-
-#include "mero/setup.h"
-#include "net/net.h"
-#include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "reqh/reqh.h"
-#include "rpc/rpc.h"
-#include "cob/ns_iter.h"
-#include "cm/proxy.h"
 
-#include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
-#include "sns/cm/ag.h"
+#include "sns/cm/repair/ag.h"
 #include "sns/cm/sw_onwire_fop.h"
 
 extern const struct m0_sns_cm_helpers repair_helpers;
@@ -58,11 +47,6 @@ m0_sns_cm_repair_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
                                      void (*fop_release)(struct m0_ref *),
                                      const char *local_ep,
 				     const struct m0_cm_sw *sw);
-
-M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
-					  const struct m0_cm_ag_id *id,
-					  bool has_incoming,
-					  struct m0_cm_aggr_group **out);
 
 static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
 {
@@ -78,51 +62,23 @@ static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
 static int repair_cm_ready(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
-	int                    rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
 	scm->sc_helpers = &repair_helpers;
-	rc = m0_sns_cm_ready(cm);
-
-	M0_RETURN(rc);
+	return m0_sns_cm_ready(cm);
 }
 
 static int repair_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);;
 	enum m0_pool_nd_state  pm_state;
-	int                    rc;
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
 	pm_state = M0_PNDS_SNS_REPAIRED;
-	rc = m0_sns_cm_stop(cm);
-
-	M0_RETURN(rc);
-}
-
-M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
-						const struct m0_cm_ag_id *id,
-						struct m0_pdclust_layout *pl)
-{
-	uint64_t nr_cp_bufs;
-	uint64_t cp_data_seg_nr;
-	uint64_t nr_acc_bufs;
-	uint64_t nr_in_bufs;
-
-	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
-	/*
-	 * Calculate number of buffers required for a copy packet.
-	 * This depends on the unit size and the max buffer size.
-	 */
-	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
-	/* Calculate number of buffers required for incoming copy packets. */
-	nr_in_bufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl);
-	/* Calculate number of buffers required for accumulator copy packets. */
-	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
-	return  nr_in_bufs + nr_acc_bufs;
+	return m0_sns_cm_stop(cm);
 }
 
 /**

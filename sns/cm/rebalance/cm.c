@@ -23,30 +23,21 @@
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/trace.h"
-#include "lib/misc.h"
-#include "lib/finject.h"
+#include "lib/memory.h"
 
 #include "fop/fop.h"
-
-#include "mero/setup.h"
-#include "net/net.h"
-#include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "reqh/reqh.h"
-#include "rpc/rpc.h"
-#include "cob/ns_iter.h"
-#include "cm/proxy.h"
 
 #include "sns/sns_addb.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
-#include "sns/cm/ag.h"
+#include "sns/cm/rebalance/ag.h"
 #include "sns/cm/sw_onwire_fop.h"
 
 extern const struct m0_sns_cm_helpers rebalance_helpers;
@@ -58,10 +49,6 @@ m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 					const char *local_ep,
 					const struct m0_cm_sw *sw);
 
-M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
-					     const struct m0_cm_ag_id *id,
-					     bool has_incoming,
-					     struct m0_cm_aggr_group **out);
 
 static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 {

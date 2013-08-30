@@ -180,7 +180,6 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
 					&sag->sag_fmap);
 	m0_layout_instance_fini(&pi->pi_base);
-	M0_ASSERT(f_nr != 0);
 	if (f_nr == 0) {
 		m0_layout_put(m0_pdl_to_layout(pl));
 		return -EINVAL;

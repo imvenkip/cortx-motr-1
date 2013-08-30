@@ -47,9 +47,6 @@
   @{
 */
 
-M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp);
-M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp);
-M0_INTERNAL int m0_sns_cm_cp_fini(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp);

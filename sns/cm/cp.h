@@ -36,7 +36,7 @@
 struct m0_sns_cm_cp {
 	struct m0_cm_cp        sc_base;
 
-	/*cob fid of the cob this copy packet is targeted for*/
+	/** cob fid of the cob this copy packet is targeted for. */
 	struct m0_fid          sc_cobfid;
 
 	/** Read/write stob id. */

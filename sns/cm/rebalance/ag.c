@@ -43,13 +43,6 @@
    @{
  */
 
-M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag);
-
-M0_INTERNAL uint64_t
-m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
-				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl);
-
 M0_INTERNAL struct m0_sns_cm_rebalance_ag *
 sag2rebalanceag(const struct m0_sns_cm_ag *sag)
 {
@@ -76,10 +69,6 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 	sag = ag2snsag(ag);
 	rag = sag2rebalanceag(sag);
 	scm = cm2sns(ag->cag_cm);
-	/**
-	 * Free the aggregation group if this is the last copy packet
-	 * being finalised for a given aggregation group.
-	 */
 	if (ag->cag_has_incoming) {
 		pl = m0_layout_to_pdl(ag->cag_layout);
 		total_resbufs = m0_sns_cm_incoming_reserve_bufs(scm, &ag->cag_id,

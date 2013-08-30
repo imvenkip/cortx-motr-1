@@ -36,23 +36,20 @@ struct m0_sns_cm_rebalance_ag {
 	/** Base aggregation group. */
 	struct m0_sns_cm_ag  rag_base;
 
+	/** Number of incoming copy packets. */
 	uint32_t             rag_incoming_nr;
 };
 
 
 /**
  * Allocates and initializes aggregation group for the given m0_cm_ag_id.
- * Every sns copy machine aggregation group maintains accumulator copy packets,
- * equivalent to the number of failed units in the aggregation group. During
- * initialisation, the buffers are acquired for the accumulator copy packets
- * from the copy machine buffer pool.
  * Caller is responsible to lock the copy machine before calling this function.
  * @pre m0_cm_is_locked(cm) == true
  */
-M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
-					  const struct m0_cm_ag_id *id,
-					  bool has_incoming,
-					  struct m0_cm_aggr_group **out);
+M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
+					     const struct m0_cm_ag_id *id,
+					     bool has_incoming,
+					     struct m0_cm_aggr_group **out);
 
 /** @} SNSCMAG */
 
