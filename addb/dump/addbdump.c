@@ -165,9 +165,7 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
 	if (adstob == NULL)
 		return -ENOMEM;
 
-	rc = m0_dtx_open(tx, db);
-	if (rc != 0)
-		return rc;
+	m0_dtx_open(tx, db);
 	bstob = &adstob->as_stob_back;
 	bstob_id = &adstob->as_id_back;
 	bstob_id->si_bits.u_hi = cid;

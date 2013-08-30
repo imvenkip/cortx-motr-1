@@ -55,19 +55,14 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 	m0_fol_rec_init(&tx->tx_fol_rec);
 }
 
-M0_INTERNAL int m0_dtx_open(struct m0_dtx *tx)
+M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx)
 {
-	int rc = 0;
-
 	M0_PRE(tx->tx_state == M0_DTX_INIT);
 
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE)
 		m0_be_tx_open(&tx->tx_betx);
 
-	if (rc == 0)
-		tx->tx_state = M0_DTX_OPEN;
-
-	return rc;
+	tx->tx_state = M0_DTX_OPEN;
 }
 
 M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)

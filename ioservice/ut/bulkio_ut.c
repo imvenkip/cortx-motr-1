@@ -1294,8 +1294,7 @@ static void bulkio_server_write_fol_rec_verify(void)
 	M0_UT_ASSERT(reqh != NULL);
 
 	m0_dtx_init(&dtx);
-	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
-	M0_UT_ASSERT(result == 0);
+	m0_dtx_open(&dtx, reqh->rh_dbenv);
 
 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
@@ -1355,8 +1354,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	M0_UT_ASSERT(reqh != NULL);
 
 	m0_dtx_init(&dtx);
-	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
-	M0_UT_ASSERT(result == 0);
+	m0_dtx_open(&dtx, reqh->rh_dbenv);
 
 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);

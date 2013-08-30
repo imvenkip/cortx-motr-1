@@ -471,7 +471,9 @@ static int ad_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
 
 	adom = domain2ad(dom);
 	M0_PRE(adom->ad_setup);
-	return m0_dtx_open(tx);
+	m0_dtx_open(tx);
+
+	return 0;
 }
 
 /**

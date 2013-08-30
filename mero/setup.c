@@ -986,8 +986,8 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 		goto out;
 
 	m0_dtx_init(&tx);
-	rc = m0_dtx_open(&tx, db) ?:
-	    cs_linux_stob_init(stob_path, stob);
+	m0_dtx_open(&tx, db);
+	cs_linux_stob_init(stob_path, stob);
 	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
 		rc = cs_ad_stob_init(stob, &tx, db);
 	m0_dtx_done(&tx);
@@ -1252,9 +1252,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 		return rc;
 
 	m0_dtx_init(&tx);
-	rc = m0_dtx_open(&tx, &rctx->rc_db);
-	if (rc != 0)
-		goto out;
+	m0_dtx_open(&tx, &rctx->rc_db);
 	if (strcasecmp(rctx->rc_stype, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
 		rc = m0_stob_create_helper(rctx->rc_addb_stob.cas_stobs.s_ldom,
 					   &tx, &m0_addb_stob_id,
