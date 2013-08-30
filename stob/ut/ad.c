@@ -151,7 +151,6 @@ struct mock_balloc mb = {
 
 static int test_ad_init(void)
 {
-	struct m0_be_tx_credit cred = {0};
 	int	i;
 	int	result;
 
@@ -207,14 +206,17 @@ static int test_ad_init(void)
 	buf_size = max_check(MIN_BUF_SIZE
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	dom_fore->sd_ops->sdo_write_credit(dom_fore,
 				buf_size * (NR * NR / 2) /* test_ad() */ +
 				buf_size * NR, /* test_ad_rw_unordered() */
-						&cred);
-	m0_be_tx_prep(&tx.tx_betx, &cred);
+						&tx.tx_betx_cred);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_ASSERT(result == 0);
+	result = m0_be_tx_timedwait(&tx.tx_betx,
+				    M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				    M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
 	result = m0_stob_locate(obj_fore, &tx);
 	M0_ASSERT(result == 0 || result == -ENOENT);
@@ -247,9 +249,13 @@ static int test_ad_init(void)
 
 static int test_ad_fini(void)
 {
+	int result;
 	int i;
 
 	m0_dtx_done(&tx);
+	result = m0_be_tx_timedwait(&tx.tx_betx, M0_BITS(M0_BTS_DONE),
+				    M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
 	m0_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore, sm_grp);
@@ -390,18 +396,23 @@ static void test_ad(void)
 
 static void test_ad_undo(void)
 {
-	struct m0_be_tx_credit  cred = {0};
 	int                     result;
 	struct m0_fol_rec_part *rpart;
 
 	m0_dtx_done(&tx);
+	result = m0_be_tx_timedwait(&tx.tx_betx, M0_BITS(M0_BTS_DONE),
+				    M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	dom_fore->sd_ops->sdo_write_credit(dom_fore,
-				buf_size * 2, &cred);
-	m0_be_tx_prep(&tx.tx_betx, &cred);
+				buf_size * 2, &tx.tx_betx_cred);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
+	result = m0_be_tx_timedwait(&tx.tx_betx,
+				    M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				    M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
 	memset(user_buf[0], 'a', buf_size);
 	test_write(1);
@@ -421,10 +432,17 @@ static void test_ad_undo(void)
 	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
 	m0_dtx_done(&tx);
+	result = m0_be_tx_timedwait(&tx.tx_betx, M0_BITS(M0_BTS_DONE),
+				    M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
+	result = m0_be_tx_timedwait(&tx.tx_betx,
+				    M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				    M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 	test_read(1);
 
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) != 0);
