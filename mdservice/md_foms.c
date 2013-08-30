@@ -142,7 +142,7 @@ static int m0_md_create(struct m0_mdstore   *md,
 		 * Statdata cob is not found, let's create it. This
 		 * must be normal create case.
 		 */
-		rc = m0_mdstore_create(md, pfid, attr, &scob, tx);
+		rc = m0_mdstore_fcreate(md, pfid, attr, &scob, tx);
 	} else if (rc == 0) {
 		/*
 		 * There is statdata name, this must be hardlink

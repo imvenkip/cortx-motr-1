@@ -91,13 +91,17 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore      *md,
 M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 				struct m0_cob_domain_id *id,
 				struct m0_be_seg        *db,
-				struct m0_sm_group      *grp,
 				bool                     init_root);
 
 /**
  * Finalize mdstore instance.
  */
 M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md);
+
+M0_INTERNAL int m0_mdstore_create(struct m0_mdstore  *md,
+				  struct m0_sm_group *grp);
+M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
+				   struct m0_sm_group *grp);
 
 /**
  * Handle link operation described by @pfid and @name. Input
@@ -143,7 +147,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
  *
  * Error code is returned in error case or zero otherwise.
 */
-M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
+M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob_attr    *attr,
 				  struct m0_cob        **out,

@@ -127,25 +127,25 @@ static void test_mkfs(void)
         M0_ASSERT(rc == sizeof(testroot));
         close(fd);
 
-        rc = m0_mdstore_init(&md, &id, be_seg, grp, false);
+        rc = m0_mdstore_init(&md, &id, be_seg, false);
+        M0_UT_ASSERT(rc == -ENOENT);
+        rc = m0_mdstore_create(&md, grp);
         M0_UT_ASSERT(rc == 0);
 
+        /* Create root and other structures */
 	m0_cob_tx_credit(&md.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-
-        /* Create root and other structures */
         m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
         rc = m0_cob_domain_mkfs(&md.md_dom, &rootfid,
 				&M0_COB_SESSIONS_FID, &tx);
         M0_UT_ASSERT(rc == 0);
-
 	m0_ut_be_tx_end(&tx);
 
         /* Fini old mdstore */
         m0_mdstore_fini(&md);
 
         /* Init mdstore with root init flag set to 1 */
-        rc = m0_mdstore_init(&md, &id, be_seg, grp, true);
+        rc = m0_mdstore_init(&md, &id, be_seg, true);
         M0_UT_ASSERT(rc == 0);
 
         /* Fini everything */
@@ -167,12 +167,11 @@ static void test_init(void)
         m0_fol_init(fol, be_seg);
 	m0_fol_credit(fol, M0_FO_CREATE, 1, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	M0_BE_OP_SYNC(op,
-		      rc = m0_fol_create(fol, &tx, &op));
+	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx, &op));
 	M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 
-        rc = m0_mdstore_init(&md, &id, be_seg, grp, true);
+        rc = m0_mdstore_init(&md, &id, be_seg, true);
         M0_ASSERT(rc == 0);
 
         M0_SET0(&svc);
@@ -186,6 +185,36 @@ static void test_init(void)
 		          .rhia_svc       = &svc);
         M0_ASSERT(rc == 0);
 	m0_reqh_start(&reqh);
+}
+
+static void test_fini(void)
+{
+	struct m0_be_tx		 tx;
+	struct m0_be_tx_credit	 cred = {};
+	int			 rc;
+
+	m0_reqh_shutdown_wait(&reqh);
+	m0_reqh_services_terminate(&reqh);
+	m0_reqh_fini(&reqh);
+
+	m0_fol_credit(fol, M0_FO_DESTROY, 1, &cred);
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
+	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx, &op));
+	m0_ut_be_tx_end(&tx);
+	m0_fol_fini(fol);
+
+	rc = m0_mdstore_destroy(&md, grp);
+	M0_UT_ASSERT(rc == 0);
+	m0_mdstore_fini(&md);
+
+	m0_chan_fini_lock(&test_signal);
+	m0_mutex_fini(&mutex);
+
+	rc = m0_be_seg_dict_destroy(be_seg, grp);
+	M0_ASSERT(rc == 0);
+	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
 static void test_mdops(void)
@@ -250,33 +279,6 @@ again:
         M0_ASSERT(error == 0);
 }
 
-static void test_fini(void)
-{
-        struct m0_be_tx		 tx;
-	struct m0_be_tx_credit	 cred = {};
-	int			 rc;
-
-        m0_reqh_shutdown_wait(&reqh);
-	m0_reqh_services_terminate(&reqh);
-        m0_reqh_fini(&reqh);
-
-	m0_fol_credit(fol, M0_FO_DESTROY, 1, &cred);
-	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx, &op));
-	m0_ut_be_tx_end(&tx);
-
-        m0_fol_fini(fol);
-        m0_mdstore_fini(&md);
-        m0_chan_fini_lock(&test_signal);
-        m0_mutex_fini(&mutex);
-
-	rc = m0_be_seg_dict_destroy(be_seg, grp);
-	M0_ASSERT(rc == 0);
-	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
-	m0_be_ut_seg_fini(&ut_seg);
-	m0_be_ut_backend_fini(&ut_be);
-}
-
 const struct m0_test_suite mdservice_ut = {
         .ts_name = "mdservice-ut",
         .ts_init = db_reset,
@@ -284,7 +286,7 @@ const struct m0_test_suite mdservice_ut = {
         .ts_tests = {
                 { "mdservice-mkfs", test_mkfs },
                 { "mdservice-init", test_init },
-                { "mdservice-ops", test_mdops },
+                { "mdservice-ops",  test_mdops },
                 { "mdservice-fini", test_fini },
                 { NULL, NULL }
         }

@@ -36,6 +36,7 @@ static const char wrong_name[] = "wrong_name";
 static struct m0_cob_domain_id id = { 42 };
 static struct m0_be_ut_backend ut_be;
 static struct m0_be_ut_seg     ut_seg;
+static struct m0_sm_group     *grp;
 static struct m0_cob_domain    dom;
 static struct m0_cob          *cob;
 
@@ -81,7 +82,6 @@ static void ut_tx_open(struct m0_be_tx *tx, struct m0_be_tx_credit *credit)
 
 static void test_mkfs(void)
 {
-	struct m0_sm_group *grp;
         struct m0_be_tx  tx_;
         struct m0_be_tx *tx = &tx_;
 	M0_BE_TX_CREDIT(accum);
@@ -118,23 +118,19 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
-	struct m0_sm_group *grp;
 	int rc;
 
 	rc = m0_be_seg_open(&ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
 
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id);
 	M0_UT_ASSERT(rc == 0);
 }
 
 static void test_fini(void)
 {
-	struct m0_sm_group *grp;
 	int rc;
 
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_cob_domain_destroy(&dom, grp);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_domain_fini(&dom);

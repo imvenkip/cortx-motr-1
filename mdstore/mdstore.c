@@ -100,15 +100,14 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore        *md,
 M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 				struct m0_cob_domain_id *id,
 				struct m0_be_seg        *db,
-				struct m0_sm_group      *grp,
 				bool                     init_root)
 {
-	int                    rc;
+	int rc;
 
 	M0_PRE(md != NULL && id != NULL && db != NULL);
 
 	M0_SET0(md);
-	rc = m0_cob_domain_init(&md->md_dom, db, id, grp);
+	rc = m0_cob_domain_init(&md->md_dom, db, id);
 	if (rc != 0)
 		return rc;
 
@@ -139,6 +138,22 @@ M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
 		m0_cob_put(md->md_root);
 	m0_addb_ctx_fini(&md->md_addb);
 	m0_cob_domain_fini(&md->md_dom);
+}
+
+M0_INTERNAL int m0_mdstore_create(struct m0_mdstore  *md,
+				  struct m0_sm_group *grp)
+{
+	M0_PRE(md != NULL);
+
+	return m0_cob_domain_create(&md->md_dom, grp);
+}
+
+M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
+				   struct m0_sm_group *grp)
+{
+	M0_PRE(md != NULL);
+
+	return m0_cob_domain_destroy(&md->md_dom, grp);
 }
 
 M0_INTERNAL void
@@ -193,7 +208,7 @@ m0_mdstore_create_credit(struct m0_mdstore *md,
 	m0_mdstore_dir_nlink_update_credit(md, accum);
 }
 
-M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
+M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob_attr    *attr,
 				  struct m0_cob        **out,
