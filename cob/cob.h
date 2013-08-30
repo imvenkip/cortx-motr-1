@@ -269,7 +269,7 @@ struct m0_cob_domain_id {
 */
 struct m0_cob_domain {
 	struct m0_cob_domain_id cd_id;
-	struct m0_be_domain    *cd_dbenv;
+	struct m0_be_seg       *cd_dbenv;
 	struct m0_be_btree     *cd_object_index;
 	struct m0_be_btree     *cd_namespace;
 	struct m0_be_btree     *cd_fileattr_basic;
@@ -278,10 +278,12 @@ struct m0_cob_domain {
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom,
-		       struct m0_be_seg	*seg, const struct m0_cob_domain_id *id,
-		       struct m0_sm_group *grp);
-
+		       struct m0_be_seg	*seg,
+		       const struct m0_cob_domain_id *id);
 void m0_cob_domain_fini(struct m0_cob_domain *dom);
+
+int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp);
+int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp);
 
 /**
  * Prepare storage before using. Create root cob for session objects

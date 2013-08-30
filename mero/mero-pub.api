@@ -6,6 +6,8 @@ m0_build_info_get
 m0_build_info_print
 m0_cob_domain_fini
 m0_cob_domain_init
+m0_cob_domain_create
+m0_cob_domain_destroy
 m0_cs_fini
 m0_cs_init
 m0_cs_reqh_get

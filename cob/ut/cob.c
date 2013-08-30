@@ -95,7 +95,9 @@ static void test_mkfs(void)
 	M0_UT_ASSERT(rc == 0);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id, grp);
+	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id);
+	M0_UT_ASSERT(rc == -ENOENT);
+	rc = m0_cob_domain_create(&dom, grp);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cob_tx_credit(&dom, M0_COB_OP_DOMAIN_MKFS, &accum);
@@ -108,10 +110,9 @@ static void test_mkfs(void)
 
 	ut_tx_close(tx);
         m0_be_tx_fini(tx);
+
 	m0_cob_domain_fini(&dom);
 
-        /* XXX FIXME something wasn't freed */
-        /* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
 	m0_be_seg_close(&ut_seg.bus_seg);
 }
 
@@ -124,16 +125,23 @@ static void test_init(void)
 	M0_UT_ASSERT(rc == 0);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id, grp);
+	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id);
 	M0_UT_ASSERT(rc == 0);
 }
 
 static void test_fini(void)
 {
+	struct m0_sm_group *grp;
+	int rc;
+
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_cob_domain_destroy(&dom, grp);
+	M0_UT_ASSERT(rc == 0);
 	m0_cob_domain_fini(&dom);
 
-        /* XXX FIXME something wasn't freed */
-        /* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
+	rc = m0_be_seg_dict_destroy(&ut_seg.bus_seg, grp);
+	M0_UT_ASSERT(rc == 0);
+        m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
         m0_be_ut_seg_fini(&ut_seg);
         m0_be_ut_backend_fini(&ut_be);
 }

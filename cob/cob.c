@@ -451,9 +451,56 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
 
    XXX: for now grp is passed from the top level code, in future -- undetermined.
   */
-int m0_cob_domain_init(struct m0_cob_domain *dom,
-		       struct m0_be_seg	*seg, const struct m0_cob_domain_id *id,
-		       struct m0_sm_group *grp)
+int
+m0_cob_domain_init(struct m0_cob_domain *dom,
+		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
+{
+	struct {
+		struct m0_be_btree             **tree;
+		const struct m0_be_btree_kv_ops *ops;
+		const char                      *name;
+	} tables[] = {
+		{ &dom->cd_namespace,      &cob_ns_ops  , "ns" },
+		{ &dom->cd_object_index,   &cob_oi_ops  , "oi" },
+		{ &dom->cd_fileattr_basic, &cob_fab_ops , "fb" },
+		{ &dom->cd_fileattr_omg,   &cob_omg_ops , "fo" },
+		{ &dom->cd_fileattr_ea,    &cob_ea_ops  , "ea" },
+	};
+	int i;
+	int tables_read;
+	int rc;
+
+	M0_PRE(id->id != 0);
+
+	dom->cd_id    = *id;
+	dom->cd_dbenv = seg;
+
+	for (rc = 0, tables_read = 0, i = 0; i < ARRAY_SIZE(tables); ++i) {
+		rc = m0_be_seg_dict_lookup(seg, tables[i].name,
+					   (void**)tables[i].tree);
+		if (rc == 0) {
+			m0_be_btree_init(*tables[i].tree, seg, tables[i].ops);
+			tables_read++;
+		}
+	}
+
+	if (tables_read < ARRAY_SIZE(tables))
+		return -ENOENT;
+
+	return rc;
+}
+
+void m0_cob_domain_fini(struct m0_cob_domain *dom)
+{
+	m0_be_btree_fini(dom->cd_fileattr_ea);
+	m0_be_btree_fini(dom->cd_fileattr_omg);
+	m0_be_btree_fini(dom->cd_fileattr_basic);
+	m0_be_btree_fini(dom->cd_object_index);
+	m0_be_btree_fini(dom->cd_namespace);
+}
+M0_EXPORTED(m0_cob_domain_fini);
+
+int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
 	struct {
 		struct m0_be_btree             **tree;
@@ -469,30 +516,12 @@ int m0_cob_domain_init(struct m0_cob_domain *dom,
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_op        op;
 	struct m0_be_tx       *tx;
+	struct m0_be_seg      *seg = dom->cd_dbenv;
 	struct m0_be_btree     dummy = { .bb_seg = seg };
 	int i;
-	int tables_read;
 	int rc;
 
-	M0_PRE(id->id != 0);
-
-	dom->cd_id    = *id;
-	dom->cd_dbenv = seg->bs_domain;
-
-
-	for (rc = 0, tables_read = 0, i = 0; i < ARRAY_SIZE(tables); ++i) {
-		rc = m0_be_seg_dict_lookup(seg, tables[i].name,
-					   (void**)tables[i].tree);
-		if (rc == 0) {
-			m0_be_btree_init(*tables[i].tree, seg, tables[i].ops);
-			tables_read++;
-		}
-	}
-
-	if (tables_read == ARRAY_SIZE(tables))
-		return rc;
-	if (tables_read > 0)
-		return -ENOENT;
+	M0_PRE(seg != NULL);
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
@@ -503,7 +532,8 @@ int m0_cob_domain_init(struct m0_cob_domain *dom,
 		m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC,
 				       sizeof(struct m0_be_btree), 0, &cred);
 
-	m0_be_tx_init(tx, 0, dom->cd_dbenv, grp, NULL, NULL, NULL, NULL);
+	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
+				NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
 	m0_be_tx_open(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
@@ -547,15 +577,78 @@ int m0_cob_domain_init(struct m0_cob_domain *dom,
 	return rc;
 }
 
-void m0_cob_domain_fini(struct m0_cob_domain *dom)
+int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
-	m0_be_btree_fini(dom->cd_fileattr_ea);
-	m0_be_btree_fini(dom->cd_fileattr_omg);
-	m0_be_btree_fini(dom->cd_fileattr_basic);
-	m0_be_btree_fini(dom->cd_object_index);
-	m0_be_btree_fini(dom->cd_namespace);
+	struct {
+		struct m0_be_btree             **tree;
+		const struct m0_be_btree_kv_ops *ops;
+		const char                      *name;
+	} tables[] = {
+		{ &dom->cd_namespace,      &cob_ns_ops  , "ns" },
+		{ &dom->cd_object_index,   &cob_oi_ops  , "oi" },
+		{ &dom->cd_fileattr_basic, &cob_fab_ops , "fb" },
+		{ &dom->cd_fileattr_omg,   &cob_omg_ops , "fo" },
+		{ &dom->cd_fileattr_ea,    &cob_ea_ops  , "ea" },
+	};
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_op        op;
+	struct m0_be_tx       *tx;
+	struct m0_be_seg      *seg = dom->cd_dbenv;
+	int i;
+	int rc;
+
+	M0_ALLOC_PTR(tx);
+	if (tx == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < ARRAY_SIZE(tables); ++i)
+		m0_be_btree_destroy_credit(*tables[i].tree, 1, &cred);
+
+	for (i = 0; i < ARRAY_SIZE(tables); ++i)
+		m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE,
+				       sizeof(struct m0_be_btree), 0, &cred);
+
+	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
+				NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, &cred);
+	m0_be_tx_open(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
+	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+		m0_be_tx_fini(tx);
+		m0_free(tx);
+		return -EFBIG;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(tables); ++i) {
+		m0_be_op_init(&op);
+		m0_be_btree_destroy(*tables[i].tree, tx, &op);
+		m0_be_op_wait(&op);
+		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		m0_be_op_fini(&op);
+
+		m0_be_op_init(&op);
+		m0_be_free(&seg->bs_allocator, tx, &op, *tables[i].tree);
+		m0_be_op_wait(&op);
+		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		m0_be_op_fini(&op);
+	}
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	m0_be_tx_fini(tx);
+	m0_free(tx);
+
+	if (rc == 0) { /* XXX: seems it's OK not to do any cleanup here */
+		for (i = 0; i < ARRAY_SIZE(tables); ++i) {
+			rc = m0_be_seg_dict_delete(seg, grp, tables[i].name);
+			if (rc != 0)
+				return rc;
+		}
+	}
+
+	return rc;
 }
-M0_EXPORTED(m0_cob_domain_fini);
 
 
 #ifndef __KERNEL__
