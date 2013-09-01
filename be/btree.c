@@ -804,7 +804,7 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 	struct m0_be_btree *btree = it->bc_tree;
 	struct node_pos kp = { .p_node = NULL };
 	struct m0_be_bnode *node;
-	unsigned int i = 0;
+	int i = 0;
 
 	node = btree->bb_root;
 	it->bc_stack_pos = 0;
@@ -828,7 +828,9 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 		/*  If the node is leaf and if we did not find the key */
 		/*  return NULL */
 		if (node->b_leaf) {
-			if (slant && i < node->b_nr_active) {
+			while (node != NULL && i == node->b_nr_active)
+				node = node_pop(it, &i);
+			if (slant && node != NULL) {
 				kp.p_node = node;
 				kp.p_index = i;
 			}
