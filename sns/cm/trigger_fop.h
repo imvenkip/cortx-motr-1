@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_CM_ST_TRIGGER_FOP_H__
-#define __MERO_SNS_CM_ST_TRIGGER_FOP_H__
+#ifndef __MERO_SNS_CM_TRIGGER_FOP_H__
+#define __MERO_SNS_CM_TRIGGER_FOP_H__
 
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"

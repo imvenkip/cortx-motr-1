@@ -4,7 +4,6 @@ mero_libmero_la_SOURCES  += sns/cm/repair/ag.c \
                             sns/cm/repair/ag.h \
                             sns/cm/repair/acc_cp.c \
                             sns/cm/repair/cm.c \
-                            sns/cm/repair/cm.h \
                             sns/cm/repair/sw_onwire_fop.c \
                             sns/cm/repair/service.c \
                             sns/cm/repair/xform.c \
