@@ -179,11 +179,9 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 		NR_SLOTS           = 1
 	};
 	static struct m0_net_domain     client_net_dom;
-	static struct m0_dbenv          client_dbenv;
 	static struct m0_rpc_client_ctx cctx;
 	static char                     client_ep[M0_NET_LNET_XEP_ADDR_LEN];
 	static char                     server_ep[M0_NET_LNET_XEP_ADDR_LEN];
-	static const char              *client_db_file_name = "mero_client.db";
 	static struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
 	int                             rc;
 
@@ -195,8 +193,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_ep;
 	cctx.rcx_remote_addr           = server_ep;
-	cctx.rcx_db_name               = client_db_file_name;
-	cctx.rcx_dbenv                 = &client_dbenv;
 	cctx.rcx_nr_slots              = NR_SLOTS;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;

@@ -71,7 +71,6 @@ enum {
 #define CLIENT_EP_ADDR              "0@lo:12345:34:*"
 #define SERVER_ENDP                 "lnet:" SERVER_EP_ADDR
 static const char *SERVER_LOGFILE = "cobfoms_ut.log";
-static const char *CLIENT_DBNAME  = "cobfops_ut.db";
 
 struct cobfoms_ut {
 	struct m0_rpc_server_ctx      cu_sctx;
@@ -84,7 +83,6 @@ struct cobfoms_ut {
 	struct m0_reqh_service_type **cu_stypes;
 	struct m0_net_xprt           *cu_xprt;
 	struct m0_net_domain          cu_nd;
-	struct m0_dbenv               cu_dbenv;
 	struct m0_cob_domain          cu_cob_dom;
 	uint64_t                      cu_thread_nr;
 	struct m0_thread            **cu_threads;
@@ -140,8 +138,6 @@ static void cobfoms_utinit(void)
 	cctx->rcx_net_dom            = &cut->cu_nd;
 	cctx->rcx_local_addr         = CLIENT_EP_ADDR;
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
-	cctx->rcx_dbenv              = &cut->cu_dbenv;
-	cctx->rcx_db_name            = CLIENT_DBNAME;
 	cctx->rcx_nr_slots           = CLIENT_RPC_SESSION_SLOTS;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 

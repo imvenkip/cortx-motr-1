@@ -57,7 +57,6 @@
 
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
-#define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
 
 enum {
@@ -379,7 +378,6 @@ void test_reqh(void)
 	struct m0_net_xprt    *xprt        = &m0_net_lnet_xprt;
 	struct m0_net_domain   net_dom     = { };
 	struct m0_net_domain   srv_net_dom = { };
-	struct m0_dbenv        client_dbenv;
 	struct m0_stob_domain *bdom;
 	struct m0_stob_id      backid;
 	struct m0_stob        *bstore;
@@ -396,8 +394,6 @@ void test_reqh(void)
 		.rcx_net_dom            = &net_dom,
 		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rcx_db_name            = CLIENT_DB_NAME,
-		.rcx_dbenv              = &client_dbenv,
 		.rcx_nr_slots           = SESSION_SLOTS,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};

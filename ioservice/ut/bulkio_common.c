@@ -450,8 +450,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	M0_ALLOC_ARR(cdbname, IO_STR_LEN);
 	M0_ASSERT(cdbname != NULL);
 	strcpy(cdbname, IO_CLIENT_DBNAME);
-	cctx->rcx_db_name = cdbname;
-	cctx->rcx_dbenv   = &bp->bp_cdbenv;
 
 	rc = m0_rpc_client_start(cctx);
 	M0_ASSERT(rc == 0);

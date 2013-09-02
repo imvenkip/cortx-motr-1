@@ -28,7 +28,6 @@
 #  include "mero/setup.h"     /* m0_mero */
 #endif
 #include "reqh/reqh.h"
-#include "db/db.h"            /* m0_dbenv */
 #include "cob/cob.h"          /* m0_cob_domain */
 #include "net/net.h"          /* m0_net_end_point */
 #include "net/buffer_pool.h"
@@ -84,8 +83,6 @@ struct m0_rpc_server_ctx {
   Starts server's rpc machine.
 
   @param sctx  Initialized rpc context structure.
-
-  @pre sctx->rcx_dbenv is initialized
 */
 int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx);
 
@@ -124,15 +121,6 @@ struct m0_rpc_client_ctx {
 
 	/** Transport specific remote address (server's address) */
 	const char                *rcx_remote_addr;
-
-	/** Name of database used by the RPC machine */
-	const char                *rcx_db_name;
-
-	/**
-	 * A pointer to dbenv struct which will be initialized and used by
-	 * m0_rpc_client_start()
-	 */
-	struct m0_dbenv           *rcx_dbenv;
 
 	/** Number of session slots */
 	uint32_t		   rcx_nr_slots;
@@ -186,8 +174,6 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
  * in m0_rpc_post().
  *
  * @param cctx  Initialised rpc context structure.
- *
- * @pre cctx->rcx_dbenv and rctx->rcx_cob_dom are initialized
  */
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
 

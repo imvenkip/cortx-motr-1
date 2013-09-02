@@ -94,8 +94,6 @@ static int client_init(struct m0_mgmt_ctl_ctx *ctx)
 	c->rcx_net_dom               = &ctx->mcc_net_dom;
 	c->rcx_local_addr            = ctx->mcc_client.mcc_mgmt_ep;
 	c->rcx_remote_addr           = ctx->mcc_node.mnc_m0d_ep;
-	c->rcx_db_name               = ctx->mcc_dbname;
-	c->rcx_dbenv                 = &ctx->mcc_dbenv;
 	c->rcx_nr_slots              = 1;
 	c->rcx_max_rpcs_in_flight    = 1;
 	if (ctx->mcc_client.mcc_recvq_min_len != 0)

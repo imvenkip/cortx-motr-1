@@ -32,23 +32,8 @@
 static struct m0_rpc_machine     machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static const char               *ep_addr = "0@lo:12345:34:2";
-static struct m0_dbenv           dbenv;
-static const char               *dbname = "db";
 static struct m0_net_buffer_pool buf_pool;
 static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-
-static void cob_domain_init(void)
-{
-	int rc;
-
-	rc = m0_dbenv_init(&dbenv, dbname, 0);
-	M0_ASSERT(rc == 0);
-}
-
-static void cob_domain_fini(void)
-{
-	m0_dbenv_fini(&dbenv);
-}
 
 static int rpc_mc_ut_init(void)
 {
@@ -60,7 +45,6 @@ static int rpc_mc_ut_init(void)
 	M0_ASSERT(rc == 0);
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
-	cob_domain_init();
 
 	tms_nr  = 1;
 	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
@@ -74,7 +58,6 @@ static int rpc_mc_ut_init(void)
 static int rpc_mc_ut_fini(void)
 {
 	m0_rpc_net_buffer_pool_cleanup(&buf_pool);
-	cob_domain_fini();
 	m0_net_domain_fini(&client_net_dom);
 	m0_net_xprt_fini(xprt);
 

@@ -128,26 +128,12 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	M0_RETURN(rc);
 }
 
-static int dbcob_init(struct m0_rpc_client_ctx *cctx)
-{
-	return m0_dbenv_init(cctx->rcx_dbenv, cctx->rcx_db_name, 0);
-}
-
-static void dbcob_fini(struct m0_rpc_client_ctx *cctx)
-{
-	m0_dbenv_fini(cctx->rcx_dbenv);
-}
-
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 {
 	enum { NR_TM = 1 }; /* Number of TMs. */
 	int rc;
 
 	M0_ENTRY("client_ctx: %p", cctx);
-
-	rc = dbcob_init(cctx);
-	if (rc != 0)
-		return rc;
 
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -162,7 +148,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	M0_SET0(&cctx->rcx_reqh);
 	rc = M0_REQH_INIT(&cctx->rcx_reqh,
 			  .rhia_dtm       = (void*)1,
-			  .rhia_db        = cctx->rcx_dbenv,
+			  .rhia_db        = NULL,
 			  .rhia_mdstore   = (void*)1,
 			  .rhia_fol       = &cctx->rcx_fol,
 			  .rhia_svc       = (void*)1);
@@ -190,7 +176,6 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 err:
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
-	dbcob_fini(cctx);
 	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rpc_client_start);
@@ -214,7 +199,6 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	m0_reqh_services_terminate(&cctx->rcx_reqh);
 	m0_reqh_fini(&cctx->rcx_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
-	dbcob_fini(cctx);
 
 	M0_RETURN(rc0 ?: rc1);
 }

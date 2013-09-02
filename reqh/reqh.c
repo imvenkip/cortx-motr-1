@@ -129,8 +129,8 @@ static struct m0_sm_conf m0_reqh_sm_conf = {
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
-	return reqh != NULL && reqh->rh_dbenv != NULL &&
-		reqh->rh_mdstore != NULL && reqh->rh_fol != NULL &&
+	return reqh != NULL && reqh->rh_mdstore != NULL &&
+		reqh->rh_fol != NULL &&
 		m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
@@ -147,13 +147,14 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
-	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_layout_standard_types_register(&reqh->rh_ldom);
-	if (rc != 0)
-		goto layout_dom_fini;
+	if (reqh->rh_dbenv != NULL) {
+		rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+		if (rc != 0)
+			return rc;
+		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+		if (rc != 0)
+			goto layout_dom_fini;
+	}
 
 	if (reqh->rh_fol != NULL)
 		reqh->rh_fol->f_reqh = reqh;
@@ -190,16 +191,21 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	return 0;
 
 layout_types_unreg:
-	m0_layout_standard_types_unregister(&reqh->rh_ldom);
+	if (reqh->rh_dbenv != NULL)
+		m0_layout_standard_types_unregister(&reqh->rh_ldom);
 layout_dom_fini:
-	m0_layout_domain_fini(&reqh->rh_ldom);
+	if (reqh->rh_dbenv != NULL)
+		m0_layout_domain_fini(&reqh->rh_ldom);
+
 	return rc;
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-	m0_layout_standard_types_unregister(&reqh->rh_ldom);
-	m0_layout_domain_fini(&reqh->rh_ldom);
+	if (reqh->rh_dbenv != NULL) {
+		m0_layout_standard_types_unregister(&reqh->rh_ldom);
+		m0_layout_domain_fini(&reqh->rh_ldom);
+	}
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
