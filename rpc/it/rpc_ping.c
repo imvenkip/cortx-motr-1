@@ -60,8 +60,6 @@
 #define TRANSPORT_NAME  "lnet"
 #define SERVER_ENDPOINT TRANSPORT_NAME ":" "0@lo:12345:34:1"
 
-#define CLIENT_DB_FILE_NAME        "m0rpcping_client.db"
-
 #define SERVER_DB_FILE_NAME        "m0rpcping_server.db"
 #define SERVER_STOB_FILE_NAME      "m0rpcping_server.stob"
 #define SERVER_ADDB_STOB_FILE_NAME "m0rpcping_server_addb.stob"
@@ -296,7 +294,6 @@ static int client_fini(struct m0_rpc_client_ctx *cctx)
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
-	m0_dbenv_fini(cctx->rcx_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	return rc0 ?: rc1;
@@ -315,7 +312,6 @@ static int run_client(void)
 	 * size is very small.
 	 */
 	static struct m0_net_domain     client_net_dom;
-	static struct m0_dbenv          client_dbenv;
 	static struct m0_rpc_client_ctx cctx;
 
 	m0_time_t start;
@@ -324,8 +320,6 @@ static int run_client(void)
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_endpoint;
 	cctx.rcx_remote_addr           = server_endpoint;
-	cctx.rcx_db_name               = CLIENT_DB_FILE_NAME;
-	cctx.rcx_dbenv                 = &client_dbenv;
 	cctx.rcx_nr_slots              = nr_slots;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;

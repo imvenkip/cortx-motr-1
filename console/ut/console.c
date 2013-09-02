@@ -64,7 +64,6 @@ static struct m0_ut_redirect out_redir;
 static struct m0_ut_redirect err_redir;
 
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:2"
-#define CLIENT_DB_NAME		   "cons_client_db"
 
 #define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
 #define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
@@ -82,14 +81,11 @@ enum {
 
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain  client_net_dom = { };
-static struct m0_dbenv       client_dbenv;
 
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
 	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-	.rcx_db_name            = CLIENT_DB_NAME,
-	.rcx_dbenv              = &client_dbenv,
 	.rcx_nr_slots           = SESSION_SLOTS,
 	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };

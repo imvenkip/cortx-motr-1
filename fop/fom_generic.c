@@ -237,7 +237,7 @@ static int fom_auth_wait(struct m0_fom *fom)
 /**
  * Creates fom local transactional context, the fom operations
  * are executed in this context.
- * After fom execution is completed the transaction is commited.
+ * After fom execution is completed the transaction is committed.
  */
 static int create_loc_ctx(struct m0_fom *fom)
 {

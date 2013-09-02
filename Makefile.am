@@ -179,7 +179,7 @@ include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/ha/Makefile.sub
+include $(top_srcdir)/ha/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/ioservice/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub

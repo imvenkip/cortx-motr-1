@@ -43,8 +43,6 @@ extern const struct m0_tl_descr ndoms_descr;
 struct cl_ctx {
 	/* Client network domain.*/
 	struct m0_net_domain	 cl_ndom;
-	/* Client db.*/
-	struct m0_dbenv		 cl_dbenv;
 	/* Client rpc context.*/
 	struct m0_rpc_client_ctx cl_ctx;
 };
@@ -239,8 +237,6 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	cl_ctx->rcx_net_dom            = &cctx->cl_ndom;
 	cl_ctx->rcx_local_addr         = cl_ep_addr;
 	cl_ctx->rcx_remote_addr        = srv_ep_addr;
-	cl_ctx->rcx_db_name            = dbname;
-	cl_ctx->rcx_dbenv              = &cctx->cl_dbenv;
 	cl_ctx->rcx_nr_slots           = MAX_RPC_SLOTS_NR;
 	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 

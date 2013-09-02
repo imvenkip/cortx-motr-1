@@ -158,7 +158,6 @@ struct ub_rpc_client {
 	struct m0_rpc_client_ctx rc_ctx;
 	struct m0_net_domain     rc_net_dom;
 	struct m0_cob_domain     rc_cob_dom;
-	struct m0_dbenv          rc_dbenv;
 };
 
 static struct ub_rpc_client *g_clients;
@@ -194,7 +193,7 @@ static const struct m0_rpc_item_ops ub_item_ops = {
  * ---------------------------------------------------------------- */
 
 static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
-			  const char *db_name, const char *ep)
+			  const char *ep)
 {
 	int rc;
 
@@ -203,8 +202,6 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 
 	client->rc_ctx = (struct m0_rpc_client_ctx){
 		.rcx_net_dom               = &client->rc_net_dom,
-		.rcx_dbenv                 = &client->rc_dbenv,
-		.rcx_db_name               = strdup(db_name),
 		.rcx_nr_slots              = g_args.a_nr_slots,
 		.rcx_local_addr            = strdup(ep),
 		.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
@@ -223,7 +220,6 @@ static void _client_stop(struct ub_rpc_client *client)
 
 	rc = m0_rpc_client_stop(&client->rc_ctx);
 	M0_ASSERT(rc == 0);
-	m0_free((void *)client->rc_ctx.rcx_db_name);
 	m0_free((void *)client->rc_ctx.rcx_local_addr);
 	m0_net_domain_fini(&client->rc_net_dom);
 }
@@ -232,7 +228,6 @@ static int _start(const char *opts)
 {
 	int  i;
 	int  rc;
-	char db[40];
 	char ep[40];
 
 	args_init(&g_args);
@@ -251,10 +246,9 @@ static int _start(const char *opts)
 	}
 
 	for (i = 0; i < g_args.a_nr_conns; ++i) {
-		snprintf(db, sizeof db, "rpc-ub.client-db_%d", i);
 		snprintf(ep, sizeof ep, CLIENT_ENDPOINT_FMT,
 			 2 + i); /* 1 is server EP, so we start from 2 */
-		_client_start(&g_clients[i], CLIENT_COB_DOM_ID + i, db, ep);
+		_client_start(&g_clients[i], CLIENT_COB_DOM_ID + i, ep);
 	}
 
 	m0_rpc_ub_fops_init();

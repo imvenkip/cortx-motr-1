@@ -70,7 +70,6 @@ enum {
 };
 
 static struct m0_net_domain  client_net_dom;
-static struct m0_dbenv       client_dbenv;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
@@ -78,15 +77,12 @@ static struct m0_semaphore   read_cp_sem;
 
 const char client_addr[]    = "0@lo:12345:34:2";
 const char server_addr[]    = "0@lo:12345:34:1";
-const char client_db_name[] = "cm_client_db";
 static const char send_db[] = "send-db";
 
 static struct m0_rpc_client_ctx cctx = {
         .rcx_net_dom            = &client_net_dom,
         .rcx_local_addr         = client_addr,
         .rcx_remote_addr        = server_addr,
-        .rcx_db_name            = client_db_name,
-        .rcx_dbenv              = &client_dbenv,
         .rcx_nr_slots           = SESSION_SLOTS,
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
