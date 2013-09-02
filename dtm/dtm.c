@@ -65,12 +65,33 @@ M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx)
 	tx->tx_state = M0_DTX_OPEN;
 }
 
+M0_INTERNAL void m0_dtx_open_sync(struct m0_dtx *tx)
+{
+	int rc;
+
+	m0_dtx_open(tx);
+	rc = m0_be_tx_timedwait(&tx->tx_betx,
+				M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx->tx_betx) == M0_BTS_ACTIVE);
+}
+
 M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
 
 	m0_be_tx_close(&tx->tx_betx);
 	tx->tx_state = M0_DTX_DONE;
+}
+
+M0_INTERNAL void m0_dtx_done_sync(struct m0_dtx *tx)
+{
+	int rc;
+
+	m0_dtx_done(tx);
+	rc = m0_be_tx_timedwait(&tx->tx_betx, M0_BITS(M0_BTS_DONE),
+				M0_TIME_NEVER);
+	M0_ASSERT(m0_be_tx_state(&tx->tx_betx) == M0_BTS_DONE);
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
