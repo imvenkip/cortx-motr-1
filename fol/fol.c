@@ -122,7 +122,7 @@ static const struct m0_table_ops fol_ops = {
 			.max_size = sizeof(m0_lsn_t)
 		},
 		[TO_REC] = {
-			.max_size = ~0
+			.max_size = 8192,
 		}
 	},
 	.key_cmp = lsn_cmp

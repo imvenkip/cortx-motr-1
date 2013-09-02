@@ -22,100 +22,88 @@
 #ifndef __MERO_BE_UT_HELPER_H__
 #define __MERO_BE_UT_HELPER_H__
 
-#include "lib/types.h"          /* bool */
-#include "be/be.h"              /* m0_be */
-#include "dtm/dtm.h"            /* m0_dtx */
-#include "net/net.h"		/* m0_net_xprt */
-#include "rpc/rpclib.h"		/* m0_rpc_server_ctx */
+#include "lib/types.h"		/* bool */
 
-/**
- * Helper structure for easy segment preparing for UT.
- *
- * XXX RENAMEME: s/helper/obfuscator/  --vvv
- */
-struct m0_be_ut_h {
-	/** Stob domain. All stobs for UT helper are in this domain */
-	struct m0_stob_domain	*buh_dom;
-	/** Newly created stob will use this m0_dtx */
-	struct m0_dtx            buh_dtx;
-	/**
-	 * Stob to test. It can point to m0_be_ut_h.buh_stob_ if
-	 * there is new stob and to existing stob if it isn't new.
-	 */
-	struct m0_stob		*buh_stob;
-	/** Newly created stob. This field is unused if stob already exists */
-	struct m0_stob		 buh_stob_;
-	/** Segment will be initialized in this m0_be */
-	struct m0_be		 buh_be;
-	/** Segment to test */
-	struct m0_be_seg	 buh_seg;
-	/**
-	 * Pointer to m0_be_ut_h.buh_seg.bs_allocator
-	 * Added to increase readability of UT.
-	 * Initialized in m0_be_ut_h_init().
-	 */
-	struct m0_be_allocator	*buh_a;
-	/** transaction ID counter */
-	uint64_t		 buh_tid;
-	/** net xprt for rpc server */
-	struct m0_net_xprt	*buh_xprt;
-	/** rpc server for reqh */
-	struct m0_rpc_server_ctx buh_rpc_svc;
-	/** reqh */
-	struct m0_reqh		*buh_reqh;
+#include "sm/sm.h"		/* m0_sm */
+#include "stob/stob.h"		/* m0_stob */
+
+#include "be/be.h"		/* m0_be */
+#include "be/domain.h"		/* m0_be_domain */
+#include "be/seg.h"		/* m0_be_seg */
+
+#include <sys/types.h>		/* pid_t */
+
+struct m0_be_ut_sm_group_thread {
+	struct m0_thread    sgt_thread;
+	pid_t		    sgt_tid;
+	struct m0_semaphore sgt_stop_sem;
+	struct m0_sm_group  sgt_grp;
+	bool		    sgt_lock_new;
 };
 
-/** Transactions' sm_group. */
-extern struct m0_sm_group ut__txs_sm_group;
+struct m0_be_ut_backend {
+	struct m0_be_domain		  but_dom;
+	struct m0_be_domain_cfg		  but_dom_cfg;
+	struct m0_be_ut_sm_group_thread **but_sgt;
+	size_t				  but_sgt_size;
+	struct m0_mutex			  but_sgt_lock;
+	bool				  but_sm_groups_unlocked;
+};
 
-/** Prepare stob and do m0_be_seg_init() */
-void m0_be_ut_seg_initialize(struct m0_be_ut_h *h, bool stob_create);
-/** m0_be_seg_fini() and stob finalization */
-void m0_be_ut_seg_finalize(struct m0_be_ut_h *h, bool stob_put);
-
-/** m0_be_ut_seg_initialize() + create segment */
-void m0_be_ut_seg_create(struct m0_be_ut_h *h);
-/** destroy segment + m0_be_ut_seg_finalize() */
-void m0_be_ut_seg_destroy(struct m0_be_ut_h *h);
-
-/**
- * Create new stob. Prepare segment on this stob to UT
- * m0_be_ut_seg_create() + m0_be_seg_open().
+/*
+ * Fill cfg with default configuration.
+ * @note bec_group_fom_reqh is not set here
  */
-void m0_be_ut_seg_create_open(struct m0_be_ut_h *h);
-/**
- * Destroy segment and stob
- * m0_be_seg_close() + m0_be_ut_seg_destroy().
- */
-void m0_be_ut_seg_close_destroy(struct m0_be_ut_h *h);
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
 
-/** Create linux stob domain directory */
-void m0_be_ut_seg_storage_init(void);
-/** Remove linux stob domain directory */
-void m0_be_ut_seg_storage_fini(void);
+void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
+void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
-/**
- * - create dtx;
- * - create stob domain;
- * - create stob in the domain;
- * - create segment on this stob;
- * - initalize segment allocator.
- *
- * @note m0_be_ut_h.buh_be should be initialized before calling this function.
- */
-void m0_be_ut_h_init(struct m0_be_ut_h *h);
-/**
- * - finalize segment allocator, segment, stob, stob domain and dtx;
- * - remove stob domain directory.
- */
-void m0_be_ut_h_fini(struct m0_be_ut_h *h);
+struct m0_reqh *m0_be_ut_reqh_get(void);
+void m0_be_ut_reqh_put(struct m0_reqh *reqh);
 
-/**
- */
-void m0_be_ut_h_seg_reload(struct m0_be_ut_h *h);
+struct m0_sm_group *
+m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be);
+void m0_be_ut_backend_new_grp_lock_state_set(struct m0_be_ut_backend *ut_be,
+					     bool unlocked_new);
 
-/** Initialize m0_be_tx in m0_be_ut_h context */
-void m0_be_ut_h_tx_init(struct m0_be_tx *tx, struct m0_be_ut_h *h);
+void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
+
+/* will work with single thread only */
+void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
+
+struct m0_be_ut_seg {
+	/**
+	 * Stob to test. It can point to m0_be_ut_seg.bus_stob_ if
+	 * there is new stob and to existing stob if it isn't new.
+	 */
+	struct m0_stob		*bus_stob;
+	/** Newly created stob. This field is unused if stob already exists */
+	struct m0_stob		 bus_stob_;
+	/** Segment to test */
+	struct m0_be_seg	 bus_seg;
+	/** Pointer to m0_be_ut_seg.bus_seg.bs_allocator */
+	struct m0_be_allocator	*bus_allocator;
+	void			*bus_copy;
+};
+
+void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+		       struct m0_be_ut_backend *ut_be,
+		       m0_bcount_t size);
+void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
+
+/* m0_be_allocator_{init,create,open} */
+void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
+				 struct m0_be_ut_backend *ut_be);
+/* m0_be_allocator_{close,destroy,fini} */
+void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
+				 struct m0_be_ut_backend *ut_be);
+
+struct m0_stob *m0_be_ut_stob_get(bool stob_create);
+struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create);
+void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

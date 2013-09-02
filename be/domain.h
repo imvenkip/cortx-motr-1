@@ -14,9 +14,41 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 17-Jun-2013
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 18-Jul-2013
  */
+
+#pragma once
+
+#ifndef __MERO_BE_DOMAIN_H__
+#define __MERO_BE_DOMAIN_H__
+
+#include "be/engine.h"
+
+/**
+ * @defgroup be
+ *
+ * @{
+ */
+
+struct m0_be_domain_cfg {
+	struct m0_be_engine_cfg bc_engine;
+};
+
+struct m0_be_domain {
+	struct m0_be_domain_cfg	bd_cfg;
+	struct m0_be_engine	bd_engine;
+};
+
+M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+				  struct m0_be_domain_cfg *cfg);
+
+M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
+
+M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom);
+
+/** @} end of be group */
+#endif /* __MERO_BE_DOMAIN_H__ */
 
 /*
  *  Local variables:

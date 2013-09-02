@@ -30,6 +30,7 @@
 #include "reqh/reqh_service.h"
 #include "cm/proxy.h"
 #include "ut/ut_rpc_machine.h"
+#include <unistd.h>			/* usleep */
 
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
@@ -72,7 +73,6 @@ enum {
 
 static struct m0_net_domain  client_net_dom;
 static struct m0_dbenv       client_dbenv;
-static struct m0_cob_domain  client_cob_dom;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
@@ -89,8 +89,6 @@ static struct m0_rpc_client_ctx cctx = {
         .rcx_remote_addr        = server_addr,
         .rcx_db_name            = client_db_name,
         .rcx_dbenv              = &client_dbenv,
-        .rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-        .rcx_cob_dom            = &client_cob_dom,
         .rcx_nr_slots           = SESSION_SLOTS,
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };

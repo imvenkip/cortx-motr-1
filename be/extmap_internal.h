@@ -91,6 +91,8 @@ struct m0_be_emap {
 	struct m0_buf         em_val_buf;
 	struct m0_be_emap_key em_key;
 	struct m0_be_emap_rec em_rec;
+	/** The segment where we are stored. */
+	struct m0_be_seg     *em_seg;
 };
 
 /**

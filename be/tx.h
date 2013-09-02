@@ -22,12 +22,13 @@
 #ifndef __MERO_BE_TX_H__
 #define __MERO_BE_TX_H__
 
-#include "be/log.h"
-#include "be/tx_log.h"
-#include "be/tx_group.h"
-#include "be/tx_regmap.h"
+#include "lib/misc.h"		/* M0_BITS */
+
+#include "be/tx_regmap.h"	/* m0_be_reg_area */
 
 struct m0_ref;
+struct m0_be_domain;
+struct m0_be_tx_group;
 
 /**
  * @defgroup be
@@ -101,35 +102,40 @@ struct m0_ref;
  *                        | m0_be_tx_init()
  *                        |
  *                        V
- *                     PREPARE------+
- *                        | ^       | m0_be_tx_prep();
- *        m0_be_tx_open() | |       |
- *                        | +-------+
- *                        V
+ *                     PREPARE
+ *                        |
+ *        m0_be_tx_open() |   no free memory or engine thinks that
+ *                        |   the transaction can't be opened
+ *                        V	    V
  *                     OPENING---------->FAILED
  *                        |
- *                        | tx_open_tail()
+ *                        | log space reserved for the transaction
  *                        |
  *                        V
- *                      ACTIVE------+
- *                        | ^       | m0_be_tx_capture();
- *       m0_be_tx_close() | |       |
- *                        | +-------+
+ *                      ACTIVE
+ *                        |
+ *       m0_be_tx_close() |
+ *                        |
  *                        V
  *                      CLOSED
  *                        |
- *                        | tx_group_add()
+ *                        | added to group
  *                        |
  *                        V
  *                     GROUPED
  *                        |
- *                        | log io & in-place io complete
+ *                        | log io complete
+ *                        |
+ *                        V
+ *                     LOGGED
+ *                        |
+ *                        | in-place io complete
  *                        |
  *                        V
  *                      PLACED
  *                        |
- *                        | m0_be_tx_stable()
- *                        |
+ *                        | number of m0_be_tx_get() == number of m0_be_tx_put()
+ *                        | for the transaction
  *                        V
  *                      DONE
  *
@@ -241,12 +247,18 @@ enum m0_be_tx_state {
 	 * Transaction is a member of transaction group.
 	 */
 	M0_BTS_GROUPED,
+	/*
+	 * All transaction updates made it to the log.
+	 */
+	M0_BTS_LOGGED,
 	/**
 	 * All transaction in-place updates completed.
 	 */
 	M0_BTS_PLACED,
 	/**
-	 * Transaction was declared stable by call to m0_be_tx_stable().
+	 * Transaction reached M0_BTS_PLACED state and the number of
+	 * m0_be_tx_get() is equal to the number of m0_be_tx_put()
+	 * for the transaction.
 	 */
 	M0_BTS_DONE,
 	M0_BTS_NR
@@ -258,100 +270,23 @@ enum m0_be_tx_state {
  */
 typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
 
-/**
- * Transaction engine. Embedded in m0_be.
- */
-struct m0_be_tx_engine {
-	/**
-	 * Per-state lists of transaction. Each non-failed transaction is in one
-	 * of these lists.
-	 */
-	struct m0_tl          te_txs[M0_BTS_NR];
-
-	/** Protects all fields of this struct. */
-	struct m0_rwlock      te_lock;
-
-	/** Transactional log. */
-	struct m0_be_log      te_log;
-
-	/** Transactional group. (Currently there is only one.) */
-	struct m0_be_tx_group te_group;
-
-	/*
-	 * Various interesting positions in the log. XXX Probably not needed.
-	 */
-	struct m0_be_tx      *te_start;
-	struct m0_be_tx      *te_placed;
-	struct m0_be_tx      *te_logged;
-	struct m0_be_tx      *te_submitted;
-	struct m0_be_tx      *te_inmem;
-
-	/**
-	 * Total space reserved for active transactions.
-	 *
-	 * This space is reserved by m0_tx_open(). When a transaction closes
-	 * (m0_be_tx_close()), the difference between reserved and actually used
-	 * space is released.
-	 */
-	m0_bcount_t           te_reserved;
-
-	/** Pointer to the FOM processing transaction groups. */
-	struct m0_fom        *te_fom;
-};
-
-M0_INTERNAL bool
-m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine);
-
-M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine);
-M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
-
-/**
- * Transaction.
- */
+/** Transaction. */
 struct m0_be_tx {
-	uint64_t               t_magic;
 	struct m0_sm           t_sm;
-	struct m0_sm_ast       t_ast;
 
 	/** Transaction identifier, assigned by the user. */
 	uint64_t               t_id;
-	/**
-	 * lsn of transaction representation in the log. Assigned when the
-	 * transaction reaches GROUPED state.
-	 */
-	uint64_t               t_lsn;
+	struct m0_be_engine   *t_engine;
 
-	struct m0_be          *t_be;
 	/** Linkage in one of m0_be_tx_engine::te_txs[] lists. */
 	struct m0_tlink        t_engine_linkage;
-
-	/**
-	 * The group the transaction is part of. This is non-NULL iff the
-	 * transaction is in GROUPED or later state.
-	 */
-	struct m0_be_tx_group *t_group;
 	/** Linkage in m0_be_tx_group::tg_txs. */
 	struct m0_tlink        t_group_linkage;
-
-	/**
-	 * Size (in bytes) of "payload area" in the transaction log header,
-	 * reserved for user.
-	 *
-	 * User should directly set this field, while the transaction is in
-	 * ACTIVE state.
-	 */
-	m0_bcount_t            t_payload_size;
+	uint64_t               t_magic;
 
 	/** Updates prepared for at PREPARE state. */
 	struct m0_be_tx_credit t_prepared;
 	struct m0_be_reg_area  t_reg_area;
-
-	/**
-	 * True iff the transaction is the first transaction in the group. In
-	 * this case, the overhead of group (specifically, the size of group
-	 * header and group commit log) are "billed" to the transaction.
-	 */
-	bool                   t_leader;
 
 	/**
 	 * Optional call-back called when the transaction is guaranteed to
@@ -369,12 +304,6 @@ struct m0_be_tx {
 	 * COW-ed file extents.
 	 */
 	m0_be_tx_cb_t          t_discarded;
-
-	/**
-	 * True iff the transaction is globally stable, i.e., not
-	 * needed for recovery.
-	 */
-	bool                   t_glob_stable;
 
 	/**
 	 * An optional call-back called when the transaction is being closed.
@@ -395,20 +324,41 @@ struct m0_be_tx {
 	 * additional information to the call-backs.
 	 */
 	void                  *t_datum;
+	/**
+	 * lsn of transaction representation in the log. Assigned when the
+	 * transaction reaches GROUPED state.
+	 */
+	uint64_t               t_lsn;
+	/**
+	 * Size (in bytes) of "payload area" in the transaction log header,
+	 * reserved for user.
+	 *
+	 * User should directly set this field, while the transaction is in
+	 * ACTIVE state.
+	 */
+	m0_bcount_t            t_payload_size;
+	struct m0_sm_ast       t_ast_active;
+	struct m0_sm_ast       t_ast_failed;
+	struct m0_sm_ast       t_ast_grouped;
+	struct m0_sm_ast       t_ast_logged;
+	struct m0_sm_ast       t_ast_placed;
+	struct m0_sm_ast       t_ast_done;
+	struct m0_be_tx_group *t_group;
+	/** Reference counter. */
+	uint32_t	       t_ref;
 };
 
-M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx);
+M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
-			       uint64_t            tid,
-			       struct m0_be       *be,
-			       struct m0_sm_group *sm_group,
-			       m0_be_tx_cb_t       persistent,
-			       m0_be_tx_cb_t       discarded,
-			       bool                is_part_of_global_tx,
-			       void              (*filler)(struct m0_be_tx *tx,
-							   void *payload),
-			       void               *datum);
+M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
+			       uint64_t             tid,
+			       struct m0_be_domain *dom,
+			       struct m0_sm_group  *sm_group,
+			       m0_be_tx_cb_t        persistent,
+			       m0_be_tx_cb_t        discarded,
+			       void               (*filler)(struct m0_be_tx *tx,
+							    void *payload),
+			       void                *datum);
 
 M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 
@@ -427,28 +377,36 @@ M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx *tx,
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx);
 
+M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx);
+
 /** Forces the transaction to storage. */
 M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
 
-M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int state,
+/**
+ * @note To wait for a M0_BTS_PLACED state, caller must guarantee that the
+ * transaction are not in M0_BTS_DONE state, e.g., by calling m0_be_tx_get().
+ */
+M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout);
 
-/** Notifies backend that the transaction is no longer needed for recovery. */
-M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
+M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
 
-M0_INTERNAL void m0_be__tx_state_set(struct m0_be_tx *tx,
-				     enum m0_be_tx_state state);
-M0_INTERNAL enum m0_be_tx_state m0_be__tx_state(const struct m0_be_tx *tx);
+static inline int m0_be_tx_open_sync(struct m0_be_tx *tx)
+{
+	m0_be_tx_open(tx);
+	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				  M0_TIME_NEVER);
+}
 
-/**
- * Posts an AST that will move transaction's state machine to
- * M0_BTS_GROUPED state and decrement provided reference counter.
- */
-M0_INTERNAL void m0_be__tx_group_post(struct m0_be_tx *tx, struct m0_ref *ref);
-M0_INTERNAL void m0_be__tx_placed_post(struct m0_be_tx *tx, struct m0_ref *ref);
+static inline void m0_be_tx_close_sync(struct m0_be_tx *tx)
+{
+	int rc;
 
-M0_TL_DESCR_DECLARE(eng, M0_EXTERN);
-M0_TL_DECLARE(eng, M0_INTERNAL, struct m0_be_tx);
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+}
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

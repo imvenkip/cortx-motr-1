@@ -37,6 +37,8 @@
 #include "addb/addb.h"
 #include "cm/ut/common_service.h"
 
+#include <unistd.h>			/* usleep */
+
 static int cm_ut_init(void)
 {
 	int rc;

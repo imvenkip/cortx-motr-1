@@ -541,7 +541,7 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 		return -ENOMEM;
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = m0_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep,
+	rc = m0_rpc_machine_init(rpcmach, ndom, ep,
 				 reqh, buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
 	if (rc == 0)
@@ -1376,7 +1376,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 			  .rhia_mdstore   = &rctx->rc_mdstore,
 			  .rhia_fol       = &rctx->rc_fol,
 			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = rctx->rc_addb_stob.cas_stob);
+			  .rhia_addb_stob = NULL);
 	if (rc == 0) {
 		rctx->rc_state = RC_INITIALISED;
 		return 0;

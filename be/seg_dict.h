@@ -14,9 +14,42 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 17-Jun-2013
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 24-Aug-2013
  */
+
+
+#pragma once
+
+#ifndef __MERO_BE_SEG_DICT_H__
+#define __MERO_BE_SEG_DICT_H__
+
+
+/**
+ * @defgroup be
+ *
+ * @{
+ */
+
+struct m0_be_seg;
+struct m0_sm_group;
+
+M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg);
+M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp);
+M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
+				      const char *name,	void **out);
+M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name,	void *value);
+M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name);
+
+/** @} end of be group */
+
+#endif /* __MERO_BE_SEG_DICT_H__ */
+
 
 /*
  *  Local variables:

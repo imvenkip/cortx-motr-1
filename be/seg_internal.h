@@ -23,6 +23,7 @@
 #define __MERO_BE_SEG_INTERNAL_H__
 
 #include "be/alloc_internal.h"	/* m0_be_allocator_header */
+#include "be/btree.h"		/* m0_be_btree */
 
 /**
  * @defgroup be
@@ -30,25 +31,12 @@
  * @{
  */
 
-enum {
-	/** Dictionary entity name maximum string size. */
-	M0_BE_SEG_DICT_MAXNAME = 80,
-	/** Maximum number of entities in dictionary. */
-	M0_BE_SEG_DICT_SIZE = 32
-};
-
-struct m0_be_seg_dict {
-	char  bsd_name[M0_BE_SEG_DICT_MAXNAME];
-	void *bsd_ptr;
-};
-
 /** "On-disk" header for segment, stored in STOB at zero offset */
 struct m0_be_seg_hdr {
 	void                         *bh_addr;  /**< Segment address in RAM. */
 	m0_bcount_t                   bh_size;  /**< Segment size. */
 	struct m0_be_allocator_header bh_alloc;
-	/** Segment dictionary */
-	struct m0_be_seg_dict         bs_dict[M0_BE_SEG_DICT_SIZE];
+	struct m0_be_btree            bs_dict; 	/**< Segment dictionary */
 };
 
 /** @} end of be group */

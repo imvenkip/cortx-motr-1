@@ -14,29 +14,33 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>,
- *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 17-Jun-2013
+ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original creation date: 13-Aug-2013
  */
 
 #pragma once
-#ifndef __MERO_BE_TX_FOM_H__
-#define __MERO_BE_TX_FOM_H__
 
-struct m0_be_tx_engine;
-struct m0_reqh;
+#ifndef __MERO_UT_AST_THREAD_H__
+#define __MERO_UT_AST_THREAD_H__
 
 /**
- * @defgroup be
+ * @defgroup XXX
+ *
+ * XXX FIXME: Using "ast threads" is a very wrong thing to do.
+ * We should use m0_fom_simple instead.
+ *
  * @{
  */
 
-M0_INTERNAL int m0_be_tx_engine_start(struct m0_be_tx_engine *engine,
-				      struct m0_reqh *reqh);
-M0_INTERNAL void m0_be_tx_engine_stop(struct m0_be_tx_engine *engine);
+/* import */
+struct m0_sm_group;
 
-/** @} end of be group */
-#endif /* __MERO_BE_TX_FOM_H__ */
+M0_INTERNAL int m0_ut_ast_thread_start(struct m0_sm_group *grp);
+
+M0_INTERNAL void m0_ut_ast_thread_stop(void);
+
+/** @} end of XXX group */
+#endif /* __MERO_UT_AST_THREAD_H__ */
 
 /*
  *  Local variables:

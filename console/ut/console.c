@@ -23,6 +23,8 @@
 #endif
 
 #include <sysexits.h>
+#include <unistd.h>	      /* truncate */
+#include <sys/types.h>	      /* truncate */
 
 #include "lib/types.h"        /* uint64_t */
 #include "ut/ut.h"
@@ -83,7 +85,6 @@ enum {
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain  client_net_dom = { };
 static struct m0_dbenv       client_dbenv;
-static struct m0_cob_domain  client_cob_dom;
 
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
@@ -91,8 +92,6 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 	.rcx_db_name            = CLIENT_DB_NAME,
 	.rcx_dbenv              = &client_dbenv,
-	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-	.rcx_cob_dom            = &client_cob_dom,
 	.rcx_nr_slots           = SESSION_SLOTS,
 	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };

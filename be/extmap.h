@@ -134,13 +134,15 @@ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map);
 /**
     Create maps collection.
 
+    m0_be_emap_init() should be called beforehand.
+
     @param db - data-base environment used for persistency and transactional
     support.
+    @note m0_be_emap_init() should be called before this routine.
  */
 M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 				   struct m0_be_tx   *tx,
-				   struct m0_be_op   *op,
-				   struct m0_be_seg  *db);
+				   struct m0_be_op   *op);
 
 /** Destroy maps collection. */
 M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
@@ -389,10 +391,10 @@ enum m0_be_emap_optype {
  * @param optype operation type over the @emap.
  * @param nr     number of @optype operations.
  */
-M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
-					 enum m0_be_emap_optype  optype,
-					 m0_bcount_t             nr,
-					 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
+				   enum m0_be_emap_optype  optype,
+				   m0_bcount_t             nr,
+				   struct m0_be_tx_credit *accum);
 
 /** @} end group extmap */
 

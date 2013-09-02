@@ -36,6 +36,7 @@
 #include "lib/atomic.h"
 #include "ut/ut.h"
 #include "ut/cs_service.h"
+#include "db/db.h"		   /* m0_dbenv_reset */
 
 
 /**
@@ -259,6 +260,7 @@ M0_INTERNAL void m0_ut_list(bool with_tests)
 
 M0_INTERNAL int m0_ut_db_reset(const char *db_name)
 {
+#if 0
         char *cmd;
 	int   rc;
 
@@ -267,7 +269,9 @@ M0_INTERNAL int m0_ut_db_reset(const char *db_name)
                 return rc;
 	rc = system(cmd);
 	free(cmd);
-	return rc;
+#endif
+	m0_dbenv_reset(db_name);
+	return 0;
 }
 
 M0_INTERNAL void m0_stream_redirect(FILE * stream, const char *path,

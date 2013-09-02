@@ -350,6 +350,7 @@ M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
 
 M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
 {
+#if 0
 	struct m0_fom_locality *loc;
 	struct m0_loc_thread   *thr;
 
@@ -388,10 +389,12 @@ M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
 	loc->fl_handler = NULL;
 	M0_ASSERT(m0_locality_invariant(loc));
 	group_unlock(loc);
+#endif
 }
 
 M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 {
+#if 0
 	struct m0_fom_locality *loc;
 	struct m0_loc_thread   *thr;
 
@@ -418,6 +421,7 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	thr->lt_state = HANDLER;
 	m0_atomic64_dec(&loc->fl_unblocking);
 	M0_ASSERT(m0_locality_invariant(loc));
+#endif
 }
 
 M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
@@ -1330,6 +1334,11 @@ int m0_fom_phase(const struct m0_fom *fom)
 	return fom->fo_sm_phase.sm_state;
 }
 M0_EXPORTED(m0_fom_phase);
+
+M0_INTERNAL const char *m0_fom_phase_name(const struct m0_fom *fom, int phase)
+{
+	return m0_sm_state_name(&fom->fo_sm_phase, phase);
+}
 
 M0_INTERNAL int m0_fom_rc(const struct m0_fom *fom)
 {

@@ -648,6 +648,12 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 	}
 }
 
+M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state)
+{
+	return state_is_valid(mach->sm_conf, state) ?
+	       state_get(mach, state)->sd_name : "invalid";
+}
+
 /** @} end of sm group */
 #undef M0_TRACE_SUBSYSTEM
 

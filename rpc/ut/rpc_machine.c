@@ -24,7 +24,6 @@
 #include "rpc/rpc_internal.h"
 #include "net/net.h"
 #include "db/db.h"
-#include "cob/cob.h"
 #include "rpc/rpc.h"
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"
@@ -33,8 +32,6 @@
 static struct m0_rpc_machine     machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static const char               *ep_addr = "0@lo:12345:34:2";
-static struct m0_cob_domain      cdom;
-static struct m0_cob_domain_id   cdom_id = { .id = 10000 };
 static struct m0_dbenv           dbenv;
 static const char               *dbname = "db";
 static struct m0_net_buffer_pool buf_pool;
@@ -46,14 +43,10 @@ static void cob_domain_init(void)
 
 	rc = m0_dbenv_init(&dbenv, dbname, 0);
 	M0_ASSERT(rc == 0);
-
-	rc = m0_cob_domain_init(&cdom, &dbenv, &cdom_id);
-	M0_ASSERT(rc == 0);
 }
 
 static void cob_domain_fini(void)
 {
-	m0_cob_domain_fini(&cdom);
 	m0_dbenv_fini(&dbenv);
 }
 
@@ -96,7 +89,7 @@ static void rpc_mc_init_fini_test(void)
 	 * Test - rpc_machine_init & rpc_machine_fini for success case
 	 */
 
-	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
 				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == 0);
@@ -119,13 +112,13 @@ static void rpc_mc_init_fail_test(void)
 	 */
 
 	m0_fi_enable_once("m0_net_tm_init", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
 				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	m0_fi_enable_once("m0_net_tm_start", "fake_error");
-	rc = m0_rpc_machine_init(&machine, &cdom, &client_net_dom, ep_addr,
+	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
 				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -ENETUNREACH);

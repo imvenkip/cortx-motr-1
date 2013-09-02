@@ -19,7 +19,7 @@
  */
 
 #include "be/tx_credit.h"
-#include "lib/misc.h"  /* M0_SET0 */
+#include "lib/assert.h"    /* M0_PRE */
 
 /**
  * @addtogroup be
@@ -27,10 +27,8 @@
  * @{
  */
 
-M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit)
-{
-	M0_SET0(credit);
-}
+struct m0_be_tx_credit m0_be_tx_credit_invalid =
+	M0_BE_TX_CREDIT_INIT(M0_BCOUNT_MAX, M0_BCOUNT_MAX);
 
 M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
 				     const struct m0_be_tx_credit *c1)
@@ -39,7 +37,6 @@ M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
 	c0->tc_reg_size += c1->tc_reg_size;
 }
 
-/** c0 -= c1 */
 M0_INTERNAL void m0_be_tx_credit_sub(struct m0_be_tx_credit *c0,
 				     const struct m0_be_tx_credit *c1)
 {
@@ -71,6 +68,13 @@ M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 {
 	return c0->tc_reg_nr   <= c1->tc_reg_nr &&
 	       c0->tc_reg_size <= c1->tc_reg_size;
+}
+
+M0_INTERNAL bool m0_be_tx_credit_eq(const struct m0_be_tx_credit *c0,
+				    const struct m0_be_tx_credit *c1)
+{
+	return c0->tc_reg_nr   == c1->tc_reg_nr &&
+	       c0->tc_reg_size == c1->tc_reg_size;
 }
 
 /** @} end of be group */

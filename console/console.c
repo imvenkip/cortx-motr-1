@@ -188,7 +188,6 @@ int main(int argc, char **argv)
 	struct m0_net_xprt   *xprt           = &m0_net_lnet_xprt;
 	struct m0_net_domain  client_net_dom = { };
 	struct m0_dbenv       client_dbenv;
-	struct m0_cob_domain  client_cob_dom;
 	uint32_t              tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	uint32_t              max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
@@ -199,8 +198,6 @@ int main(int argc, char **argv)
 		.rcx_remote_addr           = "0@lo:12345:34:1",
 		.rcx_db_name               = "cons_client_db",
 		.rcx_dbenv                 = &client_dbenv,
-		.rcx_cob_dom_id            = 14,
-		.rcx_cob_dom               = &client_cob_dom,
 		.rcx_nr_slots              = 1,
 		.rcx_max_rpcs_in_flight    = 1,
 	};

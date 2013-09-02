@@ -63,6 +63,7 @@ struct m0_table_ops;
 struct m0_db_rec;
 struct m0_db_tx;
 struct m0_buf;
+struct m0_be_btree_kv_ops;
 
 #ifdef __KERNEL__
 #include "db/linux_kernel/db_impl.h"
@@ -105,6 +106,8 @@ void m0_dbenv_fini(struct m0_dbenv *env);
    that completed before this call started are guaranteed to be persistent.
  */
 M0_INTERNAL int m0_dbenv_sync(struct m0_dbenv *env);
+
+void m0_dbenv_reset(const char *name);
 
 /**
     Data-base table.
@@ -259,6 +262,10 @@ struct m0_table_ops {
 	 */
 	int (*key_cmp)(struct m0_table *table,
 		       const void *key0, const void *key1);
+	/**
+	   After BE integration this field is only used in user-space.
+	 */
+	const struct m0_be_btree_kv_ops *ops;
 };
 
 /**
@@ -445,6 +452,10 @@ M0_INTERNAL int m0_db_cursor_del(struct m0_db_cursor *cursor);
 
 M0_INTERNAL int m0_db_init(void);
 M0_INTERNAL void m0_db_fini(void);
+
+struct m0_reqh;
+M0_INTERNAL int m0_db_start(struct m0_reqh *reqh);
+M0_INTERNAL void m0_db_stop(void);
 
 /** @} end of db group */
 

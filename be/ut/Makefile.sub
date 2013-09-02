@@ -1,17 +1,16 @@
-ut_libmero_ut_la_SOURCES += be/ut/alloc.c     \
-                            be/ut/btree.c     \
-                            be/ut/extmap.c    \
-                            be/ut/helper.c    \
-                            be/ut/helper.h    \
-                            be/ut/io.c        \
-                            be/ut/list.c      \
-                            be/ut/log.c       \
-                            be/ut/log_stor.c  \
-                            be/ut/main.c      \
-                            be/ut/seg.c       \
-                            be/ut/tx.c        \
-                            be/ut/tx_credit.c \
-                            be/ut/tx_group.c  \
+ut_libmero_ut_la_SOURCES += be/ut/alloc.c           \
+                            be/ut/btree.c           \
+                            be/ut/domain.c          \
+                            be/ut/extmap.c          \
+                            be/ut/io.c              \
+                            be/ut/list.c            \
+                            be/ut/log.c             \
+                            be/ut/log_store.c       \
+                            be/ut/main.c            \
+                            be/ut/seg.c             \
+                            be/ut/seg_dict.c        \
+                            be/ut/tx.c              \
                             be/ut/tx_group_ondisk.c \
-                            be/ut/tx_log.c    \
                             be/ut/tx_regmap.c
+                            #be/ut/helper.h          \
+                            #be/ut/helper.c

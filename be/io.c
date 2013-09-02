@@ -130,6 +130,7 @@ M0_INTERNAL void m0_be_io_configure(struct m0_be_io *bio,
 				    enum m0_stob_io_opcode opcode)
 {
 	bio->bio_io.si_opcode = opcode;
+	/* XXX */
 	bio->bio_io.si_fol_rec_part = (void *) 1;
 }
 
@@ -143,12 +144,18 @@ static bool be_io_cb(struct m0_clink *link)
 	op->bo_sm.sm_rc = io->si_rc;
 	m0_be_op_state_set(op,
 			   io->si_rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+	/* XXX add fsync() to linux stob fd
+	 * stob2linux
+	 * fd
+	 * fsync()
+	 */
 	return io->si_rc == 0;
 }
 
-M0_INTERNAL int m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
+M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 {
 	struct m0_stob_io *io = &bio->bio_io;
+	int		   rc;
 
 	M0_PRE(m0_be_io__invariant(bio));
 
@@ -157,8 +164,13 @@ M0_INTERNAL int m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 
 	m0_clink_add_lock(&io->si_wait, &bio->bio_clink);
 
-	return m0_stob_io_launch(io, bio->bio_stob,
-				 NULL /* XXX */, NULL /* XXX */);
+	rc = m0_stob_io_launch(io, bio->bio_stob,
+			       NULL /* XXX */, NULL /* XXX */);
+	if (rc != 0) {
+		m0_clink_del_lock(&bio->bio_clink);
+		op->bo_sm.sm_rc = rc;
+		m0_be_op_state_set(op, M0_BOS_FAILURE);
+	}
 }
 
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio)
@@ -174,6 +186,25 @@ M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio)
 	 * - restore allocated vectors
 	 */
 	io->si_obj = NULL;
+}
+
+M0_INTERNAL int m0_be_io_sync(struct m0_stob *stob,
+			      enum m0_stob_io_opcode opcode,
+			      void *ptr_user,
+			      m0_bindex_t offset_stob,
+			      m0_bcount_t size)
+{
+	struct m0_be_io bio;
+	int             rc;
+
+	rc = m0_be_io_init(&bio, stob, &M0_BE_TX_CREDIT_OBJ(1, size));
+	if (rc == 0) {
+		m0_be_io_add(&bio, ptr_user, offset_stob, size);
+		m0_be_io_configure(&bio, opcode);
+		M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
+		m0_be_io_fini(&bio);
+	}
+	return rc;
 }
 
 /** @} end of be group */

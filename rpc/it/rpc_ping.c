@@ -50,6 +50,7 @@
 #  include <stdlib.h>
 #  include <stdio.h>
 #  include <string.h>
+#  include <unistd.h>		/* read */
 #  ifdef HAVE_NETINET_IN_H
 #    include <netinet/in.h>
 #  endif
@@ -73,7 +74,6 @@ enum {
 	BUF_LEN            = 128,
 	M0_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
-	CLIENT_COB_DOM_ID  = 13,
 	MAX_RETRIES        = 10
 };
 
@@ -297,7 +297,6 @@ static int client_fini(struct m0_rpc_client_ctx *cctx)
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
-	m0_cob_domain_fini(cctx->rcx_cob_dom);
 	m0_dbenv_fini(cctx->rcx_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
@@ -318,7 +317,6 @@ static int run_client(void)
 	 */
 	static struct m0_net_domain     client_net_dom;
 	static struct m0_dbenv          client_dbenv;
-	static struct m0_cob_domain     client_cob_dom;
 	static struct m0_rpc_client_ctx cctx;
 
 	m0_time_t start;
@@ -329,8 +327,6 @@ static int run_client(void)
 	cctx.rcx_remote_addr           = server_endpoint;
 	cctx.rcx_db_name               = CLIENT_DB_FILE_NAME;
 	cctx.rcx_dbenv                 = &client_dbenv;
-	cctx.rcx_cob_dom_id            = CLIENT_COB_DOM_ID;
-	cctx.rcx_cob_dom               = &client_cob_dom;
 	cctx.rcx_nr_slots              = nr_slots;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;

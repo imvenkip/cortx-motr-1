@@ -14,24 +14,19 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original author: Maxim Medved <maxim_medved@xyratex.com>
  * Original creation date: 29-May-2013
  */
 
 #include "be/alloc.h"
 #include "be/alloc_internal.h"
-
-#include "lib/types.h"		/* m0_bcount_t */
-#include "lib/memory.h"		/* m0_addr_is_aligned */
-#include "lib/errno.h"		/* ENOSPC */
-#include "mero/magic.h"		/* M0_BE_ALLOC_MAGIC0 */
-
-#include "be/list.h"		/* m0_be_list */
-#include "be/seg.h"		/* m0_be_get */
-#include "be/seg_internal.h"	/* m0_be_seg_hdr */
-#include "be/tx.h"		/* m0_be_tx_credit */
-#include "be/be.h"		/* m0_be_op */
-#include "be/tx_credit.h"	/* m0_be_tx_credit_add */
+#include "be/seg_internal.h"    /* m0_be_seg_hdr */
+#include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
+#include "be/be.h"              /* m0_be_op */
+#include "lib/memory.h"         /* m0_addr_is_aligned */
+#include "lib/errno.h"          /* ENOSPC */
+#include "lib/misc.h"		/* memset */
+#include "mero/magic.h"
 
 /**
  * @addtogroup be
@@ -147,9 +142,11 @@
  * Allocator lock is used to protect all allocator data. Only one allocation or
  * freeing may take place at a some point of time for the same allocator.
  *
+ * Implementation notes:
+ * - If tx parameter is NULL then allocator will not capture segment updates.
+ *   It might be useful in the allocator UT.
+ *
  * Know issues:
- * - tx is not used in m0_be_alloc() and m0_be_free(), so nothing is
- *   m0_be_tx_capture()'d;
  * - op is unconditionally transitioned to state M0_BOS_SUCCESS in m0_be_alloc()
  *   and m0_be_free().
  */
@@ -180,7 +177,6 @@ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
 				   struct m0_be_tx *tx,
 				   struct be_alloc_chunk *c)
 {
-	/** @todo XXX TODO FIXME temporary hack for allocator UT */
 	if (tx == NULL)
 		return;
 	if (c == NULL)
@@ -191,7 +187,6 @@ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
 static void be_alloc_head_capture(struct m0_be_allocator *a,
 				  struct m0_be_tx *tx)
 {
-	/** @todo XXX TODO FIXME temporary hack for allocator UT */
 	if (tx == NULL)
 		return;
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, a->ba_h);
@@ -381,9 +376,8 @@ static void chunks_free_tlist_fini_c(struct m0_be_allocator *a,
 static bool be_alloc_is_mem_in_allocator(struct m0_be_allocator *a,
 					 m0_bcount_t size, const void *ptr)
 {
-	return (char *) ptr >= (char *) a->ba_h->bah_addr &&
-	       (char *) ptr + size <= ((char *) a->ba_h->bah_addr) +
-				      a->ba_h->bah_size;
+	return ptr >= a->ba_h->bah_addr &&
+	       ptr + size <= a->ba_h->bah_addr + a->ba_h->bah_size;
 }
 
 static bool be_alloc_is_chunk_in_allocator(struct m0_be_allocator *a,
@@ -396,8 +390,7 @@ static bool be_alloc_chunk_is_not_overlapping(const struct be_alloc_chunk *a,
 					      const struct be_alloc_chunk *b)
 {
 	return a == NULL || b == NULL ||
-	       ((char *) a < (char *) b &&
-		(char *) &a->bac_mem[a->bac_size] <= (char *) b);
+	       (a < b && &a->bac_mem[a->bac_size] <= (char *) b);
 }
 
 static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
@@ -656,28 +649,29 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	return result;
 }
 
-static bool be_alloc_chunk_trymerge(struct m0_be_allocator *al,
+static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
-				    struct be_alloc_chunk *a,
-				    struct be_alloc_chunk *b)
+				    struct be_alloc_chunk *x,
+				    struct be_alloc_chunk *y)
 {
-	m0_bcount_t b_size_total;
+	m0_bcount_t y_size_total;
 	bool	    chunks_were_merged = false;
 
-	M0_PRE(ergo(a != NULL, be_alloc_chunk_invariant(al, a)));
-	M0_PRE(ergo(b != NULL, be_alloc_chunk_invariant(al, b)));
-	M0_PRE(ergo(a != NULL && b != NULL, (char *) a < (char *) b));
-	M0_PRE(ergo(a != NULL, chunks_free_tlink_is_in(a)) ||
-	       ergo(b != NULL, chunks_free_tlink_is_in(b)));
-	if (a != NULL && b != NULL && a->bac_free && b->bac_free) {
-		b_size_total = sizeof(*b) + b->bac_size;
-		be_alloc_chunk_del_fini(al, tx, b);
-		a->bac_size += b_size_total;
+	M0_PRE(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
+	M0_PRE(ergo(y != NULL, be_alloc_chunk_invariant(a, y)));
+	M0_PRE(ergo(x != NULL && y != NULL, (char *) x < (char *) y));
+	M0_PRE(ergo(x != NULL, chunks_free_tlink_is_in(x)) ||
+	       ergo(y != NULL, chunks_free_tlink_is_in(y)));
+	if (x != NULL && y != NULL && x->bac_free && y->bac_free) {
+		y_size_total = sizeof(*y) + y->bac_size;
+		be_alloc_chunk_del_fini(a, tx, y);
+		x->bac_size += y_size_total;
+		be_alloc_chunk_capture(a, tx, x);
 		chunks_were_merged = true;
 	}
-	M0_POST(ergo(a != NULL, be_alloc_chunk_invariant(al, a)));
-	M0_POST(ergo(b != NULL && !chunks_were_merged,
-		     be_alloc_chunk_invariant(al, b)));
+	M0_POST(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
+	M0_POST(ergo(y != NULL && !chunks_were_merged,
+		     be_alloc_chunk_invariant(a, y)));
 	return chunks_were_merged;
 }
 
@@ -735,7 +729,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 
 	h = a->ba_h;
 	/** @todo GET_PTR h */
-	overhead   = sizeof(struct m0_be_seg_hdr);
+	overhead   = a->ba_seg->bs_reserved;
 	free_space = a->ba_seg->bs_size - overhead;
 
 	/* check if segment is large enough to allocate at least 1 byte */
@@ -747,9 +741,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 	h->bah_size = free_space;
 	h->bah_addr = (void *) ((uintptr_t) a->ba_seg->bs_addr + overhead);
 
-	m0_be_list_init(&h->bah_chunks, a->ba_seg);
 	chunks_all_tlist_init_c(a, tx, &h->bah_chunks.bl_list);
-	m0_be_list_init(&h->bah_free, a->ba_seg);
 	chunks_free_tlist_init_c(a, tx, &h->bah_free.bl_list);
 
 	h->bah_stats = (struct m0_be_allocator_stats) {
@@ -768,8 +760,8 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 	return 0;
 }
 
-M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
-					struct m0_be_tx *tx)
+M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
+					 struct m0_be_tx *tx)
 {
 	struct m0_be_allocator_header *h;
 	struct be_alloc_chunk	      *c;
@@ -784,54 +776,44 @@ M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
 	be_alloc_chunk_del_fini(a, tx, c);
 
 	chunks_free_tlist_fini_c(a, tx, &h->bah_free.bl_list);
-	m0_be_list_fini(&h->bah_free);
 	chunks_all_tlist_fini_c(a, tx, &h->bah_chunks.bl_list);
-	m0_be_list_fini(&h->bah_chunks);
 
 	m0_mutex_unlock(&a->ba_lock);
 	/** @todo PUT_PTR h */
-	return 0;
 }
 
 M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					enum m0_be_allocator_op optype,
-					m0_bcount_t size,
-					unsigned shift,
+					m0_bcount_t             size,
+					unsigned                shift,
 					struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit chunk_credit;
-	struct m0_be_tx_credit mem_credit;
-	struct m0_be_tx_credit header_credit;
-	struct m0_be_tx_credit capture_around_credit;
-	struct m0_be_tx_credit chunk_add_after_credit;
-	struct m0_be_tx_credit chunk_del_fini_credit;
-	struct m0_be_tx_credit chunk_trymerge_credit;
+	M0_BE_TX_CREDIT(capture_around_credit);
+	M0_BE_TX_CREDIT(chunk_add_after_credit);
+	M0_BE_TX_CREDIT(chunk_del_fini_credit);
+	M0_BE_TX_CREDIT(chunk_trymerge_credit);
+	struct m0_be_tx_credit chunk_credit =
+		M0_BE_TX_CREDIT_INIT(1, sizeof(struct be_alloc_chunk));
+	struct m0_be_tx_credit header_credit =
+		M0_BE_TX_CREDIT_INIT(1, sizeof(struct m0_be_allocator_header));
 
-	M0_PRE(m0_be_allocator__invariant(a));
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 
-	chunk_credit  = M0_BE_TX_CREDIT_TYPE(struct be_alloc_chunk);
-	header_credit = M0_BE_TX_CREDIT_TYPE(struct m0_be_allocator_header);
-	mem_credit    = M0_BE_TX_CREDIT(1, size * 2);
-
-	m0_be_tx_credit_init(&capture_around_credit);
 	m0_be_tx_credit_add(&capture_around_credit, &header_credit);
 	m0_be_tx_credit_mac(&capture_around_credit, &chunk_credit, 3);
 
-	m0_be_tx_credit_init(&chunk_add_after_credit);
-	/* be_alloc_chunk_init() x2 */
+	/* tlink_init() x2 */
 	m0_be_tx_credit_mac(&chunk_add_after_credit, &chunk_credit, 2);
-	/* tlist_add_after x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 2);
+	/* tlist_add_after() x2 */
+	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 4);
 
-	m0_be_tx_credit_init(&chunk_del_fini_credit);
-	/* tlist_del x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &capture_around_credit, 2);
-	/* tlink_fini x2 */
-	m0_be_tx_credit_mac(&chunk_add_after_credit, &chunk_credit, 2);
+	/* tlist_del() x2 */
+	m0_be_tx_credit_mac(&chunk_del_fini_credit, &capture_around_credit, 2);
+	/* tlink_fini() x2 */
+	m0_be_tx_credit_mac(&chunk_del_fini_credit, &chunk_credit, 2);
 
-	m0_be_tx_credit_init(&chunk_trymerge_credit);
 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_del_fini_credit);
+	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_credit);
 
 	/** @todo TODO XXX add list credits instead of entire header */
 	switch (optype) {
@@ -849,10 +831,9 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 			m0_be_tx_credit_add(accum, &chunk_del_fini_credit);
 			m0_be_tx_credit_mac(accum, &chunk_add_after_credit, 3);
 			m0_be_tx_credit_add(accum, &capture_around_credit);
-			m0_be_tx_credit_add(accum, &mem_credit);
 			break;
 		case M0_BAO_FREE:
-			/* be_alloc_chunk_mark_free */
+			/* be_alloc_chunk_mark_free = tlist_add_before() */
 			m0_be_tx_credit_mac(accum, &capture_around_credit, 2);
 			m0_be_tx_credit_mac(accum, &chunk_trymerge_credit, 2);
 			break;
@@ -881,6 +862,11 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
 		if (c != NULL)
 			break;
 	} m0_tl_endfor;
+	if (c != NULL && tx != NULL) {
+		memset(&c->bac_mem, 0, c->bac_size);
+		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg,
+						c->bac_size, &c->bac_mem));
+	}
 	/* and ends here */
 	m0_mutex_unlock(&a->ba_lock);
 

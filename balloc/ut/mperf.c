@@ -22,6 +22,7 @@
 #include <stdlib.h>       /* srand, rand */
 #include <errno.h>
 #include <sys/time.h>
+#include <unistd.h>	  /* usleep */
 #include <err.h>
 
 #include "dtm/dtm.h"      /* m0_dtx */

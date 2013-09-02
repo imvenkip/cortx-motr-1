@@ -14,9 +14,46 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
- * Original creation date: 17-Jun-2013
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 18-Jul-2013
  */
+
+#include "be/domain.h"
+
+/**
+ * @addtogroup be
+ *
+ * @{
+ */
+
+M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+				  struct m0_be_domain_cfg *cfg)
+{
+	struct m0_be_engine *en = &dom->bd_engine;
+	int		     rc;
+
+	dom->bd_cfg = *cfg;
+	rc = m0_be_engine_init(en, &dom->bd_cfg.bc_engine);
+	if (rc == 0) {
+		m0_be_engine_start(en);
+		if (rc != 0)
+			m0_be_engine_fini(en);
+	}
+	return rc;
+}
+
+M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+{
+	m0_be_engine_stop(&dom->bd_engine);
+	m0_be_engine_fini(&dom->bd_engine);
+}
+
+M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
+{
+	return &dom->bd_engine;
+}
+
+/** @} end of be group */
 
 /*
  *  Local variables:

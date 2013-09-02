@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original author: Maxim Medved <maxim_medved@xyratex.com>
  * Original creation date: 29-May-2013
  */
 
@@ -23,10 +23,9 @@
 #define __MERO_BE_ALLOC_H__
 
 #include "lib/types.h"  /* m0_bcount_t */
-#include "lib/mutex.h"	/* m0_mutex */
+#include "lib/mutex.h"
 
-#include "be/list.h"	/* m0_be_list */
-
+struct m0_be_op;
 struct m0_be_seg;
 struct m0_be_tx;
 struct m0_be_tx_credit;
@@ -112,8 +111,8 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
  * All memory allocations obtained from m0_be_alloc()
  * should be m0_be_free()'d before calling this function.
  */
-M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a,
-					struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
+					 struct m0_be_tx *tx);
 
 /**
  * Allocator operation.
@@ -215,7 +214,7 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
  * @see m0_be_alloc(), M0_ALLOC_PTR(), M0_BE_ALLOC_ARR().
  */
 #define M0_BE_ALLOC_PTR(seg, tx, op, shift, ptr)			\
-		M0_ALLOC_ARR(seg, tx, op, shift, ptr, 1)
+		M0_BE_ALLOC_ARR(seg, tx, op, shift, ptr, 1)
 
 /** @} end of be group */
 #endif /* __MERO_BE_ALLOC_H__ */

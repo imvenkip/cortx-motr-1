@@ -14,13 +14,17 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
  * Original creation date: 29-May-2013
  */
-
 #pragma once
 #ifndef __MERO_BE_BTREE_H__
 #define __MERO_BE_BTREE_H__
+
+#include "be/be.h"
+#include "be/seg.h"
+#include "lib/rwlock.h"
+#include "lib/buf.h"
 
 /**
  * @defgroup be
@@ -28,127 +32,184 @@
  * @{
  */
 
-#include "lib/rwlock.h"
-#include "lib/buf.h"
-#include "be/seg.h"
-#include "be/be.h"
-
-struct m0_be_tx;
+/* export */
+struct m0_be_btree;
 struct m0_be_bnode;
-struct m0_be_tx_credit;
 struct m0_be_btree_kv_ops;
 
-/**
- * Represents persistent storage based on inmemory btree which can be stored on
- * disk.
- */
+/* import */
+struct m0_be_tx;
+struct m0_be_tx_credit;
+
+/** In-memory B-tree, that can be stored on disk. */
 struct m0_be_btree {
-	/** Lock, taken when some operations are performed over the tree */
+	/** The lock to acquire when performing operations on the tree. */
 	struct m0_rwlock                 bb_lock;
-	/** Segment in which @bb_root node is being stored */
+	/** The segment where we are stored. */
 	struct m0_be_seg                *bb_seg;
-	/** Inmemory root node of the tree */
+	/** Root node of the tree. */
 	struct m0_be_bnode              *bb_root;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
 };
 
+struct m0_table;
+struct m0_table_ops;
+
+/** Btree operations vector. */
+struct m0_be_btree_kv_ops {
+	/** Size of key.  XXX RENAMEME? s/ko_ksize/ko_key_size/ */
+	m0_bcount_t (*ko_ksize)(const void *key);
+
+	/** Size of value.  XXX RENAMEME? s/ko_vsize/ko_val_size/
+	 */
+	m0_bcount_t (*ko_vsize)(const void *data);
+
+	/**
+	 * Key comparison function.
+	 *
+	 * Should return -ve, 0 or +ve value depending on how key0 and key1
+	 * compare in key ordering.
+	 *
+	 * XXX RENAMEME? s/ko_compare/ko_key_cmp/
+	 */
+	int         (*ko_compare)(const void *key0, const void *key1);
+
+	struct m0_table	    *ko_table;
+	const struct m0_table_ops *ko_table_ops;
+};
+
 /**
- * Possible persistent operations over the tree.
- * Enumeration items are being reused to define transaction credit types also.
+ * Type of persistent operation over the tree.
+ *
+ * These values are also re-used to define transaction credit types.
  */
 enum m0_be_btree_op {
-	M0_BBO_CREATE,	/**< used for m0_be_btree_create() */
-	M0_BBO_DESTROY, /**< used for m0_be_btree_destroy() */
-	M0_BBO_INSERT,  /**< used for m0_be_btree_{inplace_|}insert() */
-	M0_BBO_DELETE,  /**< used for m0_be_btree_{inplace_|}delete() */
-	M0_BBO_UPDATE,  /**< used for m0_be_btree_{inplace_|}update() */
-	M0_BBO_LOOKUP,  /**< used for m0_be_btree_lookup() */
-	M0_BBO_MAXKEY,  /**< used for m0_be_btree_maxkey() */
-	M0_BBO_MINKEY,  /**< used for m0_be_btree_minkey() */
-	M0_BBO_CURSOR_GET, /**<  used for m0_be_btree_cursor_get() */
-	M0_BBO_CURSOR_NEXT, /**< used for m0_be_btree_cursor_next() */
-	M0_BBO_CURSOR_PREV, /**< used for m0_be_btree_cursor_prev() */
+	M0_BBO_CREATE,	    /**< Used for m0_be_btree_create() */
+	M0_BBO_DESTROY,     /**< .. m0_be_btree_destroy() */
+	M0_BBO_INSERT,      /**< .. m0_be_btree_{,inplace_}insert() */
+	M0_BBO_DELETE,      /**< .. m0_be_btree_{,inplace_}delete() */
+	M0_BBO_UPDATE,      /**< .. m0_be_btree_{,inplace_}update() */
+	M0_BBO_LOOKUP,      /**< .. m0_be_btree_lookup() */
+	M0_BBO_MAXKEY,      /**< .. m0_be_btree_maxkey() */
+	M0_BBO_MINKEY,      /**< .. m0_be_btree_minkey() */
+	M0_BBO_CURSOR_GET,  /**< .. m0_be_btree_cursor_get() */
+	M0_BBO_CURSOR_NEXT, /**< .. m0_be_btree_cursor_next() */
+	M0_BBO_CURSOR_PREV, /**< .. m0_be_btree_cursor_prev() */
 };
-
-/**
- * Operations user has to define for the keys and values sored in the tree.
- */
-struct m0_be_btree_kv_ops {
-	/** Returns the key size */
-        m0_bcount_t   (*ko_ksize)   (const void *key);
-	/** Returns the value size */
-        m0_bcount_t   (*ko_vsize)   (const void *data);
-	/** @return 1 if key0 > key1, -1 if key0 < key2, 0 if key0 == key2 */
-        int           (*ko_compare) (const void *key0, const void *key1);
-};
-
 
 /* ------------------------------------------------------------------
- * Btree construction interface
+ * Btree construction
  * ------------------------------------------------------------------ */
 
 /**
- * Initalises internal structures of @tree and sets its root node to @root.
- * @root has to point on data lying inside @seg mapping.
- * In case when root == NULL, following m0_be_btree_create() sets tree root.
- *
- * @param root[in] root node of the tree stored in the m0_be_segment. If root is
- *                 NULL following m0_be_btree_create() call will create new root
+ * Initalises internal structures of the @tree (e.g., mutexes, @ops),
+ * located in virtual memory of the program and not in mmaped() segment
+ * memory.
  */
 M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
-				  struct m0_be_seg   *seg,
-				  const struct m0_be_btree_kv_ops *ops,
-				  struct m0_be_bnode *root);
+				  struct m0_be_seg *seg,
+				  const struct m0_be_btree_kv_ops *ops);
 
 /**
- * Finalizes in-memory structures of btree. Doesn't touch segment on the disk.
- * @see m0_be_btree_destroy() call which removes tree structures stored on the
- * disk.
+ * Finalises in-memory structures of btree.
+ *
+ * Does not touch segment on disk.
+ * @see m0_be_btree_destroy(), which does remove tree structure from the
+ * segment.
  */
 M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
 
 /**
- * Creates btree in its segment. Operation is asynchronous. User has to rely on
- * op::bo_sm state. When it transits into M0_BOS_SUCCESS btree is created in the
- * segment. In case of failure op::bo_sm is transitted into M0_BOS_FAILURE.
+ * Creates btree on segment.
  *
- * User has to use either m0_be_op_wait() or m0_be_op_tick_ret() when it's
- * needed to know that operation is finished.
+ * The operation is asynchronous. Use m0_be_op_wait() or
+ * m0_be_op_tick_ret() to wait for its completion.
  *
- * Use case:
- *     m0_be_btree_init(&tree, seg, kv_ops, NULL);
- *     m0_be_btree_create(&tree, tx, op);
- *     M0_ASSERT(m0_be_op_wait(op) == 0); // tree is created in its segment...
+ * Example:
+ * @code
+ *         m0_be_btree_init(&tree, seg, kv_ops);
+ *         m0_be_btree_create(&tree, tx, op);
+ *         rc = m0_be_op_wait(op);
+ *         if (rc == 0) {
+ *                 ... // work with newly created tree
+ *         }
+ * @endcode
  */
 M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op);
 
-/**
- * Destroys btree in its segment. @see m0_be_btree_create for more details.
- */
+/** Deletes btree from segment, asynchronously. */
 M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 				     struct m0_be_tx *tx,
 				     struct m0_be_op *op);
-
 
 /* ------------------------------------------------------------------
- * Btree manipulation interface
+ * Btree credits
  * ------------------------------------------------------------------ */
 
 /**
+ * Calculates the credit needed to create @nr nodes and adds this credit to
+ * @accum.
+ */
+M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
+					   m0_bcount_t nr,
+					   struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates the credit needed to destroy @nr nodes and adds this credit
+ * to @accum.
+ */
+M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree *tree,
+					    m0_bcount_t nr,
+					    struct m0_be_tx_credit *accum);
+
+/**
  * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform an operation over the @tree.
+ * m0_be_tx_credit, is needed to perform the insert operation over the @tree.
  * Function updates @accum structure which is an input for m0_be_tx_prep().
  *
- * @param optype operation type over the tree.
- * @param nr     number of @optype operations.
+ * @param nr     Number of @optype operations.
+ * @param ksize  Key data size.
+ * @param vsize  Value data size.
  */
-M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
-				    enum m0_be_btree_op optype,
-				    m0_bcount_t nr,
-				    struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
+					   m0_bcount_t nr,
+					   m0_bcount_t ksize,
+					   m0_bcount_t vsize,
+					   struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the delete operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr     Number of @optype operations.
+ * @param ksize  Key data size.
+ * @param vsize  Value data size.
+ */
+M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree *tree,
+						 m0_bcount_t nr,
+						 m0_bcount_t ksize,
+						 m0_bcount_t vsize,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates how many internal resources of tx_engine, described by
+ * m0_be_tx_credit, is needed to perform the update operation over the @tree.
+ * Function updates @accum structure which is an input for m0_be_tx_prep().
+ *
+ * @param nr  Number of @optype operations.
+ */
+M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
+						 m0_bcount_t nr,
+						 m0_bcount_t vsize,
+						 struct m0_be_tx_credit *accum);
+
+/* ------------------------------------------------------------------
+ * Btree manipulation
+ * ------------------------------------------------------------------ */
 
 /**
  * Inserts @key and @value into btree. Operation is asynchronous.
@@ -174,7 +235,9 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
- * Updates @key and @value into btree. Operation is asynchronous.
+ * Updates the @value at the @key in btree. Operation is asynchronous.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert()
  */
@@ -185,7 +248,9 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 				    const struct m0_buf *value);
 
 /**
- * Deletes @key and @value from btree. Operation is asynchronous.
+ * Deletes the entry by the given @key from btree. Operation is asynchronous.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert()
  */
@@ -195,7 +260,10 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 				    const struct m0_buf *key);
 
 /**
- * Looks up for a @dest_value for the given @key.
+ * Looks up for a @dest_value by the given @key in btree.
+ * The result is copied into provided @dest_value buffer.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_create() regarding @op structure "mission".
  */
@@ -221,18 +289,18 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
 M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
 				    struct m0_be_op *op,
 				    struct m0_buf *out);
-
 
 /* ------------------------------------------------------------------
- * Btree inplace manipulation interface
+ * Btree in-place manipulation
  * ------------------------------------------------------------------ */
 
 /**
- * Btree anchor, used to perform btree inplace operations in which neither keys
- * nor values are not being copied.
+ * Btree anchor, used to perform btree inplace operations in which
+ * values are not being copied and the ->bb_lock is not released
+ * until m0_be_btree_release() is called.
  *
  * In cases, when data in m0_be_btree_anchor::ba_value is updated,
- * m0_be_btree_release() has to capture the region data lies in.
+ * m0_be_btree_release() will capture the region data lies in.
  */
 struct m0_be_btree_anchor {
 	 /**
@@ -247,27 +315,27 @@ struct m0_be_btree_anchor {
 
 /**
  * Updates @value looked up by given @key in btree. Operation is asynchronous.
- * User can either use existing @value buffer and copy inserted data there or
- * allocate his own. The last assumes that both @value buffer and node buffer
- * in which key is inserted has to be captured prior to this call.
+ * User provides the size of the value buffer that will be updated
+ * via @anchor->ba_value.b_nob and gets the ready memory buffer
+ * via @anchor->ba_value.b_addr.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
  * @see m0_be_btree_insert, note0 - note2.
  *
- * Note3: m0_be_btree::bb_lock is being held inside this function. To do this,
- * user has to set @anchor::ba_write and lock will be held for write if it's
- * true and for read otherwize.
- *
- * Note3: Neither given @key nor @value is copied or allocated in the tree after
- * this call.
- *
  * Usage:
+ * @code
+ *         anchor->ba_value.b_nob = new_value_size;
+ *         m0_be_btree_update_inplace(tree, tx, op, key, anchor);
  *
- * m0_be_btree_update_inplace(tree, tx, op, key, anchor);
- * M0_ASSERT(m0_be_op_wait(op) == 0); // wait for the completion...
- * update(anchor->ba_value.b_addr, anchor->ba_value.b_nob);
- * m0_be_btree_release(tree, anchor);
- * ...
- * m0_be_tx_close(tx);
+ *         rc = m0_be_op_wait(op);
+ *         M0_ASSERT(rc == 0);
+ *
+ *         update(anchor->ba_value.b_addr);
+ *         m0_be_btree_release(tree, anchor);
+ *         ...
+ *         m0_be_tx_close(tx);
+ * @endcode
  */
 M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree *tree,
 					    struct m0_be_tx *tx,
@@ -290,6 +358,8 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
 /**
  * Looks up a value stored in the @tree by the given @key.
  *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
+ *
  * @see m0_be_btree_update_inplace()
  */
 M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
@@ -301,14 +371,29 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
  * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
  */
-M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
-				     struct m0_be_op *op,
+M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *tree,
+				     struct m0_be_tx                 *tx,
 				     const struct m0_be_btree_anchor *anchor);
-
 
 /* ------------------------------------------------------------------
- * Btree cursor interface
+ * Btree cursor
  * ------------------------------------------------------------------ */
+
+/**
+ * Btree cursor stack entry.
+ *
+ * Used for cursor depth-first in-order traversing.
+ */
+struct m0_be_btree_cursor_stack_entry {
+	struct m0_be_bnode *bs_node;
+	int                 bs_idx;
+};
+
+/** Btree configuration constants. */
+enum {
+	BTREE_FAN_OUT    =  5,
+	BTREE_HEIGHT_MAX = 15
+};
 
 /**
  * Btree cursor.
@@ -317,13 +402,12 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
  * with m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
  */
 struct m0_be_btree_cursor {
-	struct m0_be_bnode *bc_node;
-	unsigned int        bc_pos;
-	struct m0_be_bnode *bc_last_node;
-	unsigned int        bc_last_pos;
-
-	struct m0_be_btree *bc_tree;
-	struct m0_be_op     bc_op;
+	struct m0_be_bnode                   *bc_node;
+	int                                   bc_pos;
+	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
+	int                                   bc_stack_pos;
+	struct m0_be_btree                   *bc_tree;
+	struct m0_be_op                       bc_op; /* XXX DELETEME */
 };
 
 /**
@@ -358,10 +442,15 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
  * - m0_be_btree_cursor_fini();
  *
  * @param slant[in] if slant == true then cursor will return a minimum key not
- *  less than given, otherwize it'll be set on exact key if it's possible.
+ *  less than given, otherwise it'll be set on exact key if it's possible.
  */
 M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
 					const struct m0_buf *key, bool slant);
+
+/** Synchronous version of m0_be_btree_cursor_get(). */
+M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
+					    const struct m0_buf *key,
+					    bool slant);
 
 /**
  * Fills cursor internal buffers with next key and value obtained from the
@@ -380,6 +469,20 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
 M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cursor);
 
 /**
+ * Moves cursor to the first key in the btree.
+ *
+ * @note The call is synchronous.
+ */
+M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *cur);
+
+/**
+ * Moves cursor to the last key in the btree.
+ *
+ * @note The call is synchronous.
+ */
+M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur);
+
+/**
  * Unpins pages associated with cursor, releases cursor values.
  *
  * Note: interface is synchronous.
@@ -390,16 +493,18 @@ M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
  * Sets key and value buffers to point on internal structures of cursor
  * representing current key and value, cursor is placed on.
  *
+ * Any of @key and @val pointers can be NULL, but not both.
+ *
  * Note: interface is synchronous.
  */
-M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cursor,
+M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 					   struct m0_buf *key,
-					   struct m0_buf *value);
+					   struct m0_buf *val);
 
-
-
-
-M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree);
+/**
+ * @pre  tree->bb_root != NULL
+ */
+M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree);
 
 /** @} end of be group */
 #endif /* __MERO_BE_BTREE_H__ */

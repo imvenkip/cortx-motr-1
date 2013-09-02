@@ -23,13 +23,14 @@
 #ifndef __MERO_DB_DB_IMPL_H__
 #define __MERO_DB_DB_IMPL_H__
 
-#include <db.h>
-
 #include "lib/types.h"
 #include "lib/thread.h"
-#include "lib/tlist.h"
-#include "lib/mutex.h"
-#include "lib/cond.h"
+#include "sm/sm.h"
+
+#include "be/ut/helper.h"	/* XXX */
+
+struct m0_be_domain;
+struct m0_be_domain_cfg;
 
 /**
    @addtogroup db Data-base interfaces.
@@ -37,59 +38,43 @@
    @{
  */
 
-/**
-   db5-specific part of generic m0_dbenv.
+enum {
+	DB_TXN_NOWAIT = 0,
+};
 
-   Most fields are only updated when the environment is set up. Others (as noted
-   below) are protected by m0_dbenv_impl::d_lock.
- */
+/** be part of generic m0_dbenv. */
 struct m0_dbenv_impl {
-	/** db5 private handle */
-	DB_ENV            *d_env;
-	/** File stream where error messages for this dbenv are sent to. */
-	FILE              *d_errlog;
-	/** File stream where informational messages for this dbenv are sent
-	    to. */
-	FILE              *d_msglog;
-	/** Log cursor used to determine the current LSN. */
-	DB_LOGC           *d_logc;
-	/** Lock protecting waiters list. */
-	struct m0_mutex    d_lock;
-	/** A list of waiters (m0_db_tx_waiter). Protected by
-	    m0_dbenv_impl::d_lock.  */
-	struct m0_tl       d_waiters;
-	/** Thread for asynchronous environment related work. */
-	struct m0_thread   d_thread;
-	/** True iff the environment is being shut down. Protected by
-	    m0_dbenv_impl::d_lock.*/
-	bool               d_shutdown;
-	/** Condition variable signalled on shutdown. Signalled under
-	    m0_dbenv_impl::d_lock.*/
-	struct m0_cond     d_shutdown_cond;
+        /** Underlying domain on which db implementation is being built */
+        struct m0_be_domain *d_dom;
+	struct m0_be_seg    *d_seg;
+	struct m0_be_ut_backend	d_ut_be;
+	struct m0_be_ut_seg	d_ut_seg;
 };
 
 struct m0_table_impl {
-	/** db5 private table handle. */
-	DB              *t_db;
-	struct m0_mutex  t_lock;
+        struct m0_be_btree *i_tree;
+
 };
 
 struct m0_db_buf_impl {
-	DBT db_dbt;
+        struct m0_buf db_dbt;
+
 };
 
 struct m0_db_tx_impl {
-	/** A db5 private transaction handle. */
-	DB_TXN *dt_txn;
+        struct m0_be_tx *dt_txn;
+	struct m0_be_tx dt_tx;
+	struct m0_sm_ast dt_ast;
+	struct m0_semaphore dt_commit_sem;
+	struct m0_be_ut_backend *dt_ut_be;
 };
 
 struct m0_db_tx_waiter_impl {
-	/** An lsn from the transaction this wait is for. */
-	DB_LSN tw_lsn;
 };
 
 struct m0_db_cursor_impl {
-	DBC *c_dbc;
+        struct m0_be_btree_cursor *c_i;
+	bool c_after_delete;
 };
 
 /** @} end of db group */

@@ -19,96 +19,136 @@
  */
 
 #include "be/seg.h"		/* m0_be_seg */
-#include "be/tx_regmap.h"	/* m0_be_reg_area */
-#include "be/tx_credit.h"	/* M0_BE_TX_CREDIT */
+
+#include "lib/thread.h"		/* M0_THREAD_INIT */
+#include "lib/semaphore.h"	/* m0_semaphore */
+#include "lib/misc.h"		/* m0_forall */
+
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
-#include "lib/misc.h"		/* M0_BITS */
 
-static struct m0_be_ut_h be_ut_seg_h;
-static m0_bindex_t off = 256; /* slightly after the segment header */
-static char buf[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-static struct m0_be_reg_d area[] = {
-	{ .rd_reg = { .br_size =  8 }, .rd_buf = &buf[ 0] },
-	{ .rd_reg = { .br_size =  8 }, .rd_buf = &buf[ 8] },
-	{ .rd_reg = { .br_size = 16 }, .rd_buf = &buf[16] },
+#include <stdlib.h>		/* rand_r */
+
+enum {
+	BE_UT_SEG_SIZE	  = 0x20000,
+	BE_UT_SEG_IO_ITER = 0x400,
+	BE_UT_SEG_IO_OFFS = 0x10000,
+	BE_UT_SEG_IO_SIZE = 0x10000,
 };
-
-M0_INTERNAL void m0_be_ut_seg_init_fini(void)
-{
-	m0_be_ut_seg_storage_init();
-	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
-	m0_be_ut_seg_finalize(&be_ut_seg_h, true);
-	m0_be_ut_seg_storage_fini();
-}
-
-static void seg_write(struct m0_be_seg *seg)
-{
-	struct m0_be_reg_area ra;
-	struct m0_be_op	      op;
-	int		      i;
-	int		      rc;
-
-	m0_be_op_init(&op);
-
-	/* copy buf to the segment */
-	memcpy((char *) seg->bs_addr + off, buf, ARRAY_SIZE(buf));
-
-	for (i = 0; i < ARRAY_SIZE(area); ++i) {
-		area[i].rd_buf	       = NULL;
-		area[i].rd_reg.br_addr = (char *) seg->bs_addr + off + i*8;
-		area[i].rd_reg.br_seg  = seg;
-	}
-
-	rc = m0_be_reg_area_init(&ra, &M0_BE_TX_CREDIT(ARRAY_SIZE(area),
-						       ARRAY_SIZE(buf)));
-	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < ARRAY_SIZE(area); ++i)
-		m0_be_reg_area_capture(&ra, &area[i]);
-	m0_be_seg_write_simple(seg, &op, &ra);
-	m0_be_op_wait(&op);
-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-
-	m0_be_reg_area_fini(&ra);
-	m0_be_op_fini(&op);
-
-	for (i = 0; i < ARRAY_SIZE(area); ++i)
-		area[i].rd_buf = &buf[i*8];
-}
-
-M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
-{
-	m0_be_ut_seg_create(&be_ut_seg_h);
-	m0_be_ut_seg_destroy(&be_ut_seg_h);
-}
+M0_BASSERT(BE_UT_SEG_IO_OFFS + BE_UT_SEG_IO_SIZE <= BE_UT_SEG_SIZE);
 
 M0_INTERNAL void m0_be_ut_seg_open_close(void)
 {
-	m0_be_ut_seg_create_open(&be_ut_seg_h);
-	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
+	struct m0_be_ut_seg ut_seg;
+
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
+	m0_be_ut_seg_fini(&ut_seg);
 }
 
-M0_INTERNAL void m0_be_ut_seg_write(void)
+static void be_ut_seg_rand_reg(struct m0_be_reg *reg,
+			       void *seg_addr,
+			       m0_bindex_t *offset,
+			       m0_bcount_t *size,
+			       unsigned *seed)
 {
-	int rc;
-	int i;
+	*size	= rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2) + 1;
+	*offset = rand_r(seed) % (BE_UT_SEG_IO_SIZE / 2 - 1);
+	reg->br_addr = seg_addr + BE_UT_SEG_IO_OFFS + *offset;
+	reg->br_size = *size;
+}
 
-	m0_be_ut_seg_create_open(&be_ut_seg_h);
-	seg_write(&be_ut_seg_h.buh_seg);
-	m0_be_seg_close(&be_ut_seg_h.buh_seg);
-	rc = m0_be_seg_destroy(&be_ut_seg_h.buh_seg);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_ut_seg_finalize(&be_ut_seg_h, false);
+M0_INTERNAL void m0_be_ut_seg_io(void)
+{
+	struct m0_be_ut_seg ut_seg;
+	struct m0_be_seg   *seg;
+	struct m0_be_reg    reg;
+	struct m0_be_reg    reg_check;
+	m0_bindex_t	    offset;
+	m0_bcount_t	    size;
+	static char	    pre[BE_UT_SEG_IO_SIZE];
+	static char	    post[BE_UT_SEG_IO_SIZE];
+	static char	    rand[BE_UT_SEG_IO_SIZE];
+	unsigned	    seed;
+	int		    rc;
+	int		    i;
+	int		    j;
+	int		    cmp;
 
+	seed = 0;
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
+	seg = &ut_seg.bus_seg;
+	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
+			      seg->bs_addr + BE_UT_SEG_IO_OFFS);
+	for (i = 0; i < BE_UT_SEG_IO_ITER; ++i) {
+		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size, &seed);
+		reg.br_seg = seg;
+		for (j = 0; j < reg.br_size; ++j)
+			rand[j] = rand_r(&seed) & 0xFF;
 
-	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
-	rc = m0_be_seg_open(&be_ut_seg_h.buh_seg);
-	M0_ASSERT(rc == 0);
+		/* read segment before write operation */
+		rc = m0_be_seg__read(&reg_check, pre);
+		M0_UT_ASSERT(rc == 0);
+		/* write */
+		rc = m0_be_seg__write(&reg, rand);
+		M0_UT_ASSERT(rc == 0);
+		/* and read to check if it was written */
+		rc = m0_be_seg__read(&reg_check, post);
+		/* reload segment to test I/O operations in open()/close() */
+		m0_be_seg_close(seg);
+		rc = m0_be_seg_open(seg);
+		M0_UT_ASSERT(rc == 0);
 
-	for (i = 0; i < ARRAY_SIZE(area); ++i)
-		M0_UT_ASSERT(memcmp(area[i].rd_buf,
-				    area[i].rd_reg.br_addr,
-				    area[i].rd_reg.br_size) == 0);
+		for (j = 0; j < size; ++j)
+			pre[j + offset] = rand[j];
 
-	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
+		M0_CASSERT(ARRAY_SIZE(pre) == ARRAY_SIZE(post));
+		/*
+		 * check if data was written to stob
+		 * just after write operation
+		 */
+		cmp = memcmp(pre, post, ARRAY_SIZE(pre));
+		M0_UT_ASSERT(cmp == 0);
+		/* compare segment contents before and after reload */
+		cmp = memcmp(post, reg_check.br_addr, reg_check.br_size);
+		M0_UT_ASSERT(cmp == 0);
+	}
+	m0_be_ut_seg_fini(&ut_seg);
+}
+
+enum {
+	BE_UT_SEG_THREAD_NR	= 0x10,
+	BE_UT_SEG_PER_THREAD	= 0x10,
+	BE_UT_SEG_MULTIPLE_SIZE = 0x10000,
+};
+
+static void be_ut_seg_thread_func(struct m0_semaphore *barrier)
+{
+	struct m0_be_ut_seg ut_seg;
+	int		    i;
+
+	m0_semaphore_down(barrier);
+	for (i = 0; i < BE_UT_SEG_PER_THREAD; ++i) {
+		m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_MULTIPLE_SIZE);
+		m0_be_ut_seg_fini(&ut_seg);
+	}
+}
+
+void m0_be_ut_seg_multiple(void)
+{
+	static struct m0_thread threads[BE_UT_SEG_THREAD_NR];
+	struct m0_semaphore	barrier;
+	bool			rc_bool;
+
+	m0_semaphore_init(&barrier, 0);
+	rc_bool = m0_forall(i, ARRAY_SIZE(threads),
+			    M0_THREAD_INIT(&threads[i], struct m0_semaphore *,
+					   NULL, &be_ut_seg_thread_func,
+					   &barrier, "#%dbe-seg-ut", i) == 0);
+	M0_UT_ASSERT(rc_bool);
+	m0_forall(i, ARRAY_SIZE(threads), m0_semaphore_up(&barrier), true);
+	rc_bool = m0_forall(i, ARRAY_SIZE(threads),
+			    m0_thread_join(&threads[i]) == 0);
+	M0_UT_ASSERT(rc_bool);
+	m0_forall(i, ARRAY_SIZE(threads), m0_thread_fini(&threads[i]), true);
+	m0_semaphore_fini(&barrier);
 }

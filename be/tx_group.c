@@ -22,8 +22,11 @@
 #include "lib/trace.h"
 
 #include "be/tx_group.h"
-#include "be/tx.h"
-#include "fop/fom.h"  /* m0_fom_wakeup */
+#include "be/tx_internal.h"  /* m0_be_tx__reg_area */
+#include "be/log.h"          /* m0_be_log_stob */
+#include "be/engine.h"       /* m0_be_engine__tx_group_open */
+#include "lib/misc.h"        /* M0_SET0 */
+#include "lib/errno.h"       /* ENOSPC */
 
 /**
  * @addtogroup be
@@ -37,22 +40,19 @@ M0_TL_DESCR_DEFINE(grp, "m0_be_tx_group::tg_txs", M0_INTERNAL,
 
 M0_TL_DEFINE(grp, M0_INTERNAL, struct m0_be_tx);
 
+/* TODO move comments to be/log.[ch] */
+#if 0
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
 			       struct m0_stob *log_stob)
 {
-#if 0 /* Nikita's code. */
-	M0_SET0(gr);
-#else /*XXX*/
-	int rc;
+	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT_INIT(200000, 1ULL << 25);
+	int                    rc;
 
 	gr->tg_lsn = 0ULL;
-	m0_be_tx_credit_init(&gr->tg_used);
+	M0_SET0(&gr->tg_used);
 	grp_tlist_init(&gr->tg_txs);
-	gr->tg_opened = false; /* XXX because tx_fom.c:open_tick() */
-	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob,
-				     20, &M0_BE_TX_CREDIT(200000, 1ULL << 25));
+	rc = m0_be_group_ondisk_init(&gr->tg_od, log_stob, 20, &cred);
 	M0_ASSERT(rc == 0);
-#endif
 }
 
 M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr)
@@ -66,8 +66,6 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng /* XXX unused */,
 {
 	M0_ENTRY();
 
-	tx->t_group  = gr;
-	tx->t_leader = grp_tlist_is_empty(&gr->tg_txs);
 	/* tx will be moved to M0_BTS_GROUPED state by an AST. */
 	grp_tlist_add(&gr->tg_txs, tx);
 	/* gr->tg_used.     XXX: what's here? */
@@ -136,24 +134,196 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
 	 * finalised.
 	 */
 
-	/* XXX TODO ... */
-
-	gr->tg_opened = false;
-	/* m0_fom_wakeup(eng->te_fom); */
+	/* XXX TODO? */
 
 	M0_LEAVE();
 }
+#endif
 
-M0_INTERNAL void
-tx_group_open(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
+M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
 {
 	M0_ENTRY();
-	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
-
-	gr->tg_opened = true;
-	gr->tg_fom = eng->te_fom;
-
+	m0_be_tx_group_fom_stable(&gr->tg_fom);
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
+{
+	M0_ENTRY();
+	m0_be_tx_group_fom_handle(&gr->tg_fom, gr);
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
+{
+	M0_PRE(grp_tlist_is_empty(&gr->tg_txs));
+	M0_PRE(gr->tg_nr_unstable == 0);
+
+	M0_SET0(&gr->tg_used);
+	M0_SET0(&gr->tg_log_reserved);
+	m0_be_group_ondisk_reset(&gr->tg_od);
+	m0_be_tx_group_fom_reset(&gr->tg_fom);
+}
+
+M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
+				    struct m0_be_tx_credit *size_max,
+				    size_t tx_nr_max,
+				    struct m0_be_engine *en,
+				    struct m0_be_log *log,
+				    struct m0_reqh *reqh)
+{
+	int rc;
+
+	*gr = (struct m0_be_tx_group) {
+		.tg_size      = *size_max,
+		.tg_tx_nr_max = tx_nr_max,
+		.tg_log       = log,
+		.tg_engine    = en,
+	};
+	grp_tlist_init(&gr->tg_txs);
+	/* XXX make the same paremeters order for m0_be_tx_group_ondisk */
+	rc = m0_be_group_ondisk_init(&gr->tg_od, m0_be_log_stob(log),
+				     tx_nr_max, &gr->tg_size);
+	if (rc == 0) {
+		m0_be_tx_group_fom_init(&gr->tg_fom, reqh);
+		m0_be_tx_group_reset(gr);
+	}
+	return rc;
+}
+
+M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
+{
+	m0_be_tx_group_fom_fini(&gr->tg_fom);
+	m0_be_group_ondisk_fini(&gr->tg_od);
+	grp_tlist_fini(&gr->tg_txs);
+}
+
+M0_INTERNAL int
+m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+{
+	struct m0_be_tx_credit group_used = gr->tg_used;
+	struct m0_be_tx_credit tx_used;
+	int		       rc;
+
+	M0_ENTRY();
+
+	m0_be_reg_area_used(m0_be_tx__reg_area(tx), &tx_used);
+	m0_be_tx_credit_add(&group_used, &tx_used);
+
+	if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
+	    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {
+		grp_tlink_init_at(tx, &gr->tg_txs);
+		gr->tg_used = group_used;
+		M0_CNT_INC(gr->tg_nr_unstable);
+		rc = 0;
+	} else {
+		rc = -ENOSPC;
+	}
+
+	M0_RETURN(rc);
+}
+
+M0_INTERNAL void
+m0_be_tx_group_tx_del(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+{
+	grp_tlink_del_fini(tx);
+}
+
+M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr)
+{
+	struct m0_be_tx *tx;
+
+	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
+		m0_be_tx_group_tx_del(gr, tx);
+	} M0_BE_TX_GROUP_TX_ENDFOR;
+}
+
+M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr)
+{
+	return grp_tlist_length(&gr->tg_txs);
+}
+
+M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr)
+{
+	m0_be_engine__tx_group_open(gr->tg_engine, gr);
+}
+
+M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)
+{
+	m0_be_tx_group_fom_start(&gr->tg_fom);
+}
+
+M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
+{
+	m0_be_tx_group_fom_stop(&gr->tg_fom);
+}
+
+M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr)
+{
+	m0_be_log_discard(gr->tg_log, &gr->tg_log_reserved);
+}
+
+M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
+{
+	return grp_tlist_length(&gr->tg_txs);
+}
+
+static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
+				     struct m0_be_op *op)
+{
+	M0_BE_TX_CREDIT(zero);
+
+	if (m0_be_tx_credit_eq(&gr->tg_used, &zero)) {
+		m0_be_op_state_set(op, M0_BOS_ACTIVE);
+		m0_be_op_state_set(op, M0_BOS_SUCCESS);
+		return true;
+	}
+	return false;
+}
+
+M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
+				     struct m0_be_op *op)
+{
+	int rc;
+
+	/** XXX FIXME move somewhere else */
+	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
+
+	if (be_tx_group_empty_handle(gr, op)) {
+		m0_be_log_fake_io(gr->tg_log, &gr->tg_log_reserved);
+		return;
+	}
+
+	/** XXX FIXME: write with single call to m0_be_log function */
+	m0_be_log_submit(gr->tg_log, op, gr);
+	rc = m0_be_op_wait(op);
+	M0_ASSERT(rc == 0);
+	/* XXX dirty hack */
+	m0_be_op_fini(op);
+	m0_be_op_init(op);
+	m0_be_log_commit(gr->tg_log, op, gr);
+}
+
+M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
+				       struct m0_be_op *op)
+{
+	if (be_tx_group_empty_handle(gr, op))
+		return;
+
+	m0_be_io_launch(&gr->tg_od.go_io_seg, op);
+}
+
+M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
+					       enum m0_be_tx_state state,
+					       bool del_tx_from_group)
+{
+	struct m0_be_tx *tx;
+
+	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
+		if (del_tx_from_group)
+			m0_be_tx_group_tx_del(gr, tx);
+		m0_be_tx__state_post(tx, state);
+	} M0_BE_TX_GROUP_TX_ENDFOR;
 }
 
 /** @} end of be group */

@@ -25,6 +25,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -133,30 +134,26 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 		m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
-M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
-			     const struct m0_reqh_init_args *reqh_args)
+M0_INTERNAL int
+m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 {
-	int result;
+	int rc;
 
-	M0_PRE(reqh != NULL);
-
-	reqh->rh_dtm             = reqh_args->rhia_dtm;
-	reqh->rh_dbenv           = reqh_args->rhia_db;
-	reqh->rh_svc             = reqh_args->rhia_svc;
-	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
-	reqh->rh_fol             = reqh_args->rhia_fol;
+	reqh->rh_dtm     = reqh_args->rhia_dtm;
+	reqh->rh_dbenv   = reqh_args->rhia_db;
+	reqh->rh_svc     = reqh_args->rhia_svc;
+	reqh->rh_mdstore = reqh_args->rhia_mdstore;
+	reqh->rh_fol     = reqh_args->rhia_fol;
 
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
-	result = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
-	if (result != 0)
-		return result;
+	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+	if (rc != 0)
+		return rc;
 
-	result = m0_layout_standard_types_register(&reqh->rh_ldom);
-	if (result != 0) {
-		m0_layout_domain_fini(&reqh->rh_ldom);
-		return result;
-	}
+	rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+	if (rc != 0)
+		goto layout_dom_fini;
 
 	if (reqh->rh_fol != NULL)
 		reqh->rh_fol->f_reqh = reqh;
@@ -180,37 +177,29 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 		m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
 		m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
 
-		result = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
-						reqh_args->rhia_addb_stob,
-						addb_stob_seg_size,
-						addb_stob_size,
-						addb_stob_timeout);
-		if (result != 0) {
-			m0_layout_standard_types_unregister(&reqh->rh_ldom);
-			m0_layout_domain_fini(&reqh->rh_ldom);
-			return result;
-		}
+		rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
+						    reqh_args->rhia_addb_stob,
+						    addb_stob_seg_size,
+						    addb_stob_size,
+						    addb_stob_timeout);
+		if (rc != 0)
+			goto layout_types_unreg;
 
 		m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
 		if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
 			m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
 		M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
 				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-#else
-		M0_ASSERT(reqh_args->rhia_addb_stob);
 #endif
-	} else { /** For UT specifically */
+	} else { /* for UT specifically */
 		M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
 				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 	}
 
 	reqh->rh_fom_dom.fd_reqh = reqh;
-	result = m0_fom_domain_init(&reqh->rh_fom_dom);
-	if (result != 0) {
-		m0_layout_standard_types_unregister(&reqh->rh_ldom);
-		m0_layout_domain_fini(&reqh->rh_ldom);
-		return result;
-	}
+	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
+	if (rc != 0)
+		goto layout_types_unreg;
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
@@ -221,15 +210,19 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
 		   &reqh->rh_sm_grp);
 	m0_reqh_lockers_init(reqh);
-	M0_POST(m0_reqh_invariant(reqh));
 
-	return result;
+	M0_POST(m0_reqh_invariant(reqh));
+	return 0;
+
+layout_types_unreg:
+	m0_layout_standard_types_unregister(&reqh->rh_ldom);
+layout_dom_fini:
+	m0_layout_domain_fini(&reqh->rh_ldom);
+	return rc;
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-	M0_PRE(reqh != NULL);
-
 	m0_layout_standard_types_unregister(&reqh->rh_ldom);
 	m0_layout_domain_fini(&reqh->rh_ldom);
 	m0_sm_group_lock(&reqh->rh_sm_grp);

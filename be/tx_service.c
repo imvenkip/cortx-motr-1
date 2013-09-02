@@ -26,6 +26,7 @@
 #define M0_ADDB_CT_CREATE_DEFINITION
 #include "addb/addb.h"
 
+#include "be/be.h"
 #include "be/tx_service.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
