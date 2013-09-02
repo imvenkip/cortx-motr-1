@@ -55,7 +55,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 	id = ag->cag_id;
 	sns_ag = ag2snsag(ag);
 	scp = cp2snscp(cp);
-	m0_cm_lock(ag->cag_cm);
+	m0_cm_ag_lock(ag);
 
         M0_LOG(M0_DEBUG, "xform: id [%lu] [%lu] [%lu] [%lu] local_cp_nr: [%lu]\
 	       transformed_cp_nr: [%lu] has_incoming: %d\n",
@@ -77,7 +77,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 		rc = M0_FSO_WAIT;
 	} else
 		rc = cp->c_ops->co_phase_next(cp);
-	m0_cm_unlock(ag->cag_cm);
+	m0_cm_ag_unlock(ag);
 
 	return rc;
 }

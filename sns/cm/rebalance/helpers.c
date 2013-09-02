@@ -58,6 +58,7 @@ static uint64_t rebalance_ag_unit_end(const struct m0_pdclust_layout *pl)
 M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 					     struct m0_sns_cm_cp *scp)
 {
+	struct m0_cm               *cm;
 	struct m0_poolmach         *pm;
 	struct m0_pdclust_layout   *pl;
 	struct m0_fid               gfid;
@@ -68,6 +69,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	int                         i;
 	int                         rc = 0;
 
+	cm = sag->sag_base.cag_cm;
+	m0_cm_lock(cm);
 	pm = sag->sag_base.cag_cm->cm_pm;
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
 	agid2fid(&sag->sag_base.cag_id, &gfid);
@@ -109,6 +112,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 			m0_sns_cm_cp_tgt_info_fill(scp, &cobfid, offset, i);
 		}
 	}
+	m0_cm_unlock(cm);
 
 	return rc;
 }
