@@ -60,7 +60,6 @@ static const struct m0_reqh_service_ops *mgmt_svc_ops;
 static struct m0_reqh_service_ops mgmt_svc_ut_ops;
 static int mgmt_svc_rso_fop_accept_rc;
 static int mgmt_svc_rso_fop_accept_called;
-static struct m0_dbenv mgmt_svc_dbenv;
 static struct m0_fol s_fol;
 
 static int mgmt_svc_ut_rso_fop_accept(struct m0_reqh_service *service,
@@ -126,7 +125,7 @@ static struct m0_reqh *reqh_init()
 	M0_ALLOC_PTR(rh);
 	M0_UT_ASSERT(rh != NULL);
 	rc = M0_REQH_INIT(rh,
-			  .rhia_db      = &mgmt_svc_dbenv,
+			  .rhia_db      = NULL,
 			  .rhia_mdstore = (void *)1,
 			  .rhia_fol     = &s_fol);
 	M0_UT_ASSERT(rc == 0);
@@ -595,10 +594,6 @@ static void test_status_query(void)
 
 static int test_init(void)
 {
-	int rc;
-
-	rc = m0_dbenv_init(&mgmt_svc_dbenv, "something", 0);
-	M0_ASSERT(rc == 0);
 	m0_xc_mgmt_svc_ut_init();
 	return m0_reqh_service_type_register(&m0_mgmt_svc_ut_svc_type) ?:
 		mgmt_svc_ut_fake_fop_init();
@@ -609,7 +604,6 @@ static int test_fini(void)
 	mgmt_svc_ut_fake_fop_fini();
         m0_reqh_service_type_unregister(&m0_mgmt_svc_ut_svc_type);
 	m0_xc_mgmt_svc_ut_fini();
-	m0_dbenv_fini(&mgmt_svc_dbenv);
 	return 0;
 }
 
