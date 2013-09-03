@@ -60,7 +60,6 @@
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "conf/addb.h"        /* m0_conf_addb_init */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
-#  include "yaml2db/yaml2db.h"  /* m0_yaml2db_mod_init */
 #endif
 #include "cob/cob.h"
 #include "ioservice/io_fops.h"
@@ -160,7 +159,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
-	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 };

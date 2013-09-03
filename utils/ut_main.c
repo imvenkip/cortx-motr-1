@@ -95,7 +95,6 @@ extern const struct m0_test_suite udb_ut;
 extern const struct m0_test_suite xcode_bufvec_fop_ut;
 extern const struct m0_test_suite xcode_ff2c_ut;
 extern const struct m0_test_suite xcode_ut;
-extern const struct m0_test_suite yaml2db_ut;
 
 void add_uts(void)
 {
@@ -162,7 +161,6 @@ void add_uts(void)
         // m0_ut_add(&mdservice_ut);	/* freeze */
 	/* These tests have redirection of messages. */
 	m0_ut_add(&console_ut);
-	// m0_ut_add(&yaml2db_ut);	/* m0_db_tx_abort() */
 }
 
 int main(int argc, char *argv[])
