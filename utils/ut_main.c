@@ -168,6 +168,8 @@ int main(int argc, char *argv[])
 	int   result               = EXIT_SUCCESS;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
+	bool  list_owners          = false;
+	bool  use_yaml_format      = false;
 	bool  keep_sandbox         = false;
 	bool  finject_stats_before = false;
 	bool  finject_stats_after  = false;
@@ -243,6 +245,13 @@ int main(int argc, char *argv[])
 				LAMBDA(void, (void) {
 						list_ut = true;
 						with_tests = true;
+				})),
+		    M0_FLAGARG('o', "list test owners",
+				&list_owners),
+		    M0_VOIDARG('O', "list test owners in YAML format",
+				LAMBDA(void, (void) {
+						list_owners = true;
+						use_yaml_format = true;
 				})),
 		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
 				      "[:test]]'",
@@ -324,12 +333,13 @@ int main(int argc, char *argv[])
 	}
 
 	/* check conflicting options */
-	if ((cfg.urc_mode != M0_UT_BASIC_MODE && (list_ut ||
+	if ((cfg.urc_mode != M0_UT_BASIC_MODE && (list_ut || list_owners ||
 	     test_list_str != NULL || exclude_list_str != NULL)) ||
-	     (list_ut && (test_list_str != NULL || exclude_list_str != NULL)))
+	     (list_ut && (test_list_str != NULL || exclude_list_str != NULL)) ||
+	     (list_ut && list_owners))
 	{
 		fprintf(stderr, "Error: conflicting options: only one of the"
-				" -i -I -a -l -L -t -x option can be used at"
+				" -i -I -a -l -L -o -t -x option can be used at"
 				" the same time\n");
 		result = EXIT_FAILURE;
 		goto out;
@@ -347,6 +357,8 @@ int main(int argc, char *argv[])
 
 	if (list_ut)
 		m0_ut_list(with_tests);
+	else if (list_owners)
+		m0_ut_owners_list(use_yaml_format);
 	else
 		m0_ut_run(&cfg);
 
