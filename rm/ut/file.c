@@ -218,6 +218,8 @@ void test_verify(enum flock_tests test_id)
 {
 	struct m0_rm_owner *clnt = rm_ctx[SERVER_1].rc_test_data.rd_owner;
 	struct m0_rm_owner *srv  = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_sm_group *smgrp;
+	bool                validation_lock = false;
 
 	switch(test_id) {
 	case LOCK_ON_CLIENT_TEST:
@@ -233,11 +235,18 @@ void test_verify(enum flock_tests test_id)
 		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
 		break;
 	case DISTRIBUTED_LOCK_TEST:
+		smgrp = owner_grp(srv);
+		if (!m0_mutex_is_locked(&smgrp->s_lock)) {
+			validation_lock = true;
+			m0_rm_owner_lock(srv);
+		}
 		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet) ||
 			     !m0_rm_ur_tlist_is_empty(
                                 &srv->ro_owned[OWOS_CACHED]) ||
 			     !m0_rm_ur_tlist_is_empty(
                                 &srv->ro_owned[OWOS_HELD]));
+		if (validation_lock)
+			m0_rm_owner_unlock(srv);
 		break;
 	default:
 		break;
