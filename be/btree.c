@@ -1429,6 +1429,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
 		vsize = be_btree_vsize(btree, kv->val);
 		if (vsize < dest_value->b_nob)
 			dest_value->b_nob = vsize;
+		/* XXX handle vsize > dest_value->b_nob */
 		memcpy(dest_value->b_addr, kv->val, dest_value->b_nob);
 		op_tree(op)->t_rc = 0;
 	} else
@@ -1454,8 +1455,7 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
 
 	key = btree_get_max_key(btree);
 	op_tree(op)->t_rc = key == NULL ? -ENOENT : 0;
-	if (op_tree(op)->t_rc == 0)
-		m0_buf_init(out, key, be_btree_ksize(btree, key));
+	m0_buf_init(out, key, key == NULL ? 0 : be_btree_ksize(btree, key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
@@ -1477,8 +1477,7 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
 
 	key = btree_get_min_key(btree);
 	op_tree(op)->t_rc = key == NULL ? -ENOENT : 0;
-	if (op_tree(op)->t_rc == 0)
-		m0_buf_init(out, key, be_btree_ksize(btree, key));
+	m0_buf_init(out, key, key == NULL ? 0 : be_btree_ksize(btree, key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
