@@ -52,6 +52,7 @@ extern void test_hashtable(void);
 
 const struct m0_test_suite libm0_ut = {
 	.ts_name = "libm0-ut",
+	.ts_owners = "Nikita",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
@@ -63,7 +64,7 @@ const struct m0_test_suite libm0_ut = {
 		{ "chan",             test_chan          },
 		{ "cookie",           test_cookie        },
 #ifdef ENABLE_FAULT_INJECTION
-		{ "finject",          test_finject       },
+		{ "finject",          test_finject,      "Dima" },
 #endif
 		{ "getopts",          test_getopts       },
 		{ "hash",	      test_hashtable     },
@@ -79,9 +80,9 @@ const struct m0_test_suite libm0_ut = {
 		{ "refs",             test_refs          },
 		{ "thread",           test_thread        },
 		{ "time",             m0_ut_time_test	 },
-		{ "timer",            test_timer         },
+		{ "timer",            test_timer,        "Max" },
 		{ "tlist",            test_tlist         },
-		{ "trace",            test_trace         },
+		{ "trace",            test_trace,        "Dima, Andriy" },
 		{ "uuid",             m0_test_lib_uuid   },
 		{ "vec",              test_vec           },
 		{ "zerovec",          test_zerovec       },

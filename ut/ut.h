@@ -71,13 +71,22 @@ struct m0_test {
 	   pointer to testing procedure
 	 */
 	void      (*t_proc)(void);
+	/**
+	   test's owner name
+	 */
+	const char *t_owner;
 };
 
 struct m0_test_suite {
+	struct m0_list_link  ts_linkage;
 	/**
 	   name of a suite
 	*/
 	const char           *ts_name;
+	/**
+	   suite owners names
+	*/
+	const char           *ts_owners;
 	/**
 	   function to prepare tests in suite
 
@@ -172,6 +181,11 @@ void m0_ut_run(void);
  @return NONE
  */
 M0_INTERNAL void m0_ut_list(bool with_tests);
+
+/**
+ * Print owners of all UTs on STDOUT
+ */
+M0_INTERNAL void m0_ut_owners_list(bool yaml);
 
 /**
  commonly used test database reset function
