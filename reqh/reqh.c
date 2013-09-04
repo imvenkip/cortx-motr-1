@@ -151,17 +151,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
-	if (reqh->rh_dbenv != NULL) {
-#if 0 /* XXX_BE_DB */
-		rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
-		if (rc != 0)
-			return rc;
-		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
-		if (rc != 0)
-			goto layout_dom_fini;
-#endif
-	}
-
 	if (reqh->rh_fol != NULL)
 		reqh->rh_fol->f_reqh = reqh;
 
@@ -181,7 +170,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	reqh->rh_fom_dom.fd_reqh = reqh;
 	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
 	if (rc != 0)
-		goto layout_types_unreg;
+		return rc;
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
@@ -193,16 +182,30 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		   &reqh->rh_sm_grp);
 	m0_reqh_lockers_init(reqh);
 
-	M0_POST(m0_reqh_invariant(reqh));
-	return 0;
+	if (reqh->rh_dbenv != NULL)
+		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv);
 
-layout_types_unreg:
+	M0_POST(m0_reqh_invariant(reqh));
+
+	return rc;
+}
+
+M0_INTERNAL int
+m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *dbenv)
+{
+	int rc = 0;
+
+	M0_PRE(dbenv != NULL);
+
+	reqh->rh_dbenv = dbenv;
+
 #if 0 /* XXX_BE_DB */
-	if (reqh->rh_dbenv != NULL)
-		m0_layout_standard_types_unregister(&reqh->rh_ldom);
-layout_dom_fini:
-	if (reqh->rh_dbenv != NULL)
-		m0_layout_domain_fini(&reqh->rh_ldom);
+	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+	if (rc == 0) {
+		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+		if (rc != 0)
+			m0_layout_domain_fini(&reqh->rh_ldom);
+	}
 #endif
 
 	return rc;

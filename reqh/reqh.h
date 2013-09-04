@@ -32,6 +32,7 @@
 #include "fop/fom.h"
 #include "layout/layout.h"
 #include "ha/epoch.h"
+#include "be/ut/helper.h"	/* XXX: prototype solution */
 
 /**
    @defgroup reqh Request handler
@@ -208,6 +209,14 @@ struct m0_reqh_init_args {
  */
 M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 			     const struct m0_reqh_init_args *args);
+
+/**
+   Initialises db-dependant part of request handler.
+
+   @pre dbenv != NULL
+ */
+M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
+				   struct m0_be_seg *dbenv);
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
 
