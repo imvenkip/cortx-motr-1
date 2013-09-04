@@ -258,7 +258,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	*cfg = (struct m0_be_domain_cfg) {
 		.bc_engine = {
 			.bec_group_nr = 1,
-			.bec_log_size = 1 << 27,
+			.bec_log_size = 1 << 29,
 			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
 				1 << 20, 1 << 26),
 			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
