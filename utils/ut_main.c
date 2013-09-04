@@ -124,7 +124,7 @@ void add_uts(void)
 	m0_ut_add(&ios_bufferpool_ut);
 	m0_ut_add(&item_ut);
 	m0_ut_add(&item_source_ut);
-	// m0_ut_add(&layout_ut); /* layout-lookup: too much time */
+	m0_ut_add(&layout_ut);
 	// m0_ut_add(&m0_addb_ut);	/* addb-rpc-sink-shutdown: SIGSEGV */
 	m0_ut_add(&m0_fop_lock_ut);
 	m0_ut_add(&m0_fom_stats_ut);
