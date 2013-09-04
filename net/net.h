@@ -41,7 +41,7 @@
 #include "lib/vec.h"
 #include "addb/addb.h"
 #include "net/net_otw_types.h"
-//XXX_BE_DB #include "net/net_otw_types_xc.h"
+#include "net/net_otw_types_xc.h"
 
 /**
    @defgroup net Networking

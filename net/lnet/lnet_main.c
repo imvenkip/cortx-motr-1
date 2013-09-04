@@ -906,12 +906,9 @@ M0_INTERNAL int m0_net_lnet_init(void)
 {
 	int rc;
 
-#undef CT_REG
-#define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_##n)
-	CT_REG(mod);
-	CT_REG(dom);
-	CT_REG(tm);
-#undef CT_REG
+	m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_dom);
+	m0_addb_ctx_type_register(&m0_addb_ct_net_lnet_tm);
 
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_net_lnet_addb_ctx,
 			 &m0_addb_ct_net_lnet_mod, &m0_net_addb_ctx);
