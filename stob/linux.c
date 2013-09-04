@@ -348,7 +348,7 @@ static int linux_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 /**
    Implementation of m0_stob_op::sop_locate().
  */
-static int linux_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
+static int linux_stob_locate(struct m0_stob *obj)
 {
 	int oflags = O_RDWR;
 	struct linux_domain *ldom;

@@ -218,7 +218,7 @@ static int test_ad_init(void)
 				    M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
-	result = m0_stob_locate(obj_fore, &tx);
+	result = m0_stob_locate(obj_fore);
 	M0_ASSERT(result == 0 || result == -ENOENT);
 	if (result == -ENOENT) {
 		result = m0_stob_create(obj_fore, &tx);

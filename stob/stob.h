@@ -257,7 +257,7 @@ struct m0_stob_op {
 	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
 	*/
-	int (*sop_locate)(struct m0_stob *obj, struct m0_dtx *tx);
+	int (*sop_locate)(struct m0_stob *obj);
 
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
@@ -328,7 +328,7 @@ M0_INTERNAL void m0_stob_fini(struct m0_stob *obj);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
    @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
-M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx);
+M0_INTERNAL int m0_stob_locate(struct m0_stob *obj);
 
 /**
    Create an object.
@@ -339,6 +339,10 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
 M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx);
+
+/** Calculate BE tx credit for m0_stob_create() */
+M0_INTERNAL void m0_stob_create_credit(struct m0_stob *obj,
+					struct m0_be_tx_credit *accum);
 
 /**
    Acquires an additional reference on the object.
@@ -376,6 +380,11 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 				      struct m0_dtx *dtx,
 				      const struct m0_stob_id *stob_id,
 				      struct m0_stob **out);
+
+/** Calculate BE tx credit for m0_stob_create_helper() */
+M0_INTERNAL void m0_stob_create_helper_credit(struct m0_stob_domain *dom,
+				      const struct m0_stob_id *stob_id,
+				      struct m0_be_tx_credit *accum);
 
 /**
    @name adieu

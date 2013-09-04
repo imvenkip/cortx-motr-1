@@ -526,8 +526,7 @@ static void ad_stob_create_credit(struct m0_stob *obj,
 }
 
 static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
-		     uint64_t offset, struct m0_dtx *tx,
-		     struct m0_be_emap_cursor *it)
+		     uint64_t offset, struct m0_be_emap_cursor *it)
 {
 	int rc;
 
@@ -546,7 +545,7 @@ static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
 /**
    Implementation of m0_stob_op::sop_locate().
  */
-static int ad_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
+static int ad_stob_locate(struct m0_stob *obj)
 {
 	struct m0_be_emap_cursor it;
 	int                      result;
@@ -554,7 +553,7 @@ static int ad_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
 
 	adom = domain2ad(obj->so_domain);
 	M0_PRE(adom->ad_setup);
-	result = ad_cursor(adom, obj, 0, tx, &it);
+	result = ad_cursor(adom, obj, 0, &it);
 	if (result == 0)
 		m0_be_emap_close(&it);
 	else if (result == -ESRCH)
@@ -779,8 +778,7 @@ static int ad_cursors_init(struct m0_stob_io *io, struct ad_domain *adom,
 {
 	int result;
 
-	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0],
-			   io->si_tx, it);
+	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0], it);
 	if (result == 0) {
 		m0_vec_cursor_init(src, &io->si_user.ov_vec);
 		m0_vec_cursor_init(dst, &io->si_stob.iv_vec);

@@ -89,7 +89,7 @@ static int test_adieu_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = m0_stob_locate(obj, NULL);
+	result = m0_stob_locate(obj);
 	M0_ASSERT(result == -ENOENT);
 	M0_ASSERT(obj->so_state == CSS_NOENT);
 
@@ -114,7 +114,7 @@ static int test_adieu_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj->so_state == CSS_EXISTS); /* still in the cache. */
 
-	result = m0_stob_locate(obj, NULL);
+	result = m0_stob_locate(obj);
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj->so_state == CSS_EXISTS);
 

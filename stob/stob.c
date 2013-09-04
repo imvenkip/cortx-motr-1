@@ -158,13 +158,13 @@ M0_INTERNAL void m0_stob_fini(struct m0_stob *obj)
 
 M0_BASSERT(sizeof(struct m0_uint128) == sizeof(struct m0_stob_id));
 
-M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
+M0_INTERNAL int m0_stob_locate(struct m0_stob *obj)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
-		result = obj->so_op->sop_locate(obj, tx);
+		result = obj->so_op->sop_locate(obj);
 		switch (result) {
 		case 0:
 			obj->so_state = CSS_EXISTS;
@@ -211,6 +211,13 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 	}
 	M0_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
 	return result;
+}
+
+M0_INTERNAL void m0_stob_create_credit(struct m0_stob *obj,
+					struct m0_be_tx_credit *accum)
+{
+	if (obj->so_op->sop_create_credit != NULL)
+		obj->so_op->sop_create_credit(obj, accum);
 }
 
 M0_INTERNAL void m0_stob_get(struct m0_stob *obj)
@@ -352,7 +359,7 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 		 * point.
 		 */
 		if (stob->so_state == CSS_UNKNOWN)
-			rc = m0_stob_locate(stob, dtx);
+			rc = m0_stob_locate(stob);
 		if (stob->so_state == CSS_NOENT)
 			rc = m0_stob_create(stob, dtx);
 
@@ -361,6 +368,20 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 			m0_stob_put(stob);
 	}
 	return rc;
+}
+
+M0_INTERNAL void m0_stob_create_helper_credit(struct m0_stob_domain *dom,
+				      const struct m0_stob_id *stob_id,
+				      struct m0_be_tx_credit *accum)
+{
+	struct m0_stob *stob;
+	int             rc;
+
+	rc = m0_stob_find(dom, stob_id, &stob);
+	if (rc == 0) {
+		m0_stob_create_credit(stob, accum);
+		m0_stob_put(stob);
+	}
 }
 
 M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
