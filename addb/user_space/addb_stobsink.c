@@ -664,6 +664,7 @@ static void stobsink_offset_search(struct stobsink *sink, uint64_t first_seq_nr)
  */
 static bool stobsink_chan_cb(struct m0_clink *link)
 {
+	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
 	struct stobsink_poolbuf *pb =
 	    container_of(link, struct stobsink_poolbuf, spb_wait);
 	bool sync;
@@ -678,8 +679,11 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 		       pb->spb_sink->ss_bshift,
 		       pb->spb_io.si_rc);
 	/** @todo alert some component if the operation fails */
-	if (pb->spb_tx.tx_state == M0_DTX_OPEN)
+	if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
+		m0_sm_group_lock(grp);
 		m0_dtx_done_sync(&pb->spb_tx);
+		m0_sm_group_unlock(grp);
+	}
 	m0_mutex_unlock(&pb->spb_sink->ss_mutex);
 	return !sync;
 }
@@ -823,8 +827,9 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 			m0_sm_group_unlock(grp);
 			m0_mutex_lock(&sink->ss_mutex);
 			pb->spb_busy = false;
-			M0_LOG(M0_ERROR, "segment tx_make for offset=%ld "
+			M0_LOG(M0_ERROR, "%s: tx_make for offset=%ld "
 					 "and size=%ld failed: rc=%d",
+				dom->sd_name,
 				(long)offset,
 				(long)m0_vec_count(&pb->spb_io.si_user.ov_vec), rc);
 			/** @todo alert some component that the db/tx has failed */
