@@ -96,15 +96,15 @@ static void ub_add(const struct ub_args *args)
 	 * These benchmarks are executed in reverse order from the way
 	 * they are listed here.
 	 */
-//XXX_BE_DB 	m0_ub_set_add(&m0_trace_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_tlist_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_time_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_thread_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_rpc_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_parity_math_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_memory_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_list_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_fom_ub);
+	m0_ub_set_add(&m0_trace_ub);
+	m0_ub_set_add(&m0_tlist_ub);
+	m0_ub_set_add(&m0_time_ub);
+	m0_ub_set_add(&m0_thread_ub);
+	m0_ub_set_add(&m0_rpc_ub);
+//XXX_BE_DB	m0_ub_set_add(&m0_parity_math_ub);
+	m0_ub_set_add(&m0_memory_ub);
+	m0_ub_set_add(&m0_list_ub);
+	m0_ub_set_add(&m0_fom_ub);
 	m0_ub_set_add(&m0_fol_ub);
 //XXX_BE_DB 	m0_ub_set_add(&m0_emap_ub);
 //XXX_BE_DB 	m0_ub_set_add(&m0_db_ub);

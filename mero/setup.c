@@ -32,6 +32,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/uuid.h"
+#include "lib/locality.h"
 #include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -769,8 +770,7 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 }
 
 static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
-			     struct m0_dtx *tx, struct m0_dbenv *db,
-			     const char *f_path)
+			     struct m0_be_seg *db, const char *f_path)
 {
 	int                 rc;
 	char                ad_dname[MAXPATHLEN];
@@ -778,6 +778,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	struct m0_stob    **bstob;
 	struct m0_balloc   *cb;
 	struct cs_ad_stob  *adstob;
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL) {
@@ -792,13 +793,13 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	rc = m0_stob_find(stob->s_ldom, bstob_id, bstob);
 	if (rc == 0) {
 		if (f_path != NULL)
-			rc = m0_linux_stob_link(stob->s_ldom, *bstob, f_path,
-						tx);
+			rc = m0_linux_stob_link(stob->s_ldom, *bstob,
+						f_path, NULL);
 		if (rc == 0 || rc == -EEXIST)
-			rc = m0_stob_create_helper(stob->s_ldom, tx, bstob_id,
-						   bstob);
-			if (rc == 0)
-				m0_stob_put(*bstob);
+			rc = m0_stob_create_helper(stob->s_ldom, NULL,
+						bstob_id, bstob);
+		if (rc == 0)
+			m0_stob_put(*bstob);
 	}
 
 	if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail"))
@@ -807,8 +808,10 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
 			bstob_id->si_bits.u_lo);
-		rc = m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom,
-					      *bstob);
+		m0_sm_group_lock(grp);
+		rc = m0_ad_stob_domain_locate(ad_dname, db, grp,
+					      &adstob->as_dom, *bstob);
+		m0_sm_group_unlock(grp);
 	}
 
 	if (rc != 0) {
@@ -820,13 +823,15 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	cs_ad_stob_bob_init(adstob);
 	astob_tlink_init_at_tail(adstob, &stob->s_adoms);
 
-	rc = m0_balloc_create(cid, &cb) ?:
-		m0_ad_stob_setup(adstob->as_dom, db,
+	m0_sm_group_lock(grp);
+	rc =	m0_balloc_create(cid, db, grp, &cb) ?:
+		m0_ad_stob_setup(adstob->as_dom, db, grp,
 				 *bstob, &cb->cb_ballroom,
 				 BALLOC_DEF_CONTAINER_SIZE,
 				 BALLOC_DEF_BLOCK_SHIFT,
 				 BALLOC_DEF_BLOCKS_PER_GROUP,
 				 BALLOC_DEF_RESERVED_GROUPS);
+	m0_sm_group_unlock(grp);
 
 	if (rc == 0 && M0_FI_ENABLED("ad_stob_setup_fail"))
 		rc = -EINVAL;
@@ -837,8 +842,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 /**
    Initialises AD type stob.
  */
-static int cs_ad_stob_init(struct cs_stobs *stob,
-			   struct m0_dtx *tx, struct m0_dbenv *db)
+static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 {
 	int                rc;
 	int                result;
@@ -848,6 +852,8 @@ static int cs_ad_stob_init(struct cs_stobs *stob,
 	yaml_node_t       *node;
 	yaml_node_t       *s_node;
 	yaml_node_item_t  *item;
+
+	M0_ENTRY();
 
 	M0_PRE(stob != NULL);
 
@@ -862,18 +868,16 @@ static int cs_ad_stob_init(struct cs_stobs *stob,
 				if (result != 0)
 					continue;
 				f_path = stob_file_path_get(doc, s_node);
-				rc = cs_ad_stob_create(stob, cid, tx, db,
-						       f_path);
+				rc = cs_ad_stob_create(stob, cid, db, f_path);
 				if (rc != 0)
 					break;
 			}
 		}
 	} else {
-		rc = cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, tx, db,
-				       NULL);
+		rc = cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, db, NULL);
 	}
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -888,6 +892,7 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 
 static void cs_ad_stob_fini(struct cs_stobs *stob)
 {
+	struct m0_sm_group    *grp = m0_locality0_get()->lo_grp;
 	struct m0_stob        *bstob;
 	struct cs_ad_stob     *adstob;
 	struct m0_stob_domain *adom;
@@ -901,7 +906,11 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 		adom = adstob->as_dom;
 		if (bstob != NULL && bstob->so_state == CSS_EXISTS)
 			m0_stob_put(bstob);
-		adom->sd_ops->sdo_fini(adom);
+
+		m0_sm_group_lock(grp);
+		adom->sd_ops->sdo_fini(adom, grp);
+		m0_sm_group_unlock(grp);
+
 		astob_tlink_del_fini(adstob);
 		cs_ad_stob_bob_fini(adstob);
 		m0_free(adstob);
@@ -914,7 +923,7 @@ static void cs_linux_stob_fini(struct cs_stobs *stob)
 	M0_PRE(stob != NULL);
 
 	if (stob->s_ldom != NULL)
-		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
+		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom, NULL);
 }
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
@@ -951,13 +960,14 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
    @todo Use generic mechanism to generate stob ids
  */
 static int cs_storage_init(const char *stob_type, const char *stob_path,
-			   struct cs_stobs *stob, struct m0_dbenv *db)
+			   struct cs_stobs *stob, struct m0_be_seg *db)
 {
 	int               rc;
 	int               slen;
-	struct m0_dtx     tx;
 	char             *objpath;
 	static const char objdir[] = "/o";
+
+	M0_ENTRY();
 
 	M0_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
@@ -966,36 +976,34 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 	else if (strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
 		stob->s_stype = M0_AD_STOB;
 	else
-		return -EINVAL;
+		M0_RETURN(-EINVAL);
 
 	slen = strlen(stob_path);
 	M0_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
-	if (objpath == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
-		return -ENOMEM;
-	}
+	if (objpath == NULL)
+		M0_RETURN(-ENOMEM);
 
 	sprintf(objpath, "%s%s", stob_path, objdir);
 
 	rc = mkdir(stob_path, 0700);
-	if (rc != 0 && errno != EEXIST)
+	if (rc != 0 && errno != EEXIST) {
+		M0_LOG(M0_ERROR, "mkdir(%s) failed: %d", stob_path, errno);
 		goto out;
+	}
 
 	rc = mkdir(objpath, 0700);
-	if (rc != 0 && errno != EEXIST)
+	if (rc != 0 && errno != EEXIST) {
+		M0_LOG(M0_ERROR, "mkdir(%s) failed: %d", objpath, errno);
 		goto out;
+	}
 
-	m0_dtx_init(&tx);
-	m0_dtx_open(&tx, db);
-	cs_linux_stob_init(stob_path, stob);
+	rc = cs_linux_stob_init(stob_path, stob);
 	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
-		rc = cs_ad_stob_init(stob, &tx, db);
-	m0_dtx_done(&tx);
-
+		rc = cs_ad_stob_init(stob, db);
 out:
 	m0_free(objpath);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -1214,19 +1222,30 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
 
 static int cs_storage_prepare(struct m0_reqh_context *rctx)
 {
-	struct m0_db_tx tx;
-	int rc;
+	struct m0_sm_group	*grp = m0_locality0_get()->lo_grp;
+	struct m0_cob_domain	*dom = &rctx->rc_mdstore.md_dom;
+	struct m0_dtx		 tx = {};
+	int			 rc;
 
-	rc = m0_db_tx_init(&tx, &rctx->rc_db, 0);
+	m0_sm_group_lock(grp);
+	rc = m0_mdstore_create(&rctx->rc_mdstore, grp);
+	m0_sm_group_unlock(grp);
 	if (rc != 0)
 		return rc;
 
-	rc = m0_cob_domain_mkfs(&rctx->rc_mdstore.md_dom, &M0_COB_SLASH_FID,
-				&M0_COB_SESSIONS_FID, &tx);
-	if (rc == 0)
-		m0_db_tx_commit(&tx);
-	else
-		m0_db_tx_abort(&tx);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, rctx->rc_db->bs_domain, grp);
+	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&tx);
+	if (rc == 0) {
+		rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID,
+					     &M0_COB_SESSIONS_FID, &tx.tx_betx);
+		if (rc != 0)
+			m0_cob_domain_destroy(dom, grp);
+		m0_dtx_done_sync(&tx);
+	}
+	m0_dtx_fini(&tx);
+	m0_sm_group_unlock(grp);
 
 	return rc;
 }
@@ -1240,36 +1259,45 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
  */
 static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 {
-	int                  rc;
-	struct m0_dtx        tx;
-	struct cs_ad_stob   *ad_stob;
-	struct cs_addb_stob *addb_stob = &rctx->rc_addb_stob;
+	int                    rc;
+	struct m0_dtx          tx = {};
+	struct cs_ad_stob     *ad_stob;
+	struct m0_stob_domain *sdom;
+	struct cs_addb_stob   *addb_stob = &rctx->rc_addb_stob;
+	struct m0_sm_group    *grp = m0_locality0_get()->lo_grp;
+
+	M0_ENTRY();
 
 	/** @todo allow different stob type for data stobs & ADDB stobs? */
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_addb_stpath,
-			     &addb_stob->cas_stobs, &rctx->rc_db);
+			     &addb_stob->cas_stobs, rctx->rc_db);
 	if (rc != 0)
-		return rc;
+		M0_RETURN(rc);
 
-	m0_dtx_init(&tx);
-	m0_dtx_open(&tx, &rctx->rc_db);
 	if (strcasecmp(rctx->rc_stype, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
-		rc = m0_stob_create_helper(rctx->rc_addb_stob.cas_stobs.s_ldom,
-					   &tx, &m0_addb_stob_id,
-					   &addb_stob->cas_stob);
+		sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
 	} else {
 		M0_ASSERT(!m0_tlist_is_empty(&astob_tl,
 					     &addb_stob->cas_stobs.s_adoms));
 		ad_stob = astob_tlist_head(&addb_stob->cas_stobs.s_adoms);
 		M0_ASSERT(ad_stob != NULL);
 
-		rc = m0_stob_create_helper(ad_stob->as_dom,
-					   &tx, &m0_addb_stob_id,
-					   &addb_stob->cas_stob);
+		sdom = ad_stob->as_dom;
 	}
-out:
-	m0_dtx_done(&tx);
-	return rc;
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, rctx->rc_db->bs_domain, grp);
+	m0_stob_create_helper_credit(sdom, &m0_addb_stob_id, &tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&tx);
+	if (rc == 0) {
+		rc = m0_stob_create_helper(sdom, &tx, &m0_addb_stob_id,
+					   &addb_stob->cas_stob);
+		m0_dtx_done_sync(&tx);
+	}
+	m0_dtx_fini(&tx);
+	m0_sm_group_unlock(grp);
+
+	M0_RETURN(rc);
 }
 
 /**
@@ -1287,6 +1315,52 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 	cs_storage_fini(&addb_stob->cas_stobs);
 }
 
+static void be_init(struct m0_reqh *rh, struct m0_reqh_context *rctx)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_be_ut_backend *ut_be = &rctx->rc_ut_be;
+	int rc;
+
+	/* XXX: prototype solution, think of rc_dbpath usage. */
+
+	M0_SET0(ut_be);
+	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = rh;
+
+	m0_mutex_init(&ut_be->but_sgt_lock);
+	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
+	M0_ASSERT(rc == 0);
+	if (rc != 0)
+		m0_mutex_fini(&ut_be->but_sgt_lock);
+	m0_be_ut_seg_init(&rctx->rc_ut_seg, ut_be, 1ULL << 26);
+	m0_be_ut_seg_allocator_init(&rctx->rc_ut_seg, ut_be);
+	rctx->rc_db = &rctx->rc_ut_seg.bus_seg;
+
+	m0_sm_group_lock(grp);
+	rc = m0_be_seg_dict_create(rctx->rc_db, grp);
+	m0_sm_group_unlock(grp);
+	M0_ASSERT(rc == 0);
+}
+
+static void be_fini(struct m0_reqh_context *rctx)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_be_ut_backend *ut_be = &rctx->rc_ut_be;
+	int rc;
+
+	/* XXX: prototype solution. */
+	m0_sm_group_lock(grp);
+	rc = m0_be_seg_dict_destroy(rctx->rc_db, grp);
+	m0_sm_group_unlock(grp);
+	M0_ASSERT(rc == 0);
+
+	m0_be_ut_seg_fini(&rctx->rc_ut_seg);
+	m0_be_domain_fini(&ut_be->but_dom);
+	m0_mutex_fini(&ut_be->but_sgt_lock);
+	m0_be_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob, true);
+}
+
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1299,7 +1373,9 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
  */
 static int cs_request_handler_start(struct m0_reqh_context *rctx)
 {
-	int                 rc;
+	int rc;
+
+	M0_ENTRY();
 
 	/** @todo Pass in a parent ADDB context for the db. Ideally should
 	    be same parent as that of the reqh.
@@ -1307,32 +1383,32 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	    Needs work.
 	 */
 
-	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_dbenv_init");
-		return rc;
-	}
-
 	rc = M0_REQH_INIT(&rctx->rc_reqh,
 			  .rhia_dtm       = NULL,
-			  .rhia_db        = &rctx->rc_db,
+			  .rhia_db        = NULL,
 			  .rhia_mdstore   = &rctx->rc_mdstore,
-			  .rhia_fol       = &rctx->rc_fol,
-			  .rhia_svc       = NULL);
+			  .rhia_fol       = NULL,
+			  .rhia_svc       = (void*)1);
 	if (rc != 0)
-		return rc;
+		goto out;
+
+	be_init(&rctx->rc_reqh, rctx);
+
+	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_db);
+	if (rc != 0)
+		goto be_fini;
 
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR,
 			       "Failed to load device configuration file");
-			return rc;
+			goto reqh_dbenv_fini;
 		}
 	}
 
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
-			     &rctx->rc_stob, &rctx->rc_db);
+			     &rctx->rc_stob, rctx->rc_db);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init");
 		goto cleanup_stob;
@@ -1340,7 +1416,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 
 	rc = cs_addb_storage_init(rctx);
 	if (rc != 0)
-		goto cleanup_addb_stob;
+		goto cleanup_stob;
 
 	rc = m0_reqh_addb_mc_config(&rctx->rc_reqh,
 				    rctx->rc_addb_stob.cas_stob);
@@ -1356,47 +1432,41 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		 * cob domain for mkfs.
 		 */
 		rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
-				     &rctx->rc_db, false);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "m0_mdstore_init");
+				     rctx->rc_db, false);
+		if (rc != -ENOENT) {
+			M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
 			goto cleanup_addb_stob;
 		}
 		rc = cs_storage_prepare(rctx);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "cs_storage_prepare");
-			goto cleanup_mdstore;
-		}
 		m0_mdstore_fini(&rctx->rc_mdstore);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "cs_storage_prepare: rc=%d", rc);
+			goto cleanup_addb_stob;
+		}
 	}
 
-	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db,
+	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, rctx->rc_db,
 			     true);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_cob_domain_init");
+		M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
 		goto cleanup_addb_stob;
 	}
 
-	rc = m0_fol_init(&rctx->rc_fol, &rctx->rc_db);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_fol_init");
-		goto cleanup_mdstore;
-	}
+	rctx->rc_state = RC_INITIALISED;
+	M0_RETURN(rc);
 
-	if (rc == 0) {
-		rctx->rc_state = RC_INITIALISED;
-		return 0;
-	}
-
-	m0_fol_fini(&rctx->rc_fol);
-cleanup_mdstore:
-	m0_mdstore_fini(&rctx->rc_mdstore);
 cleanup_addb_stob:
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
-	m0_dbenv_fini(&rctx->rc_db);
+reqh_dbenv_fini:
+	m0_reqh_dbenv_fini(&rctx->rc_reqh);
+be_fini:
+	be_fini(rctx);
+	m0_reqh_fini(&rctx->rc_reqh);
+out:
 	M0_ASSERT(rc != 0);
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -1433,29 +1503,30 @@ static int cs_request_handlers_start(struct m0_mero *cctx)
  */
 static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 {
-	struct m0_reqh *reqh;
+	struct m0_reqh *reqh = &rctx->rc_reqh;
 
 	M0_PRE(m0_reqh_context_invariant(rctx));
 
 	M0_ENTRY();
 
-	reqh = &rctx->rc_reqh;
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
-		m0_reqh_shutdown_wait(reqh);
+		m0_reqh_shutdown(reqh);
+
+	m0_reqh_dbenv_fini(reqh);
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
 		m0_reqh_services_terminate(reqh);
+	cs_rpc_machines_fini(reqh);
+	m0_mdstore_fini(&rctx->rc_mdstore);
+	cs_addb_storage_fini(&rctx->rc_addb_stob);
+	cs_storage_fini(&rctx->rc_stob);
+	be_fini(rctx);
+	m0_reqh_fom_domain_idle_wait(reqh);
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
 		m0_reqh_mgmt_service_stop(reqh);
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
-	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
-	m0_fol_fini(&rctx->rc_fol);
-	m0_mdstore_fini(&rctx->rc_mdstore);
-	cs_storage_fini(&rctx->rc_stob);
-	cs_addb_storage_fini(&rctx->rc_addb_stob);
-	m0_dbenv_fini(&rctx->rc_db);
 }
 
 /**
@@ -2058,6 +2129,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	 */
 	if (use_genders && profile != NULL)
 		M0_RETERR(-EPROTO, "genders use conflicts with confd profile");
+#if 0 // XXX_BE_DB
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
 		bool global_daemonize = cctx->cc_daemon;
@@ -2084,6 +2156,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
 				 NULL, NULL, NULL, &use_genders);
 	}
+#endif
 	if (rc == 0 && use_genders)
 		rc = -EINVAL;
 	M0_RETURN(rc);

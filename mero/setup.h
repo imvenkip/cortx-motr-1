@@ -390,7 +390,11 @@ struct m0_reqh_context {
 	/** ADDB specific stob information */
 	struct cs_addb_stob          rc_addb_stob;
 	/** Database used by the request handler */
-	struct m0_dbenv              rc_db;
+	struct m0_be_seg            *rc_db;
+
+	/** XXX: prototype solution */
+	struct m0_be_ut_backend      rc_ut_be;
+	struct m0_be_ut_seg          rc_ut_seg;
 
 	/** Path to the configuration database to be used by confd service. */
 	const char                  *rc_confdb;
@@ -401,7 +405,7 @@ struct m0_reqh_context {
 	struct m0_cob_domain_id      rc_cdom_id;
 
 	/** File operation log for a request handler */
-	struct m0_fol                rc_fol;
+	struct m0_fol               *rc_fol;
 
 	/** Request handler instance to be initialised */
 	struct m0_reqh               rc_reqh;

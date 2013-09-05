@@ -85,8 +85,8 @@ M0_INTERNAL bool m0_list_contains(const struct m0_list *list,
 	return false;
 }
 
-static inline void __m0_list_add(struct m0_list_link *next,
-				 struct m0_list_link *prev,
+static inline void __m0_list_add(struct m0_list_link *prev,
+				 struct m0_list_link *next,
 			         struct m0_list_link *new)
 {
 	M0_ASSERT(prev->ll_next == next && next->ll_prev == prev);
@@ -101,28 +101,28 @@ static inline void __m0_list_add(struct m0_list_link *next,
 
 M0_INTERNAL void m0_list_add(struct m0_list *head, struct m0_list_link *new)
 {
-	__m0_list_add(head->l_head, (void *)head, new);
+	__m0_list_add((void *)head, head->l_head, new);
 }
 M0_EXPORTED(m0_list_add);
 
 M0_INTERNAL void m0_list_add_tail(struct m0_list *head,
 				  struct m0_list_link *new)
 {
-	__m0_list_add((void *)head, head->l_tail, new);
+	__m0_list_add(head->l_tail, (void *)head, new);
 }
 M0_EXPORTED(m0_list_add_tail);
 
 M0_INTERNAL void m0_list_add_after(struct m0_list_link *anchor,
 				   struct m0_list_link *new)
 {
-	__m0_list_add(anchor->ll_next, anchor, new);
+	__m0_list_add(anchor, anchor->ll_next, new);
 }
 M0_EXPORTED(m0_list_add_after);
 
 M0_INTERNAL void m0_list_add_before(struct m0_list_link *anchor,
 				    struct m0_list_link *new)
 {
-	__m0_list_add(anchor, anchor->ll_prev, new);
+	__m0_list_add(anchor->ll_prev, anchor, new);
 }
 M0_EXPORTED(m0_list_add_before);
 

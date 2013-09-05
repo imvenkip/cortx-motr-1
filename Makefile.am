@@ -187,15 +187,15 @@ include $(top_srcdir)/lib/Makefile.sub
 include $(top_srcdir)/mdservice/Makefile.sub
 include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mgmt/Makefile.sub
+include $(top_srcdir)/mgmt/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mw/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/bulk_emulation/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/lnet/Makefile.sub
+include $(top_srcdir)/net/Makefile.sub
+include $(top_srcdir)/net/bulk_emulation/Makefile.sub
+include $(top_srcdir)/net/lnet/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/rm/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/rpc/Makefile.sub
+include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/cm/Makefile.sub
@@ -226,24 +226,24 @@ include $(top_srcdir)/cob/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/console/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/fop/ub/Makefile.sub
+include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/ioservice/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mero/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mgmt/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
+include $(top_srcdir)/mero/ut/Makefile.sub
+include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
+include $(top_srcdir)/mgmt/ut/Makefile.sub
+include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/net/lnet/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/test/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/ut/Makefile.sub
+include $(top_srcdir)/net/test/ut/Makefile.sub
+include $(top_srcdir)/net/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/pool/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/reqh/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/rm/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/rpc/ub/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/rpc/ut/Makefile.sub
+include $(top_srcdir)/rpc/ub/Makefile.sub
+include $(top_srcdir)/rpc/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sm/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/cm/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/ut/Makefile.sub

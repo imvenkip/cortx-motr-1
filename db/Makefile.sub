@@ -9,7 +9,7 @@ nobase_mero_include_HEADERS += db/db.h \
 mero_libmero_la_SOURCES  += db/db.c \
                                   db/extmap.c \
                                   db/db_common.c
-                                  #XXX_DB_BE db/extmap_xc.c
+#XXX_DB_BE db/extmap_xc.c
 
 #XXX_DB_BE XC_FILES   += db/extmap_xc.h
 

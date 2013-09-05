@@ -107,7 +107,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
 	{ &libm0_init,          &libm0_fini,          "libm0" },
-//XXX_BE_DB 	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
+	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
@@ -123,20 +123,20 @@ struct init_fini_call subsystem[] = {
 	/* fops must be initialised before network, because network build fop
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
-//XXX_BE_DB 	{ &m0_net_init,         &m0_net_fini,         "net" },
+	{ &m0_net_init,         &m0_net_fini,         "net" },
 #ifdef __KERNEL__
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
 #endif
 	{ &m0_reqhs_init,       &m0_reqhs_fini,       "reqhs" },
 	/* fom-simple must go after reqh init */
 	{ &m0_fom_simples_init, &m0_fom_simples_fini, "fom-simple" },
-//XXX_BE_DB 	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
+	{ &m0_rpc_init,         &m0_rpc_fini,         "rpc" },
 	/* fom generic must be after rpc, because it initialises rpc item
 	   type for generic error reply. */
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
-//XXX_BE_DB 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
-//XXX_BE_DB 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
-//XXX_BE_DB 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
+	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
+	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
+	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
 	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
@@ -163,10 +163,10 @@ struct init_fini_call subsystem[] = {
 //XXX_BE_DB 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 //XXX_BE_DB 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 //XXX_BE_DB 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
-//XXX_BE_DB 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
+	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 //XXX_BE_DB 	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
 #endif /* __KERNEL__ */
-//XXX_BE_DB 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
+	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 };
 
 static void fini_nr(int i)
