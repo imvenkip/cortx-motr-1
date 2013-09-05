@@ -329,6 +329,16 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh);
 M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state);
 
 /**
+   Initiates the termination of services.
+
+   @param reqh request handler to be shutdown
+   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
+   @post m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN
+   @see m0_reqh_service_prepare_to_stop(), m0_reqh_fom_domain_idle_wait()
+ */
+M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh);
+
+/**
    Initiates the termination of services and then wait for FOMs to
    terminate.
 

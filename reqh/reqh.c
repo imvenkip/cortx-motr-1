@@ -31,6 +31,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/atomic.h"
+#include "lib/locality.h"
 
 #include "mero/magic.h"
 #include "stob/stob.h"
@@ -76,7 +77,7 @@ M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
  */
 static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
         [M0_REQH_ST_INIT] = {
-                .sd_flags       = M0_SDF_INITIAL,
+                .sd_flags       = M0_SDF_INITIAL | M0_SDF_FINAL,
                 .sd_name        = "Init",
                 .sd_allowed     = M0_BITS(M0_REQH_ST_MGMT_STARTED,
 					  M0_REQH_ST_NORMAL,
@@ -479,7 +480,7 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 	m0_clink_fini(&clink);
 }
 
-M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh)
 {
 	struct m0_reqh_service *service;
 	struct m0_reqh_service *mdservice = NULL;
@@ -520,7 +521,11 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	    M0_IN(m0_reqh_service_state_get(rpcservice),
 		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_prepare_to_stop(rpcservice);
+}
 
+M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+{
+	m0_reqh_shutdown(reqh);
 	m0_reqh_fom_domain_idle_wait(reqh);
 }
 
