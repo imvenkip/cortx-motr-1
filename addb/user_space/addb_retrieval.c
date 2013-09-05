@@ -258,7 +258,6 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	struct m0_bufvec      *obuf;
 	struct m0_clink        sri_wait;
 	struct m0_stob_domain *dom;
-	struct m0_dtx          sri_tx;
 	m0_bcount_t            header_size;
 	uint32_t               bshift = stob->so_op->sop_block_shift(stob);
 	int                    rc;
@@ -288,13 +287,8 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	sri_buf_ov_buf = m0_stob_addr_pack(sri_buf.ov_buf[0], bshift);
 
 	dom = stob->so_domain;
-	m0_dtx_init(&sri_tx, NULL, NULL);	/* XXX_DB_BE */
-	rc = dom->sd_ops->sdo_tx_make(dom, &sri_tx);
-	if (rc != 0)
-		goto fail_tx;
-
 	do {
-		rc = m0_stob_io_launch(&sri_io, stob, &sri_tx, NULL);
+		rc = m0_stob_io_launch(&sri_io, stob, NULL, NULL);
 		if (rc < 0)
 			break;
 		while (sri_io.si_state != SIS_IDLE)
@@ -309,8 +303,6 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 		rc = addb_segsize_decode(&sri_buf);
 	} while (0);
 
-	m0_dtx_done(&sri_tx);
-fail_tx:
 	m0_clink_del_lock(&sri_wait);
 	m0_stob_io_fini(&sri_io);
 	m0_bufvec_free_aligned(&sri_buf, bshift);
@@ -324,7 +316,6 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 	struct stob_segment_iter  *si;
 	struct m0_stob            *stob;
 	struct m0_stob_domain     *dom;
-	struct m0_dtx              tx;
 	struct m0_clink            seg_wait;
 	struct m0_addb_seg_header  header;
 	struct m0_addb_seg_trailer trailer;
@@ -338,10 +329,6 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 	stob = si->ssi_stob;
 	dom = stob->so_domain;
 	offset = si->ssi_base.asi_segsize >> si->ssi_bshift;
-	m0_dtx_init(&tx, NULL, NULL);	/* XXX_DB_BE */
-	rc = dom->sd_ops->sdo_tx_make(dom, &tx);
-	if (rc != 0)
-		goto fail;
 	m0_clink_init(&seg_wait, NULL);
 
 	while (1) {
@@ -350,7 +337,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_tio.si_rc = 0;
 		si->ssi_tio.si_count = 0;
 		m0_clink_add_lock(&si->ssi_tio.si_wait, &seg_wait);
-		rc = m0_stob_io_launch(&si->ssi_tio, stob, &tx, NULL);
+		rc = m0_stob_io_launch(&si->ssi_tio, stob, NULL, NULL);
 		if (rc < 0) {
 			m0_clink_del_lock(&seg_wait);
 			break;
@@ -375,7 +362,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		si->ssi_io.si_rc = 0;
 		si->ssi_io.si_count = 0;
 		m0_clink_add_lock(&si->ssi_io.si_wait, &seg_wait);
-		rc = m0_stob_io_launch(&si->ssi_io, stob, &tx, NULL);
+		rc = m0_stob_io_launch(&si->ssi_io, stob, NULL, NULL);
 		if (rc < 0) {
 			m0_clink_del_lock(&seg_wait);
 			break;
@@ -414,14 +401,11 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 		if (header.sh_seq_nr == trailer.st_seq_nr &&
 		    trailer.st_rec_nr != 0 &&
 		    header.sh_seq_nr >= si->ssi_base.asi_min_seq_nr) {
-			m0_dtx_done(&tx);
 			si->ssi_base.asi_seq_nr = header.sh_seq_nr;
 			return trailer.st_rec_nr;
 		}
 	}
 
-	m0_dtx_done(&tx);
-fail:
 	si->ssi_base.asi_seq_nr = 0;
 	M0_POST(rc <= 0);
 	return rc;

@@ -60,8 +60,8 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 			     struct m0_sm_group  *sm_group);
 M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx);
-M0_INTERNAL void m0_dtx_open_sync(struct m0_dtx *tx);
-M0_INTERNAL void m0_dtx_done_sync(struct m0_dtx *tx);
+M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx);
+M0_INTERNAL int m0_dtx_done_sync(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);
 
 M0_INTERNAL int m0_dtm_init(void);

@@ -49,8 +49,7 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 
 	m0_be_tx_init(&tx->tx_betx, 0, be_domain, sm_group,
 		      NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(&tx->tx_betx, &tx->tx_betx_cred);
-
+	tx->tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
 	tx->tx_state = M0_DTX_INIT;
 	m0_fol_rec_init(&tx->tx_fol_rec);
 }
@@ -59,13 +58,12 @@ M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx)
 {
 	M0_PRE(tx->tx_state == M0_DTX_INIT);
 	M0_PRE(m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE);
-
+	m0_be_tx_prep(&tx->tx_betx, &tx->tx_betx_cred);
 	m0_be_tx_open(&tx->tx_betx);
-
 	tx->tx_state = M0_DTX_OPEN;
 }
 
-M0_INTERNAL void m0_dtx_open_sync(struct m0_dtx *tx)
+M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx)
 {
 	int rc;
 
@@ -73,18 +71,20 @@ M0_INTERNAL void m0_dtx_open_sync(struct m0_dtx *tx)
 	rc = m0_be_tx_timedwait(&tx->tx_betx,
 				M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 				M0_TIME_NEVER);
-	M0_ASSERT(m0_be_tx_state(&tx->tx_betx) == M0_BTS_ACTIVE);
+	if (m0_be_tx_state(&tx->tx_betx) != M0_BTS_ACTIVE)
+		tx->tx_state = M0_DTX_INIT;
+
+	return rc;
 }
 
 M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
-
 	m0_be_tx_close(&tx->tx_betx);
 	tx->tx_state = M0_DTX_DONE;
 }
 
-M0_INTERNAL void m0_dtx_done_sync(struct m0_dtx *tx)
+M0_INTERNAL int m0_dtx_done_sync(struct m0_dtx *tx)
 {
 	int rc;
 
@@ -92,12 +92,13 @@ M0_INTERNAL void m0_dtx_done_sync(struct m0_dtx *tx)
 	rc = m0_be_tx_timedwait(&tx->tx_betx, M0_BITS(M0_BTS_DONE),
 				M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx->tx_betx) == M0_BTS_DONE);
+
+	return rc;
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 {
 	M0_PRE(M0_IN(tx->tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
-
 	m0_be_tx_fini(&tx->tx_betx);
 	m0_fol_rec_fini(&tx->tx_fol_rec);
 }
