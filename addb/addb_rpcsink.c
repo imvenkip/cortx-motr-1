@@ -318,7 +318,7 @@
  * @{
  */
 
-//XXX_BE_DB extern const struct m0_tl_descr rpc_conn_tl;
+extern const struct m0_tl_descr rpc_conn_tl;
 
 enum {
         RPCSINK_TS_EXT_PAGES  = 16,
@@ -393,7 +393,6 @@ M0_TL_DESCR_DEFINE(tsrecords, "tsrecords_readytosend", static,
 		   M0_ADDB_RPCSINK_TS_HEAD_MAGIC2);
 M0_TL_DEFINE(tsrecords, static, struct m0_addb_ts_rec_header);
 
-#if 0 /* XXX_BE_DB */
 static struct m0_rpc_machine *
 rpcmachine_from_rpc_item_sources(const struct rpcsink *rsink)
 {
@@ -406,7 +405,6 @@ rpcmachine_from_rpc_item_sources(const struct rpcsink *rsink)
 
 	return item_source->ris_source.ris_conn->c_rpc_machine;
 }
-#endif /* XXX_BE_DB */
 
 /**
  * RPC sink item source invariant.
@@ -579,11 +577,9 @@ static void rpcsink_release(struct m0_ref *ref)
 	rpcsink_shutdown = true;
 	m0_mutex_unlock(&rsink->rs_mutex);
 	if (!addb_ts_is_empty(&rsink->rs_ts)) {
-#if 0 /* XXX_BE_DB */
 		struct m0_rpc_machine *rm =
 			rpcmachine_from_rpc_item_sources(rsink);
 		m0_rpc_item_drain_sources_locked(rm);
-#endif
 	}
 
 	m0_mutex_lock(&rsink->rs_mutex);
@@ -608,7 +604,6 @@ static void rpcsink_release(struct m0_ref *ref)
 static int rpcsink_item_source_init(struct rpcsink             *rsink,
 				    struct rpcsink_item_source *rsinkis)
 {
-#if 0 /* XXX_BE_DB */
 	rsinkis->ris_magic = M0_ADDB_RPCSINK_ITEM_SOURCE_MAGIC;
 	rsinkis->ris_rsink = rsink;
 	rpcsink_item_sources_tlink_init(rsinkis);
@@ -616,16 +611,12 @@ static int rpcsink_item_source_init(struct rpcsink             *rsink,
 	return m0_rpc_item_source_init(&rsinkis->ris_source,
 				       "RPC sink item source",
 				       &rpcsink_source_ops);
-#else
-	M0_IMPOSSIBLE("XXX Not implemented");
-	return -1;
-#endif
 }
 
 static void rpcsink_item_source_fini(struct rpcsink_item_source *rsinkis)
 {
 	rpcsink_item_sources_tlink_fini(rsinkis);
-//XXX_BE_DB 	m0_rpc_item_source_fini(&rsinkis->ris_source);
+	m0_rpc_item_source_fini(&rsinkis->ris_source);
 }
 
 static int addb_rpc_sink_get_records(struct rpcsink *rsink,
@@ -834,7 +825,7 @@ m0_addb_mc_configure_rpc_sink(struct m0_addb_mc     *mc,
 			      m0_bcount_t	     pg_size)
 {
 	struct rpcsink     *rsink;
-//XXX_BE_DB 	struct m0_rpc_conn *conn;
+	struct m0_rpc_conn *conn;
 	int		    rc;
 
 	M0_PRE(m0_addb_mc_is_initialized(mc));
@@ -878,13 +869,11 @@ addb_ts_init_failed:
 	if (M0_FI_ENABLED("item_source_registration_failed"))
 		{ rc = -1; goto item_source_registration_failed; }
 
-#if 0 /* XXX_BE_DB */
 	m0_tl_for(rpc_conn, &rm->rm_outgoing_conns, conn) {
 		rc = m0_addb_mc_rpc_sink_source_add(mc, conn);
 		if (rc != 0)
 			goto item_source_registration_failed;
 	} m0_tl_endfor;
-#endif
 
 item_source_registration_skipped:
 	rpcsink_shutdown = false;
@@ -923,7 +912,7 @@ M0_INTERNAL int m0_addb_mc_rpc_sink_source_add(struct m0_addb_mc  *mc,
 		M0_RETERR(rc, "m0_addb_mc_rpc_sink_source_add");
 	}
 
-//XXX_BE_DB 	m0_rpc_item_source_register(conn, &rpcsink_item_source->ris_source);
+	m0_rpc_item_source_register(conn, &rpcsink_item_source->ris_source);
 
 	rpcsink_item_sources_tlink_init(rpcsink_item_source);
 	rpcsink_item_sources_tlist_add(&rsink->rs_sources, rpcsink_item_source);
@@ -945,7 +934,7 @@ M0_INTERNAL void m0_addb_mc_rpc_sink_source_del(struct m0_rpc_item_source *src)
 	item_source  = container_of(src, struct rpcsink_item_source,
 				    ris_source);
 
-//XXX_BE_DB 	m0_rpc_item_source_deregister(src);
+	m0_rpc_item_source_deregister(src);
 	rpcsink_item_sources_tlist_del(item_source);
 	rpcsink_item_source_fini(item_source);
 
