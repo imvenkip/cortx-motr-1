@@ -121,6 +121,7 @@ struct m0_stob_domain {
 	const char		       *sd_name;
 	const struct m0_stob_domain_op *sd_ops;
 	struct m0_stob_type            *sd_type;
+	struct m0_be_domain            *sd_bedom;
 	uint32_t			sd_dom_id;
 	struct m0_tlink                 sd_domain_linkage;
 	struct m0_rwlock                sd_guard;
@@ -153,23 +154,16 @@ struct m0_stob_domain_op {
 	   @todo this is a temporary method, until proper DTM interfaces are in
 	   place.
 	 */
-	int (*sdo_tx_make)(struct m0_stob_domain *dom, struct m0_dtx *tx);
-	/**
-	   Calculates the credit for write operation.
-	 */
-	void (*sdo_write_credit)(struct m0_stob_domain  *dom,
-				 m0_bcount_t             size,
-				 struct m0_be_tx_credit *accum);
+	int (*sdo_tx_make)(struct m0_stob_domain *dom, m0_bcount_t size,
+			   struct m0_dtx *tx);
 };
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t,
-				     uint64_t dom_id);
-M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
+				     uint64_t dom_id,
+				     struct m0_be_domain *be_dom);
 
-M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
-				      m0_bcount_t             size,
-				      struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
 
 /**
    m0_stob state specifying its relationship with the underlying storage object.

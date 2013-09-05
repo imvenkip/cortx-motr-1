@@ -103,22 +103,15 @@ m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id)
 	return NULL;
 }
 
-
-M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
-				      m0_bcount_t             size,
-				      struct m0_be_tx_credit *accum)
-{
-	if (dom->sd_ops->sdo_write_credit != NULL)
-		dom->sd_ops->sdo_write_credit(dom, size, accum);
-}
-
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t,
-				     uint64_t dom_id)
+				     uint64_t dom_id,
+				     struct m0_be_domain *be_dom)
 {
 	m0_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
 	dom->sd_dom_id = dom_id;
+	dom->sd_bedom = be_dom;
 	dom_tlink_init_at_tail(dom, &t->st_domains);
 	/** @todo m0_addb_ctx_init(&dom->sd_addb, &m0_stob_domain_addb,
 	    &t->st_addb);

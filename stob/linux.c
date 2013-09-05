@@ -139,7 +139,7 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 		strcpy(ldom->sdl_path, domain_name);
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
-		m0_stob_domain_init(dom, type, dom_id);
+		m0_stob_domain_init(dom, type, dom_id, NULL);
 		m0_stob_cache_init(&ldom->sdl_cache);
 		result = linux_domain_io_init(dom);
 		if (result == 0)
@@ -256,7 +256,8 @@ static void linux_stob_fini(struct m0_stob *stob)
 /**
    Implementation of m0_stob_domain_op::sdo_tx_make().
  */
-static int linux_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
+static int linux_domain_tx_make(struct m0_stob_domain *dom, m0_bcount_t size,
+				struct m0_dtx *tx)
 {
 	return 0;
 }

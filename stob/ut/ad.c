@@ -206,16 +206,12 @@ static int test_ad_init(void)
 	buf_size = max_check(MIN_BUF_SIZE
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
-	dom_fore->sd_ops->sdo_write_credit(dom_fore,
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore,
 				buf_size * (NR * NR / 2) /* test_ad() */ +
 				buf_size * NR, /* test_ad_rw_unordered() */
-						&tx.tx_betx_cred);
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
+					&tx);
 	M0_ASSERT(result == 0);
-	result = m0_be_tx_timedwait(&tx.tx_betx,
-				    M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				    M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
 	result = m0_stob_locate(obj_fore);
@@ -404,14 +400,9 @@ static void test_ad_undo(void)
 				    M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
-	dom_fore->sd_ops->sdo_write_credit(dom_fore,
-				buf_size * 2, &tx.tx_betx_cred);
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, buf_size * 2, &tx);
 	M0_UT_ASSERT(result == 0);
-	result = m0_be_tx_timedwait(&tx.tx_betx,
-				    M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				    M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
 	memset(user_buf[0], 'a', buf_size);
@@ -431,17 +422,12 @@ static void test_ad_undo(void)
 	/* Do the undo operation. */
 	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
-	m0_dtx_done(&tx);
-	result = m0_be_tx_timedwait(&tx.tx_betx, M0_BITS(M0_BTS_DONE),
-				    M0_TIME_NEVER);
+	result = m0_dtx_done_sync(&tx);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, 1, &tx);
 	M0_UT_ASSERT(result == 0);
-	result = m0_be_tx_timedwait(&tx.tx_betx,
-				    M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				    M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 	test_read(1);
 

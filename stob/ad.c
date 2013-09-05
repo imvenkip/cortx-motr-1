@@ -324,7 +324,8 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 				adom->ad_setup = false;
 				dom = &adom->ad_base;
 				dom->sd_ops = &ad_stob_domain_op;
-				m0_stob_domain_init(dom, type, dom_id);
+				m0_stob_domain_init(dom, type, dom_id,
+						    be_seg->bs_domain);
 				m0_stob_cache_init(&adom->ad_cache);
 				sprintf(adom->ad_path, "%s%s", prefix,
 				        domain_name);
@@ -460,20 +461,6 @@ static int ad_domain_stob_find(struct m0_stob_domain *dom,
 				    ad_incache_init, &incache);
 	*out = &incache->ca_stob;
 	return result;
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_tx_make().
- */
-static int ad_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
-{
-	struct ad_domain *adom;
-
-	adom = domain2ad(dom);
-	M0_PRE(adom->ad_setup);
-	m0_dtx_open(tx);
-
-	return 0;
 }
 
 /**
@@ -1421,9 +1408,6 @@ static void ad_write_credit(struct ad_domain *dom, m0_bcount_t sz,
 							 acc);
 }
 
-/**
-   Implementation of m0_stob_domain_op::sdo_write_credit().
- */
 static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
 					m0_bcount_t             size,
 					struct m0_be_tx_credit *accum)
@@ -1435,7 +1419,20 @@ static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
 	M0_PRE(size > 0);
 
 	ad_write_credit(adom, size, accum);
-	m0_stob_write_credit(adom->ad_bstore->so_domain, size, accum);
+}
+
+/**
+   Implementation of m0_stob_domain_op::sdo_tx_make().
+ */
+static int ad_domain_tx_make(struct m0_stob_domain *dom, m0_bcount_t size,
+			     struct m0_dtx *tx)
+{
+	struct ad_domain *adom;
+
+	adom = domain2ad(dom);
+	M0_PRE(adom->ad_setup);
+	ad_domain_stob_write_credit(dom, size, &tx->tx_betx_cred);
+	return m0_dtx_open_sync(tx);
 }
 
 /**
@@ -1555,7 +1552,6 @@ static const struct m0_stob_domain_op ad_stob_domain_op = {
 	.sdo_fini         = ad_domain_fini,
 	.sdo_stob_find    = ad_domain_stob_find,
 	.sdo_tx_make      = ad_domain_tx_make,
-	.sdo_write_credit = ad_domain_stob_write_credit
 };
 
 static const struct m0_stob_op ad_stob_op = {
@@ -1575,7 +1571,10 @@ struct m0_stob_type m0_ad_stob_type = {
 
 M0_INTERNAL int m0_ad_stobs_init(void)
 {
-	return M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_init);
+	int rc;
+	M0_ENTRY();
+	rc = M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_init);
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_ad_stobs_fini(void)
