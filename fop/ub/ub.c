@@ -416,13 +416,10 @@ _UB_ROUND_DEFINE(ub_fom_block,         SC_BLOCK);
 
 /* ---------------------------------------------------------------- */
 
-static struct m0_dbenv dbenv;
 static int _init(const char *opts M0_UNUSED)
 {
 	size_t i;
 	int    rc;
-	rc = m0_dbenv_init(&dbenv, "something", 0);
-	M0_UB_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_type_register(&ub_fom_stype);
 	M0_UB_ASSERT(rc == 0);
@@ -435,7 +432,7 @@ static int _init(const char *opts M0_UNUSED)
 	 * is justified. */
 	rc = M0_REQH_INIT(&g_reqh,
 			  .rhia_dtm       = (void *)1,
-			  .rhia_db        = &dbenv,
+			  .rhia_db        = NULL,
 			  .rhia_mdstore   = (void *)1,
 			  .rhia_fol       = &g_fol,
 			  .rhia_svc       = NULL);
@@ -477,7 +474,6 @@ static void _fini(void)
 	m0_reqh_services_terminate(&g_reqh);
 	m0_reqh_fini(&g_reqh);
 	m0_reqh_service_type_unregister(&ub_fom_stype);
-	m0_dbenv_fini(&dbenv);
 }
 
 struct m0_ub_set m0_fom_ub = {
