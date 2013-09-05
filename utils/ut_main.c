@@ -131,11 +131,11 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&m0_fom_stats_ut);
 //XXX_BE_DB	m0_ut_add(&m0_mgmt_conf_ut);
 //XXX_BE_DB	m0_ut_add(&m0_mgmt_svc_ut);
-//XXX_BE_DB	m0_ut_add(&m0_net_bulk_if_ut);
-//XXX_BE_DB	m0_ut_add(&m0_net_bulk_mem_ut);
-//XXX_BE_DB	m0_ut_add(&m0_net_lnet_ut);
-//XXX_BE_DB	m0_ut_add(&m0_net_test_ut);
-//XXX_BE_DB	m0_ut_add(&m0_net_tm_prov_ut);
+	m0_ut_add(&m0_net_bulk_if_ut);
+	m0_ut_add(&m0_net_bulk_mem_ut);
+	m0_ut_add(&m0_net_lnet_ut);
+	m0_ut_add(&m0_net_test_ut);
+	m0_ut_add(&m0_net_tm_prov_ut);
 	m0_ut_add(&m0d_ut);
 //XXX_BE_DB	m0_ut_add(&packet_encdec_ut);
 //XXX_BE_DB	m0_ut_add(&parity_math_ut);

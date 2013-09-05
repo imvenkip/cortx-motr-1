@@ -24,8 +24,6 @@
 #include "lib/thread.h" /* m0_thread_self, m0_thread_handle_eq */
 #include "ut/ut.h"
 
-#include "db/db.h" /* m0_dbenv, m0_table */
-
 static int ut_verbose = 0;
 
 static int ut_subs_saved;

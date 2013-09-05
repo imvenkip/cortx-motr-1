@@ -236,7 +236,7 @@ include $(top_srcdir)/mero/ut/Makefile.sub
 include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
 include $(top_srcdir)/mgmt/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/net/lnet/ut/Makefile.sub
+include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/pool/ut/Makefile.sub
@@ -398,16 +398,16 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 #XXX_BE_DB layout_ut_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
 #XXX_BE_DB                                $(top_builddir)/ut/libmero-ut.la
 #XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # net/lnet/ut
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS                 += net/lnet/ut/lut_helper
-#XXX_BE_DB endif
-#XXX_BE_DB net_lnet_ut_lut_helper_CPPFLAGS  = -DM0_TARGET='lut_helper' $(AM_CPPFLAGS)
-#XXX_BE_DB net_lnet_ut_lut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                    $(top_builddir)/ut/libmero-ut.la
+#
+# net/lnet/ut
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS                 += net/lnet/ut/lut_helper
+endif
+net_lnet_ut_lut_helper_CPPFLAGS  = -DM0_TARGET='lut_helper' $(AM_CPPFLAGS)
+net_lnet_ut_lut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
+                                   $(top_builddir)/ut/libmero-ut.la
 
 #
 # utils/ut and utils/ub
