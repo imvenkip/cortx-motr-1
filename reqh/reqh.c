@@ -129,19 +129,15 @@ static struct m0_sm_conf m0_reqh_sm_conf = {
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
-	return reqh != NULL && reqh->rh_mdstore != NULL &&
-		reqh->rh_fol != NULL &&
+	return	reqh != NULL &&
+		reqh->rh_mdstore != NULL && reqh->rh_fol != NULL &&
 		m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
 M0_INTERNAL int
 m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 {
-#if 0 /* XXX_BE_DB */
 	int rc;
-#else
-	int rc = 0;
-#endif
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_dbenv   = reqh_args->rhia_db;
@@ -185,7 +181,44 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	if (reqh->rh_dbenv != NULL)
 		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv);
 
-	M0_POST(m0_reqh_invariant(reqh));
+	return rc;
+}
+
+static struct m0_fol *
+fol_alloc(struct m0_be_seg *seg)
+{
+	struct m0_sm_group	*grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx		 tx = {};
+	struct m0_fol		*fol;
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC,
+			sizeof *fol, 0, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, fol = m0_be_alloc(&seg->bs_allocator,
+			&tx.tx_betx, &op, sizeof *fol, 0));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+
+	return fol;
+}
+
+static int fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+	int                 rc;
+
+	m0_fol_init(fol, seg);
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_fol_credit(fol, M0_FO_CREATE, 1, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx.tx_betx, &op));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 
 	return rc;
 }
@@ -208,17 +241,32 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *dbenv)
 	}
 #endif
 
+	reqh->rh_fol = fol_alloc(dbenv);
+	if (reqh->rh_fol == NULL)
+		return -ENOMEM;
+
+	rc = fol_init(reqh->rh_fol, dbenv);
+
+	if (rc == 0)
+		M0_POST(m0_reqh_invariant(reqh));
+
 	return rc;
 }
 
-M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
 {
 	if (reqh->rh_dbenv != NULL) {
+		m0_fol_fini(reqh->rh_fol);
 #if 0 /* XXX_BE_DB */
 		m0_layout_standard_types_unregister(&reqh->rh_ldom);
 		m0_layout_domain_fini(&reqh->rh_ldom);
 #endif
 	}
+	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
+}
+
+M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
+{
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
@@ -262,13 +310,15 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 	m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
 	int rc;
 
+	M0_ENTRY();
+
 	rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
 					    stob,
 					    addb_stob_seg_size,
 					    addb_stob_size,
 					    addb_stob_timeout);
 	if (rc != 0)
-		return rc;
+		M0_RETURN(rc);
 
 	m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
 	if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
@@ -276,7 +326,7 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-	return rc;
+	M0_RETURN(rc);
 #else
 	return 0;
 #endif

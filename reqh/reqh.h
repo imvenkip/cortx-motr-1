@@ -210,14 +210,6 @@ struct m0_reqh_init_args {
 M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 			     const struct m0_reqh_init_args *args);
 
-/**
-   Initialises db-dependant part of request handler.
-
-   @pre dbenv != NULL
- */
-M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
-				   struct m0_be_seg *dbenv);
-
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
 
 /**
@@ -235,6 +227,19 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
    @pre reqh != NULL
  */
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
+
+/**
+   Initialises db-dependant part of request handler.
+
+   @pre dbenv != NULL
+ */
+M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
+				   struct m0_be_seg *dbenv);
+
+/**
+   Finalises db-dependant part of request handler.
+ */
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 				       struct m0_stob *stob);
