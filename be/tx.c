@@ -327,7 +327,9 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 	M0_PRE(be_tx_is_locked(tx));
 
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "transaction failure: err=%d", rc);
+		M0_LOG(M0_ERROR, "%s -> %s: transaction failure: err=%d",
+			m0_be_tx_state_name(tx, m0_be_tx_state(tx)),
+			m0_be_tx_state_name(tx, state), rc);
 
 	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
 		tx->t_persistent(tx);

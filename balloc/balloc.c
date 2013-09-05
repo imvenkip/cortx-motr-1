@@ -1733,11 +1733,17 @@ balloc_alloc_credit(const struct m0_ad_balloc *balroom, int nr,
 	struct m0_be_tx_credit	 cred2 = {0};
 	const struct m0_balloc	*bal = b2m0(balroom);
 
+	M0_ENTRY("cred=%lux%lu nr=%d",
+		(unsigned long)accum->tc_reg_nr,
+		(unsigned long)accum->tc_reg_size, nr);
 	balloc_find_by_goal_credit(bal, &cred1);
 	m0_balloc_load_extents_credit(bal, &cred2);
-	m0_be_tx_credit_mac(&cred1, &cred2, bal->cb_sb.bsb_groupcount * 4);
+	m0_be_tx_credit_mac(&cred1, &cred2, bal->cb_sb.bsb_groupcount);
 	balloc_db_update_credit(bal, &cred1);
 	m0_be_tx_credit_mac(accum, &cred1, nr);
+	M0_LEAVE("cred=%lux%lu",
+		(unsigned long)accum->tc_reg_nr,
+		(unsigned long)accum->tc_reg_size);
 }
 
 static int
