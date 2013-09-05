@@ -61,7 +61,7 @@ M0_INTERNAL bool m0_addb_mc_is_initialized(const struct m0_addb_mc *mc)
 	return addb_mc_invariant(mc);
 }
 
-M0_INTERNAL void m0_addb_mc_fini(struct m0_addb_mc *mc)
+M0_INTERNAL void m0_addb_mc_unconfigure(struct m0_addb_mc *mc)
 {
 	M0_PRE(m0_addb_mc_is_initialized(mc));
 	if (mc->am_evmgr != NULL) {
@@ -77,6 +77,11 @@ M0_INTERNAL void m0_addb_mc_fini(struct m0_addb_mc *mc)
 		M0_LOG(M0_DEBUG, "put sink %p", sink);
 		(*sink->rs_put)(mc, sink);
 	}
+}
+
+M0_INTERNAL void m0_addb_mc_fini(struct m0_addb_mc *mc)
+{
+	m0_addb_mc_unconfigure(mc);
 	mc->am_magic = 0;
 	M0_POST(!m0_addb_mc_is_initialized(mc));
 }

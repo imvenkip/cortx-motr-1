@@ -830,6 +830,14 @@ M0_INTERNAL bool m0_addb_mc_is_initialized(const struct m0_addb_mc *mc);
 M0_INTERNAL void m0_addb_mc_fini(struct m0_addb_mc *mc);
 
 /**
+   Unconfigure an ADDB machine.
+   It will release all the referenced components of the machine and finalize
+   them if their reference counts go to zero.
+   @pre m0_addb_mc_is_initialized(mc)
+ */
+M0_INTERNAL void m0_addb_mc_unconfigure(struct m0_addb_mc *mc);
+
+/**
    Predicate to determine if an ADDB machine has an event manager.
    It may also check that the configured component pointers are valid.
    @pre m0_addb_mc_is_initialized(mc)
