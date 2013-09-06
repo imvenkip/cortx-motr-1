@@ -1376,7 +1376,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 			  .rhia_mdstore   = &rctx->rc_mdstore,
 			  .rhia_fol       = &rctx->rc_fol,
 			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = rctx->rc_addb_stob.cas_stob);
+			  .rhia_addb_stob = NULL);
 	if (rc == 0) {
 		rctx->rc_state = RC_INITIALISED;
 		return 0;
