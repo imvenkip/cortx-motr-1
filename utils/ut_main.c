@@ -125,7 +125,7 @@ void add_uts(void)
 	m0_ut_add(&item_ut);
 	m0_ut_add(&item_source_ut);
 	m0_ut_add(&layout_ut);
-	// m0_ut_add(&m0_addb_ut);	/* MERO-20 */
+	m0_ut_add(&m0_addb_ut);
 	m0_ut_add(&m0_fop_lock_ut);
 	m0_ut_add(&m0_fom_stats_ut);
 	m0_ut_add(&m0_mgmt_conf_ut);
