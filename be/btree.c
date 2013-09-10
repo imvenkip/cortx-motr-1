@@ -64,6 +64,8 @@ struct node_pos {
 	unsigned int	    p_index;
 };
 
+static struct bt_key_val *btree_search(struct m0_be_btree *btree, void *key);
+
 static inline void mem_free(const struct m0_be_btree *btree,
 			    struct m0_be_tx *tx, void *ptr, m0_bcount_t size)
 {
@@ -396,6 +398,7 @@ static void btree_insert_key(struct m0_be_btree *btree,
 	struct m0_be_bnode *rnode;
 
 	M0_PRE_EX(btree_invariant(btree));
+	M0_PRE_EX(btree_search(btree, key_val->key) == NULL);
 
 	rnode = btree->bb_root;
 	if (rnode->b_nr_active == KV_NR) {
@@ -804,7 +807,7 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 	struct m0_be_btree *btree = it->bc_tree;
 	struct node_pos kp = { .p_node = NULL };
 	struct m0_be_bnode *node;
-	unsigned int i = 0;
+	int i = 0;
 
 	node = btree->bb_root;
 	it->bc_stack_pos = 0;
@@ -828,7 +831,9 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 		/*  If the node is leaf and if we did not find the key */
 		/*  return NULL */
 		if (node->b_leaf) {
-			if (slant && i < node->b_nr_active) {
+			while (node != NULL && i == node->b_nr_active)
+				node = node_pop(it, &i);
+			if (slant && node != NULL) {
 				kp.p_node = node;
 				kp.p_index = i;
 			}
@@ -1292,21 +1297,24 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	m0_rwlock_write_lock(&tree->bb_lock);
 
-	key_data = mem_alloc(tree, tx, key->b_nob);
-	val_data = mem_alloc(tree, tx, val->b_nob);
-	kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
-	memcpy(key_data, key->b_addr, key->b_nob);
-	memcpy(val_data, val->b_addr, val->b_nob);
-	kv->key = key_data;
-	kv->val = val_data;
-	mem_update(tree, tx, kv, sizeof(struct bt_key_val));
-	mem_update(tree, tx, key_data, key->b_nob);
-	mem_update(tree, tx, val_data, val->b_nob);
+	if (btree_search(tree, key->b_addr) == NULL) {
+		key_data = mem_alloc(tree, tx, key->b_nob);
+		val_data = mem_alloc(tree, tx, val->b_nob);
+		kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
+		memcpy(key_data, key->b_addr, key->b_nob);
+		memcpy(val_data, val->b_addr, val->b_nob);
+		kv->key = key_data;
+		kv->val = val_data;
+		mem_update(tree, tx, kv, sizeof(struct bt_key_val));
+		mem_update(tree, tx, key_data, key->b_nob);
+		mem_update(tree, tx, val_data, val->b_nob);
 
-	btree_insert_key(tree, tx, kv);
+		btree_insert_key(tree, tx, kv);
+		op_tree(op)->t_rc = 0;
+	} else
+		op_tree(op)->t_rc = -EEXIST;
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
-	op_tree(op)->t_rc = 0;
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
@@ -1414,7 +1422,8 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
 	m0_rwlock_read_lock(&btree->bb_lock);
 
 	key = btree_get_max_key(btree);
-	m0_buf_init(out, key, key != NULL ? btree->bb_ops->ko_ksize(key) : 0);
+	op_tree(op)->t_rc = key == NULL ? -ENOENT : 0;
+	m0_buf_init(out, key, key == NULL ? 0 : btree->bb_ops->ko_ksize(key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
@@ -1435,7 +1444,8 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
 	m0_rwlock_read_lock(&btree->bb_lock);
 
 	key = btree_get_min_key(btree);
-	m0_buf_init(out, key, key != NULL ? btree->bb_ops->ko_ksize(key) : 0);
+	op_tree(op)->t_rc = key == NULL ? -ENOENT : 0;
+	m0_buf_init(out, key, key == NULL ? 0 : btree->bb_ops->ko_ksize(key));
 
 	m0_rwlock_read_unlock(&btree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
