@@ -234,12 +234,14 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
    @pre dbenv != NULL
  */
 M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
-				   struct m0_be_seg *dbenv);
+				   struct m0_be_seg *dbenv,
+				   bool create);
 
 /**
    Finalises db-dependant part of request handler.
  */
-M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh);
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh,
+				    bool destroy);
 
 M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 				       struct m0_stob *stob);

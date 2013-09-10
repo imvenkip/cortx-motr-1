@@ -1394,7 +1394,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 
 	be_init(&rctx->rc_reqh, rctx);
 
-	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_db);
+	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_db, true);
 	if (rc != 0)
 		goto be_fini;
 
@@ -1460,7 +1460,7 @@ cleanup_addb_stob:
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_dbenv_fini:
-	m0_reqh_dbenv_fini(&rctx->rc_reqh);
+	m0_reqh_dbenv_fini(&rctx->rc_reqh, false);
 be_fini:
 	be_fini(rctx);
 	m0_reqh_fini(&rctx->rc_reqh);
@@ -1512,12 +1512,14 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
 
-	m0_reqh_dbenv_fini(reqh);
+	m0_reqh_dbenv_fini(reqh, false);
+	cs_rpc_machines_fini(reqh);
+
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
 		m0_reqh_services_terminate(reqh);
-	cs_rpc_machines_fini(reqh);
+
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);

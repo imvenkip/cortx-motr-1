@@ -153,13 +153,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
-	/** @todo Currently passing dbenv to this api, the duty of the
-	    thread doing the io is to create/use a local/embedded m0_dtx
-	    and do m0_db_tx_init() of its m0_db_tx member and then do the
-	    io (invocation of m0_stob_io_launch(), etc) apis. Need to validate
-	    this.
-	 */
-
 	/* for UT specifically */
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
@@ -180,7 +173,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_reqh_lockers_init(reqh);
 
 	if (reqh->rh_dbenv != NULL)
-		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv);
+		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv, true);
 
 	return rc;
 }
@@ -188,9 +181,9 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 static struct m0_fol *
 fol_alloc(struct m0_be_seg *seg)
 {
-	struct m0_sm_group	*grp = m0_locality0_get()->lo_grp;
-	struct m0_dtx		 tx = {};
-	struct m0_fol		*fol;
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+	struct m0_fol      *fol;
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, seg->bs_domain, grp);
@@ -205,13 +198,28 @@ fol_alloc(struct m0_be_seg *seg)
 	return fol;
 }
 
-static int fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
+static void
+fol_free(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE,
+			sizeof *fol, 0, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, m0_be_free(&seg->bs_allocator,
+				&tx.tx_betx, &op, fol));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+}
+
+static int fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
 {
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 	struct m0_dtx       tx = {};
 	int                 rc;
-
-	m0_fol_init(fol, seg);
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, seg->bs_domain, grp);
@@ -224,14 +232,30 @@ static int fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 	return rc;
 }
 
+static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_fol_credit(fol, M0_FO_DESTROY, 1, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx.tx_betx, &op));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+}
+
 M0_INTERNAL int
-m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *dbenv)
+m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
+			bool create)
 {
 	int rc = 0;
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 
-	M0_PRE(dbenv != NULL);
+	M0_PRE(seg != NULL);
 
-	reqh->rh_dbenv = dbenv;
+	reqh->rh_dbenv = seg;
 
 #if 0 /* XXX_BE_DB */
 	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
@@ -242,11 +266,28 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *dbenv)
 	}
 #endif
 
-	reqh->rh_fol = fol_alloc(dbenv);
-	if (reqh->rh_fol == NULL)
-		return -ENOMEM;
-
-	rc = fol_init(reqh->rh_fol, dbenv);
+	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
+	if (rc == -ENOENT) {
+		if (!create) {
+			return rc;
+		} else {
+			reqh->rh_fol = fol_alloc(seg);
+			if (reqh->rh_fol == NULL)
+				return -ENOMEM;
+			m0_fol_init(reqh->rh_fol, seg);
+			rc = fol_create(reqh->rh_fol, seg);
+			if (rc == 0) {
+				m0_sm_group_lock(grp);
+				rc = m0_be_seg_dict_insert(seg, grp,
+						"fol", reqh->rh_fol);
+				m0_sm_group_unlock(grp);
+			}
+		}
+	} else {
+		if (create)
+			return -EEXIST;
+		m0_fol_init(reqh->rh_fol, seg);
+	}
 
 	if (rc == 0)
 		M0_POST(m0_reqh_invariant(reqh));
@@ -254,10 +295,16 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *dbenv)
 	return rc;
 }
 
-M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 {
 	if (reqh->rh_dbenv != NULL) {
-		m0_fol_fini(reqh->rh_fol);
+		if (destroy) {
+			fol_destroy(reqh->rh_fol, reqh->rh_dbenv);
+			m0_fol_fini(reqh->rh_fol);
+			fol_free(reqh->rh_fol, reqh->rh_dbenv);
+		} else {
+			m0_fol_fini(reqh->rh_fol);
+		}
 #if 0 /* XXX_BE_DB */
 		m0_layout_standard_types_unregister(&reqh->rh_ldom);
 		m0_layout_domain_fini(&reqh->rh_ldom);
