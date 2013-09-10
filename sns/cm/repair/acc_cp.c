@@ -112,6 +112,7 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
 M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       struct m0_fid *tgt_cobfid,
 				       uint64_t tgt_cob_index,
+				       uint64_t failed_unit_idx,
 				       uint64_t data_seg_nr)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(scp->sc_base.c_ag);
@@ -124,7 +125,7 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 		scp->sc_is_local = true;
 	scp->sc_is_acc = true;
 	return m0_sns_cm_cp_setup(scp, tgt_cobfid, tgt_cob_index, data_seg_nr,
-				  ~0);
+				  failed_unit_idx, ~0);
 }
 
 /** @} SNSCMCP */

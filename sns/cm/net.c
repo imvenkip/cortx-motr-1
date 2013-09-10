@@ -111,6 +111,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         sns_cp->sc_sid.si_bits.u_hi = sns_cpx->scx_sid.f_container;
         sns_cp->sc_sid.si_bits.u_lo = sns_cpx->scx_sid.f_key;
 	sns_cp->sc_cobfid = sns_cpx->scx_sid;
+	sns_cp->sc_failed_idx = sns_cpx->scx_failed_idx;
 
         sns_cp->sc_index =
                 sns_cpx->scx_ivecs.cis_ivecs[0].ci_iosegs[0].ci_index;
@@ -158,6 +159,7 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
 
         sns_cpx->scx_sid.f_container = sns_cp->sc_sid.si_bits.u_hi;
         sns_cpx->scx_sid.f_key = sns_cp->sc_sid.si_bits.u_lo;
+	sns_cpx->scx_failed_idx = sns_cp->sc_failed_idx;
         sns_cpx->scx_cp.cpx_prio = cp->c_prio;
         sns_cpx->scx_phase = M0_CCP_SEND;
         m0_cm_ag_id_copy(&sns_cpx->scx_cp.cpx_ag_id, &cp->c_ag->cag_id);

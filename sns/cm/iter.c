@@ -524,7 +524,8 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
 		 */
 		rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
-					cp_data_seg_nr, sfc->sfc_sa.sa_unit - 1);
+					cp_data_seg_nr, ~0,
+					sfc->sfc_sa.sa_unit - 1);
 		if (rc < 0)
 			M0_RETURN(rc);
 

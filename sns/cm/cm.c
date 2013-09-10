@@ -690,6 +690,7 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 		if (buf == NULL)
 			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
+		buf->nb_buffer.ov_vec.v_nr = seg_nr;
 		M0_CNT_DEC(rem_bufs);
 		if (!scp->sc_is_local) {
 			if (scm->sc_ibp_reserved_nr > 0)

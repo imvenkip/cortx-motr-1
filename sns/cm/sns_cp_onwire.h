@@ -43,6 +43,8 @@ struct m0_sns_cpx {
         /** Destination stob id. */
         struct m0_fid             scx_sid;
 
+	uint64_t                  scx_failed_idx;
+
 	/** Copy packet fom phase before sending it onwire. */
 	uint32_t                  scx_phase;
 } M0_XCA_RECORD;

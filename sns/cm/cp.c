@@ -218,6 +218,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 				   const struct m0_fid *cob_fid,
 				   uint64_t stob_offset,
 				   uint64_t data_seg_nr,
+				   uint64_t failed_unit_index,
 				   uint64_t ag_cp_idx)
 {
 	struct m0_sns_cm *scm = cm2sns(scp->sc_base.c_ag->cag_cm);
@@ -226,6 +227,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 	M0_PRE(scp != NULL && scp->sc_base.c_ag != NULL);
 
 	scp->sc_base.c_data_seg_nr = data_seg_nr;
+	scp->sc_failed_idx = failed_unit_index;
 	m0_sns_cm_cp_tgt_info_fill(scp, cob_fid, stob_offset, ag_cp_idx);
 	m0_bitmap_init(&scp->sc_base.c_xform_cp_indices,
                        scp->sc_base.c_ag->cag_cp_global_nr);

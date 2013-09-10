@@ -48,6 +48,7 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
 M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       struct m0_fid *tgt_cobfid,
 				       uint64_t tgt_cob_index,
+				       uint64_t failed_unit_idx,
 				       uint64_t data_seg_nr);
 
 M0_INTERNAL struct m0_sns_cm_repair_ag *
@@ -94,6 +95,9 @@ static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
 		rc = m0_sns_ir_failure_register(&nbuf_head->nb_buffer,
 						rag->rag_fc[i].fc_failed_idx,
 						&rag->rag_ir);
+		/*XXX: Remove this after finding a better solution.*/
+		if (rag->rag_base.sag_base.cag_cp_local_nr == 0)
+			rag->rag_ir.si_mode = M0_SI_XFORM;
 		if (rc != 0)
 			goto out;
 	}
@@ -357,6 +361,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 		rc = m0_sns_cm_acc_cp_setup(&rag->rag_fc[i].fc_tgt_acc_cp,
 					    &rag->rag_fc[i].fc_tgt_cobfid,
 					    rag->rag_fc[i].fc_tgt_cob_index,
+					    rag->rag_fc[i].fc_failed_idx,
 					    cp_data_seg_nr);
 		if (rc < 0)
 			return rc;
@@ -388,6 +393,8 @@ M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag
 			M0_CNT_INC(xform_cp_nr);
 	}
 
+	M0_LOG(M0_DEBUG, "acc is full: xform_cp_nr: [%lu] global_cp_nr: [%lu]", xform_cp_nr,
+		global_cp_nr);
 	return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
 }
 

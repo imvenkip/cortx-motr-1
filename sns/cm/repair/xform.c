@@ -147,8 +147,7 @@ static void cp_xor_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 	}
 }
 
-static void cp_rs_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
-			  uint32_t failed_index)
+static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
 {
 	struct m0_net_buffer       *nbuf_head;
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
@@ -158,6 +157,7 @@ static void cp_rs_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
 			  &src_cp->c_xform_cp_indices, failed_index);
 }
 
+/*
 static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
 			    uint32_t failed_index)
 {
@@ -169,6 +169,7 @@ static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
 			M0_PARITY_CAL_ALGO_REED_SOLOMON)
 		cp_rs_recover(dst_cp, src_cp, failed_index);
 }
+*/
 
 /** Merges the source bitmap to the destination bitmap. */
 static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
@@ -216,12 +217,15 @@ out:
 M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_ag        *sns_ag;
+	struct m0_sns_cm_cp        *scp;
 	struct m0_sns_cm_repair_ag *rag;
 	struct m0_cm_aggr_group    *ag;
 	struct m0_cm_cp            *res_cp;
 	struct m0_sns_cm           *scm;
         struct m0_cob_domain       *cdom;
 	struct m0_cm_ag_id          id;
+	bool                        bitmap_merge;
+	bool                        rs_done = false;
 	int                         rc;
 	int                         i;
 
@@ -230,6 +234,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	ag = cp->c_ag;
 	id = ag->cag_id;
 	scm = cm2sns(ag->cag_cm);
+	scp = cp2snscp(cp);
 	sns_ag = ag2snsag(ag);
 	rag = sag2repairag(sns_ag);
 	m0_cm_ag_lock(ag);
@@ -257,15 +262,29 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	}
 
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
+		bitmap_merge = false;
 		res_cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
-		cp_incr_recover(res_cp, cp, rag->rag_fc[i].fc_failed_idx);
+		if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+			cp_xor_recover(res_cp, cp);
+		else if ((rag->rag_math.pmi_parity_algo ==
+				M0_PARITY_CAL_ALGO_REED_SOLOMON) && !rs_done) {
+			cp_rs_recover(cp, scp->sc_failed_idx);
+			if (ag->cag_cp_local_nr == ag->cag_transformed_cp_nr)
+				m0_sns_ir_local_xform(&rag->rag_ir);
+			rs_done = true;
+		}
+		//cp_incr_recover(res_cp, cp, rag->rag_fc[i].fc_failed_idx);
 
 		/*
 		 * Merge the bitmaps of incoming copy packet with the
 		 * resultant copy packet.
 		 */
-		if (cp->c_xform_cp_indices.b_nr > 0)
-			res_cp_bitmap_merge(res_cp, cp);
+		if (cp->c_xform_cp_indices.b_nr > 0) {
+			if (scp->sc_is_local || (scp->sc_failed_idx == rag->rag_fc[i].fc_failed_idx)) {
+				res_cp_bitmap_merge(res_cp, cp);
+				bitmap_merge = true;
+			}
+		}
 		/*
 		 * Check if all copy packets are processed at this stage,
 		 * For incoming path transformation can be marked as complete
@@ -277,14 +296,18 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		 */
 		if ((rc = m0_sns_cm_cob_is_local(
 					&rag->rag_fc[i].fc_tgt_cobfid,
-					cdom)) == 0) {
-			if (m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
+					dbenv, cdom)) == 0) {
+			if (bitmap_merge && m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
+				M0_LOG(M0_DEBUG, "1:Enqueuing acc got tgt ind: [%u]",
+					rag->rag_fc[i].fc_tgt_idx);
 				rc = res_cp_enqueue(res_cp);
 				if (rc != 0)
 					goto out;
 			}
 		} else if (rc == -ENOENT && ag->cag_cp_local_nr ==
 						ag->cag_transformed_cp_nr) {
+			M0_LOG(M0_DEBUG, "2:Enqueuing acc got tgt ind: [%u]",
+				rag->rag_fc[i].fc_tgt_idx);
 			rc = res_cp_enqueue(res_cp);
 			if (rc != 0)
 				goto out;
