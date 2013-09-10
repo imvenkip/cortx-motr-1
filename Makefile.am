@@ -240,7 +240,7 @@ include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/pool/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/reqh/ut/Makefile.sub
+include $(top_srcdir)/reqh/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ub/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub

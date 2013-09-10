@@ -207,7 +207,7 @@ static const struct m0_fom_type_ops stob_write_fom_type_ops = {
  * Function to locate a storage object.
  */
 static struct m0_stob *stob_object_find(const struct stob_io_fop_fid *fid,
-					struct m0_dtx *tx, struct m0_fom *fom)
+					struct m0_fom *fom)
 {
 	struct m0_stob_id	 id;
 	struct m0_stob		*obj;
@@ -220,7 +220,7 @@ static struct m0_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 	M0_ASSERT(fom_stdom != NULL);
 	result = m0_stob_find(fom_stdom, &id, &obj);
 	M0_ASSERT(result == 0);
-	result = m0_stob_locate(obj, tx);
+	result = m0_stob_locate(obj);
 	return obj;
 }
 
@@ -343,19 +343,26 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 	struct m0_stob_io_fom		*fom_obj;
 	struct m0_rpc_item              *item;
 	struct m0_fop                   *fop;
-	int                             result;
+	int                              result;
 
 	M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			in_fop = m0_fop_data(fom->fo_fop);
+			fom_obj->sif_stobj =
+				stob_object_find(&in_fop->fic_object, fom);
+			m0_stob_create_credit(fom_obj->sif_stobj,
+				&fom->fo_tx.tx_betx_cred);
+			m0_stob_put(fom_obj->sif_stobj);
+		}
 		result = m0_fom_tick_generic(fom);
 	} else {
 		in_fop = m0_fop_data(fom->fo_fop);
 		out_fop = m0_fop_data(fom_obj->sif_rep_fop);
 
-		fom_obj->sif_stobj = stob_object_find(&in_fop->fic_object,
-						      &fom->fo_tx, fom);
+		fom_obj->sif_stobj = stob_object_find(&in_fop->fic_object, fom);
 
 		result = m0_stob_create(fom_obj->sif_stobj, &fom->fo_tx);
 		out_fop->ficr_rc = result;
@@ -365,9 +372,6 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
 		m0_fom_phase_moveif(fom, result, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
-
-		result = m0_fom_fol_rec_add(fom);
-		M0_ASSERT(result == 0);
 		result = M0_FSO_AGAIN;
 	}
 
@@ -394,16 +398,16 @@ static int stob_read_fom_tick(struct m0_fom *fom)
 {
         struct m0_stob_io_read      *in_fop;
         struct m0_stob_io_read_rep  *out_fop;
-        struct m0_stob_io_fom           *fom_obj;
-        struct m0_stob_io               *stio;
-        struct m0_stob                  *stobj;
-	struct m0_rpc_item              *item;
-	struct m0_fop                   *fop;
-        void                            *addr;
-        m0_bcount_t                      count;
-        m0_bcount_t                      offset;
-        uint32_t                         bshift;
-        int                              result = 0;
+        struct m0_stob_io_fom       *fom_obj;
+        struct m0_stob_io           *stio;
+        struct m0_stob              *stobj;
+        struct m0_rpc_item          *item;
+        struct m0_fop               *fop;
+        void                        *addr;
+        m0_bcount_t                  count;
+        m0_bcount_t                  offset;
+        uint32_t                     bshift;
+        int                          result = 0;
 
         M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_READ_REQ_OPCODE);
 
@@ -421,8 +425,7 @@ static int stob_read_fom_tick(struct m0_fom *fom)
                         in_fop = m0_fop_data(fom->fo_fop);
                         M0_ASSERT(in_fop != NULL);
                         fom_obj->sif_stobj = stob_object_find(
-				&in_fop->fir_object,
-				&fom->fo_tx, fom);
+				&in_fop->fir_object, fom);
 
                         stobj =  fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
@@ -478,8 +481,6 @@ static int stob_read_fom_tick(struct m0_fom *fom)
 			item = m0_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
-			result = m0_fom_fol_rec_add(fom);
-                        M0_ASSERT(result == 0);
                         result = M0_FSO_AGAIN;
                 }
 
@@ -516,16 +517,16 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 {
         struct m0_stob_io_write     *in_fop;
         struct m0_stob_io_write_rep *out_fop;
-        struct m0_stob_io_fom           *fom_obj;
-        struct m0_stob_io               *stio;
-        struct m0_stob                  *stobj;
-	struct m0_rpc_item              *item;
-	struct m0_fop                   *fop;
-        void                            *addr;
-        m0_bcount_t                      count;
-        m0_bindex_t                      offset;
-        uint32_t                         bshift;
-        int                              result = 0;
+        struct m0_stob_io_fom       *fom_obj;
+        struct m0_stob_io           *stio;
+        struct m0_stob              *stobj;
+        struct m0_rpc_item          *item;
+        struct m0_fop               *fop;
+        void                        *addr;
+        m0_bcount_t                  count;
+        m0_bindex_t                  offset;
+        uint32_t                     bshift;
+        int                          result = 0;
 
         M0_PRE(m0_fop_opcode(fom->fo_fop) == M0_STOB_IO_WRITE_REQ_OPCODE);
 
@@ -533,6 +534,17 @@ static int stob_write_fom_tick(struct m0_fom *fom)
         stio = &fom_obj->sif_stio;
 
         if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			in_fop = m0_fop_data(fom->fo_fop);
+			fom_obj->sif_stobj =
+				stob_object_find(&in_fop->fiw_object, fom);
+			stobj = fom_obj->sif_stobj;
+			bshift = stobj->so_op->sop_block_shift(stobj);
+			count = in_fop->fiw_value.fi_count >> bshift;
+			m0_stob_write_credit(stobj->so_domain, count,
+						&fom->fo_tx.tx_betx_cred);
+			m0_stob_put(fom_obj->sif_stobj);
+		}
                 result = m0_fom_tick_generic(fom);
         } else {
                 out_fop = m0_fop_data(fom_obj->sif_rep_fop);
@@ -543,7 +555,7 @@ static int stob_write_fom_tick(struct m0_fom *fom)
                         M0_ASSERT(in_fop != NULL);
 
                         fom_obj->sif_stobj = stob_object_find(
-				&in_fop->fiw_object, &fom->fo_tx, fom);
+				&in_fop->fiw_object, fom);
 
                         stobj = fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
@@ -596,8 +608,6 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 			item = m0_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
-			result = m0_fom_fol_rec_add(fom);
-                        M0_ASSERT(result == 0);
                         result = M0_FSO_AGAIN;
                 }
         }

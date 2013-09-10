@@ -89,7 +89,7 @@ enum {
 	 * Alternative (proper?) solution is to calculate the size of fol
 	 * record as a function of rpc opcode.
 	 */
-	FOL_REC_MAXSIZE = 512
+	FOL_REC_MAXSIZE = 4264 /* according to reqh-ut */
 #endif
 };
 
