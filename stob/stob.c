@@ -103,6 +103,15 @@ m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id)
 	return NULL;
 }
 
+
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
+				      m0_bcount_t             size,
+				      struct m0_be_tx_credit *accum)
+{
+	if (dom->sd_ops->sdo_write_credit != NULL)
+		dom->sd_ops->sdo_write_credit(dom, size, accum);
+}
+
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t,
 				     uint64_t dom_id,

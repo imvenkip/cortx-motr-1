@@ -207,10 +207,11 @@ static int test_ad_init(void)
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore,
+	dom_fore->sd_ops->sdo_write_credit(dom_fore,
 				buf_size * (NR * NR / 2) /* test_ad() */ +
 				buf_size * NR, /* test_ad_rw_unordered() */
-					&tx);
+						&tx.tx_betx_cred);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_ASSERT(result == 0);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
@@ -401,7 +402,9 @@ static void test_ad_undo(void)
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, buf_size * 2, &tx);
+	dom_fore->sd_ops->sdo_write_credit(dom_fore,
+				buf_size * 2, &tx.tx_betx_cred);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
@@ -426,7 +429,7 @@ static void test_ad_undo(void)
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, 1, &tx);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
 	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 	test_read(1);

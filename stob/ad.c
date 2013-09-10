@@ -464,6 +464,17 @@ static int ad_domain_stob_find(struct m0_stob_domain *dom,
 
 /**
    Implementation of m0_stob_op::sop_fini().
+   Implementation of m0_stob_domain_op::sdo_tx_make().
+ */
+static int ad_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
+{
+	struct ad_domain *adom = domain2ad(dom);
+
+	M0_PRE(adom->ad_setup);
+	return m0_dtx_open_sync(tx);
+}
+
+/**
  */
 static void ad_stob_fini(struct m0_stob *stob)
 {
@@ -1407,6 +1418,9 @@ static void ad_write_credit(struct ad_domain *dom, m0_bcount_t sz,
 							 acc);
 }
 
+/**
+   Implementation of m0_stob_domain_op::sdo_write_credit().
+ */
 static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
 					m0_bcount_t             size,
 					struct m0_be_tx_credit *accum)
@@ -1418,20 +1432,7 @@ static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
 	M0_PRE(size > 0);
 
 	ad_write_credit(adom, size, accum);
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_tx_make().
- */
-static int ad_domain_tx_make(struct m0_stob_domain *dom, m0_bcount_t size,
-			     struct m0_dtx *tx)
-{
-	struct ad_domain *adom;
-
-	adom = domain2ad(dom);
-	M0_PRE(adom->ad_setup);
-	ad_domain_stob_write_credit(dom, size, &tx->tx_betx_cred);
-	return m0_dtx_open_sync(tx);
+	m0_stob_write_credit(adom->ad_bstore->so_domain, size, accum);
 }
 
 /**
@@ -1551,6 +1552,7 @@ static const struct m0_stob_domain_op ad_stob_domain_op = {
 	.sdo_fini         = ad_domain_fini,
 	.sdo_stob_find    = ad_domain_stob_find,
 	.sdo_tx_make      = ad_domain_tx_make,
+	.sdo_write_credit = ad_domain_stob_write_credit
 };
 
 static const struct m0_stob_op ad_stob_op = {

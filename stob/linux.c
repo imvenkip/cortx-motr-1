@@ -256,8 +256,7 @@ static void linux_stob_fini(struct m0_stob *stob)
 /**
    Implementation of m0_stob_domain_op::sdo_tx_make().
  */
-static int linux_domain_tx_make(struct m0_stob_domain *dom, m0_bcount_t size,
-				struct m0_dtx *tx)
+static int linux_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
 {
 	return 0;
 }

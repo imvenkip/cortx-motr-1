@@ -154,8 +154,13 @@ struct m0_stob_domain_op {
 	   @todo this is a temporary method, until proper DTM interfaces are in
 	   place.
 	 */
-	int (*sdo_tx_make)(struct m0_stob_domain *dom, m0_bcount_t size,
-			   struct m0_dtx *tx);
+	int (*sdo_tx_make)(struct m0_stob_domain *dom, struct m0_dtx *tx);
+	/**
+	   Calculates the credit for write operation.
+	 */
+	void (*sdo_write_credit)(struct m0_stob_domain  *dom,
+				 m0_bcount_t             size,
+				 struct m0_be_tx_credit *accum);
 };
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
@@ -164,6 +169,10 @@ M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_be_domain *be_dom);
 
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
+
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
+				      m0_bcount_t             size,
+				      struct m0_be_tx_credit *accum);
 
 /**
    m0_stob state specifying its relationship with the underlying storage object.
