@@ -235,11 +235,11 @@ static int fom_auth_wait(struct m0_fom *fom)
 }
 
 /**
- * Creates fom local transactional context, the fom operations
+ * Initialize fom local transactional context, the fom operations
  * are executed in this context.
  * After fom execution is completed the transaction is committed.
  */
-static int create_loc_ctx(struct m0_fom *fom)
+static int loc_ctx_init(struct m0_fom *fom)
 {
 	struct m0_reqh *reqh;
 
@@ -250,20 +250,33 @@ static int create_loc_ctx(struct m0_fom *fom)
 
 	m0_dtx_init(&fom->fo_tx, reqh->rh_dbenv->bs_domain,
 		    &fom->fo_loc->fl_group);
-	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, &fom->fo_tx.tx_betx_cred);
-	m0_dtx_open(&fom->fo_tx);
-	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
 
-	m0_fom_phase_set(fom, M0_FOPH_TXN_CONTEXT_WAIT);
+	return M0_FSO_AGAIN;
+}
+
+/**
+ * Creates fom local transactional context.
+ */
+static int loc_ctx_open(struct m0_fom *fom)
+{
+	struct m0_reqh *reqh;
+
+	reqh = m0_fom_reqh(fom);
+
+	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, &fom->fo_tx.tx_betx_cred);
+
+	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
+	m0_dtx_open(&fom->fo_tx);
+	m0_fom_phase_set(fom, M0_FOPH_TXN_WAIT);
 
 	return M0_FSO_WAIT;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation,
- * M0_FOPH_TXN_CONTEXT phase.
+ * issued at the M0_FOPH_TXN_OPEN phase.
  */
-static int create_loc_ctx_wait(struct m0_fom *fom)
+static int loc_ctx_wait(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
 
@@ -460,21 +473,25 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_obj_check_wait",
 					      1 << M0_FOPH_OBJECT_CHECK_WAIT },
 	[M0_FOPH_AUTHORISATION] =	   { &fom_auth,
-					      M0_FOPH_TXN_CONTEXT,
+					      M0_FOPH_TXN_INIT,
 					     "fom_auth",
 					      1 << M0_FOPH_AUTHORISATION },
 	[M0_FOPH_AUTHORISATION_WAIT] =	   { &fom_auth_wait,
-					      M0_FOPH_TXN_CONTEXT,
+					      M0_FOPH_TXN_INIT,
 					     "fom_auth_wait",
 					      1 << M0_FOPH_AUTHORISATION_WAIT },
-	[M0_FOPH_TXN_CONTEXT] =		   { &create_loc_ctx,
-					      M0_FOPH_TXN_CONTEXT_WAIT,
-					     "create_loc_ctx",
-					      1 << M0_FOPH_TXN_CONTEXT },
-	[M0_FOPH_TXN_CONTEXT_WAIT] =	   { &create_loc_ctx_wait,
+	[M0_FOPH_TXN_INIT] =		   { &loc_ctx_init,
+					      M0_FOPH_TXN_OPEN,
+					     "loc_ctx_init",
+					      1 << M0_FOPH_TXN_INIT },
+	[M0_FOPH_TXN_OPEN] =		   { &loc_ctx_open,
+					      M0_FOPH_TXN_WAIT,
+					     "loc_ctx_init",
+					      1 << M0_FOPH_TXN_OPEN },
+	[M0_FOPH_TXN_WAIT] =		   { &loc_ctx_wait,
 					      M0_FOPH_TYPE_SPECIFIC,
-					     "create_loc_ctx_wait",
-					      1 << M0_FOPH_TXN_CONTEXT_WAIT },
+					     "loc_ctx_wait",
+					      1 << M0_FOPH_TXN_WAIT },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
 					      M0_FOPH_FOL_REC_PART_ADD,
 					     "fom_success",
@@ -570,22 +587,23 @@ static struct m0_sm_state_descr generic_phases[] = {
 	[M0_FOPH_AUTHORISATION] = {
 		.sd_name      = "fom_auth",
 		.sd_allowed   = M0_BITS(M0_FOPH_AUTHORISATION_WAIT,
-					M0_FOPH_TXN_CONTEXT,
+					M0_FOPH_TXN_INIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_AUTHORISATION_WAIT] = {
 		.sd_name      = "fom_auth_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_CONTEXT, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_INIT, M0_FOPH_FAILURE)
 	},
-	[M0_FOPH_TXN_CONTEXT] = {
-		.sd_name      = "create_loc_ctx",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_CONTEXT_WAIT,
-					M0_FOPH_SUCCESS,
-					M0_FOPH_FAILURE,
-					M0_FOPH_TYPE_SPECIFIC)
+	[M0_FOPH_TXN_INIT] = {
+		.sd_name      = "loc_ctx_init",
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN)
 	},
-	[M0_FOPH_TXN_CONTEXT_WAIT] = {
-		.sd_name      = "create_loc_ctx_wait",
+	[M0_FOPH_TXN_OPEN] = {
+		.sd_name      = "loc_ctx_open",
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_WAIT)
+	},
+	[M0_FOPH_TXN_WAIT] = {
+		.sd_name      = "loc_ctx_wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE,
 					M0_FOPH_TYPE_SPECIFIC)
 	},
