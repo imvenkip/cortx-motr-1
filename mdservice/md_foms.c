@@ -194,11 +194,8 @@ static int m0_md_tick_create(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -256,11 +253,8 @@ static int m0_md_tick_link(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -328,11 +322,8 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_mdstore_unlink_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -453,11 +444,8 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_md_rename_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -529,11 +517,8 @@ static int m0_md_tick_open(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -603,11 +588,8 @@ static int m0_md_tick_close(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -673,11 +655,8 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
 		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
-	}
-
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -976,12 +955,10 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 		/* XXX use m0_cob_ea_set_credit() when implemented */
 		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
 	}
-
 	rc = m0_md_tick_generic(fom);
         if (rc != 0)
                 return rc;
@@ -1056,12 +1033,10 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
-	if (m0_fom_phase(fom) == M0_FOPH_TXN_CONTEXT) {
-		fom->fo_tx.tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 		/* XXX use m0_cob_ea_del_credit() when implemented */
 		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
 	}
-
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
                 return rc;
