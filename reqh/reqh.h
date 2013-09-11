@@ -32,7 +32,6 @@
 #include "fop/fom.h"
 #include "layout/layout.h"
 #include "ha/epoch.h"
-#include "be/ut/helper.h"	/* XXX: prototype solution */
 
 /**
    @defgroup reqh Request handler

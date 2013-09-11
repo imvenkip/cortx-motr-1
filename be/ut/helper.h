@@ -25,6 +25,7 @@
 #include "lib/types.h"		/* bool */
 
 #include "sm/sm.h"		/* m0_sm */
+#include "reqh/reqh.h"		/* m0_reqh */
 #include "stob/stob.h"		/* m0_stob */
 
 #include "be/be.h"		/* m0_be */
@@ -41,6 +42,7 @@ struct m0_be_ut_sm_group_thread {
 };
 
 struct m0_be_ut_backend {
+	struct m0_reqh			  but_reqh;
 	struct m0_be_domain		  but_dom;
 	struct m0_be_domain_cfg		  but_dom_cfg;
 	struct m0_be_ut_sm_group_thread **but_sgt;

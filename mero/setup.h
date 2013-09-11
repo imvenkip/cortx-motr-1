@@ -37,6 +37,8 @@
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "yaml.h"             /* yaml_document_t */
 
+#include "be/ut/helper.h"	/* XXX: prototype solution */
+
 /**
    @defgroup m0d Mero Setup
 

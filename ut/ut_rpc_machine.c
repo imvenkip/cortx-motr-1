@@ -19,6 +19,7 @@
  */
 
 #include "ut/ut.h"
+#include "ut/be.h"
 #include "ut/ut_rpc_machine.h"
 
 extern int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,

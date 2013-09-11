@@ -18,24 +18,6 @@
  * Original creation date: 5-Jun-2013
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
-#include "lib/trace.h"
-
-#include "be/ut/helper.h"	/* m0_be_ut_backend */
-
-#include "lib/memory.h"		/* m0_alloc */
-#include "lib/misc.h"		/* M0_BITS */
-
-#include "be/ut/helper.h"	/* m0_be_ut_backend */
-#include "ut/ast_thread.h"
-#include "lib/arith.h"		/* M0_CNT_INC */
-#include "lib/errno.h"		/* ENOMEM */
-
-#include "stob/stob.h"		/* m0_stob_id */
-#include "stob/linux.h"		/* m0_linux_stob_domain_locate */
-#include "rpc/rpclib.h"		/* m0_rpc_server_start */
-#include "net/net.h"		/* m0_net_xprt */
-
 #include <stdlib.h>		/* system */
 
 #include <sys/stat.h>		/* mkdir */
@@ -43,6 +25,20 @@
 #include <pthread.h>		/* pthread_once */
 #include <unistd.h>		/* syscall */
 #include <sys/syscall.h>	/* syscall */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+#include "lib/memory.h"		/* m0_alloc */
+#include "lib/misc.h"		/* M0_BITS */
+#include "lib/arith.h"		/* M0_CNT_INC */
+#include "lib/errno.h"		/* ENOMEM */
+#include "stob/stob.h"		/* m0_stob_id */
+#include "stob/linux.h"		/* m0_linux_stob_domain_locate */
+#include "rpc/rpclib.h"		/* m0_rpc_server_start */
+#include "net/net.h"		/* m0_net_xprt */
+
+#include "ut/ast_thread.h"
+#include "be/ut/helper.h"	/* m0_be_ut_backend */
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
@@ -265,19 +261,16 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 }
 
 #if 1 /* XXX_BE_DB */
-static struct m0_reqh ut__reqh;
 
 static void XXX_BE_DB__reqh_init(struct m0_reqh *reqh)
 {
-	static struct m0_fol   fol;
 	int                    rc;
 
-	M0_SET0(reqh);
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm     = (void *)1,
 			  .rhia_db      = NULL,
 			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = &fol,
+			  .rhia_fol     = (void *)1,
 			  .rhia_svc     = (void *)1);
 	M0_ASSERT(rc == 0);
 	m0_reqh_start(reqh);
@@ -295,9 +288,10 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	int rc;
 
-	XXX_BE_DB__reqh_init(&ut__reqh);
-
 	M0_SET0(ut_be);
+
+	XXX_BE_DB__reqh_init(&ut_be->but_reqh);
+
 	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
 	/*
 	 * XXX
@@ -319,7 +313,7 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 #if 0 /* XXX_BE_DB */
 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 #else
-	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = &ut__reqh;
+	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = &ut_be->but_reqh;
 #endif
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
@@ -334,7 +328,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_forall(i, ut_be->but_sgt_size,
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
 	m0_be_domain_fini(&ut_be->but_dom);
-	XXX_BE_DB__reqh_fini(&ut__reqh);
+	XXX_BE_DB__reqh_fini(&ut_be->but_reqh);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 	m0_be_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob, true);
 }

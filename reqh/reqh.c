@@ -148,9 +148,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
-	if (reqh->rh_fol != NULL)
-		reqh->rh_fol->f_reqh = reqh;
-
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
 	/* for UT specifically */
@@ -173,7 +170,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_reqh_lockers_init(reqh);
 
 	if (reqh->rh_dbenv != NULL)
-		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv, true);
+		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv, false);
 
 	return rc;
 }

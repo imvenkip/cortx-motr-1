@@ -31,7 +31,7 @@
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_machine.h"
-#include "ut/be.h"
+#include "be/ut/helper.h"
 
 struct m0_ut_rpc_mach_ctx {
 	const char                *rmc_ep_addr;
