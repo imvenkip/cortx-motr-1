@@ -30,6 +30,7 @@
 #include <sys/stat.h> /* fstat */
 #include <limits.h>   /* CHAR_BIT */
 #include <stddef.h>   /* ptrdiff_t */
+#include <time.h>     /* strftime */
 
 #include "lib/types.h"
 #include "lib/arith.h"
@@ -244,6 +245,45 @@ static const struct m0_trace_buf_header *read_trace_buf_header(FILE *trace_file)
 	return tb_header;
 }
 
+static void print_trace_buf_header(FILE *ofile,
+				   const struct m0_trace_buf_header *tbh)
+{
+	int        rc;
+	struct tm  tm;
+	struct tm *ptm;
+	char       time_str[512];
+	size_t     time_str_len;
+	time_t     time;
+
+	fprintf(ofile, "header_size:        %u  # bytes\n", tbh->tbh_header_size);
+	fprintf(ofile, "buffer_size:        %u  # bytes\n", tbh->tbh_buf_size);
+	fprintf(ofile, "buffer_type:        %s\n",
+		tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL ? "KERNEL" :
+		tbh->tbh_buf_type == M0_TRACE_BUF_USER   ? "USER"   :
+							   "UNKNOWN"
+	);
+	fprintf(ofile, "mero_version:       %s\n", tbh->tbh_mero_version);
+	fprintf(ofile, "mero_git_describe:  %s\n", tbh->tbh_mero_git_describe);
+	fprintf(ofile, "mero_kernel:        %s\n", tbh->tbh_mero_kernel_ver);
+
+	rc = putenv("TZ=UTC0");
+	if (rc != 0)
+		fprintf(stderr, "failed to set timezone, temporarily, to UTC\n");
+
+	time = m0_time_seconds(tbh->tbh_log_time);
+	ptm = localtime_r(&time, &tm);
+	if (ptm != NULL) {
+		time_str_len = strftime(time_str, sizeof time_str,
+					"%b %e %H:%M:%S %Z %Y", &tm);
+		if (time_str_len == 0)
+			fprintf(stderr, "failed to format trace file timestamp\n");
+		fprintf(ofile, "trace_time:         '%s'\n", time_str);
+	} else {
+		fprintf(stderr, "incorrect timestamp value in trace header\n");
+		fprintf(ofile, "trace_time:         ''\n");
+	}
+}
+
 static int mmap_m0mero_ko(const char *m0mero_ko_path, void **ko_addr)
 {
 	int         rc;
@@ -326,7 +366,8 @@ static void patch_trace_descr(struct m0_trace_descr *td, ptrdiff_t offset)
  * Returns sysexits.h error codes.
  */
 M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
-			       bool yaml_stream_mode, const char *m0mero_ko_path)
+			       bool yaml_stream_mode, bool header_only,
+			       const char *m0mero_ko_path)
 {
 	const struct m0_trace_buf_header *tbh;
 	struct m0_trace_rec_header        trh;
@@ -346,6 +387,10 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 	tbh = read_trace_buf_header(trace_file);
 	if (tbh == NULL)
 		return EX_DATAERR;
+
+	print_trace_buf_header(output_file, tbh);
+	if (header_only)
+		return 0;
 
 	rc = calc_trace_descr_offset(tbh, m0mero_ko_path, &td_offset);
 	if (rc != 0)

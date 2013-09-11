@@ -33,7 +33,8 @@
  */
 
 M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
-			       bool stream_mode, const char *m0mero_ko_path);
+			       bool yaml_stream_mode, bool header_only,
+			       const char *m0mero_ko_path);
 
 M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val);
 

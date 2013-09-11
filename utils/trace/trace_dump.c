@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
 	FILE       *input_file;
 	FILE       *output_file;
 	bool        stream_mode = false;
+	bool        dump_header_only = false;
 	int         rc;
 
 	/* process CLI options */
@@ -64,10 +65,15 @@ int main(int argc, char *argv[])
 			output_file_name = strdup(str);
 		})
 	  ),
-	  M0_FLAGARG('s', "stream mode, each trace record is formatted as a"
-			  " separate YAML document, so they can be fetched from"
-			  " YAML stream one by one",
-			  &stream_mode
+	  M0_FLAGARG('s',
+		  "stream mode, each trace record is formatted as a"
+		  " separate YAML document, so they can be fetched from"
+		  " YAML stream one by one",
+		  &stream_mode
+	  ),
+	  M0_FLAGARG('H',
+		  "dump only trace header information",
+		  &dump_header_only
 	  ),
 	  M0_STRINGARG('k',
 		"path to m0mero.ko modules's core image (only required for"
@@ -114,7 +120,7 @@ int main(int argc, char *argv[])
 		return EX_SOFTWARE;
 
 	rc = m0_trace_parse(input_file, output_file, stream_mode,
-			    m0mero_ko_path);
+			    dump_header_only, m0mero_ko_path);
 	if (rc != 0) {
 		warnx("Error occurred while parsing input trace data");
 		rc = EX_SOFTWARE;

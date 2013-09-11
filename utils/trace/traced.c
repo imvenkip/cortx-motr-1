@@ -159,6 +159,8 @@ static const struct m0_trace_buf_header *read_trace_buf_header(int ifd)
 		tb_header->tbh_buf_type == M0_TRACE_BUF_USER   ? "user"   :
 								 "unknown"
 	);
+	log_info("  mero_version: %s\n", tb_header->tbh_mero_version);
+	log_info("  mero_git_describe: %s\n", tb_header->tbh_mero_git_describe);
 
 	return tb_header;
 }
@@ -526,7 +528,8 @@ static int process_trace_buffer(int ofd,
 
 			rc = m0_nanosleep(timeo, NULL);
 			if (rc != 0) {
-				log_warn("trace data processing interrupted\n");
+				log_warn("trace data processing interrupted by"
+					 " a signal, exiting\n");
 				return -errno;
 			}
 
@@ -593,7 +596,7 @@ static bool check_sendfile_support(void)
 	else
 		log_info("sendfile(2) is fully supported starting from %s"
 			 " kernel version, falling back to read/write copy via"
-			 " buffer\n", SENDFILE_KERNEL_VER);
+			 " buffer for log rotation\n", SENDFILE_KERNEL_VER);
 
 	return supported;
 }
@@ -636,8 +639,9 @@ int main(int argc, char *argv[])
 			output_file_name = strdup(str);
 		})
 	  ),
-	  M0_FLAGARG('d', "daemon mode (run in the background, log into syslog)",
-			  &daemon_mode
+	  M0_FLAGARG('d',
+		  "daemon mode (run in the background, log errors into syslog)",
+		  &daemon_mode
 	  ),
 	  M0_NUMBERARG('l', "log level number (from syslog.h)",
 		LAMBDA(void, (int64_t lvl) {
@@ -645,8 +649,9 @@ int main(int argc, char *argv[])
 		})
 	  ),
 	  M0_NUMBERARG('s',
-		"log size in MB, when it's reached, log rotation is performed;"
-		" if set to 0 then rotation is disabled, default is 1024MB",
+		"output trace file size in MB, when it's reached, log rotation"
+		" is performed; if set to 0 then rotation is disabled, default"
+		" is 1024MB",
 		LAMBDA(void, (int64_t size) {
 			max_log_size = size;
 		})

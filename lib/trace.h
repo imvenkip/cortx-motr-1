@@ -28,6 +28,7 @@
 #include "lib/types.h"
 #include "lib/arith.h"
 #include "lib/atomic.h"
+#include "lib/time.h"    /* m0_time_t */
 #include "mero/magic.h"  /* M0_TRACE_DESCR_MAGIC */
 
 #ifndef __KERNEL__
@@ -321,6 +322,14 @@ struct m0_trace_buf_header {
 			 * kernel trace)
 			 */
 			const void             *tbh_module_core_addr;
+			/** Mero version string */
+			char                    tbh_mero_version[16];
+			/** Git describe revision ID */
+			char                    tbh_mero_git_describe[64];
+			/** Kernel version, for which Mero is built */
+			char                    tbh_mero_kernel_ver[128];
+			/** Trace file creation time and date */
+			m0_time_t               tbh_log_time;
 		};
 		char    tbh_header_area[M0_TRACE_BUF_HEADER_SIZE];
 	};

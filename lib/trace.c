@@ -37,6 +37,7 @@
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
 #include "mero/magic.h"
+#include "mero/version.h"
 
 /**
  * @addtogroup trace
@@ -847,19 +848,26 @@ M0_EXPORTED(m0_trace_last_record_get);
 
 M0_INTERNAL void m0_trace_buf_header_init(void)
 {
-	struct m0_trace_buf_header  *tb_header;
+	struct m0_trace_buf_header  *tbh = m0_logbuf_header;
+	const struct m0_build_info  *bi = m0_build_info_get();
 
-	tb_header = m0_logbuf_header;
+	tbh->tbh_magic          = M0_TRACE_BUF_HEADER_MAGIC;
+	tbh->tbh_header_size    = M0_TRACE_BUF_HEADER_SIZE;
+	tbh->tbh_buf_size       = m0_logbufsize;
+	tbh->tbh_magic_sym_addr = &trace_magic_symbol;
+	tbh->tbh_log_time       = m0_time_now();
 
-	tb_header->tbh_magic          = M0_TRACE_BUF_HEADER_MAGIC;
-	tb_header->tbh_header_size    = M0_TRACE_BUF_HEADER_SIZE;
-	tb_header->tbh_buf_size       = m0_logbufsize;
-	tb_header->tbh_magic_sym_addr = &trace_magic_symbol;
+	m0_atomic64_set(&tbh->tbh_cur_pos, 0);
+	m0_atomic64_set(&tbh->tbh_rec_cnt, 0);
 
-	m0_atomic64_set(&tb_header->tbh_cur_pos, 0);
-	m0_atomic64_set(&tb_header->tbh_rec_cnt, 0);
+	strncpy(tbh->tbh_mero_version, bi->bi_version_string,
+		sizeof tbh->tbh_mero_version);
+	strncpy(tbh->tbh_mero_git_describe, bi->bi_git_describe,
+		sizeof tbh->tbh_mero_git_describe);
+	strncpy(tbh->tbh_mero_kernel_ver, bi->bi_kernel,
+		sizeof tbh->tbh_mero_kernel_ver);
 
-	m0_arch_trace_buf_header_init(tb_header);
+	m0_arch_trace_buf_header_init(tbh);
 }
 M0_EXPORTED(m0_trace_buf_header_init);
 
