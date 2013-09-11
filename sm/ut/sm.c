@@ -269,7 +269,7 @@ static void timeout(void)
 {
 	struct m0_sm_timeout t0;
 	struct m0_sm_timeout t1;
-	const long           delta = M0_TIME_ONE_BILLION/100;
+	const long           delta = M0_TIME_ONE_SECOND/100;
 	int                  result;
 
 	result = M0_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
@@ -415,7 +415,7 @@ static void group(void)
 	/* check that timeout works */
 	m0_sm_timeout_init(&to);
 	result = m0_sm_timeout_arm(&s.cain, &to,
-				   m0_time_from_now(0, M0_TIME_ONE_BILLION/100),
+				   m0_time_from_now(0, M0_TIME_ONE_SECOND/100),
 				   S_FRATRICIDE, 0);
 	M0_UT_ASSERT(result == 0);
 

@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
 	delta = m0_time_sub(m0_time_now(), start);
 	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
 			(unsigned long)m0_time_nanoseconds(delta) * 100 /
-			M0_TIME_ONE_BILLION);
+			M0_TIME_ONE_SECOND);
 	for (i = 0; i < srv_cnt; ++i)
 		repair_rpc_ctx_fini(&ctxs[i]);
 	repair_client_fini();

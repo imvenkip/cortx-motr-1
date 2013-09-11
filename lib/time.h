@@ -35,7 +35,10 @@
 
 typedef uint64_t m0_time_t;
 
-enum { M0_TIME_ONE_BILLION = 1000000000ULL };
+enum {
+	M0_TIME_ONE_SECOND = 1000000000ULL,
+	M0_TIME_ONE_MSEC    = M0_TIME_ONE_SECOND / 1000,
+};
 
 /** The largest time that is never reached in system life. */
 extern const m0_time_t M0_TIME_NEVER;
@@ -51,7 +54,7 @@ m0_time_t m0_time(uint64_t secs, long ns);
 
 /** Similar to m0_time(). To be used in initialisers. */
 #define M0_MKTIME(secs, ns) \
-	((m0_time_t)((uint64_t)(secs) * M0_TIME_ONE_BILLION + (uint64_t)(ns)))
+	((m0_time_t)((uint64_t)(secs) * M0_TIME_ONE_SECOND + (uint64_t)(ns)))
 
 /** Get the current time.  This may or may not relate to wall time. */
 m0_time_t m0_time_now(void);

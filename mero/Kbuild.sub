@@ -1,4 +1,5 @@
 m0mero_objects += mero/init.o \
                   mero/version.o
 
-m0mero_objects += mero/linux_kernel/dummy_init_fini.o
+m0mero_objects += mero/linux_kernel/dummy_init_fini.o \
+                  mero/linux_kernel/module.o

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,41 +14,20 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
- * Original creation date: 10/13/2011
- * Modified by : Dima Chumak <dmitriy_chumak@xyratex.com>
- * Modification date: 7-Aug-2013
+ * Original author: Dima Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 11-Sep-2013
  */
 
-#include <linux/kernel.h>  /* printk */
-#include <linux/module.h>  /* THIS_MODULE */
-#include <linux/init.h>    /* module_init */
+#include <linux/module.h> /* THIS_MODULE */
 
-#include "lib/list.h"
-#include "mero/init.h"
-#include "mero/version.h"
-#include "mero/linux_kernel/module.h"
+#include "lib/misc.h"     /* M0_EXPORTED */
 
 
-M0_INTERNAL int __init mero_init(void)
+M0_INTERNAL const struct module *m0_mero_ko_get_module(void)
 {
-	pr_info("mero: init\n");
-	m0_build_info_print();
-	return m0_init();
+	return THIS_MODULE;
 }
-
-M0_INTERNAL void __exit mero_exit(void)
-{
-	pr_info("mero: cleanup\n");
-	m0_fini();
-}
-
-module_init(mero_init);
-module_exit(mero_exit);
-
-MODULE_AUTHOR("Xyratex International");
-MODULE_DESCRIPTION("Mero Library");
-MODULE_LICENSE("GPL");
+M0_EXPORTED(m0_mero_ko_get_module);
 
 /*
  *  Local variables:

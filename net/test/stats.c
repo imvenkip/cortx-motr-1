@@ -278,7 +278,7 @@ m0_time_t m0_net_test_mps_add(struct m0_net_test_mps *mps,
 	/** @todo problem with small mps->ntmps_time_interval can be here */
 	mps->ntmps_last_time  = time_next;
 
-	time_delta_ns = m0_time_seconds(time_delta) * M0_TIME_ONE_BILLION +
+	time_delta_ns = m0_time_seconds(time_delta) * M0_TIME_ONE_SECOND +
 			m0_time_nanoseconds(time_delta);
 	/*
 	   To measure bandwidth in messages/sec it needs to be calculated
@@ -294,7 +294,7 @@ m0_time_t m0_net_test_mps_add(struct m0_net_test_mps *mps,
 			break;
 	}
 	m_per_sec = (messages_delta * pow10[i].pow / time_delta_ns) *
-		    (M0_TIME_ONE_BILLION / pow10[i].pow);
+		    (M0_TIME_ONE_SECOND / pow10[i].pow);
 	m0_net_test_stats_add(&mps->ntmps_stats, m_per_sec);
 
 	return time_next;
