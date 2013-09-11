@@ -55,7 +55,7 @@ M0_INTERNAL void m0_ut_be_tx_begin(struct m0_be_tx *tx,
 	m0_be_tx_prep(tx, cred);
 	m0_be_tx_open(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 }
 
 M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx)
@@ -64,7 +64,7 @@ M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx)
 
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
+	M0_ASSERT(rc == 0);
 	m0_be_tx_fini(tx);
 }
 
