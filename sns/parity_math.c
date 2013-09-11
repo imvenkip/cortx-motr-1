@@ -298,7 +298,7 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 		m0_matrix_fini(&math->pmi_sys_mat);
 		m0_vector_fini(&math->pmi_sys_vec);
 		m0_vector_fini(&math->pmi_sys_res);
-		//m0_parity_fini();
+//		m0_parity_fini();
 	}
 }
 

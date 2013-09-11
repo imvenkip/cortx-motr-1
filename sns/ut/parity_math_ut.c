@@ -145,6 +145,7 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 /* node[0] gathers partially recovered blocks from other nodes to produce the
  * final result. */
 static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
+				struct m0_bufvec *x, struct m0_bufvec *p,
 				uint32_t *failed_arr);
 
 /* node[0] compares the recovered blocks with original blocks. */
@@ -863,7 +864,7 @@ static void incremental_recover(struct m0_parity_math *math,
 	 * node0 gathers partial results from all other nodes and completes the
 	 * recovery. */
 	for (ft = ALL_DATA; ft <= MIXED_FAILURE; ++ft) {
-		for (node_nr = 1; node_nr < NODES; ++node_nr) {
+		for (node_nr = 4; node_nr < NODES; ++node_nr) {
 			M0_ALLOC_ARR(node, node_nr);
 			M0_UT_ASSERT(node != NULL);
 			while (total_failures == 0)
@@ -876,7 +877,7 @@ static void incremental_recover(struct m0_parity_math *math,
 			sns_ir_nodes_init(math, node, failed_arr, node_nr,
 					  alive_nr);
 			sns_ir_nodes_recover(node, node_nr, x, p);
-			sns_ir_nodes_gather(node, node_nr, failed_arr);
+			sns_ir_nodes_gather(node, node_nr, x, p, failed_arr);
 			sns_ir_nodes_compare(node, x, p);
 			sns_ir_nodes_fini(node, node_nr, total_failures);
 			m0_free(node);
@@ -990,7 +991,7 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 	M0_UT_ASSERT(ret == 0);
 	total_failures = block_nr(&node[0].sin_ir) -
 		node[0].sin_ir.si_alive_nr;
-	for (i = 0; i < node_nr; ++i) {
+	for (i = 1; i < node_nr; ++i) {
 		ir = node[i].sin_ir;
 		for (j = 0; j < node[i].sin_alive_nr; ++j) {
 			m0_bitmap_set(&alive_bitmap, node[i].sin_alive[j],
@@ -1022,14 +1023,25 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 }
 
 static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
+				struct m0_bufvec *x, struct m0_bufvec *p,
 				uint32_t *failed_arr)
 {
-	uint32_t i;
-	uint32_t k;
-	uint32_t total_failures = block_nr(&node[0].sin_ir) -
-		node[0].sin_ir.si_alive_nr;
+	uint32_t	 i;
+	uint32_t	 j;
+	uint32_t	 k;
+	uint32_t	 total_failures = block_nr(&node[0].sin_ir) -
+				node[0].sin_ir.si_alive_nr;
+	struct m0_bitmap alive_bitmap;
+	uint32_t	 alive_idx;
+	struct m0_sns_ir ir = node[0].sin_ir;;
+	int		 ret;
+	ret = m0_bitmap_init(&alive_bitmap,
+			     node[0].sin_ir.si_data_nr +
+			     node[0].sin_ir.si_parity_nr);
+	M0_UT_ASSERT(ret == 0);
 
-	for (i = 1; i < node_nr; ++i) {
+	/* Add remote blocks */
+	for (i = 1; i < node_nr - 2; ++i) {
 		for (k = 0; k < total_failures; ++k) {
 			m0_sns_ir_recover(&node[0].sin_ir,
 					  &node[i].sin_recov_arr[k],
@@ -1037,6 +1049,43 @@ static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
 					  failed_arr[k], M0_SI_BLOCK_REMOTE);
 		}
 	}
+
+	/* Add local blocks */
+	for (j = 0; j < node[0].sin_alive_nr; ++j) {
+			m0_bitmap_set(&alive_bitmap, node[0].sin_alive[j],
+				      true);
+			alive_idx = node[0].sin_alive[j];
+			if (alive_idx < ir.si_data_nr) {
+				m0_sns_ir_recover(&node[0].sin_ir,
+						  &x[alive_idx],
+						  &alive_bitmap, 0,
+						  M0_SI_BLOCK_LOCAL);
+			}
+			else if (alive_idx >= ir.si_data_nr &&
+				 alive_idx < ir.si_data_nr + ir.si_parity_nr) {
+				m0_sns_ir_recover(&node[0].sin_ir,
+						  &p[alive_idx -
+						  ir.si_data_nr],
+						  &alive_bitmap, 0,
+						  M0_SI_BLOCK_LOCAL);
+			}
+			for (k = 0; k < total_failures; ++k) {
+				m0_bitmap_set(&node[0].sin_bitmap[k],
+					      node[0].sin_alive[j], true);
+			}
+			m0_bitmap_set(&alive_bitmap, node[0].sin_alive[j],
+				      false);
+	}
+	/* Add remote blocks */
+	for (i = node_nr - 2; i < node_nr; ++i) {
+		for (k = 0; k < total_failures; ++k) {
+			m0_sns_ir_recover(&node[0].sin_ir,
+					  &node[i].sin_recov_arr[k],
+					  &node[i].sin_bitmap[k],
+					  failed_arr[k], M0_SI_BLOCK_REMOTE);
+		}
+	}
+	m0_bitmap_fini(&alive_bitmap);
 }
 
 static void sns_ir_nodes_compare(struct sns_ir_node *node, struct m0_bufvec *x,
