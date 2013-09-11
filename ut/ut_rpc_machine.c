@@ -44,9 +44,11 @@ static void buf_dummy(struct m0_net_buffer_pool *bp)
 
 M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 {
-#if XXX_USE_DB5
-	struct m0_db_tx tx;
-	int             rc;
+	struct m0_sm_group    *grp;
+	struct m0_be_seg      *seg;
+	struct m0_be_tx        tx;
+	struct m0_be_tx_credit cred = {};
+	int                    rc;
 
 	ctx->rmc_xprt = &m0_net_lnet_xprt;
 	rc = m0_net_xprt_init(ctx->rmc_xprt);
@@ -61,29 +63,6 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 					  UT_BUF_NR, UT_TM_NR);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_dbenv_init(&ctx->rmc_dbenv, ctx->rmc_dbname, 0);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_fol_init(&ctx->rmc_fol, &ctx->rmc_dbenv);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_cob_domain_init(&ctx->rmc_cob_dom, &ctx->rmc_dbenv,
-				&ctx->rmc_cob_id);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_mdstore_init(&ctx->rmc_mdstore, &ctx->rmc_cob_id,
-			     &ctx->rmc_dbenv, 0);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_db_tx_init(&tx, &ctx->rmc_dbenv, 0);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_cob_domain_mkfs(&ctx->rmc_mdstore.md_dom, &M0_COB_SLASH_FID,
-				&M0_COB_SESSIONS_FID, &tx);
-	M0_ASSERT(rc == 0);
-
-	m0_db_tx_commit(&tx);
-
 	/*
 	 * Instead of using m0d and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
@@ -92,12 +71,34 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	 */
 
 	rc = M0_REQH_INIT(&ctx->rmc_reqh,
-			  .rhia_dtm       = (void*)1,
-			  .rhia_db        = &ctx->rmc_dbenv,
+			  .rhia_dtm       = NULL,
+			  .rhia_db        = NULL,
 			  .rhia_mdstore   = &ctx->rmc_mdstore,
-			  .rhia_fol       = &ctx->rmc_fol,
+			  .rhia_fol       = NULL,
 			  .rhia_svc       = (void*)1);
 	M0_ASSERT(rc == 0);
+
+	m0_ut_backend_init(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
+	seg = &ctx->rmc_ut_seg.bus_seg;
+	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
+	rc = m0_be_seg_dict_create(seg, grp);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_reqh_dbenv_init(&ctx->rmc_reqh, seg, true);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_mdstore_init(&ctx->rmc_mdstore, &ctx->rmc_cob_id, seg, 0);
+	M0_ASSERT(rc == -ENOENT);
+        rc = m0_mdstore_create(&ctx->rmc_mdstore, grp);
+        M0_UT_ASSERT(rc == 0);
+
+	m0_cob_tx_credit(&ctx->rmc_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
+	m0_ut_be_tx_begin(&tx, &ctx->rmc_ut_be, &cred);
+	rc = m0_cob_domain_mkfs(&ctx->rmc_mdstore.md_dom, &M0_COB_SLASH_FID,
+				&M0_COB_SESSIONS_FID, &tx);
+	m0_ut_be_tx_end(&tx);
+	M0_UT_ASSERT(rc == 0);
+
 	m0_reqh_start(&ctx->rmc_reqh);
 
 	rc = m0_rpc_machine_init(&ctx->rmc_rpc,
@@ -110,21 +111,34 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 
 	m0_reqh_rpc_mach_tlink_init_at_tail(&ctx->rmc_rpc,
 					    &ctx->rmc_reqh.rh_rpc_machines);
-#else
-	M0_IMPOSSIBLE("XXX Not implemented");
-#endif
 }
 
 M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 {
+	struct m0_sm_group *grp;
+	int                 rc;
+
 	m0_reqh_rpc_mach_tlink_del_fini(&ctx->rmc_rpc);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
+
+	m0_reqh_shutdown(&ctx->rmc_reqh);
+	m0_reqh_dbenv_fini(&ctx->rmc_reqh, true);
+
 	m0_reqh_services_terminate(&ctx->rmc_reqh);
-	m0_reqh_fini(&ctx->rmc_reqh);
+
+	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
+	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp);
+	M0_UT_ASSERT(rc == 0);
 	m0_mdstore_fini(&ctx->rmc_mdstore);
-	m0_cob_domain_fini(&ctx->rmc_cob_dom);
-	m0_fol_fini(&ctx->rmc_fol);
-	m0_dbenv_fini(&ctx->rmc_dbenv);
+
+	rc = m0_be_seg_dict_destroy(&ctx->rmc_ut_seg.bus_seg, grp);
+	M0_ASSERT(rc == 0);
+	m0_ut_backend_fini(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
+
+	m0_reqh_fom_domain_idle_wait(&ctx->rmc_reqh);
+	M0_UT_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
+	m0_reqh_fini(&ctx->rmc_reqh);
+
 	m0_rpc_net_buffer_pool_cleanup(&ctx->rmc_bufpool);
 	m0_net_domain_fini(&ctx->rmc_net_dom);
 	m0_net_xprt_fini(ctx->rmc_xprt);
@@ -153,7 +167,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 			  .rhia_dtm       = (void*)1,
 			  .rhia_db        = NULL,
 			  .rhia_mdstore   = (void*)1,
-			  .rhia_fol       = &ctx->rmc_fol,
+			  .rhia_fol       = NULL,
 			  .rhia_svc       = (void*)1);
 	M0_ASSERT(rc == 0);
 	m0_reqh_start(&ctx->rmc_reqh);
