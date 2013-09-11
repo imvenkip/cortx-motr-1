@@ -432,36 +432,36 @@ utils_ub_LDADD     = $(top_builddir)/mero/libmero.la \
 include $(top_srcdir)/utils/Makefile.sub
 
 
-#XXX_BE_DB ################################################################################
-#XXX_BE_DB #                    Integration and system test utilities
-#XXX_BE_DB ################################################################################
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # rpc/it/m0rpcping
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS           += rpc/it/m0rpcping
-#XXX_BE_DB endif
-#XXX_BE_DB rpc_it_m0rpcping_CPPFLAGS  = -DM0_TARGET='m0rpcping' $(AM_CPPFLAGS)
-#XXX_BE_DB rpc_it_m0rpcping_LDADD     = $(top_builddir)/mero/libmero.la  \
-#XXX_BE_DB                              $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB if ENABLE_MERO_ALTOGETHER
-#XXX_BE_DB noinst_PROGRAMS                     += rpc/it/m0rpcping-altogether
-#XXX_BE_DB endif
-#XXX_BE_DB endif
-#XXX_BE_DB
-#XXX_BE_DB rpc_it_m0rpcping_altogether_CPPFLAGS = -DM0_TARGET='m0rpcping-altogether' $(AM_CPPFLAGS)
-#XXX_BE_DB rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
-#XXX_BE_DB rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
-#XXX_BE_DB                                        ut/ut_libmero_ut_la-cs_service.lo \
-#XXX_BE_DB                                        ut/ut_libmero_ut_la-cs_fop_foms.lo \
-#XXX_BE_DB                                        ut/ut_libmero_ut_la-cs_fop_foms_xc.lo
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/rpc/it/Makefile.sub
-#XXX_BE_DB
+################################################################################
+#                    Integration and system test utilities
+################################################################################
+
+#
+# rpc/it/m0rpcping
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS           += rpc/it/m0rpcping
+endif
+rpc_it_m0rpcping_CPPFLAGS  = -DM0_TARGET='m0rpcping' $(AM_CPPFLAGS)
+rpc_it_m0rpcping_LDADD     = $(top_builddir)/mero/libmero.la  \
+                             $(top_builddir)/ut/libmero-ut.la
+
+if ENABLE_UNIT_TESTS
+if ENABLE_MERO_ALTOGETHER
+noinst_PROGRAMS                     += rpc/it/m0rpcping-altogether
+endif
+endif
+
+rpc_it_m0rpcping_altogether_CPPFLAGS = -DM0_TARGET='m0rpcping-altogether' $(AM_CPPFLAGS)
+rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
+rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
+                                       ut/ut_libmero_ut_la-cs_service.lo \
+                                       ut/ut_libmero_ut_la-cs_fop_foms.lo \
+                                       ut/ut_libmero_ut_la-cs_fop_foms_xc.lo
+
+include $(top_srcdir)/rpc/it/Makefile.sub
+
 #XXX_BE_DB #
 #XXX_BE_DB # console/st
 #XXX_BE_DB #
