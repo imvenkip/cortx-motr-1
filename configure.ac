@@ -483,7 +483,7 @@ AS_IF([test "x$enable_unit_tests" = xyes],
       ]
 )
 
-# Check for db4 and yaml
+# Check for yaml
 
 AS_IF([test x$enable_system_libs = xyes],
       [
@@ -494,14 +494,6 @@ AS_IF([test x$enable_system_libs = xyes],
           AC_CHECK_HEADERS([yaml.h], [],
                            AC_MSG_ERROR([yaml.h is not found. Try to install libyaml-devel package])
           )
-
-          # Check for berkeley db
-          dnl MERO_SEARCH_LIBS([db_env_create], [db], [DB_LIBS],
-          dnl         [db_env_create cannot be found! Try install db4 package]
-          dnl )
-          dnl AC_CHECK_HEADERS([db.h], [],
-          dnl                  AC_MSG_ERROR([db.h is not found. Try to install db4-devel package])
-          dnl )
       ],[
           # Check for yaml
           YAML_SRC=$SRCDIR/extra-libs/yaml
@@ -509,13 +501,6 @@ AS_IF([test x$enable_system_libs = xyes],
           YAML_LIBS="$YAML_SRC/src/libyaml.la"
           AC_MSG_CHECKING([for yaml libs])
           MERO_BUILD_LIB([yaml], [$YAML_SRC], [$YAML_LIBS])
-
-          # Check for berkeley db
-          dnl DB_SRC="$SRCDIR/extra-libs/db4/build_unix"
-          dnl DB_INCLUDES="-I$DB_SRC/build_unix -I$DB_SRC"
-          dnl DB_LIBS="$DB_SRC/libdb-4.8.la"
-          dnl AC_MSG_CHECKING([for db libs])
-          dnl MERO_BUILD_LIB([db], [$DB_SRC], [$DB_LIBS], ["../dist"], ["--with-pic"])
       ]
 )
 
