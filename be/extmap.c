@@ -646,12 +646,12 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		 * In worst case there can be one split from left and one
 		 * split from right sides - i.e. on 4 new segments in total.
 		 */
-		m0_be_emap_credit(map, M0_BEO_SPLIT, 4, accum);
+		m0_be_emap_credit(map, M0_BEO_SPLIT, 4 * nr, accum);
 		/*
 		 * Sequential deletes in btree end up in one delete credit
 		 * (according to Nikita).
 		 */
-		m0_be_btree_delete_credit(&map->em_mapping, 1,
+		m0_be_btree_delete_credit(&map->em_mapping, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	default:
