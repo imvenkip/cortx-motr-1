@@ -141,7 +141,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&parity_math_ut);
 //XXX_BE_DB	m0_ut_add(&poolmach_ut);
 	m0_ut_add(&reqh_ut);
-//XXX_BE_DB	m0_ut_add(&reqh_service_ut);
+	m0_ut_add(&reqh_service_ut);
 //XXX_BE_DB	m0_ut_add(&rm_ut);
 	m0_ut_add(&rpc_mc_ut);
 	m0_ut_add(&rpc_rcv_session_ut);
