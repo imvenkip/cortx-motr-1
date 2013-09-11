@@ -153,7 +153,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&snscm_storage_ut);
 //XXX_BE_DB	m0_ut_add(&snscm_xform_ut);
 //XXX_BE_DB	m0_ut_add(&sns_cm_ut);
-//XXX_BE_DB	m0_ut_add(&stobio_ut);
+	m0_ut_add(&stobio_ut);
 //XXX_BE_DB	m0_ut_add(&udb_ut);
 //XXX_BE_DB	m0_ut_add(&xcode_bufvec_fop_ut);
 //XXX_BE_DB	m0_ut_add(&xcode_ff2c_ut);
