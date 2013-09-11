@@ -692,7 +692,7 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 			rand() % (math->pmi_parity_count + 1);
 
 	failed_arr = failure_setup(math, total_failures, MIXED_FAILURE);
-	ret = m0_sns_ir_init(math, &ir, 0);
+	ret = m0_sns_ir_init(math, 0, &ir);
 	M0_UT_ASSERT(ret == 0);
 
 	ret = m0_vector_init(&b, ir.si_data_nr);
@@ -905,8 +905,7 @@ static void sns_ir_nodes_init(struct m0_parity_math *math,
 			node[i].sin_alive_nr = alive_bpn;
 		else
 			node[i].sin_alive_nr = alive_bpn + alive_nr % node_nr;
-		ret = m0_sns_ir_init(math, &node[i].sin_ir,
-				     node[i].sin_alive_nr);
+		ret = m0_sns_ir_init(math, node[i].sin_alive_nr, &node[i].sin_ir);
 		M0_UT_ASSERT(ret == 0);
 		M0_ALLOC_ARR(node[i].sin_alive, node[i].sin_alive_nr);
 		M0_UT_ASSERT(node[i].sin_alive != NULL);
@@ -1095,7 +1094,7 @@ static void test_invalid_input(void)
 	M0_UT_ASSERT(ret == 0);
 	total_failures = math.pmi_parity_count + 1;
 	failed_arr = failure_setup(&math, total_failures, MIXED_FAILURE);
-	ret = m0_sns_ir_init(&math, &ir);
+	ret = m0_sns_ir_init(&math, 0, &ir);
 	for (i = 0; i < total_failures - 1; ++i) {
 		ret = m0_sns_ir_failure_register(&recov_arr,
 						 failed_arr[i],

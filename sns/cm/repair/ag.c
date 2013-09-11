@@ -96,8 +96,8 @@ static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
 						rag->rag_fc[i].fc_failed_idx,
 						&rag->rag_ir);
 		/*XXX: Remove this after finding a better solution.*/
-		if (rag->rag_base.sag_base.cag_cp_local_nr == 0)
-			rag->rag_ir.si_mode = M0_SI_XFORM;
+		/*if (rag->rag_base.sag_base.cag_cp_local_nr == 0)
+			rag->rag_ir.si_mode = M0_SI_XFORM;*/
 		if (rc != 0)
 			goto out;
 	}
@@ -109,7 +109,8 @@ out:
 static int incr_recover_init(struct m0_sns_cm_repair_ag *rag,
 			     struct m0_pdclust_layout *pl)
 {
-	int rc;
+	uint64_t local_cp_nr;
+	int      rc;
 
 	M0_PRE(rag != NULL);
 	M0_PRE(pl != NULL);
@@ -122,7 +123,8 @@ static int incr_recover_init(struct m0_sns_cm_repair_ag *rag,
 	if (m0_pdclust_K(pl) == 1)
 		return 0;
 
-	rc = m0_sns_ir_init(&rag->rag_math, &rag->rag_ir);
+	local_cp_nr = rag->rag_base.sag_base.cag_cp_local_nr;
+	rc = m0_sns_ir_init(&rag->rag_math, local_cp_nr, &rag->rag_ir);
 	if (rc != 0) {
 		m0_parity_math_fini(&rag->rag_math);
 		return rc;

@@ -149,12 +149,16 @@ static void cp_xor_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 
 static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
 {
+	struct m0_sns_cm_cp        *scp;
 	struct m0_net_buffer       *nbuf_head;
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
+	enum m0_sns_ir_block_type   bt;
 
 	nbuf_head = cp_data_buf_tlist_head(&src_cp->c_buffers);
+	scp = cp2snscp(src_cp);
+	bt = scp->sc_is_local ? M0_SI_BLOCK_LOCAL : M0_SI_BLOCK_REMOTE;
 	m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
-			  &src_cp->c_xform_cp_indices, failed_index);
+			  &src_cp->c_xform_cp_indices, failed_index, bt);
 }
 
 /*
@@ -269,8 +273,6 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		else if ((rag->rag_math.pmi_parity_algo ==
 				M0_PARITY_CAL_ALGO_REED_SOLOMON) && !rs_done) {
 			cp_rs_recover(cp, scp->sc_failed_idx);
-			if (ag->cag_cp_local_nr == ag->cag_transformed_cp_nr)
-				m0_sns_ir_local_xform(&rag->rag_ir);
 			rs_done = true;
 		}
 		//cp_incr_recover(res_cp, cp, rag->rag_fc[i].fc_failed_idx);

@@ -518,7 +518,7 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
  * per parity group. Subsequent triggers will result into a no-operaiton.
  * @param ir holds information relevant for recovery
  */
-M0_INTERNAL void m0_sns_ir_local_xform(struct m0_sns_ir *ir);
+//M0_INTERNAL void m0_sns_ir_local_xform(struct m0_sns_ir *ir);
 M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir);
 /** @} end group Incremental recovery APIs */
 

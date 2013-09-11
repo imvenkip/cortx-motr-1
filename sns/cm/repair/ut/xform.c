@@ -396,9 +396,13 @@ static void test_multi_cp_single_failure(void)
 
 static void rs_init()
 {
+	uint64_t local_cp_nr;
+
+	local_cp_nr = n_rag.rag_base.sag_base.cag_cp_local_nr;
 	M0_UT_ASSERT(m0_parity_math_init(&n_rag.rag_math, DATA_NR,
 					 PARITY_NR) == 0);
-	M0_UT_ASSERT(m0_sns_ir_init(&n_rag.rag_math, &n_rag.rag_ir) == 0);
+	M0_UT_ASSERT(m0_sns_ir_init(&n_rag.rag_math, local_cp_nr,
+				    &n_rag.rag_ir) == 0);
 }
 
 static void buffers_attach(struct m0_net_buffer *nb, struct m0_cm_cp *cp,
