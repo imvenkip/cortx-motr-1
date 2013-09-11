@@ -120,6 +120,20 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		   m0_parity_elem_t alpha);
 
+/**
+ * Adds correction for a remote block that is received before all blocks
+ * local to a node are transformed. This correction is needed only when
+ * set of failed blocks involve both data and parity blocks.
+ */
+static void forward_rectification(struct m0_sns_ir *ir,
+				  struct m0_bufvec *in_bufvec,
+				  uint32_t failed_index);
+/**
+ * When a set of failed blocks contain both data and parity blocks, this
+ * function transforms partially recovered data block, local to a node
+ * for computing failed parity.
+ */
+static void failed_data_blocks_xform(struct m0_sns_ir *ir);
 static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
 				      uint32_t block_idx);
 
@@ -132,6 +146,7 @@ static bool is_usable(const struct m0_sns_ir *ir,
 
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx);
+static inline  bool are_failures_mixed(const struct m0_sns_ir *ir);
 
 static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 						       *ir,
@@ -718,7 +733,7 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
 }
 
 M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
-			       struct m0_sns_ir *ir)
+			       uint32_t local_nr, struct m0_sns_ir *ir)
 {
 	uint32_t i;
 	int	 ret = 0;
@@ -729,11 +744,11 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 	M0_SET0(ir);
 	ir->si_data_nr		   = math->pmi_data_count;
 	ir->si_parity_nr	   = math->pmi_parity_count;
+	ir->si_local_nr		   = local_nr;
 	ir->si_vandmat		   = math->pmi_vandmat;
 	ir->si_parity_recovery_mat = math->pmi_vandmat_parity_slice;
 	ir->si_failed_data_nr	   = 0;
 	ir->si_alive_nr		   = block_count(ir);
-	ir->si_mode		   = M0_SI_BARE;
 
 	M0_ALLOC_ARR(ir->si_blocks, ir->si_alive_nr);
 	if (ir->si_blocks == NULL)
@@ -925,7 +940,8 @@ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
 M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 				   struct m0_bufvec *bufvec,
 				   const struct m0_bitmap *bitmap,
-				   uint32_t failed_index)
+				   uint32_t failed_index,
+				   enum m0_sns_ir_block_type block_type)
 {
 	uint32_t		j;
 	size_t			block_idx = 0;
@@ -937,12 +953,13 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 
 	b_set_nr = m0_bitmap_set_nr(bitmap);
 	M0_PRE(b_set_nr > 0);
-	M0_PRE(ergo(b_set_nr > 1, ir->si_mode == M0_SI_XFORM));
-	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
+	M0_PRE(ergo(b_set_nr > 1, block_type == M0_SI_BLOCK_REMOTE));
+	M0_PRE(ergo(block_type == M0_SI_BLOCK_REMOTE,
 		    is_valid_block_idx(ir, failed_index)));
-	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
+	M0_PRE(ergo(block_type == M0_SI_BLOCK_REMOTE,
 	            ir->si_blocks[failed_index].sib_status ==
 		    M0_SI_BLOCK_FAILED));
+	M0_PRE(ergo(block_type == M0_SI_BLOCK_LOCAL, ir->si_local_nr != 0));
 	if (b_set_nr == 1) {
 		for (block_idx = 0; block_idx < bitmap->b_nr; ++block_idx) {
 			if (m0_bitmap_get(bitmap, block_idx))
@@ -950,19 +967,28 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		}
 	}
 	blocks = ir->si_blocks;
-	switch (ir->si_mode) {
+	switch (block_type) {
 	/* Input block is assumed to be an untransformed block, and is used for
 	 * recovering all failed blocks */
-	case M0_SI_BARE:
+	case M0_SI_BLOCK_LOCAL:
+
+		M0_CNT_DEC(ir->si_local_nr);
 		alive_block = &blocks[block_idx];
 		alive_block->sib_addr = bufvec;
 		for (j = 0; j < block_count(ir); ++j)
-			if (ir->si_blocks[j].sib_status == M0_SI_BLOCK_FAILED)
+			if (ir->si_blocks[j].sib_status == M0_SI_BLOCK_FAILED) {
 				incr_recover(&blocks[j], alive_block, ir);
+				m0_bitmap_set(&blocks[j].sib_bitmap,
+					      alive_block->sib_idx, false);
+			}
+		if (ir->si_local_nr == 0 && are_failures_mixed(ir)) {
+			failed_data_blocks_xform(ir);
+		}
 		break;
+
 	/* Input block is assumed to be a transformed block, and is
 	 * cummulatively added to a block with index failed_index. */
-	case M0_SI_XFORM:
+	case M0_SI_BLOCK_REMOTE:
 		if (!is_usable(ir, (struct m0_bitmap*) bitmap,
 			       &blocks[failed_index]))
 			break;
@@ -970,6 +996,10 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 		       1);
 		dependency_bitmap_update(&blocks[failed_index],
 					 bitmap);
+		if (is_data(ir, failed_index) && are_failures_mixed(ir) &&
+		    ir->si_local_nr != 0)
+			forward_rectification(ir, bufvec, failed_index);
+
 		break;
 	}
 }
@@ -996,8 +1026,6 @@ static void incr_recover(struct m0_sns_ir_block *failed_block,
 		mat_elem = *m0_matrix_elem_get(mat, col, row);
 		gfaxpy(failed_block->sib_addr, alive_block->sib_addr,
 		       mat_elem);
-		m0_bitmap_set(&failed_block->sib_bitmap, alive_block->sib_idx,
-			      false);
 	}
 }
 
@@ -1062,31 +1090,53 @@ static void dependency_bitmap_update(struct m0_sns_ir_block *block,
 	}
 }
 
-void m0_sns_ir_local_xform(struct m0_sns_ir *ir)
+static void forward_rectification(struct m0_sns_ir *ir,
+				  struct m0_bufvec *in_bufvec,
+				  uint32_t failed_index)
+{
+	struct m0_sns_ir_block in_block;
+	uint32_t	       j;
+
+	M0_PRE(ir->si_local_nr != 0);
+	M0_PRE(is_data(ir, failed_index));
+	M0_PRE(ir->si_blocks[failed_index].sib_status == M0_SI_BLOCK_FAILED);
+
+	memcpy(&in_block, &ir->si_blocks[failed_index], sizeof in_block);
+	in_block.sib_addr = in_bufvec;
+	for (j = 0; j < block_count(ir); ++j)
+		if (!is_data(ir, ir->si_blocks[j].sib_idx) &&
+		    ir->si_blocks[j].sib_status == M0_SI_BLOCK_FAILED)
+			incr_recover(&ir->si_blocks[j],
+				     &in_block,
+				     ir);
+}
+
+static void failed_data_blocks_xform(struct m0_sns_ir *ir)
 {
 	struct m0_sns_ir_block *res_block;
 	struct m0_sns_ir_block *par_block;
 	uint32_t		i;
 	uint32_t		j;
 
-	M0_PRE(ir != NULL);
-	M0_PRE(ir->si_mode == M0_SI_BARE);
+	M0_PRE(ir->si_local_nr == 0);
 	res_block = ir->si_blocks;
 	par_block = ir->si_blocks;
 
 	for (i = 0; i < block_count(ir); ++i) {
 		if (is_data(ir, ir->si_blocks[i].sib_idx) &&
-		    ir->si_blocks[i].sib_status == M0_SI_BLOCK_FAILED)
+			    ir->si_blocks[i].sib_status == M0_SI_BLOCK_FAILED)
 			for (j = 0; j < block_count(ir); ++j) {
 				if (!is_data(ir, ir->si_blocks[j].sib_idx) &&
-				    ir->si_blocks[j].sib_status ==
-				    M0_SI_BLOCK_FAILED)
+					     ir->si_blocks[j].sib_status ==
+					     M0_SI_BLOCK_FAILED) {
 					incr_recover(&par_block[j],
-						     &res_block[i],
-						     ir);
+						     &res_block[i], ir);
+					m0_bitmap_set(&par_block[j].sib_bitmap,
+						      res_block[i].sib_idx,
+						      false);
+				}
 			}
 	}
-	ir->si_mode = M0_SI_XFORM;
 }
 
 static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
@@ -1149,6 +1199,10 @@ static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 		&ir->si_parity_recovery_mat;
 }
 
+static inline  bool are_failures_mixed(const struct m0_sns_ir *ir)
+{
+	return !!ir->si_data_nr && !!ir->si_parity_nr;
+}
 static inline uint32_t block_count(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;

@@ -692,7 +692,7 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 			rand() % (math->pmi_parity_count + 1);
 
 	failed_arr = failure_setup(math, total_failures, MIXED_FAILURE);
-	ret = m0_sns_ir_init(math, &ir);
+	ret = m0_sns_ir_init(math, &ir, 0);
 	M0_UT_ASSERT(ret == 0);
 
 	ret = m0_vector_init(&b, ir.si_data_nr);
@@ -905,7 +905,8 @@ static void sns_ir_nodes_init(struct m0_parity_math *math,
 			node[i].sin_alive_nr = alive_bpn;
 		else
 			node[i].sin_alive_nr = alive_bpn + alive_nr % node_nr;
-		ret = m0_sns_ir_init(math, &node[i].sin_ir);
+		ret = m0_sns_ir_init(math, &node[i].sin_ir,
+				     node[i].sin_alive_nr);
 		M0_UT_ASSERT(ret == 0);
 		M0_ALLOC_ARR(node[i].sin_alive, node[i].sin_alive_nr);
 		M0_UT_ASSERT(node[i].sin_alive != NULL);
@@ -999,14 +1000,16 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 			if (alive_idx < ir.si_data_nr) {
 				m0_sns_ir_recover(&node[i].sin_ir,
 						  &x[alive_idx],
-						  &alive_bitmap, 0);
+						  &alive_bitmap, 0,
+						  M0_SI_BLOCK_LOCAL);
 			}
 			else if (alive_idx >= ir.si_data_nr &&
 				 alive_idx < ir.si_data_nr + ir.si_parity_nr) {
 				m0_sns_ir_recover(&node[i].sin_ir,
 						  &p[alive_idx -
 						  ir.si_data_nr],
-						  &alive_bitmap, 0);
+						  &alive_bitmap, 0,
+						  M0_SI_BLOCK_LOCAL);
 			}
 			for (k = 0; k < total_failures; ++k) {
 				m0_bitmap_set(&node[i].sin_bitmap[k],
@@ -1015,7 +1018,6 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
 			m0_bitmap_set(&alive_bitmap, node[i].sin_alive[j],
 				      false);
 		}
-		m0_sns_ir_local_xform(&node[i].sin_ir);
 	}
 	m0_bitmap_fini(&alive_bitmap);
 }
@@ -1033,7 +1035,7 @@ static void sns_ir_nodes_gather(struct sns_ir_node *node, uint32_t node_nr,
 			m0_sns_ir_recover(&node[0].sin_ir,
 					  &node[i].sin_recov_arr[k],
 					  &node[i].sin_bitmap[k],
-					  failed_arr[k]);
+					  failed_arr[k], M0_SI_BLOCK_REMOTE);
 		}
 	}
 }

@@ -57,9 +57,9 @@ enum m0_sns_ir_block_status {
 	M0_SI_BLOCK_FAILED,
 };
 
-enum m0_sns_ir_mode {
-	M0_SI_BARE,
-	M0_SI_XFORM,
+enum m0_sns_ir_block_type {
+	M0_SI_BLOCK_LOCAL,
+	M0_SI_BLOCK_REMOTE,
 };
 /**
  * Every member of a parity-group is called as a block. During incremental
@@ -121,6 +121,9 @@ struct m0_sns_ir {
 	uint32_t		si_parity_nr;
 	uint32_t		si_failed_data_nr;
 	uint32_t		si_alive_nr;
+	/* Number of blocks from a parity group that are available locally
+	 * on a node. */
+	uint32_t		si_local_nr;
 	/* Array holding all blocks */
 	struct m0_sns_ir_block *si_blocks;
 	/* Vandermonde matrix used during RS encoding */
@@ -131,8 +134,6 @@ struct m0_sns_ir {
 	 * math::pmi_vandmat_parity_slice.
 	 */
 	struct m0_matrix	si_parity_recovery_mat;
-	/* Mode in which incremental recovery is currently operating. */
-	enum m0_sns_ir_mode     si_mode;
 };
 
 /**
@@ -470,13 +471,15 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 /**
  * Populates the structure m0_sns_ir with fields relevant for recovery.
  * @param[in]  math
+ * @param[in]  local_nr Number of blocks from a parity group, that are available
+ *			locally on a node.
  * @param[out] ir
  * @retval     0       on success
  * @retval     -ENOMEM when it fails to allocate array of m0_sns_ir_block or
  *		       when initialization of bitmap fails.
  */
 M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
-			       struct m0_sns_ir *ir);
+			       uint32_t local_nr, struct m0_sns_ir *ir);
 /**
  * Computes data-recovery matrix. Populates dependency bitmaps for failed
  * blocks.
@@ -499,11 +502,15 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir);
  *			    bufvec.
  * @param[in] failed_index  index of a failed block for which the input bufvec
  *			    is to be used.
+ * @param[in] block_type    indicates whether incoming block is placed locally
+ *			    on a node or coming from a remote node. All remote
+ *			    blocks are assumed to be transformed.
  */
 M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 				   struct m0_bufvec *bufvec,
 				   const struct m0_bitmap *bitmap,
-				   uint32_t failed_index);
+				   uint32_t failed_indexi,
+				   enum m0_sns_ir_block_type block_type);
 /**
  * When failures include both data and parity blocks, this function uses
  * local copy of recovered (partially or fully) data-block for recovering
