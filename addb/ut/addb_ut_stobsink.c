@@ -93,6 +93,8 @@ static void stobsink_mock_stob_type_fini(struct m0_stob_type *stype)
 
 static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 						 const char *domain_name,
+						 struct m0_be_seg *seg,
+						 struct m0_sm_group *grp,
 						 struct m0_stob_domain **out,
 						 uint64_t dom_id)
 {
@@ -105,7 +107,7 @@ static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 	if (sdom != NULL) {
 		dom = &sdom->ssd_dom;
 		dom->sd_ops = &stobsink_mock_stob_domain_op;
-		m0_stob_domain_init(dom, type, dom_id);
+		m0_stob_domain_init(dom, type, dom_id, NULL);
 		*out = dom;
 		strcpy(sdom->ssd_buf, domain_name);
 		dom->sd_name = sdom->ssd_buf;
@@ -116,7 +118,8 @@ static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 	return rc;
 }
 
-static void stobsink_mock_domain_fini(struct m0_stob_domain *self)
+static void stobsink_mock_domain_fini(struct m0_stob_domain *self,
+				      struct m0_sm_group *grp)
 {
 	struct stobsink_domain *sdom =
 	    container_of(self, struct stobsink_domain, ssd_dom);
@@ -160,7 +163,7 @@ static int stobsink_mock_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 	return 0;
 }
 
-static int stobsink_mock_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
+static int stobsink_mock_stob_locate(struct m0_stob *obj)
 {
 	return 0;
 }
@@ -360,7 +363,7 @@ static void addb_ut_stobsink_search(void)
 	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 1);
 
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom);
+	dom->sd_ops->sdo_fini(dom, NULL);
 	stobsink_mock_stobs_fini();
 }
 
@@ -405,12 +408,6 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 	sink->ss_sync = true;
 
 	for (i = 0; i < sink->ss_seg_nr; ++i) {
-		m0_dtx_init(&pb->spb_tx);
-		rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
-		M0_UT_ASSERT(rc == 0);
-		if (rc != 0)
-			break;
-
 		pb->spb_io_iv_index = (i * STOBSINK_SEGMENT_SIZE) >> bshift;
 		pb->spb_io.si_obj = NULL;
 		pb->spb_io.si_rc = 0;
@@ -422,11 +419,10 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 		 * approach required in a general retrieval mechanism.
 		 */
 		rc = m0_stob_io_launch(&pb->spb_io,
-				       sink->ss_stob, &pb->spb_tx, NULL);
+				       sink->ss_stob, NULL, NULL);
 		M0_UT_ASSERT(rc == 0);
 		if (rc != 0) {
 			pb->spb_busy = false;
-			m0_dtx_done(&pb->spb_tx);
 			break;
 		}
 		while (pb->spb_busy)
@@ -652,7 +648,7 @@ static void addb_ut_retrieval(void)
 
 	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom);
+	dom->sd_ops->sdo_fini(dom, NULL);
 
 	/* Test: file iter alloc correctly determines segment size */
 	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
@@ -980,7 +976,7 @@ static void addb_ut_stob(void)
 
 	m0_addb_mc_fini(&mc);
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom);
+	dom->sd_ops->sdo_fini(dom, NULL);
 	addb_rt_tlist_del(dp);
 	addb_ct_tlist_del(&m0__addb_ut_ct0);
 

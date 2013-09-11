@@ -203,7 +203,7 @@ static void addb_ut_fom_test(void)
 	}
 
 	m0_stob_put(ut_data.aufd_stob);
-	dom->sd_ops->sdo_fini(dom);
+	dom->sd_ops->sdo_fini(dom, NULL);
 	for (i = 0; i < UT_ADDB_FOM_REC_NR; ++i)
 		m0_xcode_free(&M0_XCODE_OBJ(m0_addb_rec_xc,
 					    ut_addb_rec_arr[i]));

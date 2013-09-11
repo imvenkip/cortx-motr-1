@@ -126,7 +126,7 @@ void add_uts(void)
 //XXX_BE_DB	m0_ut_add(&item_ut);
 //XXX_BE_DB	m0_ut_add(&item_source_ut);
 //XXX_BE_DB	m0_ut_add(&layout_ut);
-//XXX_BE_DB	m0_ut_add(&m0_addb_ut);
+	m0_ut_add(&m0_addb_ut);
 	m0_ut_add(&m0_fop_lock_ut);
 	m0_ut_add(&m0_fom_stats_ut);
 //XXX_BE_DB	m0_ut_add(&m0_mgmt_conf_ut);
