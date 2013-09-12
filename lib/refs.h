@@ -23,8 +23,7 @@
 #ifndef __MERO_LIB_REFS_H__
 #define __MERO_LIB_REFS_H__
 
-#include "cdefs.h"
-#include "atomic.h"
+#include "lib/atomic.h"
 
 /**
  routines for handling generic reference counted objects

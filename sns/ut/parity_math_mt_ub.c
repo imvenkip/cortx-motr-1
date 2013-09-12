@@ -23,7 +23,6 @@
 #include <time.h>
 
 #include "lib/types.h"
-#include "lib/adt.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/thread.h"

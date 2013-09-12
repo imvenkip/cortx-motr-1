@@ -21,7 +21,6 @@
 #include <string.h>             /* strdup */
 #include "lib/ub.h"
 #include "lib/memory.h"
-#include "lib/cdefs.h"          /* ARRAY_SIZE */
 #include "lib/thread.h"         /* LAMBDA */
 #include "lib/getopts.h"
 #include "utils/common.h"

@@ -17,15 +17,12 @@
  * Original author: Huang Hua <hua_huang@xyratex.com>
  * Original creation date: 12/02/2010
  */
-
 #pragma once
-
 #ifndef __MERO_LIB_LINUX_KERNEL_ATOMIC64_H__
 #define __MERO_LIB_LINUX_KERNEL_ATOMIC64_H__
 
-#include "lib/types.h"
-#include "lib/cdefs.h"
-#include "lib/assert.h"
+#include <asm/atomic.h>  /* atomic64_set */
+#include "lib/misc.h"    /* mb */
 
 /**
    @addtogroup atomic
@@ -42,7 +39,6 @@ struct m0_atomic64 {
 static inline void m0_atomic64_set(struct m0_atomic64 *a, int64_t num)
 {
 	M0_CASSERT(sizeof a->a_value == sizeof num);
-
 	atomic64_set(&a->a_value, num);
 }
 
@@ -71,15 +67,14 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 	atomic64_sub(num, &a->a_value);
 }
 
-
-static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
-						  int64_t delta)
+static inline int64_t
+m0_atomic64_add_return(struct m0_atomic64 *a, int64_t delta)
 {
 	return atomic64_add_return(delta, &a->a_value);
 }
 
-static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
-						  int64_t delta)
+static inline int64_t
+m0_atomic64_sub_return(struct m0_atomic64 *a, int64_t delta)
 {
 	return atomic64_sub_return(delta, &a->a_value);
 }
@@ -104,11 +99,8 @@ static inline void m0_mb(void)
 	mb();
 }
 
-
-/** @} end of atomic group */
-
-/* __MERO_LIB_LINUX_KERNEL_ATOMIC64_H__ */
-#endif
+/** @} atomic */
+#endif /* __MERO_LIB_LINUX_KERNEL_ATOMIC64_H__ */
 
 /*
  *  Local variables:

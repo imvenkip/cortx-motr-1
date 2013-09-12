@@ -18,8 +18,9 @@
  * Original creation date: 08/19/2010
  */
 
-#include "lib/arith.h"        /* max_check, min_check */
 #include "lib/ext.h"
+#include "lib/arith.h"        /* max_check, min_check */
+#include "lib/misc.h"         /* M0_EXPORTED */
 
 /**
    @addtogroup ext

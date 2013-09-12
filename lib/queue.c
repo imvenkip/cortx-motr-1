@@ -20,6 +20,7 @@
 
 #include "lib/queue.h"
 #include "lib/assert.h"
+#include "lib/misc.h"    /* NULL */
 
 /**
    @addtogroup queue Queue

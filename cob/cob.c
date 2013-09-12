@@ -41,7 +41,6 @@
 	M0_COB_KEY_LOG(logger, fmt, key, cnk_pfid, cnk_name, ## __VA_ARGS__)
 
 #include "lib/misc.h"   /* M0_SET0 */
-#include "lib/cdefs.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -1646,7 +1645,6 @@ M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
 }
 
 /** @} end group cob */
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

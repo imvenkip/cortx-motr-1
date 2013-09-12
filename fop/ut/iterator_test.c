@@ -19,7 +19,6 @@
 
 #include "lib/errno.h"
 #include "ut/ut.h"
-#include "lib/cdefs.h"
 #include "lib/memory.h"
 
 #include "fop/fop.h"

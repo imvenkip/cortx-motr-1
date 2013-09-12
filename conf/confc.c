@@ -30,7 +30,6 @@
 #include "fop/fom_generic.h"  /* m0_rpc_item_is_generic_reply_fop */
 #include "rpc/rpc.h"          /* m0_rpc_post */
 #include "rpc/rpclib.h"       /* m0_rpc_client_connect */
-#include "lib/cdefs.h"        /* M0_HAS_TYPE */
 #include "lib/arith.h"        /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/misc.h"         /* M0_IN */
 #include "lib/errno.h"        /* ENOMEM, EPROTO */

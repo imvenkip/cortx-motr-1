@@ -27,7 +27,6 @@
 #  include "config.h"     /* ENABLE_FAULT_INJECTION */
 #endif
 
-#include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/assert.h"   /* M0_PRE */
 
@@ -468,6 +467,5 @@ static inline bool m0_fi_enabled(struct m0_fi_fpoint_state *fps)
 #endif /* ENABLE_FAULT_INJECTION */
 
 /** @} end of finject group */
-
 #endif /* __MERO_LIB_FINJECT_H__ */
 

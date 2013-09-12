@@ -50,6 +50,10 @@ m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
 		      const struct m0_fid *gfid,
 		      struct m0_fid *cfid_out);
 
+M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
+						uint64_t unit,
+						struct m0_pdclust_layout *pl);
+
 M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 					 uint64_t fsize);
 
@@ -77,8 +81,13 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 						 uint64_t group);
 
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(struct m0_sns_cm *scm,
-						  struct m0_pdclust_layout *pl);
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm *scm,
+						  const struct m0_pdclust_layout
+						  *pl);
+
+M0_INTERNAL uint64_t
+m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
+				const struct m0_pdclust_layout *pl);
 
 /**
  * Builds layout instance for new GOB fid calculated in ITPH_FID_NEXT phase.
@@ -88,7 +97,7 @@ M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
 					      struct m0_pdclust_instance **pi,
 					      const struct m0_fid *fid);
 
-M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid);
 
 /**
@@ -99,31 +108,34 @@ M0_INTERNAL uint64_t
 m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 			   uint64_t fidx);
 
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
+					 const struct m0_pdclust_layout *pl,
+					 int unit);
+
 /**
  * Returns starting index of the unit in the aggregation group relevant to
  * the sns copy machine operation.
  * @see m0_sns_cm_op
  */
-M0_INTERNAL uint64_t m0_sns_cm_ag_unit_start(enum m0_sns_cm_op op,
-					     struct m0_pdclust_layout *pl);
+M0_INTERNAL uint64_t m0_sns_cm_ag_unit_start(const struct m0_sns_cm *scm,
+					     const struct m0_pdclust_layout *pl);
 
 /**
  * Returns end index of the unit in the aggregation group relevant to the
  * sns copy machine operation.
  * @see m0_sns_cm_op
  */
-M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(enum m0_sns_cm_op op,
-					   struct m0_pdclust_layout *pl);
+M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(const struct m0_sns_cm *scm,
+					   const struct m0_pdclust_layout *pl);
 
 /**
- * Calculates the target unit of the aggregation group and returns its
- * corresponding cob fid and index in the cob in struct m0_sns_cm_ag::
- * sag_fc for the corresponding failure index.
- * @see struct m0_sns_cm_ag::sag_fc
- * @see struct m0_sns_cm_ag_failure_ctx
+ * Calculates and returns the cobfid for the given group and the target unit
+ * of the file (represented by the gobfid).
  */
 M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
-					  struct m0_pdclust_layout *pl);
+					  uint64_t tgt_unit,
+					  struct m0_pdclust_layout *pl,
+					  struct m0_fid *cobfid);
 
 /**
  * Fetches file size and layout for given gob_fid.
@@ -142,11 +154,12 @@ M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
                                         struct m0_dbenv *dbenv,
                                         struct m0_cob_domain *cdom);
 
-M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
-					    struct m0_fid *gfid,
+M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
+					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
 					    struct m0_pdclust_instance *pi,
-					    uint64_t group);
+					    uint64_t group,
+					    struct m0_bitmap *fmap_out);
 
 /**
  * Returns true if the given aggregation group corresponding to the id is
@@ -157,6 +170,15 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 					  struct m0_pdclust_layout *pl,
 					  const struct m0_cm_ag_id *id);
+
+M0_INTERNAL bool
+m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
+			      uint64_t nr_cps_fini);
+
+M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag);
+
+M0_INTERNAL bool
+m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag, int acc_idx);
 
 /** @} endgroup SNSCM */
 

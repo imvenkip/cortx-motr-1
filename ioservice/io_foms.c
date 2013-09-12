@@ -1083,10 +1083,9 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 	rc = m0_poolmach_device_state(poolmach, cob_fid->f_container,
 				      &device_state);
 	if ((rc != 0) || (device_state != M0_PNDS_ONLINE &&
-			  device_state != M0_PNDS_SNS_REPAIRED &&
-			  device_state != M0_PNDS_SNS_REBALANCED)) {
+			  device_state != M0_PNDS_SNS_REPAIRED)) {
 		if (rc == 0) {
-			M0_LOG(M0_ERROR, "IO @ %lu:%lu on failed device: "
+			M0_LOG(M0_DEBUG, "IO @ %lu:%lu on failed device: "
 					 "state = %d",
 					 cob_fid->f_container,
 					 cob_fid->f_key,
@@ -1813,25 +1812,20 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
 					   &fom_obj->fcrw_stio_list));
-	m0_tl_for (stobio, &fom_obj->fcrw_stio_list, stio_desc) {
+	m0_tl_teardown(stobio, &fom_obj->fcrw_stio_list, stio_desc) {
 		struct m0_stob_io *stio;
 
 		stio = &stio_desc->siod_stob_io;
 
 		m0_free(stio->si_user.ov_vec.v_count);
 		m0_free(stio->si_user.ov_buf);
-
 		m0_free(stio->si_stob.iv_vec.v_count);
 		m0_free(stio->si_stob.iv_index);
-
 		m0_stob_io_fini(stio);
-
-		stobio_tlist_del(stio_desc);
 		m0_fom_callback_fini(&stio_desc->siod_fcb);
-
 		m0_free(stio_desc);
 
-	} m0_tl_endfor;
+	}
 	stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 
 	M0_FOM_ADDB_POST(fom, &fom->fo_service->rs_reqh->rh_addb_mc,

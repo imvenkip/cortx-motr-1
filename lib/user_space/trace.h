@@ -51,9 +51,7 @@ void m0_trace_record_print_yaml(FILE *output_file,
 				const void *buf,
 				bool yaml_stream_mode);
 /** @} end of trace group */
-
-/* __MERO_LIB_USERSP_TRACE_H__ */
-#endif
+#endif /* __MERO_LIB_USERSP_TRACE_H__ */
 
 /*
  *  Local variables:

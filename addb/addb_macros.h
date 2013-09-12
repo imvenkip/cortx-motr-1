@@ -23,7 +23,6 @@
 #define __MERO_ADDB_MACROS_H__
 
 #include "lib/assert.h"
-#include "lib/cdefs.h"
 
 /**
    @ingroup addb_pvt

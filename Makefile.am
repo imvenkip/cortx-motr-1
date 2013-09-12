@@ -199,6 +199,8 @@ include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
 include $(top_srcdir)/sns/Makefile.sub
 include $(top_srcdir)/sns/cm/Makefile.sub
+include $(top_srcdir)/sns/cm/repair/Makefile.sub
+include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
@@ -245,7 +247,7 @@ include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ub/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub
 include $(top_srcdir)/sm/ut/Makefile.sub
-include $(top_srcdir)/sns/cm/ut/Makefile.sub
+include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub
@@ -1040,6 +1042,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               fid/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \
+              fop/ut/Kbuild.sub \
               ha/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
@@ -1064,6 +1067,8 @@ EXTRA_DIST += addb/Kbuild.sub \
               pool/Kbuild.sub \
               reqh/Kbuild.sub \
               reqh/ut/Kbuild.sub \
+              rm/Kbuild.sub \
+              rm/ut/Kbuild.sub \
               rpc/Kbuild.sub \
               rpc/it/Kbuild.sub \
               rpc/ut/Kbuild.sub \

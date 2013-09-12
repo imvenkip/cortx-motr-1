@@ -18,6 +18,8 @@
  * Original creation date: 29-May-2013
  */
 
+#include <stddef.h>		/* ptrdiff_t */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
@@ -31,8 +33,6 @@
 #include "be/op.h"		/* m0_be_op */
 #include "be/domain.h"		/* m0_be_domain_engine */
 #include "be/engine.h"		/* m0_be_engine__tx_state_set */
-
-#include <stddef.h>		/* ptrdiff_t */
 
 /**
  * @addtogroup be

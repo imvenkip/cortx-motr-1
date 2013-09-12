@@ -20,7 +20,6 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 
-#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/assert.h"  /* M0_PRE */
 #include "lib/memory.h"
 #include "lib/finject.h" /* M0_FI_ENABLED */

@@ -42,6 +42,7 @@
 #include "mdservice/md_fops_xc.h" /* m0_fop_create */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "m0t1fs/m0t1fs_addb.h"
+#include "rm/file.h"
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -111,12 +112,13 @@
 
    <B> Containers and component objects: </B>
 
-   An io service provides access to storage objects and md service
-   provides access to md objects. Containers are used to migrate and
-   locate object. Each container is identified by container-id. Storage
-   objects and md objects are identified by fid which is a pair
-   <container-id, key>. All objects belonging to same container have same
-   value for fid.container_id which is equal to id of that container.
+   An io service provides access to storage objects, md service provides
+   access to md objects and rm service provides access to resources.
+   Containers are used to migrate and locate object. Each container is
+   identified by container-id. Storage objects and md objects are identified
+   by fid which is a pair <container-id, key>. All objects belonging to same
+   container have same value for fid.container_id which is equal to id of that
+   container.
 
    "Container location map" maps container-id to service.
 
@@ -126,13 +128,15 @@
 
    Currently m0t1fs implements simple (and temporary) mechanism to
    build container location map. Number of containers is equal to
-   P + 1, where P is pool width and 1 is used by a meta-data container.
+   P + 2, where P is pool width and additional 2 containers are used by
+   meta-data and resource management.
    Pool width is a file-system parameter, obtained from configuration.
 
    Assume a user-visible file F. A gob representing F is assigned fid
    <0, K>, where K is taken from a monotonically increasing counter
    (m0t1fs_sb::csb_next_key). Container-id 0 is mapped to md-service,
-   by container location map.
+   by container location map. Container-id `P+2' is mapped to rm-service.
+
    There are P number of component objects of file F, having fids
    { <i, K> | i = 1, 2..., P}. Here P is equal to pool_width mount option.
    Mapping from <gob_fid, cob_index> -> cob_fid is implemented using
@@ -570,6 +574,15 @@ struct m0t1fs_inode {
 	/** layout and related information for the file's data */
 	struct m0_layout_instance *ci_layout_instance;
 
+	/** Locking mechanism provided by resource manager */
+	struct m0_file             ci_flock;
+
+	/** An owner for maintaining file locks */
+	struct m0_rm_owner         ci_fowner;
+
+	/** Remote portal for requesting resource from creditor */
+	struct m0_rm_remote        ci_creditor;
+
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
 
@@ -635,8 +648,16 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci);
 
 /* dir.c */
 
-M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
-					     int index);
+M0_INTERNAL struct m0_fid
+m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci, int index);
+
+M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void);
+
+M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
+				       const struct m0t1fs_sb *csb);
+
+M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci);
+
 /**
  * I/O mem stats.
  * Prefix "a_" stands for "allocate".
@@ -727,7 +748,8 @@ M0_INTERNAL ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 
 M0_INTERNAL int m0t1fs_removexattr(struct dentry *dentry, const char *name);
 
-M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size);
+M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer,
+				     size_t size);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

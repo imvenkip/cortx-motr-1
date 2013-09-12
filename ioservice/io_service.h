@@ -132,6 +132,17 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 				      uint64_t lid,
 				      struct m0_layout **l_out);
 
+M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
+				         const struct m0_fid *gfid,
+					 struct m0_cob_attr  *attr,
+					 void (*cb)(void *arg, int rc),
+					 void *arg);
+M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
+					    struct m0_layout_domain *ldom,
+					    uint64_t lid,
+					    struct m0_layout **l_out,
+					    void (*cb)(void *arg, int rc),
+					    void *arg);
 /** @} end of io_service */
 
 #endif /* __MERO_IOSERVICE_IO_SERVICE_H__ */

@@ -19,7 +19,6 @@
  */
 
 #include "ut/ut.h"
-#include "lib/cdefs.h"     /* ARRAY_SIZE */
 #include "lib/vec.h"
 #include "lib/memory.h"
 #include "lib/misc.h"

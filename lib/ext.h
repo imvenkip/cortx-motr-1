@@ -24,7 +24,6 @@
 #define __MERO_LIB_EXT_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 
 /**
    @defgroup ext Extent
@@ -64,9 +63,7 @@ M0_INTERNAL m0_bindex_t m0_ext_cap(const struct m0_ext *ext2, m0_bindex_t val);
 M0_INTERNAL bool m0_ext_is_valid(const struct m0_ext *ext);
 
 /** @} end of ext group */
-
-/* __MERO_LIB_EXT_H__ */
-#endif
+#endif /* __MERO_LIB_EXT_H__ */
 
 /*
  *  Local variables:

@@ -18,7 +18,6 @@
  * Original creation date: 10/04/2012
  */
 
-#include "lib/cdefs.h"
 #include "lib/string.h"
 #include "lib/uuid.h"
 #include "ut/ut.h"

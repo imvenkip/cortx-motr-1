@@ -24,10 +24,9 @@
 #define __MERO_LIB_BITSTRING_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 
 /**
-   @addtogroup adt Basic abstract data types
+   @defgroup adt Basic abstract data types
    @{
 */
 
@@ -77,10 +76,7 @@ M0_INTERNAL struct m0_bitstring *m0_bitstring_alloc(const char *name,
 M0_INTERNAL void m0_bitstring_free(struct m0_bitstring *c);
 
 /** @} end of adt group */
-
-
-/* __MERO_LIB_BITSTRING_H__ */
-#endif
+#endif /* __MERO_LIB_BITSTRING_H__ */
 
 /*
  *  Local variables:

@@ -18,7 +18,6 @@
  * Original creation date: 31-Jan-2013
  */
 
-
 /**
  * @addtogroup assert
  *
@@ -42,7 +41,6 @@ void m0_arch_panic(const char *expr, const char *func,
 }
 
 /** @} end of assert group */
-
 
 /*
  *  Local variables:

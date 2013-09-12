@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,6 +27,7 @@
 #include "mero/setup.h"
 #include "ioservice/io_service.h"
 
+#include "pool/pool.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm_utils.h"
@@ -110,6 +111,27 @@ M0_INTERNAL void m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
 	m0_layout_enum_get(le, ta->ta_obj, gfid, cfid_out);
 }
 
+M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
+						uint64_t unit,
+						struct m0_pdclust_layout *pl)
+{
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_pdclust_instance *pi;
+	struct m0_fid               gobfid;
+	int                         rc;
+
+	agid2fid(&sag->sag_base.cag_id, &gobfid);
+	sa.sa_group = agid2group(&sag->sag_base.cag_id);
+	sa.sa_unit  = unit;
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gobfid);
+	if (rc != 0)
+		return ~0;
+	m0_pdclust_instance_map(pi, &sa, &ta);
+	m0_layout_instance_fini(&pi->pi_base);
+	return ta.ta_frame * m0_pdclust_unit_size(pl);
+}
+
 M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 					 uint64_t fsize)
 {
@@ -123,8 +145,8 @@ M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 }
 
 M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_dbenv *dbenv,
-				struct m0_cob_domain *cdom,
-				const struct m0_fid *cob_fid)
+				     struct m0_cob_domain *cdom,
+				     const struct m0_fid *cob_fid)
 {
 	struct m0_cob        *cob;
 	struct m0_cob_oikey   oikey;
@@ -167,8 +189,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
 	if (rc != 0)
 		return 0;
-	start = m0_sns_cm_ag_unit_start(scm->sc_op, pl);
-	end = m0_sns_cm_ag_unit_end(scm->sc_op, pl);
+	start = m0_sns_cm_ag_unit_start(scm, pl);
+	end = m0_sns_cm_ag_unit_end(scm, pl);
 	sa.sa_group = group;
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
@@ -185,15 +207,11 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	return nrlu;
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(struct m0_sns_cm *scm,
-						  struct m0_pdclust_layout *pl)
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm *scm,
+						  const struct m0_pdclust_layout
+						  *pl)
 {
-	if (scm->sc_op == SNS_REPAIR)
-		return m0_pdclust_N(pl) + m0_pdclust_K(pl);
-	else if (scm->sc_op == SNS_REBALANCE)
-		return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-
-	return ~0;
+	return scm->sc_helpers->sch_ag_nr_global_units(scm, pl);
 }
 
 M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
@@ -210,7 +228,7 @@ M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
 	return rc;
 }
 
-M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_sns_cm *scm,
+M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid)
 {
 	int i;
@@ -223,132 +241,54 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_sns_cm *scm,
 	return false;
 }
 
+M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
+					 const struct m0_pdclust_layout *pl,
+					 int unit)
+{
+        return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE &&
+	       !m0_poolmach_sns_repair_spare_contains_data(scm->sc_base.cm_pm,
+							   unit);
+}
+
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 						uint64_t fidx)
 {
         return m0_pdclust_N(pl) + m0_pdclust_K(pl) + fidx;
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_unit_start(enum m0_sns_cm_op op,
-					     struct m0_pdclust_layout *pl)
+M0_INTERNAL uint64_t m0_sns_cm_ag_unit_start(const struct m0_sns_cm *scm,
+					     const struct m0_pdclust_layout *pl)
 {
-        switch (op) {
-        case SNS_REPAIR:
-                /* Start from 0th unit of the group. */
-                return 0;
-        case SNS_REBALANCE:
-                /* Start from the first spare unit of the group. */
-                return m0_sns_cm_ag_spare_unit_nr(pl, 0);
-        default:
-                 M0_IMPOSSIBLE("op");
-        }
-
-        return ~0;
+        return scm->sc_helpers->sch_ag_unit_start(pl);
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(enum m0_sns_cm_op op,
-					   struct m0_pdclust_layout *pl)
+M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(const struct m0_sns_cm *scm,
+					   const struct m0_pdclust_layout *pl)
 {
-
-        switch (op) {
-        case SNS_REPAIR:
-                /* End at the last data/parity unit of the group. */
-                return m0_pdclust_N(pl) + m0_pdclust_K(pl);
-        case SNS_REBALANCE:
-                /* End at the last spare unit of the group. */
-                return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-        default:
-                M0_IMPOSSIBLE("op");
-        }
-
-        return ~0;
-}
-
-/**
- * Returns the index of the failed data/parity unit in the parity group.
- * The same offset of the data/parity unit in the group on the failed device is
- * used to copy data from the spare unit to the new device by re-balance
- * operation.
- */
-static uint64_t __group_failed_unit_index(struct m0_pdclust_layout *pl,
-					  struct m0_pdclust_instance *pi,
-					  struct m0_fid *gfid, uint64_t group,
-					  uint64_t fdata)
-{
-	struct m0_pdclust_src_addr  sa;
-	struct m0_pdclust_tgt_addr  ta;
-	struct m0_fid               cobfid;
-	uint64_t                    dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-	int                         i;
-
-	sa.sa_group = group;
-	for (i = 0; i < dpupg; ++i) {
-		sa.sa_unit = i;
-		M0_SET0(&ta);
-		M0_SET0(&cobfid);
-		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (cobfid.f_container == fdata)
-			return i;
-	}
-
-	return ~0;
-}
-
-static uint64_t __target_unit_nr(struct m0_pdclust_layout *pl,
-				 struct m0_pdclust_instance *pi,
-				 struct m0_fid *gfid, uint64_t group,
-				 uint64_t fdata, enum m0_sns_cm_op op,
-				 uint64_t fidx)
-{
-	switch (op) {
-	case SNS_REPAIR:
-		return m0_sns_cm_ag_spare_unit_nr(pl, fidx);
-	case SNS_REBALANCE:
-		return __group_failed_unit_index(pl, pi, gfid, group, fdata);
-	default:
-		M0_IMPOSSIBLE("op");
-	}
-
-	return ~0;
+	return scm->sc_helpers->sch_ag_unit_end(pl);
 }
 
 M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
-					  struct m0_pdclust_layout *pl)
+					  uint64_t tgt_unit,
+					  struct m0_pdclust_layout *pl,
+					  struct m0_fid *cobfid)
 {
-	struct m0_sns_cm                *scm = cm2sns(sag->sag_base.cag_cm);
 	struct m0_pdclust_src_addr       sa;
 	struct m0_pdclust_tgt_addr       ta;
-	struct m0_fid                    gobfid;
-	struct m0_fid                    cobfid;
 	struct m0_pdclust_instance      *pi;
-	uint64_t                         fidx;
+	struct m0_fid                    gobfid;
 	int                              rc;
 
 	agid2fid(&sag->sag_base.cag_id, &gobfid);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
+	sa.sa_unit  = tgt_unit;
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gobfid);
-	if (rc == 0) {
-		for (fidx = 0; fidx < sag->sag_fnr; ++fidx) {
-			M0_SET0(&ta);
-			M0_SET0(&cobfid);
-			sa.sa_unit  = __target_unit_nr(pl, pi, &gobfid, sa.sa_group,
-						       scm->sc_it.si_fdata[fidx],
-						       scm->sc_op, fidx);
-			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gobfid, &cobfid);
-			sag->sag_fc[fidx].fc_tgt_cobfid = cobfid;
-			sag->sag_fc[fidx].fc_tgt_cob_index = ta.ta_frame *
-							     m0_pdclust_unit_size(pl);
-		}
-		m0_layout_instance_fini(&pi->pi_base);
-	}
+	if (rc != 0)
+		return rc;
+	m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gobfid, cobfid);
+	m0_layout_instance_fini(&pi->pi_base);
 
 	return rc;
-}
-
-M0_INTERNAL struct m0_pdclust_layout *
-m0_sns_cm_fid2layout(struct m0_sns_cm *scm, struct m0_fid *gfid)
-{
-	return scm->sc_it.si_fc.sfc_pdlayout;
 }
 
 /**
@@ -415,6 +355,92 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
         return rc;
 }
 
+
+/**
+ * Callback for async getattr.
+ *
+ * This callback should tell the original cm the result and post event to let it
+ * continue execution.
+ *
+ * Note: The following code are only for sample purpose to use async getattr.
+ *
+ */
+static void getattr_callback(void *arg, int rc)
+{
+	struct m0_cm *cm = arg;
+
+	if (rc == 0) {
+		/* getattr succeeded. */
+	}
+	/* TODO:
+	 * To inform the original caller to continue execution.
+	 */
+	(void)cm;
+}
+
+/**
+ * getattr sync
+ *
+ * @retval 0, succeeded to sent out the request asynchronously.
+ *            Caller of this function should relinquish current execution,
+ *            i.e. return M0_FSO_WAIT to reqh.
+ * @retval non-zero, failure happened. No callback will be issued.
+ *            Caller should continue handling error case.
+ *
+ * XXX: maybe a pointer to the current fom is needed here as an argument.
+ *      So the callback can wake up the fom.
+ */
+M0_INTERNAL int
+m0_sns_cm_file_attr_fetch_async(struct m0_cm *cm,
+				struct m0_fid *gfid,
+				struct m0_cob_attr *attr)
+{
+	struct m0_reqh *reqh = cm->cm_service.rs_reqh;
+	int             rc;
+
+	M0_PRE(cm != NULL);
+	M0_PRE(gfid != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	rc = m0_ios_mds_getattr_async(reqh, gfid, attr, &getattr_callback, cm);
+	return rc;
+}
+
+static void layout_callback(void *arg, int rc)
+{
+	struct m0_cm *cm = arg;
+
+	if (rc == 0) {
+		/* getlayout succeeded. */
+	}
+	/* TODO:
+	 * To inform the original caller to continue execution.
+	 */
+	(void)cm;
+}
+
+/**
+ * getlayout async.
+ */
+M0_INTERNAL int
+m0_sns_cm_file_layout_fetch_async(struct m0_cm *cm,
+				  uint64_t lid,
+				  struct m0_layout **l_out)
+{
+	struct m0_layout_domain  *ldom;
+	struct m0_reqh           *reqh = cm->cm_service.rs_reqh;
+	int                       rc;
+
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	ldom = &reqh->rh_ldom;
+
+	rc = m0_ios_mds_layout_get_async(reqh, ldom, lid, l_out,
+					 &layout_callback, cm);
+	return rc;
+}
+
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 					 struct m0_fid *cfid)
 {
@@ -454,30 +480,38 @@ M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
 	return m0_sns_cm_cob_locate(dbenv, cdom, cobfid);
 }
 
-M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(struct m0_sns_cm *scm,
-					    struct m0_fid *gfid,
+M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
+					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
 					    struct m0_pdclust_instance *pi,
-					    uint64_t group)
+					    uint64_t group,
+					    struct m0_bitmap *fmap_out)
 {
 	struct m0_pdclust_src_addr sa;
 	struct m0_pdclust_tgt_addr ta;
 	struct m0_fid              cobfid;
-	uint64_t                   dpupg;
+	uint64_t                   upg;
 	uint64_t                   unit;
 	size_t                     group_failures = 0;
 	int                        i;
 
 	M0_PRE(scm != NULL && pl != NULL);
 
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-	for (unit = 0; unit < dpupg; ++unit) {
+	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	sa.sa_group = group;
+	for (unit = 0; unit < upg; ++unit) {
+		if (m0_sns_cm_unit_is_spare(scm, pl, unit))
+			continue;
 		sa.sa_unit = unit;
-		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		for (i = 0; i < scm->sc_failures_nr; ++i) {
-			if (cobfid.f_container == scm->sc_it.si_fdata[i])
+			if (cobfid.f_container == scm->sc_it.si_fdata[i]) {
 				M0_CNT_INC(group_failures);
+				if (fmap_out != NULL) {
+					M0_ASSERT(fmap_out->b_nr == upg);
+					m0_bitmap_set(fmap_out, unit, 1);
+				}
+			}
 		}
 	}
 
@@ -488,43 +522,48 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                                           struct m0_pdclust_layout *pl,
                                           const struct m0_cm_ag_id *id)
 {
-	struct m0_sns_cm_iter      *it = &scm->sc_it;
-	struct m0_pdclust_src_addr  sa;
-	struct m0_pdclust_tgt_addr  ta;
-	struct m0_pdclust_instance *pi;
-	struct m0_fid               fid;
-	struct m0_fid               cobfid;
-	size_t                      group_failures;
-	uint32_t                    i;
-	uint32_t                    N;
-	uint32_t                    K;
-	int                         rc;
-	bool                        result = false;
+        struct m0_pdclust_instance *pi;
+        struct m0_fid               fid;
+        size_t                      group_failures;
+        uint64_t                    group;
+        int                         rc;
+        bool                        result = false;
 
-	agid2fid(id,  &fid);
+        agid2fid(id,  &fid);
+        rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
+        if (rc == 0) {
+                group = id->ai_lo.u_lo;
+                /* Firstly check if this group has any failed units. */
+                group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
+                                                          pi, group, NULL);
+                if (group_failures > 0 ) {
+			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+			       id->ai_hi.u_hi, id->ai_hi.u_lo,
+			       id->ai_lo.u_hi, id->ai_lo.u_lo);
+			result = scm->sc_helpers->sch_ag_is_relevant(scm, &fid,
+								     group, pl,
+								     pi);
+                }
+                m0_layout_instance_fini(&pi->pi_base);
+        }
 
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
-	if (rc == 0) {
-		/* Firstly check if this group has any failed units. */
-		group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
-							  pi, id->ai_lo.u_lo);
-		if (group_failures > 0 ) {
-			N = m0_pdclust_N(pl);
-			K = m0_pdclust_K(pl);
-			for (i = 0; i < K; ++i) {
-				sa.sa_group = id->ai_lo.u_lo;
-				sa.sa_unit = N + K + i;
-				m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &fid, &cobfid);
-				rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
-							  &cobfid);
-				if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
-					result = true;
-			}
-		}
-		m0_layout_instance_fini(&pi->pi_base);
-	}
+        return result;
+}
 
-	return result;
+M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag)
+{
+	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+
+	return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
+}
+
+M0_INTERNAL uint64_t
+m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
+				const struct m0_pdclust_layout *pl)
+{
+	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+
+	return scm->sc_helpers->sch_ag_max_incoming_units(scm, pl);
 }
 
 #undef M0_TRACE_SUBSYSTEM

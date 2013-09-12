@@ -24,7 +24,7 @@
 #define __MERO_LIB_SEMAPHORE_H__
 
 #include "lib/types.h"
-#include "lib/time.h"
+#include "lib/time.h"  /* m0_time_t */
 
 /**
    @defgroup semaphore Dijkstra semaphore
@@ -37,26 +37,20 @@
    @{
  */
 
-#ifndef __KERNEL__
-#include "lib/user_space/semaphore.h"
+#ifdef __KERNEL__
+#  include "lib/linux_kernel/semaphore.h"
 #else
-#include "lib/linux_kernel/semaphore.h"
+#  include "lib/user_space/semaphore.h"
 #endif
-
-/* struct m0_semaphore is defined by headers above. */
 
 M0_INTERNAL int m0_semaphore_init(struct m0_semaphore *semaphore,
 				  unsigned value);
 M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore);
 
-/**
-   Downs the semaphore (P-operation).
- */
+/** Downs the semaphore (P-operation). */
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore);
 
-/**
-   Ups the semaphore (V-operation).
- */
+/** Ups the semaphore (V-operation). */
 M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore);
 
 /**
@@ -91,9 +85,7 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 					const m0_time_t abs_timeout);
 
 /** @} end of semaphore group */
-
-/* __MERO_LIB_SEMAPHORE_H__ */
-#endif
+#endif /* __MERO_LIB_SEMAPHORE_H__ */
 
 /*
  *  Local variables:

@@ -14,35 +14,45 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 09/11/2011
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 04-Aug-2010
  */
 
 #pragma once
 
-#ifndef __MERO_SNS_CM_ST_TRIGGER_FOP_H__
-#define __MERO_SNS_CM_ST_TRIGGER_FOP_H__
+#ifndef __MERO_LIB_USER_SPACE_MISC_H__
+#define __MERO_LIB_USER_SPACE_MISC_H__
 
-#include "lib/types.h"
-#include "xcode/xcode_attr.h"
-
-/**
- * Simplistic implementation of sns repair trigger fop for testing purposes
- * only.
- */
-struct trigger_fop {
-	uint64_t          fdata;
-	uint32_t          op;
-} M0_XCA_RECORD;
-
-struct trigger_rep_fop {
-	uint32_t rc;
-} M0_XCA_RECORD;
-
-int m0_sns_repair_trigger_fop_init(void);
-void m0_sns_repair_trigger_fop_fini(void);
-
+#ifndef offsetof
+#define offsetof(typ,memb) __builtin_offsetof(typ, memb)
 #endif
+
+#ifndef container_of
+#define container_of(ptr, type, member) \
+	((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))
+#endif
+
+#ifndef likely
+#define likely(x)   __builtin_expect(!!(x), 1)
+#endif
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
+
+/** Size of static array. */
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
+#endif
+
+#define M0_EXPORTED(s)
+
+#endif /* __MERO_LIB_USER_SPACE_MISC_H__ */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

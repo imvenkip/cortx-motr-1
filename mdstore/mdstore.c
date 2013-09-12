@@ -27,17 +27,17 @@
 #include "mdstore/mdstore_addb.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
+#include "lib/trace.h"
+
 #include <sys/stat.h>    /* S_ISDIR */
 
 #include "lib/misc.h"    /* M0_SET0 */
-#include "lib/cdefs.h"
 #include "lib/arith.h"   /* M0_3WAY, m0_align */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/rwlock.h"
-#include "lib/trace.h"
 
 #include "fid/fid.h"
 #include "addb/addb.h"
@@ -927,6 +927,7 @@ out:
 	M0_LEAVE("rc: %d, path: %s", rc, *path);
 	return rc;
 }
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

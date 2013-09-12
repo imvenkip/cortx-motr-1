@@ -141,8 +141,7 @@ void free_test_list(struct m0_list *list)
 	struct m0_test_suite_entry *entry;
 	struct m0_test_suite_entry *n;
 	m0_list_for_each_entry_safe(list, entry, n,
-			struct m0_test_suite_entry, tse_linkage)
-	{
+			struct m0_test_suite_entry, tse_linkage) {
 		m0_list_del(&entry->tse_linkage);
 		m0_free(entry);
 	}

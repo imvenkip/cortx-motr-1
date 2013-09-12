@@ -473,6 +473,11 @@ M0_INTERNAL void m0_cm_unlock(struct m0_cm *cm)
 	m0_sm_group_unlock(&cm->cm_sm_group);
 }
 
+M0_INTERNAL int m0_cm_trylock(struct m0_cm *cm)
+{
+	return m0_mutex_trylock(&cm->cm_sm_group.s_lock);
+}
+
 M0_INTERNAL bool m0_cm_is_locked(const struct m0_cm *cm)
 {
 	return m0_mutex_is_locked(&cm->cm_sm_group.s_lock);
@@ -626,8 +631,13 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm)
 {
 	M0_PRE(m0_cm_is_locked(cm));
+	return m0_cm_state_get(cm) == M0_CMS_READY;
+}
 
-	return M0_IN(m0_cm_state_get(cm), (M0_CMS_READY, M0_CMS_ACTIVE));
+M0_INTERNAL bool m0_cm_is_active(struct m0_cm *cm)
+{
+	M0_PRE(m0_cm_is_locked(cm));
+	return m0_cm_state_get(cm) == M0_CMS_ACTIVE;
 }
 
 M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
@@ -663,6 +673,7 @@ M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm)
 
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		m0_cm_proxy_fini_wait(pxy);
+		m0_cm_proxy_del(cm, pxy);
 		m0_cm_proxy_fini(pxy);
 		m0_free(pxy);
 	} m0_tl_endfor;

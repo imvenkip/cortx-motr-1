@@ -395,8 +395,8 @@ enum {
 	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
 	 * and m0_sns_cm::sc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 1 << 6,
-	SNS_OUTGOING_BUF_NR = 1 << 6,
+	SNS_INCOMING_BUF_NR = 1 << 5,
+	SNS_OUTGOING_BUF_NR = 1 << 5,
 
 	/**
 	 * Currently m0t1fs uses default fid_start = 4, where 0 - 3 are reserved
@@ -407,7 +407,10 @@ enum {
 };
 
 extern struct m0_net_xprt m0_net_lnet_xprt;
-extern struct m0_cm_type  sns_cmt;
+extern struct m0_cm_type  sns_repair_cmt;
+extern struct m0_cm_type  sns_rebalance_cmt;
+extern const struct m0_sns_cm_helpers repair_helpers;
+extern const struct m0_sns_cm_helpers rebalance_helpers;
 
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm)
 {
@@ -416,22 +419,27 @@ M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm)
 
 M0_INTERNAL int m0_sns_cm_type_register(void)
 {
-	return m0_cm_type_register(&sns_cmt);
+	int rc;
+
+	rc = m0_cm_type_register(&sns_repair_cmt) ?:
+	     m0_cm_type_register(&sns_rebalance_cmt);
+
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_sns_cm_type_deregister(void)
 {
-	m0_cm_type_deregister(&sns_cmt);
+	m0_cm_type_deregister(&sns_repair_cmt);
+	m0_cm_type_deregister(&sns_rebalance_cmt);
 }
 
-static struct m0_cm_cp *cm_cp_alloc(struct m0_cm *cm)
+M0_INTERNAL struct m0_cm_cp *m0_sns_cm_cp_alloc(struct m0_cm *cm)
 {
 	struct m0_sns_cm_cp *scp;
 
 	SNS_ALLOC_PTR(scp, &m0_sns_mod_addb_ctx, CP_ALLOC);
 	if (scp == NULL)
 		return NULL;
-	scp->sc_base.c_ops = &m0_sns_cm_cp_ops;
 
 	return &scp->sc_base;
 }
@@ -458,7 +466,7 @@ static void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
 	m0_mutex_fini(&sbp->sb_wait_mutex);
 }
 
-static int cm_setup(struct m0_cm *cm)
+M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 {
 	struct m0_reqh        *reqh;
 	struct m0_net_domain  *ndom;
@@ -562,13 +570,14 @@ static int pm_state(struct m0_sns_cm *scm)
 					  M0_PNDS_SNS_REBALANCING;
 }
 
-static int cm_ready(struct m0_cm *cm)
+M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	int                    bufs_nr;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+	M0_PRE(scm->sc_failures_nr > 0);
 
 	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
 	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
@@ -594,19 +603,12 @@ static int cm_ready(struct m0_cm *cm)
 			     scm->sc_ibp.sb_bp.nbp_free,
 			     scm->sc_obp.sb_bp.nbp_free);
 	}
-	if (scm->sc_op == SNS_REPAIR) {
-		/*
-		 * TODO: Move accounting of failures to better place in-order to
-		 * handle multiple failures.
-		 */
-		scm->sc_failures_nr = 1;
-	}
 
 	M0_LEAVE();
 	return 0;
 }
 
-static int cm_start(struct m0_cm *cm)
+M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
@@ -618,7 +620,6 @@ static int cm_start(struct m0_cm *cm)
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
 	state = pm_state(scm);
-	//m0_cm_continue(cm);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
 		rc = pm_event_setup_and_post(dbenv, cm->cm_pm,
 					     M0_POOL_DEVICE,
@@ -633,22 +634,20 @@ static int cm_start(struct m0_cm *cm)
 	return rc;
 }
 
-static int cm_stop(struct m0_cm *cm)
+M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);;
 	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
-	enum m0_pool_nd_state  pm_state;
+	enum m0_pool_nd_state  pm_state = 0;
 	int                    i;
 
-	M0_ASSERT(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
-	pm_state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
-					      M0_PNDS_SNS_REBALANCED;
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	for (i = 0; i < scm->sc_failures_nr; ++i) {
 		pm_event_setup_and_post(dbenv, cm->cm_pm, M0_POOL_DEVICE,
 					scm->sc_it.si_fdata[i], pm_state);
 	}
 
+	scm->sc_failures_nr = 0;
 	scm->sc_stop_time = m0_time_now();
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,
 		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
@@ -657,7 +656,7 @@ static int cm_stop(struct m0_cm *cm)
 	return 0;
 }
 
-static void cm_fini(struct m0_cm *cm)
+M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm;
 
@@ -677,7 +676,7 @@ static void cm_fini(struct m0_cm *cm)
 	M0_LEAVE();
 }
 
-static void cm_complete(struct m0_cm *cm)
+M0_INTERNAL void m0_sns_cm_complete(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm;
 
@@ -716,11 +715,8 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 		m0_cm_cp_buf_add(cp, buf);
 		M0_CNT_DEC(rem_bufs);
 		if (!scp->sc_is_local) {
-			if (scm->sc_ibp_reserved_nr > 0) {
+			if (scm->sc_ibp_reserved_nr > 0)
 				M0_CNT_DEC(scm->sc_ibp_reserved_nr);
-			M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%lu]", cp->c_ag->cag_id.ai_hi.u_hi, cp->c_ag->cag_id.ai_hi.u_lo,
-			       cp->c_ag->cag_id.ai_lo.u_hi, cp->c_ag->cag_id.ai_lo.u_lo, scm->sc_ibp_reserved_nr);
-			}
 		}
 	}
 
@@ -794,31 +790,46 @@ static bool sns_cm_fid_is_valid(const struct m0_fid *fid)
 	return fid->f_container >= 0 && fid->f_key >= SNS_COB_FID_START;
 }
 
-M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
-						 struct m0_cm_aggr_group *ag)
+M0_INTERNAL uint64_t
+m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
+				const struct m0_cm_ag_id *id,
+				struct m0_pdclust_layout *pl)
 {
-	struct m0_pdclust_layout *pl;
-	struct m0_sns_cm         *scm;
-	uint64_t                  nr_cp_bufs;
-	uint64_t                  cp_data_seg_nr;
-	uint32_t                  res_bufs;
-	uint64_t                  nr_acc_bufs;
-	uint64_t                  nr_incoming;
-	uint32_t                  dpupg;
-	uint32_t                  actual_freed = 0;
+	struct m0_fid gfid;
+	uint64_t      group;
+	uint64_t      nr_cp_bufs;
+	uint64_t      cp_data_seg_nr;
+	uint64_t      nr_local_units;
+	uint64_t      nr_incoming;
+	uint32_t      max_in_units;
 
-	pl = m0_layout_to_pdl(ag->cag_layout);
-	scm = cm2sns(cm);
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
+	max_in_units = m0_sns_cm_ag_max_incoming_units(scm, pl);
+        agid2fid(id, &gfid);
+        group = agid2group(id);
+	nr_local_units = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
+	nr_incoming = max_in_units - nr_local_units;
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
-	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
-	nr_incoming = dpupg - ag->cag_cp_local_nr;
-	res_bufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
-	if (res_bufs >= ag->cag_freed_cp_nr)
-		actual_freed = res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr - ag->cag_cp_local_nr));
-	if (actual_freed > 0)
-		scm->sc_ibp_reserved_nr -= actual_freed;
+
+	return nr_cp_bufs * nr_incoming;
+}
+
+M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_sns_cm *scm,
+						 struct m0_cm_aggr_group *ag,
+						 struct m0_pdclust_layout *pl,
+						 uint64_t nr_res_bufs)
+{
+	uint64_t extra_bufs = 0;
+	uint64_t nr_cp_bufs;
+	uint64_t cp_data_seg_nr;
+
+	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
+	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
+	if (nr_res_bufs >= (ag->cag_freed_cp_nr * nr_cp_bufs))
+		extra_bufs = nr_res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr -
+							  ag->cag_cp_local_nr));
+	if (extra_bufs > 0)
+		scm->sc_ibp_reserved_nr -= extra_bufs;
 }
 
 /**
@@ -830,56 +841,18 @@ M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_cm *cm,
  * enough free buffers to receive all the remote units corresponding
  * to a parity group.
  */
-M0_INTERNAL bool m0_sns_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
-				     struct m0_pdclust_layout *pl)
+M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
+					 struct m0_pdclust_layout *pl,
+					 uint64_t nr_bufs)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_fid             gfid;
-	uint64_t                  group;
-	uint64_t                  nr_cp_bufs;
-	uint64_t                  total_inbufs;
-	uint64_t                  cp_data_seg_nr;
-	uint64_t                  nr_acc_bufs;
-	uint64_t                  nr_incoming;
-	uint64_t                  nr_lu;
-	uint32_t                  dpupg;
-	bool                      result = false;
+	bool result = false;
 
-	M0_PRE(cm != NULL && id != NULL && pl != NULL);
-	M0_PRE(m0_cm_is_locked(cm));
+	M0_PRE(scm != NULL && pl != NULL);
 
-	agid2fid(id, &gfid);
-	group = agid2group(id);
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
-	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
-	/*
-	 * Calculate number of buffers required for a copy packet.
-	 * This depends on the unit size and the max buffer size.
-	 */
-	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
-	/* Calculate number of buffers required for accumulator copy packets. */
-	nr_acc_bufs = nr_cp_bufs * m0_pdclust_K(pl);
-	/* Calculate number of incoming copy packets for this aggregation group. */
-	nr_lu = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
-	nr_incoming = dpupg - nr_lu;
-	M0_ASSERT(nr_incoming <= dpupg);
-	/*
-	 * Calculate total number of buffers required to be available for all
-	 * the incoming copy packets of this aggregation group.
-	 * Note: Here we simply reserve buffers corresponding to
-	 * N + K - failures - local data units copy packets. This may lead to
-	 * extra reservation of buffers as there's a possibility that a node
-	 * may host multiple outgoing units of the same aggregation group. In
-	 * this case the multiple outgoing units are transformed into single
-	 * copy packet by the sender. Thus receiver instead of receiving data
-	 * in multiple copy packets as expected, receives the data in a single
-	 * copy packet.
-	 */
-	total_inbufs = nr_acc_bufs + (nr_cp_bufs * nr_incoming);
 	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-	if (total_inbufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
+	if (nr_bufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
 		goto out;
-	scm->sc_ibp_reserved_nr += total_inbufs;
+	scm->sc_ibp_reserved_nr += nr_bufs;
 	result = true;
 out:
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
@@ -890,13 +863,15 @@ out:
 	return result;
 }
 
-static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
-		      struct m0_cm_ag_id *id_next)
+M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
+				  const struct m0_cm_ag_id id_curr,
+				  struct m0_cm_ag_id *id_next)
 {
 	struct m0_sns_cm         *scm = cm2sns(cm);
 	struct m0_fid             fid_curr;
 	struct m0_fid             fid_next = {0, 0};
 	struct m0_cm_ag_id        ag_id;
+	struct m0_layout         *l;
 	struct m0_pdclust_layout *pl = NULL;
 	struct m0_dbenv          *dbenv = scm->sc_it.si_dbenv;
 	struct m0_cob_domain     *cdom = scm->sc_it.si_cob_dom;
@@ -922,9 +897,10 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 				m0_sns_cm_ag_agid_setup(&fid_curr, i, &ag_id);
 				if (!m0_sns_cm_ag_is_relevant(scm, pl, &ag_id))
 					continue;
-				if (!m0_sns_cm_has_space(cm, &ag_id, pl)) {
+				l = m0_pdl_to_layout(pl);
+				if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
 					M0_SET0(&ag_id);
-					m0_layout_put(m0_pdl_to_layout(pl));
+					m0_layout_put(l);
 					return -ENOSPC;
 				}
 				if (pl != NULL)
@@ -943,51 +919,6 @@ static int cm_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 
 	return rc;
 }
-
-M0_INTERNAL enum sns_repair_state
-m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
-{
-	struct m0_sns_cm       *scm;
-	struct m0_cm	       *cm;
-	struct m0_reqh_service *service;
-	struct m0_fid           curr_gfid;
-	int			state;
-
-	M0_PRE(gfid != NULL && m0_fid_is_valid(gfid));
-	M0_PRE(reqh != NULL);
-
-	service = m0_reqh_service_find(&sns_cmt.ct_stype, reqh);
-	M0_ASSERT(service != NULL);
-
-	cm = container_of(service, struct m0_cm, cm_service);
-	scm = cm2sns(cm);
-
-	M0_SET0(&curr_gfid);
-	m0_cm_lock(cm);
-	state = m0_cm_state_get(cm);
-	if (state == M0_CMS_ACTIVE)
-		curr_gfid = scm->sc_it.si_fc.sfc_gob_fid;
-	m0_cm_unlock(cm);
-	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
-		return SRS_UNINITIALIZED;
-	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :
-	       SRS_REPAIR_DONE;
-}
-
-/** Copy machine operations. */
-const struct m0_cm_ops cm_ops = {
-	.cmo_setup               = cm_setup,
-	.cmo_ready               = cm_ready,
-	.cmo_start               = cm_start,
-	.cmo_ag_alloc            = m0_sns_cm_ag_alloc,
-	.cmo_cp_alloc            = cm_cp_alloc,
-	.cmo_data_next           = m0_sns_cm_iter_next,
-	.cmo_ag_next             = cm_ag_next,
-	.cmo_sw_onwire_fop_setup = m0_sns_cm_sw_onwire_fop_setup,
-	.cmo_complete            = cm_complete,
-	.cmo_stop                = cm_stop,
-	.cmo_fini                = cm_fini
-};
 
 #undef M0_TRACE_SUBSYSTEM
 

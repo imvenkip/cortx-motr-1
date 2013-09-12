@@ -20,7 +20,6 @@
 
 #include "ut/ut.h"
 #include "lib/memory.h"
-#include "lib/cdefs.h"
 #include "lib/misc.h"
 #include "mero/magic.h"
 #include "ioservice/io_fops.h"	/* m0_io_fop */

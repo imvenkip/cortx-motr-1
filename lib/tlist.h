@@ -339,6 +339,13 @@ M0_INTERNAL void m0_tlist_add_before(const struct m0_tl_descr *d, void *obj,
 M0_INTERNAL void m0_tlist_del(const struct m0_tl_descr *d, void *obj);
 
 /**
+   Deletes at element from the list, if it was there.
+
+   @post !m0_tlink_is_in(d, obj)
+ */
+M0_INTERNAL void m0_tlist_remove(const struct m0_tl_descr *d, void *obj);
+
+/**
    Moves an element from a list to the head of (possibly the same) list.
 
    @pre  m0_tlink_is_in(d, obj)
@@ -359,6 +366,12 @@ M0_INTERNAL void m0_tlist_move_tail(const struct m0_tl_descr *d,
    Returns the first element of a list or NULL if the list is empty.
  */
 void *m0_tlist_head(const struct m0_tl_descr *d, const struct m0_tl *list);
+
+/**
+   Removes and returns the head the list or NULL.
+ */
+M0_INTERNAL void *m0_tlist_pop(const struct m0_tl_descr *d,
+			       const struct m0_tl *list);
 
 /**
    Returns the last element of a list or NULL if the list is empty.
@@ -438,24 +451,6 @@ do {									\
  *
  * @note This is not the macro you are interested in. Look at m0_tl_forall().
  *
- * Declares a void pointer variable named "var" in a new scope and evaluates
- * user-supplied expression (the last argument) with "var" iterated over
- * successive list elements, while this expression returns true. Returns true
- * iff the whole list was iterated over.
- *
- * The list can be modified by the user-supplied expression.
- *
- * This function is useful for invariant checking.
- *
- * @code
- * bool foo_invariant(const struct foo *f)
- * {
- *         return f_state_is_valid(f) &&
- *                m0_tlist_forall(bars_descr, bar, &f->f_bars,
- *                                bar_is_valid(bar));
- * }
- * @endcode
- *
  * @see m0_forall(), m0_tl_forall(), m0_list_forall(), m0_list_entry_forall().
  */
 #define m0_tlist_forall(descr, var, head, ...)	\
@@ -518,9 +513,11 @@ scope void   name ## _tlist_add_tail(struct m0_tl *list, amb_type *amb); \
 scope void   name ## _tlist_add_after(amb_type *amb, amb_type *next);	\
 scope void   name ## _tlist_add_before(amb_type *amb, amb_type *next);	\
 scope void   name ## _tlist_del(amb_type *amb);				\
+scope void   name ## _tlist_remove(amb_type *amb);			\
 scope void   name ## _tlist_move(struct m0_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb); \
 scope amb_type *name ## _tlist_head(const struct m0_tl *list);		\
+scope amb_type *name ## _tlist_pop(const struct m0_tl *list);		\
 scope amb_type *name ## _tlist_tail(const struct m0_tl *list);		\
 scope amb_type *name ## _tlist_next(const struct m0_tl *list,           \
 				    const amb_type *amb);	        \
@@ -643,6 +640,11 @@ scope __AUN void   name ## _tlist_del(amb_type *amb)			\
 	m0_tlist_del(&name ## _tl, amb);				\
 }									\
 									\
+scope __AUN void   name ## _tlist_remove(amb_type *amb)			\
+{									\
+	m0_tlist_remove(&name ## _tl, amb);				\
+}									\
+									\
 scope __AUN void   name ## _tlist_move(struct m0_tl *list, amb_type *amb) \
 {									\
 	m0_tlist_move(&name ## _tl, list, amb);				\
@@ -656,6 +658,11 @@ scope __AUN void   name ## _tlist_move_tail(struct m0_tl *list, amb_type *amb) \
 scope __AUN amb_type *name ## _tlist_head(const struct m0_tl *list)	\
 {									\
 	return (amb_type *)m0_tlist_head(&name ## _tl, list);		\
+}									\
+									\
+scope __AUN amb_type *name ## _tlist_pop(const struct m0_tl *list)	\
+{									\
+	return (amb_type *)m0_tlist_pop(&name ## _tl, list);		\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_tail(const struct m0_tl *list)	\
@@ -688,6 +695,16 @@ struct __ ## name ## _terminate_me_with_a_semicolon { ; }
  * Terminates m0_tl_for() loop.
  */
 #define m0_tl_endfor m0_tlist_endfor
+
+/**
+ * Empties the list, by taking the list head, assigning it to "obj" and removing
+ * it from the list, until the list is empty.
+ *
+ * @note this doesn't require terminating macro.
+ */
+#define m0_tl_teardown(name, head, obj) \
+	while (((obj) = name ## _tlist_pop(head)) != NULL)
+
 
 /**
  * Returns a conjunction (logical AND) of an expression evaluated for each list

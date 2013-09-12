@@ -23,7 +23,6 @@
 #ifndef __MERO_POOL_POOL_H__
 #define __MERO_POOL_POOL_H__
 
-#include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
 #include "db/db.h"
@@ -115,15 +114,6 @@ enum m0_pool_nd_state {
 
 	/** a node/device is active in sns re-balance. */
 	M0_PNDS_SNS_REBALANCING,
-
-	/**
-	 * a node/device completed sns re-rebalance. Its data is copyied
-	 * back to its original location. This usually happens when a
-	 * new device replaced a failed device and re-balance completed.
-	 * After this, the device can be set to ONLINE, and its corresponding
-	 * space space can be returned to pool.
-	 */
-	M0_PNDS_SNS_REBALANCED,
 
 	/** number of state */
 	M0_PNDS_NR
@@ -405,6 +395,16 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 				       uint32_t node_index,
 				       enum m0_pool_nd_state *state_out);
 
+
+/**
+ * Returns true if device is in the spare usage array of pool machine.
+ * @param pm Pool machine pointer in which spare usage array is populated.
+ * @param device_index Index of device which needs to be searched.
+ */
+M0_INTERNAL bool
+m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
+					   uint32_t device_index);
+
 /**
  * Query the {sns repair, spare slot} pair of a specified device.
  * @param pm pool machine.
@@ -414,6 +414,18 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 						   uint32_t device_index,
 						   uint32_t *spare_slot_out);
+
+/**
+ * Returns true if the spare slot now contains data. This case would be true
+ * when repair has already been invoked atleast once, due to which some failed
+ * data unit has been repaired onto the given spare slot.
+ * @param pm pool machine.
+ * @param spare_slot the slot index which needs to be checked.
+ */
+M0_INTERNAL bool
+m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *pm,
+					   uint32_t spare_slot);
+
 
 /**
  * Query the {sns rebalance, spare slot} pair of a specified device.
@@ -530,10 +542,7 @@ enum sns_repair_state {
 };
 
 /** @} end of servermachine group */
-
-
-/* __MERO_POOL_POOL_H__ */
-#endif
+#endif /* __MERO_POOL_POOL_H__ */
 
 /*
  *  Local variables:

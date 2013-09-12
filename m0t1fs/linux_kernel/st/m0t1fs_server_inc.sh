@@ -20,9 +20,10 @@ mero_service()
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
 			SNAME="-s $MERO_ADDBSERVICE_NAME"
 			if ((i == 0)); then
-				SNAME="-s $MERO_MDSERVICE_NAME $SNAME"
+				SNAME="-s $MERO_MDSERVICE_NAME -s $MERO_RMSERVICE_NAME $SNAME"
 			else
-				SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_CMSERVICE_NAME $SNAME"
+				SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_SNSREPAIRSERVICE_NAME \
+				      -s $MERO_SNSREBALANCESERVICE_NAME $SNAME"
 			fi
 
 			rm -rf $MERO_M0T1FS_TEST_DIR/d$i

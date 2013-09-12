@@ -467,13 +467,6 @@ struct m0_confc {
 	/**
 	 * Serialises configuration retrieval state machines
 	 * (m0_confc_ctx::fc_mach).
-	 *
-	 * Note, that if confc is going to be used in a FOM state
-	 * function, ->cc_group should not point to the request
-	 * handler's m0_fom_locality::fl_group.  Otherwise confc calls
-	 * (e.g., m0_confc_ctx_{init,fini}(), m0_confc_open_sync())
-	 * would deadlock, as the group lock is held when the FOM
-	 * state function is invoked.
 	 */
 	struct m0_sm_group      *cc_group;
 

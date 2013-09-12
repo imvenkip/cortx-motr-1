@@ -27,7 +27,6 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
-#include "lib/cdefs.h" /* ergo */
 #include "db/db_common.h"
 #include "addb/addb.h"
 #include "mero/magic.h"
@@ -571,18 +570,15 @@ static void fom_exec(struct m0_fom *fom)
  */
 static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 {
-	struct m0_fom  *fom;
+	struct m0_fom *fom;
 
-	fom = runq_tlist_head(&loc->fl_runq);
-	if (fom == NULL)
-		return NULL;
-
-	runq_tlist_del(fom);
-	M0_CNT_DEC(loc->fl_runq_nr);
-
-	m0_addb_counter_update(&loc->fl_stat_sched_wait_times, /* ~usec */
-		m0_time_sub(m0_time_now(), fom->fo_sched_epoch) >> 10);
-
+	fom = runq_tlist_pop(&loc->fl_runq);
+	if (fom != NULL) {
+		M0_CNT_DEC(loc->fl_runq_nr);
+		m0_addb_counter_update(&loc->fl_stat_sched_wait_times,
+				       m0_time_sub(m0_time_now(), /* ~usec */
+						   fom->fo_sched_epoch) >> 10);
+	}
 	return fom;
 }
 
@@ -954,6 +950,7 @@ void m0_fom_fini(struct m0_fom *fom)
 	struct m0_reqh         *reqh;
 
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
+	M0_PRE(fom->fo_pending == NULL);
         M0_PRE(!m0_db_tx_is_active(&fom->fo_tx.tx_dbtx));
 
 	loc  = fom->fo_loc;

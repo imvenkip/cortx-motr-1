@@ -32,10 +32,7 @@
 
 #include "cm/proxy.h"
 
-#include "sns/cm/st/trigger_fop.h"
-#include "sns/cm/st/trigger_fop_xc.h"
-#include "rpc/rpc_opcodes.h"
-
+#include "sns/cm/trigger_fop.h"
 #include "sns/cm/cm.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
@@ -46,15 +43,15 @@
  * implemented later, which would be similar to this one.
  */
 
-struct m0_fop_type trigger_fop_fopt;
-struct m0_fop_type trigger_rep_fop_fopt;
-
 static int trigger_fom_tick(struct m0_fom *fom);
 static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			      struct m0_reqh *reqh);
 static void trigger_fom_fini(struct m0_fom *fom);
 static size_t trigger_fom_home_locality(const struct m0_fom *fom);
 static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
+
+extern struct m0_fop_type repair_trigger_rep_fopt;
+extern struct m0_fop_type rebalance_trigger_rep_fopt;
 
 static const struct m0_fom_ops trigger_fom_ops = {
 	.fo_fini          = trigger_fom_fini,
@@ -66,13 +63,6 @@ static const struct m0_fom_ops trigger_fom_ops = {
 static const struct m0_fom_type_ops trigger_fom_type_ops = {
 	.fto_create = trigger_fom_create,
 };
-
-void m0_sns_repair_trigger_fop_fini(void)
-{
-	m0_fop_type_fini(&trigger_fop_fopt);
-	m0_fop_type_fini(&trigger_rep_fop_fopt);
-	m0_xc_trigger_fop_fini();
-}
 
 enum trigger_phases {
 	TPH_READY = M0_FOPH_NR + 1,
@@ -101,29 +91,28 @@ struct m0_sm_conf trigger_conf = {
 	.scf_state     = trigger_phases
 };
 
-int m0_sns_repair_trigger_fop_init(void)
+M0_INTERNAL void m0_sns_cm_trigger_fop_fini(struct m0_fop_type *ft)
 {
-	struct m0_reqh_service_type *stype;
+	m0_fop_type_fini(ft);
+}
 
-	stype = m0_reqh_service_type_find("sns_cm");
-	m0_xc_trigger_fop_init();
+M0_INTERNAL int m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
+					   enum M0_RPC_OPCODES op,
+					   const char *name,
+					   const struct m0_xcode_type *xt,
+					   uint64_t rpc_flags,
+					   struct m0_cm_type *cmt)
+{
 	m0_sm_conf_extend(m0_generic_conf.scf_state, trigger_phases,
 			  m0_generic_conf.scf_nr_states);
-	return  M0_FOP_TYPE_INIT(&trigger_fop_fopt,
-			.name      = "sns repair trigger",
-			.opcode    = M0_SNS_REPAIR_TRIGGER_OPCODE,
-			.xt        = trigger_fop_xc,
-			.rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				     M0_RPC_ITEM_TYPE_MUTABO,
+	return  M0_FOP_TYPE_INIT(ft,
+			.name      = name,
+			.opcode    = op,
+			.xt        = xt,
+			.rpc_flags = rpc_flags,
 			.fom_ops   = &trigger_fom_type_ops,
-			.svc_type  = stype,
-			.sm        = &trigger_conf) ?:
-		M0_FOP_TYPE_INIT(&trigger_rep_fop_fopt,
-				.name      = "sns repair trigger reply",
-				.opcode    = M0_SNS_REPAIR_TRIGGER_REP_OPCODE,
-				.xt        = trigger_rep_fop_xc,
-				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-
+			.svc_type  = &cmt->ct_stype,
+			.sm        = &trigger_conf);
 }
 
 
@@ -163,31 +152,34 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 
 static int trigger_fom_tick(struct m0_fom *fom)
 {
-	int                          rc;
 	struct m0_reqh              *reqh;
 	struct m0_cm                *cm;
 	struct m0_sns_cm            *scm;
-	struct m0_reqh_service      *service;
-	struct m0_reqh_service_type *stype;
 	struct m0_fop               *rfop;
 	struct trigger_fop          *treq;
 	struct trigger_rep_fop      *trep;
+	struct m0_fop_type          *ft = NULL;
 	struct m0_clink              tclink;
+	int                          i;
+	int                          rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
 	} else {
 		reqh = fom->fo_loc->fl_dom->fd_reqh;
-		stype = m0_reqh_service_type_find("sns_cm");
-		service = m0_reqh_service_find(stype, reqh);
-		M0_ASSERT(service != NULL);
-		cm = container_of(service, struct m0_cm, cm_service);
+		cm = container_of(fom->fo_service, struct m0_cm, cm_service);
 		scm = cm2sns(cm);
 		M0_LOG(M0_DEBUG, "start state = %d", m0_fom_phase(fom));
 		switch(m0_fom_phase(fom)) {
 			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
-				scm->sc_it.si_fdata = &treq->fdata;
+				M0_ALLOC_ARR(scm->sc_it.si_fdata,
+						treq->fdata.fd_nr);
+				M0_ASSERT(scm->sc_it.si_fdata != NULL);
+				for (i = 0; i < treq->fdata.fd_nr; ++i)
+					scm->sc_it.si_fdata[i] =
+						treq->fdata.fd_index[i];
+				scm->sc_failures_nr += treq->fdata.fd_nr;
 				scm->sc_op             = treq->op;
 				m0_mutex_lock(&scm->sc_wait_mutex);
 				m0_clink_init(&tclink, NULL);
@@ -221,8 +213,12 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				break;
 			case TPH_STOP_WAIT:
 				m0_fom_block_enter(fom);
-				rfop = m0_fop_alloc(&trigger_rep_fop_fopt,
-						    NULL);
+				if (scm->sc_op == SNS_REPAIR)
+					ft = &repair_trigger_rep_fopt;
+				else if (scm->sc_op == SNS_REBALANCE)
+					ft = &rebalance_trigger_rep_fopt;
+
+				rfop = m0_fop_alloc(ft, NULL);
 				if (rfop == NULL) {
 					m0_fom_phase_set(fom, M0_FOPH_FINISH);
 					return M0_FSO_WAIT;

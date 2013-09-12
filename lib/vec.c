@@ -19,7 +19,6 @@
  */
 
 #include "lib/arith.h"     /* min3 */
-#include "lib/cdefs.h"     /* NULL */
 #include "lib/vec.h"
 #include "lib/assert.h"
 #include "lib/memory.h"

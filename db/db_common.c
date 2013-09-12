@@ -18,7 +18,6 @@
  * Original creation date: 08/13/2010
  */
 
-#include "lib/adt.h"   /* m0_buf */
 #include "lib/misc.h"  /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"

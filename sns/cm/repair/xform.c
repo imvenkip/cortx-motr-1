@@ -25,7 +25,7 @@
 #include "reqh/reqh.h"
 
 #include "sns/sns_addb.h"
-#include "sns/cm/ag.h"
+#include "sns/cm/repair/ag.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/parity_math.h"
@@ -35,21 +35,26 @@
  * @{
  */
 
+M0_INTERNAL struct m0_sns_cm_repair_ag *
+sag2repairag(const struct m0_sns_cm_ag *sag);
+
 /**
  * Splits the merged bufvec into original form, where first bufvec
  * no longer contains the metadata of all the bufvecs in the copy packet.
  */
 static int cp_bufvec_split(struct m0_cm_cp *cp)
 {
-	struct m0_net_buffer *nbuf_head;
-        uint32_t              new_v_nr;
-        m0_bcount_t          *new_v_count;
-	struct m0_bufvec     *bufvec;
-	struct m0_sns_cm_ag  *sag = ag2snsag(cp->c_ag);
-        uint32_t              i;
+	struct m0_net_buffer       *nbuf_head;
+	struct m0_bufvec           *bufvec;
+	struct m0_sns_cm_ag        *sag = ag2snsag(cp->c_ag);
+	struct m0_sns_cm_repair_ag *rag;
+        uint32_t                    new_v_nr;
+        m0_bcount_t                *new_v_count;
+        uint32_t                    i;
 
+	rag = sag2repairag(sag);
 	if (cp->c_buf_nr == 1 ||
-	    sag->sag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+	    rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
 		return 0;
 
 	nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
@@ -145,43 +150,24 @@ static void cp_xor_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 static void cp_rs_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
 			  uint32_t failed_index)
 {
-	struct m0_net_buffer *nbuf_head;
-	struct m0_sns_cm_ag  *sag = ag2snsag(src_cp->c_ag);
+	struct m0_net_buffer       *nbuf_head;
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
 
 	nbuf_head = cp_data_buf_tlist_head(&src_cp->c_buffers);
-	m0_sns_ir_recover(&sag->sag_ir, &nbuf_head->nb_buffer,
+	m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
 			  &src_cp->c_xform_cp_indices, failed_index);
 }
 
 static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
 			    uint32_t failed_index)
 {
-	struct m0_sns_cm_ag *sag = ag2snsag(src_cp->c_ag);
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
 
-	if (sag->sag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
 		cp_xor_recover(dst_cp, src_cp);
-	else if (sag->sag_math.pmi_parity_algo ==
+	else if (rag->rag_math.pmi_parity_algo ==
 			M0_PARITY_CAL_ALGO_REED_SOLOMON)
 		cp_rs_recover(dst_cp, src_cp, failed_index);
-}
-
-/**
- * Checks if the bitmap of resultant copy packet is full, i.e. bits
- * corresponding to all copy packets in an aggregation group are set.
- */
-static bool res_cp_bitmap_is_full(struct m0_cm_cp *cp, uint64_t fnr)
-{
-	int      i;
-	uint64_t xform_cnt = 0;
-
-	M0_PRE(cp != NULL);
-
-	for (i = 0; i < cp->c_ag->cag_cp_global_nr; ++i) {
-		if (m0_bitmap_get(&cp->c_xform_cp_indices, i))
-			M0_CNT_INC(xform_cnt);
-	}
-	return xform_cnt == cp->c_ag->cag_cp_global_nr - fnr ?
-			    true : false;
 }
 
 /** Merges the source bitmap to the destination bitmap. */
@@ -227,17 +213,18 @@ out:
  * @pre cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM
  * @param cp Copy packet that has to be transformed.
  */
-M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_ag     *sns_ag;
-	struct m0_cm_aggr_group *ag;
-	struct m0_cm_cp         *res_cp;
-	struct m0_sns_cm        *scm;
-        struct m0_dbenv         *dbenv;
-        struct m0_cob_domain    *cdom;
-	struct m0_cm_ag_id       id;
-	int                      rc;
-	int                      i;
+	struct m0_sns_cm_ag        *sns_ag;
+	struct m0_sns_cm_repair_ag *rag;
+	struct m0_cm_aggr_group    *ag;
+	struct m0_cm_cp            *res_cp;
+	struct m0_sns_cm           *scm;
+        struct m0_dbenv            *dbenv;
+        struct m0_cob_domain       *cdom;
+	struct m0_cm_ag_id          id;
+	int                         rc;
+	int                         i;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
 
@@ -245,6 +232,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 	id = ag->cag_id;
 	scm = cm2sns(ag->cag_cm);
 	sns_ag = ag2snsag(ag);
+	rag = sag2repairag(sns_ag);
 	m0_cm_ag_lock(ag);
 
         M0_LOG(M0_DEBUG, "xform: id [%lu] [%lu] [%lu] [%lu] local_cp_nr: [%lu]\
@@ -261,7 +249,7 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 	if (!ag->cag_has_incoming)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
 
-	if (sns_ag->sag_math.pmi_parity_algo != M0_PARITY_CAL_ALGO_XOR) {
+	if (rag->rag_math.pmi_parity_algo != M0_PARITY_CAL_ALGO_XOR) {
 		rc = m0_cm_cp_bufvec_merge(cp);
 		if (rc != 0) {
 			SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
@@ -271,8 +259,8 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 	}
 
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
-		res_cp = &sns_ag->sag_fc[i].fc_tgt_acc_cp.sc_base;
-		cp_incr_recover(res_cp, cp, sns_ag->sag_fc[i].fc_failed_idx);
+		res_cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
+		cp_incr_recover(res_cp, cp, rag->rag_fc[i].fc_failed_idx);
 
 		/*
 		 * Merge the bitmaps of incoming copy packet with the
@@ -290,9 +278,9 @@ M0_INTERNAL int m0_sns_cm_cp_xform(struct m0_cm_cp *cp)
 		 * be marked complete.
 		 */
 		if ((rc = m0_sns_cm_cob_is_local(
-					&sns_ag->sag_fc[i].fc_tgt_cobfid,
+					&rag->rag_fc[i].fc_tgt_cobfid,
 					dbenv, cdom)) == 0) {
-			if (res_cp_bitmap_is_full(res_cp, sns_ag->sag_fnr)) {
+			if (m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
 				rc = res_cp_enqueue(res_cp);
 				if (rc != 0)
 					goto out;

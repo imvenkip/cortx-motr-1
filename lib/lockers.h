@@ -25,7 +25,6 @@
 #define __MERO_LIB_LOCKERS_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 
 /**
  * @defgroup lockers
@@ -197,9 +196,7 @@ scope bool name ## _lockers_is_empty(struct name *par, int key)                \
 struct __ ## type ## _semicolon_catcher
 
 /** @} end of lockers group */
-
 #endif /* __MERO_LIB_LOCKERS_H__ */
-
 
 /*
  *  Local variables:

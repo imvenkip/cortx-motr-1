@@ -17,19 +17,17 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 03/11/2011
  */
-
 #pragma once
-
 #ifndef __MERO_LIB_LINUX_KERNEL_SEMAPHORE_H__
 #define __MERO_LIB_LINUX_KERNEL_SEMAPHORE_H__
 
 #include <linux/semaphore.h>
 
 /**
-   @addtogroup semaphore
-
-   <b>Linux kernel semaphore.</a>
-   @{
+ * @addtogroup semaphore
+ *
+ * <b>Linux kernel semaphore.</a>
+ * @{
  */
 
 struct m0_semaphore {
@@ -37,9 +35,7 @@ struct m0_semaphore {
 };
 
 /** @} end of semaphore group */
-
-/* __MERO_LIB_LINUX_KERNEL_SEMAPHORE_H__ */
-#endif
+#endif /* __MERO_LIB_LINUX_KERNEL_SEMAPHORE_H__ */
 
 /*
  *  Local variables:

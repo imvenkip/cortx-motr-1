@@ -19,7 +19,6 @@
  */
 
 #include "lib/errno.h"
-#include "lib/cdefs.h"
 #include "lib/memory.h"
 
 #include "console/console_yaml.h"
@@ -136,9 +135,7 @@ M0_INTERNAL void *m0_cons_yaml_get_value(const char *name)
 
 M0_INTERNAL int m0_cons_yaml_set_value(const char *name, void *data)
 {
-	int rc = -ENOTSUP;
-
-	return rc;
+	return -ENOTSUP;
 }
 
 /** @} end of console_yaml group */

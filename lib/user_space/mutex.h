@@ -25,8 +25,6 @@
 
 #include <pthread.h>
 
-#include "lib/cdefs.h"
-
 /**
    @addtogroup mutex
 
@@ -41,9 +39,7 @@ struct m0_mutex {
 };
 
 /** @} end of mutex group */
-
-/* __MERO_LIB_USER_SPACE_MUTEX_H__ */
-#endif
+#endif /* __MERO_LIB_USER_SPACE_MUTEX_H__ */
 
 /*
  *  Local variables:

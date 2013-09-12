@@ -40,10 +40,10 @@ enum { M0_TIME_ONE_BILLION = 1000000000ULL };
 /** The largest time that is never reached in system life. */
 extern const m0_time_t M0_TIME_NEVER;
 
-#ifndef __KERNEL__
-#include "lib/user_space/time.h"
+#ifdef __KERNEL__
+#  include "lib/linux_kernel/time.h"
 #else
-#include "lib/linux_kernel/time.h"
+#  include "lib/user_space/time.h"
 #endif
 
 /** Create and return a m0_time_t from seconds and nanoseconds. */
@@ -100,7 +100,6 @@ uint64_t m0_time_nanoseconds(const m0_time_t time);
 bool m0_time_is_in_past(m0_time_t time);
 
 /** @} end of time group */
-
 #endif /* __MERO_LIB_TIME_H__ */
 
 /*

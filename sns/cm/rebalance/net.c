@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,26 +14,35 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Anup Barve <anup_barve@xyratex.com>
+ * Original creation date: 02/27/2013
  */
 
-#pragma once
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/memory.h"
+#include "lib/trace.h"
 
-#ifndef __MERO_LIB_LINUX_KERNEL_CDEFS_H__
-#define __MERO_LIB_LINUX_KERNEL_CDEFS_H__
+#include "sns/cm/cp.h"
 
-#include <linux/stddef.h> /* offsetof, NULL */
-#include <linux/kernel.h> /* container_of, ARRAY_SIZE */
-#include <linux/module.h> /* EXPORT_SYMBOL */
+/**
+ * @addtogroup SNSCMCP
+ * @{
+ */
 
-#define M0_EXPORTED(s) EXPORT_SYMBOL(s)
+extern struct m0_fop_type m0_sns_rebalance_cpx_fopt;
+extern struct m0_fop_type m0_sns_rebalance_cpx_reply_fopt;
 
-#define CHAR_BIT (8)
+M0_INTERNAL int m0_sns_cm_rebalance_cp_send(struct m0_cm_cp *cp)
+{
+	return m0_sns_cm_cp_send(cp, &m0_sns_rebalance_cpx_fopt);
+}
 
-/* __MERO_LIB_LINUX_KERNEL_CDEFS_H__ */
-#endif
+M0_INTERNAL int m0_sns_cm_rebalance_cp_recv_wait(struct m0_cm_cp *cp)
+{
+	return m0_sns_cm_cp_recv_wait(cp, &m0_sns_rebalance_cpx_reply_fopt);
+}
 
+/** @} SNSCMCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

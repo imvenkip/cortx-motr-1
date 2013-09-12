@@ -24,8 +24,9 @@
 
 #include "net/lnet/lnet.h"
 #include "mero/setup.h"
-#include "sns/cm/ut/cp_common.h"
-#include "sns/cm/service.c"
+#include "sns/cm/repair/ut/cp_common.h"
+#include "sns/cm/repair/service.c"
+#include "sns/cm/rebalance/service.c"
 
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";
@@ -37,7 +38,7 @@ char      *sns_cm_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
                                "-e", "lnet:0@lo:12345:34:1",
 			       "-s", "mdservice",
                                "-s", "ioservice",
-                               "-s", "sns_cm"};
+                               "-s", "sns_repair"};
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,
@@ -106,15 +107,16 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
         bv_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
         cp->c_ag = &sns_ag->sag_base;
 	if (scm == NULL) {
-	service = m0_reqh_service_find(&sns_cmt.ct_stype, reqh);
-	M0_UT_ASSERT(service != NULL);
-	cm = container_of(service, struct m0_cm, cm_service);
-	M0_UT_ASSERT(cm != NULL);
+		service = m0_reqh_service_find(&sns_repair_cmt.ct_stype,
+					       reqh);
+		M0_UT_ASSERT(service != NULL);
+		cm = container_of(service, struct m0_cm, cm_service);
+		M0_UT_ASSERT(cm != NULL);
 	} else
 		cm = scm;
 	cp->c_ag->cag_cm = cm;
 	if (!is_acc_cp)
-		cp->c_ops = &m0_sns_cm_cp_ops;
+		cp->c_ops = &m0_sns_cm_repair_cp_ops;
 	cp->c_ops = &m0_sns_cm_acc_cp_ops;
 	m0_cm_cp_init(cm, cp);
 	m0_cm_cp_buf_add(cp, buf);

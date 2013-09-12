@@ -92,6 +92,8 @@ Where:
 
 -d NUM: Use NUM number of data units. (default is $NR_DATA)
 
+-k NUM: Use NUM number of parity units. (default is $NR_PARITY)
+
 -p NUM: Use NUM as pool width. (default is $POOL_WIDTH)
 
 -u NUM: Use NUM Unit size. (default is $UNIT_SIZE)
@@ -101,7 +103,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="aln:d:p:u:qhL"
+OPTIONS_STRING="aln:d:k:p:u:qhL"
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVICES=(
@@ -125,6 +127,7 @@ STOB=linux
 LOCAL_SERVICES_NR=4
 SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
 NR_DATA=3
+NR_PARITY=1
 POOL_WIDTH=5
 UNIT_SIZE=262144
 use_loop_device=0
@@ -134,6 +137,11 @@ wait_after_mount=1
 M0_TRACE_IMMEDIATE_MASK=0
 M0_TRACE_LEVEL=debug+
 M0_TRACE_PRINT_CONTEXT=full
+
+# kernel space tracing parameters
+MERO_MODULE_TRACE_MASK='!all'
+MERO_TRACE_PRINT_CONTEXT=func
+MERO_TRACE_LEVEL='call+'
 
 # number of disks to split by for each service
 # in ad-stob mode
@@ -157,7 +165,8 @@ XPT_SETUP="-m 163840 -q 16"
 XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
 XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
-#KTRACE_FLAGS=m0_trace_immediate_mask=8
+KTRACE_FLAGS="trace_immediate_mask=$MERO_MODULE_TRACE_MASK \
+trace_print_context=$MERO_TRACE_PRINT_CONTEXT trace_level=$MERO_TRACE_LEVEL"
 
 BROOT=$PWD   # globally visible build root
 
@@ -421,9 +430,9 @@ function start_server () {
 		fi
 	fi
 
-	local SNAME="-s addb -s ioservice -s sns_cm"
+	local SNAME="-s addb -s ioservice -s sns_repair -s sns_rebalance"
 	if [ $I -eq 0 ]; then
-		SNAME="-s mdservice $SNAME"
+		SNAME="-s mdservice -s rmservice $SNAME"
 	fi
 
 	$RUN "cd $DDIR && \
@@ -573,7 +582,7 @@ main()
 		exit 1
 	}
 
-	l_run utils/m0layout $NR_DATA 1 $POOL_WIDTH $NR_DATA $NR_DATA
+	l_run utils/m0layout $NR_DATA $NR_PARITY $POOL_WIDTH $NR_DATA $NR_DATA
 	if [ $? -ne 0 ]; then
 		echo ERROR: Parity configuration is incorrect
 		exit 1
@@ -586,6 +595,7 @@ main()
 
 	# prepare configuration data
 	MDS_ENDPOINT="\"${SERVICES[1]}\""
+	RMS_ENDPOINT="\"${SERVICES[1]}\""
 	IOS_NAMES='"ios1"'
 	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
@@ -596,14 +606,16 @@ main()
 	done
 
 	CONF="`cat <<EOF
-[$((SERVICES_NR + 3)):
+[$((SERVICES_NR + 4)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
-              [3: "pool_width=$POOL_WIDTH",
+              [4: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
+		  "nr_parity_units=$NR_PARITY",
                   "unit_size=$UNIT_SIZE"],
-              [$((SERVICES_NR + 1)): "mds", $IOS_NAMES])}),
+              [$((SERVICES_NR + 2)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
+  ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
   $IOS_OBJS]
 EOF`"
 
@@ -618,8 +630,6 @@ EOF`"
 
 	# wait to terminate
 	if [ $wait_after_mount -eq 1 ]; then
-
-		trap cleanup EXIT
 
 		echo
 		echo The mero file system may be accessed with another terminal at $MP
@@ -654,9 +664,13 @@ while getopts "$OPTIONS_STRING" OPTION; do
         d)
             NR_DATA="$OPTARG"
             ;;
-        p)
+        k)
+            NR_PARITY="$OPTARG"
+            ;;
+	p)
             POOL_WIDTH="$OPTARG"
             ;;
+
         u)
             UNIT_SIZE="$OPTARG"
             ;;
@@ -671,6 +685,8 @@ while getopts "$OPTIONS_STRING" OPTION; do
 done
 
 #set -x
+
+trap cleanup EXIT
 
 main
 

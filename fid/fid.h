@@ -31,7 +31,6 @@
 
 /* import */
 #include "lib/types.h"
-#include "lib/cdefs.h"
 #include "xcode/xcode_attr.h"
 
 struct m0_fid {
@@ -53,9 +52,7 @@ M0_INTERNAL int m0_fid_init(void);
 M0_INTERNAL void m0_fid_fini(void);
 
 /** @} end of fid group */
-
-/* __MERO_FID_FID_H__ */
-#endif
+#endif /* __MERO_FID_FID_H__ */
 
 /*
  *  Local variables:

@@ -23,7 +23,6 @@
 #ifndef __MERO_LIB_CHAN_H__
 #define __MERO_LIB_CHAN_H__
 
-#include "lib/cdefs.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/time.h"
@@ -413,12 +412,8 @@ M0_INTERNAL bool m0_chan_trywait(struct m0_clink *link);
 M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 				   const m0_time_t abs_timeout);
 
-
 /** @} end of chan group */
-
-
-/* __MERO_LIB_CHAN_H__ */
-#endif
+#endif /* __MERO_LIB_CHAN_H__ */
 
 /*
  *  Local variables:

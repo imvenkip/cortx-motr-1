@@ -38,6 +38,9 @@
 #include "mero/setup.h"
 #include "ioservice/io_service_addb.h"
 #include "ioservice/io_service.h"
+#include "lib/finject.h"
+#include "layout/layout.h"
+#include "layout/pdclust.h"
 
 /* Forward Declarations. */
 static void cc_fom_fini(struct m0_fom *fom);
@@ -217,6 +220,33 @@ static void cob_fom_populate(struct m0_fom *fom)
 	cfom->fco_cob_idx = common->c_cob_idx;
 }
 
+/* async getattr & gatlayout ut and sample code: helper callback */
+static int step = 0;
+static struct m0_cob_attr async_attr;
+static int async_attr_rc = -1;
+static void _getattr_async_callback(void *arg, int rc)
+{
+	struct m0_fom *fom;
+
+	M0_LOG(M0_FATAL, "getattr async callback arg=%p rc=%d", arg, rc);
+	fom = arg;
+	async_attr_rc = rc;
+	m0_fom_wakeup(fom);
+}
+
+static struct m0_layout *async_layout = NULL;
+static int async_layout_rc = -1;
+static void _getlayout_async_callback(void *arg, int rc)
+{
+	struct m0_fom *fom;
+
+	M0_LOG(M0_FATAL, "getlayout async callback arg=%p rc=%d", arg, rc);
+	fom = arg;
+	async_layout_rc = rc;
+	m0_fom_wakeup(fom);
+}
+/* async getattr & gatlayout ut and sample code: helper ends here */
+
 /* defined in io_foms.c */
 extern int ios__poolmach_check(struct m0_poolmach *poolmach,
 			       struct m0_pool_version_numbers *cliv,
@@ -251,6 +281,67 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	else
 		ops = "Delete";
 
+	if (M0_FI_ENABLED("async_getattr_getlayout_it")) {
+		if (step == 0) {
+			M0_LOG(M0_FATAL, "Sending getattr async in %s", ops);
+			rc = m0_ios_mds_getattr_async(reqh, &common->c_gobfid,
+						      &async_attr,
+						      &_getattr_async_callback,
+						      fom);
+			M0_ASSERT(rc == 0);
+			step = 1;
+			return M0_FSO_WAIT;
+		} else if (step == 1) {
+			if (async_attr_rc == 0) {
+				M0_LOG(M0_FATAL, "ATTR: tfid = [%lu:%lu] "
+						 "mode = [%o] lid = [%lu]",
+						 async_attr.ca_tfid.f_container,
+						 async_attr.ca_tfid.f_key,
+						 async_attr.ca_mode,
+						 async_attr.ca_lid);
+
+				/* It's important here to find the layout first.
+				 * m0_ios_mds_layout_get_async() doesn't check
+				 * this before sending fop.
+				 */
+				async_layout = m0_layout_find(&reqh->rh_ldom,
+							      async_attr.ca_lid);
+				if (async_layout != NULL) {
+					async_layout_rc = 0;
+					step = 2;
+					return M0_FSO_AGAIN;
+				}
+
+				M0_LOG(M0_FATAL, "LAYOUT Async Sending");
+				rc = m0_ios_mds_layout_get_async(reqh,
+						&reqh->rh_ldom,
+						async_attr.ca_lid,
+						&async_layout,
+						&_getlayout_async_callback,
+						fom);
+				M0_ASSERT(rc == 0);
+				step = 2;
+				return M0_FSO_WAIT;
+			}
+			step = -1;
+		} else if (step == 2) {
+			if (async_layout_rc == 0) {
+				struct m0_pdclust_layout *pdl = NULL;
+				pdl = m0_layout_to_pdl(async_layout);
+				M0_LOG(M0_FATAL, "pdl N=%d,K=%d,P=%d,"
+						 "unit_size=%llu",
+						 m0_pdclust_N(pdl),
+						 m0_pdclust_K(pdl),
+						 m0_pdclust_P(pdl),
+						 (unsigned long long)
+						 m0_pdclust_unit_size(pdl));
+				m0_layout_put(async_layout);
+				async_layout = NULL;
+			}
+			step = -1;
+		}
+	}
+
 	switch (m0_fom_phase(fom)) {
 	case M0_FOPH_COB_OPS_PREPARE: {
 		struct m0_pool_version_numbers *cliv;
@@ -277,6 +368,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			rc = cd_cob_delete(fom, cob_op) ?:
 					cd_stob_delete(fom, cob_op);
 		}
+		step = 0;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	        M0_LOG(M0_DEBUG, "Cob %s operation finished with %d", ops, rc);
 		break;

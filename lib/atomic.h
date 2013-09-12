@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- *		    Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
+ *		    Alexey Lyashkov <alexey_lyashkov@xyratex.com>
  * Original creation date: 04/08/2010
  */
 
@@ -24,19 +24,18 @@
 #ifndef __MERO_LIB_ATOMIC_H__
 #define __MERO_LIB_ATOMIC_H__
 
-#include "cdefs.h"
-#include "assert.h"
-#include "types.h"
+#include "lib/assert.h"
+#include "lib/types.h"
 
-#ifndef __KERNEL__
-# ifdef ENABLE_SYNC_ATOMIC
-# include "user_space/__sync_atomic.h"
-# else
-# include "user_space/user_x86_64_atomic.h"
-# endif /* ENABLE_SYNC_ATOMIC */
+#ifdef __KERNEL__
+#  include "lib/linux_kernel/atomic64.h"
 #else
-#include "linux_kernel/atomic64.h"
-#endif /* __KERNEL__ */
+#  ifdef ENABLE_SYNC_ATOMIC
+#    include "lib/user_space/__sync_atomic.h"
+#  else
+#    include "lib/user_space/user_x86_64_atomic.h"
+#  endif
+#endif
 
 /**
    @defgroup atomic

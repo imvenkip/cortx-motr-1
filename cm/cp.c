@@ -622,7 +622,6 @@ M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 		m0_bitmap_fini(&cp->c_xform_cp_indices);
 	m0_chan_fini_lock(&cp->c_reply_wait);
 	m0_mutex_fini(&cp->c_reply_wait_mutex);
-	//m0_rpc_bulk_buflist_empty(&cp->c_bulk);
 	m0_rpc_bulk_fini(&cp->c_bulk);
 	proxy_cp_tlink_fini(cp);
 	m0_fom_fini(&cp->c_fom);

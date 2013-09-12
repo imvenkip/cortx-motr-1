@@ -24,10 +24,9 @@
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
+#include "lib/trace.h"
 
 #include "lib/string.h" /* memcpy */
-#include "lib/trace.h"
-#include "lib/cdefs.h"  /* M0_UNUSED */
 #include "lib/misc.h"
 #include "lib/errno.h"
 
@@ -387,6 +386,8 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm)
 }
 
 /** @} CMAG */
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

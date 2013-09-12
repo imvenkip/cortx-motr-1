@@ -24,16 +24,15 @@
  * @{
  */
 
+#include <math.h>      /* pow */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BTREE
 #include "lib/trace.h"
-
-#include "lib/cdefs.h" /* M0_UNUSED */
 #include "lib/errno.h"
 #include "lib/misc.h"  /* bcopy */
 #include "be/btree.h"
 #include "be/alloc.h"
 #include "be/seg.h"
-#include <math.h>      /* pow */
 
 /* btree constants */
 enum {
@@ -160,6 +159,11 @@ static void get_min_key_pos(struct m0_be_btree *btree,
 			    struct node_pos    *pos);
 
 static int iter_prepare(struct m0_be_bnode *node, bool print);
+
+static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
+					  struct m0_be_tx *tx,
+					  struct m0_be_bnode *parent,
+					  unsigned int index);
 
 
 /* ------------------------------------------------------------------
@@ -948,33 +952,6 @@ static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 	mem_free(btree, tx, kv, sizeof(struct bt_key_val));
 }
 
-/* XXX DELETEME? */
-M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
-						     struct m0_be_tx    *tx,
-						     void *key, size_t key_size,
-						     void *val, size_t val_size)
-{
-	struct bt_key_val *kv;
-
-	M0_PRE(val_size == btree->bb_ops->ko_vsize(val));
-	M0_PRE(key_size == btree->bb_ops->ko_ksize(key));
-
-	/* XXX: ENOMEM has to be checked */
-
-	kv = (struct bt_key_val *)mem_alloc(btree, tx, sizeof(struct bt_key_val));
-	M0_ASSERT(kv != NULL);
-
-	kv->key = mem_alloc(btree, tx, key_size);
-	M0_ASSERT(kv != NULL);
-
-	kv->val = mem_alloc(btree, tx, val_size);
-	M0_ASSERT(kv != NULL);
-
-	bcopy(key, kv->key, key_size);
-	bcopy(val, kv->val, val_size);
-
-	return kv;
-}
 
 /* ------------------------------------------------------------------
  * Btree external interfaces implementation

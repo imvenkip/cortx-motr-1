@@ -126,7 +126,7 @@ M0_INTERNAL void m0_cm_proxy_del(struct m0_cm *cm, struct m0_cm_proxy *pxy)
 	M0_ENTRY("cm: %p proxy: %p", cm, pxy);
 	M0_PRE(m0_cm_is_locked(cm));
 	M0_PRE(proxy_tlink_is_in(pxy));
-	proxy_tlist_del(pxy);
+	proxy_tlink_del_fini(pxy);
 	M0_CNT_DEC(cm->cm_proxy_nr);
 	M0_ASSERT(!proxy_tlink_is_in(pxy));
 	M0_POST(cm_proxy_invariant(pxy));
@@ -242,13 +242,10 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 
 	has_data = m0_cm_has_more_data(cm);
 	/*
-	 * Update the remote proxy if this copy machine has more data to
-	 * reconstruct and expects incoming copy packets or the id_hi is
-	 * greater than the last hi update sent to the remote copy machine
-	 * replica.
+	 * Send update if this replica has aggregation groups with incoming
+	 * copy packets.
 	 */
-	if ((has_data && cm->cm_aggr_grps_in_nr > 0) ||
-	    m0_cm_ag_id_cmp(&id_hi, &proxy->px_last_sw_onwire_sent.sw_hi) > 0) {
+	if (cm->cm_aggr_grps_in_nr > 0) {
 		rc = m0_cm_proxy_remote_update(proxy, &sw);
 		M0_ASSERT(rc == 0);
 	}
@@ -418,8 +415,6 @@ M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy)
 	M0_PRE(pxy != NULL);
 	M0_PRE(proxy_cp_tlist_is_empty(&pxy->px_pending_cps));
 	proxy_cp_tlist_fini(&pxy->px_pending_cps);
-	proxy_tlink_del_fini(pxy);
-	M0_ASSERT(!proxy_tlink_is_in(pxy));
 	m0_cm_proxy_bob_fini(pxy);
 	m0_cm_proxy_rpc_conn_close(pxy);
 	m0_mutex_fini(&pxy->px_mutex);

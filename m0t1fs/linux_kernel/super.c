@@ -116,7 +116,7 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 	struct m0t1fs_service_context *ctx;
 
 	M0_ENTRY();
-	M0_PRE(container_id < csb->csb_nr_containers);
+	M0_PRE(container_id <= csb->csb_nr_containers);
 
 	ctx = csb->csb_cl_map.clm_map[container_id];
 	M0_ASSERT(ctx != NULL);
@@ -385,30 +385,6 @@ static int fs_params_validate(const struct fs_params *params)
 	if ((params->fs_unit_size & (PAGE_CACHE_SIZE - 1)) != 0)
 		M0_RETERR(-EINVAL,
 			  "Unit size must be a multiple of PAGE_CACHE_SIZE");
-
-	/*
-	 * In parity groups, parity is calculated using "read old" and
-	 * "read rest" approaches.
-	 *
-	 * Read old approach uses calculation of differential parity
-	 * between old and new version of data along with old version
-	 * of parity block.
-	 *
-	 * Calculation of differential parity needs support from
-	 * parity math component. At the moment, only XOR has such
-	 * support.
-	 *
-	 * Parity math component choses the algorithm for parity
-	 * calculation, based on number of parity units. If K == 1,
-	 * XOR is chosen, otherwise Reed-Solomon is chosen.
-	 *
-	 * Since Reed-Solomon does not support differential parity
-	 * calculation at the moment, we restrict the number of parity
-	 * units to 1.
-	 */
-	if (params->fs_nr_parity_units > 1)
-		M0_RETERR(-EINVAL, "Number of parity units must be 1");
-
 	M0_RETURN(0);
 }
 
@@ -488,7 +464,7 @@ end:
 
 static void m0t1fs_service_context_init(struct m0t1fs_service_context *ctx,
 					struct m0t1fs_sb              *csb,
-					enum m0_conf_service_type     type)
+					enum m0_conf_service_type      type)
 {
 	M0_ENTRY();
 
@@ -547,7 +523,7 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+	m0_tl_teardown(svc_ctx, &csb->csb_service_contexts, ctx) {
 		if (csb->csb_nr_active_contexts > 0) {
 			(void)m0_rpc_session_destroy(&ctx->sc_session,
 						     M0_TIME_NEVER);
@@ -558,10 +534,9 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 			       " %d active contexts",
 			       csb->csb_nr_active_contexts);
 		}
-		svc_ctx_tlist_del(ctx);
 		m0t1fs_service_context_fini(ctx);
 		m0_free(ctx);
-	} m0_tl_endfor;
+	}
 
 	M0_POST(csb->csb_nr_active_contexts == 0);
 	M0_POST(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
@@ -576,6 +551,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 	const char        **pstr;
 	int                 rc;
 	bool                mds_is_provided = false;
+	bool                dlm_is_provided = false;
 
 	M0_ENTRY();
 	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
@@ -586,17 +562,21 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 		M0_RETURN(rc);
 
 	*nr_ios = 0;
+
 	for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
 		const struct m0_conf_service *svc =
 			M0_CONF_CAST(entry, m0_conf_service);
 
 		if (svc->cs_type == M0_CST_MDS)
 			mds_is_provided = true;
+		else if (svc->cs_type == M0_CST_DLM)
+			dlm_is_provided = true;
 		else if (svc->cs_type == M0_CST_IOS)
 			++*nr_ios;
 
 		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
-			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s", svc->cs_type, *pstr);
+			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s",
+			       svc->cs_type, *pstr);
 			rc = connect_to_service(*pstr, svc->cs_type, csb);
 			if (rc != 0)
 				goto out;
@@ -606,10 +586,14 @@ out:
 	m0_confc_close(entry);
 	m0_confc_close(dir);
 
-	if (rc == 0)
-		M0_POST(mds_is_provided && *nr_ios > 0);
-	else
+	if (rc == 0 && mds_is_provided && dlm_is_provided && *nr_ios > 0)
+		M0_LOG(M0_DEBUG, "Connected to IOS, MDS and RMS");
+	else {
+		M0_LOG(M0_FATAL, "Error connecting to the services. "
+		       "(Please check whether IOS, MDS and RMS are provided)");
+		rc = rc ?: -EINVAL;
 		disconnect_from_services(csb);
+	}
 	M0_RETURN(rc);
 }
 
@@ -759,7 +743,7 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 
 	/* See "Containers and component objects" section in m0t1fs.h
 	 * for more information on following line */
-	csb->csb_nr_containers = fs_params->fs_pool_width + 1;
+	csb->csb_nr_containers = fs_params->fs_pool_width + 2;
 	csb->csb_pool_width    = fs_params->fs_pool_width;
 
 	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
@@ -767,8 +751,8 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
 		M0_RETURN(-EINVAL);
 
-	/* One of containers is for MD, the rest are data containers. */
-	nr_data_containers = csb->csb_nr_containers - 1;
+	/* 1 for MD, 1 for RM, the rest are data containers. */
+	nr_data_containers = csb->csb_nr_containers - 2;
 
 	nr_cont_per_svc = nr_data_containers / nr_ios;
 	if (nr_data_containers % nr_ios != 0)
@@ -794,6 +778,10 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 			break;
 
 		case M0_CST_MGS:
+			break;
+
+		case M0_CST_DLM:
+			map->clm_map[csb->csb_nr_containers] = ctx;
 			break;
 
 		default:
@@ -1145,6 +1133,9 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	struct m0t1fs_sb *csb = M0T1FS_SB(sb);
 
 	M0_ENTRY("csb = %p", csb);
+
+	kill_anon_super(sb);
+
 	/*
 	 * If m0t1fs_fill_super() fails then deactivate_locked_super() calls
 	 * m0t1fs_fs_type->kill_sb(). In that case, csb == NULL.
@@ -1156,7 +1147,6 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 		m0t1fs_sb_fini(csb);
 		m0_free(csb);
 	}
-	kill_anon_super(sb);
 
 	M0_LOG(M0_INFO, "mem stats :\n a_ioreq_nr = %llu, d_ioreq_nr = %llu\n"
 			"a_pargrp_iomap_nr = %llu, d_pargrp_iomap_nr = %llu\n"

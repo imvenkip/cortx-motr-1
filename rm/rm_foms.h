@@ -37,8 +37,8 @@
  *
  */
 enum m0_rm_fom_phases {
-	FOPH_RM_REQ_START = M0_FOPH_NR + 1,
-	FOPH_RM_REQ_WAIT = M0_FOPH_NR + 2,
+	FOPH_RM_REQ_START  = M0_FOPH_NR + 1,
+	FOPH_RM_REQ_WAIT   = M0_FOPH_NR + 2,
 	FOPH_RM_REQ_FINISH = M0_FOPH_NR + 3,
 };
 

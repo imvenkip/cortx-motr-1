@@ -276,7 +276,7 @@ static int m0t1fs_create(struct inode     *dir,
 			 int               mode,
 			 struct nameidata *nd)
 {
-	struct super_block       *sb = dir->i_sb;
+	struct super_block       *sb  = dir->i_sb;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_create_rep *rep = NULL;
 	struct m0t1fs_inode      *ci;
@@ -321,6 +321,7 @@ static int m0t1fs_create(struct inode     *dir,
 	ci               = M0T1FS_I(inode);
 	ci->ci_fid       = m0t1fs_fid_alloc(csb);
 	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
+	m0t1fs_file_lock_init(ci, csb);
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
@@ -412,7 +413,8 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &rep);
 	if (rc == 0) {
 		mo.mo_attr.ca_tfid = rep->l_body.b_tfid;
-		inode = m0t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid, &rep->l_body);
+		inode = m0t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid,
+				    &rep->l_body);
 		if (IS_ERR(inode)) {
 			M0_LEAVE("ERROR: %p", ERR_CAST(inode));
 			m0t1fs_fs_unlock(csb);
@@ -503,9 +505,10 @@ static int m0t1fs_readdir(struct file *f,
 
 	M0_SET0(&mo);
 	/**
-	   In case that readdir will be interrupted by enomem situation (filldir fails)
-	   on big dir and finishes before eof is reached, it has chance to start from
-	   there. This way f->f_pos and string readdir pos are in sync.
+	   In case that readdir will be interrupted by enomem situation
+	   (filldir fails) on big dir and finishes before eof is reached,
+	   it has chance to start from there. This way f->f_pos and string
+	   readdir pos are in sync.
 	 */
 	m0_buf_init(&mo.mo_attr.ca_name, m0_bitstring_buf_get(fd->fd_dirpos),
 		    m0_bitstring_len_get(fd->fd_dirpos));
@@ -527,7 +530,8 @@ static int m0t1fs_readdir(struct file *f,
 			goto out;
 		}
 
-		for (ent = dirent_first(rep); ent != NULL; ent = dirent_next(ent)) {
+		for (ent = dirent_first(rep); ent != NULL;
+		     ent = dirent_next(ent)) {
 			if (ent->d_namelen == 1 &&
 			    memcmp(ent->d_name, ".", 1) == 0) {
 				ino = dir->i_ino;
@@ -559,8 +563,10 @@ static int m0t1fs_readdir(struct file *f,
 			}
 			f->f_pos++;
 		}
-		m0_bitstring_copy(fd->fd_dirpos, rep->r_end.s_buf, rep->r_end.s_len);
-		m0_buf_init(&mo.mo_attr.ca_name, m0_bitstring_buf_get(fd->fd_dirpos),
+		m0_bitstring_copy(fd->fd_dirpos, rep->r_end.s_buf,
+				  rep->r_end.s_len);
+		m0_buf_init(&mo.mo_attr.ca_name,
+			    m0_bitstring_buf_get(fd->fd_dirpos),
 			    m0_bitstring_len_get(fd->fd_dirpos));
 
 		M0_LOG(M0_DEBUG, "set position to \"%*s\" rc == %d",
@@ -569,7 +575,8 @@ static int m0t1fs_readdir(struct file *f,
 		/**
 		   Return codes for m0t1fs_mds_cob_readdir() are the following:
 		   - <0 - some error occured;
-		   - >0 - EOF signaled by mdservice, some number of entries available;
+		   - >0 - EOF signaled by mdservice, some number of entries
+		          available;
 		   -  0 - no error, some number of entries is sent by mdservice.
 		 */
 	} while (rc == 0);

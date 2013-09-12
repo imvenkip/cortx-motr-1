@@ -15,39 +15,21 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 04/01/2010
+ * Original creation date: 04-Aug-2010
  */
-
 #pragma once
+#ifndef __MERO_LIB_LINUX_KERNEL_MISC_H__
+#define __MERO_LIB_LINUX_KERNEL_MISC_H__
 
-#ifndef __MERO_LIB_ADT_H__
-#define __MERO_LIB_ADT_H__
+#include <linux/stddef.h> /* offsetof, NULL */
+#include <linux/kernel.h> /* container_of, ARRAY_SIZE */
+#include <linux/module.h> /* EXPORT_SYMBOL */
 
-#include "lib/types.h"
-#include "lib/cdefs.h"
-#include "lib/buf.h" /* XXX: remove through code */
-/**
-   @defgroup adt Basic abstract data types
-   @{
-*/
+#define M0_EXPORTED(s) EXPORT_SYMBOL(s)
 
-struct m0_stack;
+#define CHAR_BIT (8)
 
-struct m0_stack_link;
-
-M0_INTERNAL void m0_stack_init(struct m0_stack *stack);
-M0_INTERNAL void m0_stack_fini(struct m0_stack *stack);
-M0_INTERNAL bool m0_stack_is_empty(const struct m0_stack *stack);
-
-M0_INTERNAL void m0_stack_link_init(struct m0_stack_link *stack);
-M0_INTERNAL void m0_stack_link_fini(struct m0_stack_link *stack);
-M0_INTERNAL bool m0_stack_link_is_in(const struct m0_stack_link *stack);
-
-/** @} end of adt group */
-
-
-/* __MERO_LIB_ADT_H__ */
-#endif
+#endif /* __MERO_LIB_LINUX_KERNEL_MISC_H__ */
 
 /*
  *  Local variables:

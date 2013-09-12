@@ -24,7 +24,6 @@
 #define __MERO_LIB_QUEUE_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 
 /**
    @defgroup queue Queue
@@ -79,10 +78,7 @@ M0_INTERNAL void m0_queue_put(struct m0_queue *q, struct m0_queue_link *ql);
 M0_INTERNAL bool m0_queue_invariant(const struct m0_queue *q);
 
 /** @} end of queue group */
-
-
-/* __MERO_LIB_QUEUE_H__ */
-#endif
+#endif /* __MERO_LIB_QUEUE_H__ */
 
 /*
  *  Local variables:

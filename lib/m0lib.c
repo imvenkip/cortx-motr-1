@@ -18,7 +18,6 @@
  * Original creation date: 01/23/2010
  */
 
-#include "lib/cdefs.h"
 #include "lib/bitmap_xc.h"
 #include "lib/buf_xc.h"
 #include "lib/types_xc.h"
@@ -26,6 +25,7 @@
 #include "lib/types_xc.h"
 #include "lib/ext_xc.h"
 #include "lib/string_xc.h"
+#include "lib/misc.h"       /* M0_EXPORTED */
 
 static void xc_types_init(void)
 {

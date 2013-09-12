@@ -137,8 +137,7 @@ static void buffer_remove(struct m0_net_buffer_pool *pool,
 			  struct m0_net_buffer *nb)
 {
 	m0_net_pool_tlink_del_fini(nb);
-	if (m0_net_tm_tlink_is_in(nb))
-		m0_net_tm_tlist_del(nb);
+	m0_net_tm_tlist_remove(nb);
 	m0_net_tm_tlink_fini(nb);
 	m0_net_buffer_deregister(nb, pool->nbp_ndom);
 	m0_bufvec_free_aligned(&nb->nb_buffer, pool->nbp_align);
@@ -220,8 +219,7 @@ M0_INTERNAL struct m0_net_buffer *m0_net_buffer_pool_get(struct
 		nb = m0_net_pool_tlist_head(&pool->nbp_lru);
 	M0_ASSERT(nb != NULL);
 	m0_net_pool_tlist_del(nb);
-	if (m0_net_tm_tlink_is_in(nb))
-		m0_net_tm_tlist_del(nb);
+	m0_net_tm_tlist_remove(nb);
 	M0_CNT_DEC(pool->nbp_free);
 	if (pool->nbp_free < pool->nbp_threshold)
 		pool->nbp_ops->nbpo_below_threshold(pool);

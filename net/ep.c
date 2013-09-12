@@ -20,14 +20,13 @@
 
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "lib/cdefs.h"
 #include "lib/finject.h"
 #include "net/net_internal.h"
 
-/** @}
- @addtogroup net
- @{
-*/
+/**
+ * @addtogroup net
+ * @{
+ */
 
 M0_INTERNAL bool m0_net__ep_invariant(struct m0_net_end_point *ep,
 				      struct m0_net_transfer_mc *tm,

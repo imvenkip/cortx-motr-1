@@ -27,7 +27,6 @@
 
 #include <stdarg.h>
 
-#include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/list.h"
 #include "lib/tlist.h"
@@ -1833,9 +1832,8 @@ M0_TL_DESCR_DECLARE(m0_net_tm, M0_EXTERN);
 M0_TL_DECLARE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
 M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
 
-/** @} */ /* end of networking group */
-
-#endif
+/** @} end of networking group */
+#endif /* __MERO_NET_NET_H__ */
 
 /*
  *  Local variables:

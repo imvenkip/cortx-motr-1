@@ -18,12 +18,10 @@
  * Original creation date: 09/09/2010
  */
 
-#include "lib/adt.h"           /* m0_buf */
 #include "lib/arith.h"         /* M0_3WAY */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"          /* M0_SET0 */
-#include "lib/cdefs.h"         /* M0_EXPORTED */
 #include "lib/vec.h"
 #include "mero/magic.h"
 #include "rpc/rpc_opcodes.h"
@@ -404,8 +402,7 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	M0_PRE(part->rp_ops != NULL);
 	M0_PRE(part->rp_data != NULL);
 
-	if (m0_rec_part_tlink_is_in(part))
-		m0_rec_part_tlist_del(part);
+	m0_rec_part_tlist_remove(part);
 	m0_rec_part_tlink_fini(part);
 
 	if (part->rp_flag == M0_XCODE_DECODE) {

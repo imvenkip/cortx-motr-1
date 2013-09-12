@@ -19,12 +19,12 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
+
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "lib/trace.h"
 #include "lib/misc.h"
-#include "lib/cdefs.h"
 #include "lib/finject.h"
 
 #include "cob/cob.h"
@@ -199,11 +199,6 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 	M0_RETURN(rc);
 }
 
-static bool unit_is_spare(const struct m0_pdclust_layout *pl, int unit)
-{
-	return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE;
-}
-
 /**
  * Calculates COB fid for m0_sns_cm_file_context::sfc_sa.
  * Saves calculated struct m0_pdclust_tgt_addr in
@@ -212,18 +207,23 @@ static bool unit_is_spare(const struct m0_pdclust_layout *pl, int unit)
 static void unit_to_cobfid(struct m0_sns_cm_file_context *sfc,
 			   struct m0_fid *cob_fid_out)
 {
+	struct m0_sns_cm_iter       *it;
+	struct m0_sns_cm            *scm;
 	struct m0_pdclust_instance  *pi;
 	struct m0_pdclust_layout    *pl;
 	struct m0_pdclust_src_addr  *sa;
 	struct m0_pdclust_tgt_addr  *ta;
 	struct m0_fid               *fid;
 
+	it = container_of(sfc, struct m0_sns_cm_iter, si_fc);
+	scm = it2sns(it);
 	fid = &sfc->sfc_gob_fid;
 	pi = sfc->sfc_pi;
 	pl = sfc->sfc_pdlayout;
 	sa = &sfc->sfc_sa;
 	ta = &sfc->sfc_ta;
-	sfc->sfc_cob_is_spare_unit = unit_is_spare(pl, sa->sa_unit);
+	sfc->sfc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(scm, pl,
+							     sa->sa_unit);
 	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
 }
 
@@ -383,11 +383,11 @@ static int __group_next(struct m0_sns_cm_iter *it)
 			continue;
 		group_fnr = m0_sns_cm_ag_failures_nr(scm, &sfc->sfc_gob_fid,
 						     sfc->sfc_pdlayout,
-						     sfc->sfc_pi, group);
+						     sfc->sfc_pi, group, NULL);
 		if (group_fnr > 0){
 			sfc->sfc_sa.sa_group = group;
 			sfc->sfc_sa.sa_unit =
-				m0_sns_cm_ag_unit_start(scm->sc_op,
+				m0_sns_cm_ag_unit_start(scm,
 							sfc->sfc_pdlayout);
 			iter_phase_set(it, ITPH_COB_NEXT);
 			goto out;
@@ -419,8 +419,12 @@ static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
 {
 	M0_PRE(scm != NULL && pl != NULL && id != NULL);
 
-	if (scm->sc_base.cm_proxy_nr > 0)
+	if (scm->sc_base.cm_proxy_nr > 0) {
+		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+		       id->ai_hi.u_hi, id->ai_hi.u_lo,
+		       id->ai_lo.u_hi, id->ai_lo.u_lo);
 		return  m0_sns_cm_ag_is_relevant(scm, pl, id);
+	}
 
 	return false;
 }
@@ -449,7 +453,7 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 				     has_incoming);
 	M0_ASSERT(ag != NULL);
 	sag = ag2snsag(ag);
-	rc = m0_sns_cm_ag_setup(sag, sfc->sfc_pdlayout);
+	rc = scm->sc_helpers->sch_ag_setup(sag, sfc->sfc_pdlayout);
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);
 
@@ -462,6 +466,8 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 static int iter_cp_setup(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm                *scm = it2sns(it);
+	struct m0_cm                    *cm = &scm->sc_base;
+	struct m0_pdclust_layout        *pl;
 	struct m0_cm_ag_id               agid;
 	struct m0_cm_aggr_group         *ag;
 	struct m0_sns_cm_file_context   *sfc;
@@ -474,9 +480,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
+	pl = sfc->sfc_pdlayout;
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
-	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
-	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
+	has_incoming = __has_incoming(scm, pl, &agid);
+	ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
 	if (ag == NULL) {
 		/*
 		 * Allocate new aggregation group for the given aggregation
@@ -488,17 +495,19 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		 * group was already processed and we proceed to next group.
 		 */
 		if (has_incoming) {
-			if (m0_cm_ag_id_cmp(&agid, &scm->sc_base.cm_last_saved_sw_hi) <= 0)
+			if (m0_cm_ag_id_cmp(&agid,
+					    &cm->cm_last_saved_sw_hi) <= 0)
 				goto out;
 		}
-		if (has_incoming && !m0_sns_cm_has_space(&scm->sc_base, &agid,
-							 sfc->sfc_pdlayout)) {
+		if (has_incoming &&
+		    !cm->cm_ops->cmo_has_space(cm, &agid,
+					       m0_pdl_to_layout(pl))) {
 			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 			       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 			       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
 			M0_RETURN(-ENOBUFS);
 		}
-		rc = m0_cm_aggr_group_alloc(&scm->sc_base, &agid,
+		rc = m0_cm_aggr_group_alloc(cm, &agid,
 					    has_incoming, &ag);
 		if (rc != 0) {
 			if (rc == -ENOBUFS)
@@ -609,18 +618,23 @@ static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
  */
 M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm *scm;
-	int               rc;
+	struct m0_sns_cm      *scm;
+	struct m0_sns_cm_iter *it;
+	int                    rc;
 	M0_ENTRY("cm = %p, cp = %p", cm, cp);
 
 	M0_PRE(cm != NULL && cp != NULL);
 
 	scm = cm2sns(cm);
-	scm->sc_it.si_cp = cp2snscp(cp);
+	it = &scm->sc_it;
+	it->si_cp = cp2snscp(cp);
 	do {
-		rc = iter_action[iter_phase(&scm->sc_it)](&scm->sc_it);
-		M0_ASSERT(iter_invariant(&scm->sc_it));
+		rc = iter_action[iter_phase(it)](it);
+		M0_ASSERT(iter_invariant(it));
 	} while (rc == 0);
+
+	if (rc == -ENODATA)
+		iter_phase_set(it, ITPH_IDLE);
 
 	M0_RETURN(rc);
 }
@@ -745,7 +759,8 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
-	iter_phase_set(it, ITPH_IDLE);
+	M0_PRE(iter_phase(it) == ITPH_IDLE);
+
 	m0_cob_ns_iter_fini(&it->si_cns_it);
 	layout_fini(it);
 }
@@ -760,9 +775,9 @@ M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)
 	m0_sns_cm_iter_bob_fini(it);
 }
 
+/** @} SNSCM */
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} SNSCM */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

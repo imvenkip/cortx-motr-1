@@ -93,7 +93,6 @@ struct m0_fol_rec_desc;
 struct m0_fol_rec;
 
 /* import */
-#include "lib/adt.h"      /* m0_buf */
 #include "lib/types.h"    /* uint64_t */
 #include "lib/arith.h"    /* M0_IS_8ALIGNED */
 #include "lib/mutex.h"

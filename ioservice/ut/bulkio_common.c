@@ -105,7 +105,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	 * m0_sns_cm_fid_repair_done().
 	 */
 	strcpy(server_args[15], "-s");
-	strcpy(server_args[16], "sns_cm");
+	strcpy(server_args[16], "sns_repair");
 	strcpy(server_args[17], "-q");
 	strcpy(server_args[18], tm_len);
 	strcpy(server_args[19], "-m");

@@ -22,7 +22,6 @@
 #include <linux/module.h>
 #include <linux/jiffies.h>
 
-#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/assert.h"

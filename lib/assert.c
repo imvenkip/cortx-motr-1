@@ -20,8 +20,9 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
+
 #include "lib/assert.h"
-#include "lib/cdefs.h"
+#include "lib/misc.h"    /* M0_CAT */
 
 /**
    @addtogroup assert
@@ -56,9 +57,8 @@ void m0_backtrace(void)
 }
 M0_EXPORTED(m0_backtrace);
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} end of assert group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

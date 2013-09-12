@@ -26,7 +26,7 @@
 /**
  * @defgroup fom
  *
- * A simple helper fom type to execute a user specified state transition
+ * A simple helper fom type to execute a user specified phase transition
  * function.
  *
  * "Simple fom" is pre-configured fom type to execute user-supplied code in fom
@@ -40,44 +40,89 @@
 /**
  * Simple fom executes m0_fom_simple::si_tick() in each tick.
  *
- * Typical m0_fom_simple::si_tick() looks like
+ * Simplest m0_fom_simple::si_tick() is created by calling m0_fom_simple_post()
+ * with NULL "conf" parameter. Such call initialises a fom with the following
+ * trivial state machine:
+ *
+ * @verbatim
+ *    +-----+
+ *    |     |
+ *    V     |
+ *   INIT---+
+ *    |
+ *    |
+ *    V
+ *  FINISH
+ * @endverbatim
+ *
+ * The useful is done by m0_fom_simple::si_tick() function (initialised to the
+ * "tick" argument of m0_fom_simple_post()) in INIT state. To terminate the fom,
+ * m0_fom_simple::si_tick() should return a negative value.
+ *
+ * Typical m0_fom_simple::si_tick() function in such case would look like:
  *
  * @code
- * int foo_tick(struct m0_fom *fom, struct foo *f, int *substate)
+ * int foo_tick(struct m0_fom *fom, struct foo *f, int *__unused)
  * {
- *         switch (*substate) {
- *         case SUBSTATE_0:
+ *         switch (foo->f_subphase) {
+ *         case SUBPHASE_0:
  *                 do_something_0(f);
- *                 *substate = SUBSTATE_1;
+ *                 foo->f_subphase = SUBPHASE_1;
  *                 return ready ? M0_FSO_AGAIN : M0_FSO_WAIT;
- *         case SUBSTATE_1:
+ *         case SUBPHASE_1:
  *                 do_something_1(f);
- *                 (*substate)++;
+ *                 foo->f_subphase++;
  *                 return M0_FSO_WAIT;
  *         ...
- *         case SUBSTATE_N:
+ *         case SUBPHASE_N:
  *                 // terminate simple fom
  *                 return -1;
  *         }
+ * }
  * @endcode
  *
  * That is, m0_fom_simple::si_tick() is very similar to m0_fom_ops::fo_tick(),
  * except that it gets an additional "data" parameter, originally passed by the
- * user to m0_fom_simple_post() and uses "substate" instead of fom phase. To
- * terminate the fom, return a negative value.
+ * user to m0_fom_simple_post() and uses some fom-specific "subphase" instead of
+ * fom phase.
+ *
+ * Passing a non-NULL conf to m0_fom_simple_post() creates a "semisimple" fom
+ * with the user-supplied configuration. Such fom can use usual fom phases to
+ * keep track of it current state. For a semisimple fom, current phase is passed
+ * in "phase" parameter to m0_fom_simple::si_tick().
+ *
+ * A typical semisimple m0_fom_simple::si_tick() looks like:
+ * @code
+ * int foo_tick(struct m0_fom *fom, struct foo *f, int *phase)
+ * {
+ *         switch (*phase) {
+ *         case PHASE_0:
+ *                 do_something_0(f);
+ *                 *phase = PHASE_1;
+ *                 return ready ? M0_FSO_AGAIN : M0_FSO_WAIT;
+ *         case PHASE_1:
+ *                 do_something_1(f);
+ *                 (*phase)++;
+ *                 return M0_FSO_WAIT;
+ *         ...
+ *         case PHASE_N:
+ *                 return -1;
+ *         }
+ * }
+ * @endcode
  *
  * Note that the type of the second parameter can be different from void *, see
  * M0_FOM_SIMPLE_POST().
  */
 struct m0_fom_simple {
-	struct m0_fom si_fom;
-	int         (*si_tick)(struct m0_fom *fom, void *data, int *substate);
+	struct m0_fom      si_fom;
+	int         (*si_tick)(struct m0_fom *fom, void *data, int *phase);
 	/** User provided data, passed to ->si_tick(). */
-	void         *si_data;
+	void              *si_data;
 	/** User supplied locality. */
-	size_t        si_locality;
-	/** Current substate. */
-	int           si_substate;
+	size_t             si_locality;
+	/** Embedded fom type for "semisimple" fom. */
+	struct m0_fom_type si_type;
 };
 
 enum {
@@ -93,17 +138,29 @@ enum {
  */
 M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 				    struct m0_reqh *reqh,
+				    struct m0_sm_conf *conf,
 				    int (*tick)(struct m0_fom *, void *, int *),
 				    void *data, size_t locality);
+/**
+ * Starts an army of "nr" simple foms, queued to localities 0 .. (nr - 1).
+ *
+ * A fom thus created can query its locality in m0_fom_simple::si_locality.
+ */
+M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,
+				     struct m0_reqh *reqh,
+				     struct m0_sm_conf *conf,
+				     int (*tick)(struct m0_fom *, void *,
+						 int *),
+				     void *data);
 
 /**
  * Wrapper around m0_fom_simple_post() supporting flexible typing of "data".
  */
-#define M0_FOM_SIMPLE_POST(s, r, f, d, l)				\
+#define M0_FOM_SIMPLE_POST(s, r, c, f, d, l)				\
 ({									\
 	/* check that "f" and "d" match. */				\
 	(void)(sizeof((f)(NULL, (d), 0)));				\
-	m0_fom_simple_post((s), (r),					\
+	m0_fom_simple_post((s), (r), (c),				\
 			   (int (*)(struct m0_fom *, void *, int *))(f), \
 			   (void *)(d), (l));				\
 })

@@ -39,9 +39,11 @@
 #include "fop/fom.h" /* M0_FSO_AGAIN, M0_FSO_WAIT */
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
+#include "pool/pool.h"
 
+#include "sns/cm/repair/ag.h"
 #include "sns/cm/cm.h"
-#include "sns/cm/ut/cp_common.h"
+#include "sns/cm/repair/ut/cp_common.h"
 
 enum {
 	ITER_UT_BUF_NR     = 1 << 8,
@@ -83,14 +85,16 @@ static void service_start_failure(void)
 
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
-	int         rc;
+	struct m0_pool_event pme;
+	struct m0_db_tx      tx;
+	int                  rc;
 
 	rc = sns_cm_ut_server_start();
 	M0_UT_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_cm");
+	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
 	M0_UT_ASSERT(reqh != NULL);
-	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_cm"),
+	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
 				       reqh);
 	M0_UT_ASSERT(service != NULL);
 
@@ -99,10 +103,20 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	cm->cm_pm = m0_ios_poolmach_get(reqh);
 	scm = cm2sns(cm);
 	scm->sc_it.si_fdata = &fdata;
+	scm->sc_failures_nr = 1;
 	scm->sc_op = op;
 	rc = cm->cm_ops->cmo_ready(cm);
 	M0_UT_ASSERT(rc == 0);
 	rc = cm->cm_ops->cmo_start(cm);
+	M0_UT_ASSERT(rc == 0);
+	M0_SET0(&pme);
+	pme.pe_type  = M0_POOL_DEVICE;
+	pme.pe_index = fd;
+	pme.pe_state = M0_PNDS_FAILED;
+        rc = m0_db_tx_init(&tx, scm->sc_it.si_dbenv, 0);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
+				       &tx);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -187,19 +201,24 @@ static void buf_put(struct m0_sns_cm_cp *scp)
 	m0_cm_cp_buf_release(&scp->sc_base);
 }
 
-static void __ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *head)
+static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *head)
 {
-	struct m0_cm_aggr_group *ag;
+	struct m0_sns_cm_repair_ag *rag;
+	struct m0_cm_aggr_group    *ag;
+	int                         i;
 
 	m0_tlist_for(descr, head, ag) {
+		rag = sag2repairag(ag2snsag(ag));
+		for (i = 0; i < rag->rag_base.sag_fnr; ++i)
+			buf_put(&rag->rag_fc[i].fc_tgt_acc_cp);
 		ag->cag_ops->cago_fini(ag);
 	} m0_tlist_endfor;
 }
 
 static void ag_destroy(void)
 {
-	__ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
-	__ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
+	repair_ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
+	repair_ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 }
 
 static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
@@ -239,23 +258,19 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 	struct m0_sns_cm_cp  scp;
 	struct m0_sns_cm_ag *sag;
 	int                  rc;
-	int                  i;
 
 	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
 	cobs_create(nr_files, pool_width);
-	scm->sc_failures_nr = 1;
 	m0_cm_lock(cm);
 	do {
 		M0_SET0(&scp);
-		scp.sc_base.c_ops = &m0_sns_cm_cp_ops;
+		scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
 		m0_cm_cp_init(cm, &scp.sc_base);
 		scm->sc_it.si_cp = &scp;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			M0_UT_ASSERT(cp_verify(&scp));
 			sag = ag2snsag(scp.sc_base.c_ag);
-			for (i = 0; i < sag->sag_fnr; ++i)
-				buf_put(&sag->sag_fc[i].fc_tgt_acc_cp);
 			buf_put(&scp);
 			cp_data_buf_tlist_fini(&scp.sc_base.c_buffers);
 		}
@@ -271,8 +286,8 @@ static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 	int rc;
 
 	m0_cm_lock(cm);
-	/* Destroy previously created aggregation groups manually. */
 	ag_destroy();
+	/* Destroy previously created aggregation groups manually. */
 	rc = cm->cm_ops->cmo_stop(cm);
 	M0_UT_ASSERT(rc ==  0);
 	m0_cm_unlock(cm);
@@ -312,6 +327,7 @@ static void iter_repair_large_file_with_large_unit_size(void)
 	iter_stop(1, 10);
 }
 
+/*
 static void iter_rebalance_single_file(void)
 {
 	int       rc;
@@ -341,6 +357,7 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 	M0_UT_ASSERT(rc == -ENODATA);
 	iter_stop(1, 10);
 }
+*/
 
 static void iter_invalid_nr_cobs(void)
 {
@@ -352,8 +369,8 @@ static void iter_invalid_nr_cobs(void)
 	iter_stop(1, 3);
 }
 
-const struct m0_test_suite sns_cm_ut = {
-	.ts_name = "sns-cm-ut",
+const struct m0_test_suite sns_cm_repair_ut = {
+	.ts_name = "sns-cm-repair-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
@@ -364,10 +381,10 @@ const struct m0_test_suite sns_cm_ut = {
 		{ "iter-repair-multi-file", iter_repair_multi_file},
 		{ "iter-repair-large-file-with-large-unit-size",
 		  iter_repair_large_file_with_large_unit_size},
-		{ "iter-rebalance-single-file", iter_rebalance_single_file},
+	/*	{ "iter-rebalance-single-file", iter_rebalance_single_file},
 		{ "iter-rebalance-multi-file", iter_rebalance_multi_file},
 		{ "iter-rebalance-large-file-with-large-unit-size",
-		  iter_rebalance_large_file_with_large_unit_size},
+		  iter_rebalance_large_file_with_large_unit_size},*/
 		{ "iter-invalid-nr-cobs", iter_invalid_nr_cobs},
 		{ NULL, NULL }
 	}

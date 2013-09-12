@@ -870,6 +870,247 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	M0_RETURN(rc);
 }
 
+static int _rpc_post(struct m0_fop                *fop,
+		     struct m0_rpc_session        *session)
+{
+	struct m0_rpc_item *item;
+
+	M0_PRE(fop != NULL);
+	M0_PRE(session != NULL);
+
+	item                     = &fop->f_item;
+	item->ri_session         = session;
+	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline        = 0;
+	item->ri_resend_interval = M0_TIME_NEVER;
+
+	return m0_rpc_post(item);
+}
+
+struct mds_op {
+	struct m0_fop mo_fop;
+
+	void        (*mo_cb)(void *arg, int rc);
+	void         *mo_arg;
+	/** saved out pointer. returned data will be copied here */
+	void         *mo_out;
+
+	/* These arguments are saved in async call and used in callback */
+	void         *mo_p1;   /* saved param1 */
+	void         *mo_p2;   /* saved param2 */
+};
+
+static void mds_op_release(struct m0_ref *ref)
+{
+	struct mds_op *mds_op;
+	struct m0_fop *fop;
+
+	fop = container_of(ref, struct m0_fop, f_ref);
+	mds_op = container_of(fop, struct mds_op, mo_fop);
+	m0_fop_fini(fop);
+	m0_free(mds_op);
+}
+
+static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
+{
+	struct mds_op               *mdsop;
+	struct m0_fop               *req;
+	struct m0_fop               *rep;
+	struct m0_fop_getattr_rep   *getattr_rep;
+	struct m0_fop_cob           *rep_fop_cob;
+	struct m0_cob_attr          *attr;
+	int                          rc;
+
+	M0_PRE(item != NULL);
+	req = m0_rpc_item_to_fop(item);
+	mdsop = container_of(req, struct mds_op, mo_fop);
+	attr = mdsop->mo_out;
+
+	rc = item->ri_error;
+
+	M0_LOG(M0_DEBUG, "ios getattr replied :%d", rc);
+	if (rc == 0) {
+		rep = m0_rpc_item_to_fop(item->ri_reply);
+		getattr_rep = m0_fop_data(rep);
+		rep_fop_cob = &getattr_rep->g_body;
+		if (rep_fop_cob->b_rc == 0)
+			m0_md_cob_wire2mem(attr, rep_fop_cob);
+		else
+			rc = rep_fop_cob->b_rc;
+	}
+
+	mdsop->mo_cb(mdsop->mo_arg, rc);
+}
+
+const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
+	.rio_replied = getattr_rpc_item_reply_cb,
+};
+
+/**
+ * getattr from mdservice asynchronously.
+ */
+M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
+				         const struct m0_fid *gfid,
+					 struct m0_cob_attr  *attr,
+					 void (*cb)(void *arg, int rc),
+					 void *arg)
+{
+	struct m0_ios_mds_conn    *imc;
+	struct mds_op             *mdsop;
+	struct m0_fop             *req;
+	struct m0_fop_getattr     *getattr;
+	struct m0_fop_cob         *req_fop_cob;
+	int                        rc;
+
+	/* This might block on first call. */
+	rc = m0_ios_mds_conn_get(reqh, &imc);
+	if (rc != 0)
+		return rc;
+	if (!imc->imc_connected)
+		return -ENODEV;
+
+	M0_ALLOC_PTR(mdsop);
+	if (mdsop == NULL)
+		return -ENOMEM;
+
+	req = &mdsop->mo_fop;
+	m0_fop_init(req, &m0_fop_getattr_fopt, NULL, &mds_op_release);
+	rc = m0_fop_data_alloc(req);
+	if (rc == 0) {
+		req->f_item.ri_ops = &getattr_fop_rpc_item_ops;
+	} else {
+		m0_free(mdsop);
+		return rc;
+	}
+
+	mdsop->mo_cb  = cb;
+	mdsop->mo_arg = arg;
+	mdsop->mo_out = attr;
+
+	getattr = m0_fop_data(req);
+	req_fop_cob = &getattr->g_body;
+	req_fop_cob->b_tfid = *gfid;
+
+	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu",
+			 (unsigned long long)gfid->f_container,
+			 (unsigned long long)gfid->f_key);
+
+	rc = _rpc_post(req, &imc->imc_session);
+	M0_LOG(M0_DEBUG, "ios getattr sent asynchronously: rc = %d", rc);
+
+	m0_fop_put(req);
+	return rc;
+}
+
+static void getlayout_rpc_item_reply_cb(struct m0_rpc_item *item)
+{
+	struct mds_op              *mdsop;
+	struct m0_fop              *req;
+	struct m0_fop              *rep;
+	struct m0_fop_layout_rep   *layout_rep;
+	struct m0_layout_domain    *ldom;
+	uint64_t                    lid;
+	struct m0_layout           *l;
+	struct m0_layout          **l_out;
+	int                         rc;
+
+	M0_PRE(item != NULL);
+	req = m0_rpc_item_to_fop(item);
+	mdsop = container_of(req, struct mds_op, mo_fop);
+	l_out = mdsop->mo_out;
+
+	ldom = mdsop->mo_p1;
+	lid  = (uint64_t)mdsop->mo_p2;
+
+	rc = item->ri_error;
+
+	M0_LOG(M0_DEBUG, "ios getlayout @[%p:%lu] replied :%d", ldom, lid, rc);
+	if (rc == 0) {
+		struct m0_bufvec        bv;
+		struct m0_bufvec_cursor cur;
+		struct m0_layout_type  *lt;
+
+		rep = m0_rpc_item_to_fop(item->ri_reply);
+		layout_rep = m0_fop_data(rep);
+
+		bv = (struct m0_bufvec)
+			M0_BUFVEC_INIT_BUF((void**)&layout_rep->lr_buf.b_addr,
+				   (m0_bcount_t*)&layout_rep->lr_buf.b_count);
+		m0_bufvec_cursor_init(&cur, &bv);
+
+		lt = &m0_pdclust_layout_type;
+		rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
+		if (rc == 0) {
+			rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
+			/* release lock held by ->lto_allocate() */
+			m0_mutex_unlock(&l->l_lock);
+			if (rc == 0) {
+				*l_out = l;
+			} else {
+				m0_layout_put(l);
+			}
+		}
+	}
+	mdsop->mo_cb(mdsop->mo_arg, rc);
+}
+
+const struct m0_rpc_item_ops getlayout_fop_rpc_item_ops = {
+	.rio_replied = getlayout_rpc_item_reply_cb,
+};
+
+/** getlayout asynchronously from mdservice */
+M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
+					    struct m0_layout_domain *ldom,
+					    uint64_t lid,
+					    struct m0_layout **l_out,
+					    void (*cb)(void *arg, int rc),
+					    void *arg)
+{
+	struct m0_ios_mds_conn *imc;
+	struct mds_op          *mdsop;
+	struct m0_fop          *req;
+	struct m0_fop_layout   *layout;
+	int                     rc;
+	M0_ENTRY();
+
+	rc = m0_ios_mds_conn_get(reqh, &imc);
+	if (rc != 0)
+		return rc;
+	if (!imc->imc_connected)
+		return -ENODEV;
+
+	M0_ALLOC_PTR(mdsop);
+	if (mdsop == NULL)
+		return -ENOMEM;
+
+	req = &mdsop->mo_fop;
+	m0_fop_init(req, &m0_fop_layout_fopt, NULL, &mds_op_release);
+	rc = m0_fop_data_alloc(req);
+	if (rc == 0) {
+		req->f_item.ri_ops = &getlayout_fop_rpc_item_ops;
+	} else {
+		m0_free(mdsop);
+		return rc;
+	}
+
+	mdsop->mo_cb  = cb;
+	mdsop->mo_arg = arg;
+	mdsop->mo_out = l_out;
+	mdsop->mo_p1  = ldom;
+	mdsop->mo_p2  = (void *)lid;
+	layout        = m0_fop_data(req);
+	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
+	layout->l_lid = lid;
+
+	M0_LOG(M0_DEBUG, "ios getlayout for %llu",
+			 (unsigned long long)lid);
+	rc = _rpc_post(req, &imc->imc_session);
+	M0_LOG(M0_DEBUG, "ios getlayout for %llu sent: rc %d",
+			 (unsigned long long)lid, rc);
+	m0_fop_put(req);
+	M0_RETURN(rc);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup io_service */

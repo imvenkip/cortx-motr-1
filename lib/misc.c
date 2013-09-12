@@ -19,7 +19,6 @@
  */
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/arith.h"      /* M0_3WAY */
 #include "lib/misc.h"
