@@ -22,7 +22,59 @@
 #include "lib/memory.h"
 
 #include "console/console_yaml.h"
-#include "yaml2db/yaml2db.h"
+
+static void yaml_parser_error_detect(const yaml_parser_t * parser)
+{
+        M0_PRE(parser != NULL);
+
+        switch (parser->error) {
+        case YAML_MEMORY_ERROR:
+            fprintf(stderr, "Memory error: Not enough memory for parsing\n");
+            break;
+        case YAML_READER_ERROR:
+            if (parser->problem_value != -1)
+                fprintf(stderr, "Reader error: %s: #%X at %lu\n",
+                        parser->problem, parser->problem_value,
+                        parser->problem_offset);
+            else
+                fprintf(stderr, "Reader error: %s at %lu\n",
+                        parser->problem, parser->problem_offset);
+            break;
+        case YAML_SCANNER_ERROR:
+            if (parser->context)
+                fprintf(stderr, "Scanner error: %s at line %lu, column %lu"
+                        " %s at line %lu, column %lu\n",
+                        parser->context, parser->context_mark.line+1,
+                        parser->context_mark.column+1, parser->problem,
+                        parser->problem_mark.line+1,
+                        parser->problem_mark.column+1);
+            else
+                fprintf(stderr, "Scanner error: %s at line %lu, column %lu\n",
+                        parser->problem, parser->problem_mark.line+1,
+                        parser->problem_mark.column+1);
+            break;
+        case YAML_PARSER_ERROR:
+            if (parser->context)
+                fprintf(stderr, "Parser error: %s at line %lu, column %lu"
+                        " %s at line %lu, column %lu\n",
+                        parser->context, parser->context_mark.line+1,
+                        parser->context_mark.column+1,parser->problem,
+                        parser->problem_mark.line+1,
+                        parser->problem_mark.column+1);
+            else
+                fprintf(stderr, "Parser error: %s at line %lu, column %lu\n",
+                        parser->problem, parser->problem_mark.line+1,
+                        parser->problem_mark.column+1);
+            break;
+        case YAML_COMPOSER_ERROR:
+        case YAML_WRITER_ERROR:
+        case YAML_EMITTER_ERROR:
+        case YAML_NO_ERROR:
+            break;
+        default:
+                M0_IMPOSSIBLE("Invalid error");
+        }
+}
 
 /**
    @addtogroup console_yaml
@@ -81,7 +133,7 @@ M0_INTERNAL int m0_cons_yaml_init(const char *file_path)
 
 	return 0;
 error:
-	m0_yaml_parser_error_detect(&yaml_info.cyi_parser);
+	yaml_parser_error_detect(&yaml_info.cyi_parser);
 	return -EINVAL;
 }
 

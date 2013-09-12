@@ -10,7 +10,12 @@ EXTRA_DIST += utils/ut.sh.in \
               utils/linux_kernel/ut.sh.in \
               utils/linux_kernel/m0ut_main.c \
               utils/linux_kernel/m0ctl_main.c \
+              utils/linux_kernel/m0ctl_internal.h \
               utils/linux_kernel/finject_debugfs.c \
               utils/linux_kernel/finject_debugfs.h \
+              utils/linux_kernel/trace_debugfs.c \
+              utils/linux_kernel/trace_debugfs.h \
+              utils/linux_kernel/core_debugfs.c \
+              utils/linux_kernel/core_debugfs.h \
               utils/README
 

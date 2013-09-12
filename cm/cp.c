@@ -426,12 +426,12 @@ static void cp_fom_fini(struct m0_fom *fom)
 	M0_CNT_INC(ag->cag_freed_cp_nr);
 	ag_fini = ag->cag_ops->cago_ag_can_fini(ag, cp);
 	m0_cm_cp_fini(cp);
-	cp->c_ops->co_free(cp);
 	/**
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
 	 */
 	m0_cm_lock(cm);
+	cp->c_ops->co_free(cp);
         if (ag_fini)
                 ag->cag_ops->cago_fini(ag);
 	if (m0_cm_has_more_data(cm))

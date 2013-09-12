@@ -249,14 +249,14 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 {
 	int             rc;
 	struct m0_db_tx tx;
+
 	M0_ENTRY("it = %p", it);
 
 	rc = m0_db_tx_init(&tx, it->si_dbenv, 0);
 	if (rc != 0)
 		return rc;
-
 	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
-        if (rc == 0) {
+        if (rc == 0 || rc == -ENOENT) {
 		M0_ADDB_POST(&m0_addb_gmc,
 			     &m0_addb_rt_sns_iter_next_gfid,
 			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
@@ -265,7 +265,11 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 	}
         else {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_FID_NEXT);
-                m0_db_tx_abort(&tx);
+		/**
+		 * XXX: Abort the transaction. Commented out because not yet
+		 * implemented.
+		 * m0_db_tx_abort(&tx);
+		 */
 	}
 	M0_RETURN(rc);
 }
@@ -340,11 +344,12 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	int                         fnr_cnt = 0;
 	int                         i;
 
-	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl) - i;
+	for (i = 0; i < m0_pdclust_K(pl); ++i) {
+		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl) + i;
 		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		if (m0_sns_cm_is_cob_failed(scm, &cobfid))
+		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
+		    m0_sns_cm_unit_is_spare(scm, pl, sa.sa_unit))
 			M0_CNT_INC(fnr_cnt);
 	}
 

@@ -38,6 +38,7 @@ struct m0_be_ut_sm_group_thread {
 	pid_t		    sgt_tid;
 	struct m0_semaphore sgt_stop_sem;
 	struct m0_sm_group  sgt_grp;
+	bool		    sgt_lock_new;
 };
 
 struct m0_be_ut_backend {
@@ -46,6 +47,7 @@ struct m0_be_ut_backend {
 	struct m0_be_ut_sm_group_thread **but_sgt;
 	size_t				  but_sgt_size;
 	struct m0_mutex			  but_sgt_lock;
+	bool				  but_sm_groups_unlocked;
 };
 
 /*
@@ -62,6 +64,8 @@ void m0_be_ut_reqh_put(struct m0_reqh *reqh);
 
 struct m0_sm_group *
 m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be);
+void m0_be_ut_backend_new_grp_lock_state_set(struct m0_be_ut_backend *ut_be,
+					     bool unlocked_new);
 
 void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
 
@@ -98,6 +102,7 @@ void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be);
 
 struct m0_stob *m0_be_ut_stob_get(bool stob_create);
+struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create);
 void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */

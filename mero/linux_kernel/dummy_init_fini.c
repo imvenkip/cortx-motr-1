@@ -29,7 +29,7 @@
  */
 
 #define DUMMY_IMPLEMENTATION \
-	printk("dummy implementation of %s called\n", __FUNCTION__)
+	printk("mero: dummy implementation of %s called\n", __FUNCTION__)
 
 M0_INTERNAL int m0_memory_init(void)
 {

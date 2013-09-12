@@ -20,12 +20,17 @@
 
 #include <linux/vmalloc.h>           /* vmalloc, vfree */
 #include <linux/kernel.h>            /* vprintk */
+#include <linux/jiffies.h>           /* time_in_range_open */
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h" /* m0_align */
+#include "lib/arith.h"  /* m0_align */
+#include "lib/memory.h" /* m0_free */
+#include "lib/string.h" /* m0_strdup */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
+#include "lib/linux_kernel/trace.h"
+#include "mero/linux_kernel/module.h"
 
 /**
  * @addtogroup trace
@@ -36,137 +41,174 @@
  */
 
 static char *trace_immediate_mask;
-module_param(trace_immediate_mask, charp, 0644);
+module_param(trace_immediate_mask, charp, S_IRUGO);
 MODULE_PARM_DESC(trace_immediate_mask,
 		 " a bitmask or comma separated list of subsystem names"
 		 " of what should be printed immediately to console");
 
 static char *trace_level;
-module_param(trace_level, charp, 0644);
+module_param(trace_level, charp, S_IRUGO);
 MODULE_PARM_DESC(trace_level,
 		 " trace level: level[+][,level[+]] where level is one of"
 		 " call|debug|info|notice|warn|error|fatal");
 
 static char *trace_print_context;
-module_param(trace_print_context, charp, 0644);
+module_param(trace_print_context, charp, S_IRUGO);
 MODULE_PARM_DESC(trace_print_context,
 		 " controls whether to display additional trace point"
 		 " info, like subsystem, file, func, etc.; values:"
 		 " none, func, short, full");
 
-static int set_trace_immediate_mask(void)
+static unsigned int trace_buf_size = M0_TRACE_BUFSIZE;
+module_param(trace_buf_size, uint, S_IRUGO);
+MODULE_PARM_DESC(trace_buf_size, "size of trace buffer in bytes");
+
+static struct m0_trace_stats stats;
+
+M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 {
 	int            rc;
-	char          *mask_str;
 	unsigned long  mask;
+	char          *mask_str_copy;
 
-	/* check if argument was specified for 'trace_immediate_mask' param */
-	if (trace_immediate_mask == NULL)
+	/* check if argument was specified for 'mask_str' param */
+	if (mask_str == NULL)
 		return 0;
 
-	/* first, check if 'trace_immediate_mask' contains a numeric bitmask */
-	rc = strict_strtoul(trace_immediate_mask, 0, &mask);
-	if (rc == 0) {
-		m0_trace_immediate_mask = mask;
-		goto out;
-	}
+	/* first, check if 'mask_str' contains a numeric bitmask */
+	rc = strict_strtoul(mask_str, 0, &mask);
+	if (rc == 0)
+		goto set_mask;
 
 	/*
-	 * check if 'trace_immediate_mask' contains a comma-separated list of
-	 * valid subsystem names
+	 * if above strtoul() conversion has failed it means that mask_str
+	 * contains a comma-separated list of subsystem names
 	 */
-	mask_str = kstrdup(trace_immediate_mask, GFP_KERNEL);
-	if (mask_str == NULL)
+	mask_str_copy = m0_strdup(mask_str);
+	if (mask_str_copy == NULL)
 		return -ENOMEM;
-	rc = m0_trace_subsys_list_to_mask(mask_str, &mask);
-	kfree(mask_str);
 
+	rc = m0_trace_subsys_list_to_mask(mask_str_copy, &mask);
+	m0_free(mask_str_copy);
 	if (rc != 0)
 		return rc;
 
+set_mask:
 	m0_trace_immediate_mask = mask;
-out:
-	pr_info("Mero trace immediate mask: 0x%lx\n",
-			m0_trace_immediate_mask);
+	pr_info("Mero trace immediate mask: 0x%lx\n", m0_trace_immediate_mask);
 
 	return 0;
 }
+M0_EXPORTED(m0_trace_set_immediate_mask);
 
-static int set_trace_level(void)
+M0_INTERNAL const struct m0_trace_stats *m0_trace_get_stats(void)
 {
-	char *level_str;
+	return &stats;
+}
+M0_EXPORTED(m0_trace_get_stats);
 
-	/* check if argument was specified for 'trace_level' param */
-	if (trace_level == NULL)
-		return 0;
+M0_INTERNAL void m0_trace_stats_update(uint32_t rec_size)
+{
+	static unsigned long prev_jiffies = INITIAL_JIFFIES;
+	static uint64_t      prev_logbuf_pos;
+	static uint64_t      prev_rec_total;
 
-	level_str = kstrdup(trace_level, GFP_KERNEL);
-	if (level_str == NULL)
-		return -ENOMEM;
+	if (prev_jiffies == INITIAL_JIFFIES) {
+		prev_jiffies = jiffies;
+		prev_logbuf_pos = 0;
+		prev_rec_total = 0;
+	}
 
-	m0_trace_level = m0_trace_parse_trace_level(level_str);
-	kfree(level_str);
+	if (rec_size > 0) {
+		m0_atomic64_inc(&stats.trs_rec_total);
+		stats.trs_avg_rec_size = (rec_size + stats.trs_avg_rec_size) / 2;
+		stats.trs_max_rec_size = max(rec_size, stats.trs_max_rec_size);
+	}
 
-	if (m0_trace_level == M0_NONE)
+	if (time_after_eq(jiffies, prev_jiffies + HZ)) {
+		stats.trs_rec_per_sec =
+			m0_atomic64_get(&stats.trs_rec_total) - prev_rec_total;
+		stats.trs_bytes_per_sec =
+			m0_trace_logbuf_pos_get() - prev_logbuf_pos;
+
+		stats.trs_avg_rec_per_sec
+			= (stats.trs_rec_per_sec + stats.trs_avg_rec_per_sec) / 2;
+		stats.trs_avg_bytes_per_sec
+			= (stats.trs_bytes_per_sec + stats.trs_avg_bytes_per_sec) / 2;
+
+		stats.trs_max_rec_per_sec
+			= max(stats.trs_rec_per_sec, stats.trs_max_rec_per_sec);
+		stats.trs_max_bytes_per_sec
+			= max(stats.trs_bytes_per_sec, stats.trs_max_bytes_per_sec);
+
+		prev_jiffies = jiffies;
+		prev_logbuf_pos = m0_trace_logbuf_pos_get();
+		prev_rec_total = m0_atomic64_get(&stats.trs_rec_total);
+	}
+}
+M0_EXPORTED(m0_trace_stats_update);
+
+M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
+{
+	vprintk(fmt, args);
+}
+
+M0_INTERNAL int m0_arch_trace_init(uint32_t default_trace_buf_size)
+{
+	int                   rc;
+	struct m0_trace_area *trace_area;
+
+	m0_atomic64_set(&stats.trs_rec_total, 0);
+
+	rc = m0_trace_set_immediate_mask(trace_immediate_mask);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_trace_set_level(trace_level);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_trace_set_print_context(trace_print_context);
+	if (rc != 0)
+		return rc;
+
+	if (trace_buf_size == 0 || !m0_is_po2(trace_buf_size) ||
+	    trace_buf_size % PAGE_SIZE != 0)
+	{
+		pr_err("mero: incorrect value for trace_buffer_size parameter,"
+		       " it can't be zero, should be a power of 2 and a"
+		       " multiple of PAGE_SIZE value\n");
 		return -EINVAL;
+	}
 
-	pr_info("Mero trace level: %s\n", trace_level);
-
-	return 0;
-}
-
-static int set_trace_print_context(void)
-{
-	enum m0_trace_print_context ctx;
-
-	/* check if argument was specified for 'trace_print_context' param */
-	if (trace_print_context == NULL)
-		return 0;
-
-	ctx = m0_trace_parse_trace_print_context(trace_print_context);
-	if (ctx == M0_TRACE_PCTX_INVALID)
-		return -EINVAL;
-
-	m0_trace_print_context = ctx;
-
-	pr_info("Mero trace print context: %s\n", trace_print_context);
-
-	return 0;
-}
-
-M0_INTERNAL int m0_arch_trace_init(void)
-{
-	int rc;
-
-	rc = set_trace_immediate_mask();
-	if (rc != 0)
-		return rc;
-
-	rc = set_trace_level();
-	if (rc != 0)
-		return rc;
-
-	rc = set_trace_print_context();
-	if (rc != 0)
-		return rc;
-
-	m0_logbuf = vmalloc(m0_logbufsize);
-	if (m0_logbuf == NULL)
+	trace_area = vzalloc(M0_TRACE_BUF_HEADER_SIZE + trace_buf_size);
+	if (trace_area == NULL) {
+		pr_err("mero: failed to allocate %u bytes for trace buffer\n",
+		       trace_buf_size);
 		return -ENOMEM;
+	}
+	m0_logbuf_header = &trace_area->ta_header;
+	m0_logbuf = trace_area->ta_buf;
+	m0_logbufsize = trace_buf_size;
 
-	pr_info("Mero trace buffer address: 0x%p\n", m0_logbuf);
+	m0_trace_buf_header_init();
+
+	pr_info("mero: trace buffer address: 0x%p\n", m0_logbuf);
 
 	return 0;
 }
 
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
-	vfree(m0_logbuf);
+	vfree(m0_logbuf_header);
 }
 
-M0_INTERNAL void m0_console_vprintf(const char *fmt, va_list args)
+M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
 {
-	vprintk(fmt, args);
+	const struct module *m = m0_mero_ko_get_module();
+
+	tbh->tbh_buf_type = M0_TRACE_BUF_KERNEL;
+	tbh->tbh_module_core_addr = m->module_core;
 }
 
 /** @} end of trace group */

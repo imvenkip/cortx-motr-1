@@ -30,6 +30,7 @@
 #include "reqh/reqh_service.h"
 #include "cm/proxy.h"
 #include "ut/ut_rpc_machine.h"
+#include <unistd.h>			/* usleep */
 
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20

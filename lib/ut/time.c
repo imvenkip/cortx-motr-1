@@ -90,7 +90,7 @@ static void time_test_simple(void)
 	t3 = m0_time_add(t1, t2);
 	M0_UT_ASSERT(t3 == 1236487654321);
 
-	t2 = m0_time(0, M0_TIME_ONE_BILLION / 100);
+	t2 = m0_time(0, M0_TIME_ONE_SECOND / 100);
 	rc = m0_nanosleep(t2, &t1);
 	M0_UT_ASSERT(rc == 0);
 

@@ -161,13 +161,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
-	/** @todo Currently passing dbenv to this api, the duty of the
-	    thread doing the io is to create/use a local/embedded m0_dtx
-	    and do m0_db_tx_init() of its m0_db_tx member and then do the
-	    io (invocation of m0_stob_io_launch(), etc) apis. Need to validate
-	    this.
-	 */
-
 	/* for UT specifically */
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);

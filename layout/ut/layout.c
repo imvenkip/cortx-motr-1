@@ -632,6 +632,14 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 			  list_nr_less < LDB_MAX_INLINE_COB_ENTRIES &&
 			  list_nr_more > LDB_MAX_INLINE_COB_ENTRIES));
 
+	/**
+	 * @todo This is a hack to be taken out along with the forthcoming
+	 * patch for the layout module to use xcode and newer BE, with which
+	 * the whole layout test suite will anyway be restructured.
+	 */
+	if (list_nr_more > 50)
+		list_nr_more = 50;
+
 	if (enum_id == LIST_ENUM_ID) {
 		switch (inline_test) {
 		case LESS_THAN_INLINE:
@@ -3628,6 +3636,7 @@ static void test_delete_failure(void)
 
 const struct m0_test_suite layout_ut = {
 	.ts_name  = "layout-ut",
+	.ts_owners = "Trupti",
 	.ts_init  = test_init,
 	.ts_fini  = test_fini,
 	.ts_tests = {

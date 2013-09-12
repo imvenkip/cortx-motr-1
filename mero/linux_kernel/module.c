@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,22 +14,21 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Dima Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 11-Sep-2013
  */
 
-#pragma once
+#include <linux/module.h> /* THIS_MODULE */
 
-#ifndef __MERO_LIB_USER_SPACE_TYPES_H__
-#define __MERO_LIB_USER_SPACE_TYPES_H__
+#include "lib/misc.h"     /* M0_EXPORTED */
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <sys/types.h>
-#include <inttypes.h>   /* PRId64, PRIu64, ... */
 
-/* __MERO_LIB_USER_SPACE_TYPES_H__ */
-#endif
+M0_INTERNAL const struct module *m0_mero_ko_get_module(void)
+{
+	return THIS_MODULE;
+}
+M0_EXPORTED(m0_mero_ko_get_module);
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -38,4 +37,7 @@
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

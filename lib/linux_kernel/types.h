@@ -51,6 +51,12 @@ M0_BASSERT(INT32_MAX > 0);
 M0_BASSERT(INT64_MIN < 0);
 M0_BASSERT(INT64_MAX > 0);
 
+#define PRId64 "lld"
+#define PRIu64 "llu"
+#define PRIi64 "lli"
+#define PRIo64 "llo"
+#define PRIx64 "llx"
+
 /* __MERO_LIB_LINUX_KERNEL_TYPES_H__ */
 #endif
 /*

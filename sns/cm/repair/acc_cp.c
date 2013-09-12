@@ -30,7 +30,7 @@
 
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
-#include "sns/cm/ag.h"
+#include "sns/cm/repair/ag.h"
 #include "sns/cm/cm_utils.h"
 
 /**
@@ -53,8 +53,11 @@ M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp);
 
 static void acc_cp_free(struct m0_cm_cp *cp)
 {
+        struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(cp->c_ag));
+
 	M0_PRE(cp != NULL);
 
+	M0_CNT_INC(rag->rag_acc_freed);
 	m0_cm_cp_buf_release(cp);
 }
 

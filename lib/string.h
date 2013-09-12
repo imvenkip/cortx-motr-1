@@ -34,16 +34,21 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
+
+#define m0_strdup(s)  strdup((s))
 #else
 # include <linux/ctype.h>
 # include <linux/kernel.h>
 # include <linux/string.h>
 
+#define m0_strdup(s)  kstrdup((s), GFP_KERNEL)
+
 static inline char *strerror(int errnum)
 {
 	return "strerror() is not supported in kernel";
 }
-#endif
+#endif /* __KERNEL__ */
+
 #include "lib/types.h"
 
 struct m0_fop_str {
@@ -51,8 +56,7 @@ struct m0_fop_str {
 	uint8_t *s_buf;
 } M0_XCA_SEQUENCE;
 
-/* __MERO_LIB_STRING_H__ */
-#endif
+#endif /* __MERO_LIB_STRING_H__ */
 
 /*
  *  Local variables:

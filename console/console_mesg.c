@@ -18,6 +18,8 @@
  * Original creation date: 09/09/2011
  */
 
+#include <stdio.h>	/* fprintf */
+
 #include "lib/errno.h" /* ENOTSUP */
 #include "lib/misc.h"  /* M0_BITS */
 

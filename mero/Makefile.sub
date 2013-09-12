@@ -17,4 +17,6 @@ EXTRA_DIST += mero/devices.sh  \
               mero/mero-pub.api \
               mero/linux_kernel/dummy_init_fini.c \
               mero/linux_kernel/dummy_init_fini.h \
+              mero/linux_kernel/module.c \
+              mero/linux_kernel/module.h \
               mero/linux_kernel/m0mero_main.c

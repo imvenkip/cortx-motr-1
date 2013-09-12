@@ -1,4 +1,0 @@
-nobase_mero_include_HEADERS += yaml2db/yaml2db.h \
-                                  yaml2db/yaml2db_addb.h
-
-mero_libmero_la_SOURCES  += yaml2db/yaml2db.c

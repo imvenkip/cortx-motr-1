@@ -40,7 +40,8 @@ M0_INTERNAL void m0_table_common_fini(struct m0_table *table);
 M0_INTERNAL bool m0_db_buf_invariant(const struct m0_db_buf *buf);
 M0_INTERNAL void m0_db_buf_init(struct m0_db_buf *buf,
 				enum m0_db_buf_type btype, void *area,
-				uint32_t size);
+				uint32_t size,
+				uint32_t size_max);
 M0_INTERNAL void m0_db_buf_fini(struct m0_db_buf *buf);
 M0_INTERNAL void m0_db_buf_steal(struct m0_db_buf *buf);
 M0_INTERNAL bool m0_db_pair_invariant(const struct m0_db_pair *p);

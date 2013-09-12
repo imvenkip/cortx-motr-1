@@ -369,7 +369,7 @@ m0_confdb_create(const char *dbpath, const struct m0_confx *conf)
 				 &key, sizeof key, db_obj.do_rec.b_addr,
 				 db_obj.do_rec.b_nob);
 
-		rc = m0_table_update(&tx, &pair);
+		rc = m0_table_insert(&tx, &pair);
 
 		m0_db_pair_fini(&pair);
 		m0_buf_free(&db_obj.do_rec);

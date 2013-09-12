@@ -543,7 +543,7 @@ M0_INTERNAL int m0_db_cursor_del(struct m0_db_cursor *cursor)
 	return result;
 }
 
-M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf)
+M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf, uint32_t size_max)
 {
 }
 

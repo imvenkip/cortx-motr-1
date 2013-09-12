@@ -22,7 +22,8 @@ nobase_mero_include_HEADERS += be/alloc.h           \
                                be/tx_group_ondisk_internal.h \
 			       be/tx_internal.h	    \
                                be/tx_regmap.h       \
-                               be/tx_service.h
+                               be/tx_service.h	    \
+			       be/ut/helper.h
 
 mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/be.c        	\
@@ -43,4 +44,5 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/tx_group.c  	\
 			   be/tx_group_ondisk.c \
 			   be/tx_regmap.c 	\
-			   be/tx_service.c
+			   be/tx_service.c	\
+                           be/ut/helper.c

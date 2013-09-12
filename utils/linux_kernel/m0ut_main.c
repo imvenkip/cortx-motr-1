@@ -28,7 +28,7 @@
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Unit Test Module");
-MODULE_LICENSE("proprietary");
+MODULE_LICENSE("GPL"); /* should match license of m0mero.ko module */
 
 /* sort test suites in alphabetic order */
 extern const struct m0_test_suite m0_klibm0_ut; /* test lib first */

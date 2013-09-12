@@ -169,7 +169,6 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
         cm = ag->cag_cm;
         M0_ASSERT(cm != NULL);
         scm = cm2sns(cm);
-	M0_CNT_INC(rag->rag_acc_freed);
 	/**
 	 * Free the aggregation group if this is the last copy packet
 	 * being finalised for a given aggregation group.

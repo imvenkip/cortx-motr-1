@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,22 +14,20 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 08/04/2010
+ * Original author: Dima Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 7-Aug-2013
  */
 
 #pragma once
 
-#ifndef __MERO_LIB_USER_SPACE_TYPES_H__
-#define __MERO_LIB_USER_SPACE_TYPES_H__
+#ifndef __MERO_UTILS_LINUX_KERNEL_CORE_DEBUGFS_H__
+#define __MERO_UTILS_LINUX_KERNEL_CORE_DEBUGFS_H__
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <sys/types.h>
-#include <inttypes.h>   /* PRId64, PRIu64, ... */
+int core_dfs_init(void);
+void core_dfs_cleanup(void);
 
-/* __MERO_LIB_USER_SPACE_TYPES_H__ */
-#endif
+#endif /* __MERO_UTILS_LINUX_KERNEL_CORE_DEBUGFS_H__ */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -38,4 +36,7 @@
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

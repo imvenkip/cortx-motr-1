@@ -415,7 +415,7 @@ static int balloc_format(struct m0_balloc *mero,
 				(unsigned long long)i, rc);
 			break;
 		}
-		if ((i & 0x3ff) == 0) {
+		if ((i & 0x3f) == 0) {
 			if (rc == 0)
 				rc = m0_db_tx_commit(&format_tx);
 			else
@@ -667,7 +667,7 @@ static int balloc_init_internal(struct m0_balloc *mero,
 		}
 		rc = balloc_load_group_info(mero, &init_tx, gi);
 
-		if ((i & 0x3ff) == 0) {
+		if ((i & 0x3f) == 0) {
 			if (rc == 0)
 				rc = m0_db_tx_commit(&init_tx);
 			else

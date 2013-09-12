@@ -23,6 +23,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
 
+#include "lib/string.h"           /* m0_strdup */
 #include "mero/setup.h"           /* cs_args */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
@@ -30,9 +31,6 @@
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "mgmt/mgmt.h"            /* m0_mgmt_conf */
-
-/** @todo use real m0_strdup once it exists */
-#define m0_strdup(x) strdup(x)
 
 /* ----------------------------------------------------------------
  * Mero options
@@ -357,8 +355,6 @@ static void ast_thread_fini(void)
 	m0_thread_join(&g_ast.thread);
 	m0_sm_group_fini(&g_grp);
 }
-
-#undef m0_strdup
 
 #undef M0_TRACE_SUBSYSTEM
 

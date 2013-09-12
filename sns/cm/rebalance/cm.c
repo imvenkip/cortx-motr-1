@@ -70,24 +70,26 @@ static int rebalance_cm_ready(struct m0_cm *cm)
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == SNS_REBALANCE);
 
+        rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				     M0_PNDS_SNS_REBALANCING);
+	if (rc != 0)
+		return rc;
 	scm->sc_helpers = &rebalance_helpers;
-	rc = m0_sns_cm_ready(cm);
-
-	M0_RETURN(rc);
+	return m0_sns_cm_ready(cm);
 }
 
 static int rebalance_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);;
 	int                    rc;
-	enum m0_pool_nd_state  pm_state;
 
 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
 
-	pm_state = M0_PNDS_ONLINE;
-	rc = m0_sns_cm_stop(cm);
-
-	M0_RETURN(rc);
+        rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				     M0_PNDS_ONLINE);
+	if (rc != 0)
+		return rc;
+	return m0_sns_cm_stop(cm);
 }
 
 /**

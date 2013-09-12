@@ -35,7 +35,6 @@
 #include "mero/setup.h"
 #include "net/net.h"
 #include "ioservice/io_device.h"
-#include "pool/pool.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
 #include "cob/ns_iter.h"
@@ -537,37 +536,34 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 	return bnr;
 }
 
-static int pm_event_setup_and_post(struct m0_dbenv *dbenv,
-				   struct m0_poolmach *pm,
-	                           enum m0_pool_event_owner_type et,
-	                           uint32_t oid,
-	                           enum m0_pool_nd_state state)
+M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+					enum m0_pool_event_owner_type et,
+					enum m0_pool_nd_state state)
 {
-	struct m0_pool_event pme;
-	struct m0_db_tx      tx;
-	int                  rc;
+	struct m0_pool_event  pme;
+	struct m0_dbenv      *dbenv = scm->sc_it.si_dbenv;
+	struct m0_db_tx       tx;
+	int                   i;
+	int                   rc = 0;
 
-	rc = m0_db_tx_init(&tx, dbenv, 0);
-	if (rc != 0)
-		return rc;
+	for (i = 0; i < scm->sc_failures_nr; ++i) {
+		rc = m0_db_tx_init(&tx, dbenv, 0);
+		if (rc != 0)
+			return rc;
 
-	M0_SET0(&pme);
-	pme.pe_type  = et;
-	pme.pe_index = oid;
-	pme.pe_state = state;
-	rc = m0_poolmach_state_transit(pm, &pme, &tx);
+		M0_SET0(&pme);
+		pme.pe_type  = et;
+		pme.pe_index = scm->sc_it.si_fdata[i];
+		pme.pe_state = state;
+		rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme, &tx);
+		if (rc == 0)
+			m0_db_tx_commit(&tx);
+		else
+			break;
+			//m0_db_tx_abort(&tx);
+	}
 
-	if (rc == 0)
-		m0_db_tx_commit(&tx);
-	else
-		m0_db_tx_abort(&tx);
 	return rc;
-}
-
-static int pm_state(struct m0_sns_cm *scm)
-{
-	return scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
-					  M0_PNDS_SNS_REBALANCING;
 }
 
 M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
@@ -611,42 +607,23 @@ M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
 M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
-	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
-	enum m0_pool_nd_state  state;
 	int                    rc;
-	int                    i;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
-	state = pm_state(scm);
-	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		rc = pm_event_setup_and_post(dbenv, cm->cm_pm,
-					     M0_POOL_DEVICE,
-					     scm->sc_it.si_fdata[i],
-					     state);
-	}
-
 	rc = m0_sns_cm_iter_start(&scm->sc_it);
+	if (rc == 0)
+		scm->sc_start_time = m0_time_now();
 
-	scm->sc_start_time = m0_time_now();
-	M0_LEAVE();
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);;
-	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
-	enum m0_pool_nd_state  pm_state = 0;
-	int                    i;
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
-	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		pm_event_setup_and_post(dbenv, cm->cm_pm, M0_POOL_DEVICE,
-					scm->sc_it.si_fdata[i], pm_state);
-	}
-
 	scm->sc_failures_nr = 0;
 	scm->sc_stop_time = m0_time_now();
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,

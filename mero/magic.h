@@ -744,6 +744,9 @@ enum m0_magic_satchel {
 	/* m0_trace_descr::td_magic (badass coders) */
 	M0_TRACE_DESCR_MAGIC = 0x33bada55c0de2577,
 
+	/* m0_trace_buf_header::tbh_magic (decoded sorce) */
+	M0_TRACE_BUF_HEADER_MAGIC = 0x33dec0ded502ce77,
+
 /* lib */
 	/* hashlist::hl_magic = invincibilis */
 	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,

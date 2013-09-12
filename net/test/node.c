@@ -758,7 +758,7 @@ static int node_cmd_wait(struct m0_net_test_node_ctx *ctx,
 			 enum m0_net_test_cmd_type type)
 {
 	m0_time_t deadline;
-	const int TIME_ONE_MS = M0_TIME_ONE_BILLION / 1000;
+	const int TIME_ONE_MS = M0_TIME_ONE_SECOND / 1000;
 	int	  rc;
 
 	M0_PRE(ctx != NULL);

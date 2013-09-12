@@ -81,8 +81,8 @@ static m0_time_t double2m0_time_t(double value)
 	uint64_t seconds;
 	uint64_t nanoseconds;
 
-	seconds	    = (uint64_t) floor(value / M0_TIME_ONE_BILLION);
-	nanoseconds = (uint64_t) (value - seconds * M0_TIME_ONE_BILLION);
+	seconds	    = (uint64_t) floor(value / M0_TIME_ONE_SECOND);
+	nanoseconds = (uint64_t) (value - seconds * M0_TIME_ONE_SECOND);
 	return m0_time(seconds, nanoseconds);
 }
 

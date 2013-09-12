@@ -204,7 +204,6 @@ include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
-include $(top_srcdir)/yaml2db/Makefile.sub
 
 #
 # libmero-ut.so
@@ -253,7 +252,6 @@ include $(top_srcdir)/stob/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub
 include $(top_srcdir)/ut/Makefile.sub
 include $(top_srcdir)/xcode/ut/Makefile.sub
-include $(top_srcdir)/yaml2db/ut/Makefile.sub
 
 #
 # libmero-net-test.so
@@ -536,19 +534,6 @@ sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
 include $(top_srcdir)/sns/cm/st/Makefile.sub
 
 #
-# yaml2db/st
-#
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                += yaml2db/st/m0yamltodb
-endif
-yaml2db_st_m0yamltodb_CPPFLAGS  = -DM0_TARGET='m0yamltodb' $(AM_CPPFLAGS)
-yaml2db_st_m0yamltodb_LDADD     = $(top_builddir)/mero/libmero.la \
-                                  $(top_builddir)/ut/libmero-ut.la
-
-include $(top_srcdir)/yaml2db/st/Makefile.sub
-
-#
 # utils/ploss
 #
 
@@ -572,6 +557,9 @@ bin_SCRIPTS                   += utils/trace/m0trace
 
 bin_PROGRAMS                  += utils/trace/m0tracedump
 utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
+
+bin_PROGRAMS                  += utils/trace/m0traced
+utils_trace_m0traced_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/utils/trace/Makefile.sub
 
