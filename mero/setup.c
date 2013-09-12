@@ -1513,7 +1513,6 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 		m0_reqh_shutdown(reqh);
 
 	m0_reqh_dbenv_fini(reqh, false);
-	cs_rpc_machines_fini(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
@@ -1528,6 +1527,7 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
 		m0_reqh_mgmt_service_stop(reqh);
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
+	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 }
 
