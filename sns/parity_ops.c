@@ -25,10 +25,11 @@ M0_INTERNAL void m0_parity_fini(void)
 	galois_calc_tables_release();
 }
 
-M0_INTERNAL void m0_parity_init(void)
+M0_INTERNAL int m0_parity_init(void)
 {
 	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
 	M0_ASSERT(ret == 0);
+	return 0;
 }
 
 /*

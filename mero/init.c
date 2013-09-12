@@ -68,6 +68,7 @@
 #include "mdservice/md_service.h"
 #include "rm/rm_service.h"
 #include "sns/sns.h"
+#include "sns/parity_ops.h"
 #include "cm/cm.h"
 #include "addb/addb_fops.h"
 #include "mgmt/mgmt.h"
@@ -161,6 +162,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
+	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 };
 
 static void fini_nr(int i)

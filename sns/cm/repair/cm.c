@@ -61,23 +61,31 @@ static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
 
 static int repair_cm_ready(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);
+	struct m0_sns_cm *scm = cm2sns(cm);
+	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
+	rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				     M0_PNDS_SNS_REPAIRING);
+	if (rc != 0)
+		return rc;
 	scm->sc_helpers = &repair_helpers;
 	return m0_sns_cm_ready(cm);
 }
 
 static int repair_cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);;
-	enum m0_pool_nd_state  pm_state;
+	struct m0_sns_cm *scm = cm2sns(cm);;
+	int               rc;
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
-	pm_state = M0_PNDS_SNS_REPAIRED;
+	rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				     M0_PNDS_SNS_REPAIRED);
+	if (rc != 0)
+		return rc;
 	return m0_sns_cm_stop(cm);
 }
 

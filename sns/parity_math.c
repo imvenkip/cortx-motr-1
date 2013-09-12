@@ -289,7 +289,6 @@ M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math)
 		m0_matrix_fini(&math->pmi_sys_mat);
 		m0_vector_fini(&math->pmi_sys_vec);
 		m0_vector_fini(&math->pmi_sys_res);
-		m0_parity_fini();
 	}
 }
 
@@ -317,7 +316,6 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
                  * init galois, only first call makes initialisation,
 		 * no de-initialisation needed.
 		 */
-		m0_parity_init();
 
 		ret = vandmat_init(&math->pmi_vandmat, data_count,
 				   parity_count);

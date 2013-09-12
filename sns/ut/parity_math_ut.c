@@ -454,8 +454,6 @@ static void test_matrix_inverse(void)
 	uint32_t	      N;
 	struct mat_collection matrices;
 
-	m0_parity_init();
-
 	for (i = 0; i < 10; ++i) {
 		N = matrix_init(&matrices);
 		m0_identity_matrix_fill(&matrices.mc_identity_mat);
@@ -473,8 +471,6 @@ static void test_matrix_inverse(void)
 		}
 		matrix_fini(&matrices);
 	}
-
-	m0_parity_fini();
 }
 
 static int matrix_init(struct mat_collection *matrices)
