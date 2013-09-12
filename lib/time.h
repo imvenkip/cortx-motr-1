@@ -35,15 +35,18 @@
 
 typedef uint64_t m0_time_t;
 
-enum { M0_TIME_ONE_BILLION = 1000000000ULL };
+enum {
+	M0_TIME_ONE_SECOND = 1000000000ULL,
+	M0_TIME_ONE_MSEC    = M0_TIME_ONE_SECOND / 1000,
+};
 
 /** The largest time that is never reached in system life. */
 extern const m0_time_t M0_TIME_NEVER;
 
-#ifndef __KERNEL__
-#include "lib/user_space/time.h"
+#ifdef __KERNEL__
+#  include "lib/linux_kernel/time.h"
 #else
-#include "lib/linux_kernel/time.h"
+#  include "lib/user_space/time.h"
 #endif
 
 /** Create and return a m0_time_t from seconds and nanoseconds. */
@@ -51,7 +54,7 @@ m0_time_t m0_time(uint64_t secs, long ns);
 
 /** Similar to m0_time(). To be used in initialisers. */
 #define M0_MKTIME(secs, ns) \
-	((m0_time_t)((uint64_t)(secs) * M0_TIME_ONE_BILLION + (uint64_t)(ns)))
+	((m0_time_t)((uint64_t)(secs) * M0_TIME_ONE_SECOND + (uint64_t)(ns)))
 
 /** Get the current time.  This may or may not relate to wall time. */
 m0_time_t m0_time_now(void);
@@ -100,7 +103,6 @@ uint64_t m0_time_nanoseconds(const m0_time_t time);
 bool m0_time_is_in_past(m0_time_t time);
 
 /** @} end of time group */
-
 #endif /* __MERO_LIB_TIME_H__ */
 
 /*

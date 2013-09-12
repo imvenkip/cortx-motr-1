@@ -141,10 +141,9 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 		dir->co_status = M0_CS_READY;
 	} else {
 		/* Restore consistency. */
-		m0_tl_for(m0_conf_dir, &(*out)->cd_items, child) {
-			m0_conf_dir_tlist_del(child);
+		m0_tl_teardown(m0_conf_dir, &(*out)->cd_items, child) {
 			m0_conf_cache_del(cache, child);
-		} m0_tl_endfor;
+		}
 		m0_conf_obj_delete(dir);
 	}
 

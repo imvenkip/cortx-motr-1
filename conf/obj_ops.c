@@ -25,7 +25,6 @@
 #include "conf/cache.h"
 #include "conf/onwire.h"   /* m0_confx_obj */
 #include "conf/buf_ext.h"  /* m0_buf_is_aimed */
-#include "lib/cdefs.h"     /* IS_IN_ARRAY */
 #include "lib/misc.h"      /* M0_IN */
 #include "lib/arith.h"     /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/errno.h"     /* ENOMEM */

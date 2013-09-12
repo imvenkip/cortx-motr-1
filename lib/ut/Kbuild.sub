@@ -4,6 +4,7 @@ m0ut_objects += lib/ut/bitmap.o \
                 lib/ut/chan.o \
                 lib/ut/cookie.o \
                 lib/ut/finject.o \
+                lib/ut/hash.o \
                 lib/ut/list.o \
                 lib/ut/locality.o \
                 lib/ut/lockers.o \

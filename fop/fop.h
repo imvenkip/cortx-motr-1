@@ -24,7 +24,6 @@
 #define __MERO_FOP_FOP_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 #include "lib/list.h"
 #include "lib/refs.h"
 #include "lib/errno.h"

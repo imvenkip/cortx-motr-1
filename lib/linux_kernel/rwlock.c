@@ -19,7 +19,6 @@
  * Original creation date: 12/02/2010
  */
 
-#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/rwlock.h"
 #include "lib/assert.h"
 
@@ -60,7 +59,6 @@ M0_INTERNAL void m0_rwlock_read_unlock(struct m0_rwlock *lock)
 }
 
 /** @} end of rwlock group */
-
 
 /*
  *  Local variables:

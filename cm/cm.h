@@ -288,6 +288,13 @@ struct m0_cm_ops {
 			   struct m0_cm_ag_id *id_next);
 
 	/**
+	 * Returns true if copy machine has enough buffers for all the incoming
+	 * copy packets.
+	 */
+	bool (*cmo_has_space)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
+			      struct m0_layout *l);
+
+	/**
 	 * Initialises the given fop with copy machine specific sliding window
 	 * update fop type and given information.
 	 */
@@ -310,6 +317,7 @@ M0_INTERNAL void m0_cm_type_deregister(struct m0_cm_type *cmt);
  * replica.
  */
 M0_INTERNAL void m0_cm_lock(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_trylock(struct m0_cm *cm);
 
 /** Releases the lock over a copy machine replica. */
 M0_INTERNAL void m0_cm_unlock(struct m0_cm *cm);
@@ -356,6 +364,7 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm);
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 
 M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm);
+M0_INTERNAL bool m0_cm_is_active(struct m0_cm *cm);
 
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"

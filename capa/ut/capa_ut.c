@@ -17,7 +17,6 @@
  * Original creation date: 01/24/2011
  */
 
-#include "lib/cdefs.h"
 #include "lib/types.h"
 #include "ut/ut.h"
 #include "lib/misc.h" /* M0_SET0() */

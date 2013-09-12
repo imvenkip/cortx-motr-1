@@ -1,4 +1,3 @@
-#include "lib/list.h"
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -18,7 +17,9 @@
  *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 04/17/2010
  */
+
 #include "lib/assert.h"
+#include "lib/list.h"
 
 /** @addtogroup list @{ */
 

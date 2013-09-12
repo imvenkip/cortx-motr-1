@@ -25,7 +25,6 @@
 #include <linux/slab.h>
 
 #include "lib/assert.h"
-#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"

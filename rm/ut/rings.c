@@ -93,9 +93,6 @@ static int rings_resource_encode(struct m0_bufvec_cursor     *cur,
 	rings = container_of(resource, struct m0_rings, rs_resource);
 	M0_ASSERT(rings != NULL);
 
-	m0_bufvec_cursor_copyto(cur, (void *)&resource->r_type->rt_id,
-				sizeof resource->r_type->rt_id);
-
 	m0_bufvec_cursor_copyto(cur, (void *)&rings->rs_id,
 				sizeof rings->rs_id);
 	return 0;
@@ -104,8 +101,8 @@ static int rings_resource_encode(struct m0_bufvec_cursor     *cur,
 static int rings_resource_decode(struct m0_bufvec_cursor  *cur,
 				 struct m0_rm_resource   **resource)
 {
-	static uint64_t             res_id;
-	struct m0_rings            *rings;
+	static uint64_t  res_id;
+	struct m0_rings *rings;
 
 	m0_bufvec_cursor_copyfrom(cur, &res_id, sizeof res_id);
 

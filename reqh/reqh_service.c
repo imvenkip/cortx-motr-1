@@ -447,8 +447,7 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL && m0_reqh_service_bob_check(service));
 
-	if (m0_reqh_svc_tlink_is_in(service))
-		m0_reqh_svc_tlist_del(service);
+	m0_reqh_svc_tlist_remove(service);
 	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
 	m0_reqh_svc_tlink_fini(service);

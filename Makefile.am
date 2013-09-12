@@ -172,7 +172,7 @@ include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/objs/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/console/Makefile.sub
+include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/db/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
@@ -194,15 +194,16 @@ include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/rm/Makefile.sub
+include $(top_srcdir)/rm/Makefile.sub
 include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/cm/Makefile.sub
+#XXX_BE_DB include $(top_srcdir)/sns/cm/repair/Makefile.sub
+#XXX_BE_DB include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/yaml2db/Makefile.sub
 
 #
 # libmero-ut.so
@@ -223,7 +224,7 @@ include $(top_srcdir)/be/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/console/ut/Makefile.sub
+include $(top_srcdir)/console/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
@@ -241,17 +242,16 @@ include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/pool/ut/Makefile.sub
 include $(top_srcdir)/reqh/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/rm/ut/Makefile.sub
+include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ub/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sm/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sns/cm/ut/Makefile.sub
+include $(top_srcdir)/sm/ut/Makefile.sub
+#XXX_BE_DB include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/udb/ut/Makefile.sub
 include $(top_srcdir)/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/xcode/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/yaml2db/ut/Makefile.sub
+include $(top_srcdir)/xcode/ut/Makefile.sub
 
 #
 # libmero-net-test.so
@@ -462,135 +462,125 @@ rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.l
 
 include $(top_srcdir)/rpc/it/Makefile.sub
 
-#XXX_BE_DB #
-#XXX_BE_DB # console/st
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS            += console/st/server
-#XXX_BE_DB endif
-#XXX_BE_DB console_st_server_CPPFLAGS  = -DM0_TARGET='console-st-server' $(AM_CPPFLAGS)
-#XXX_BE_DB console_st_server_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                               $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # net/bulk_emulation/st
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS                           += net/bulk_emulation/st/m0bulkping
-#XXX_BE_DB endif
-#XXX_BE_DB net_bulk_emulation_st_m0bulkping_CPPFLAGS  = -DM0_TARGET='m0bulkping' $(AM_CPPFLAGS)
-#XXX_BE_DB net_bulk_emulation_st_m0bulkping_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                              $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # net/lnet/st
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS                 += net/lnet/st/m0lnetping
-#XXX_BE_DB endif
-#XXX_BE_DB net_lnet_st_m0lnetping_CPPFLAGS  = -DM0_TARGET='m0lnetping' $(AM_CPPFLAGS)
-#XXX_BE_DB net_lnet_st_m0lnetping_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                    $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/net/lnet/st/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # net/test
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS                         += net/test/user_space/m0nettest
-#XXX_BE_DB endif
-#XXX_BE_DB net_test_user_space_m0nettest_CPPFLAGS   = -DM0_TARGET='m0nettest' $(AM_CPPFLAGS)
-#XXX_BE_DB net_test_user_space_m0nettest_LDADD      = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                            $(top_builddir)/net/test/libmero-net-test.la
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS                         += net/test/user_space/m0nettestd
-#XXX_BE_DB endif
-#XXX_BE_DB net_test_user_space_m0nettestd_CPPFLAGS  = -DM0_TARGET='m0nettestd' $(AM_CPPFLAGS)
-#XXX_BE_DB net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                            $(top_builddir)/net/test/libmero-net-test.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/net/test/user_space/Makefile.sub
-#XXX_BE_DB
+#
+# console/st
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS            += console/st/server
+endif
+console_st_server_CPPFLAGS  = -DM0_TARGET='console-st-server' $(AM_CPPFLAGS)
+console_st_server_LDADD     = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
+
+#
+# net/bulk_emulation/st
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS                           += net/bulk_emulation/st/m0bulkping
+endif
+net_bulk_emulation_st_m0bulkping_CPPFLAGS  = -DM0_TARGET='m0bulkping' $(AM_CPPFLAGS)
+net_bulk_emulation_st_m0bulkping_LDADD     = $(top_builddir)/mero/libmero.la \
+                                             $(top_builddir)/ut/libmero-ut.la
+
+include $(top_srcdir)/net/bulk_emulation/st/Makefile.sub
+
+#
+# net/lnet/st
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS                 += net/lnet/st/m0lnetping
+endif
+net_lnet_st_m0lnetping_CPPFLAGS  = -DM0_TARGET='m0lnetping' $(AM_CPPFLAGS)
+net_lnet_st_m0lnetping_LDADD     = $(top_builddir)/mero/libmero.la \
+                                   $(top_builddir)/ut/libmero-ut.la
+
+
+include $(top_srcdir)/net/lnet/st/Makefile.sub
+
+#
+# net/test
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS                         += net/test/user_space/m0nettest
+endif
+net_test_user_space_m0nettest_CPPFLAGS   = -DM0_TARGET='m0nettest' $(AM_CPPFLAGS)
+net_test_user_space_m0nettest_LDADD      = $(top_builddir)/mero/libmero.la \
+                                           $(top_builddir)/net/test/libmero-net-test.la
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS                         += net/test/user_space/m0nettestd
+endif
+net_test_user_space_m0nettestd_CPPFLAGS  = -DM0_TARGET='m0nettestd' $(AM_CPPFLAGS)
+net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
+                                           $(top_builddir)/net/test/libmero-net-test.la
+
+include $(top_srcdir)/net/test/user_space/Makefile.sub
+
 #XXX_BE_DB #
 #XXX_BE_DB # sns/cm/st
 #XXX_BE_DB #
-#XXX_BE_DB
+#XXX_BE_DB 
 #XXX_BE_DB if ENABLE_UNIT_TESTS
 #XXX_BE_DB noinst_PROGRAMS             += sns/cm/st/m0repair
 #XXX_BE_DB endif
 #XXX_BE_DB sns_cm_st_m0repair_CPPFLAGS  = -DM0_TARGET='m0repair' $(AM_CPPFLAGS)
 #XXX_BE_DB sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
 #XXX_BE_DB                                $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
+#XXX_BE_DB 
 #XXX_BE_DB include $(top_srcdir)/sns/cm/st/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # yaml2db/st
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS                += yaml2db/st/m0yamltodb
-#XXX_BE_DB endif
-#XXX_BE_DB yaml2db_st_m0yamltodb_CPPFLAGS  = -DM0_TARGET='m0yamltodb' $(AM_CPPFLAGS)
-#XXX_BE_DB yaml2db_st_m0yamltodb_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                   $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/yaml2db/st/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # utils/ploss
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS               += utils/ploss/m0plossd
-#XXX_BE_DB endif
-#XXX_BE_DB utils_ploss_m0plossd_CPPFLAGS  = -DM0_TARGET='m0plossd' $(AM_CPPFLAGS)
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS               += utils/ploss/m0ploss
-#XXX_BE_DB endif
-#XXX_BE_DB utils_ploss_m0ploss_CPPFLAGS   = -DM0_TARGET='m0ploss' $(AM_CPPFLAGS)
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/utils/ploss/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # utils/trace
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB bin_SCRIPTS                   += utils/trace/m0trace
-#XXX_BE_DB
-#XXX_BE_DB bin_PROGRAMS                  += utils/trace/m0tracedump
-#XXX_BE_DB utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/utils/trace/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # m0t1fs/linux_kernel/st
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB
-#XXX_BE_DB ################################################################################
-#XXX_BE_DB #                               Public utilities
-#XXX_BE_DB ################################################################################
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # mero/m0d
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB bin_PROGRAMS     += mero/m0d
-#XXX_BE_DB mero_m0d_CPPFLAGS  = -DM0_TARGET='m0d' $(AM_CPPFLAGS)
-#XXX_BE_DB mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la
+#XXX_BE_DB 
+#
+# utils/ploss
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS               += utils/ploss/m0plossd
+endif
+utils_ploss_m0plossd_CPPFLAGS  = -DM0_TARGET='m0plossd' $(AM_CPPFLAGS)
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS               += utils/ploss/m0ploss
+endif
+utils_ploss_m0ploss_CPPFLAGS   = -DM0_TARGET='m0ploss' $(AM_CPPFLAGS)
+
+include $(top_srcdir)/utils/ploss/Makefile.sub
+
+#
+# utils/trace
+#
+
+bin_SCRIPTS                   += utils/trace/m0trace
+
+bin_PROGRAMS                  += utils/trace/m0tracedump
+utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
+
+bin_PROGRAMS                  += utils/trace/m0traced
+utils_trace_m0traced_LDADD     = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/utils/trace/Makefile.sub
+
+#
+# m0t1fs/linux_kernel/st
+#
+
+include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
+
+
+################################################################################
+#                               Public utilities
+################################################################################
+
+#
+# mero/m0d
+#
+
+bin_PROGRAMS     += mero/m0d
+mero_m0d_CPPFLAGS  = -DM0_TARGET='m0d' $(AM_CPPFLAGS)
+mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
 # mero/m0d-altogether
@@ -1040,6 +1030,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               fid/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \
+              fop/ut/Kbuild.sub \
               ha/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
@@ -1064,6 +1055,8 @@ EXTRA_DIST += addb/Kbuild.sub \
               pool/Kbuild.sub \
               reqh/Kbuild.sub \
               reqh/ut/Kbuild.sub \
+              rm/Kbuild.sub \
+              rm/ut/Kbuild.sub \
               rpc/Kbuild.sub \
               rpc/it/Kbuild.sub \
               rpc/ut/Kbuild.sub \

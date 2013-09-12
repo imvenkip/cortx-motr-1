@@ -372,10 +372,10 @@ static void bsize_print(const char *descr,
 
 static double avg_total(m0_time_t diff_t, double msg_nr)
 {
-	unsigned long diff = m0_time_seconds(diff_t) * M0_TIME_ONE_BILLION +
+	unsigned long diff = m0_time_seconds(diff_t) * M0_TIME_ONE_SECOND +
 			     m0_time_nanoseconds(diff_t);
 
-	return diff == 0 ? 0. : msg_nr * M0_TIME_ONE_BILLION / diff;
+	return diff == 0 ? 0. : msg_nr * M0_TIME_ONE_SECOND / diff;
 }
 
 static void print_status_data(struct m0_net_test_console_ctx *ctx)
@@ -413,7 +413,7 @@ static void print_status_data(struct m0_net_test_console_ctx *ctx)
 	bsize_print(" total in: ", ctx, total_i);
 
 	rtt_t = m0_net_test_stats_avg(&sd->ntcsd_rtt);
-	rtt = m0_time_seconds(rtt_t) * M0_TIME_ONE_BILLION +
+	rtt = m0_time_seconds(rtt_t) * M0_TIME_ONE_SECOND +
 	      m0_time_nanoseconds(rtt_t);
 	m0_net_test_u_printf(" avg RTT: % 10.3f us", rtt / 1000.);
 

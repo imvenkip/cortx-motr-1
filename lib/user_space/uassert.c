@@ -18,37 +18,27 @@
  * Original creation date: 31-Jan-2013
  */
 
-
-/**
- * @addtogroup assert
- *
- * @{
- */
-
-#include <stdio.h>  /* fprintf, fflush */
-#include <stdlib.h> /* abort */
-#include <unistd.h> /* fork, execvp */
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
 
 #ifdef HAVE_BACKTRACE
 #  include <execinfo.h>
 #endif
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
-#include "lib/trace.h"
+#include <stdio.h>       /* fprintf, fflush */
+#include <stdlib.h>      /* abort */
+#include <unistd.h>      /* fork, execvp */
 #include "lib/errno.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"
+#include "lib/misc.h"    /* ARRAY_SIZE */
 
 /**
-   @addtogroup assert
+ * @addtogroup assert
+ *
+ * User space m0_arch_panic() implementation.
+ * @{
+ */
 
-   User space m0_arch_panic() implementation.
-   @{
-*/
-
-enum {
-	BACKTRACE_DEPTH_MAX = 256
-};
+enum { BACKTRACE_DEPTH_MAX = 256 };
 
 M0_EXTERN char *m0_debugger_args[4];
 
@@ -101,9 +91,8 @@ void m0_arch_panic(const char *expr, const char *func,
 	abort();
 }
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} end of assert group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

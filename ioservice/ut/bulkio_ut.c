@@ -614,9 +614,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
                  * - put stob object
                  * - leave FOM block
                  */
-                saved_stobio_desc = stobio_tlist_head(&fom_obj->fcrw_stio_list);
+                saved_stobio_desc = stobio_tlist_pop(&fom_obj->fcrw_stio_list);
                 M0_UT_ASSERT(saved_stobio_desc != NULL);
-                stobio_tlist_del(saved_stobio_desc);
 
 		fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
 		m0_fi_enable_once("io_finish", "fake_error");
@@ -895,9 +894,8 @@ static int check_read_fom_tick(struct m0_fom *fom)
                  * - put stob object
                  * - leave FOM block
                  */
-                saved_stobio_desc = stobio_tlist_head(&fom_obj->fcrw_stio_list);
+                saved_stobio_desc = stobio_tlist_pop(&fom_obj->fcrw_stio_list);
                 M0_UT_ASSERT(saved_stobio_desc != NULL);
-                stobio_tlist_del(saved_stobio_desc);
 
                 fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
 		m0_fi_enable_once("io_finish", "fake_error");

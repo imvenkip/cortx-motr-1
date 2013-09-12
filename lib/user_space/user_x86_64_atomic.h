@@ -24,7 +24,6 @@
 #define __MERO_LIB_USER_X86_64_ATOMIC_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 #include "lib/assert.h"
 
 /**
@@ -173,11 +172,8 @@ static inline void m0_mb(void)
 	asm volatile("mfence":::"memory");
 }
 
-
 /** @} end of atomic group */
-
-/* __MERO_LIB_USER_X86_64_ATOMIC_H__ */
-#endif
+#endif /* __MERO_LIB_USER_X86_64_ATOMIC_H__ */
 
 /*
  *  Local variables:

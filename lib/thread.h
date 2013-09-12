@@ -24,13 +24,12 @@
 #ifndef __MERO_LIB_THREAD_H__
 #define __MERO_LIB_THREAD_H__
 
-#include "cdefs.h"
-#include "semaphore.h"
+#include "lib/semaphore.h"
 
 #ifndef __KERNEL__
-#include "user_space/thread.h"
+#include "lib/user_space/thread.h"
 #else
-#include "linux_kernel/thread.h"
+#include "lib/linux_kernel/thread.h"
 #endif
 
 /* platform-specific headers above must define struct m0_thread_handle */

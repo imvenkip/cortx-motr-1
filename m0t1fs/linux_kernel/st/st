@@ -31,6 +31,7 @@ export_lnet_nid_endpoints() {
     export IOS0_ENDPOINT="$LNET_NID:12345:34:1"
     export IOS1_ENDPOINT="$LNET_NID:12345:34:2"
     export MDS_ENDPOINT="$IOS0_ENDPOINT"
+    export RMS_ENDPOINT="$IOS0_ENDPOINT"
     export CONFD_ENDPOINT="$IOS0_ENDPOINT"
 }
 
@@ -105,13 +106,14 @@ services_start() {
     local MODE="${1:-}"
 
     local CONF="`cat <<EOF
-[8:
+[9:
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
               [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
                   "unit_size=4096"],
-              [2: "mds", "ios"])}),
+              [3: "mds", "dlm", "ios"])}),
   ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
+  ("dlm", {3| (4, [1: "$RMS_ENDPOINT"], "node-0")}),
   ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")}),
 
   ("prof-ac", {1| ("fs-1")}),
@@ -164,10 +166,11 @@ _mount() {
     [ "$fault" = bad_fs_params ] && FS_PARAMS='[1: "bad_param"]'
 
     local CONF="`cat <<EOF
-[4:
+[5:
   ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22), $FS_PARAMS, [2: "mds", "ios"])}),
+  ("fs", {2| ((11, 22), $FS_PARAMS, [3: "mds", "dlm", "ios"])}),
   ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
+  ("dlm", {3| (4, [1: "$RMS_ENDPOINT"], "node-0")}),
   ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")})]
 EOF`"
 

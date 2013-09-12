@@ -17,14 +17,12 @@
  * Original creation date: 10/19/2010
  */
 
-
-#include "lib/cdefs.h"
-#include "lib/assert.h"
-#include "lib/types.h"
-#include "lib/errno.h" /* EDOM */
-
 #include "sns/parity_ops.h"
 #include "sns/ls_solve.h"
+#include "lib/assert.h"
+#include "lib/types.h"
+#include "lib/errno.h"  /* EDOM */
+#include "lib/misc.h"   /* NULL */
 
 M0_INTERNAL void m0_linsys_init(struct m0_linsys *lynsys,
 				struct m0_matrix *m,
@@ -32,7 +30,8 @@ M0_INTERNAL void m0_linsys_init(struct m0_linsys *lynsys,
 {
 	M0_PRE(m != NULL && v != NULL && r != NULL);
 	M0_PRE(m->m_height > 0 && m->m_width > 0);
-	M0_PRE(m->m_width == m->m_height && r->v_size == v->v_size && v->v_size == m->m_width);
+	M0_PRE(m->m_width == m->m_height && r->v_size == v->v_size &&
+	       v->v_size == m->m_width);
 
 	lynsys->l_mat = m;
 	lynsys->l_res = r;

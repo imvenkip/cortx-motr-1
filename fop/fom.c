@@ -27,7 +27,6 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
-#include "lib/cdefs.h" /* ergo */
 #include "db/db_common.h"
 #include "addb/addb.h"
 #include "mero/magic.h"
@@ -351,6 +350,7 @@ M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
 
 M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
 {
+#if 0
 	struct m0_fom_locality *loc;
 	struct m0_loc_thread   *thr;
 
@@ -389,10 +389,12 @@ M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
 	loc->fl_handler = NULL;
 	M0_ASSERT(m0_locality_invariant(loc));
 	group_unlock(loc);
+#endif
 }
 
 M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 {
+#if 0
 	struct m0_fom_locality *loc;
 	struct m0_loc_thread   *thr;
 
@@ -419,6 +421,7 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	thr->lt_state = HANDLER;
 	m0_atomic64_dec(&loc->fl_unblocking);
 	M0_ASSERT(m0_locality_invariant(loc));
+#endif
 }
 
 M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
@@ -571,18 +574,15 @@ static void fom_exec(struct m0_fom *fom)
  */
 static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 {
-	struct m0_fom  *fom;
+	struct m0_fom *fom;
 
-	fom = runq_tlist_head(&loc->fl_runq);
-	if (fom == NULL)
-		return NULL;
-
-	runq_tlist_del(fom);
-	M0_CNT_DEC(loc->fl_runq_nr);
-
-	m0_addb_counter_update(&loc->fl_stat_sched_wait_times, /* ~usec */
-		m0_time_sub(m0_time_now(), fom->fo_sched_epoch) >> 10);
-
+	fom = runq_tlist_pop(&loc->fl_runq);
+	if (fom != NULL) {
+		M0_CNT_DEC(loc->fl_runq_nr);
+		m0_addb_counter_update(&loc->fl_stat_sched_wait_times,
+				       m0_time_sub(m0_time_now(), /* ~usec */
+						   fom->fo_sched_epoch) >> 10);
+	}
 	return fom;
 }
 
@@ -954,9 +954,7 @@ void m0_fom_fini(struct m0_fom *fom)
 	struct m0_reqh         *reqh;
 
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
-#if XXX_USE_DB5
-        M0_PRE(!m0_db_tx_is_active(&fom->fo_tx.tx_dbtx));
-#endif
+	M0_PRE(fom->fo_pending == NULL);
 
 	loc  = fom->fo_loc;
 	reqh = loc->fl_dom->fd_reqh;

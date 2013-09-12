@@ -34,6 +34,8 @@
 #include "lib/misc.h"        /* M0_SET_ARR0 */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
+#include "utils/linux_kernel/m0ctl_internal.h"
+#include "utils/linux_kernel/finject_debugfs.h"
 
 
 /**
@@ -88,12 +90,9 @@
  * @endverbatim
  */
 
-extern struct dentry  *dfs_root_dir;
-extern const char     dfs_root_name[];
-
-static struct dentry  *fi_stat_file;
-static struct dentry  *fi_ctl_file;
-static bool           fi_ctl_is_opened = false;
+static struct dentry  *fi_dir;
+static const char      fi_dir_name[] = "finject";
+static bool            fi_ctl_is_opened = false;
 
 
 static void *fi_stat_start(struct seq_file *seq, loff_t *pos)
@@ -357,34 +356,48 @@ static const struct file_operations fi_ctl_fops = {
 
 int fi_dfs_init(void)
 {
-	static const char fi_stat_name[]  = "finject_stat";
-	static const char fi_ctl_name[]   = "finject_ctl";
+	struct dentry     *stat_file;
+	static const char  stat_name[] = "stat";
+	struct dentry     *ctl_file;
+	static const char  ctl_name[] = "ctl";
+	int                rc = 0;
 
-	fi_stat_file = debugfs_create_file(fi_stat_name, S_IRUGO, dfs_root_dir,
-					   NULL, &fi_stat_fops);
-	if (fi_stat_file == NULL) {
-		pr_err("Failed to create debugfs file '%s/%s'\n",
-			dfs_root_name, fi_stat_name);
-		return -EPERM;
+	fi_dir = debugfs_create_dir(fi_dir_name, dfs_root_dir);
+	if (fi_dir == NULL) {
+		pr_err(KBUILD_MODNAME ": can't create debugfs dir '%s/%s'\n",
+		       dfs_root_name, fi_dir_name);
+		rc = -EPERM;
+		goto out;
 	}
 
-	fi_ctl_file = debugfs_create_file(fi_ctl_name, S_IWUSR, dfs_root_dir,
-					  NULL, &fi_ctl_fops);
-	if (fi_ctl_file == NULL) {
-		pr_err("Failed to create debugfs file '%s/%s'\n",
-			dfs_root_name, fi_ctl_name);
-		debugfs_remove(fi_stat_file);
-		return -EPERM;
+	stat_file = debugfs_create_file(stat_name, S_IRUSR, fi_dir, NULL,
+					&fi_stat_fops);
+	if (stat_file == NULL) {
+		pr_err(KBUILD_MODNAME ": failed to create debugfs file"
+			" '%s/%s/%s'\n", dfs_root_name, fi_dir_name, stat_name);
+		rc = -EPERM;
+		goto err;
 	}
 
-	return 0;
+	ctl_file = debugfs_create_file(ctl_name, S_IWUSR, fi_dir, NULL,
+				       &fi_ctl_fops);
+	if (ctl_file == NULL) {
+		pr_err(KBUILD_MODNAME ": failed to create debugfs file"
+			" '%s/%s/%s'\n", dfs_root_name, fi_dir_name, ctl_name);
+		rc = -EPERM;
+		goto err;
+	}
+out:
+	return rc;
+err:
+	debugfs_remove_recursive(fi_dir);
+	fi_dir = NULL;
+	return rc;
 }
 
 void fi_dfs_cleanup(void)
 {
-	debugfs_remove(fi_ctl_file);
-	debugfs_remove(fi_stat_file);
-	fi_stat_file = 0;
+	debugfs_remove_recursive(fi_dir);
 }
 
 /** @} end of m0ctl group */

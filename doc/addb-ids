@@ -51,8 +51,6 @@ value          enum                    variable  name              file
 600-699                                                            layout/layout_addb.h
    600 M0_ADDB_CTXID_LAYOUT_MOD	       m0_addb_ct_layout_mod
    601 M0_ADDB_CTXID_LAYOUT_OBJ	       m0_addb_ct_layout_obj
-700-799                                                            yaml2db/yaml2db_addb.h
-   700 M0_ADDB_CTXID_YAML2DB_MOD       m0_addb_ct_yaml2db_mod
 800-899                                                            mdstore/mdstore_addb.h
    800 M0_ADDB_CTXID_MDSTORE_MOD       m0_addb_ct_mdstore_mod
 900-999                                                            cm/cm_addb.h
@@ -147,7 +145,6 @@ value            enum                 variable name         file
    509 M0T1FS_ADDB_RECID_DGIOR_TIMES     m0_addb_rt_m0t1fs_dgior_times
    510 M0T1FS_ADDB_RECID_DGIOW_TIMES     m0_addb_rt_m0t1fs_dgiow_times
 600-699                                                            layout/layout_addb.h
-700-799                                                            yaml2db/yaml2db_addb.h
 800-899                                                            mdstore/mdstore_addb.h
 900-999                                                            cm/cm_addb.h
 1000-1099							   rpc/rpc_addb.h

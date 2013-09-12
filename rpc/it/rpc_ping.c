@@ -50,6 +50,7 @@
 #  include <stdlib.h>
 #  include <stdio.h>
 #  include <string.h>
+#  include <unistd.h>		/* read */
 #  ifdef HAVE_NETINET_IN_H
 #    include <netinet/in.h>
 #  endif
@@ -386,7 +387,7 @@ static int run_client(void)
 		printf("Time: %lu.%2.2lu sec\n",
 		       (unsigned long)m0_time_seconds(delta),
 		       (unsigned long)m0_time_nanoseconds(delta) *
-		       100 / M0_TIME_ONE_BILLION);
+		       100 / M0_TIME_ONE_SECOND);
 net_dom_fini:
 	m0_net_domain_fini(&client_net_dom);
 xprt_fini:

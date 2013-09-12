@@ -30,8 +30,8 @@
 #define M0_PARITY_GALOIS_W (8)
 typedef int m0_parity_elem_t;
 
+M0_INTERNAL int m0_parity_init(void);
 M0_INTERNAL void m0_parity_fini(void);
-M0_INTERNAL void m0_parity_init(void);
 
 static inline m0_parity_elem_t m0_parity_add(m0_parity_elem_t x, m0_parity_elem_t y)
 {

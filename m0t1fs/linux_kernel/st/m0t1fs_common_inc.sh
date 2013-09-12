@@ -24,8 +24,7 @@ MERO_MODULE=m0mero
 # kernel space tracing parameters
 MERO_MODULE_TRACE_MASK='!all'
 MERO_TRACE_PRINT_CONTEXT=short
-MERO_TRACE_LEVEL=call+
-
+MERO_TRACE_LEVEL='call+'
 
 #user-space tracing parameters
 export M0_TRACE_IMMEDIATE_MASK='!all' # put your subsystem here
@@ -37,7 +36,9 @@ MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 MERO_ADDBSERVICE_NAME=addb
 MERO_IOSERVICE_NAME=ioservice
 MERO_MDSERVICE_NAME=mdservice
-MERO_CMSERVICE_NAME=sns_cm
+MERO_SNSREPAIRSERVICE_NAME=sns_repair
+MERO_SNSREBALANCESERVICE_NAME=sns_rebalance
+MERO_RMSERVICE_NAME=rmservice
 MERO_STOB_DOMAIN=linux
 
 PREPARE_STORAGE="-p"
@@ -56,7 +57,7 @@ EP=(
     12345:33:102   # IOS1 EP
     12345:33:103   # IOS2 EP
     12345:33:104   # IOS3 EP
-    12345:33:105   # IOS4 EP
+#    12345:33:105   # IOS4 EP
 )
 
 SNS_CLI_EP="12345:33:301"

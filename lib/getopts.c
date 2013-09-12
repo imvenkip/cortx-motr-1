@@ -21,22 +21,19 @@
 #include "lib/getopts.h"
 
 #ifdef __KERNEL__
-#include <linux/kernel.h>	/* simple_strtoull */
-#include <linux/string.h>	/* strchr */
+#  include <linux/kernel.h>     /* simple_strtoull */
 #else
-#include <stdlib.h>		/* strtoull */
-#include <string.h>		/* strchr */
+#  include <stdlib.h>           /* strtoull */
 #endif
-
-#include "lib/errno.h"		/* EINVAL */
-#include "lib/cdefs.h"		/* ARRAY_SIZE */
-#include "lib/assert.h"		/* M0_CASSSERT */
-#include "lib/types.h"		/* UINT64_MAX */
+#include "lib/misc.h"           /* strchr */
+#include "lib/errno.h"          /* EINVAL */
+#include "lib/assert.h"         /* M0_CASSSERT */
+#include "lib/types.h"          /* UINT64_MAX */
 
 #ifdef __KERNEL__
-#define STRTOULL	simple_strtoull
+#  define STRTOULL simple_strtoull
 #else
-#define STRTOULL	strtoull
+#  define STRTOULL strtoull
 #endif
 
 const char M0_GETOPTS_DECIMAL_POINT = '.';

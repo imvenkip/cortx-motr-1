@@ -24,7 +24,7 @@
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "ut/ut.h"
 
-void m0_be_ut_dict(void)
+void m0_be_ut_seg_dict(void)
 {
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_ut_seg     ut_seg;

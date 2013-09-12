@@ -53,6 +53,9 @@ struct m0_be_btree {
 	const struct m0_be_btree_kv_ops *bb_ops;
 };
 
+struct m0_table;
+struct m0_table_ops;
+
 /** Btree operations vector. */
 struct m0_be_btree_kv_ops {
 	/** Size of key.  XXX RENAMEME? s/ko_ksize/ko_key_size/ */
@@ -71,6 +74,9 @@ struct m0_be_btree_kv_ops {
 	 * XXX RENAMEME? s/ko_compare/ko_key_cmp/
 	 */
 	int         (*ko_compare)(const void *key0, const void *key1);
+
+	struct m0_table	    *ko_table;
+	const struct m0_table_ops *ko_table_ops;
 };
 
 /**

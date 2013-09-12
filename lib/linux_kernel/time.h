@@ -17,14 +17,13 @@
  * Original author: Nathan Rutman <Nathan_Rutman@xyratex.com>
  * Original creation date: 12/06/2010
  */
-
 #pragma once
-
 #ifndef __MERO_LIB_LINUX_KERNEL_TIME_H__
 #define __MERO_LIB_LINUX_KERNEL_TIME_H__
 
-/* __MERO_LIB_LINUX_KERNEL_TIME_H__ */
-#endif
+#include <linux/time.h>
+
+#endif /* __MERO_LIB_LINUX_KERNEL_TIME_H__ */
 
 /*
  *  Local variables:

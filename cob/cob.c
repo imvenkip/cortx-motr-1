@@ -41,7 +41,6 @@
 	M0_COB_KEY_LOG(logger, fmt, key, cnk_pfid, cnk_name, ## __VA_ARGS__)
 
 #include "lib/misc.h"   /* M0_SET0 */
-#include "lib/cdefs.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -1547,7 +1546,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 	struct m0_cob_fabkey  fabkey;
 	struct m0_buf         key;
 	struct m0_buf         val;
-	int rc;
+	int                   rc = 0;
 
 	M0_PRE(m0_cob_is_valid(cob));
 	M0_PRE(cob->co_flags & M0_CA_NSKEY);
@@ -1929,7 +1928,6 @@ M0_INTERNAL void m0_cob_ea_iterator_init_credit(struct m0_cob *cob,
 }
 
 /** @} end group cob */
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

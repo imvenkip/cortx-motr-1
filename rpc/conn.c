@@ -820,11 +820,10 @@ static void deregister_all_item_sources(struct m0_rpc_conn *conn)
 
 	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
 
-	m0_tl_for(item_source, &conn->c_item_sources, source) {
-		item_source_tlist_del(source);
+	m0_tl_teardown(item_source, &conn->c_item_sources, source) {
 		source->ris_conn = NULL;
 		source->ris_ops->riso_conn_terminating(source);
-	} m0_tl_endfor;
+	}
 }
 
 M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)

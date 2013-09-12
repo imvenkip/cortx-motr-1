@@ -698,7 +698,6 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		gi->bgi_groupno = i;
 
 		rc = balloc_load_group_info(bal, gi);
-
 		if (rc != 0)
 			goto out;
 

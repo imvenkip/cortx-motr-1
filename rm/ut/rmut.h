@@ -56,6 +56,16 @@ enum rr_tests {
 	TEST_NR,
 };
 
+enum flock_tests {
+	/* Test the locking on a lock client */
+	LOCK_ON_CLIENT_TEST = 0,
+	/* Test the locking on a lock server */
+	LOCK_ON_SERVER_TEST,
+	/* Test the distributed locking */
+	DISTRIBUTED_LOCK_TEST,
+	LOCK_TESTS_NR,
+};
+
 /* Forward declaration */
 struct rm_ut_data;
 

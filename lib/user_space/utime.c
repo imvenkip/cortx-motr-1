@@ -23,7 +23,6 @@
 #include "lib/time.h"	/* m0_time_t */
 
 #include "lib/assert.h" /* M0_ASSERT */
-#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/misc.h"	/* M0_IN */
 #include "lib/errno.h"	/* ENOSYS */
 
@@ -155,7 +154,6 @@ int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
 	return rc;
 }
 M0_EXPORTED(m0_nanosleep);
-
 
 /** @} end of time group */
 

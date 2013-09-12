@@ -122,8 +122,7 @@ M0_INTERNAL void m0_arch_backtrace(void);
    @see M0_CASSERT()
  */
 
-#define M0_BASSERT(cond)			\
-	extern char __static_assertion[(cond) ? 1 : -1]
+#define M0_BASSERT(cond) extern char __static_assertion[(cond) ? 1 : -1]
 
 /**
    A macro indicating that computation reached an invalid state.

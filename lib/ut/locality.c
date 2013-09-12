@@ -37,8 +37,8 @@ static struct m0_semaphore  sem[NR];
 static struct m0_sm_ast     ast[NR];
 static struct m0_fol        fol;
 static struct m0_reqh       reqh;
-static struct m0_fom_simple s;
-
+static struct m0_fom_simple s[NR];
+static struct m0_atomic64   hoarded;
 
 static void _reqh_init(void)
 {
@@ -72,20 +72,95 @@ static void _cb0(struct m0_sm_group *grp, struct m0_sm_ast *a)
 	m0_semaphore_up(&sem[idx]);
 }
 
-static int simple_tick(struct m0_fom *fom, int x, int *substate)
+static int simple_tick(struct m0_fom *fom, int *x, int *__unused)
 {
 	static int expected = 0;
 
-	M0_UT_ASSERT(x == X_VALUE);
-	M0_UT_ASSERT(*substate == expected);
+	M0_UT_ASSERT(*x == expected);
 
-	expected++;
-	if ((*substate)++ < NR)
+	++expected;
+	if (++*x < NR)
 		return M0_FSO_AGAIN;
 	else {
 		m0_semaphore_up(&sem[0]);
 		return -1;
 	}
+}
+
+enum {
+	SEMISIMPLE_S0 = M0_FOM_PHASE_FINISH + 1,
+	SEMISIMPLE_S1,
+	SEMISIMPLE_S2,
+};
+
+static struct m0_sm_state_descr semisimple_phases[] = {
+	[M0_FOM_PHASE_INIT] = {
+		.sd_name      = "init",
+		.sd_allowed   = M0_BITS(SEMISIMPLE_S0),
+		.sd_flags     = M0_SDF_INITIAL
+	},
+	[SEMISIMPLE_S0] = {
+		.sd_name      = "ss0",
+		.sd_allowed   = M0_BITS(SEMISIMPLE_S1)
+	},
+	[SEMISIMPLE_S1] = {
+		.sd_name      = "ss1",
+		.sd_allowed   = M0_BITS(SEMISIMPLE_S1, SEMISIMPLE_S2)
+	},
+	[SEMISIMPLE_S2] = {
+		.sd_name      = "ss2",
+		.sd_allowed   = M0_BITS(M0_FOM_PHASE_FINISH)
+	},
+	[M0_FOM_PHASE_FINISH] = {
+		.sd_name      = "done",
+		.sd_flags     = M0_SDF_TERMINAL
+	}
+};
+
+static struct m0_sm_conf semisimple_conf = {
+	.scf_name      = "semisimple fom phases",
+	.scf_nr_states = ARRAY_SIZE(semisimple_phases),
+	.scf_state     = semisimple_phases
+};
+
+static int semisimple_tick(struct m0_fom *fom, int *x, int *phase)
+{
+	switch (*phase) {
+	case M0_FOM_PHASE_INIT:
+		M0_UT_ASSERT(*x == NR);
+		*phase = SEMISIMPLE_S0;
+		return M0_FSO_AGAIN;
+	case SEMISIMPLE_S0:
+		M0_UT_ASSERT(*x == NR);
+		*phase = SEMISIMPLE_S1;
+		--*x;
+		m0_semaphore_up(&sem[0]);
+		return M0_FSO_WAIT;
+	case SEMISIMPLE_S1:
+		M0_UT_ASSERT(*x < NR);
+		*phase = --*x == 0 ? SEMISIMPLE_S2 : SEMISIMPLE_S1;
+		return M0_FSO_AGAIN;
+	case SEMISIMPLE_S2:
+		M0_UT_ASSERT(*x == 0);
+		m0_semaphore_up(&sem[0]);
+		return -1;
+	default:
+		M0_UT_ASSERT(0);
+		return -1;
+	}
+}
+
+static int cat_tick(struct m0_fom *fom, void *null, int *__unused)
+{
+	struct m0_fom_simple *whisker = container_of(fom, struct m0_fom_simple,
+						     si_fom);
+	int idx = whisker->si_locality;
+	M0_UT_ASSERT(null == NULL);
+	M0_UT_ASSERT(IS_IN_ARRAY(idx, sem));
+	M0_UT_ASSERT(whisker == &s[idx]);
+	m0_atomic64_inc(&hoarded);
+	m0_semaphore_up(&sem[idx]);
+	return -1;
 }
 
 void test_locality(void)
@@ -94,6 +169,7 @@ void test_locality(void)
 	struct m0_bitmap     online;
 	int                  result;
 	size_t               here;
+	int                  nr;
 
 	m0_mutex_init(&lock);
 	_reqh_init();
@@ -124,14 +200,27 @@ void test_locality(void)
 	M0_UT_ASSERT(m0_forall(j, ARRAY_SIZE(core),
 			       (core[j] != 0) == (j < online.b_nr &&
 						  m0_bitmap_get(&online, j))));
-
-	M0_FOM_SIMPLE_POST(&s, &reqh, &simple_tick, X_VALUE, 1);
+	nr = 0;
+	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &simple_tick, &nr, 1);
 	m0_semaphore_down(&sem[0]);
-	M0_UT_ASSERT(s.si_substate == NR + 1);
-
+	M0_UT_ASSERT(nr == NR);
+	m0_reqh_fom_domain_idle_wait(&reqh);
+	M0_SET0(&s[0]);
+	M0_FOM_SIMPLE_POST(&s[0], &reqh, &semisimple_conf,
+			   &semisimple_tick, &nr, M0_FOM_SIMPLE_HERE);
+	m0_semaphore_down(&sem[0]);
+	m0_fom_wakeup(&s[0].si_fom);
+	m0_semaphore_down(&sem[0]);
+	M0_UT_ASSERT(nr == 0);
+	m0_reqh_fom_domain_idle_wait(&reqh);
+	M0_SET0(&s[0]);
+	m0_atomic64_set(&hoarded, 0);
+	m0_fom_simple_hoard(s, ARRAY_SIZE(s), &reqh, NULL, &cat_tick, NULL);
+	for (i = 0; i < ARRAY_SIZE(sem); ++i)
+		m0_semaphore_down(&sem[i]);
+	M0_UT_ASSERT(m0_atomic64_get(&hoarded) == NR);
 	for (i = 0; i < ARRAY_SIZE(sem); ++i)
 		m0_semaphore_fini(&sem[i]);
-
 	m0_bitmap_fini(&online);
 	_reqh_fini();
 	m0_mutex_fini(&lock);

@@ -23,6 +23,7 @@
 #ifndef __MERO_DTM_DTM_H__
 #define __MERO_DTM_DTM_H__
 
+#include "db/db.h"
 #include "be/be.h"
 #include "fol/fol.h"
 
@@ -50,6 +51,7 @@ struct m0_dtx {
 	   @todo placeholder for now.
 	 */
 	enum m0_dtx_state  tx_state;
+	struct m0_db_tx    tx_dbtx;
 	struct m0_be_tx    tx_betx;
 	struct m0_be_tx_credit tx_betx_cred;
 	struct m0_fol_rec  tx_fol_rec;

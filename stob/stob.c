@@ -26,14 +26,14 @@
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "stob/stob_addb.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
+
 #include "lib/misc.h"   /* M0_SET0 */
-#include "lib/cdefs.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
-#include "lib/trace.h"
 
 #include "stob/stob.h"
 #include "stob/stob_id_xc.h"
@@ -430,7 +430,6 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 }
 
 /** @} end group stob */
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

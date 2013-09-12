@@ -76,39 +76,67 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		cm = m0_cmsvc2cm(service);
 		if (cm == NULL)
 			return -EINVAL;
-		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] [%lu] [%lu]",
 		       swo_fop->swo_base.swo_cm_ep.ep,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_hi,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_lo,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_hi,
-		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo);
-		m0_cm_lock(cm);
-		if (m0_cm_is_ready(cm) && (m0_cm_has_more_data(cm) ||
-					   cm->cm_aggr_grps_out_nr > 0)) {
+		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo,
+		       cm->cm_aggr_grps_in_nr,
+		       cm->cm_aggr_grps_out_nr);
+		/*
+		 * We do this check purposefully outside the cm lock to avoid
+		 * a dead lock situation on the cm lock while stopping the
+		 * operation.
+		 * Situation:
+		 * 1) m0_cm_stop() is called with m0_cm_lock() held.
+		 * 2) m0_cm_stop() invokes m0_cm_proxy_fini() for each
+		 *    m0_cm_proxy. This tries to terminate the rpc connections
+		 *    and sessions of the proxy with the corresponding remote
+		 *    replica.
+		 * 3) Now if sw_onwire_fom is in process at the same time, it'll
+		 *    have to wait for the m0_cm_lock(). This will cause the
+		 *    termination of rpc connection to wait as it tries to prune
+		 *    the rpc items list, and one of the references taken on the
+		 *    sw_onwire_fop are held by this FOM, which is not release
+		 *    until the FOM is finalised. This causes the deadlock.
+		 * We can afford to check this outside the lock as,
+		 * 1) Same request handler locality is assigned to all the
+		 *    sw_onwire FOMs.
+		 * 2) Even if we miss an update, its okay as we'll receive
+		 *    another update shortly.
+		 */
+		if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0 ||
+		    cm->cm_ready_fops_recvd < cm->cm_proxy_nr) {
 			ep = swo_fop->swo_base.swo_cm_ep.ep;
-			cm_proxy = m0_cm_proxy_locate(cm, ep);
-			M0_ASSERT(cm_proxy != NULL);
-			M0_LOG(M0_DEBUG, "proxy hi: [%lu] [%lu] [%lu] [%lu]",
-			       cm_proxy->px_sw.sw_hi.ai_hi.u_hi,
-			       cm_proxy->px_sw.sw_hi.ai_hi.u_lo,
-			       cm_proxy->px_sw.sw_hi.ai_lo.u_hi,
-			       cm_proxy->px_sw.sw_hi.ai_lo.u_lo);
+			m0_cm_lock(cm);
+			if (m0_cm_is_ready(cm) || m0_cm_is_active(cm)) {
+				cm_proxy = m0_cm_proxy_locate(cm, ep);
+				M0_ASSERT(cm_proxy != NULL);
+				M0_LOG(M0_DEBUG, "proxy hi: [%lu] [%lu] [%lu] [%lu]",
+				       cm_proxy->px_sw.sw_hi.ai_hi.u_hi,
+				       cm_proxy->px_sw.sw_hi.ai_hi.u_lo,
+				       cm_proxy->px_sw.sw_hi.ai_lo.u_hi,
+				       cm_proxy->px_sw.sw_hi.ai_lo.u_lo);
 
-			if (m0_cm_ag_id_cmp(&swo_fop->swo_base.swo_sw.sw_hi,
-					    &cm_proxy->px_sw.sw_hi) > 0) {
-				m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
-						   &swo_fop->swo_base.swo_sw.sw_hi);
+				if (m0_cm_ag_id_cmp(&swo_fop->swo_base.swo_sw.sw_hi,
+						    &cm_proxy->px_sw.sw_hi) > 0) {
+					m0_cm_proxy_update(cm_proxy, &swo_fop->swo_base.swo_sw.sw_lo,
+							   &swo_fop->swo_base.swo_sw.sw_hi);
+				}
+				M0_CNT_INC(cm->cm_ready_fops_recvd);
 			}
-			M0_CNT_INC(cm->cm_ready_fops_recvd);
 			M0_LOG(M0_DEBUG, "got ready fop from %s: %d out of %d",
 					 swo_fop->swo_base.swo_cm_ep.ep,
 					 (int)cm->cm_ready_fops_recvd,
-					 (int)m0_cm_proxy_nr(cm));
+					 (int)cm->cm_proxy_nr);
 			/* This check is for the READY phase completion only. */
-			if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr)
+			if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr) {
+				M0_LOG(M0_DEBUG, "Ready done");
 				cm->cm_ops->cmo_complete(cm);
+			}
+			m0_cm_unlock(cm);
 		}
-		m0_cm_unlock(cm);
 		m0_fom_phase_set(fom, SWOPH_FINI);
 		break;
 	default:

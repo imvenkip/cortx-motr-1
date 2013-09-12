@@ -61,8 +61,7 @@ static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 		}
 
 		srv->ns_active++;
-		rpc = rpc_tlist_head(&srv->ns_queue);
-		rpc_tlist_del(rpc);
+		rpc = rpc_tlist_pop(&srv->ns_queue);
 		count = rpc->nr_todo;
 		dev = rpc->nr_id.si_bits.u_hi % srv->ns_nr_devices;
 		obj = rpc->nr_id.si_bits.u_lo;

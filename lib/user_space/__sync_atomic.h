@@ -24,7 +24,6 @@
 #define __MERO_LIB___SYNC_ATOMIC_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 #include "lib/assert.h"
 
 /**
@@ -159,7 +158,6 @@ PREFIX void m0_mb(void)
 }
 
 /** @} end of atomic group */
-
 #endif /* __MERO_LIB___SYNC_ATOMIC_H__ */
 
 /*

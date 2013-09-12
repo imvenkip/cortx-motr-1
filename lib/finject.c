@@ -183,11 +183,10 @@ static void fi_dynamic_ids_fini(void)
 {
 	struct fi_dynamic_id *entry;
 
-	m0_tlist_for(&fi_dynamic_ids_tl, &fi_dynamic_ids, entry) {
-		m0_tlist_del(&fi_dynamic_ids_tl, entry);
+	m0_tl_teardown(fi_dynamic_ids, &fi_dynamic_ids, entry) {
 		m0_free(entry->fdi_str);
 		m0_free(entry);
-	} m0_tlist_endfor;
+	}
 
 	m0_tlist_fini(&fi_dynamic_ids_tl, &fi_dynamic_ids);
 }

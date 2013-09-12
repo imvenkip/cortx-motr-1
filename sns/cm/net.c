@@ -110,6 +110,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 
         sns_cp->sc_sid.si_bits.u_hi = sns_cpx->scx_sid.f_container;
         sns_cp->sc_sid.si_bits.u_lo = sns_cpx->scx_sid.f_key;
+	sns_cp->sc_cobfid = sns_cpx->scx_sid;
 
         sns_cp->sc_index =
                 sns_cpx->scx_ivecs.cis_ivecs[0].ci_iosegs[0].ci_index;
@@ -242,7 +243,7 @@ static void cp_fop_release(struct m0_ref *ref)
 	m0_free(cp_fop);
 }
 
-M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 {
         struct m0_sns_cm_cp    *sns_cp;
         struct m0_sns_cpx      *sns_cpx;
@@ -271,7 +272,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp)
 	}
         sns_cp = cp2snscp(cp);
         fop = &cp_fop->cf_fop;
-        m0_fop_init(fop, &m0_sns_cpx_fopt, NULL, cp_fop_release);
+        m0_fop_init(fop, ft, NULL, cp_fop_release);
         rc = m0_fop_data_alloc(fop);
         if (rc  != 0) {
 		m0_fop_fini(fop);
@@ -336,9 +337,9 @@ out:
                 if (&cp->c_bulk != NULL)
                         m0_rpc_bulk_buflist_empty(&cp->c_bulk);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-        } else {
-                m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_SEND_WAIT);
-        }
+        } else
+		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_SEND_WAIT);
+
         return M0_FSO_WAIT;
 }
 
@@ -354,8 +355,7 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 
 	scp = cp2snscp(cp);
 	ep = cp->c_cm_proxy->px_conn.c_rpcchan->rc_destep;
-        m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
-        return M0_FSO_WAIT;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 M0_INTERNAL void m0_sns_cm_buf_available(struct m0_net_buffer_pool *pool)
@@ -440,12 +440,13 @@ out:
         if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_RECV_INIT);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
+		return M0_FSO_WAIT;
 	} else
-                m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_RECV_WAIT);
-        return M0_FSO_WAIT;
+		return cp->c_ops->co_phase_next(cp);
 }
 
-M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
+M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
+				       struct m0_fop_type *ft)
 {
         struct m0_rpc_bulk      *rbulk;
         struct m0_fop           *fop;
@@ -465,7 +466,7 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
                 m0_fom_phase_move(&cp->c_fom, rbulk->rb_rc, M0_FOPH_FAILURE);
         m0_mutex_unlock(&rbulk->rb_mutex);
 
-        fop = m0_fop_alloc(&m0_sns_cpx_reply_fopt, NULL);
+        fop = m0_fop_alloc(ft, NULL);
         if (fop == NULL) {
                 rc = -ENOMEM;
                 goto out;
@@ -514,10 +515,9 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	} else
 		cm_proxy = cp->c_cm_proxy;
 
-	if (m0_cm_proxy_agid_is_in_sw(cm_proxy, &cp->c_ag->cag_id)) {
-		m0_fom_phase_set(&cp->c_fom, M0_CCP_SEND);
-		rc = M0_FSO_AGAIN;
-	} else {
+	if (m0_cm_proxy_agid_is_in_sw(cm_proxy, &cp->c_ag->cag_id))
+		rc = cp->c_ops->co_phase_next(cp);
+	else {
 		m0_cm_proxy_cp_add(cm_proxy, cp);
 		rc = M0_FSO_WAIT;
 	}

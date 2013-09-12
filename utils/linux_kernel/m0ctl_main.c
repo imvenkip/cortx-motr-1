@@ -24,7 +24,10 @@
 #include <linux/debugfs.h>     /* debugfs_create_dir */
 #include <linux/kernel.h>      /* pr_err */
 
-#include "finject_debugfs.h"   /* fi_dfs_init */
+#include "utils/linux_kernel/m0ctl_internal.h"
+#include "utils/linux_kernel/finject_debugfs.h"   /* fi_dfs_init */
+#include "utils/linux_kernel/trace_debugfs.h"     /* trc_dfs_init */
+#include "utils/linux_kernel/core_debugfs.h"      /* core_dfs_init */
 
 /**
  * @defgroup m0ctl Mero Kernel-space Control
@@ -41,31 +44,47 @@
 
 
 struct dentry  *dfs_root_dir;
-const char     dfs_root_name[] = "mero";
+const char      dfs_root_name[] = "mero";
 
 int dfs_init(void)
 {
 	int rc;
 
+	pr_info(KBUILD_MODNAME ": init\n");
+
 	/* create mero's main debugfs directory */
 	dfs_root_dir = debugfs_create_dir(dfs_root_name, NULL);
 	if (dfs_root_dir == NULL) {
-		pr_err("Can't create debugfs dir '%s'\n", dfs_root_name);
+		pr_err(KBUILD_MODNAME ": failed to create debugfs dir '%s'\n",
+		       dfs_root_name);
 		return -EPERM;
 	}
 
 	rc = fi_dfs_init();
-	if (rc != 0) {
-		debugfs_remove_recursive(dfs_root_dir);
-		dfs_root_dir = 0;
-		return rc;
-	}
+	if (rc != 0)
+		goto err;
+
+	rc = trc_dfs_init();
+	if (rc != 0)
+		goto err;
+
+	rc = core_dfs_init();
+	if (rc != 0)
+		goto err;
 
 	return 0;
+err:
+	debugfs_remove_recursive(dfs_root_dir);
+	dfs_root_dir = 0;
+	return rc;
 }
 
 void dfs_cleanup(void)
 {
+	pr_info(KBUILD_MODNAME ": cleanup\n");
+
+	core_dfs_cleanup();
+	trc_dfs_cleanup();
 	fi_dfs_cleanup();
 
 	/*

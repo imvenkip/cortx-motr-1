@@ -195,6 +195,15 @@ enum m0_magic_satchel {
         /* pargrp_iomap::pi_magic (incandescent) */
         M0_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
 
+	/* m0t1fs_services_tl::mss_magic (baseless bass) */
+	M0_T1FS_SERVICE_MAGIC = 0x33ba5e1e55ba5577,
+
+	/* m0t1fs_services_tl::td_head_magic (seize sicilia) */
+	M0_T1FS_SERVICE_HEAD_MAGIC =0x335e12e51c111a77,
+
+	/* hashbucket::hb_tioreqs::td_head_magic = desirability */
+	M0_T1FS_TLIST_HEAD_MAGIC = 0x33de512ab1111777,
+
 /* Configuration */
 	/* m0_conf_cache::ca_registry::t_magic (fabled feodal) */
 	M0_CONF_CACHE_MAGIC = 0x33fab1edfe0da177,
@@ -736,6 +745,13 @@ enum m0_magic_satchel {
 
 	/* m0_trace_descr::td_magic (badass coders) */
 	M0_TRACE_DESCR_MAGIC = 0x33bada55c0de2577,
+
+	/* m0_trace_buf_header::tbh_magic (decoded sorce) */
+	M0_TRACE_BUF_HEADER_MAGIC = 0x33dec0ded502ce77,
+
+/* lib */
+	/* hashlist::hl_magic = invincibilis */
+	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

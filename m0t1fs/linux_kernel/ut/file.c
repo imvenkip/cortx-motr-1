@@ -32,7 +32,6 @@
 #include "m0t1fs/linux_kernel/file.c"
 
 #include "ut/ut.h"     /* m0_test_suite */
-#include "lib/cdefs.h"  /* M0_EXPORTED */
 #include "lib/chan.h"   /* m0_chan */
 #include "lib/vec.h"    /* m0_indexvec */
 #include "fid/fid.h"    /* m0_fid */
@@ -85,6 +84,8 @@ static struct m0_layout_linear_attr  llattr;
 static struct file                   lfile;
 static struct m0t1fs_service_context ctx;
 static struct m0_poolmach            poolmach;
+static struct m0_rm_remote           creditor;
+static struct m0t1fs_service_context msc;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
@@ -97,11 +98,12 @@ static int file_io_ut_init(void)
 
         M0_SET0(&sb);
         M0_SET0(&csb);
-	sb.s_fs_info = &csb;
+	M0_SET0(&creditor);
         m0_sm_group_init(&csb.csb_iogroup);
-        csb.csb_active = true;
+	sb.s_fs_info          = &csb;
+        csb.csb_active        = true;
 	csb.csb_nr_containers = LAY_P + 1;
-	csb.csb_pool_width = LAY_P;
+	csb.csb_pool_width    = LAY_P;
         m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
         io_bob_tlists_init();
@@ -139,6 +141,9 @@ static int file_io_ut_init(void)
                 .f_key       = FID_KEY,
         };
         ci.ci_layout_id = csb.csb_layout_id;
+	csb.csb_cl_map.clm_map[csb.csb_nr_containers] = &msc;
+	m0t1fs_file_lock_init(&ci, &csb);
+
 	lay = m0_pdl_to_layout(pdlay);
 	M0_ASSERT(lay != NULL);
 
@@ -179,7 +184,8 @@ static void ds_test(void)
 	struct m0_rpc_session session;
 
 	M0_SET0(&req);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
+			       &m0t1fs_addb_ctx, 0);
         M0_UT_ASSERT(rc == 0);
 
         for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
@@ -281,6 +287,7 @@ static void ds_test(void)
 	/* io_req_fop attributes test. */
 	M0_ALLOC_PTR(irfop);
 	M0_UT_ASSERT(irfop != NULL);
+	ioreq_sm_state_set(&req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(&req, IRS_READING);
 	rc = io_req_fop_init(irfop, &ti, PA_DATA);
 	M0_UT_ASSERT(rc == 0);
@@ -341,6 +348,7 @@ static void ds_test(void)
 	ioreq_sm_state_set(&req, IRS_REQ_COMPLETE);
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
+	M0_UT_ASSERT(tioreqht_htable_is_empty(&req.ir_nwxfer.nxr_tioreqs_hash));
 	io_request_fini(&req);
 	M0_UT_ASSERT(req.ir_file   == NULL);
 	M0_UT_ASSERT(req.ir_iovec  == NULL);
@@ -348,7 +356,6 @@ static void ds_test(void)
 	M0_UT_ASSERT(req.ir_ops    == NULL);
 	M0_UT_ASSERT(req.ir_ivec.iv_index       == NULL);
 	M0_UT_ASSERT(req.ir_ivec.iv_vec.v_count == NULL);
-	M0_UT_ASSERT(tioreqs_tlist_is_empty(&req.ir_nwxfer.nxr_tioreqs));
 
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_ops == NULL);
 	M0_UT_ASSERT(req.ir_nwxfer.nxr_magic == 0);
@@ -375,7 +382,8 @@ static void pargrp_iomap_test(void)
 	struct pargrp_iomap     map;
 	struct pargrp_iomap_ops piops;
 
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
+			       &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
@@ -536,6 +544,11 @@ static void pargrp_iomap_test(void)
 	M0_UT_ASSERT(map.pi_databufs[1][2]->db_flags & PA_READ);
 	M0_UT_ASSERT(map.pi_databufs[2][2] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[2][2]->db_flags & PA_READ);
+
+	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	req.ir_nwxfer.nxr_bytes = 1;
+	io_request_fini(&req);
 }
 
 static void helpers_test(void)
@@ -594,7 +607,8 @@ static void nw_xfer_ops_test(void)
 	M0_SET0(&req);
 	M0_SET0(&src);
 	M0_SET0(&tgt);
-	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), &m0t1fs_addb_ctx, 0);
+	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
+			       &m0t1fs_addb_ctx, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	index = 0;
@@ -623,8 +637,8 @@ static void nw_xfer_ops_test(void)
 	/* Test for nw_xfer_tioreq_map. */
 	rc = nw_xfer_tioreq_map(&req.ir_nwxfer, &src, &tgt, &ti);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_tlist_length(&tioreqs_tl,
-				&req.ir_nwxfer.nxr_tioreqs) == 1);
+	M0_UT_ASSERT(!tioreqht_htable_is_empty(&req.ir_nwxfer.
+				nxr_tioreqs_hash));
 	M0_UT_ASSERT(ti->ti_ivec.iv_index != NULL);
 	M0_UT_ASSERT(ti->ti_ivec.iv_vec.v_count != NULL);
 	M0_UT_ASSERT(ti->ti_bufvec.ov_vec.v_count != NULL);
@@ -634,8 +648,9 @@ static void nw_xfer_ops_test(void)
 	/* Test for nw_xfer_io_distribute. */
 	rc = nw_xfer_io_distribute(&req.ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(tioreqs_tlist_length(&req.ir_nwxfer.nxr_tioreqs) == LAY_P);
-	m0_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti) {
+	M0_UT_ASSERT(tioreqht_htable_size(&req.ir_nwxfer.nxr_tioreqs_hash) ==
+			LAY_P);
+	m0_htable_for(tioreqht, ti, &req.ir_nwxfer.nxr_tioreqs_hash) {
 		M0_UT_ASSERT(ti->ti_nwxfer == &req.ir_nwxfer);
 		M0_UT_ASSERT(ti->ti_ops != NULL);
 
@@ -645,11 +660,11 @@ static void nw_xfer_ops_test(void)
 			M0_UT_ASSERT(ti->ti_ivec.iv_vec.v_count[cnt] ==
 				     PAGE_CACHE_SIZE);
 		}
-	} m0_tl_endfor;
+	} m0_htable_endfor;
 
-	m0_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti1) {
-		tioreqs_tlist_del(ti1);
-	} m0_tl_endfor;
+	m0_htable_for(tioreqht, ti1, &req.ir_nwxfer.nxr_tioreqs_hash) {
+		tioreqht_htable_del(&req.ir_nwxfer.nxr_tioreqs_hash, ti1);
+	} m0_htable_endfor;
 
 	ioreq_iomaps_destroy(&req);
 	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
@@ -661,6 +676,7 @@ static void nw_xfer_ops_test(void)
 
 static int file_io_ut_fini(void)
 {
+	m0t1fs_file_lock_fini(&ci);
 	m0_free(lfile.f_dentry);
 	m0_layout_instance_fini(ci.ci_layout_instance);
 
@@ -708,8 +724,8 @@ static void target_ioreq_test(void)
 	aligned_buf = m0_alloc_aligned(M0_0VEC_ALIGN, M0_0VEC_SHIFT);
 
         io_request_bob_init(&req);
-        nw_xfer_request_init(&req.ir_nwxfer);
 	req.ir_file = &lfile;
+        nw_xfer_request_init(&req.ir_nwxfer);
 
 	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, size);
 	M0_UT_ASSERT(rc == 0);
@@ -736,14 +752,13 @@ static void target_ioreq_test(void)
 			m0_rpc_session_get_max_item_payload_size(&session));
 	} m0_tl_endfor;
 
-	m0_tl_for(iofops, &ti.ti_iofops, irfop) {
+	m0_tl_teardown(iofops, &ti.ti_iofops, irfop) {
 		struct m0_io_fop *iofop = &irfop->irf_iofop;
 
-                iofops_tlist_del(irfop);
                 irfop_fini(irfop);
 		m0_io_fop_fini(iofop);
 		M0_CNT_DEC(req.ir_nwxfer.nxr_iofop_nr);
-	} m0_tl_endfor;
+	}
 
 	/* Checks allocation failure. */
 
@@ -837,6 +852,7 @@ static void dgmode_readio_test(void)
 	uint32_t                    row;
 	uint32_t                    col;
 	uint64_t                    pgcur = 0;
+	uint64_t                    key;
 	struct iovec                iovec_arr[DGMODE_IOVEC_NR];
 	struct m0_fop              *reply;
 	struct io_request          *req;
@@ -883,8 +899,10 @@ static void dgmode_readio_test(void)
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
 
+	ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(req, IRS_READING);
-	ti = tioreqs_tlist_head(&req->ir_nwxfer.nxr_tioreqs);
+	key = 1;
+	ti = tioreqht_htable_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, &key);
 
 	/*
 	 * Fake data structure members so that UT passes through

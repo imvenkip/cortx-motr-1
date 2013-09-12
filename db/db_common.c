@@ -18,11 +18,11 @@
  * Original creation date: 08/13/2010
  */
 
-#include "lib/adt.h"   /* m0_buf */
 #include "lib/misc.h"  /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/arith.h"		/* max_check */
 
 #include "mero/magic.h"
 #include "db/db.h"
@@ -40,7 +40,7 @@ M0_TL_DESCR_DEFINE(txw, "tx waiters", M0_INTERNAL, struct m0_db_tx_waiter,
 		   0xd1550c1ab1ea11ce /* dissociable alice  */);
 
 
-M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf);
+M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf, uint32_t size_max);
 M0_INTERNAL void m0_db_buf_impl_fini(struct m0_db_buf *buf);
 M0_INTERNAL bool m0_db_buf_impl_invariant(const struct m0_db_buf *buf);
 
@@ -80,18 +80,19 @@ M0_INTERNAL bool m0_db_buf_invariant(const struct m0_db_buf *buf)
 		/* in-place buffers are not yet supported */
 		buf->db_type != DBT_INPLACE &&
 		(buf->db_buf.b_addr != NULL) == (buf->db_buf.b_nob > 0) &&
-		ergo(buf->db_static, buf->db_buf.b_nob > 0) &&
+		/* ergo(buf->db_static, buf->db_buf.b_nob > 0) && */
 		m0_db_buf_impl_invariant(buf);
 }
 
 M0_INTERNAL void m0_db_buf_init(struct m0_db_buf *buf,
 				enum m0_db_buf_type btype, void *area,
-				uint32_t size)
+				uint32_t size,
+				uint32_t size_max)
 {
 	buf->db_type = btype;
 	buf->db_buf.b_addr = area;
 	buf->db_buf.b_nob  = size;
-	m0_db_buf_impl_init(buf);
+	m0_db_buf_impl_init(buf, size_max);
 	M0_ASSERT(m0_db_buf_invariant(buf));
 }
 
@@ -99,10 +100,11 @@ M0_INTERNAL void m0_db_buf_fini(struct m0_db_buf *buf)
 {
 	M0_ASSERT(m0_db_buf_invariant(buf));
 	m0_db_buf_impl_fini(buf);
-	if (!buf->db_static) {
-		m0_free(buf->db_buf.b_addr);
-		buf->db_buf.b_addr = NULL;
-	}
+	/* XXX */
+	/* if (!buf->db_static) { */
+	/* 	m0_free(buf->db_buf.b_addr); */
+	/* 	buf->db_buf.b_addr = NULL; */
+	/* } */
 }
 
 M0_INTERNAL void m0_db_buf_steal(struct m0_db_buf *buf)
@@ -125,23 +127,33 @@ M0_INTERNAL void m0_db_pair_setup(struct m0_db_pair *pair,
 				  uint32_t keysize, void *recbuf,
 				  uint32_t recsize)
 {
+	uint32_t keysize_max = table->t_ops->to[TO_KEY].max_size;
+	uint32_t recsize_max = table->t_ops->to[TO_REC].max_size;
+
 	M0_PRE((keybuf != NULL) == (keysize > 0));
 	M0_PRE((recbuf != NULL) == (recsize > 0));
 
 	M0_SET0(pair);
 	pair->dp_table = table;
 
+	keysize_max = max_check(keysize_max, keysize + 4);
+	recsize_max = max_check(recsize_max, recsize + 4);
+
 	if (keybuf != NULL) {
-		m0_db_buf_init(&pair->dp_key, DBT_COPYOUT, keybuf, keysize);
+		m0_db_buf_init(&pair->dp_key, DBT_COPYOUT, keybuf, keysize,
+			       keysize_max);
 		pair->dp_key.db_static = true;
 	} else
-		m0_db_buf_init(&pair->dp_key, DBT_ALLOC, NULL, 0);
+		m0_db_buf_init(&pair->dp_key, DBT_ALLOC, NULL, 0,
+			       keysize_max);
 
 	if (recbuf != NULL) {
-		m0_db_buf_init(&pair->dp_rec, DBT_COPYOUT, recbuf, recsize);
+		m0_db_buf_init(&pair->dp_rec, DBT_COPYOUT, recbuf, recsize,
+			       recsize_max);
 		pair->dp_rec.db_static = true;
 	} else
-		m0_db_buf_init(&pair->dp_rec, DBT_ALLOC, NULL, 0);
+		m0_db_buf_init(&pair->dp_rec, DBT_ALLOC, NULL, 0,
+			       recsize_max);
 	M0_POST(m0_db_pair_invariant(pair));
 }
 

@@ -44,16 +44,6 @@ extern const struct m0_rm_resource_type_ops file_lock_type_ops;
  * SERVER_2 is upward creditor for SERVER_1.
  */
 
-enum flock_tests {
-	/* Test the locking on a lock client */
-	LOCK_ON_CLIENT_TEST = 0,
-	/* Test the locking on a lock server */
-	LOCK_ON_SERVER_TEST,
-	/* Test the distributed locking */
-	DISTRIBUTED_LOCK_TEST,
-	LOCK_TESTS_NR,
-};
-
 enum {
 	CLNT_THR_NR = 10,
 	SRV_THR_NR = 10
@@ -71,27 +61,12 @@ static struct m0_chan flock_tests_chan;
 static struct m0_clink tests_clink[LOCK_TESTS_NR];
 static struct m0_mutex flock_tests_chan_mutex;
 
-static void fl_rtype_set(struct rm_ut_data *self)
-{
-	int rc;
-
-	rc = m0_file_lock_type_register(&self->rd_dom);
-	M0_UT_ASSERT(rc == 0);
-	self->rd_rt = self->rd_dom.rd_types[M0_RM_FLOCK_RT];
-}
-
-static void fl_rtype_unset(struct rm_ut_data *self)
-{
-	m0_file_lock_type_deregister(&self->rd_dom);
-	self->rd_rt = NULL;
-}
-
 /*
  * m0_file_lock_type_register registers a single type
  * This test needs two object hierarchies. Hence we need one more file type
  * object.
  */
-static void fl_client_rtype_set(struct rm_ut_data *self)
+static void fl_rtype_set(struct rm_ut_data *self)
 {
 	struct m0_rm_resource_type *rt;
 	int			    rc;
@@ -105,7 +80,7 @@ static void fl_client_rtype_set(struct rm_ut_data *self)
 	self->rd_rt = rt;
 }
 
-static void fl_client_rtype_unset(struct rm_ut_data *self)
+static void fl_rtype_unset(struct rm_ut_data *self)
 {
 	m0_rm_type_deregister(self->rd_rt);
 	m0_free(self->rd_rt);
@@ -176,8 +151,8 @@ const static struct rm_ut_data_ops fl_srv_ut_data_ops = {
 };
 
 const static struct rm_ut_data_ops fl_client_ut_data_ops = {
-	.rtype_set = fl_client_rtype_set,
-	.rtype_unset = fl_client_rtype_unset,
+	.rtype_set = fl_rtype_set,
+	.rtype_unset = fl_rtype_unset,
 	.resource_set = fl_res_set,
 	.resource_unset = fl_res_unset,
 	.owner_set = fl_owner_set,
@@ -185,7 +160,7 @@ const static struct rm_ut_data_ops fl_client_ut_data_ops = {
 	.credit_datum_set = fl_datum_set
 };
 
-static void flock_client_utdata_ops_set(struct rm_ut_data *data)
+void flock_client_utdata_ops_set(struct rm_ut_data *data)
 {
 	data->rd_ops = &fl_client_ut_data_ops;
 }
@@ -239,10 +214,12 @@ static void wait_lock(enum rm_server srv_id)
 	m0_file_unlock(in);
 }
 
-static void test_verify(enum flock_tests test_id)
+void test_verify(enum flock_tests test_id)
 {
 	struct m0_rm_owner *clnt = rm_ctx[SERVER_1].rc_test_data.rd_owner;
 	struct m0_rm_owner *srv  = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+	struct m0_sm_group *smgrp;
+	bool                validation_lock = false;
 
 	switch(test_id) {
 	case LOCK_ON_CLIENT_TEST:
@@ -258,11 +235,18 @@ static void test_verify(enum flock_tests test_id)
 		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
 		break;
 	case DISTRIBUTED_LOCK_TEST:
+		smgrp = owner_grp(srv);
+		if (!m0_mutex_is_locked(&smgrp->s_lock)) {
+			validation_lock = true;
+			m0_rm_owner_lock(srv);
+		}
 		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet) ||
 			     !m0_rm_ur_tlist_is_empty(
                                 &srv->ro_owned[OWOS_CACHED]) ||
 			     !m0_rm_ur_tlist_is_empty(
                                 &srv->ro_owned[OWOS_HELD]));
+		if (validation_lock)
+			m0_rm_owner_unlock(srv);
 		break;
 	default:
 		break;
@@ -301,7 +285,7 @@ static void srv_dlock(int n)
 	dlock(SERVER_2, n);
 }
 
-static void srv_dlock_run()
+static void srv_dlock_run(void)
 {
 	int i;
 	int sum;
@@ -327,7 +311,7 @@ static void clnt_dlock(int n)
 	dlock(SERVER_1, n);
 }
 
-static void client_dlock_run()
+static void client_dlock_run(void)
 {
 	int i;
 	int sum;
@@ -351,14 +335,14 @@ static void client_dlock_run()
 }
 
 /* DLD - Test 3 */
-static void server_lock_test()
+static void server_lock_test(void)
 {
 	/* Take a wait lock on server */
 	wait_lock(SERVER_2);
 }
 
 /* DLD - Test 2 */
-static void testcase2_run()
+static void testcase2_run(void)
 {
 	struct m0_rm_incoming *in    = &rm_ctx[SERVER_1].rc_test_data.rd_in;
 	struct m0_rm_owner    *owner = rm_ctx[SERVER_1].rc_test_data.rd_owner;
@@ -384,7 +368,7 @@ static void testcase2_run()
 }
 
 /* DLD - Test 1 */
-static void testcase1_run()
+static void testcase1_run(void)
 {
 	/* Server-2 (server) is upward creditor for Server-1 (client) */
 	creditor_cookie_setup(SERVER_1, SERVER_2);
@@ -399,7 +383,7 @@ static void testcase1_run()
 	loan_session_set(SERVER_2, SERVER_1);
 }
 
-static void client_lock_test()
+static void client_lock_test(void)
 {
 	testcase1_run();
 	test_verify(LOCK_ON_CLIENT_TEST);

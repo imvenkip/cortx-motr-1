@@ -24,7 +24,6 @@
 #ifndef __MERO_SNS_PARITY_MATH_H__
 #define __MERO_SNS_PARITY_MATH_H__
 
-#include "lib/adt.h"
 #include "lib/vec.h"
 #include "lib/bitmap.h"
 #include "lib/tlist.h"

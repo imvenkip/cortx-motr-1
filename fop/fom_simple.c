@@ -37,11 +37,11 @@
 #include "fop/fom.h"
 #include "fop/fom_simple.h"
 
-static struct m0_fom_type fom_simple_fomt;
+static const struct m0_fom_type_ops fom_simple_ft_ops;
 static struct m0_reqh_service_type fom_simple_rstype;
 static const struct m0_fom_ops fom_simple_ops;
 struct m0_addb_ctx m0_fom_simple_addb_ctx;
-
+static struct m0_sm_conf fom_simple_conf;
 enum {
 	M0_ADDB_CTXID_FOM_SIMPLE  = 8000
 };
@@ -51,10 +51,24 @@ M0_ADDB_CT(m0_addb_ct_fom_simple, M0_ADDB_CTXID_FOM_SIMPLE);
 
 M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 				    struct m0_reqh *reqh,
+				    struct m0_sm_conf *conf,
 				    int (*tick)(struct m0_fom *, void *, int *),
 				    void *data, size_t locality)
 {
-	m0_fom_init(&simpleton->si_fom, &fom_simple_fomt, &fom_simple_ops,
+	struct m0_fom_type *fomt;
+
+	if (conf != NULL) {
+		if (conf->scf_trans_nr > 0)
+			m0_sm_conf_init(conf);
+	} else
+		conf = &fom_simple_conf;
+	fomt = &simpleton->si_type;
+	*fomt = (typeof(*fomt)) {
+		.ft_ops    = &fom_simple_ft_ops,
+		.ft_conf   = conf,
+		.ft_rstype = &fom_simple_rstype
+	};
+	m0_fom_init(&simpleton->si_fom, fomt, &fom_simple_ops,
 		    NULL, NULL, reqh, &fom_simple_rstype);
 	simpleton->si_data = data;
 	simpleton->si_tick = tick;
@@ -64,7 +78,18 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 	m0_fom_queue(&simpleton->si_fom, reqh);
 }
 
+M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,
+				     struct m0_reqh *reqh,
+				     struct m0_sm_conf *conf,
+				     int (*tick)(struct m0_fom *, void *,
+						 int *),
+				     void *data)
+{
+	size_t i;
 
+	for (i = 0; i < nr; ++i)
+		m0_fom_simple_post(&cat[i], reqh, conf, tick, data, i);
+}
 
 M0_INTERNAL int m0_fom_simples_init(void)
 {
@@ -87,17 +112,22 @@ static int fom_simple_tick(struct m0_fom *fom)
 {
 	struct m0_fom_simple *simpleton = FOM_SIMPLE(fom);
 	int                   result;
+	int                   phase;
+	bool                  simple;
 
-	M0_ASSERT(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
+	simple = fom->fo_type->ft_conf == &fom_simple_conf;
+	phase = m0_fom_phase(fom);
+	M0_ASSERT(ergo(simple, phase == M0_FOM_PHASE_INIT));
 	if (m0_reqh_state_get(m0_fom_reqh(fom)) <= M0_REQH_ST_NORMAL)
-		result = simpleton->si_tick(fom, simpleton->si_data,
-					    &simpleton->si_substate);
+		result = simpleton->si_tick(fom, simpleton->si_data, &phase);
 	else
 		result = -ENOENT;
+	M0_ASSERT(ergo(simple, phase == M0_FOM_PHASE_INIT));
 	if (result < 0) {
-		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+		phase = M0_FOM_PHASE_FINISH;
 		result = M0_FSO_WAIT;
 	}
+	m0_fom_phase_set(fom, phase);
 	M0_ASSERT(M0_IN(result, (M0_FSO_WAIT, M0_FSO_AGAIN)));
 	return result;
 }
@@ -133,7 +163,7 @@ static const struct m0_fom_type_ops fom_simple_ft_ops = {
 static struct m0_sm_state_descr fom_simple_phases[] = {
 	[M0_FOM_PHASE_INIT] = {
 		.sd_name      = "working",
-		.sd_allowed   = M0_BITS(M0_FOM_PHASE_FINISH),
+		.sd_allowed   = M0_BITS(M0_FOM_PHASE_INIT, M0_FOM_PHASE_FINISH),
 		.sd_flags     = M0_SDF_INITIAL
 	},
 	[M0_FOM_PHASE_FINISH] = {
@@ -142,7 +172,7 @@ static struct m0_sm_state_descr fom_simple_phases[] = {
 	}
 };
 
-static const struct m0_sm_conf fom_simple_conf   = {
+static struct m0_sm_conf fom_simple_conf = {
 	.scf_name      = "simple fom phases",
 	.scf_nr_states = ARRAY_SIZE(fom_simple_phases),
 	.scf_state     = fom_simple_phases
@@ -197,12 +227,6 @@ static struct m0_reqh_service_type fom_simple_rstype = {
 	.rst_name    = "simple fom service",
 	.rst_ops     = &fom_simple_rsops,
 	.rst_addb_ct = &m0_addb_ct_fom_simple
-};
-
-static struct m0_fom_type fom_simple_fomt = {
-	.ft_ops    = &fom_simple_ft_ops,
-	.ft_conf   = &fom_simple_conf,
-	.ft_rstype = &fom_simple_rstype
 };
 
 /** @} end of fom group */

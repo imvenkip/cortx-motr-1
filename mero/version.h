@@ -18,7 +18,6 @@
  * Original creation date: 8-Apr-2013
  */
 
-
 #pragma once
 
 #ifndef __MERO_MERO_VERSION_H__
@@ -26,7 +25,6 @@
 
 #include "mero/version_macros.h"
 #include "lib/types.h"
-
 
 struct m0_build_info {
 	uint32_t     bi_version;
@@ -43,11 +41,9 @@ struct m0_build_info {
 	const char  *bi_ldflags;
 };
 
-
 const struct m0_build_info *m0_build_info_get(void);
 
 void m0_build_info_print(void);
-
 
 #endif /* __MERO_MERO_VERSION_H__ */
 

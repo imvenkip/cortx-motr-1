@@ -23,6 +23,8 @@
 #endif
 
 #include <sysexits.h>
+#include <unistd.h>	      /* truncate */
+#include <sys/types.h>	      /* truncate */
 
 #include "lib/types.h"        /* uint64_t */
 #include "ut/ut.h"

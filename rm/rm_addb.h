@@ -70,6 +70,7 @@ enum {
 	M0_RM_ADDB_LOC_RESOURCE_TYPE_ALLOC  = 24,
 	M0_RM_ADDB_LOC_OWNER_CREDIT_ALLOC   = 25,
 	M0_RM_ADDB_LOC_FILE_ALLOC           = 26,
+	M0_RM_ADDB_LOC_RMSVC_OWNER_ALLOC    = 27,
 
 	/* Resource manager function fail locations */
 	M0_RM_ADDB_LOC_CREDIT_GET_FAIL      = 30,

@@ -820,7 +820,7 @@ static void addb_ut_stob(void)
 	M0_UT_ASSERT(sink->ss_record_nr > sink->ss_persist_nr);
 	stobsink_skulk(&mc); /* no timeout yet */
 	M0_UT_ASSERT(sink->ss_record_nr > sink->ss_persist_nr);
-	sink->ss_persist_time -= sink->ss_timeout + M0_TIME_ONE_BILLION;
+	sink->ss_persist_time -= sink->ss_timeout + M0_TIME_ONE_SECOND;
 	offset = sink->ss_offset;
 	when = m0_time_now();
 	seq = sink->ss_seq_nr;

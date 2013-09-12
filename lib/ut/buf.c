@@ -21,7 +21,6 @@
 #include "ut/ut.h"
 #include "lib/buf.h"
 #include "lib/assert.h"
-#include "lib/cdefs.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
 

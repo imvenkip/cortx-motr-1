@@ -19,9 +19,8 @@
  * Original creation date: 12/06/2010
  */
 
-#include "lib/time.h"	/* m0_time_t */
-#include "lib/assert.h"	/* M0_ASSERT */
-#include "lib/cdefs.h"	/* M0_EXPORTED */
+#include "lib/time.h"  /* m0_time_t */
+#include "lib/misc.h"  /* M0_EXPORTED */
 
 #include <linux/module.h>
 #include <linux/time.h>

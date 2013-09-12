@@ -1042,6 +1042,7 @@ struct io_request_ops;
 struct nw_xfer_ops;
 struct pargrp_iomap_ops;
 struct target_ioreq_ops;
+struct m0_file;
 
 enum   page_attr;
 enum   copy_direction;
@@ -1192,8 +1193,12 @@ struct nw_xfer_request {
 
         const struct nw_xfer_ops *nxr_ops;
 
-        /** List of all target_ioreq structures. */
-        struct m0_tl              nxr_tioreqs;
+	/**
+	 * Hash of target_ioreq objects. Helps to speed up the lookup
+	 * of target_ioreq objects based on a key
+	 * (target_ioreq::ti_fid::f_container)
+	 */
+	struct m0_htable        nxr_tioreqs_hash;
 
         /**
          * Number of IO fops issued by all target_ioreq structures
@@ -1313,7 +1318,7 @@ struct io_request_ops {
 	 * @pre  req->ir_state == IRS_INITIALIZED.
 	 * @post req->ir_state == IRS_LOCK_ACQUIRED.
 	 */
-	void (*iro_file_lock)     (struct io_request *req);
+	int  (*iro_file_lock)     (struct io_request *req);
 
 	/**
 	 * Relinquishes the distributed lock on whole file.
@@ -1381,6 +1386,9 @@ struct io_request {
 
         /** Run-time addb context of the operation */
         struct m0_addb_ctx           ir_addb_ctx;
+
+	/** A request to borrow resource from creditor */
+	struct m0_rm_incoming        ir_in;
 
 	/**
 	 * State of SNS repair process with respect to
@@ -1707,8 +1715,8 @@ struct target_ioreq {
         /** Resulting IO fops are sent on this rpc session. */
         struct m0_rpc_session         *ti_session;
 
-        /** Linkage to link in to nw_xfer_request::nxr_tioreqs list. */
-        struct m0_tlink                ti_link;
+        /** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
+        struct m0_hlink                ti_link;
 
         /**
          * Index vector containing IO segments with cob offsets and

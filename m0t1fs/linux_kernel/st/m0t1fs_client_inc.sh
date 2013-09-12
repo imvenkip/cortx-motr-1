@@ -22,6 +22,7 @@ mount_m0t1fs()
 
 	# prepare configuration data
 	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
+	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
 	for ((i=1; i < ${#EP[*]}; i++)); do
 	    IOS_NAME="\"ios$i\""
 
@@ -41,14 +42,16 @@ mount_m0t1fs()
 	done
 
 	local CONF="`cat <<EOF
-[$((${#EP[*]} + 2)):
+[$((${#EP[*]} + 3)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
-	      [3: "pool_width=$POOL_WIDTH",
+	      [4: "pool_width=$POOL_WIDTH",
 		  "nr_data_units=$NR_DATA",
+		  "nr_parity_units=$NR_PARITY",
 		  "unit_size=$stride_size"],
-	      [${#EP[*]}: "mds", $IOS_NAMES])}),
+	      [$((${#EP[*]} + 1)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
+  ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
   $IOS_OBJS]
 EOF`"
 

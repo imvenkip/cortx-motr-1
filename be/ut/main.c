@@ -66,7 +66,7 @@ extern void m0_be_ut_alloc_transactional(void);
 extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
-extern void m0_be_ut_dict(void);
+extern void m0_be_ut_seg_dict(void);
 
 
 const struct m0_test_suite be_ut = {
@@ -105,8 +105,8 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-transactional", m0_be_ut_alloc_transactional  },
 		{ "list",                m0_be_ut_list_api             },
 		{ "btree",               m0_be_ut_btree_simple         },
+		{ "seg_dict",            m0_be_ut_seg_dict             },
 		{ "emap",                m0_be_ut_emap                 },
-		{ "dict",                m0_be_ut_dict                 },
 		{ NULL, NULL }
 	}
 };

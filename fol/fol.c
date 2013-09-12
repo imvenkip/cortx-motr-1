@@ -18,12 +18,16 @@
  * Original creation date: 09-Sep-2010
  */
 
+#include "lib/arith.h"         /* M0_3WAY */
+#include "lib/memory.h"
+#include "lib/errno.h"
+#include "lib/misc.h"          /* M0_SET0 */
+#include "lib/vec.h"
+#include "mero/magic.h"
+#include "rpc/rpc_opcodes.h"
 #include "fol/fol.h"
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"       /* m0_xc_fol_init */
-#include "lib/errno.h"        /* ENOENT, EFBIG, ENOMEM */
-#include "lib/misc.h"         /* M0_SET0 */
-#include "lib/memory.h"
 #include "fop/fop.h"          /* m0_fop_fol_rec_part_type */
 
 /**
@@ -150,7 +154,7 @@ static const struct m0_table_ops fol_ops = {
 			.max_size = FOL_KEY_SIZE
 		},
 		[TO_REC] = {
-			.max_size = ~0
+			.max_size = 8192,
 		}
 	},
 	.key_cmp = lsn_cmp

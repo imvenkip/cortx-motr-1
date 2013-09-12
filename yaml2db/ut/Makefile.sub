@@ -1,1 +1,0 @@
-ut_libmero_ut_la_SOURCES += yaml2db/ut/yaml2db.c

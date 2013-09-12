@@ -15,7 +15,8 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 06/18/2010
+ *		    Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
+ * Original creation date: 18-Jun-2010
  */
 
 #pragma once
@@ -23,16 +24,16 @@
 #ifndef __MERO_LIB_MISC_H__
 #define __MERO_LIB_MISC_H__
 
-#ifndef __KERNEL__
-#include <string.h>               /* memset, ffs, strstr */
+#ifdef __KERNEL__
+#  include <linux/string.h>       /* memset, strstr */
+#  include <linux/bitops.h>       /* ffs */
+#  include "lib/linux_kernel/misc.h"
 #else
-#include <linux/string.h>         /* memset, strstr */
-#include <linux/bitops.h>         /* ffs */
+#  include <string.h>             /* memset, ffs, strstr */
+#  include "lib/user_space/misc.h"
 #endif
-
 #include "lib/types.h"
 #include "lib/assert.h"           /* M0_CASSERT */
-#include "lib/cdefs.h"            /* m0_is_array */
 
 /**
  * Returns rounded up value of @val in chunks of @size.
@@ -48,16 +49,16 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 
 #define M0_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 
-#define M0_SET0(obj)				\
-({						\
-	M0_CASSERT(!m0_is_array(obj));		\
-	memset((obj), 0, sizeof *(obj));	\
+#define M0_SET0(obj)                     \
+({                                       \
+	M0_CASSERT(!m0_is_array(obj));   \
+	memset((obj), 0, sizeof *(obj)); \
 })
 
-#define M0_SET_ARR0(arr)			\
-({						\
-	M0_CASSERT(m0_is_array(arr));		\
-	memset((arr), 0, sizeof (arr));		\
+#define M0_SET_ARR0(arr)                \
+({                                      \
+	M0_CASSERT(m0_is_array(arr));   \
+	memset((arr), 0, sizeof (arr)); \
 })
 
 /**
@@ -187,8 +188,98 @@ M0_INTERNAL uint64_t m0_strtou64(const char *str, char **endptr, int base);
 /* strtoul for user- and kernel-space */
 M0_INTERNAL uint32_t m0_strtou32(const char *str, char **endptr, int base);
 
-/* __MERO_LIB_MISC_H__ */
+/*
+ * Helper macros for implication and equivalence.
+ *
+ * Unfortunately, name clashes are possible and m0_ prefix is too awkward. See
+ * M0_BASSERT() checks in lib/misc.c
+ */
+#ifndef ergo
+#define ergo(a, b) (!(a) || (b))
 #endif
+
+#ifndef equi
+#define equi(a, b) (!(a) == !(b))
+#endif
+
+void __dummy_function(void);
+
+/**
+ * A macro used with if-statements without `else' clause to assure proper
+ * coverage analysis.
+ */
+#define AND_NOTHING_ELSE else __dummy_function();
+
+#define m0_is_array(x) \
+	(!__builtin_types_compatible_p(typeof(&(x)[0]), typeof(x)))
+
+#define IS_IN_ARRAY(idx, array)                     \
+({                                                  \
+	M0_CASSERT(m0_is_array(array));             \
+	((unsigned long)(idx)) < ARRAY_SIZE(array); \
+})
+
+/**
+ * Produces an expression having the same type as a given field in a given
+ * struct or union. Suitable to be used as an argument to sizeof() or typeof().
+ */
+#define M0_FIELD_VALUE(type, field) (((type *)0)->field)
+
+/**
+ * True if an expression has a given type.
+ */
+#define M0_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
+
+/**
+ * True iff type::field is of type "ftype".
+ */
+#define M0_FIELD_IS(type, field, ftype) \
+	M0_HAS_TYPE(M0_FIELD_VALUE(type, field), ftype)
+
+/**
+ * Computes offset of "magix" field, iff magix field is of type uint64_t.
+ * Otherwise causes compilation failure.
+ */
+#define M0_MAGIX_OFFSET(type, field) \
+M0_FIELD_IS(type, field, uint64_t) ? \
+	offsetof(type, field) :      \
+	sizeof(char [M0_FIELD_IS(type, field, uint64_t) - 1])
+
+/**
+ * Returns the number of parameters given to this variadic macro (up to 9
+ * parameters are supported)
+ * @note M0_COUNT_PARAMS() returns max(number_of_parameters - 1, 0)
+ *     e.g. M0_COUNT_PARAMS()        -> 0
+ *          M0_COUNT_PARAMS(x)       -> 0
+ *          M0_COUNT_PARAMS(x, y)    -> 1
+ *          M0_COUNT_PARAMS(x, y, z) -> 2
+ */
+#define M0_COUNT_PARAMS(...) \
+	M0_COUNT_PARAMS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)
+#define M0_COUNT_PARAMS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_, ...) _
+
+/**
+ * Concatenates two arguments to produce a single token.
+ */
+#define M0_CAT(A, B) M0_CAT2(A, B)
+#define M0_CAT2(A, B) A ## B
+
+/**
+ * Check printf format string against parameters.
+ *
+ * This function does nothing except checking that the format string matches the
+ * rest of arguments and producing a compilation warning in case it doesn't. It
+ * is handy in macros which accept printf-like parameters with a format string.
+ *
+ * For example usage, refer to M0_TRACE_POINT() macro
+ */
+__attribute__ ((format (printf, 1, 2))) static inline void
+printf_check(const char *fmt, ...)
+{}
+
+#define M0_UNUSED __attribute__((unused))
+
+#endif /* __MERO_LIB_MISC_H__ */
 
 /*
  *  Local variables:

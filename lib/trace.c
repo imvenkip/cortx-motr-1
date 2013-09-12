@@ -19,25 +19,25 @@
  */
 
 #ifdef __KERNEL__
-#include "lib/cdefs.h" /* CHAR_BIT */
-#include <linux/ctype.h> /* tolower */
-#include <linux/sched.h> /* current->pid */
+#  include <linux/ctype.h>  /* tolower */
+#  include <linux/sched.h>  /* current->pid */
 #else
-#include <limits.h> /* CHAR_BIT */
-#include <ctype.h> /* tolower */
+#include <limits.h>    /* CHAR_BIT */
+#include <ctype.h>     /* tolower */
 #include <sys/types.h>
-#include <unistd.h> /* getpid */
+#include <unistd.h>    /* getpid */
+#include <sys/user.h>  /* PAGE_SIZE */
 #endif
-
 #include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/arith.h"  /* m0_align */
 #include "lib/misc.h"   /* m0_short_file_name, string.h */
 #include "lib/memory.h" /* m0_pagesize_get */
+#include "lib/string.h" /* m0_strdup */
 #include "lib/trace.h"
 #include "lib/trace_internal.h"
-
 #include "mero/magic.h"
+#include "mero/version.h"
 
 /**
  * @addtogroup trace
@@ -46,7 +46,7 @@
  *
  * Trace entries are placed in a largish buffer backed up by a memory mapped
  * file. Buffer space allocation is controlled by a single atomic variable
- * (cur).
+ * (m0_trace_buf_header::tbh_cur_pos).
  *
  * Trace entries contain pointers from the process address space. To interpret
  * them, m0_trace_parse() must be called in the same binary. See utils/ut_main.c
@@ -58,24 +58,41 @@
  * @{
  */
 
+/*
+ * Magic symbol, which used to calculate offset for trace descriptors when
+ * parsing trace files. It needs to be placed in .rodata section (the same
+ * section which holds trace descriptors) so it should be static const.
+ */
+static const uint64_t trace_magic_symbol = M0_TRACE_MAGIC;
+static const char     trace_magic_symbol_name[] = "trace_magic_symbol";
+
 /* single buffer for now */
 
 /**
  * This buffer is used for early trace records issued before real buffer is
  * initialized by m0_trace_init().
  */
-static char      bootbuf[4096];
-void            *m0_logbuf     = bootbuf;
-uint32_t         m0_logbufsize = sizeof bootbuf;
-static uint32_t  bufmask       = sizeof bootbuf - 1;
+static struct {
+	struct m0_trace_area  bl_area;
+	char                  bl_buf[PAGE_SIZE];
+} bootlog;
+M0_BASSERT(bootlog.bl_buf == bootlog.bl_area.ta_buf);
+
+struct m0_trace_buf_header *m0_logbuf_header = &bootlog.bl_area.ta_header;
+void            *m0_logbuf     = bootlog.bl_area.ta_buf;
+uint32_t         m0_logbufsize = sizeof bootlog.bl_buf;
+static uint32_t  bufmask       = sizeof bootlog.bl_buf - 1;
+M0_BASSERT(((sizeof bootlog.bl_buf) & ((sizeof bootlog.bl_buf) - 1)) == 0);
 
 unsigned long m0_trace_immediate_mask = 0;
+M0_EXPORTED(m0_trace_immediate_mask);
 M0_BASSERT(sizeof(m0_trace_immediate_mask) == 8);
 
 unsigned int m0_trace_print_context = M0_TRACE_PCTX_SHORT;
-unsigned int m0_trace_level         = M0_WARN | M0_ERROR | M0_FATAL;
+M0_EXPORTED(m0_trace_print_context);
 
-static struct m0_atomic64 cur;
+unsigned int m0_trace_level         = M0_WARN | M0_ERROR | M0_FATAL;
+M0_EXPORTED(m0_trace_level);
 
 #undef M0_TRACE_SUBSYS
 #define M0_TRACE_SUBSYS(name, value) [value] = #name,
@@ -107,17 +124,12 @@ static const char *trace_print_ctx_str[] = {
 	[M0_TRACE_PCTX_FULL]  = "full",
 };
 
-M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size);
-M0_INTERNAL void m0_arch_trace_fini(void);
-
 M0_INTERNAL int m0_trace_init(void)
 {
 	int rc;
 
 	M0_PRE((m0_logbufsize % m0_pagesize_get()) == 0);
 	M0_PRE(m0_is_po2(M0_TRACE_BUFSIZE));
-
-	m0_atomic64_set(&cur, 0);
 
 	rc = m0_arch_trace_init(M0_TRACE_BUFSIZE);
 	if (rc == 0)
@@ -184,6 +196,7 @@ static void copy_string_data(char *body, const struct m0_trace_descr *td)
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *body)
 {
+	uint64_t  record_num;
 	uint32_t  header_len;
 	uint32_t  record_len;
 	uint32_t  pos_in_buf;
@@ -192,8 +205,12 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	uint64_t  endpos;
 	uint32_t  str_data_size;
 	void     *body_in_buf;
+
 	struct m0_trace_rec_header *header;
-	register unsigned long sp asm("sp"); /* stack pointer */
+	struct m0_trace_buf_header *tbh = m0_logbuf_header;
+	register unsigned long      sp asm("sp"); /* stack pointer */
+
+	record_num = m0_atomic64_add_return(&tbh->tbh_rec_cnt, 1);
 
 	/*
 	 * Allocate space in trace buffer to store trace record header
@@ -220,7 +237,7 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 			m0_align(str_data_size, M0_TRACE_REC_ALIGN);
 
 	while (1) {
-		endpos = m0_atomic64_add_return(&cur, record_len);
+		endpos = m0_atomic64_add_return(&tbh->tbh_cur_pos, record_len);
 		pos    = endpos - record_len;
 		pos_in_buf = pos & bufmask;
 		endpos_in_buf = endpos & bufmask;
@@ -235,6 +252,8 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 			break;
 	}
 
+	m0_trace_stats_update(record_len);
+
 	header                = m0_logbuf + pos_in_buf;
 	header->trh_magic     = 0;
 #ifdef __KERNEL__
@@ -242,11 +261,13 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 #else
 	header->trh_pid       = getpid();
 #endif
-	header->trh_no        = pos;
+	header->trh_no        = record_num;
+	header->trh_pos       = pos;
 	header->trh_sp        = sp;
 	header->trh_timestamp = rdtsc();
 	header->trh_descr     = td;
 	header->trh_string_data_size = str_data_size;
+	header->trh_record_size = record_len;
 	body_in_buf           = (char*)header + header_len;
 
 	memcpy(body_in_buf, body, td->td_size);
@@ -257,11 +278,12 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = M0_TRACE_MAGIC;
 
-	if (M0_TRACE_IMMEDIATE_DEBUG &&
-	    (td->td_subsys & m0_trace_immediate_mask ||
-	     td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
-	    td->td_level & m0_trace_level)
+#ifdef ENABLE_IMMEDIATE_TRACE
+	if ( (td->td_subsys & m0_trace_immediate_mask ||
+	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
+	     td->td_level & m0_trace_level )
 		m0_trace_record_print(header, body_in_buf);
+#endif
 }
 M0_EXPORTED(m0_trace_allot);
 
@@ -273,8 +295,9 @@ M0_INTERNAL const char *m0_trace_subsys_name(uint64_t subsys)
 		if (subsys & 1)
 			return trace_subsys_str[i];
 
-	return "UNKNOWN";
+	return NULL;
 }
+M0_EXPORTED(m0_trace_subsys_name);
 
 static char *subsys_str(uint64_t subsys, char *buf)
 {
@@ -398,6 +421,7 @@ M0_INTERNAL const char *m0_trace_level_name(enum m0_trace_level level)
 
 	return NULL;
 }
+M0_EXPORTED(m0_trace_level_name);
 
 static enum m0_trace_level trace_level_value(char *level_name)
 {
@@ -448,7 +472,7 @@ static enum m0_trace_level trace_level_value_plus(char *level_name)
  * @return m0_trace_level enum value, on success
  * @return M0_NONE on failure
  */
-M0_INTERNAL enum m0_trace_level m0_trace_parse_trace_level(char *str)
+M0_INTERNAL enum m0_trace_level m0_trace_level_parse(char *str)
 {
 	char                *level_str = str;
 	char                *p = level_str;
@@ -472,9 +496,10 @@ M0_INTERNAL enum m0_trace_level m0_trace_parse_trace_level(char *str)
 
 	return level;
 }
+M0_EXPORTED(m0_trace_level_parse);
 
 M0_INTERNAL enum m0_trace_print_context
-m0_trace_parse_trace_print_context(const char *ctx_name)
+m0_trace_print_context_parse(const char *ctx_name)
 {
 	int i;
 
@@ -486,6 +511,90 @@ m0_trace_parse_trace_print_context(const char *ctx_name)
 			  " invalid value '%s'\n", ctx_name);
 
 	return M0_TRACE_PCTX_INVALID;
+}
+
+M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name)
+{
+	enum m0_trace_print_context ctx;
+
+	if (ctx_name == NULL)
+		return 0;
+
+	ctx = m0_trace_print_context_parse(ctx_name);
+	if (ctx == M0_TRACE_PCTX_INVALID)
+		return -EINVAL;
+
+	m0_trace_print_context = ctx;
+#ifdef __KERNEL__
+	pr_info("mero: trace print context: %s\n", ctx_name);
+#endif
+	return 0;
+}
+M0_EXPORTED(m0_trace_set_print_context);
+
+M0_INTERNAL int m0_trace_set_level(const char *level_str)
+{
+	unsigned int  level;
+	char         *level_str_copy;
+
+	if (level_str == NULL)
+		return 0;
+
+	level_str_copy = m0_strdup(level_str);
+	if (level_str_copy == NULL)
+		return -ENOMEM;
+
+	level = m0_trace_level_parse(level_str_copy);
+	m0_free(level_str_copy);
+
+	if (level == M0_NONE) {
+		m0_console_printf("mero: incorrect trace level specification,"
+			" it should be in form of 'level[+][,level[+]]'"
+			" where 'level' is one of call|debug|info|notice|warn|"
+			"error|fatal");
+		return -EINVAL;
+	}
+
+	m0_trace_level = level;
+#ifdef __KERNEL__
+	pr_info("mero: trace level: %s\n", level_str);
+#endif
+	return 0;
+}
+M0_EXPORTED(m0_trace_set_level);
+
+M0_INTERNAL const struct m0_trace_buf_header *m0_trace_logbuf_header_get(void)
+{
+	return m0_logbuf_header;
+}
+M0_EXPORTED(m0_trace_logbuf_header_get);
+
+M0_INTERNAL const void *m0_trace_logbuf_get(void)
+{
+	return m0_logbuf;
+}
+M0_EXPORTED(m0_trace_logbuf_get);
+
+M0_INTERNAL uint32_t m0_trace_logbuf_size_get(void)
+{
+	return m0_logbufsize;
+}
+M0_EXPORTED(m0_trace_logbuf_size_get);
+
+M0_INTERNAL uint64_t m0_trace_logbuf_pos_get(void)
+{
+	return m0_atomic64_get(&m0_logbuf_header->tbh_cur_pos);
+}
+M0_EXPORTED(m0_trace_logbuf_pos_get);
+
+M0_INTERNAL const void *m0_trace_magic_sym_addr_get(void)
+{
+	return &trace_magic_symbol;
+}
+
+M0_INTERNAL const char* m0_trace_magic_sym_name_get(void)
+{
+	return trace_magic_symbol_name;
 }
 
 M0_INTERNAL void m0_trace_print_subsystems(void)
@@ -500,7 +609,7 @@ M0_INTERNAL void m0_trace_print_subsystems(void)
 		m0_console_printf("    - %s\n", trace_subsys_str[i]);
 }
 
-M0_INTERNAL void m0_trace_unpack_args(const struct m0_trace_rec_header *trh,
+M0_INTERNAL void m0_trace_args_unpack(const struct m0_trace_rec_header *trh,
 				      m0_trace_rec_args_t args,
 				      const void *buf)
 {
@@ -560,7 +669,7 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	 * one byte for '\0' and the end */
 	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
-	m0_trace_unpack_args(trh, args, buf);
+	m0_trace_args_unpack(trh, args, buf);
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_FULL) {
 		m0_console_printf("%5.5u %8.8llu %15.15llu %5.5x %-18s %-7s "
@@ -605,6 +714,162 @@ M0_INTERNAL void m0_console_printf(const char *fmt, ...)
 	va_end(ap);
 }
 
+/*
+ * escape any occurrence of single-quote characters (') inside string by
+ * duplicating them, for example "it's a pen" becomes "it''s a pen"
+ */
+static int escape_yaml_str(char *str, size_t max_size)
+{
+	size_t   str_len    = strlen(str);
+	ssize_t  free_space = max_size - str_len;
+	char    *p          = str;;
+
+	if (free_space < 0)
+		return -EINVAL;
+
+	while ((p = strchr(p, '\'')) != NULL)
+	{
+		if (--free_space < 0)
+			return -ENOMEM;
+		memmove(p + 1, p, str_len - (p - str) + 1);
+		*p = '\'';
+		p += 2;
+	}
+
+	return 0;
+}
+
+M0_INTERNAL
+int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
+				const struct m0_trace_rec_header *trh,
+				const void *tr_body, bool yaml_stream_mode)
+{
+	const struct m0_trace_descr *td = trh->trh_descr;
+	m0_trace_rec_args_t          args;
+	const char                  *td_fmt;
+	static char                  msg_buf[8 * 1024]; /* 8 KB */
+	size_t                       outbuf_used = 0;
+	int                          rc;
+
+	msg_buf[0] = '\0';
+	m0_trace_args_unpack(trh, args, tr_body);
+
+	td_fmt = yaml_stream_mode ? "record_num: %" PRIu64 "\n"
+				    "timestamp:  %" PRIu64 "\n"
+				    "pid:        %u\n"
+				    "stack_addr: %" PRIx64 "\n"
+				    "subsystem:  %s\n"
+				    "level:      %s\n"
+				    "func:       %s\n"
+				    "file:       %s\n"
+				    "line:       %u\n"
+				    "msg:        '"
+
+				  : "  - record_num: %" PRIu64 "\n"
+				    "    timestamp:  %" PRIu64 "\n"
+				    "    pid:        %u\n"
+				    "    stack_addr: %" PRIx64 "\n"
+				    "    subsystem:  %s\n"
+				    "    level:      %s\n"
+				    "    func:       %s\n"
+				    "    file:       %s\n"
+				    "    line:       %u\n"
+				    "    msg:        '";
+
+	outbuf_used += snprintf(outbuf, outbuf_size, td_fmt,
+				trh->trh_no,
+				trh->trh_timestamp,
+				trh->trh_pid,
+				/* TODO: add comment why mask is needed */
+				(trh->trh_sp & 0xfffff),
+				m0_trace_subsys_name(td->td_subsys),
+				m0_trace_level_name(td->td_level),
+				td->td_func,
+				td->td_file,
+				td->td_line);
+	if (outbuf_used >= outbuf_size)
+		return -ENOBUFS;
+
+	rc = snprintf(msg_buf, sizeof msg_buf, td->td_fmt, args[0], args[1],
+		      args[2], args[3], args[4], args[5], args[6], args[7],
+		      args[8]);
+	if (rc > sizeof msg_buf)
+		m0_console_printf("mero: %s: 'msg' is too big and has been"
+				  " truncated to %zu bytes",
+				  __func__, sizeof msg_buf);
+
+	rc = escape_yaml_str(msg_buf, sizeof msg_buf);
+	if (rc != 0)
+		m0_console_printf("mero: %s: failed to escape single quote"
+				  " characters in msg: %s", __func__, msg_buf);
+
+	outbuf_used += snprintf(outbuf + outbuf_used, outbuf_size - outbuf_used,
+				"%s'\n", msg_buf);
+	if (outbuf_used >= outbuf_size)
+		return -ENOBUFS;
+
+	if (yaml_stream_mode) {
+		outbuf_used += snprintf(outbuf + outbuf_used,
+					outbuf_size - outbuf_used, "---\n");
+		if (outbuf_used >= outbuf_size)
+			return -ENOBUFS;
+	}
+
+	return 0;
+}
+M0_EXPORTED(m0_trace_record_print_yaml);
+
+M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void)
+{
+	char *curptr = (char*)m0_logbuf +
+				m0_trace_logbuf_pos_get() % m0_logbufsize;
+	char *p = curptr;
+
+	/* moving from current position in buffer backwards to buffer start */
+	while (p >= (char*)m0_logbuf) {
+		p -= M0_TRACE_REC_ALIGN;
+		if (*((uint64_t*)p) == M0_TRACE_MAGIC)
+			return (const struct m0_trace_rec_header*)p;
+	}
+
+	/* continue search from buffer end, backwards till current position */
+	p = (char*)m0_logbuf + m0_logbufsize;
+
+	while (p >= curptr) {
+		p -= M0_TRACE_REC_ALIGN;
+		if (*((uint64_t*)p) == M0_TRACE_MAGIC)
+			return (const struct m0_trace_rec_header*)p;
+	}
+
+	return NULL;
+}
+M0_EXPORTED(m0_trace_last_record_get);
+
+
+M0_INTERNAL void m0_trace_buf_header_init(void)
+{
+	struct m0_trace_buf_header  *tbh = m0_logbuf_header;
+	const struct m0_build_info  *bi = m0_build_info_get();
+
+	tbh->tbh_magic          = M0_TRACE_BUF_HEADER_MAGIC;
+	tbh->tbh_header_size    = M0_TRACE_BUF_HEADER_SIZE;
+	tbh->tbh_buf_size       = m0_logbufsize;
+	tbh->tbh_magic_sym_addr = &trace_magic_symbol;
+	tbh->tbh_log_time       = m0_time_now();
+
+	m0_atomic64_set(&tbh->tbh_cur_pos, 0);
+	m0_atomic64_set(&tbh->tbh_rec_cnt, 0);
+
+	strncpy(tbh->tbh_mero_version, bi->bi_version_string,
+		sizeof tbh->tbh_mero_version);
+	strncpy(tbh->tbh_mero_git_describe, bi->bi_git_describe,
+		sizeof tbh->tbh_mero_git_describe);
+	strncpy(tbh->tbh_mero_kernel_ver, bi->bi_kernel,
+		sizeof tbh->tbh_mero_kernel_ver);
+
+	m0_arch_trace_buf_header_init(tbh);
+}
+M0_EXPORTED(m0_trace_buf_header_init);
 
 /** @} end of trace group */
 

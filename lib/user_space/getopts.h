@@ -23,7 +23,6 @@
 #ifndef __MERO_LIB_USER_SPACE_GETOPTS_H__
 #define __MERO_LIB_USER_SPACE_GETOPTS_H__
 
-#include "lib/cdefs.h"   /* ARRAY_SIZE */
 #include "lib/types.h"
 
 /**
@@ -245,11 +244,8 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 	.go_u    = { .got_void = NULL }		\
 }
 
-
 /** @} end of getopts group */
-
-/* __MERO_LIB_USER_SPACE_GETOPTS_H__ */
-#endif
+#endif /* __MERO_LIB_USER_SPACE_GETOPTS_H__ */
 
 /*
  *  Local variables:

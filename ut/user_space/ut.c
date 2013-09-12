@@ -34,8 +34,10 @@
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/memory.h"            /* m0_allocated */
 #include "lib/atomic.h"
+#include "lib/list.h"
 #include "ut/ut.h"
 #include "ut/cs_service.h"
+#include "db/db.h"		   /* m0_dbenv_reset */
 
 
 /**
@@ -44,9 +46,14 @@
  * @{
  */
 
+
+static struct m0_list  test_suites;
+
 int m0_ut_init(void)
 {
 	int rc;
+
+	m0_list_init(&test_suites);
 
 	M0_CASSERT(CUE_SUCCESS == 0);
 	rc = -CU_initialize_registry();
@@ -56,6 +63,15 @@ int m0_ut_init(void)
 
 void m0_ut_fini(void)
 {
+	struct m0_test_suite *entry;
+	struct m0_test_suite *n;
+
+	m0_list_for_each_entry_safe(&test_suites, entry, n,
+			struct m0_test_suite, ts_linkage) {
+		m0_list_del(&entry->ts_linkage);
+	}
+	m0_list_fini(&test_suites);
+
 	m0_cs_default_stypes_fini();
 	CU_cleanup_registry();
 	M0_ASSERT(CU_get_error() == 0);
@@ -63,10 +79,14 @@ void m0_ut_fini(void)
 
 M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
 {
-	CU_pSuite pSuite;
-	int i;
+	struct m0_list_link *ts_link = (struct m0_list_link *)&ts->ts_linkage;
+	CU_pSuite            pSuite;
+	int                  i;
 
-	/* add a suite to the registry */
+	m0_list_link_init(ts_link);
+	m0_list_add_tail(&test_suites, ts_link);
+
+	/* add a suite to the CUnit registry */
 	pSuite = CU_add_suite(ts->ts_name, ts->ts_init, ts->ts_fini);
 	M0_ASSERT(pSuite != NULL);
 
@@ -257,8 +277,53 @@ M0_INTERNAL void m0_ut_list(bool with_tests)
 		}
 }
 
+M0_INTERNAL void m0_ut_owners_list(bool yaml)
+{
+
+	struct m0_test_suite *ts;
+	const struct m0_test *t;
+	bool                  tests_group_printed = false;
+	char                  buf[256];
+
+	if (yaml)
+		printf("ut_owners:\n");
+	else
+		printf("UT Owners:\n");
+
+	m0_list_for_each_entry(&test_suites, ts, struct m0_test_suite,
+			       ts_linkage)
+	{
+		if (yaml) {
+			printf("  %s:\n", ts->ts_name);
+			printf("    %-30s [ %s ]\n", "main:", ts->ts_owners);
+		} else {
+			printf("  %-32s : %s\n", ts->ts_name, ts->ts_owners);
+		}
+
+		tests_group_printed = false;
+
+		for (t = &ts->ts_tests[0]; t->t_name != NULL; ++t)
+			if (t->t_owner != NULL) {
+				if (yaml) {
+					if (!tests_group_printed) {
+						printf("    tests:\n");
+						tests_group_printed = true;
+					}
+					snprintf(buf, sizeof buf, "%s:",
+						 t->t_name);
+					printf("      %-26s     %s\n",
+					       buf, t->t_owner);
+				} else {
+					printf("    %-30s :   %s\n",
+					       t->t_name, t->t_owner);
+				}
+			}
+	}
+}
+
 M0_INTERNAL int m0_ut_db_reset(const char *db_name)
 {
+#if 0
         char *cmd;
 	int   rc;
 
@@ -267,7 +332,9 @@ M0_INTERNAL int m0_ut_db_reset(const char *db_name)
                 return rc;
 	rc = system(cmd);
 	free(cmd);
-	return rc;
+#endif
+	m0_dbenv_reset(db_name);
+	return 0;
 }
 
 M0_INTERNAL void m0_stream_redirect(FILE * stream, const char *path,

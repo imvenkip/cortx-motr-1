@@ -18,9 +18,8 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
-#include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
+#include "lib/trace.h"
 
-#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"	      /* memcpy */
@@ -417,6 +416,7 @@ M0_INTERNAL bool m0_matrix_is_square(const struct m0_matrix *mat)
 	 return mat != NULL && mat->m_width != 0 &&
 		 mat->m_width == mat->m_height;
 }
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

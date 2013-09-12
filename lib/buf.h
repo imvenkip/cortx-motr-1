@@ -24,7 +24,6 @@
 #define __MERO_LIB_BUF_H__
 
 #include "lib/types.h"
-#include "lib/cdefs.h"
 #include "xcode/xcode_attr.h"
 
 /**

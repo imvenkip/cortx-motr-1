@@ -18,17 +18,14 @@
  * Original creation date: 17-Jun-2013
  */
 
-#include "be/tx_regmap.h"
-
-#include "ut/ut.h"		/* M0_UT_ASSERT */
-#include "lib/cdefs.h"		/* ARRAY_SIZE */
-#include "lib/misc.h"		/* M0_SET0 */
-
-#include "be/ut/helper.h"	/* m0_be_ut_seg */
-
 #include <stdio.h>		/* fflush */
 #include <stdlib.h>		/* rand_r */
 #include <string.h>		/* memcpy */
+
+#include "lib/misc.h"		/* M0_SET0 */
+#include "ut/ut.h"		/* M0_UT_ASSERT */
+#include "be/tx_regmap.h"
+#include "be/ut/helper.h"	/* m0_be_ut_seg */
 
 /*
 #define LOGD(...) printf(__VA_ARGS__)

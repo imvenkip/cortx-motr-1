@@ -24,9 +24,7 @@
 #ifndef __MERO_LIB_LIST_H__
 #define __MERO_LIB_LIST_H__
 
-#include "lib/types.h"
-#include "lib/cdefs.h"
-#include "lib/assert.h"
+#include "lib/misc.h"  /* offsetof */
 
 /**
    @defgroup list Double-linked list.
@@ -324,9 +322,7 @@ M0_INTERNAL size_t m0_list_length(const struct m0_list *list);
 })
 
 /** @} end of list group */
-
-/* __MERO_LIB_LIST_H__ */
-#endif
+#endif /* __MERO_LIB_LIST_H__ */
 
 /*
  *  Local variables:

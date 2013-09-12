@@ -38,32 +38,31 @@
    @{
  */
 
-struct m0_fop_type m0_sns_cm_sw_onwire_fopt;
 extern const struct m0_fom_type_ops m0_sns_cm_sw_onwire_fom_type_ops;
 extern struct m0_sm_conf m0_sns_cm_sw_onwire_conf;
-extern struct m0_cm_type sns_cmt;
 
-M0_INTERNAL int m0_sns_cm_sw_onwire_fop_init(void)
+M0_INTERNAL int m0_sns_cm_sw_onwire_fop_init(struct m0_fop_type *ft,
+					     enum M0_RPC_OPCODES op,
+					     struct m0_cm_type *cmt)
 {
-	m0_xc_sw_onwire_fop_init();
-        return  M0_FOP_TYPE_INIT(&m0_sns_cm_sw_onwire_fopt,
+        return  M0_FOP_TYPE_INIT(ft,
                         .name      = "sns cm sw update fop",
-                        .opcode    = M0_SNS_CM_SW_ONWIRE_FOP_OPCODE,
+                        .opcode    = op,
                         .xt        = m0_sns_cm_sw_onwire_xc,
                         .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
                         .fom_ops   = &m0_sns_cm_sw_onwire_fom_type_ops,
                         .sm        = &m0_sns_cm_sw_onwire_conf,
-			.svc_type  = &sns_cmt.ct_stype);
+			.svc_type  = &cmt->ct_stype);
 }
 
-M0_INTERNAL void m0_sns_cm_sw_onwire_fop_fini(void)
+M0_INTERNAL void m0_sns_cm_sw_onwire_fop_fini(struct m0_fop_type *ft)
 {
-	m0_fop_type_fini(&m0_sns_cm_sw_onwire_fopt);
-	m0_xc_sw_onwire_fop_fini();
+	m0_fop_type_fini(ft);
 }
 
 M0_INTERNAL int
-m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
+m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
+			      struct m0_fop *fop,
 			      void (*fop_release)(struct m0_ref *),
 			      const char *local_ep, const struct m0_cm_sw *sw)
 {
@@ -80,7 +79,7 @@ m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 		     sw->sw_hi.ai_lo.u_hi, sw->sw_hi.ai_lo.u_lo);
 
 
-	m0_fop_init(fop, &m0_sns_cm_sw_onwire_fopt, NULL, fop_release);
+	m0_fop_init(fop, ft, NULL, fop_release);
 	rc = m0_fop_data_alloc(fop);
         if (rc  != 0) {
 		m0_fop_fini(fop);

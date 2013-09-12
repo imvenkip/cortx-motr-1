@@ -553,13 +553,18 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb->spb_io.si_obj = NULL;
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
+	M0_LOG(M0_DEBUG, "pb=%p: launching stob io...", pb);
 	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, NULL, NULL);
 	if (rc != 0) {
+		M0_LOG(M0_ERROR, "pb=%p: failed, rc=%d", pb, rc);
 		pb->spb_busy = false;
 	} else {
-		while (pb->spb_busy)
+		while (pb->spb_busy) {
+			M0_LOG(M0_DEBUG, "pb=%p: wait...", pb);
 			m0_chan_wait(&pb->spb_wait);
+		}
 		rc = pb->spb_io.si_rc;
+		M0_LOG(M0_DEBUG, "pb=%p: done, rc=%d", pb, rc);
 		if (rc == 0) {
 			if (pb->spb_io.si_count < pb->spb_io_v_count) {
 				rc = -ENODATA;
@@ -670,9 +675,10 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 	bool sync;
 
 	M0_PRE(pb->spb_magic == M0_ADDB_STOBSINK_BUF_MAGIC);
+
 	m0_mutex_lock(&pb->spb_sink->ss_mutex);
 	sync = pb->spb_sink->ss_sync;
-	pb->spb_busy = false;
+	M0_LOG(M0_DEBUG, "pb=%p", pb);
 	if (pb->spb_io.si_rc != 0)
 		M0_LOG(M0_ERROR, "segment io at offset %ld failed %d",
 		       (unsigned long) pb->spb_io_iv_index <<
@@ -684,7 +690,9 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 		m0_dtx_done_sync(&pb->spb_tx);
 		m0_sm_group_unlock(grp);
 	}
+	pb->spb_busy = false;
 	m0_mutex_unlock(&pb->spb_sink->ss_mutex);
+
 	return !sync;
 }
 
@@ -838,6 +846,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 		}
 	}
 
+	M0_LOG(M0_DEBUG, "pb=%p: launching stob io...", pb);
 	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, &pb->spb_tx, NULL);
 	if (dom->sd_bedom != NULL)
 		m0_sm_group_unlock(grp);
@@ -964,11 +973,13 @@ static void stobsink_release(struct m0_ref *ref)
 				 sink->ss_record_nr);
 
 	m0_tl_for(stobsink_pool, &sink->ss_pool, pb) {
-		m0_mutex_unlock(&sink->ss_mutex);
-		while (pb->spb_busy)
+		while (pb->spb_busy) {
+			m0_mutex_unlock(&sink->ss_mutex);
+			M0_LOG(M0_DEBUG, "pb=%p: wait...", pb);
 			m0_chan_wait(&pb->spb_wait);
-
-		m0_mutex_lock(&sink->ss_mutex);
+			M0_LOG(M0_DEBUG, "pb=%p: done...", pb);
+			m0_mutex_lock(&sink->ss_mutex);
+		}
 		stobsink_pool_tlink_del_fini(pb);
 		m0_clink_del_lock(&pb->spb_wait);
 		m0_clink_fini(&pb->spb_wait);

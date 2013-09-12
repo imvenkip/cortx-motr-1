@@ -29,12 +29,10 @@
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 
-
 enum {
 	FI_RAND_PROB_SCALE = 100,
 	FI_RAND_SCALE_UNIT = UINT_MAX / FI_RAND_PROB_SCALE,
 };
-
 
 M0_INTERNAL int m0_fi_init(void)
 {

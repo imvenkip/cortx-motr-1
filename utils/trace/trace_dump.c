@@ -31,18 +31,22 @@
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/user_space/types.h"  /* bool */
 #include "lib/user_space/trace.h"  /* m0_trace_parse */
+#include "lib/misc.h"              /* ARRAY_SIZE */
 
+
+#define DEFAULT_M0MERO_KO_IMG_PATH  "/var/log/mero/m0mero_ko.img"
 
 int main(int argc, char *argv[])
 {
 	const char  std_inout_file_name[] = "-";
 	const char *input_file_name = std_inout_file_name;
 	const char *output_file_name = std_inout_file_name;
+	const char *m0mero_ko_path = DEFAULT_M0MERO_KO_IMG_PATH;
 	FILE       *input_file;
 	FILE       *output_file;
 	bool        stream_mode = false;
-
-	int rc;
+	bool        dump_header_only = false;
+	int         rc;
 
 	/* process CLI options */
 	rc = M0_GETOPTS(basename(argv[0]), argc, argv,
@@ -61,10 +65,23 @@ int main(int argc, char *argv[])
 			output_file_name = strdup(str);
 		})
 	  ),
-	  M0_FLAGARG('s', "stream mode, each trace record is formatted as a"
-			  " separate YAML document, so they can be fetched from"
-			  " YAML stream one by one",
-			  &stream_mode
+	  M0_FLAGARG('s',
+		  "stream mode, each trace record is formatted as a"
+		  " separate YAML document, so they can be fetched from"
+		  " YAML stream one by one",
+		  &stream_mode
+	  ),
+	  M0_FLAGARG('H',
+		  "dump only trace header information",
+		  &dump_header_only
+	  ),
+	  M0_STRINGARG('k',
+		"path to m0mero.ko modules's core image (only required for"
+		" parsing kernel mode trace files), by default it is '"
+		DEFAULT_M0MERO_KO_IMG_PATH "'",
+		LAMBDA(void, (const char *str) {
+			m0mero_ko_path = strdup(str);
+		})
 	  ),
 	);
 
@@ -102,7 +119,8 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return EX_SOFTWARE;
 
-	rc = m0_trace_parse(input_file, output_file, stream_mode);
+	rc = m0_trace_parse(input_file, output_file, stream_mode,
+			    dump_header_only, m0mero_ko_path);
 	if (rc != 0) {
 		warnx("Error occurred while parsing input trace data");
 		rc = EX_SOFTWARE;

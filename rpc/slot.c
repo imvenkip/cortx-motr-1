@@ -260,10 +260,7 @@ M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot)
 	 */
         M0_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
 
-        dummy_item = slot_item_tlist_head(&slot->sl_item_list);
-        M0_ASSERT(slot_item_tlink_is_in(dummy_item));
-
-	slot_item_tlist_del(dummy_item);
+        dummy_item = slot_item_tlist_pop(&slot->sl_item_list);
 	M0_ASSERT(item_xid(dummy_item, 0) == 0);
 
 	fop = m0_rpc_item_to_fop(dummy_item);
@@ -585,7 +582,7 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 		 * Either it is a duplicate reply and its corresponding request
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
-		 * XXX This sutuation is not expected to arise during testing.
+		 * XXX This situation is not expected to arise during testing.
 		 *     When control reaches this point during testing it might
 		 *     be because of a possible bug. So assert.
 		 */

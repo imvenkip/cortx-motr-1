@@ -21,7 +21,6 @@
 #include "lib/types.h"
 #include "lib/assert.h"
 #include "lib/vec.h"
-#include "lib/cdefs.h"
 #include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
 
 M0_INTERNAL int m0_0vec_page_add(struct m0_0vec *zvec,

@@ -27,7 +27,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
 #include "lib/trace.h"
 
-#include "lib/cdefs.h" /* M0_EXPORTED */
 #include "lib/memory.h"
 #include "lib/misc.h" /* M0_SET0 */
 #include "lib/errno.h"
@@ -376,7 +375,6 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 }
 
 /** @} end of fop group */
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

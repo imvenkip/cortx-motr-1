@@ -330,6 +330,7 @@ const struct m0_test_suite db_ut = {
 		{ "lookup", test_lookup },
 		{ "insert", test_insert },
 		{ "delete", test_delete },
+		{ NULL, NULL },
 		{ "abort", test_abort },
 		{ "waiter", test_waiter },
 		{ NULL, NULL }

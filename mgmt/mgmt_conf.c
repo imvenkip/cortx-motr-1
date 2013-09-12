@@ -142,6 +142,7 @@
 #include "lib/trace.h"
 #include "lib/types.h"
 #include "lib/uuid.h"
+#include "lib/string.h" /* m0_strdup */
 #include "mero/magic.h"
 #include "mgmt/mgmt.h"
 
@@ -150,9 +151,6 @@
 #include <netdb.h>  /* gethostbyname_r */
 #include <limits.h> /* HOST_NAME_MAX */
 #include <unistd.h> /* gethostname */
-
-/** @todo use real m0_strdup once it exists */
-#define m0_strdup(x) strdup(x)
 
 /**
    @addtogroup mgmt_pvt
@@ -779,8 +777,6 @@ M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf)
 }
 
 /** @} end of mgmt group */
-
-#undef m0_strdup
 
 #undef M0_TRACE_SUBSYSTEM
 

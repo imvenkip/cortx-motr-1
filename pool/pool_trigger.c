@@ -57,7 +57,6 @@ const char *poolmach_state_name[] = {
 	[M0_PNDS_SNS_REPAIRING]   = "SNS Repairing",
 	[M0_PNDS_SNS_REPAIRED]    = "SNS Repaired",
 	[M0_PNDS_SNS_REBALANCING] = "SNS Rebalancing",
-	[M0_PNDS_SNS_REBALANCED]  = "SNS Rebalanced",
 };
 
 const char *cl_ep_addr;
@@ -391,7 +390,7 @@ int main(int argc, char *argv[])
 	delta = m0_time_sub(m0_time_now(), start);
 	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
 			(unsigned long)m0_time_nanoseconds(delta) * 100 /
-			M0_TIME_ONE_BILLION);
+			M0_TIME_ONE_SECOND);
 	for (i = 1; i < srv_cnt; ++i)
 		poolmach_rpc_ctx_fini(&ctxs[i]);
 	poolmach_client_fini();

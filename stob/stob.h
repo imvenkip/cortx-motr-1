@@ -25,7 +25,6 @@
 
 #include "lib/atomic.h"
 #include "lib/types.h"         /* m0_uint128 */
-#include "lib/cdefs.h"
 #include "lib/vec.h"
 #include "lib/chan.h"
 #include "lib/rwlock.h"
@@ -807,11 +806,8 @@ M0_INTERNAL int m0_stob_mod_init(void);
  */
 M0_INTERNAL void m0_stob_mod_fini(void);
 
-
 /** @} end group stob */
-
-/* __MERO_STOB_STOB_H__ */
-#endif
+#endif /* __MERO_STOB_STOB_H__ */
 
 /*
  *  Local variables:

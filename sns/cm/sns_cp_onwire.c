@@ -19,42 +19,30 @@
  */
 
 #include "fop/fop.h"
+
+#include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
-#include "sns/cm/sns_cp_onwire_xc.h"
-#include "cm/cp_onwire_xc.h"
 #include "rpc/rpc_opcodes.h"
 
-struct m0_fop_type m0_sns_cpx_fopt;
-struct m0_fop_type m0_sns_cpx_reply_fopt;
 extern const struct m0_fom_type_ops cp_fom_type_ops;
 
-M0_INTERNAL int m0_sns_cpx_init(void)
+M0_INTERNAL int m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
+				const char *name, const struct m0_xcode_type *xt,
+				uint64_t rpc_flags, struct m0_cm_type *cmt)
 {
-        m0_xc_sns_cp_onwire_init();
-        return M0_FOP_TYPE_INIT(&m0_sns_cpx_fopt,
-                                .name      = "SNS copy packet",
-                                .opcode    = M0_SNS_CM_CP_OPCODE,
-                                .xt        = m0_sns_cpx_xc,
-                                .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                             M0_RPC_ITEM_TYPE_MUTABO,
+        return M0_FOP_TYPE_INIT(ft,
+                                .name      = name,
+                                .opcode    = op,
+                                .xt        = xt,
+                                .rpc_flags = rpc_flags,
                                 .fom_ops   = &cp_fom_type_ops,
                                 .sm        = &m0_generic_conf,
-                                .svc_type  = m0_reqh_service_type_find(
-                                                "sns_cm")) ?:
-                M0_FOP_TYPE_INIT(&m0_sns_cpx_reply_fopt,
-                                .name      = "SNS copy packet reply",
-                                .opcode    = M0_SNS_CM_CP_REP_OPCODE,
-                                .xt        = m0_sns_cpx_reply_xc,
-                                .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-                                .svc_type  = m0_reqh_service_type_find(
-                                                "sns_cm"));
+                                .svc_type  = &cmt->ct_stype);
 }
 
-M0_INTERNAL void m0_sns_cpx_fini(void)
+M0_INTERNAL void m0_sns_cpx_fini(struct m0_fop_type *ft)
 {
-        m0_fop_type_fini(&m0_sns_cpx_fopt);
-        m0_fop_type_fini(&m0_sns_cpx_reply_fopt);
-        m0_xc_sns_cp_onwire_fini();
+        m0_fop_type_fini(ft);
 }
 
 /*

@@ -1,6 +1,0 @@
-ut_libmero_ut_la_SOURCES += sns/cm/ut/cm.c \
-                               sns/cm/ut/cp_common.h \
-                               sns/cm/ut/cp_common.c \
-                               sns/cm/ut/net.c \
-                               sns/cm/ut/xform.c \
-			       sns/cm/ut/storage.c

@@ -33,27 +33,13 @@
  */
 
 M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
-			       bool stream_mode);
-
-M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask);
-
-M0_INTERNAL int m0_trace_set_print_context(const char *ctx_name);
-
-M0_INTERNAL int m0_trace_set_level(const char *level);
+			       bool yaml_stream_mode, bool header_only,
+			       const char *m0mero_ko_path);
 
 M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val);
 
-struct m0_trace_rec_header;
-
-M0_INTERNAL
-void m0_trace_record_print_yaml(FILE *output_file,
-				const struct m0_trace_rec_header *trh,
-				const void *buf,
-				bool yaml_stream_mode);
 /** @} end of trace group */
-
-/* __MERO_LIB_USERSP_TRACE_H__ */
-#endif
+#endif /* __MERO_LIB_USERSP_TRACE_H__ */
 
 /*
  *  Local variables:

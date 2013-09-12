@@ -25,7 +25,6 @@
 #include <linux/kernel.h>	/* ULONG_MAX */
 #endif
 
-#include "lib/cdefs.h"		/* ARRAY_SIZE */
 #include "lib/misc.h"		/* M0_SET0 */
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 

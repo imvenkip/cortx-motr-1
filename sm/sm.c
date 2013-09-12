@@ -18,13 +18,13 @@
  * Original creation date: 04/01/2010
  */
 
-#include "lib/errno.h"              /* ESRCH */
-#include "lib/misc.h"               /* M0_SET0 */
-#include "lib/cdefs.h"              /* M0_EXPORTED */
-#include "lib/mutex.h"
-#include "lib/arith.h"              /* m0_is_po2 */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SM
 #include "lib/trace.h"
+
+#include "lib/errno.h"              /* ESRCH */
+#include "lib/misc.h"               /* M0_SET0 */
+#include "lib/mutex.h"
+#include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/memory.h"
 #include "sm/sm.h"
 #include "lib/finject.h"
@@ -654,9 +654,9 @@ M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state)
 	       state_get(mach, state)->sd_name : "invalid";
 }
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} end of sm group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -18,18 +18,17 @@
  * Original creation date: 10/04/2012
  */
 
-#include "lib/assert.h"
-#include "lib/atomic.h"
-#include "lib/cdefs.h"    /* M0_EXPORTED */
-#include "lib/errno.h"
-#include "lib/string.h"   /* isxdigit, strlen, strtoul */
-#include "lib/time.h"
 #include "lib/uuid.h"
+#include "lib/atomic.h"
+#include "lib/errno.h"
+#include "lib/time.h"
+#include "lib/string.h"      /* isxdigit, strtoul */
+#include "lib/misc.h"        /* ARRAY_SIZE */
 
 #ifdef __KERNEL__
-#  include <linux/random.h>     /* get_random_uuid */
+#  include <linux/random.h>  /* get_random_uuid */
 #else
-#  include <uuid/uuid.h>        /* generate_uuid */
+#  include <uuid/uuid.h>     /* generate_uuid */
 #endif
 
 M0_BASSERT(sizeof (struct m0_uint128) == sizeof (char[16]));
