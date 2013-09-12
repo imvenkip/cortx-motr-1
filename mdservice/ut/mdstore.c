@@ -171,6 +171,9 @@ static void test_init(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 
+	rc = m0_be_seg_dict_insert(be_seg, grp, "fol", fol);
+	M0_UT_ASSERT(rc == 0);
+
         rc = m0_mdstore_init(&md, &id, be_seg, true);
         M0_ASSERT(rc == 0);
 

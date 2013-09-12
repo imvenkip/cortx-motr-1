@@ -266,6 +266,7 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
 	if (rc == -ENOENT) {
 		if (!create) {
+			M0_LOG(M0_ERROR, "fol not found in BE");
 			return rc;
 		} else {
 			reqh->rh_fol = fol_alloc(seg);
