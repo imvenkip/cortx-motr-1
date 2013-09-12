@@ -19,6 +19,8 @@ EXTRA_DIST += doc/Doxyfile \
               doc/trace
 
 MAN_PAGES += doc/man/m0d.1.txt \
-             doc/man/mero.7.txt
+             doc/man/mero.7.txt \
+             doc/man/m0tracedump.1.txt \
+             doc/man/m0traced.1.txt
 
 EXTRA_DIST += $(MAN_PAGES)

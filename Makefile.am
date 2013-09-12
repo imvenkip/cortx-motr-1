@@ -103,6 +103,7 @@ EXTRA_DIST = autogen.sh mero.spec.in LICENCE .gdbinit extra-libs/.gitignore
 CLEANFILES =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
 MAN_PAGES  =
+POD_MAN_PAGES  =
 
 # a list of auto-generated *_ff.[hc] files
 FF_FILES =
@@ -903,7 +904,7 @@ clean-doc:
 	rm -fr doc/html
 	rm -f  doc/man/*.[1-8].xml
 	rm -f  doc/man/*.[1-8]
-
+	rm -f  $(POD_MAN_PAGES_RAW)
 
 #
 # Install targets
@@ -932,19 +933,44 @@ rpms:
 # Documentation
 #
 
+# doxygen
+
 .PHONY: doc-doxygen
 doc-doxygen:
 	@$(DOXYGEN) doc/Doxyfile
 
-MAN_PAGES_RAW = $(MAN_PAGES:.txt=)
+# man
 
-man_MANS += $(MAN_PAGES_RAW)
+MAN_PAGES_DIR = doc/man
+MAN_PAGES_RAW = $(MAN_PAGES:.txt=)
+POD_MAN_PAGES_RAW = $(POD_MAN_PAGES:=.1) #$(patsubst %,$(MAN_PAGES_DIR)/%.1, $(notdir $(POD_MAN_PAGES)))
+
+man_MANS += $(MAN_PAGES_RAW) $(POD_MAN_PAGES_RAW)
+
+# hide actual a2x build command in silent make mode (V=0) and display it
+# otherwise (V=1); this takes into account default verbosity level in configure
+# (controlled by --enable-silent-rules option)
+a2x_verbose   = $(a2x_verbose_$(V))
+a2x_verbose_  = $(a2x_verbose_$(AM_DEFAULT_VERBOSITY))
+a2x_verbose_0 = @echo "  A2X   " $@;
 
 $(MAN_PAGES_RAW):
-	$(A2X) --format=manpage $@.txt
+	$(a2x_verbose)$(A2X) --format=manpage $@.txt
+
+# hide actual pod2man build command in silent make mode (V=0) and display it
+# otherwise (V=1); this takes into account default verbosity level in configure
+# (controlled by --enable-silent-rules option)
+pod2man_verbose   = $(pod2man_verbose_$(V))
+pod2man_verbose_  = $(pod2man_verbose_$(AM_DEFAULT_VERBOSITY))
+pod2man_verbose_0 = @echo " POD2MAN " $@;
+
+$(POD_MAN_PAGES_RAW):
+	$(pod2man_verbose)$(POD2MAN) --section=1 --center='Mero User Manual' \
+	--release=@PACKAGE_VERSION@ --utf8 $(@:.1=) $@
 
 .PHONY: doc-manpages
-doc-manpages: $(MAN_PAGES_RAW)
+doc-manpages: $(MAN_PAGES_RAW) $(POD_MAN_PAGES_RAW)
+
 
 .PHONY: doc
 doc: doc-doxygen doc-manpages

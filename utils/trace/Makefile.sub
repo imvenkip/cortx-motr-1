@@ -2,3 +2,5 @@ utils_trace_m0tracedump_SOURCES  = utils/trace/trace_dump.c
 utils_trace_m0traced_SOURCES     = utils/trace/traced.c
 
 EXTRA_DIST += utils/trace/m0trace
+
+POD_MAN_PAGES += utils/trace/m0trace

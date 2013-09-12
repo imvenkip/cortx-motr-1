@@ -66,7 +66,7 @@ this release. If not please contact a Xyratex representative.
 
 SEE ALSO
 --------
-*m0console*(8)
+*mero*(7)
 
 
 MERO

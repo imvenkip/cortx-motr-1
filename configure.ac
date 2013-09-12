@@ -280,6 +280,11 @@ AX_PROG_PERL_MODULES([IO::All], ,
 perl-IO-All package on Red Hat based systems])
 )
 
+AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
+AS_IF([test -z $POD2MAN],
+      AC_MSG_ERROR([pod2man is not found please install perl])
+)
+
 AC_CHECK_PROG(DOXYGEN, doxygen, doxygen, doxygen)
 
 AC_CHECK_PROG(A2X, a2x, a2x)

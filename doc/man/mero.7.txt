@@ -18,11 +18,24 @@ Mero utilities
 *m0d*::
   Mero file system service daemon.
 
+*m0console*::
+  Blah blah...
+
 *m0addbdump*::
   Blah blah...
 
-*m0console*::
-  Blah blah...
+*m0tracedump*::
+  Utility to convert binary trace logs to YAML format for further analysis by
+  *m0trace*.
+
+*m0traced*::
+  Daemon, which polls trace buffer of *m0mero.ko* or *m0d* and saves trace
+  records in binary format into continuous trace file for postmortem analysis by
+  *m0tracedump* and *m0trace* utilities.
+
+*m0trace*::
+  Utility to filter, analyze and print in human readable form trace logs in YAML
+  format.
 
 
 AUTHORS
@@ -50,7 +63,8 @@ this release. If not please contact a Xyratex representative.
 
 SEE ALSO
 --------
-*m0d*(1) *m0console*(8)
+*m0d*(1) *m0console*(8) *m0addbdump*(1) *m0tracedump*(1) *m0trace*(1)
+*m0traced*(1)
 
 
 MERO
