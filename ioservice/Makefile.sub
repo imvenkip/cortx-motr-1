@@ -14,7 +14,3 @@ mero_libmero_la_SOURCES  += ioservice/io_foms.c \
                             ioservice/io_device.c
 
 XC_FILES   += ioservice/io_fops_xc.h
-
-CLEANFILES += ioservice/io_fops_xc.h \
-              ioservice/io_fops_xc.c \
-              ioservice/io_fops.gccxml

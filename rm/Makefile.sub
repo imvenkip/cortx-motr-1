@@ -16,7 +16,3 @@ XC_FILES                    += rm/rm_fops_xc.h
 
 EXTRA_DIST		    += rm/rm_internal.h \
                                rm/rm_addb.h
-
-CLEANFILES += rm/rm_fops_xc.h \
-              rm/rm_fops_xc.c \
-	      rm/rm_fops.gccxml

@@ -14,7 +14,3 @@ EXTRA_DIST += mgmt/svc/fop_ss.c \
 	      mgmt/svc/fop_ssr.c \
 	      mgmt/svc/fop_run.c \
 	      mgmt/svc/mgmt_svc.c
-
-CLEANFILES += mgmt/mgmt_fops_xc.c \
-	      mgmt/mgmt_fops_xc.h \
-	      mgmt/mgmt_fops.gccxml

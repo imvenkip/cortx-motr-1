@@ -140,25 +140,3 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/types.h \
               lib/linux_kernel/vec.h \
               lib/linux_kernel/ut/main.c
-
-CLEANFILES += lib/buf.gccxml \
-              lib/buf_xc.c \
-              lib/buf_xc.h \
-              lib/cookie.gccxml \
-              lib/cookie_xc.c \
-              lib/cookie_xc.h \
-              lib/vec.gccxml \
-              lib/vec_xc.c \
-              lib/vec_xc.h \
-	      lib/bitmap.gccxml \
-	      lib/bitmap_xc.c \
-	      lib/bitmap_xc.h \
-	      lib/types.gccxml \
-	      lib/types_xc.c \
-	      lib/types_xc.h \
-              lib/ext_xc.h \
-              lib/ext_xc.c \
-              lib/ext.gccxml \
-	      lib/string_xc.c \
-	      lib/string_xc.h \
-	      lib/string.gccxml

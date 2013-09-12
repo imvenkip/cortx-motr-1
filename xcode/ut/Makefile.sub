@@ -14,12 +14,3 @@ XC_FILES   += xcode/ut/test_gccxml_xc.h \
               xcode/ut/test_gccxml_simple_xc.h
 
 EXTRA_DIST += xcode/ut/xcode_fops.ff
-
-CLEANFILES += xcode/ut/xcode_fops_ff.c \
-              xcode/ut/xcode_fops_ff.h \
-              xcode/ut/test_gccxml_xc.h \
-              xcode/ut/test_gccxml_xc.c \
-              xcode/ut/test_gccxml.gccxml \
-              xcode/ut/test_gccxml_simple_xc.h \
-              xcode/ut/test_gccxml_simple_xc.c \
-              xcode/ut/test_gccxml_simple.gccxml

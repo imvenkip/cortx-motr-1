@@ -2,7 +2,3 @@ nobase_mero_include_HEADERS += fid/fid.h fid/fid_xc.h
 mero_libmero_la_SOURCES  += fid/fid.c fid/fid_xc.c
 
 XC_FILES   += fid/fid_xc.h
-
-CLEANFILES += fid/fid_xc.h \
-              fid/fid_xc.c \
-              fid/fid.gccxml

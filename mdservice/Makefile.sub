@@ -10,7 +10,3 @@ mero_libmero_la_SOURCES  += mdservice/md_service.c \
                                   mdservice/md_fops_xc.c
 
 XC_FILES   += mdservice/md_fops_xc.h
-
-CLEANFILES += mdservice/md_fops_xc.h \
-              mdservice/md_fops_xc.c \
-              mdservice/md_fops.gccxml

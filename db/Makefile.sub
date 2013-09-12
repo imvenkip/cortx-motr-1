@@ -15,7 +15,3 @@ XC_FILES   += db/extmap_xc.h
 
 EXTRA_DIST += db/linux_kernel/db.c \
               db/linux_kernel/db_impl.h
-
-CLEANFILES += db/extmap_xc.h \
-              db/extmap_xc.c \
-	      db/extmap.gccxml

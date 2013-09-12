@@ -9,7 +9,3 @@ mero_libmero_la_SOURCES  += pool/pool.c \
 pool_m0poolmach_SOURCES  = pool/pool_trigger.c
 
 XC_FILES   += pool/pool_fops_xc.h
-
-CLEANFILES += pool/pool_fops_xc.h \
-              pool/pool_fops_xc.c \
-              pool/pool_fops.gccxml

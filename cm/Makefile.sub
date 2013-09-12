@@ -20,14 +20,3 @@ mero_libmero_la_SOURCES += cm/ag.c \
 
 
 XC_FILES += cm/ag_xc.h cm/cp_onwire_xc.h cm/sw_xc.h
-
-
-CLEANFILES += cm/ag_xc.h \
-              cm/ag_xc.c \
-              cm/ag.gccxml \
-              cm/cp_onwire_xc.h \
-              cm/cp_onwire_xc.c \
-              cm/cp_onwire.gccxml \
-              cm/sw_xc.h \
-              cm/sw_xc.c \
-              cm/sw.gccxml

@@ -15,7 +15,3 @@ XC_FILES += rpc/ut/rpc_test_fops_xc.h
 
 EXTRA_DIST += rpc/ut/clnt_srv_ctx.c \
               rpc/ut/rpc_test_fops.h
-
-CLEANFILES += rpc/ut/rpc_test_fops_xc.h \
-              rpc/ut/rpc_test_fops_xc.c \
-              rpc/ut/rpc_test_fops.gccxml

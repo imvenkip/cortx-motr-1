@@ -20,10 +20,3 @@ mero_libmero_la_SOURCES  += fop/fop.c \
 XC_FILES   += fop/fom_generic_xc.h fop/fop_xc.h
 
 EXTRA_DIST += fop/linux_kernel/fop_kernel.h
-
-CLEANFILES += fop/fop_xc.h \
-              fop/fop_xc.c \
-              fop/fop.gccxml \
-              fop/fom_generic_xc.h \
-              fop/fom_generic_xc.c \
-              fop/fom_generic.gccxml

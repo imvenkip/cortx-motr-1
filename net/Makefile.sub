@@ -16,7 +16,3 @@ mero_libmero_la_SOURCES  += net/buf.c \
                             net/tm_provision.c
 
 XC_FILES   += net/net_otw_types_xc.h
-
-CLEANFILES += net/net_otw_types_xc.h \
-              net/net_otw_types_xc.c \
-              net/net_otw_types.gccxml

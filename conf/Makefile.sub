@@ -28,7 +28,3 @@ mero_libmero_la_SOURCES += \
                            conf/preload.c
 
 XC_FILES += conf/onwire_xc.h
-
-CLEANFILES += conf/onwire_xc.h \
-              conf/onwire_xc.c \
-              conf/onwire.gccxml

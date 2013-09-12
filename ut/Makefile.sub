@@ -15,9 +15,5 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
 
 XC_FILES   += ut/cs_fop_foms_xc.h
 
-CLEANFILES += ut/cs_fop_foms_xc.h \
-	      ut/cs_fop_foms_xc.c \
-	      ut/cs_fop_foms.gccxml
-
 EXTRA_DIST += ut/linux_kernel/ut_init_stub.c \
               ut/linux_kernel/ut.c

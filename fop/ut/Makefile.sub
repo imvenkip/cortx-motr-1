@@ -12,7 +12,3 @@ EXTRA_DIST += fop/ut/long_lock/rdwr_test_bench.c \
               fop/ut/long_lock/rdwr_fom.c \
               fop/ut/stats/stats_fom.c \
               fop/ut/stats/stats_fom.h
-
-CLEANFILES += fop/ut/iterator_test_xc.h \
-              fop/ut/iterator_test_xc.c \
-	      fop/ut/iterator_test.gccxml

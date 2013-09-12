@@ -32,20 +32,4 @@ mero_libmero_la_SOURCES  += sns/cm/ag.c \
 
 XC_FILES += sns/cm/sns_cp_onwire_xc.h sns/cm/sw_onwire_fop_xc.h sns/cm/trigger_fop_xc.h
 
-sns/cm/sns_cp_onwire_xc.h: ioservice/io_fops_xc.h \
-                            cm/ag_xc.h \
-                            cm/cp_onwire_xc.h
-
-sns/cm/sns_cm_ready_fop_xc.h: cm/ready_fop_xc.h
-
 EXTRA_DIST += sns/poolmach.c
-
-CLEANFILES += sns/cm/sns_cp_onwire_xc.h \
-	      sns/cm/sns_cp_onwire_xc.c \
-	      sns/cm/sns_cp_onwire.gccxml \
-	      sns/cm/sw_onwire_fop_xc.h \
-	      sns/cm/sw_onwire_fop_xc.c \
-	      sns/cm/sw_onwire_fop.gccxml \
-	      sns/cm/trigger_fop_xc.h \
-	      sns/cm/trigger_fop_xc.c \
-              sns/cm/trigger_fop.gccxml

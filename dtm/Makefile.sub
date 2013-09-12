@@ -10,10 +10,3 @@ mero_libmero_la_SOURCES  += dtm/dtm.c \
                                   dtm/verno_xc.c
 
 XC_FILES   += dtm/dtm_update_xc.h dtm/verno_xc.h
-
-CLEANFILES += dtm/dtm_update_xc.h   \
-              dtm/dtm_update_xc.c   \
-              dtm/dtm_update.gccxml \
-	      dtm/verno_xc.h \
-              dtm/verno_xc.c \
-              dtm/verno.gccxml

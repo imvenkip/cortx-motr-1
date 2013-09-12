@@ -7,7 +7,3 @@ mero_libmero_la_SOURCES  += fol/fol.c \
 				fol/fol_xc.c
 
 XC_FILES   += fol/fol_xc.h
-
-CLEANFILES += fol/fol_xc.h \
-              fol/fol_xc.c \
-              fol/fol.gccxml

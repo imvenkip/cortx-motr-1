@@ -13,12 +13,8 @@ mero_libmero_la_SOURCES  += console/console_fop.c \
                             console/console_yaml.c \
                             console/console_fop_xc.c
 
-console/console_fop.h : rpc/rpc_onwire.h
+# console/console_fop.h : rpc/rpc_onwire.h
 
 XC_FILES   += console/console_fop_xc.h
 
 EXTRA_DIST += console/st/console-st.sh
-
-CLEANFILES += console/console_fop_xc.h \
-              console/console_fop_xc.c \
-              console/console_fop.gccxml
