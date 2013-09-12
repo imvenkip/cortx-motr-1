@@ -169,6 +169,7 @@ static int write_trace_header(const struct m0_trace_buf_header *header,
 			      int ofd, const char *ofname)
 {
 	ssize_t n;
+	int     rc;
 
 	n = write(ofd, header, header->tbh_header_size);
 	if (n != header->tbh_header_size) {
@@ -177,12 +178,18 @@ static int write_trace_header(const struct m0_trace_buf_header *header,
 		return EX_IOERR;
 	}
 
-	return 0;
+	rc = fsync(ofd);
+	if (rc != 0)
+		log_err("fsync(2) failed on output file '%s': %s",
+			ofname, strerror(errno));
+
+	return rc;
 }
 
 static int write_trace_data(int fd, const void *buf, size_t size)
 {
 	ssize_t n;
+	int     rc;
 
 	m0_mutex_lock(&write_data_mutex);
 
@@ -196,7 +203,12 @@ static int write_trace_data(int fd, const void *buf, size_t size)
 
 	m0_mutex_unlock(&write_data_mutex);
 
-	return 0;
+	rc = fsync(fd);
+	if (rc != 0)
+		log_err("fsync(2) failed on output file '%s': %s",
+			output_file_name, strerror(errno));
+
+	return rc;
 }
 
 static const char *get_cur_pos(const struct m0_trace_buf_header *logheader,
