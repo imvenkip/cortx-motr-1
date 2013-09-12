@@ -307,12 +307,14 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 		m0_layout_standard_types_unregister(&reqh->rh_ldom);
 		m0_layout_domain_fini(&reqh->rh_ldom);
 #endif
+		reqh->rh_dbenv = NULL;
 	}
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
+	m0_reqh_dbenv_fini(reqh, false);
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);

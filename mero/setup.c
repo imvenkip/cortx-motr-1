@@ -1460,7 +1460,7 @@ cleanup_addb_stob:
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_dbenv_fini:
-	m0_reqh_dbenv_fini(&rctx->rc_reqh, false);
+	m0_reqh_dbenv_fini(&rctx->rc_reqh, true);
 be_fini:
 	be_fini(rctx);
 	m0_reqh_fini(&rctx->rc_reqh);
