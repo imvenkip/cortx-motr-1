@@ -1028,6 +1028,8 @@ M0_INTERNAL void m0_net_lnet_tm_set_debug(struct m0_net_transfer_mc *tm,
 }
 M0_EXPORTED(m0_net_lnet_tm_set_debug);
 
+#undef M0_TRACE_SUBSYSTEM
+
 /** @} */ /* LNetDFS */
 
 /*

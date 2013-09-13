@@ -30,20 +30,18 @@
 
 static bool ns_iter_invariant(const struct m0_cob_fid_ns_iter *iter)
 {
-	return iter != NULL && iter->cni_dbenv != NULL &&
+	return iter != NULL &&
 	       iter->cni_cdom != NULL && m0_fid_is_set(&iter->cni_last_fid);
 }
 
 M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 				    struct m0_fid *gfid,
-				    struct m0_dbenv *dbenv,
 				    struct m0_cob_domain *cdom)
 {
 	M0_PRE(iter != NULL);
 
 	M0_SET0(iter);
 
-	iter->cni_dbenv = dbenv;
 	iter->cni_cdom = cdom;
 	iter->cni_last_fid.f_container = gfid->f_container;
 	iter->cni_last_fid.f_key = gfid->f_key;
@@ -53,25 +51,19 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 	return 0;
 }
 
-M0_INTERNAL int m0_cob_ns_next_of(struct m0_table *cob_namespace,
-				  struct m0_db_tx *tx,
+M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 				  const struct m0_fid *key_gfid,
 				  struct m0_fid *next_gfid)
 {
         struct m0_cob_nskey *key = NULL;
-	struct m0_cob_nsrec  rec;
-        struct m0_db_pair    db_pair;
-        struct m0_db_cursor  db_cursor;
+        struct m0_buf        kbuf;
+        struct m0_be_btree_cursor it;
 	uint32_t             cob_idx = 0;
         char                 nskey_bs[UINT32_MAX_STR_LEN];
         uint32_t             nskey_bs_len;
 	int                  rc;
 
-        rc = m0_db_cursor_init(&db_cursor, cob_namespace, tx, 0);
-        if (rc != 0) {
-                m0_db_tx_abort(tx);
-                return rc;
-        }
+        m0_be_btree_cursor_init(&it, cob_namespace);
 
 	M0_SET0(&nskey_bs);
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u", (uint32_t)cob_idx);
@@ -79,18 +71,11 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_table *cob_namespace,
 
         rc = m0_cob_nskey_make(&key, key_gfid, (char *)nskey_bs,
 			       nskey_bs_len);
-        if (rc != 0) {
-                m0_db_tx_abort(tx);
-                return rc;
-        }
-
-        m0_db_pair_setup(&db_pair, cob_namespace, key,
-			 m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN,
-			 &rec, sizeof rec);
-
-        rc = m0_db_cursor_get(&db_cursor, &db_pair);
         if (rc != 0)
-                goto cleanup;
+                return rc;
+
+	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN);
+        m0_be_btree_cursor_get(&it, &kbuf, true);
 
 	/*
 	 * Assign the fetched value to gfid, which is treated as
@@ -99,17 +84,13 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_table *cob_namespace,
 	next_gfid->f_container = key->cnk_pfid.f_container;
 	next_gfid->f_key = key->cnk_pfid.f_key;
 
-cleanup:
 	m0_free(key);
-        m0_db_pair_release(&db_pair);
-        m0_db_pair_fini(&db_pair);
-        m0_db_cursor_fini(&db_cursor);
+        m0_be_btree_cursor_fini(&it);
 
 	return rc;
 }
 
 M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
-                                    struct m0_db_tx *tx,
                                     struct m0_fid *gfid)
 {
 	int                  rc;
@@ -117,18 +98,16 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 
 	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
-	M0_PRE(tx != NULL);
 
 	key_fid.f_container = iter->cni_last_fid.f_container;
 	key_fid.f_key = iter->cni_last_fid.f_key;
 
 
-	rc = m0_cob_ns_next_of(&iter->cni_cdom->cd_namespace, tx,
-			       &key_fid, gfid);
+	rc = m0_cob_ns_next_of(iter->cni_cdom->cd_namespace, &key_fid, gfid);
 	if (rc == 0) {
 		/* Container (f_container) value remains same, typically 0. */
 		iter->cni_last_fid.f_container = gfid->f_container;
-		/* Increment the f_key by 1, to exploit m0_db_cursor_get() property. */
+		/* Increment the f_key by 1, to exploit cursor_get() property. */
 		iter->cni_last_fid.f_key = gfid->f_key + 1;
 	}
 
