@@ -141,7 +141,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	int rc;
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
-	reqh->rh_dbenv   = reqh_args->rhia_db;
+	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_svc     = reqh_args->rhia_svc;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
 	reqh->rh_fol     = reqh_args->rhia_fol;
@@ -169,8 +169,8 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		   &reqh->rh_sm_grp);
 	m0_reqh_lockers_init(reqh);
 
-	if (reqh->rh_dbenv != NULL)
-		rc = m0_reqh_dbenv_init(reqh, reqh->rh_dbenv, false);
+	if (reqh->rh_beseg != NULL)
+		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg, false);
 
 	return rc;
 }
@@ -252,10 +252,10 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 
 	M0_PRE(seg != NULL);
 
-	reqh->rh_dbenv = seg;
+	M0_ENTRY();
 
 #if 0 /* XXX_BE_DB */
-	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+	rc = m0_layout_domain_init(&reqh->rh_ldom, seg);
 	if (rc == 0) {
 		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
 		if (rc != 0)
@@ -267,39 +267,52 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 	if (rc == -ENOENT) {
 		if (!create) {
 			M0_LOG(M0_ERROR, "fol not found in BE");
-			return rc;
-		} else {
-			reqh->rh_fol = fol_alloc(seg);
-			if (reqh->rh_fol == NULL)
-				return -ENOMEM;
-			m0_fol_init(reqh->rh_fol, seg);
-			rc = fol_create(reqh->rh_fol, seg);
-			if (rc == 0) {
-				m0_sm_group_lock(grp);
-				rc = m0_be_seg_dict_insert(seg, grp,
-						"fol", reqh->rh_fol);
-				m0_sm_group_unlock(grp);
-			}
+			M0_RETURN(rc);
+		}
+		reqh->rh_fol = fol_alloc(seg);
+		if (reqh->rh_fol == NULL)
+			M0_RETURN(-ENOMEM);
+
+		m0_fol_init(reqh->rh_fol, seg);
+		rc = fol_create(reqh->rh_fol, seg);
+		if (rc == 0) {
+			m0_sm_group_lock(grp);
+			rc = m0_be_seg_dict_insert(seg, grp,
+					"fol", reqh->rh_fol);
+			m0_sm_group_unlock(grp);
+			if (rc != 0)
+				fol_destroy(reqh->rh_fol, seg);
+		}
+		if (rc != 0) {
+			fol_free(reqh->rh_fol, seg);
+			reqh->rh_fol = NULL;
+			M0_RETURN(rc);
 		}
 	} else {
 		if (create)
-			return -EEXIST;
+			M0_RETURN(-EEXIST);
+
 		m0_fol_init(reqh->rh_fol, seg);
 	}
 
-	if (rc == 0)
-		M0_POST(m0_reqh_invariant(reqh));
+	reqh->rh_beseg = seg;
+	M0_POST(m0_reqh_invariant(reqh));
 
 	return rc;
 }
 
 M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 {
-	if (reqh->rh_dbenv != NULL) {
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
+	if (reqh->rh_beseg != NULL) {
 		if (destroy) {
-			fol_destroy(reqh->rh_fol, reqh->rh_dbenv);
+			m0_sm_group_lock(grp);
+			m0_be_seg_dict_delete(reqh->rh_beseg, grp, "fol");
+			m0_sm_group_unlock(grp);
+			fol_destroy(reqh->rh_fol, reqh->rh_beseg);
 			m0_fol_fini(reqh->rh_fol);
-			fol_free(reqh->rh_fol, reqh->rh_dbenv);
+			fol_free(reqh->rh_fol, reqh->rh_beseg);
 		} else {
 			m0_fol_fini(reqh->rh_fol);
 		}
@@ -307,7 +320,7 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 		m0_layout_standard_types_unregister(&reqh->rh_ldom);
 		m0_layout_domain_fini(&reqh->rh_ldom);
 #endif
-		reqh->rh_dbenv = NULL;
+		reqh->rh_beseg = NULL;
 	}
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 }

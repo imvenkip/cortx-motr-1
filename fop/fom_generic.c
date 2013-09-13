@@ -248,7 +248,7 @@ static int loc_ctx_init(struct m0_fom *fom)
 #endif
 	reqh = m0_fom_reqh(fom);
 
-	m0_dtx_init(&fom->fo_tx, reqh->rh_dbenv->bs_domain,
+	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
 		    &fom->fo_loc->fl_group);
 
 	return M0_FSO_AGAIN;

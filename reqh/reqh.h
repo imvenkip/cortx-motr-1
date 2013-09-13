@@ -112,7 +112,8 @@ struct m0_reqh {
 	struct m0_dtm		*rh_dtm;
 
 	/** Database environment for this request handler. */
-	struct m0_be_seg        *rh_dbenv;
+	struct m0_dbenv         *rh_dbenv;
+	struct m0_be_seg        *rh_beseg;
 
 	/** Mdstore for this request handler. */
 	struct m0_mdstore       *rh_mdstore;
