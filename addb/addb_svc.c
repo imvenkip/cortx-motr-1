@@ -50,11 +50,10 @@
    - @subpage ADDB-DLD-SVC-pstats "Periodic Posting of Statistics"
 
  */
-
 
 /* This file is designed to be included by addb/addb.c */
 
-#include "addb/user_space/addb_svc.h"
+#include "addb/addb_svc.h"
 
 /**
    @ingroup addb_svc_pvt
@@ -102,6 +101,7 @@ static int addb_svc_rso_start(struct m0_reqh_service *service)
 
 	M0_LOG(M0_DEBUG, "starting");
 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
 	if (addb_svc_start_pfom)
 		addb_pfom_start(svc);
@@ -202,7 +202,7 @@ M0_REQH_SERVICE_TYPE_DEFINE(m0_addb_svc_type, &addb_service_type_ops,
  ******************************************************************************
  */
 
-M0_INTERNAL int m0_addb_svc_mod_init()
+M0_INTERNAL int m0_addb_svc_mod_init(void)
 {
 	int rc;
 	rc = m0_reqh_service_type_register(&m0_addb_svc_type);
@@ -214,7 +214,7 @@ M0_INTERNAL int m0_addb_svc_mod_init()
 	return rc;
 }
 
-M0_INTERNAL void m0_addb_svc_mod_fini()
+M0_INTERNAL void m0_addb_svc_mod_fini(void)
 {
 	addb_pfom_mod_fini();
         m0_reqh_service_type_unregister(&m0_addb_svc_type);

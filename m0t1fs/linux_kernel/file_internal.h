@@ -1229,12 +1229,6 @@ enum io_req_state {
 	IRS_FAILED,
 };
 
-/** Represents type of IO request. */
-enum io_req_type {
-        IRT_READ,
-        IRT_WRITE,
-        IRT_TYPE_NR,
-};
 
 /** Operation vector for struct io_request. */
 struct io_request_ops {

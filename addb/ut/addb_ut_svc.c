@@ -22,7 +22,7 @@
 
 /* This file is designed to be included by addb/ut/addb_ut.c */
 
-#include "addb/user_space/addb_svc.h"
+#include "addb/addb_svc.h"
 
 #include "mero/setup.h"
 #include "net/lnet/lnet.h"

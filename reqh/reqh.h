@@ -32,6 +32,7 @@
 #include "fop/fom.h"
 #include "layout/layout.h"
 #include "ha/epoch.h"
+#include "addb/addb_monitor.h"
 
 /**
    @defgroup reqh Request handler
@@ -61,7 +62,7 @@ struct m0_net_xprt;
 struct m0_rpc_machine;
 struct m0_local_service_ops;
 
-M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 32);
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
 
 /** Local reply consumer service (testing or replicator) */
 struct m0_local_service {
@@ -95,10 +96,10 @@ enum m0_reqh_states {
  */
 struct m0_reqh {
 	/** Request handler magic. */
-	uint64_t                 rh_magic;
+	uint64_t                      rh_magic;
 
 	/** State machine. */
-	struct m0_sm             rh_sm;
+	struct m0_sm                  rh_sm;
 
 	/**
 	   State machine group.
@@ -107,32 +108,32 @@ struct m0_reqh {
 	   waiters of significant events.
 	   @todo Replace rh_mutex and rh_sd_signal
 	 */
-	struct m0_sm_group       rh_sm_grp;
+	struct m0_sm_group            rh_sm_grp;
 
-	struct m0_dtm		*rh_dtm;
+	struct m0_dtm		     *rh_dtm;
 
 	/** Database environment for this request handler. */
-	struct m0_dbenv         *rh_dbenv;
-	struct m0_be_seg        *rh_beseg;
+	struct m0_dbenv              *rh_dbenv;
+	struct m0_be_seg             *rh_beseg;
 
 	/** Mdstore for this request handler. */
-	struct m0_mdstore       *rh_mdstore;
+	struct m0_mdstore            *rh_mdstore;
 
 	/** Fol pointer for this request handler. */
-	struct m0_fol		*rh_fol;
+	struct m0_fol		     *rh_fol;
 
 	/** Fom domain for this request handler. */
-	struct m0_fom_domain	 rh_fom_dom;
+	struct m0_fom_domain	      rh_fom_dom;
 
         /**
 	    Services registered with this request handler.
 
 	    @see m0_reqh_service::rs_linkage
 	 */
-        struct m0_tl             rh_services;
+        struct m0_tl                  rh_services;
 
 	/** Pointer to the management service */
-	struct m0_reqh_service  *rh_mgmt_svc;
+	struct m0_reqh_service       *rh_mgmt_svc;
 
         /**
 	    RPC machines running in this request handler.
@@ -141,42 +142,47 @@ struct m0_reqh {
 
 	    @see m0_rpc_machine::rm_rh_linkage
 	 */
-        struct m0_tl             rh_rpc_machines;
+        struct m0_tl                  rh_rpc_machines;
 
 	/** provides protected access to reqh members. */
-	struct m0_rwlock         rh_rwlock;
+	struct m0_rwlock              rh_rwlock;
 
 	/**
 	   Private, fully configured, ADDB machine for the request handler.
 	   The first such machine created is used to configure the global
 	   machine, ::m0_addb_gmc.
 	 */
-	struct m0_addb_mc        rh_addb_mc;
+	struct m0_addb_mc             rh_addb_mc;
 
-	struct m0_addb_ctx       rh_addb_ctx;
+	struct m0_addb_ctx            rh_addb_ctx;
+
+	/**
+	 * ADDB monitoring context maintained per request handler.
+	 */
+	struct m0_addb_monitoring_ctx rh_addb_monitoring_ctx;
 
 	/**
 	    Channel to wait on for reqh shutdown or FOM termination.
 	    @deprecated Replace with rh_sm_grp
 	 */
-	struct m0_chan           rh_sd_signal;
-	struct m0_mutex          rh_mutex; /**< protect rh_sd_signal chan */
+	struct m0_chan                rh_sd_signal;
+	struct m0_mutex               rh_mutex; /**< protect rh_sd_signal chan */
 
 	/** Local service consuming reply. */
-	struct m0_local_service *rh_svc;
+	struct m0_local_service      *rh_svc;
 
 	/**
 	 * Layout domain for this request handler.
 	 */
-	struct m0_layout_domain  rh_ldom;
+	struct m0_layout_domain       rh_ldom;
 
 	/** HA domain which stores the epoch. */
-	struct m0_ha_domain      rh_hadom;
+	struct m0_ha_domain           rh_hadom;
 
 	/**
 	 * Lockers to store private data
 	 */
-	struct m0_reqh_lockers   rh_lockers;
+	struct m0_reqh_lockers        rh_lockers;
 };
 
 /**
@@ -190,6 +196,10 @@ struct m0_reqh_init_args {
 	/** fol File operation log to record fop execution */
 	struct m0_fol           *rhia_fol;
 	struct m0_local_service *rhia_svc;
+	/** Hard-coded stob to store ADDB records
+	    @see cs_addb_storage_init()
+	  */
+	struct m0_stob          *rhia_addb_stob;
 };
 
 /**

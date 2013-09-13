@@ -4239,7 +4239,7 @@ last:
 			       1000); /* uS */
 	m0_addb_counter_update(&stats->ais_sizes_cntr, (uint64_t) count);
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_io_finish,
-		     M0_ADDB_CTX_VEC(&m0t1fs_addb_ctx), count, time_io);
+		     M0_ADDB_CTX_VEC(&m0t1fs_addb_ctx), rw, count, time_io);
 	m0t1fs_addb_stat_post_counters(csb);
 
 	M0_LEAVE();

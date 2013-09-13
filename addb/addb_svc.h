@@ -22,41 +22,47 @@
 
 #ifndef __MERO_ADDB_ADDB_SVC_H__
 #define __MERO_ADDB_ADDB_SVC_H__
-#ifndef __KERNEL__
 
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
-
+#ifndef __KERNEL__
+#include "mero/setup.h"
+#endif
 /**
    @defgroup addb_svc_pvt ADDB Service Internal Interfaces
    @ingroup addb_svc
    @{
  */
 
-#define M0_ADDB_SVC_NAME  "addb"
 extern struct m0_reqh_service_type m0_addb_svc_type;
 
 /**
    ADDB statistics posting FOM
  */
 struct addb_post_fom {
-	uint64_t              pf_magic;
+	uint64_t                pf_magic;
 	/** Periodicity of the statistics post. */
-	m0_time_t             pf_period;
+	m0_time_t               pf_period;
 	/** Tolerance limit in epoch calculation */
-	m0_time_t             pf_tolerance;
+	m0_time_t               pf_tolerance;
 	/** Next post time. */
-	m0_time_t             pf_next_post;
+	m0_time_t               pf_next_post;
 	/** Shutdown request flag. */
-	bool                  pf_shutdown;
+	bool                    pf_shutdown;
 	/** Running flag.  Used to synchronize termination. */
-	bool                  pf_running;
+	bool                    pf_running;
 	/** trap used to get into the locality to interact with the fom */
-	struct m0_sm_ast      pf_ast;
+	struct m0_sm_ast        pf_ast;
 	/** The FOM timer */
-	struct m0_fom_timeout pf_timeout;
+	struct m0_fom_timeout   pf_timeout;
+	/** Last scanned monitor from the reqh mon list */
+	struct m0_addb_monitor *pf_mon;
+	/** Number of unprocessed monitors for single invocation of
+	 *  m0_addb_monitor_summaries_post().
+	 */
+	uint32_t                pf_mon_unprocessed_nr;
 	/** Embedded FOM object. */
-	struct m0_fom         pf_fom;
+	struct m0_fom           pf_fom;
 };
 
 /**
@@ -93,7 +99,6 @@ static void addb_pfom_stop(struct addb_svc *svc);
 
 /** @} end group addb_svc_pvt */
 
-#endif /* __KERNEL__ */
 #endif /* __MERO_ADDB_ADDB_SVC_H__ */
 
 /*

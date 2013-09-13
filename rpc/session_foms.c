@@ -99,6 +99,7 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 	if (reply_fopt == NULL || fom_ops == NULL) {
 		rc = -EINVAL;
+		m0_console_printf("Error: session_gen_fom_create\n");
 		goto out;
 	}
 
@@ -362,6 +363,7 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	session = NULL;
 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
 		rc = -EINVAL;
+		m0_console_printf("Error: m0_rpc_fom_session_establish_tick\n");
 		goto out;
 	}
 

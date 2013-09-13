@@ -58,6 +58,9 @@ static void m0t1fs_net_fini(void);
 static int  m0t1fs_rpc_init(void);
 static void m0t1fs_rpc_fini(void);
 
+static int  m0t1fs_addb_mon_total_io_size_init(void);
+static void m0t1fs_addb_mon_total_io_size_fini(void);
+
 static int  m0t1fs_layout_init(void);
 static void m0t1fs_layout_fini(void);
 
@@ -113,6 +116,9 @@ M0_INTERNAL int m0t1fs_init(void)
 	RT_REG(dgiow_times);
 #undef RT_REG
 
+	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_m0t1fs_mon_io_size,
+					    "io_size");
+
 	m0t1fs_globals.g_laddr = local_addr;
 
         rc = m0_fid_init();
@@ -139,9 +145,13 @@ M0_INTERNAL int m0t1fs_init(void)
 	if (rc != 0)
 		goto net_fini;
 
-	rc = m0t1fs_layout_init();
+	rc = m0t1fs_addb_mon_total_io_size_init();
 	if (rc != 0)
 		goto rpc_fini;
+
+	rc = m0t1fs_layout_init();
+	if (rc != 0)
+		goto addb_mon_fini;
 
 	rc = register_filesystem(&m0t1fs_fs_type);
 	if (rc != 0)
@@ -152,7 +162,8 @@ M0_INTERNAL int m0t1fs_init(void)
 
 layout_fini:
 	m0t1fs_layout_fini();
-
+addb_mon_fini:
+	m0t1fs_addb_mon_total_io_size_fini();
 rpc_fini:
 	m0t1fs_rpc_fini();
 net_fini:
@@ -256,11 +267,11 @@ static int m0t1fs_rpc_init(void)
 		goto pool_fini;
 
 	rc = M0_REQH_INIT(reqh,
-			  .rhia_dtm       = (void*)1,
-			  .rhia_db        = NULL,
-			  .rhia_mdstore   = (void*)1,
-			  .rhia_fol       = fol,
-			  .rhia_svc       = (void*)1);
+			  .rhia_dtm          = (void*)1,
+			  .rhia_db           = NULL,
+			  .rhia_mdstore      = (void*)1,
+			  .rhia_fol          = fol,
+			  .rhia_svc          = (void*)1);
 	if (rc != 0)
 		goto dbenv_fini;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
@@ -280,7 +291,6 @@ static int m0t1fs_rpc_init(void)
 	rc = m0t1fs_reqh_services_start();
 	if (rc != 0)
 		goto reqh_fini;
-
 	M0_RETURN(0);
 
 reqh_fini:
@@ -292,6 +302,102 @@ pool_fini:
 	M0_LEAVE("rc: %d", rc);
 	M0_ASSERT(rc != 0);
 	return rc;
+}
+
+static void m0t1fs_mon_rw_io_watch(const struct m0_addb_monitor *mon,
+				   const struct m0_addb_rec     *rec,
+				   struct m0_reqh               *reqh)
+{
+	struct m0_addb_sum_rec                  *sum_rec;
+	struct m0t1fs_addb_mon_sum_data_io_size *sum_data =
+				&m0t1fs_globals.g_addb_mon_sum_data_rw_io_size;
+
+	if (m0_addb_rec_rid_make(M0_ADDB_BRT_DP, M0T1FS_ADDB_RECID_IO_FINISH)
+	    == rec->ar_rid) {
+		sum_rec = mon->am_ops->amo_sum_rec(mon, reqh);
+		M0_ASSERT(sum_rec != NULL);
+
+		m0_mutex_lock(&sum_rec->asr_mutex);
+		if (rec->ar_data.au64s_data[0] == IRT_READ) {
+			sum_data->sd_rio += rec->ar_data.au64s_data[1];
+			sum_rec->asr_dirty = true;
+		} else if (rec->ar_data.au64s_data[0] == IRT_WRITE) {
+			sum_data->sd_wio += rec->ar_data.au64s_data[1];
+			sum_rec->asr_dirty = true;
+		}
+		else
+			M0_IMPOSSIBLE("Invalid IO state");
+		m0_mutex_unlock(&sum_rec->asr_mutex);
+
+	}
+}
+
+static struct m0_addb_sum_rec *
+m0t1fs_mon_rw_io_sum_rec(const struct m0_addb_monitor *mon,
+		         struct m0_reqh               *reqh)
+{
+	struct m0_addb_sum_rec *sum_rec;
+
+	m0_rwlock_read_lock(&reqh->rh_rwlock);
+	sum_rec = m0_reqh_lockers_get(reqh,
+			m0t1fs_globals.g_addb_mon_rw_io_size_key);
+	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+
+	return sum_rec;
+}
+
+const struct m0_addb_monitor_ops m0t1fs_addb_mon_rw_io_ops = {
+	.amo_watch   = m0t1fs_mon_rw_io_watch,
+	.amo_sum_rec = m0t1fs_mon_rw_io_sum_rec
+};
+
+static int m0t1fs_addb_mon_total_io_size_init(void)
+{
+	struct m0_addb_sum_rec *sum_rec;
+	struct m0_reqh         *reqh = &m0t1fs_globals.g_reqh;
+	uint32_t               *key = &m0t1fs_globals.g_addb_mon_rw_io_size_key;
+	uint64_t               *sum_data =
+		     (uint64_t *)&m0t1fs_globals.g_addb_mon_sum_data_rw_io_size;
+	uint32_t                sum_rec_nr =
+		     sizeof (m0t1fs_globals.g_addb_mon_sum_data_rw_io_size) /
+					     sizeof (uint64_t);
+	M0_ALLOC_PTR(sum_rec);
+	if (sum_rec == NULL)
+		M0_RETURN(-ENOMEM);
+
+	m0_addb_monitor_init(&m0t1fs_globals.g_addb_mon_rw_io_size,
+			     &m0t1fs_addb_mon_rw_io_ops);
+
+	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_m0t1fs_mon_io_size,
+				     sum_data, sum_rec_nr);
+
+	*key = m0_reqh_lockers_allot();
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_reqh_lockers_set(reqh, *key, sum_rec);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	m0_addb_monitor_add(reqh, &m0t1fs_globals.g_addb_mon_rw_io_size);
+
+	return 0;
+}
+
+static void m0t1fs_addb_mon_total_io_size_fini(void)
+{
+	struct m0_addb_sum_rec *sum_rec;
+	struct m0_addb_monitor *mon = &m0t1fs_globals.g_addb_mon_rw_io_size;
+	struct m0_reqh         *reqh = &m0t1fs_globals.g_reqh;
+
+	sum_rec = mon->am_ops->amo_sum_rec(mon, &m0t1fs_globals.g_reqh);
+
+	m0_addb_monitor_del(reqh, mon);
+
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_reqh_lockers_clear(reqh, m0t1fs_globals.g_addb_mon_rw_io_size_key);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_addb_monitor_sum_rec_fini(sum_rec);
+	m0_free(sum_rec);
+	m0_addb_monitor_fini(mon);
 }
 
 static void m0t1fs_rpc_fini(void)
@@ -359,7 +465,18 @@ static int m0t1fs_service_start(const char *sname)
 
 static int m0t1fs_reqh_services_start(void)
 {
-	return m0t1fs_service_start("rmservice");
+	int rc;
+
+	rc = m0t1fs_service_start(M0_ADDB_SVC_NAME);
+	if (rc)
+		goto err;
+	rc = m0t1fs_service_start("rmservice");
+	if (rc)
+		goto err;
+	M0_RETURN(rc);
+err:
+	m0t1fs_reqh_services_stop();
+	M0_RETURN(rc);
 }
 
 static void m0t1fs_reqh_services_stop(void)

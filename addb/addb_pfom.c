@@ -206,7 +206,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 	struct m0_reqh_service *rsvc = &svc->as_reqhs;
 	int                     rc = M0_FSO_AGAIN;
 	m0_time_t               now;
-
+	int                     err = 0;
 	M0_ENTRY();
 
 	switch (m0_fom_phase(fom)) {
@@ -249,9 +249,22 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 	case ADDB_PFOM_PHASE_POST:
 		M0_LOG(M0_DEBUG, "post");
 		m0_reqh_stats_post_addb(reqh);
+
+		if (reqh->rh_addb_monitoring_ctx.amc_stats_conn != NULL)
+			err = m0_addb_monitor_summaries_post(reqh, pfom);
+		/**
+		 * In case of summaries posting failure, just log error.
+		 * We do not terminate the fom.
+		 */
+		if (err != 0)
+			M0_LOG(M0_ERROR, "addb summary posting failed");
+
+/** Only needed for stobsink, so should not be called in kernel */
+#ifndef __KERNEL__
 		if (reqh->rh_addb_mc.am_sink->rs_skulk != NULL)
 			(*reqh->rh_addb_mc.am_sink->rs_skulk)
 				(&reqh->rh_addb_mc);
+#endif
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_CTO);
 		break;
 	default:

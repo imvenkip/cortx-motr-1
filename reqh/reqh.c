@@ -72,6 +72,8 @@ M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
 
+static void __reqh_fini(struct m0_reqh *reqh);
+
 /**
    Request handler state machine description
  */
@@ -160,24 +162,41 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 
+	m0_rwlock_init(&reqh->rh_rwlock);
+	m0_reqh_lockers_init(reqh);
+
+	rc = m0_addb_monitors_init(reqh);
+	if (rc != 0)
+		goto monitors_init_failed;
+
 	reqh->rh_fom_dom.fd_reqh = reqh;
 	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
 	if (rc != 0)
-		return rc;
+		goto fom_domain_init_failed;
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
 	m0_sm_group_init(&reqh->rh_sm_grp);
 	m0_mutex_init(&reqh->rh_mutex); /* deprecated */
 	m0_chan_init(&reqh->rh_sd_signal, &reqh->rh_mutex); /* deprecated */
-	m0_rwlock_init(&reqh->rh_rwlock);
 	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
 		   &reqh->rh_sm_grp);
-	m0_reqh_lockers_init(reqh);
 
-	if (reqh->rh_beseg != NULL)
+	if (reqh->rh_beseg != NULL) {
 		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg);
+		if (rc != 0)
+			__reqh_fini(reqh);
+	}
+	return rc;
 
+fom_domain_init_failed:
+	m0_addb_monitors_fini(reqh);
+monitors_init_failed:
+	m0_rwlock_fini(&reqh->rh_rwlock);
+	m0_reqh_lockers_fini(reqh);
+	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
+	m0_addb_mc_fini(&reqh->rh_addb_mc);
+	m0_ha_domain_fini(&reqh->rh_hadom);
 	return rc;
 }
 
@@ -350,9 +369,8 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 }
 
-M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
+static void __reqh_fini(struct m0_reqh *reqh)
 {
-	m0_reqh_dbenv_fini(reqh);
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
@@ -360,6 +378,7 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
         m0_fom_domain_fini(&reqh->rh_fom_dom);
+	m0_addb_monitors_fini(reqh);
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
 	m0_reqh_lockers_fini(reqh);
@@ -367,6 +386,12 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 	m0_chan_fini_lock(&reqh->rh_sd_signal); /* deprecated */
 	m0_mutex_fini(&reqh->rh_mutex); /* deprecated */
 	m0_ha_domain_fini(&reqh->rh_hadom);
+}
+
+M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
+{
+	m0_reqh_dbenv_fini(reqh);
+	__reqh_fini(reqh);
 }
 
 M0_INTERNAL void m0_reqhs_fini(void)
@@ -399,6 +424,7 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 	M0_ENTRY();
 
 	rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
+					    reqh,
 					    stob,
 					    addb_stob_seg_size,
 					    addb_stob_size,

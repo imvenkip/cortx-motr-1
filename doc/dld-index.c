@@ -7,6 +7,7 @@
 Detailed designs, ordered alphabetically by title:
 
 - @subpage ADDB-DLD "ADDB detailed design specification"  <!-- addb/addb.c -->
+- @subpage ADDB-MON-INFRA-DLD "ADDB monitoring infrastructure  Detailed Design" <!-- addb/addb_monitor.c -->
 - @subpage NetRQProvDLD "Auto-Provisioning of Receive Message Queue Buffers DLD" <!-- net/tm_provision.c -->
 - @subpage CMDLD "Copy Machine DLD" <!-- cm/cm.c -->
 - @subpage CPDLD "Copy Packet DLD"  <!-- cm/cp.c -->
@@ -30,6 +31,7 @@ file.c -->
 - @subpage m0t1fs "M0T1FS detailed level design specification" <!-- m0t1fs/linux_kernel/m0t1fs.h -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD" <!-- rpc/rpc.h -->
 - @subpage m0loop-dld "The new m0loop device driver DLD" <!-- m0t1fs/linux_kernel/m0loop.c -->
+- @subpage DLD-stats-svc "Stats Service" <!-- addb/stats_srv.c -->
 
 Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

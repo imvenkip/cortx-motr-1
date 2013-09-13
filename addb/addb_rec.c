@@ -21,11 +21,14 @@
 /* This file is designed to be included by addb/addb.c */
 
 #include "rpc/rpc_helpers.h" /* m0_xcode_what */
+#include "reqh/reqh.h"
 
 /**
    @addtogroup addb_pvt
    @{
  */
+
+extern struct m0_addb_monitor_global_ctx monitor_global_ctx;
 
 struct addb_rec_post_ut_data {
 	struct m0_addb_ctx       **cv;
@@ -65,13 +68,14 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 			  uint64_t *fields,
 			  size_t fields_nr)
 {
-	struct m0_addb_rec *rec;
-	size_t              len;
-	size_t              ctxid_seq_data_size;
-	size_t              bytes_nr;
-	int                 i;
-	uint64_t           *dp;
-	char               *p;
+	struct m0_addb_monitor *mon;
+	struct m0_addb_rec     *rec;
+	size_t                  len;
+	size_t                  ctxid_seq_data_size;
+	size_t                  bytes_nr;
+	int                     i;
+	uint64_t               *dp;
+	char                   *p;
 
 	M0_PRE(m0_addb_mc_has_evmgr(mc));
 
@@ -147,6 +151,24 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 	 * the thread.
 	 */
 	mc->am_evmgr->evm_post(mc, rec);
+
+	/**
+	 * This conditional traversing is required, since for many UTs
+	 * we do not have reqh and so we do not want to traverse.
+	 * @todo: Find a way to remove this condition and instead assert
+	 * on not NULL.
+	 */
+	if (mc->am_reqh != NULL &&
+	    m0_addb_mon_ctx_invariant(&mc->am_reqh->rh_addb_monitoring_ctx)) {
+		/* Invoke all the monitor's filters */
+		m0_mutex_lock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+		m0_tl_for(addb_mon,
+			  &mc->am_reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+			M0_ASSERT(m0_addb_monitor_invariant(mon));
+			mon->am_ops->amo_watch(mon, rec, mc->am_reqh);
+		} m0_tl_endfor;
+		m0_mutex_unlock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	}
 }
 
 #ifndef __KERNEL__

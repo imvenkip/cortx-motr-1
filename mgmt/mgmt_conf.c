@@ -285,40 +285,6 @@ static int mgmt_conf_strarg_dup(char **out, char *val)
 	return (*out == NULL) ? -ENOMEM : 0;
 }
 
-/** Resolve a hostname to a stringified IP address */
-static int mgmt_conf_host_resolve(const char *name, char *buf, size_t bufsiz)
-{
-	int            i;
-	int            rc = 0;
-	struct in_addr ipaddr;
-
-	if (inet_aton(name, &ipaddr) == 0) {
-		struct hostent  he;
-		char            he_buf[4096];
-		struct hostent *hp;
-		int             herrno;
-
-		rc = gethostbyname_r(name, &he, he_buf, sizeof he_buf,
-				     &hp, &herrno);
-		if (rc != 0)
-			M0_RETERR(-ENOENT, "%s", name);
-		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
-			/* take 1st IPv4 address found */
-			if (hp->h_addrtype == AF_INET &&
-			    hp->h_length == sizeof(ipaddr))
-				break;
-		if (hp->h_addr_list[i] == NULL)
-			M0_RETERR(-EPFNOSUPPORT, "%s", name);
-		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) == NULL)
-			rc = -errno;
-	} else if (strlen(name) >= bufsiz) {
-		rc = -ENOSPC;
-	} else {
-		strcpy(buf, name);
-	}
-	M0_RETURN(rc);
-}
-
 /**
  * Populate a m0_mgmt_node_conf and/or m0_mgmt_client_conf with information
  * about a node.  May partially initialize the object(s) on failure.  Caller
@@ -509,7 +475,7 @@ static int mgmt_node_query(struct m0_mgmt_node_conf   *node,
 		goto out;
 	}
 
-	rc = mgmt_conf_host_resolve(lnet_host, addr, sizeof addr);
+	rc = m0_host_resolve(lnet_host, addr, sizeof addr);
 	if (rc != 0)
 		goto out;
 

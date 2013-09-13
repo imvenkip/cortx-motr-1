@@ -104,7 +104,7 @@ static void addb_ut_rpcsink_test(void)
 	 */
 	m0_fi_enable_once("m0_addb_mc_configure_rpc_sink",
 			  "rsink_allocation_failed");
-	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm,
+	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm, NULL,
 					   ADDB_UT_RPCSINK_TS_INIT_PAGES,
 					   ADDB_UT_RPCSINK_TS_MAX_PAGES,
 					   ADDB_UT_RPCSINK_TS_PAGE_SIZE);
@@ -117,7 +117,7 @@ static void addb_ut_rpcsink_test(void)
 	 */
 	m0_fi_enable_once("m0_addb_mc_configure_rpc_sink",
 			  "addb_ts_init_failed");
-	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm,
+	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm, NULL,
 					   ADDB_UT_RPCSINK_TS_INIT_PAGES,
 					   ADDB_UT_RPCSINK_TS_MAX_PAGES,
 					   ADDB_UT_RPCSINK_TS_PAGE_SIZE);
@@ -130,7 +130,7 @@ static void addb_ut_rpcsink_test(void)
 	 */
 	m0_fi_enable_once("m0_addb_mc_configure_rpc_sink",
 			  "item_source_registration_failed");
-	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm,
+	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm, NULL,
 					   ADDB_UT_RPCSINK_TS_INIT_PAGES,
 					   ADDB_UT_RPCSINK_TS_MAX_PAGES,
 					   ADDB_UT_RPCSINK_TS_PAGE_SIZE);
@@ -143,7 +143,7 @@ static void addb_ut_rpcsink_test(void)
 	 */
 	m0_fi_enable_once("m0_addb_mc_configure_rpc_sink",
 			  "skip_item_source_registration");
-	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm,
+	rc = m0_addb_mc_configure_rpc_sink(&mc, &rm, NULL,
 					   ADDB_UT_RPCSINK_TS_INIT_PAGES,
 					   ADDB_UT_RPCSINK_TS_MAX_PAGES,
 					   ADDB_UT_RPCSINK_TS_PAGE_SIZE);
@@ -375,7 +375,7 @@ static void addb_ut_rpcsink_shutdown_test(void)
 	start_rpc_client_and_server();
 	m0_addb_mc_init(&mc);
 
-	rc = m0_addb_mc_configure_rpc_sink(&mc, &cctx.rcx_rpc_machine,
+	rc = m0_addb_mc_configure_rpc_sink(&mc, &cctx.rcx_rpc_machine, NULL,
 					   ADDB_UT_RPCSINK_TS_INIT_PAGES,
 					   ADDB_UT_RPCSINK_TS_MAX_PAGES,
 					   ADDB_UT_RPCSINK_TS_PAGE_SIZE);

@@ -319,7 +319,7 @@ static void addb_ut_stobsink_search(void)
 	stobsink_search_idx = 0;
 	stobsink_seg_nr = sz;
 	stob_size = STOBSINK_SEGMENT_SIZE * sz + 1; /* +1: check seg rounding */
-	rc = m0_addb_mc_configure_stob_sink(&mc, stob, STOBSINK_SEGMENT_SIZE,
+	rc = m0_addb_mc_configure_stob_sink(&mc, NULL, stob, STOBSINK_SEGMENT_SIZE,
 					    stob_size, timeout);
 	M0_UT_ASSERT(rc == 0);
 	sink = stobsink_from_mc(&mc);
@@ -771,7 +771,8 @@ static void addb_ut_stob(void)
 
 	m0_addb_mc_init(&mc);
 	stob_size = STOBSINK_SEGMENT_SIZE * STOBSINK_SMALL_SEG_NR;
-	rc = m0_addb_mc_configure_stob_sink(&mc, stob, STOBSINK_SEGMENT_SIZE,
+	rc = m0_addb_mc_configure_stob_sink(&mc, NULL, stob,
+					    STOBSINK_SEGMENT_SIZE,
 					    stob_size, timeout);
 	M0_UT_ASSERT(rc == 0);
 	sink = stobsink_from_mc(&mc);
@@ -803,7 +804,8 @@ static void addb_ut_stob(void)
 
 	/* Test: re-open stob, detects 1 segment, sets seq and offset */
 	m0_addb_mc_init(&mc);
-	rc = m0_addb_mc_configure_stob_sink(&mc, stob, STOBSINK_SEGMENT_SIZE,
+	rc = m0_addb_mc_configure_stob_sink(&mc, NULL, stob,
+					    STOBSINK_SEGMENT_SIZE,
 					    stob_size, timeout);
 	M0_UT_ASSERT(rc == 0);
 	sink = stobsink_from_mc(&mc);
@@ -963,7 +965,8 @@ static void addb_ut_stob(void)
 	m0_addb_mc_fini(&mc);
 	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	m0_addb_mc_init(&mc);
-	rc = m0_addb_mc_configure_stob_sink(&mc, stob, STOBSINK_SEGMENT_SIZE,
+	rc = m0_addb_mc_configure_stob_sink(&mc, NULL, stob,
+					    STOBSINK_SEGMENT_SIZE,
 					    stob_size, timeout);
 	M0_UT_ASSERT(rc == 0);
 	sink = stobsink_from_mc(&mc);

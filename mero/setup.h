@@ -254,6 +254,9 @@ struct m0_mero {
 	/** mdservice endpoint */
 	struct cs_endpoint_and_xprt cc_mds_epx;
 
+	/** stats service endpoint */
+	struct cs_endpoint_and_xprt cc_stats_svc_epx;
+
 	/** list of ioservice end points */
 	struct m0_tl                cc_ios_eps;
 
@@ -502,6 +505,15 @@ M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh);
  */
 M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
 							  const char *xprtname);
+
+/**
+ * Extract network layer endpoint and network transport from end point string.
+ *
+ * @pre ep != NULL
+ */
+M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
+				       const char *ep);
+
 M0_TL_DESCR_DECLARE(cs_eps, extern);
 M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
 M0_BOB_DECLARE(M0_INTERNAL, cs_endpoint_and_xprt);

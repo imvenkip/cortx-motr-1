@@ -29,6 +29,7 @@
 #include "lib/semaphore.h"
 #include "lib/thread.h"
 #include "ut/ut.h"
+#include "reqh/reqh.h"
 
 /* control symbol exposure by including .c files */
 #include "addb/addb.c" /* directly pick up internal static symbols */
@@ -44,6 +45,7 @@
 #include "addb/ut/addb_ut_stobsink.c"
 #include "addb/ut/addb_ut_svc.c"
 #include "addb/ut/addb_ut_fom.c"
+#include "addb/ut/addb_ut_mon_infra.c"
 #endif
 
 /*
@@ -109,11 +111,12 @@ const struct m0_test_suite m0_addb_ut = {
 		{ "addb-rpc-sink",	     addb_ut_rpcsink_test },
 		{ "addb-smcntr",             addb_ut_smcntr_test },
 #ifndef __KERNEL__
+		{ "addb-fom",                addb_ut_fom_test },
+		{ "addb-mon-infra",          addb_ut_mon_infra_test },
 		{ "addb-rpc-sink-shutdown",  addb_ut_rpcsink_shutdown_test },
 		{ "addb-stobsink-search",    addb_ut_stobsink_search },
 		{ "addb-stob-post-retrieve", addb_ut_stob },
 		{ "addb-svc",                addb_ut_svc_test },
-		{ "addb-fom",                addb_ut_fom_test },
 #endif
 		{ NULL, NULL }
         }

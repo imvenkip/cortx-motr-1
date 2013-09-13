@@ -80,6 +80,7 @@ include $(src)/rm/Kbuild.sub
 include $(src)/rpc/Kbuild.sub
 include $(src)/sm/Kbuild.sub
 include $(src)/sns/Kbuild.sub
+include $(src)/stats/Kbuild.sub
 include $(src)/stob/Kbuild.sub
 include $(src)/xcode/Kbuild.sub
 include $(src)/be/Kbuild.sub

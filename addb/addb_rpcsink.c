@@ -818,6 +818,7 @@ static const struct m0_addb_mc_recsink rpcsink_ops = {
 M0_INTERNAL int
 m0_addb_mc_configure_rpc_sink(struct m0_addb_mc     *mc,
 			      struct m0_rpc_machine *rm,
+			      struct m0_reqh        *reqh,
 			      uint32_t               npgs_init,
 			      uint32_t		     npgs_max,
 			      m0_bcount_t	     pg_size)
@@ -829,6 +830,10 @@ m0_addb_mc_configure_rpc_sink(struct m0_addb_mc     *mc,
 	M0_PRE(m0_addb_mc_is_initialized(mc));
 	M0_PRE(!m0_addb_mc_has_recsink(mc));
 	M0_PRE(rm != NULL);
+	/**
+	 * @todo: Uncomment this statement
+	M0_PRE(reqh != NULL);
+	*/
 
 	if (M0_FI_ENABLED("rsink_allocation_failed"))
 		{ rsink = NULL; goto rsink_allocation_failed; }
@@ -856,6 +861,7 @@ addb_ts_init_failed:
 	rsink->rs_mc   = mc;
 	rsink->rs_sink = rpcsink_ops;
 	mc->am_sink    = &rsink->rs_sink;
+	mc->am_reqh    = reqh;
 
 	/*
 	 * Register rpcsink item source to all outgoing

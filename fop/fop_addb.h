@@ -68,7 +68,8 @@ M0_ALLOC_ARR_ADDB(ptr, nr, &m0_addb_gmc, M0_FOP_ADDB_LOC_##loc, ctx)
  */
 enum {
 	M0_FOP_ADDB_LOC_LOC_THR_CREATE    = 10,
-	M0_FOP_ADDB_LOC_FOM_DOMAIN_INIT   = 20
+	M0_FOP_ADDB_LOC_FOM_DOMAIN_INIT   = 20,
+	M0_FOP_ADDB_LOC_FOM_RATE_MON_INIT = 30,
 };
 
 extern struct m0_addb_ctx m0_fop_addb_ctx;
@@ -85,13 +86,15 @@ extern struct m0_addb_ctx m0_fop_addb_ctx;
  * Do not change the numbering.
  */
 enum {
-	M0_ADDB_RECID_FOM_INIT = 60,
-	M0_ADDB_RECID_FOM_FINI = 61,
-	M0_ADDB_RECID_FOM_STATE_STATS = 62,
-	M0_ADDB_RECID_FL_RUN_TIMES = 65,
+	M0_ADDB_RECID_FOM_INIT            = 60,
+	M0_ADDB_RECID_FOM_FINI            = 61,
+	M0_ADDB_RECID_FOM_STATE_STATS     = 62,
+	M0_ADDB_RECID_FL_RUN_TIMES        = 65,
 	M0_ADDB_RECID_FL_SCHED_WAIT_TIMES = 66,
-	M0_ADDB_RECID_FL_RUNQ_NR = 67,
-	M0_ADDB_RECID_FL_WAIL_NR = 68,
+	M0_ADDB_RECID_FL_RUNQ_NR          = 67,
+	M0_ADDB_RECID_FL_WAIL_NR          = 68,
+	M0_ADDB_RECID_FOP_RATE_CNTR       = 69,
+	M0_ADDB_RECID_FOP_RATE            = 70,
 };
 
 /**
@@ -132,11 +135,15 @@ M0_ADDB_RT_CNTR(m0_addb_rt_fl_run_times, M0_ADDB_RECID_FL_RUN_TIMES);
 /** Accumulated scheduling overhead of all locality foms (in binary usec). */
 M0_ADDB_RT_CNTR(m0_addb_rt_fl_sched_wait_times,
 		M0_ADDB_RECID_FL_SCHED_WAIT_TIMES);
+/** FOP rate (number of fop executed per sec) **/
+M0_ADDB_RT_CNTR(m0_addb_rt_fop_rate_cntr, M0_ADDB_RECID_FOP_RATE_CNTR);
 
 /** Locality run queue length */
 M0_ADDB_RT_DP(m0_addb_rt_fl_runq_nr, M0_ADDB_RECID_FL_RUNQ_NR, "runq_nr");
 /** Locality wait queue (list) length */
 M0_ADDB_RT_DP(m0_addb_rt_fl_wail_nr, M0_ADDB_RECID_FL_WAIL_NR, "wail_nr");
+/** ADDB summary record for fop rate stats */
+M0_ADDB_RT_STATS(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE, "fop_rate");
 
 /** @} end of fom group */
 

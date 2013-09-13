@@ -74,6 +74,8 @@ struct m0_sm_conf;
    @{
 */
 
+#define M0_ADDB_SVC_NAME  "addb"
+
 /**
    ADDB module initializer.
  */
@@ -107,6 +109,7 @@ enum m0_addb_base_rec_type {
 	M0_ADDB_BRT_CNTR,     /**< Counter record */
 	M0_ADDB_BRT_SM_CNTR,  /**< SM Counter record */
 	M0_ADDB_BRT_SEQ,      /**< Sequence record */
+	M0_ADDB_BRT_STATS,    /**< Stats records */
 
 	/* internal base record types */
 	M0_ADDB_BRT_CTXDEF,   /**< Context definition record (internal) */
@@ -207,6 +210,9 @@ struct m0_addb_rec_type {
 #define M0_ADDB_RT_DP(name, id, ...) \
 	extern struct m0_addb_rec_type name
 
+#define M0_ADDB_RT_STATS(name, id, ...) \
+	extern struct m0_addb_rec_type name
+
 /**
    This macro expands in two different ways based on the existence of the
    ::M0_ADDB_RT_CREATE_DEFINITION predicate macro.
@@ -278,6 +284,10 @@ M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
 M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
  (name, DP, id, ## __VA_ARGS__)
 
+#define M0_ADDB_RT_STATS(name, id, ...)				\
+M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
+ (name, STATS, id, ## __VA_ARGS__)
+
 #define M0_ADDB_RT_CNTR(name, id, ...)				\
 M0_CAT(M0__ADDB_RT_L, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
  (name, CNTR, id, NULL, ## __VA_ARGS__)
@@ -320,7 +330,22 @@ M0_INTERNAL void m0_addb_rec_type_register(struct m0_addb_rec_type *rt);
  */
 M0_INTERNAL const struct m0_addb_rec_type *m0_addb_rec_type_lookup(uint32_t id);
 
+/**
+ * Get addb record type identifier from record type name.
+ * @param rt_name Specify the record type name.
+ * @retval rec_id
+ */
+M0_INTERNAL uint32_t m0_addb_rec_type_name2id(const char *rt_name);
+
+/**
+ * Get max addb record type identifier registred.
+ * @retval rec_type_id
+ */
+M0_INTERNAL uint32_t m0_addb_rec_type_max_id(void);
+
 enum {
+	/** Undefined record id */
+	M0_ADDB_RECID_UNDEF     = 0,
 	/** Record type identifier for context records */
 	M0_ADDB_RECID_CTXDEF    = 1,
 	/** Function failure record type identifier */
@@ -797,6 +822,7 @@ struct m0_addb_mc {
 	uint64_t                   am_magic;
 	struct m0_addb_mc_evmgr   *am_evmgr;  /* required */
 	struct m0_addb_mc_recsink *am_sink;   /* optional */
+	struct m0_reqh            *am_reqh;   /* required */
 };
 
 /**
@@ -931,6 +957,7 @@ enum {
  */
 M0_INTERNAL int m0_addb_mc_configure_rpc_sink(struct m0_addb_mc     *mc,
 					      struct m0_rpc_machine *rm,
+					      struct m0_reqh        *reqh,
 					      uint32_t               npgs_init,
 					      uint32_t               npgs_max,
 					      m0_bcount_t            pg_size);
@@ -973,6 +1000,7 @@ M0_INTERNAL void m0_addb_mc_rpc_sink_source_del(struct m0_rpc_item_source *src);
    @pre segment_size > 0 && max_stob_size >= segment_size && rel_timeout > 0
  */
 M0_INTERNAL int m0_addb_mc_configure_stob_sink(struct m0_addb_mc *mc,
+					       struct m0_reqh    *reqh,
 					       struct m0_stob    *stob,
 					       m0_bcount_t        segment_size,
 					       m0_bcount_t        max_stob_size,
@@ -1564,18 +1592,15 @@ M0_INTERNAL uint32_t m0_addb_rec_rid_to_id(uint64_t rid);
    @{
  */
 
-#ifndef __KERNEL__
 /**
    ADDB service module initializer
  */
-M0_INTERNAL int m0_addb_svc_mod_init();
+M0_INTERNAL int m0_addb_svc_mod_init(void);
 
 /**
    ADDB service module finalizer
  */
-M0_INTERNAL void m0_addb_svc_mod_fini();
-
-#endif /* __KERNEL__ */
+M0_INTERNAL void m0_addb_svc_mod_fini(void);
 
 /** @} end of addb_svc group */
 

@@ -37,6 +37,7 @@
 #define M0__ADDB_RT_N_BEGIN(name, bt, id, nr)		\
 M0_BASSERT(M0_HAS_TYPE((id), int) && (id) > 0);		\
 M0_BASSERT(M0_ADDB_BRT_ ## bt == M0_ADDB_BRT_EX ||	\
+	   M0_ADDB_BRT_ ## bt == M0_ADDB_BRT_STATS ||   \
 	   M0_ADDB_BRT_ ## bt == M0_ADDB_BRT_DP);	\
 struct m0_addb_rec_type name = {			\
 	.art_magic = 0,					\

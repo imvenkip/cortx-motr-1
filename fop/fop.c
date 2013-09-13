@@ -34,6 +34,7 @@
 #include "fop/fop.h"
 #include "fop/fop_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
+#include "addb/addb_monitor.h" /* stats register */
 
 /**
    @addtogroup fop
@@ -256,6 +257,8 @@ M0_INTERNAL int m0_fops_init(void)
 	m0_addb_rec_type_register(&m0_addb_rt_fl_sched_wait_times);
 	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
 	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
+	m0_addb_rec_type_register(&m0_addb_rt_fop_rate_cntr);
+        M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_fop_rate, "fop_rate");
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
 			 &m0_addb_proc_ctx);
 	ft_tlist_init(&fop_types_list);

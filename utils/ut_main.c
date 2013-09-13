@@ -93,6 +93,7 @@ extern const struct m0_test_suite sns_cm_repair_ut;
 extern const struct m0_test_suite snscm_net_ut;
 extern const struct m0_test_suite snscm_storage_ut;
 extern const struct m0_test_suite snscm_xform_ut;
+extern const struct m0_test_suite stats_ut;
 extern const struct m0_test_suite stobio_ut;
 extern const struct m0_test_suite udb_ut;
 extern const struct m0_test_suite xcode_bufvec_fop_ut;
@@ -158,6 +159,7 @@ void add_uts(void)
 	m0_ut_add(&snscm_storage_ut);
 	m0_ut_add(&sns_cm_repair_ut);
 	m0_ut_add(&snscm_net_ut);
+	m0_ut_add(&stats_ut);
 	m0_ut_add(&stobio_ut);
 	m0_ut_add(&udb_ut);
 	m0_ut_add(&xcode_bufvec_fop_ut);

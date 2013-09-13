@@ -146,7 +146,7 @@ static void addb_ut_fom_test(void)
 	start_rpc_client_and_server();
 	m0_addb_mc_init(&mc);
 
-	rc = m0_addb_mc_configure_rpc_sink(&mc, &cctx.rcx_rpc_machine,
+	rc = m0_addb_mc_configure_rpc_sink(&mc, &cctx.rcx_rpc_machine, NULL,
 					   UT_ADDB_FOM_TS_INIT_PAGES,
 					   UT_ADDB_FOM_TS_MAX_PAGES,
 					   UT_ADDB_FOM_TS_PAGE_SIZE);

@@ -699,15 +699,14 @@ Plan</a> for details.
 #include "lib/misc.h"
 #include "lib/rwlock.h"
 #include "lib/time.h"
-#ifndef __KERNEL__
 #include "fop/fom_generic.h"
-#endif
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 #include "lib/trace.h"  /* M0_LOG() */
 
 #include "addb/addb_wire_xc.h"
 #include "addb/addb_fops_xc.h"
-
+#include "addb/addb_monitor.h"
+#include "addb/addb_monitor_wire_xc.h"
 struct m0_uint128 m0_node_uuid; /* globally visible uuid */
 
 /**
@@ -768,17 +767,18 @@ static int addb_node_uuid_init(void)
 #include "addb/addb_counter.c"
 #include "addb/addb_ts.c"
 #include "addb/addb_rpcsink.c"
+#include "addb/addb_svc.c"
+#include "addb/addb_pfom.c"
 #ifdef __KERNEL__
 #include "addb/linux_kernel/kctx.c"
 #else
-#include "addb/user_space/addb_svc.c"
 #include "addb/user_space/addb_fom.c"
-#include "addb/user_space/addb_pfom.c"
 #include "addb/user_space/uctx.c"
 #include "addb/user_space/addb_stobsink.c"
 #include "addb/user_space/addb_retrieval.c"
 #endif
 #include "addb/addb_fops.c"
+#include "addb/addb_monitor.c"
 
 #ifndef __KERNEL__
 static void addb_register_kernel_ctx_and_rec_types(void)
@@ -795,6 +795,8 @@ static void addb_register_kernel_ctx_and_rec_types(void)
 	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_iow_sizes);
 	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_ior_times);
 	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_iow_times);
+	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_m0t1fs_mon_io_size,
+					    "io_size");
 }
 #endif
 

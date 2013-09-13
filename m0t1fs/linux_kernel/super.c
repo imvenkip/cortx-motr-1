@@ -36,6 +36,7 @@
 #include "conf/confc.h"    /* m0_confc */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
 #include "addb/addb.h"
+#include "rpc/rpc_internal.h"
 
 static int m0t1fs_layout_build(const uint64_t         layout_id,
 			       const uint32_t         N,
@@ -550,8 +551,8 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 	struct m0_conf_obj *entry;
 	const char        **pstr;
 	int                 rc;
-	bool                mds_is_provided = false;
-	bool                dlm_is_provided = false;
+	bool                mds_is_provided       = false;
+	bool                dlm_is_provided       = false;
 
 	M0_ENTRY();
 	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
@@ -603,6 +604,7 @@ static int configure_addb_rpc_sink(struct m0_addb_mc *addb_mc)
 	if (!m0_addb_mc_has_rpc_sink(addb_mc)) {
 		int rc = m0_addb_mc_configure_rpc_sink(addb_mc,
 						&m0t1fs_globals.g_rpc_machine,
+						&m0t1fs_globals.g_reqh,
 						M0_ADDB_RPCSINK_TS_INIT_PAGES,
 						M0_ADDB_RPCSINK_TS_MAX_PAGES,
 						M0_ADDB_RPCSINK_TS_PAGE_SIZE);
@@ -780,6 +782,9 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 		case M0_CST_MGS:
 			break;
 
+		case M0_CST_SS:
+			break;
+
 		case M0_CST_DLM:
 			map->clm_map[csb->csb_nr_containers] = ctx;
 			break;
@@ -946,11 +951,15 @@ static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
 
 static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
-	struct m0_confc     confc;
-	struct m0_conf_obj *fs;
-	uint32_t            nr_ios;
-	int                 rc;
-	struct fs_params    fs_params = {0};
+	struct m0t1fs_service_context *ctx;
+	struct m0_confc                confc;
+	struct m0_conf_obj            *fs;
+	struct m0_reqh                *reqh = &m0t1fs_globals.g_reqh;
+	const char                    *ep_addr;
+	uint32_t                       nr_ios = 0;
+	int                            rc;
+	struct fs_params               fs_params = {0};
+	bool                           stats_svc_is_provided = false;
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
@@ -971,6 +980,19 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = fs_params_parse(&fs_params,
 			     M0_CONF_CAST(fs, m0_conf_filesystem)->cf_params) ?:
 		connect_to_services(csb, fs, &nr_ios);
+
+	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+		if (ctx->sc_type == M0_CST_SS) {
+			stats_svc_is_provided = true;
+			break;
+		}
+	} m0_tlist_endfor;
+	if (stats_svc_is_provided) {
+		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;
+		m0_addb_monitor_setup(reqh, &ctx->sc_conn, ep_addr);
+		M0_LOG(M0_DEBUG, "Stats service connected");
+	} else
+		M0_LOG(M0_WARN, "Stats service not connected");
 	m0_confc_close(fs);
 	if (rc != 0)
 		goto end;

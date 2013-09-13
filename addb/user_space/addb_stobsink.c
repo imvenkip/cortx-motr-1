@@ -1140,6 +1140,7 @@ static const struct m0_addb_mc_recsink stobsink_ops = {
 
 /* public interface */
 M0_INTERNAL int m0_addb_mc_configure_stob_sink(struct m0_addb_mc *mc,
+					       struct m0_reqh    *reqh,
 					       struct m0_stob    *stob,
 					       m0_bcount_t        segment_size,
 					       m0_bcount_t        stob_size,
@@ -1154,6 +1155,10 @@ M0_INTERNAL int m0_addb_mc_configure_stob_sink(struct m0_addb_mc *mc,
 	M0_PRE(stob != NULL && segment_size > 0 && stob_size >= segment_size);
 	M0_PRE(segment_size < INT32_MAX);
 	M0_PRE(timeout > 0);
+	/**
+	 * @todo: Uncomment this statement
+	M0_PRE(reqh != NULL);
+	*/
 
 	M0_ALLOC_PTR(sink);
 	if (sink == NULL)
@@ -1193,6 +1198,7 @@ M0_INTERNAL int m0_addb_mc_configure_stob_sink(struct m0_addb_mc *mc,
 	m0_stob_get(stob);
 	sink->ss_sync = false;
 	mc->am_sink = &sink->ss_sink;
+	mc->am_reqh = reqh;
 	M0_POST(stobsink_invariant(sink));
 	return 0;
 fail:

@@ -68,10 +68,12 @@
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 #include "rm/rm_service.h"
+#include "stats/stats_srv.h"
 #include "sns/sns.h"
 #include "sns/parity_ops.h"
 #include "cm/cm.h"
 #include "addb/addb_fops.h"
+#include "stats/stats_fops.h"
 #include "mgmt/mgmt.h"
 #include "ha/epoch.h"
 
@@ -141,11 +143,12 @@ struct init_fini_call subsystem[] = {
 	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
-	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 #endif
+	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
+	{ &m0_stats_fops_init,  &m0_stats_fops_fini,   "stats_fops"},
 	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
@@ -160,6 +163,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
+	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },

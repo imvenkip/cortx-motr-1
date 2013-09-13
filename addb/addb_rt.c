@@ -39,7 +39,7 @@ M0_TL_DEFINE(addb_rt, static, struct m0_addb_rec_type);
 /** The context type hash table */
 static struct m0_tl addb_rt_htab[ADDB_RT_HASH_BUCKETS];
 
-static uint32_t addb_rt_max_id; /* for the UT */
+static uint32_t addb_rt_max_id; /* Represent highest rec type id registred */
 
 /** Record type for context definition. */
 static struct m0_addb_rec_type addb_rt_ctxdef = {
@@ -137,7 +137,7 @@ M0_INTERNAL void m0_addb_rec_type_register(struct m0_addb_rec_type *rt)
 	addb_rt_tlist_add_tail(&addb_rt_htab[addb_rt_hash(rt->art_id)], rt);
 
 	if (rt->art_id > addb_rt_max_id)
-		addb_rt_max_id = rt->art_id; /* for the UT */
+		addb_rt_max_id = rt->art_id;
 
 	M0_POST(addb_rec_type_invariant(rt));
 
@@ -153,6 +153,28 @@ M0_INTERNAL const struct m0_addb_rec_type *m0_addb_rec_type_lookup(uint32_t id)
 	m0_mutex_unlock(&addb_mutex);
 
 	return rt;
+}
+
+M0_INTERNAL uint32_t m0_addb_rec_type_name2id(const char *rt_name)
+{
+	int i;
+
+	M0_PRE(rt_name != NULL);
+
+	for (i = 0; i < ADDB_RT_HASH_BUCKETS; ++i) {
+		struct m0_addb_rec_type *rt;
+		m0_tl_for(addb_rt, &addb_rt_htab[i], rt) {
+			if (strcmp(rt->art_name, rt_name) == 0)
+				return rt->art_id;
+		} m0_tl_endfor;
+	}
+
+	return M0_ADDB_RECID_UNDEF;
+}
+
+M0_INTERNAL uint32_t m0_addb_rec_type_max_id(void)
+{
+	return addb_rt_max_id;
 }
 
 /*

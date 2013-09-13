@@ -435,7 +435,7 @@ function start_server () {
 
 	local SNAME="-s addb -s ioservice -s sns_repair -s sns_rebalance"
 	if [ $I -eq 0 ]; then
-		SNAME="-s mdservice -s rmservice $SNAME"
+		SNAME="-s mdservice -s rmservice -s stats $SNAME"
 	fi
 
 	$RUN "echo rotated > ${SLOG}$I.log"
@@ -445,8 +445,8 @@ M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $BROOT/mero/m0d -r -p \
 $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
--w $POOL_WIDTH -G $XPT:$MDS_EP
--e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" 2>&1 >> ${SLOG}$I.log | tee -a ${SLOG}$I.log &
+-w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
+-e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
@@ -467,6 +467,7 @@ function start_servers () {
 	fi
 
 	MDS_EP=${SERVICES[1]}
+	STATS_EP=${SERVICES[1]}
 	IOS_EPs=" -i $XPT:$MDS_EP"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
 		IOS_EPs="$IOS_EPs -i $XPT:${SERVICES[$i]}"
@@ -645,6 +646,7 @@ main()
 	# prepare configuration data
 	MDS_ENDPOINT="\"${SERVICES[1]}\""
 	RMS_ENDPOINT="\"${SERVICES[1]}\""
+	STATS_ENDPOINT="\"${SERVICES[1]}\""
 	IOS_NAMES='"ios1"'
 	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
@@ -655,16 +657,17 @@ main()
 	done
 
 	CONF="`cat <<EOF
-[$((SERVICES_NR + 4)):
+[$((SERVICES_NR + 5)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
               [4: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
 		  "nr_parity_units=$NR_PARITY",
                   "unit_size=$UNIT_SIZE"],
-              [$((SERVICES_NR + 2)): "mds", "dlm", $IOS_NAMES])}),
+              [$((SERVICES_NR + 3)): "mds", "dlm", "stats", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
   ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
+  ("stats", {3| (5, [1: $STATS_ENDPOINT], "_")}),
   $IOS_OBJS]
 EOF`"
 

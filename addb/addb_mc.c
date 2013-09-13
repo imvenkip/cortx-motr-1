@@ -53,6 +53,7 @@ M0_INTERNAL void m0_addb_mc_init(struct m0_addb_mc *mc)
 {
 	mc->am_evmgr = NULL;
 	mc->am_sink  = NULL;
+	mc->am_reqh  = NULL;
 	mc->am_magic = M0_ADDB_MC_MAGIC;
 }
 
@@ -83,6 +84,7 @@ M0_INTERNAL void m0_addb_mc_fini(struct m0_addb_mc *mc)
 {
 	m0_addb_mc_unconfigure(mc);
 	mc->am_magic = 0;
+	mc->am_reqh = NULL;
 	M0_POST(!m0_addb_mc_is_initialized(mc));
 }
 

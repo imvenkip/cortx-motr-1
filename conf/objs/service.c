@@ -30,7 +30,8 @@ static bool service_check(const void *bob)
 
 	return ergo(self_obj->co_status == M0_CS_READY,
 		    M0_IN(self->cs_type,
-			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM))) &&
+			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM,
+			   M0_CST_SS))) &&
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
 		     child_check(self_obj, MEMBER_PTR(self->cs_node, cn_obj),

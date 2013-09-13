@@ -32,6 +32,7 @@ enum m0_conf_service_type {
 	M0_CST_IOS,     /*< IO/data service. */
 	M0_CST_MGS,     /*< Management service (confd?). */
 	M0_CST_DLM,     /*< DLM service. */
+	M0_CST_SS       /*< Stats service */
 };
 
 #endif /* __MERO_CONF_SCHEMA_H__ */

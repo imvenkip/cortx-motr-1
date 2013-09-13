@@ -408,20 +408,35 @@ enum {
 	M0T1FS_COB_ID_STRLEN            = 34,
 };
 
+struct m0t1fs_addb_mon_sum_data_io_size {
+	uint64_t sd_rio;
+	uint64_t sd_wio;
+};
+
+/** Represents type of IO request. */
+enum io_req_type {
+        IRT_READ,
+        IRT_WRITE,
+        IRT_TYPE_NR,
+};
+
 /** Anything that is global to m0t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
 struct m0t1fs_globals {
-	struct m0_net_xprt       *g_xprt;
+	struct m0_net_xprt                     *g_xprt;
 	/** local endpoint address module parameter */
-	const char               *g_laddr;
-	char                     *g_db_name;
-	struct m0_net_domain      g_ndom;
-	struct m0_rpc_machine     g_rpc_machine;
-	struct m0_reqh            g_reqh;
-	struct m0_dbenv           g_dbenv;
-	struct m0_fol             g_fol;
-	struct m0_net_buffer_pool g_buffer_pool;
-	struct m0_layout_domain   g_layout_dom;
+	const char                             *g_laddr;
+	char                                   *g_db_name;
+	struct m0_net_domain                    g_ndom;
+	struct m0_rpc_machine                   g_rpc_machine;
+	struct m0_reqh                          g_reqh;
+	struct m0_dbenv                         g_dbenv;
+	struct m0_fol                           g_fol;
+	struct m0_net_buffer_pool               g_buffer_pool;
+	struct m0_layout_domain                 g_layout_dom;
+	struct m0_addb_monitor                  g_addb_mon_rw_io_size;
+	uint32_t                                g_addb_mon_rw_io_size_key;
+	struct m0t1fs_addb_mon_sum_data_io_size g_addb_mon_sum_data_rw_io_size;
 };
 
 extern struct m0t1fs_globals m0t1fs_globals;

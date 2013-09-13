@@ -207,6 +207,7 @@ include $(top_srcdir)/sns/cm/Makefile.sub
 include $(top_srcdir)/sns/cm/repair/Makefile.sub
 include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
+include $(top_srcdir)/stats/Makefile.sub
 include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
 
@@ -255,6 +256,7 @@ include $(top_srcdir)/sm/ut/Makefile.sub
 include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
+include $(top_srcdir)/stats/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub
 include $(top_srcdir)/ut/Makefile.sub
 include $(top_srcdir)/xcode/ut/Makefile.sub
@@ -638,6 +640,14 @@ pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
 #XXX_BE_DB
 #XXX_BE_DB include $(top_srcdir)/mgmt/ctl/Makefile.sub
 
+#
+# stats/util/m0stats
+#
+
+bin_PROGRAMS               += stats/util/m0stats
+stats_util_m0stats_LDADD    = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/stats/util/Makefile.sub
 ################################################################################
 #                        Init scripts and config files
 ################################################################################

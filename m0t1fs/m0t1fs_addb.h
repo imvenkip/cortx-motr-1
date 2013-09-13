@@ -23,6 +23,11 @@
 #define __MERO_M0T1FS_M0T1FS_ADDB_H__
 
 #include "addb/addb.h"
+#include "addb/addb_monitor.h"
+#ifdef __KERNEL__
+#include "fop/fom_simple.h"
+#endif
+
 /*
  ******************************************************************************
  * Kernel client ADDB context types.
@@ -99,16 +104,21 @@ enum {
 	M0T1FS_ADDB_RECID_DGIOW_SIZES           = 508,
 	M0T1FS_ADDB_RECID_DGIOR_TIMES           = 509,
 	M0T1FS_ADDB_RECID_DGIOW_TIMES           = 510,
+	M0T1FS_ADDB_RECID_MON_IO_SIZE           = 511,
 };
 
 /* Total time required and size for IO */
 M0_ADDB_RT_DP(m0_addb_rt_m0t1fs_io_finish, M0T1FS_ADDB_RECID_IO_FINISH,
-	      "io_size" /* in bytes */, "time_ns");
+	      "rw", "io_size" /* in bytes */, "time_ns");
 
 /* Time required and io size for each COB FID */
 M0_ADDB_RT_DP(m0_addb_rt_m0t1fs_cob_io_finish, M0T1FS_ADDB_RECID_COB_IO_FINISH,
 	      "cob_container", "cob_key",
 	      "io_size" /* in bytes (data + parity) */, "time_ns");
+
+/* Number of bytes read, written from this client instance (m0t1fs) */
+M0_ADDB_RT_STATS(m0_addb_rt_m0t1fs_mon_io_size, M0T1FS_ADDB_RECID_MON_IO_SIZE,
+	      "total_rio_size", "total_wio_size");
 
 /* m0t1fs root cob */
 M0_ADDB_RT_DP(m0_addb_rt_m0t1fs_root_cob, M0T1FS_ADDB_RECID_ROOT_COB,
@@ -146,6 +156,31 @@ M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_dgior_times,  M0T1FS_ADDB_RECID_DGIOR_TIMES,
 M0_ADDB_RT_CNTR(m0_addb_rt_m0t1fs_dgiow_times,  M0T1FS_ADDB_RECID_DGIOW_TIMES,
 		uS(250), uS(500), uS(750), mS(1), mS(10), mS(50),
 		mS(100), mS(250), mS(500));
+
+#ifdef __KERNEL__
+struct m0t1fs_addb_monitor_pfom {
+	/** Periodicity of the ADDB summary stats post */
+	m0_time_t             pf_period;
+	/** Next post time */
+	m0_time_t             pf_next_post;
+	/** Shutdown/unmount request flag */
+	bool                  pf_shutdown;
+	/** The FOM timer */
+	struct m0_fom_timeout pf_timeout;
+	/** Simple FOM */
+	struct m0_fom_simple  pf_fom;
+};
+
+enum m0t1fs_addb_monitor_pfom_phase {
+	M0T1FS_PFOM_PHASE_CTO = M0_FOM_PHASE_NR,
+	M0T1FS_PFOM_PHASE_SLEEP,
+	M0T1FS_PFOM_PHASE_POST,
+};
+
+enum {
+	M0T1FS_PFOM_RET_SHUTDOWN = -1,
+};
+#endif /* __KERNEL__ */
 
 #endif /* __MERO_M0T1FS_M0T1FS_ADDB_H__ */
 

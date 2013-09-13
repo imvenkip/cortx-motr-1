@@ -49,6 +49,7 @@
 #include "mero/version.h"
 #include "rpc/rpclib.h"
 #include "rpc/rpc_internal.h"
+#include "addb/addb_monitor.h"
 
 /**
    @addtogroup m0d
@@ -314,11 +315,14 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
 	M0_RETURN(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE : 0);
 }
 
-int ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx, const char *ep)
+M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
+				       const char *ep)
 {
 	char *sptr;
 	char *endpoint;
 	int   ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
+
+	M0_PRE(ep != NULL);
 
 	epx->ex_cep = ep;
 	M0_ALLOC_ARR(epx->ex_scrbuf, ep_len);
@@ -363,7 +367,7 @@ static int ep_and_xprt_append(struct m0_tl *head, const char *ep)
 		return -ENOMEM;
 	}
 
-	rc = ep_and_xprt_extract(epx, ep);
+	rc = m0_ep_and_xprt_extract(epx, ep);
 	if (rc != 0)
 		goto err;
 
@@ -586,6 +590,25 @@ static int cs_rpc_machines_init(struct m0_mero *cctx)
 	return rc;
 }
 
+static void cs_addb_monitor_stats_svc_conn_init(struct m0_mero *cctx)
+{
+	int                          rc = 0;
+	struct m0_reqh_context      *rctx;
+
+	M0_PRE(cctx != NULL);
+
+	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+		M0_ASSERT(m0_reqh_context_invariant(rctx));
+		rc = m0_addb_monitor_stats_svc_conn_init(&rctx->rc_reqh);
+		if (rc != 0) {
+			/* @todo: LOG ADDB msg */
+			rc = 0;
+			break;
+		}
+
+	} m0_tl_endfor;
+}
+
 /**
    Finalises all the rpc machines from the list of rpc machines present in
    m0_reqh.
@@ -608,8 +631,8 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
 	} m0_tl_endfor;
 }
 
-static uint32_t cs_domain_tms_nr(struct m0_mero *cctx,
-				struct m0_net_domain *dom)
+static uint32_t cs_domain_tms_nr(struct m0_mero       *cctx,
+				 struct m0_net_domain *dom)
 {
 	struct m0_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
@@ -1340,8 +1363,6 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 {
 	int rc;
 
-	M0_ENTRY();
-
 	/** @todo Pass in a parent ADDB context for the db. Ideally should
 	    be same parent as that of the reqh.
 	    But, we'd also want the db to use the same addb m/c as the reqh.
@@ -1486,6 +1507,9 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	M0_PRE(m0_reqh_context_invariant(rctx));
 
 	M0_ENTRY();
+
+	if (reqh->rh_addb_monitoring_ctx.amc_stats_conn != NULL)
+		m0_addb_monitor_stats_svc_conn_fini(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
@@ -1684,6 +1708,7 @@ static void cs_help(FILE *out)
 "  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
 "  -g       Bootstrap configuration using genders.\n"
 "  -Z       Run as a daemon.\n"
+"  -R addr  Stats service endpoint address \n"
 "\n"
 "Request handler options:\n"
 "  -r   Start new set of request handler options.\n"
@@ -1951,8 +1976,16 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			M0_STRINGARG('G', "mdservice endpoint address",
 				LAMBDA(void, (const char *s)
 				{
-					rc = ep_and_xprt_extract(&cctx->
-								 cc_mds_epx, s);
+					rc = m0_ep_and_xprt_extract(&cctx->
+								    cc_mds_epx,
+								    s);
+				})),
+			M0_STRINGARG('R', "stats service endpoint address",
+				LAMBDA(void, (const char *s)
+				{
+					rc = m0_ep_and_xprt_extract(&cctx->
+								 cc_stats_svc_epx,
+								 s);
 				})),
 			M0_STRINGARG('i', "ioservice endpoints list",
 				LAMBDA(void, (const char *s)
@@ -2169,9 +2202,21 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 
 int m0_cs_start(struct m0_mero *cctx)
 {
+	int rc;
+
 	M0_ENTRY();
 	M0_PRE(cctx != NULL);
-	M0_RETURN(cs_services_init(cctx));
+	rc = cs_services_init(cctx);
+	/**
+	 * @todo: stats connection initialization should be done
+	 * in addb pfom, currently not being done due to some initialization
+	 * ordering issues.
+	 * RB link :- http://reviewboard.clusterstor.com/r/1544
+	 */
+	if (cctx->cc_stats_svc_epx.ex_endpoint != NULL)
+		cs_addb_monitor_stats_svc_conn_init(cctx);
+
+	return rc;
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,

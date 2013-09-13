@@ -2,17 +2,21 @@ nobase_mero_include_HEADERS += addb/addb.h \
                                addb/addb_fops.h \
                                addb/addb_fops_xc.h \
                                addb/addb_macros.h \
+			       addb/addb_monitor.h \
+			       addb/addb_monitor_wire.h \
+			       addb/addb_monitor_wire_xc.h \
                                addb/addb_pvt.h \
                                addb/addb_wire.h \
                                addb/addb_wire_xc.h \
-                               addb/user_space/addb_svc.h \
+                               addb/addb_svc.h \
                                addb/user_space/uctx.h
 
 mero_libmero_la_SOURCES  += addb/addb.c \
                             addb/addb_wire_xc.c
 
 XC_FILES   += addb/addb_wire_xc.h \
-	      addb/addb_fops_xc.h
+	      addb/addb_monitor_wire_xc.h \
+              addb/addb_fops_xc.h
 
 EXTRA_DIST += addb/addb_counter.c \
               addb/addb_ct.c \
@@ -21,6 +25,8 @@ EXTRA_DIST += addb/addb_counter.c \
               addb/addb_fops.c \
               addb/addb_fops_xc.c \
               addb/addb_mc.c \
+	      addb/addb_monitor.c \
+	      addb/addb_monitor_wire_xc.c \
               addb/addbmc.dia \
               addb/addbmc.png \
               addb/addb_rec.c \
@@ -29,11 +35,21 @@ EXTRA_DIST += addb/addb_counter.c \
 	      addb/addb_ts.c \
               addb/linux_kernel/kctx.c \
               addb/user_space/addb_fom.c \
-              addb/user_space/addb_pfom.c \
+              addb/addb_pfom.c \
               addb/user_space/addb_retrieval.c \
               addb/user_space/addb_stobsink.c \
-              addb/user_space/addb_svc.c \
+              addb/addb_svc.c \
               addb/user_space/uctx.c
 
-addb/addb.c: addb/addb_fops_xc.h \
+CLEANFILES += addb/addb_fops_xc.c \
+	      addb/addb_fops_xc.h \
+	      addb/addb_fops.gccxml \
+	      addb/addb_monitor_wire_xc.c \
+	      addb/addb_monitor_wire_xc.h \
+              addb/addb_wire_xc.c \
+              addb/addb_wire_xc.h \
+              addb/addb_wire.gccxml
+
+addb/addb.c: addb/addb_monitor_wire_xc.h \
+	     addb/addb_fops_xc.h \
              addb/addb_wire_xc.h

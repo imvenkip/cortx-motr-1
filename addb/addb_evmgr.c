@@ -488,6 +488,7 @@ M0_INTERNAL void m0__addb_post(struct m0_addb_mc *mc,
 	switch (pd->apd_rt->art_base_type) {
 	case M0_ADDB_BRT_EX:
 	case M0_ADDB_BRT_DP:
+	case M0_ADDB_BRT_STATS:
 		fields_nr = pd->apd_rt->art_rf_nr;
 		fields = pd->u.apd_args;
 		break;

@@ -210,6 +210,7 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "dtm/dtm.h"           /* m0_dtx */
 #include "stob/stob.h"
 #include "reqh/reqh_service.h"
+#include "addb/addb_monitor.h"
 
 /* export */
 struct m0_fom_domain;
@@ -296,6 +297,11 @@ struct m0_fom_locality {
 	 */
 	struct m0_addb_counter       fl_stat_sched_wait_times;
 
+	/** FOP rate counter. It is fop executed per sec. */
+	uint64_t                     fl_fop_rate_count;
+	m0_time_t		     fl_fop_rate_next_update;
+	struct m0_addb_counter       fl_stat_fop_rate;
+
 	/** AST which triggers the posting of statistics */
 	struct m0_sm_ast             fl_post_stats_ast;
 
@@ -334,6 +340,10 @@ struct m0_fom_domain {
 	struct m0_reqh			*fd_reqh;
 	/** Addb context for fom */
 	struct m0_addb_ctx               fd_addb_ctx;
+	/** fop rate monitor key */
+	uint32_t			 fd_fop_rate_monitor_key;
+	/** fop rate monitor */
+	struct m0_addb_monitor           fd_fop_rate_monitor;
 };
 
 /** Operations vector attached to a domain. */

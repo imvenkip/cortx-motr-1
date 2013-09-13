@@ -269,6 +269,11 @@ M0_FIELD_IS(type, field, uint64_t) ? \
 #define M0_CAT(A, B) M0_CAT2(A, B)
 #define M0_CAT2(A, B) A ## B
 
+/**
+ * Resolve hostname.
+ */
+M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
+
 #define M0_UNUSED __attribute__((unused))
 
 #endif /* __MERO_LIB_MISC_H__ */

@@ -114,6 +114,15 @@ enum m0_magic_satchel {
 	/* rpcsink item source list head (addb safe sloe) */
 	M0_ADDB_RPCSINK_IS_HEAD_MAGIC =0x33addb5afe510e77,
 
+	/* ADDB monitor list's head (addb hellhole) */
+	M0_ADDB_MONITOR_LIST_HEAD_MAGIC = 0x33addb3704773477,
+
+	/* ADDB monitor (addb shoebill) */
+	M0_ADDB_MONITOR_LIST_LINK_MAGIC = 0x33addb7719304577,
+
+	/* m0_addb_monitoring_ctx::amc_magic (basils basils) */
+	M0_ADDB_MONITOR_CTX_MAGIC = 0x33ba5115ba511577,
+
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */
 	M0_BALLOC_SB_MAGIC = 0x33b1e55edba10c77,
@@ -743,6 +752,22 @@ enum m0_magic_satchel {
 
 	/* stob/cache.c:cache_tl::td_head_magic (faded ballade) */
 	M0_STOB_CACHE_MAGIX     = 0x33FADEDBA11ADE77,
+
+/* Stats */
+	/* m0_stats::s_magic (slab slab) */
+	M0_STATS_MAGIC = 0x3351AB51AB77,
+
+	/* stats_tl::.td_head_magic (slab sled) */
+	M0_STATS_HEAD_MAGIC = 0x3351AB51ED77,
+
+	/* stats_svc::ss_magic (slab sic)*/
+	M0_STATS_SVC_MAGIC = 0x3351AB51C77,
+
+	/* stats_query_fom::suf_magic (slab deed) */
+	M0_STATS_QUERY_FOM_MAGIC = 0x3351ABDEED77,
+
+	/* stats_update_fom::suf_magic (slab feed) */
+	M0_STATS_UPDATE_FOM_MAGIC = 0x3351ABFEED77,
 
 /* Trace */
 	/* m0_trace_rec_header::trh_magic (foldable doll) */

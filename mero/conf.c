@@ -61,7 +61,8 @@ static const char *service_name[] = {
 	[M0_CST_MDS] = "mdservice",  /* Meta-data service. */
 	[M0_CST_IOS] = "ioservice",  /* IO/data service. */
 	[M0_CST_MGS] = "confd",      /* Management service (confd). */
-	[M0_CST_DLM] = "dlm"         /* DLM service. */
+	[M0_CST_DLM] = "dlm",        /* DLM service. */
+	[M0_CST_SS]  = "stats"       /* Stats service */
 };
 
 static char *service_name_dup(const struct m0_conf_service *svc)
