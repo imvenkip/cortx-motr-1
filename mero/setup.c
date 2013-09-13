@@ -1234,7 +1234,7 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
 		return rc;
 
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, rctx->rc_db->bs_domain, grp);
+	m0_dtx_init(&tx, rctx->rc_beseg->bs_domain, grp);
 	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	if (rc == 0) {
@@ -1270,7 +1270,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 
 	/** @todo allow different stob type for data stobs & ADDB stobs? */
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_addb_stpath,
-			     &addb_stob->cas_stobs, rctx->rc_db);
+			     &addb_stob->cas_stobs, rctx->rc_beseg);
 	if (rc != 0)
 		M0_RETURN(rc);
 
@@ -1286,7 +1286,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 	}
 
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, rctx->rc_db->bs_domain, grp);
+	m0_dtx_init(&tx, rctx->rc_beseg->bs_domain, grp);
 	m0_stob_create_helper_credit(sdom, &m0_addb_stob_id, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	if (rc == 0) {
@@ -1313,52 +1313,6 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 		m0_addb_mc_init(&m0_addb_gmc);
 	}
 	cs_storage_fini(&addb_stob->cas_stobs);
-}
-
-static void be_init(struct m0_reqh *rh, struct m0_reqh_context *rctx)
-{
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_be_ut_backend *ut_be = &rctx->rc_ut_be;
-	int rc;
-
-	/* XXX: prototype solution, think of rc_dbpath usage. */
-
-	M0_SET0(ut_be);
-	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
-	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
-	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = rh;
-
-	m0_mutex_init(&ut_be->but_sgt_lock);
-	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
-	M0_ASSERT(rc == 0);
-	if (rc != 0)
-		m0_mutex_fini(&ut_be->but_sgt_lock);
-	m0_be_ut_seg_init(&rctx->rc_ut_seg, ut_be, 1ULL << 26);
-	m0_be_ut_seg_allocator_init(&rctx->rc_ut_seg, ut_be);
-	rctx->rc_db = &rctx->rc_ut_seg.bus_seg;
-
-	m0_sm_group_lock(grp);
-	rc = m0_be_seg_dict_create(rctx->rc_db, grp);
-	m0_sm_group_unlock(grp);
-	M0_ASSERT(rc == 0);
-}
-
-static void be_fini(struct m0_reqh_context *rctx)
-{
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_be_ut_backend *ut_be = &rctx->rc_ut_be;
-	int rc;
-
-	/* XXX: prototype solution. */
-	m0_sm_group_lock(grp);
-	rc = m0_be_seg_dict_destroy(rctx->rc_db, grp);
-	m0_sm_group_unlock(grp);
-	M0_ASSERT(rc == 0);
-
-	m0_be_ut_seg_fini(&rctx->rc_ut_seg);
-	m0_be_domain_fini(&ut_be->but_dom);
-	m0_mutex_fini(&ut_be->but_sgt_lock);
-	m0_be_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob, true);
 }
 
 /**
@@ -1392,11 +1346,16 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		goto out;
 
-	be_init(&rctx->rc_reqh, rctx);
+	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "m0_dbenv_init");
+		return rc;
+	}
+	rctx->rc_beseg = &rctx->rc_db.d_i.d_ut_seg.bus_seg;
 
-	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_db, true);
+	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg, true);
 	if (rc != 0)
-		goto be_fini;
+		goto dbenv_fini;
 
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
@@ -1408,7 +1367,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	}
 
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
-			     &rctx->rc_stob, rctx->rc_db);
+			     &rctx->rc_stob, rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init");
 		goto cleanup_stob;
@@ -1432,12 +1391,13 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		 * cob domain for mkfs.
 		 */
 		rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
-				     rctx->rc_db, false);
-		if (rc != -ENOENT) {
+				     rctx->rc_beseg, false);
+		if (rc != 0 && rc != -ENOENT) {
 			M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
 			goto cleanup_addb_stob;
 		}
-		rc = cs_storage_prepare(rctx);
+		if (rc == -ENOENT)
+			rc = cs_storage_prepare(rctx);
 		m0_mdstore_fini(&rctx->rc_mdstore);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_storage_prepare: rc=%d", rc);
@@ -1445,8 +1405,8 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		}
 	}
 
-	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, rctx->rc_db,
-			     true);
+	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
+			     rctx->rc_beseg, true);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
 		goto cleanup_addb_stob;
@@ -1461,8 +1421,8 @@ cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_dbenv_fini:
 	m0_reqh_dbenv_fini(&rctx->rc_reqh, true);
-be_fini:
-	be_fini(rctx);
+dbenv_fini:
+	m0_dbenv_fini(&rctx->rc_db);
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
 	M0_ASSERT(rc != 0);
@@ -1512,7 +1472,7 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
 
-	m0_reqh_dbenv_fini(reqh, false);
+	m0_reqh_dbenv_fini(reqh, true);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
@@ -1522,7 +1482,7 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);
-	be_fini(rctx);
+	m0_dbenv_fini(&rctx->rc_db);
 	m0_reqh_fom_domain_idle_wait(reqh);
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
 		m0_reqh_mgmt_service_stop(reqh);
