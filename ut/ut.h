@@ -50,13 +50,13 @@
 */
 
 #ifndef __KERNEL__
-# define M0_UT_ASSERT(a)	({ CU_ASSERT(a) })
-# define M0_UT_PASS(m)		({ CU_PASS(m) })
-# define M0_UT_FAIL(m)		({ CU_FAIL(m) })
+# define M0_UT_ASSERT(a) ({ CU_ASSERT(a) })
+# define M0_UT_PASS(m)   ({ CU_PASS(m) })
+# define M0_UT_FAIL(m)   ({ CU_FAIL(m) })
 #else
-# define M0_UT_ASSERT(a)	m0_ut_assertimpl((a), __LINE__, #a, __FILE__)
-# define M0_UT_PASS(m)		m0_ut_assertimpl(true, __LINE__, m, __FILE__)
-# define M0_UT_FAIL(m)		m0_ut_assertimpl(false, __LINE__, m, __FILE__)
+# define M0_UT_ASSERT(a) m0_ut_assertimpl((a), __LINE__, #a, __FILE__, __func__, true)
+# define M0_UT_PASS(m)   m0_ut_assertimpl(true, __LINE__, m, __FILE__, __func__, true)
+# define M0_UT_FAIL(m)   m0_ut_assertimpl(false, __LINE__, m, __FILE__, __func__, true)
 #endif
 
 /**
@@ -201,9 +201,13 @@ M0_INTERNAL int m0_ut_db_reset(const char *db_name);
    @param lno line number of the assertion, eg __LINE__
    @param str_c string representation of the condition, c
    @param file path of the file, eg __FILE__
+   @param func name of the function which triggered assertion, eg __func__
+   @param panic flag, which controls whether this function should call
+                m0_panic() or just print error message and continue
  */
 M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
-				  const char *file);
+				  const char *file, const char *func,
+				  bool panic);
 #endif
 
 #ifndef __KERNEL__

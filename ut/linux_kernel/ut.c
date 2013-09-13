@@ -212,11 +212,20 @@ M0_INTERNAL void m0_ut_run(void)
 M0_EXPORTED(m0_ut_run);
 
 M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
-				  const char *file)
+				  const char *file, const char *func,
+				  bool panic)
 {
+	static char  buf[1024];
+
 	if (!c) {
+		if (panic) {
+			snprintf(buf, sizeof buf,
+				"Unit test assertion failed: %s", str_c);
+			buf[(sizeof buf) - 1] = '\0';
+			m0_panic(buf, func, file, lno);
+		}
 		printk(KERN_ERR "Unit test assertion failed: %s at %s:%d\n",
-		       str_c, file, lno);
+				str_c, file, lno);
 		failed++;
 	} else
 		passed++;
