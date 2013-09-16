@@ -31,6 +31,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
+#include "lib/locality.h"
 #include "mero/magic.h"
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
@@ -511,8 +512,9 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 	int                      rc = 0;
 	struct m0_cob_domain    *cdom;
 	struct m0_cob_domain_id  cdom_id;
-	struct m0_db_tx          tx;
+	struct m0_dtx            tx;
 	struct m0_dbenv         *dbenv;
+	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
 
 	M0_PRE(reqh != NULL);
 
@@ -531,25 +533,31 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
 		       reqh, ios_cdom_key);
 		cdom_id.id = m0_rnd(1ULL << 47, &cid);
-		rc = m0_cob_domain_init(cdom, dbenv, &cdom_id);
-		if (rc != 0)
+		rc = m0_cob_domain_init(cdom, reqh->rh_beseg, &cdom_id);
+		if (rc != 0 && rc != -ENOENT)
 			goto reqh_fini;
+		if (rc == -ENOENT)
+			rc = m0_cob_domain_create(cdom, grp);
+		if (rc != 0)
+			goto cdom_fini;
 
-		rc = m0_db_tx_init(&tx, dbenv, 0);
+		m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
+		m0_cob_tx_credit(cdom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
+		rc = m0_dtx_open_sync(&tx);
 		if (rc != 0)
 			goto cdom_fini;
 
 		rc = m0_cob_domain_mkfs(cdom, &M0_COB_SLASH_FID,
-					&M0_COB_ROOT_FID, &tx);
-		if (rc != 0) {
-			m0_db_tx_abort(&tx);
-			goto cdom_fini;
-		}
-		m0_db_tx_commit(&tx);
+					&M0_COB_ROOT_FID, &tx.tx_betx);
+		m0_dtx_done_sync(&tx);
+		if (rc != 0)
+			goto cdom_destroy;
 	}
 	*out = cdom;
 	goto out;
 
+cdom_destroy:
+	m0_cob_domain_destroy(cdom, grp);
 cdom_fini:
 	m0_cob_domain_fini(cdom);
 reqh_fini:

@@ -1515,10 +1515,9 @@ static int io_launch(struct m0_fom *fom)
 	if (rc != 0)
 		goto cleanup;
 
-	rc = m0_stob_locate(fom_obj->fcrw_stob, &fom->fo_tx);
-	if (rc != 0) {
+	rc = m0_stob_locate(fom_obj->fcrw_stob);
+	if (rc != 0)
 		goto cleanup_st;
-	}
 
 	/*
 	   Since the upper layer IO block size could differ with IO block size

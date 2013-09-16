@@ -46,7 +46,11 @@
 static void cc_fom_fini(struct m0_fom *fom);
 static int  cob_ops_fom_tick(struct m0_fom *fom);
 static void cc_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
+static int  cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
+				  struct m0_be_tx_credit *accum);
 static int  cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
+static void cob_op_credit(struct m0_fom *fom, enum m0_cob_op opcode,
+			  struct m0_be_tx_credit *accum);
 static int  cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc);
 
 static void cd_fom_fini(struct m0_fom *fom);
@@ -267,12 +271,25 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_ops != NULL);
 	M0_PRE(fom->fo_type != NULL);
 
+	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
+
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			cob_op = cob_fom_get(fom);
+			if (fop_is_create) {
+				cc_stob_create_credit(fom, cob_op,
+						      &fom->fo_tx.tx_betx_cred);
+				cob_op_credit(fom, M0_COB_OP_CREATE,
+					      &fom->fo_tx.tx_betx_cred);
+			} else {
+				cob_op_credit(fom, M0_COB_OP_DELETE,
+					      &fom->fo_tx.tx_betx_cred);
+			}
+		}
 		rc = m0_fom_tick_generic(fom);
 		return rc;
 	}
 
-	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
 	common = m0_cobfop_common_get(fom->fo_fop);
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
@@ -361,12 +378,12 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	case M0_FOPH_COB_OPS_CREATE_DELETE:
 		M0_LOG(M0_DEBUG, "Cob %s operation started", ops);
 		cob_op = cob_fom_get(fom);
-		if(fop_is_create) {
+		if (fop_is_create) {
 			rc = cc_stob_create(fom, cob_op) ?:
-					cc_cob_create(fom, cob_op);
+			     cc_cob_create(fom, cob_op);
 		} else {
 			rc = cd_cob_delete(fom, cob_op) ?:
-					cd_stob_delete(fom, cob_op);
+			     cd_stob_delete(fom, cob_op);
 		}
 		step = 0;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -388,6 +405,30 @@ pack:
 					     &reply->cor_fv_updates);
 out:
 	return M0_FSO_AGAIN;
+}
+
+static int cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
+				 struct m0_be_tx_credit *accum)
+{
+	struct m0_reqh        *reqh;
+	struct m0_stob_domain *sdom;
+
+	M0_PRE(fom != NULL);
+	M0_PRE(cc != NULL);
+
+	reqh = m0_fom_reqh(fom);
+	sdom = m0_cs_stob_domain_find(reqh, &cc->fco_stobid);
+	if (sdom == NULL) {
+		M0_LOG(M0_DEBUG, "can't find domain for stob_id=%lu",
+		                 (unsigned long)cc->fco_stobid.si_bits.u_hi);
+		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_CRED,
+					&m0_ios_addb_ctx);
+		return -EINVAL;
+	}
+
+	m0_stob_create_helper_credit(sdom, &cc->fco_stobid,
+				     &fom->fo_tx.tx_betx_cred);
+	return 0;
 }
 
 static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
@@ -452,6 +493,17 @@ static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 				 nskey_name_len);
 }
 
+static void cob_op_credit(struct m0_fom *fom, enum m0_cob_op opcode,
+			  struct m0_be_tx_credit *accum)
+{
+	struct m0_cob_domain *cdom;
+
+	M0_PRE(fom != NULL);
+	cdom = cdom_get(fom);
+	M0_ASSERT(cdom != NULL);
+	m0_cob_tx_credit(cdom, opcode, &fom->fo_tx.tx_betx_cred);
+}
+
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
 	int		      rc;
@@ -505,7 +557,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec,
-			   &fom->fo_tx.tx_dbtx);
+			   &fom->fo_tx.tx_betx);
 	if (rc) {
 	        /*
 	         * Cob does not free nskey and fab rec on errors. We need to do
@@ -571,14 +623,14 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
         m0_cob_oikey_make(&oikey, &fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, 0, &cob, &fom->fo_tx.tx_dbtx);
+	rc = m0_cob_locate(cdom, &oikey, 0, &cob);
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(rc, CD_COB_DELETE_1, &m0_ios_addb_ctx);
 		return rc;
 	}
 
 	M0_ASSERT(cob != NULL);
-	rc = m0_cob_delete(cob, &fom->fo_tx.tx_dbtx);
+	rc = m0_cob_delete(cob, &fom->fo_tx.tx_betx);
 	if (rc != 0)
 		IOS_ADDB_FUNCFAIL(rc, CD_COB_DELETE_2, &m0_ios_addb_ctx);
 	else

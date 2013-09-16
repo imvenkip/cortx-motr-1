@@ -29,9 +29,9 @@
 #include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"
 #include "net/net_otw_types.h"
-//XXX_BE_DB #include "net/net_otw_types_xc.h"
+#include "net/net_otw_types_xc.h"
 #include "addb/addb.h"
-//XXX_BE_DB #include "addb/addb_wire_xc.h"
+#include "addb/addb_wire_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 
