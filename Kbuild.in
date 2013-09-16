@@ -59,7 +59,6 @@ include $(src)/mero/Kbuild.sub
 include $(src)/m0t1fs/Kbuild.sub
 
 include $(src)/addb/Kbuild.sub
-include $(src)/cob/Kbuild.sub
 include $(src)/conf/Kbuild.sub
 include $(src)/db/Kbuild.sub
 include $(src)/dtm/Kbuild.sub

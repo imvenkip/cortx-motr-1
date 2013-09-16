@@ -650,7 +650,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 }
 
 
-#ifndef __KERNEL__
 #include <sys/stat.h>    /* S_ISDIR */
 
 #define MKFS_ROOT_SIZE          4096
@@ -860,8 +859,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 		rc = 0;
 	return rc;
 }
-
-#endif /* ! __KERNEL__ */
 
 static void cob_free_cb(struct m0_ref *ref);
 
