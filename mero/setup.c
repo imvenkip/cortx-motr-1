@@ -1351,11 +1351,12 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		M0_LOG(M0_ERROR, "m0_dbenv_init");
 		return rc;
 	}
-	rctx->rc_beseg = &rctx->rc_db.d_i.d_ut_seg.bus_seg;
+	rctx->rc_beseg = rctx->rc_db.d_i.d_seg;
 
 	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg, true);
 	if (rc != 0)
 		goto dbenv_fini;
+	rctx->rc_reqh.rh_dbenv = &rctx->rc_db;
 
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);

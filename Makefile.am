@@ -168,7 +168,7 @@ include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/capa/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/cfg/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/cm/Makefile.sub
+include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/objs/Makefile.sub
@@ -197,10 +197,10 @@ include $(top_srcdir)/reqh/Makefile.sub
 include $(top_srcdir)/rm/Makefile.sub
 include $(top_srcdir)/rpc/Makefile.sub
 include $(top_srcdir)/sm/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sns/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sns/cm/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sns/cm/repair/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
+include $(top_srcdir)/sns/Makefile.sub
+include $(top_srcdir)/sns/cm/Makefile.sub
+include $(top_srcdir)/sns/cm/repair/Makefile.sub
+include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
@@ -221,7 +221,7 @@ include $(top_srcdir)/addb/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/capa/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/cm/ut/Makefile.sub
+include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
@@ -520,19 +520,19 @@ net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
 
 include $(top_srcdir)/net/test/user_space/Makefile.sub
 
-#XXX_BE_DB #
-#XXX_BE_DB # sns/cm/st
-#XXX_BE_DB #
-#XXX_BE_DB 
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS             += sns/cm/st/m0repair
-#XXX_BE_DB endif
-#XXX_BE_DB sns_cm_st_m0repair_CPPFLAGS  = -DM0_TARGET='m0repair' $(AM_CPPFLAGS)
-#XXX_BE_DB sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB 
-#XXX_BE_DB include $(top_srcdir)/sns/cm/st/Makefile.sub
-#XXX_BE_DB 
+#
+# sns/cm/st
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS             += sns/cm/st/m0repair
+endif
+sns_cm_st_m0repair_CPPFLAGS  = -DM0_TARGET='m0repair' $(AM_CPPFLAGS)
+sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
+                               $(top_builddir)/ut/libmero-ut.la
+
+include $(top_srcdir)/sns/cm/st/Makefile.sub
+
 #
 # utils/ploss
 #

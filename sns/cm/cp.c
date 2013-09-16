@@ -42,7 +42,6 @@
 */
 
 M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
-				       struct m0_dbenv *dbenv,
 				       struct m0_cob_domain *cdom);
 
 M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp);
@@ -156,7 +155,6 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
         struct m0_sns_cm     *scm;
 	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
-        struct m0_dbenv      *dbenv;
         struct m0_cob_domain *cdom;
         int                   rc;
 
@@ -169,9 +167,8 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 
 	if ((phase == M0_CCP_INIT && scp->sc_is_acc) || phase == M0_CCP_XFORM) {
 		scm = cm2sns(cp->c_ag->cag_cm);
-		dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
 		cdom  = scm->sc_it.si_cob_dom;
-		rc = m0_sns_cm_cob_is_local(&scp->sc_cobfid, dbenv, cdom);
+		rc = m0_sns_cm_cob_is_local(&scp->sc_cobfid, cdom);
 		if (rc == 0)
 			return M0_CCP_WRITE;
 		else if (rc == -ENOENT)

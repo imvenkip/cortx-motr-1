@@ -26,7 +26,7 @@
 #include "lib/types.h"
 
 #include "cm/ag.h"
-//XXX_BE_DB #include "cm/ag_xc.h"
+#include "cm/ag_xc.h"
 #include "xcode/xcode_attr.h"
 #include "fop/fop.h"
 

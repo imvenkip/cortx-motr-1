@@ -165,12 +165,13 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		goto out;
 
 	stob = sns_cp->sc_stob;
-	m0_dtx_init(&cp_fom->fo_tx);
+	m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
+		    &cp_fom->fo_loc->fl_group);
 	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
 	if (rc != 0)
 		goto out;
 
-	rc = m0_stob_locate(stob, &cp_fom->fo_tx);
+	rc = m0_stob_locate(stob);
 	if (rc != 0) {
 		m0_stob_put(stob);
 		goto out;

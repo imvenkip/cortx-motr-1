@@ -104,7 +104,6 @@ static const struct m0_cm_aggr_group_ops sns_cm_rebalance_ag_ops = {
 
 static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
                                       struct m0_pdclust_layout *pl,
-				      struct m0_dbenv *dbenv,
 				      struct m0_cob_domain *cdom)
 {
 	struct m0_poolmach *pm = sag->sag_base.cag_cm->cm_pm;
@@ -123,7 +122,7 @@ static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
                 rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
                 if (rc != 0)
                         return ~0;
-                rc = m0_sns_cm_cob_locate(dbenv, cdom, &cobfid);
+                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
                 if (rc != 0)
 			continue;
 		agid2fid(&sag->sag_base.cag_id, &gfid);
@@ -134,7 +133,7 @@ static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
                 rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl, &cobfid);
                 if (rc != 0)
                         return ~0;
-                rc = m0_sns_cm_cob_locate(dbenv, cdom, &cobfid);
+                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
                 if (rc != 0) {
 			if (rc == -ENOENT)
 				M0_CNT_INC(incoming_nr);
@@ -176,7 +175,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
 
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
 	rag->rag_incoming_nr = sns_cm_ag_incoming_nr(sag, pl,
-						     scm->sc_it.si_dbenv,
 						     scm->sc_it.si_cob_dom);
 	*out = &sag->sag_base;
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,

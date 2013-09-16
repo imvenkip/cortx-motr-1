@@ -741,23 +741,14 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 	       scm->sc_obp.sb_bp.nbp_seg_size;
 }
 
-static int _fid_next(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
-		    struct m0_fid *fid_curr, struct m0_fid *fid_next)
+static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
+						 struct m0_fid *fid_next)
 {
-	int             rc;
-	struct m0_db_tx tx;
+	int rc;
 
-	rc = m0_db_tx_init(&tx, dbenv, 0);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cob_ns_next_of(&cdom->cd_namespace, &tx, fid_curr,
-			       fid_next);
-	if (rc == 0) {
-		m0_db_tx_commit(&tx);
+	rc = m0_cob_ns_next_of(cdom->cd_namespace, fid_curr, fid_next);
+	if (rc == 0)
 		*fid_curr = *fid_next;
-	} else
-		m0_db_tx_abort(&tx);
 
 	return rc;
 }
@@ -850,7 +841,6 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	struct m0_cm_ag_id        ag_id;
 	struct m0_layout         *l;
 	struct m0_pdclust_layout *pl = NULL;
-	struct m0_dbenv          *dbenv = scm->sc_it.si_dbenv;
 	struct m0_cob_domain     *cdom = scm->sc_it.si_cob_dom;
 	uint64_t                  fsize;
 	uint64_t                  nr_gps = 0;
@@ -892,7 +882,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 			fid_curr = fid_next;
 		/* Increment fid_curr.f_key to fetch next fid. */
 		M0_CNT_INC(fid_curr.f_key);
-	} while ((rc = _fid_next(dbenv, cdom, &fid_curr, &fid_next)) == 0);
+	} while ((rc = _fid_next(cdom, &fid_curr, &fid_next)) == 0);
 
 	return rc;
 }

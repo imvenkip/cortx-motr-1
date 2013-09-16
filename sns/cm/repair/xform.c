@@ -220,7 +220,6 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	struct m0_cm_aggr_group    *ag;
 	struct m0_cm_cp            *res_cp;
 	struct m0_sns_cm           *scm;
-        struct m0_dbenv            *dbenv;
         struct m0_cob_domain       *cdom;
 	struct m0_cm_ag_id          id;
 	int                         rc;
@@ -241,7 +240,6 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	       ag->cag_cp_local_nr, ag->cag_transformed_cp_nr,
 	       ag->cag_has_incoming);
 
-        dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
         cdom  = scm->sc_it.si_cob_dom;
 
 	/* Increment number of transformed copy packets in the accumulator. */
@@ -279,7 +277,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		 */
 		if ((rc = m0_sns_cm_cob_is_local(
 					&rag->rag_fc[i].fc_tgt_cobfid,
-					dbenv, cdom)) == 0) {
+					cdom)) == 0) {
 			if (m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
 				rc = res_cp_enqueue(res_cp);
 				if (rc != 0)

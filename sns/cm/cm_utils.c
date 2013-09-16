@@ -144,26 +144,19 @@ M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 	       fsize / nr_data_bytes_per_group;
 }
 
-M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_dbenv *dbenv,
-				     struct m0_cob_domain *cdom,
+M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 				     const struct m0_fid *cob_fid)
 {
 	struct m0_cob        *cob;
 	struct m0_cob_oikey   oikey;
-	struct m0_db_tx       tx;
 	int                   rc;
 
-	rc = m0_db_tx_init(&tx, dbenv, 0);
-	if (rc != 0)
-		return rc;
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
 	if (rc == 0) {
 		M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
-		m0_db_tx_commit(&tx);
 		m0_cob_put(cob);
-	} else
-		m0_db_tx_abort(&tx);
+	}
 
 	return rc;
 }
@@ -197,8 +190,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
-					  &cobfid);
+		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
 		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
 			M0_CNT_INC(nrlu);
 	}
@@ -474,10 +466,9 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 
 
 M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
-					struct m0_dbenv *dbenv,
 					struct m0_cob_domain *cdom)
 {
-	return m0_sns_cm_cob_locate(dbenv, cdom, cobfid);
+	return m0_sns_cm_cob_locate(cdom, cobfid);
 }
 
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
