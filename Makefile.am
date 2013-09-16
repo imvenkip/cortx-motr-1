@@ -180,8 +180,8 @@ include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/ha/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/ioservice/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/layout/Makefile.sub
+include $(top_srcdir)/ioservice/Makefile.sub
+include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/m0t1fs/Makefile.sub
 include $(top_srcdir)/mdservice/Makefile.sub
@@ -192,7 +192,7 @@ include $(top_srcdir)/mgmt/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/pool/Makefile.sub
+include $(top_srcdir)/pool/Makefile.sub
 include $(top_srcdir)/reqh/Makefile.sub
 include $(top_srcdir)/rm/Makefile.sub
 include $(top_srcdir)/rpc/Makefile.sub
@@ -603,15 +603,15 @@ mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
 #XXX_BE_DB console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
 #XXX_BE_DB
 #XXX_BE_DB include $(top_srcdir)/console/bin/Makefile.sub
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # pool
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB bin_PROGRAMS             += pool/m0poolmach
-#XXX_BE_DB pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
-#XXX_BE_DB pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
-#XXX_BE_DB
+
+#
+# pool
+#
+
+bin_PROGRAMS             += pool/m0poolmach
+pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
+pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
+
 #XXX_BE_DB #
 #XXX_BE_DB # addb/dump
 #XXX_BE_DB #
