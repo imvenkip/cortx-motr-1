@@ -1107,7 +1107,7 @@ M0_INTERNAL void io_fop_ivec_dealloc(struct m0_fop *fop)
 	rw->crw_ivecs.cis_nr = 0;
 }
 
-/* Allocates memory for index vector/s from io fop wore format. */
+/* Allocates memory for index vector/s from io fop wire format. */
 static int io_fop_ivec_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 {
 	int			 cnt = 0;
