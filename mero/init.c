@@ -118,7 +118,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_db_init,          &m0_db_fini,          "db" },
 	{ &m0_dtm_init,         &m0_dtm_fini,         "dtm" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
-	//{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
+	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	/* fops must be initialised before network, because network build fop
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
@@ -135,16 +135,16 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
+#ifndef __KERNEL__
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
 	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
-	//{ &sim_global_init,     &sim_global_fini,     "desim" },
-#ifndef __KERNEL__
+	{ &sim_global_init,     &sim_global_fini,     "desim" },
 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 #endif
-	// { &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
-	//{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
+	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
+	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
 	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 #ifdef __KERNEL__
@@ -152,17 +152,17 @@ struct init_fini_call subsystem[] = {
 #else
 	{ &m0_backend_init,     &m0_backend_fini,     "be" },
 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
-	//{ &m0_confd_register,   &m0_confd_unregister, "confd" },
-	//{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
+	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
+	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
-	//{ &m0_pools_init,       &m0_pools_fini,       "pool" },
-	//{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
-	// { &m0_sns_init,         &m0_sns_fini,         "sns" },
-	//{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
+	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
+	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
+	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
+	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
-	//{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
+	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 };
 
 static void fini_nr(int i)

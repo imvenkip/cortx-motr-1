@@ -174,7 +174,7 @@ include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/db/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/desim/Makefile.sub
+include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
@@ -230,7 +230,7 @@ include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/ioservice/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/layout/ut/Makefile.sub
+include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
 include $(top_srcdir)/mero/ut/Makefile.sub
@@ -240,7 +240,7 @@ include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/pool/ut/Makefile.sub
+include $(top_srcdir)/pool/ut/Makefile.sub
 include $(top_srcdir)/reqh/ut/Makefile.sub
 include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ub/Makefile.sub
@@ -361,43 +361,43 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 #XXX_BE_DB db_ut_elist_CPPFLAGS  = -DM0_TARGET='elist' $(AM_CPPFLAGS)
 #XXX_BE_DB db_ut_elist_LDADD     = $(top_builddir)/mero/libmero.la \
 #XXX_BE_DB                         $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # desim/ut
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS            += desim/ut/net_test
-#XXX_BE_DB endif
-#XXX_BE_DB desim_ut_net_test_CPPFLAGS  = -DM0_TARGET='net_test' $(AM_CPPFLAGS)
-#XXX_BE_DB desim_ut_net_test_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                               $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS            += desim/ut/chs_test
-#XXX_BE_DB endif
-#XXX_BE_DB desim_ut_chs_test_CPPFLAGS  = -DM0_TARGET='chs_test' $(AM_CPPFLAGS)
-#XXX_BE_DB desim_ut_chs_test_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                               $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS               += desim/ut/m0t1fs_test
-#XXX_BE_DB endif
-#XXX_BE_DB desim_ut_m0t1fs_test_CPPFLAGS  = -DM0_TARGET='m0t1fs_test' $(AM_CPPFLAGS)
-#XXX_BE_DB desim_ut_m0t1fs_test_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                  $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # layout/ut
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB if ENABLE_UNIT_TESTS
-#XXX_BE_DB noinst_PROGRAMS             += layout/ut/m0layout
-#XXX_BE_DB endif
-#XXX_BE_DB layout_ut_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
-#XXX_BE_DB layout_ut_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
-#XXX_BE_DB                                $(top_builddir)/ut/libmero-ut.la
-#XXX_BE_DB
+
+#
+# desim/ut
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS            += desim/ut/net_test
+endif
+desim_ut_net_test_CPPFLAGS  = -DM0_TARGET='net_test' $(AM_CPPFLAGS)
+desim_ut_net_test_LDADD     = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS            += desim/ut/chs_test
+endif
+desim_ut_chs_test_CPPFLAGS  = -DM0_TARGET='chs_test' $(AM_CPPFLAGS)
+desim_ut_chs_test_LDADD     = $(top_builddir)/mero/libmero.la \
+                              $(top_builddir)/ut/libmero-ut.la
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS               += desim/ut/m0t1fs_test
+endif
+desim_ut_m0t1fs_test_CPPFLAGS  = -DM0_TARGET='m0t1fs_test' $(AM_CPPFLAGS)
+desim_ut_m0t1fs_test_LDADD     = $(top_builddir)/mero/libmero.la \
+                                 $(top_builddir)/ut/libmero-ut.la
+
+#
+# layout/ut
+#
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS             += layout/ut/m0layout
+endif
+layout_ut_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
+layout_ut_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
+                               $(top_builddir)/ut/libmero-ut.la
+
 #
 # net/lnet/ut
 #
