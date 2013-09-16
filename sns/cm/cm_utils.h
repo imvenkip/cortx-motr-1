@@ -173,11 +173,6 @@ M0_INTERNAL bool
 m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
 			      uint64_t nr_cps_fini);
 
-M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag);
-
-M0_INTERNAL bool
-m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag, int acc_idx);
-
 /** @} endgroup SNSCM */
 
 /* __MERO_SNS_CM_UTILS_H__ */

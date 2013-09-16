@@ -161,20 +161,6 @@ static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
 			  &src_cp->c_xform_cp_indices, failed_index, bt);
 }
 
-/*
-static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
-			    uint32_t failed_index)
-{
-	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
-
-	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
-		cp_xor_recover(dst_cp, src_cp);
-	else if (rag->rag_math.pmi_parity_algo ==
-			M0_PARITY_CAL_ALGO_REED_SOLOMON)
-		cp_rs_recover(dst_cp, src_cp, failed_index);
-}
-*/
-
 /** Merges the source bitmap to the destination bitmap. */
 static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
 {
@@ -205,6 +191,47 @@ out:
 	return rc;
 }
 
+static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
+				 struct m0_sns_cm_repair_ag_failure_ctx *fc)
+{
+	struct m0_sns_cm        *scm;
+	struct m0_cm_aggr_group *ag  = &rag->rag_base.sag_base;
+	struct m0_cm_cp         *acc = &fc->fc_tgt_acc_cp.sc_base;
+        struct m0_dbenv         *dbenv;
+        struct m0_cob_domain    *cdom;
+	int                      rc;
+
+	scm = cm2sns(ag->cag_cm);
+        dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
+        cdom  = scm->sc_it.si_cob_dom;
+	/*
+	 * Check if all copy packets are processed at this stage,
+	 * For incoming path transformation can be marked as complete
+	 * iff bitmap of transformed copy packets "global" to
+	 * aggregation group is full.
+	 * For outgoing path, iff all "local" copy packets in
+	 * aggregation group are transformed, then transformation can
+	 * be marked complete.
+	 */
+	if ((rc = m0_sns_cm_cob_is_local(&fc->fc_tgt_cobfid, dbenv,
+					 cdom)) == 0 &&
+	    m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_global_nr -
+						rag->rag_base.sag_fnr)) {
+			rc = res_cp_enqueue(acc);
+			if (rc != 0)
+				return rc;
+			fc->fc_is_active = true;
+	} else if (rc == -ENOENT &&
+		   (m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
+		rc = res_cp_enqueue(acc);
+		if (rc != 0)
+			return rc;
+		fc->fc_is_active = true;
+	}
+
+	return rc;
+}
+
 /**
  * Transformation function for sns repair.
  * Performs transformation between the accumulator and the given copy packet.
@@ -225,11 +252,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	struct m0_sns_cm_repair_ag *rag;
 	struct m0_cm_aggr_group    *ag;
 	struct m0_cm_cp            *res_cp;
-	struct m0_sns_cm           *scm;
-        struct m0_cob_domain       *cdom;
 	struct m0_cm_ag_id          id;
-	bool                        bitmap_merge;
-	bool                        rs_done = false;
 	int                         rc;
 	int                         i;
 
@@ -237,10 +260,12 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 
 	ag = cp->c_ag;
 	id = ag->cag_id;
-	scm = cm2sns(ag->cag_cm);
 	scp = cp2snscp(cp);
 	sns_ag = ag2snsag(ag);
 	rag = sag2repairag(sns_ag);
+	M0_ASSERT(M0_IN(rag->rag_math.pmi_parity_algo,
+			(M0_PARITY_CAL_ALGO_XOR,
+			 M0_PARITY_CAL_ALGO_REED_SOLOMON)));
 	m0_cm_ag_lock(ag);
 
         M0_LOG(M0_DEBUG, "xform: id [%lu] [%lu] [%lu] [%lu] local_cp_nr: [%lu]\
@@ -248,71 +273,43 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
                id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
 	       ag->cag_cp_local_nr, ag->cag_transformed_cp_nr,
 	       ag->cag_has_incoming);
-
-        cdom  = scm->sc_it.si_cob_dom;
-
 	/* Increment number of transformed copy packets in the accumulator. */
 	M0_CNT_INC(ag->cag_transformed_cp_nr);
 	if (!ag->cag_has_incoming)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
+	else
+		M0_ASSERT(ag->cag_transformed_cp_nr <=
+			 (ag->cag_cp_global_nr - sns_ag->sag_fnr));
 
-	if (rag->rag_math.pmi_parity_algo != M0_PARITY_CAL_ALGO_XOR) {
+	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_cm_cp_bufvec_merge(cp);
 		if (rc != 0) {
 			SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
 					  CP_XFORM_BUFVEC_MERGE);
 			goto out;
 		}
+		cp_rs_recover(cp, scp->sc_failed_idx);
 	}
-
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
-		bitmap_merge = false;
+		if (rag->rag_fc[i].fc_is_active)
+			continue;
 		res_cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
 		if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
 			cp_xor_recover(res_cp, cp);
-		else if ((rag->rag_math.pmi_parity_algo ==
-				M0_PARITY_CAL_ALGO_REED_SOLOMON) && !rs_done) {
-			cp_rs_recover(cp, scp->sc_failed_idx);
-			rs_done = true;
-		}
-		//cp_incr_recover(res_cp, cp, rag->rag_fc[i].fc_failed_idx);
 
 		/*
 		 * Merge the bitmaps of incoming copy packet with the
 		 * resultant copy packet.
 		 */
 		if (cp->c_xform_cp_indices.b_nr > 0) {
-			if (scp->sc_is_local || (scp->sc_failed_idx == rag->rag_fc[i].fc_failed_idx)) {
+			if (scp->sc_is_local ||
+			    (!scp->sc_is_local && (scp->sc_failed_idx ==
+			     rag->rag_fc[i].fc_failed_idx))) {
 				res_cp_bitmap_merge(res_cp, cp);
-				bitmap_merge = true;
-			}
-		}
-		/*
-		 * Check if all copy packets are processed at this stage,
-		 * For incoming path transformation can be marked as complete
-		 * iff bitmap of transformed copy packets "global" to
-		 * aggregation group is full.
-		 * For outgoing path, iff all "local" copy packets in
-		 * aggregation group are transformed, then transformation can
-		 * be marked complete.
-		 */
-		if ((rc = m0_sns_cm_cob_is_local(
-					&rag->rag_fc[i].fc_tgt_cobfid,
-					dbenv, cdom)) == 0) {
-			if (bitmap_merge && m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
-				M0_LOG(M0_DEBUG, "1:Enqueuing acc got tgt ind: [%u]",
-					rag->rag_fc[i].fc_tgt_idx);
-				rc = res_cp_enqueue(res_cp);
-				if (rc != 0)
+				rc = repair_ag_fc_acc_post(rag, &rag->rag_fc[i]);
+				if (rc != 0 && rc != -ENOENT)
 					goto out;
 			}
-		} else if (rc == -ENOENT && ag->cag_cp_local_nr ==
-						ag->cag_transformed_cp_nr) {
-			M0_LOG(M0_DEBUG, "2:Enqueuing acc got tgt ind: [%u]",
-				rag->rag_fc[i].fc_tgt_idx);
-			rc = res_cp_enqueue(res_cp);
-			if (rc != 0)
-				goto out;
 		}
 	}
 
@@ -325,7 +322,8 @@ out:
 	 * buffer pool, merged bufvec is split back to its original form
 	 * to be reused by other copy packets.
 	 */
-	rc = cp_bufvec_split(cp);
+	if (rc == 0 || rc == -ENOENT)
+		rc = cp_bufvec_split(cp);
 	m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
 	rc = M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);

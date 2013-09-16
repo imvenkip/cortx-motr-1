@@ -676,20 +676,24 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 	struct m0_sns_cm     *scm = cm2sns(cp->c_ag->cag_cm);
 	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
 	size_t                colour;
-	uint32_t              seg_nr;
+	uint32_t              seg_nr = 0;
 	uint32_t              rem_bufs;
 
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
 	colour =  cp_home_loc_helper(cp) % bp->nbp_colours_nr;
-	seg_nr = cp->c_data_seg_nr;
-	rem_bufs = m0_sns_cm_cp_buf_nr(bp, seg_nr);
+	rem_bufs = m0_sns_cm_cp_buf_nr(bp, cp->c_data_seg_nr);
 	rem_bufs -= cp->c_buf_nr;
 	while (rem_bufs > 0) {
 		buf = m0_cm_buffer_get(bp, colour);
 		if (buf == NULL)
 			return -ENOBUFS;
 		m0_cm_cp_buf_add(cp, buf);
+		if (cp->c_data_seg_nr > (cp->c_buf_nr * bp->nbp_seg_nr))
+			seg_nr = bp->nbp_seg_nr;
+		else
+			seg_nr = cp->c_data_seg_nr -
+				 ((cp->c_buf_nr - 1) * bp->nbp_seg_nr);
 		buf->nb_buffer.ov_vec.v_nr = seg_nr;
 		M0_CNT_DEC(rem_bufs);
 		if (!scp->sc_is_local) {

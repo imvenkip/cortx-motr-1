@@ -106,8 +106,7 @@ struct m0_cm_aggr_group_ops {
 	 * aggregation group and copy packet to be finalised.y
 	 * @pre ag != NULL && cp != NULL
 	 */
-	bool (*cago_ag_can_fini) (struct m0_cm_aggr_group *ag,
-				  struct m0_cm_cp *cp);
+	bool (*cago_ag_can_fini) (struct m0_cm_aggr_group *ag);
 
 	/** Performs aggregation group completion processing. */
 	void (*cago_fini)(struct m0_cm_aggr_group *ag);

@@ -424,7 +424,6 @@ static void cp_fom_fini(struct m0_fom *fom)
 	bool                     ag_fini;
 
 	M0_CNT_INC(ag->cag_freed_cp_nr);
-	ag_fini = ag->cag_ops->cago_ag_can_fini(ag, cp);
 	m0_cm_cp_fini(cp);
 	/**
 	 * Try to create a new copy packet since this copy packet is
@@ -432,6 +431,7 @@ static void cp_fom_fini(struct m0_fom *fom)
 	 */
 	m0_cm_lock(cm);
 	cp->c_ops->co_free(cp);
+	ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
         if (ag_fini)
                 ag->cag_ops->cago_fini(ag);
 	if (m0_cm_has_more_data(cm))

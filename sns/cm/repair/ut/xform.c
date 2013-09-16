@@ -211,7 +211,7 @@ static struct m0_fom_ops multiple_cp_fom_ops = {
 	.fo_home_locality = dummy_fom_locality,
 	.fo_addb_init     = dummy_fom_addb_init
 };
-
+/*
 static bool dummy_xform_ut_accumulator_is_full(const struct m0_sns_cm_ag *sag,
 					       int xform_cp_nr)
 {
@@ -219,9 +219,8 @@ static bool dummy_xform_ut_accumulator_is_full(const struct m0_sns_cm_ag *sag,
 
         return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
 }
-
+*/
 const struct m0_sns_cm_helpers xform_ut_repair_helpers = {
-	.sch_ag_accumulator_is_full = dummy_xform_ut_accumulator_is_full
 };
 
 static void cp_buf_free(struct m0_sns_cm_ag *sag)
@@ -427,6 +426,7 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 {
 	struct m0_net_buffer *nbuf;
 	struct m0_sns_cm_ag *sag;
+	struct m0_sns_cm_cp *scp;
 
 	n_buf[cnt][0].nb_pool = &nbp;
 	sag = &n_rag.rag_base;
@@ -437,6 +437,8 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 	buffers_attach(n_buf[cnt], &n_cp[cnt], data);
 
 	n_cp[cnt].c_data_seg_nr = SEG_NR * BUF_NR;
+	scp = (struct m0_sns_cm_cp *)&n_cp[cnt];
+	scp->sc_is_local = true;
 	m0_bitmap_init(&n_cp[cnt].c_xform_cp_indices,
 			sag->sag_base.cag_cp_global_nr);
 	m0_bitmap_set(&n_cp[cnt].c_xform_cp_indices, index, true);

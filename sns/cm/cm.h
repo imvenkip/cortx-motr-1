@@ -149,14 +149,6 @@ struct m0_sns_cm_helpers {
 				       struct m0_pdclust_layout *pl,
 				       struct m0_pdclust_instance *pi);
 
-	/**
-	 * Returns true if all the necessary copy packets are transformed or
-	 * accumulated into the aggregation group accumulator for a given
-	 * copy machine operation, viz. sns-repair or sns-rebalance.
-	 */
-	bool     (*sch_ag_accumulator_is_full)(const struct m0_sns_cm_ag *sag,
-					       int xform_cp_nr);
-
 	int      (*sch_ag_setup)(struct m0_sns_cm_ag *sag,
 				 struct m0_pdclust_layout *pl);
 

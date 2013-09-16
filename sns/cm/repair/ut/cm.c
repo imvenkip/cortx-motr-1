@@ -106,10 +106,6 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	scm->sc_it.si_fdata = &fdata;
 	scm->sc_failures_nr = 1;
 	scm->sc_op = op;
-	rc = cm->cm_ops->cmo_ready(cm);
-	M0_UT_ASSERT(rc == 0);
-	rc = cm->cm_ops->cmo_start(cm);
-	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&pme);
 	pme.pe_type  = M0_POOL_DEVICE;
 	pme.pe_index = fd;
@@ -118,6 +114,11 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
 				       &tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_db_tx_commit(&tx);
+	rc = cm->cm_ops->cmo_ready(cm);
+	M0_UT_ASSERT(rc == 0);
+	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -186,7 +187,7 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	struct m0_cob        *cob;
 	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
-	struct m0_dtx         tx;
+	struct m0_db_tx       tx;
 	struct m0_dbenv      *dbenv;
 	struct m0_cob_oikey   oikey;
 	int                   rc;
@@ -316,7 +317,7 @@ static void iter_repair_single_file(void)
 	iter_setup(SNS_REPAIR, 2);
 	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(1, 5);
+	iter_stop(1, 10);
 }
 
 static void iter_repair_multi_file(void)

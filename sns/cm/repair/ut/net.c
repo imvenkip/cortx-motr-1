@@ -70,6 +70,8 @@ enum {
         SEG_NR             = 256,
         SEG_SIZE           = 4096,
         START_DATA         = 101,
+	DEV_ID		   = 1,
+	KEY		   = 1,
 };
 
 static struct m0_net_domain  client_net_dom;
@@ -115,8 +117,8 @@ static struct m0_stob_id sid = {
 
 static struct m0_cm_ag_id ag_id = {
         .ai_hi = {
-                .u_hi = 1,
-                .u_lo = 1
+                .u_hi = DEV_ID,
+                .u_lo = KEY
         },
         .ai_lo = {
                 .u_hi = 0,
@@ -141,18 +143,11 @@ static void cp_ag_fini(struct m0_cm_aggr_group *ag)
         m0_cm_aggr_group_fini(ag);
 }
 
-static bool cp_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+static bool cp_ag_can_fini(struct m0_cm_aggr_group *ag)
 {
-        struct m0_sns_cm_ag *sag = ag2snsag(ag);
-        uint64_t             nr_cps;
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 
-        M0_PRE(ag != NULL && cp != NULL);
-
-        if (ag->cag_has_incoming) {
-                nr_cps = m0_cm_cp_nr(cp);
-                return nr_cps == ag->cag_cp_global_nr - sag->sag_fnr;
-        } else
-                return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
+	return rag->rag_acc_freed == rag->rag_base.sag_fnr;
 }
 
 static const struct m0_cm_aggr_group_ops group_ops = {
@@ -482,7 +477,9 @@ static void cm_ready(struct m0_cm *cm)
 
 static void receiver_init()
 {
-        M0_UT_ASSERT(cs_init(&sctx) == 0);
+        struct m0_poolmach_state *ps;
+
+	M0_UT_ASSERT(cs_init(&sctx) == 0);
         s0_reqh = m0_cs_reqh_get(&sctx, "sns_repair");
         M0_UT_ASSERT(s0_reqh != NULL);
 
@@ -500,6 +497,18 @@ static void receiver_init()
 	cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
 	M0_UT_ASSERT(cm->cm_pm != NULL);
 	m0_cm_lock(cm);
+	/*
+	 * Set the state of the failed device to "M0_PNDS_FAILED" in the pool
+	 * machine explicitly.
+	 */
+	ps = &cm->cm_pm->pm_state;
+	ps->pst_devices_array[DEV_ID].pd_state = M0_PNDS_FAILED;
+	ps->pst_spare_usage_array[DEV_ID].psu_device_state  =
+	M0_PNDS_SNS_REPAIRING;
+	ps->pst_spare_usage_array[DEV_ID].psu_device_index = DEV_ID;
+	//sns_cm_ut_dev_state(ps->pst_devices_array[DEV_ID].pd_state,
+	//                    M0_PNDS_FAILED);
+
 	cm->cm_ops->cmo_ready(cm);
 	m0_cm_unlock(cm);
 	cm_ready(cm);

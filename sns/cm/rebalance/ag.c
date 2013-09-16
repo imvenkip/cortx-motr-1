@@ -82,12 +82,12 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 	M0_LEAVE();
 }
 
-static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag           *sag = ag2snsag(ag);
 	struct m0_sns_cm_rebalance_ag *rag = sag2rebalanceag(sag);
 
-	M0_PRE(ag != NULL && cp != NULL);
+	M0_PRE(ag != NULL);
 
         if (ag->cag_has_incoming) {
 		return ag->cag_freed_cp_nr == rag->rag_incoming_nr +

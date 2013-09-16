@@ -58,6 +58,8 @@ struct m0_sns_cm_repair_ag_failure_ctx {
 
 	/** Target unit offset within the cob identified by tgt_cobfid. */
 	uint64_t                     fc_tgt_cob_index;
+
+	bool                         fc_is_active;
 };
 
 struct m0_sns_cm_repair_ag {
@@ -116,8 +118,8 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *ag,
  * copy packet.
  * @see struct m0_sns_cm_repair_ag_failure_ctx::fc_tgt_acc_cp
  */
-M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
-						  int acc_idx);
+M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
+					       uint64_t nr_cps);
 
 /**
  * Calculates number of buffers required for all the incoming copy packets.

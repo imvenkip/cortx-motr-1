@@ -544,13 +544,6 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         return result;
 }
 
-M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag)
-{
-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
-
-	return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
-}
-
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_pdclust_layout *pl)

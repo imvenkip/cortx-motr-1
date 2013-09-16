@@ -95,9 +95,6 @@ static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
 		rc = m0_sns_ir_failure_register(&nbuf_head->nb_buffer,
 						rag->rag_fc[i].fc_failed_idx,
 						&rag->rag_ir);
-		/*XXX: Remove this after finding a better solution.*/
-		/*if (rag->rag_base.sag_base.cag_cp_local_nr == 0)
-			rag->rag_ir.si_mode = M0_SI_XFORM;*/
 		if (rc != 0)
 			goto out;
 	}
@@ -197,21 +194,11 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 	M0_LEAVE();
 }
 
-static bool repair_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+static bool repair_ag_can_fini(struct m0_cm_aggr_group *ag)
 {
-	struct m0_sns_cm_cp *scp = cp2snscp(cp);
-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
-        uint64_t             nr_cps;
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 
-        if (ag->cag_has_incoming) {
-		/* Check if this is local accumulator. */
-		if (!scp->sc_is_acc)
-			return false;
-		nr_cps = m0_cm_cp_nr(cp);
-		return nr_cps == sag->sag_base.cag_cp_global_nr -
-				 sag->sag_fnr;
-        } else
-		return m0_sns_cm_ag_local_is_done(ag);
+	return rag->rag_acc_freed == rag->rag_base.sag_fnr;
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {
@@ -375,29 +362,25 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 	return rc;
 }
 
-M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
-						  int acc_idx)
+/**
+ * Returns true if all the necessary copy packets are transformed or
+ * accumulated into the aggregation group accumulator for a given
+ * copy machine operation, viz. sns-repair or sns-rebalance.
+ */
+M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
+					       uint64_t nr_cps)
 {
-	struct m0_sns_cm           *scm;
-	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
-	struct m0_cm_cp            *acc_cp;
-	uint64_t                    global_cp_nr;
 	int                         i;
 	uint64_t                    xform_cp_nr = 0;
 
-	M0_PRE(sag != NULL);
-
-	acc_cp = &rag->rag_fc[acc_idx].fc_tgt_acc_cp.sc_base;
-	scm = cm2sns(sag->sag_base.cag_cm);
-	global_cp_nr = sag->sag_base.cag_cp_global_nr;
-	for (i = 0; i < global_cp_nr; ++i) {
-		if (m0_bitmap_get(&acc_cp->c_xform_cp_indices, i))
+	for (i = 0; i < acc->c_xform_cp_indices.b_nr; ++i) {
+		if (m0_bitmap_get(&acc->c_xform_cp_indices, i))
 			M0_CNT_INC(xform_cp_nr);
 	}
 
-	M0_LOG(M0_DEBUG, "acc is full: xform_cp_nr: [%lu] global_cp_nr: [%lu]", xform_cp_nr,
-		global_cp_nr);
-	return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
+	M0_LOG(M0_DEBUG, "acc is full: xform_cp_nr: [%lu] cp_nr: [%lu]",
+	       xform_cp_nr, nr_cps);
+	return xform_cp_nr == nr_cps;
 }
 
 /** @} SNSCMAG */
