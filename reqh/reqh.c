@@ -175,6 +175,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	return rc;
 }
 
+#ifndef __KERNEL__
 static struct m0_fol *
 fol_alloc(struct m0_be_seg *seg)
 {
@@ -242,29 +243,30 @@ static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
 	m0_dtx_done_sync(&tx);
 	m0_sm_group_unlock(grp);
 }
+#endif
 
 M0_INTERNAL int
 m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 			bool create)
 {
 	int rc = 0;
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 
 	M0_PRE(seg != NULL);
 
 	M0_ENTRY();
 
-#if 0 /* XXX_BE_DB */
-	rc = m0_layout_domain_init(&reqh->rh_ldom, seg);
+	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
 	if (rc == 0) {
 		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
 		if (rc != 0)
 			m0_layout_domain_fini(&reqh->rh_ldom);
 	}
-#endif
 
+#ifndef __KERNEL__
 	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
 	if (rc == -ENOENT) {
+		struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
 		if (!create) {
 			M0_LOG(M0_ERROR, "fol not found in BE");
 			M0_RETURN(rc);
@@ -294,6 +296,7 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 
 		m0_fol_init(reqh->rh_fol, seg);
 	}
+#endif
 
 	reqh->rh_beseg = seg;
 	M0_POST(m0_reqh_invariant(reqh));
@@ -303,10 +306,11 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 
 M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 {
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-
 	if (reqh->rh_beseg != NULL) {
+#ifndef __KERNEL__
 		if (destroy) {
+			struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
 			m0_sm_group_lock(grp);
 			m0_be_seg_dict_delete(reqh->rh_beseg, grp, "fol");
 			m0_sm_group_unlock(grp);
@@ -316,10 +320,9 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 		} else {
 			m0_fol_fini(reqh->rh_fol);
 		}
-#if 0 /* XXX_BE_DB */
+#endif
 		m0_layout_standard_types_unregister(&reqh->rh_ldom);
 		m0_layout_domain_fini(&reqh->rh_ldom);
-#endif
 		reqh->rh_beseg = NULL;
 	}
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
