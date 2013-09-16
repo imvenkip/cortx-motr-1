@@ -19,7 +19,6 @@
  */
 
 #include <stdlib.h>		/* system */
-
 #include <sys/stat.h>		/* mkdir */
 #include <sys/types.h>		/* mkdir */
 #include <pthread.h>		/* pthread_once */
@@ -47,6 +46,14 @@
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
 	BE_UT_SEG_START_ID   = 42ULL,
+};
+
+struct m0_be_ut_sm_group_thread {
+	struct m0_thread    sgt_thread;
+	pid_t		    sgt_tid;
+	struct m0_semaphore sgt_stop_sem;
+	struct m0_sm_group  sgt_grp;
+	bool		    sgt_lock_new;
 };
 
 struct be_ut_helper_struct {
