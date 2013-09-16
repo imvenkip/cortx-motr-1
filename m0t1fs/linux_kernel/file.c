@@ -3240,9 +3240,11 @@ static int ioreq_file_lock(struct io_request *req)
 	M0_ENTRY();
 	mi = file_to_m0inode(req->ir_file);
 	m0_file_lock(&mi->ci_fowner, &req->ir_in);
+	m0_rm_owner_lock(&mi->ci_fowner);
 	rc = m0_sm_timedwait(&req->ir_in.rin_sm,
 			     M0_BITS(RI_SUCCESS, RI_FAILURE),
 			     M0_TIME_NEVER);
+	m0_rm_owner_unlock(&mi->ci_fowner);
 	rc = rc ?: req->ir_in.rin_rc;
 	if (rc == 0)
 		ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
@@ -3298,28 +3300,28 @@ static int ioreq_iosm_handle(struct io_request *req)
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_FROM_USER, 0);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 
 			rc = req->ir_ops->iro_parity_recalc(req);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 		}
 		ioreq_sm_state_set(req, state);
 		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 
 		state = req->ir_type == IRT_READ ? IRS_READ_COMPLETE:
 						   IRS_WRITE_COMPLETE;
 		rc    = ioreq_sm_timedwait(req, state);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 
 		M0_ASSERT(ioreq_sm_state(req) == state);
 
 		if (req->ir_rc != 0) {
 			rc = req->ir_rc;
-			goto fail;
+			goto fail_locked;
 		}
 		if (state == IRS_READ_COMPLETE) {
 
@@ -3329,12 +3331,12 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_read(req, rmw);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 		} else {
 			M0_ASSERT(state == IRS_WRITE_COMPLETE);
 			/*
@@ -3343,7 +3345,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_write(req, rmw);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 		}
 	} else {
 		uint32_t    seg;
@@ -3362,7 +3364,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 			rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->
 								  ir_nwxfer);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 		}
 
 		/*
@@ -3386,7 +3388,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 			if (res != 0 || rc != 0) {
 				rc = res != 0 ? res : rc;
-				goto fail;
+				goto fail_locked;
 			}
 
 			/*
@@ -3395,7 +3397,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_read(req, rmw);
 			if (rc != 0)
-				goto fail;
+				goto fail_locked;
 		}
 
 		/* Copies
@@ -3405,33 +3407,33 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 */
 		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER, 0);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 
 		/* Finalizes the old read fops. */
 		if (read_pages > 0) {
 			req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer,
 							     rmw);
 			if (req->ir_rc != 0)
-				goto fail;
+				goto fail_locked;
 		}
 
 		ioreq_sm_state_set(req, IRS_WRITING);
 		rc = req->ir_ops->iro_parity_recalc(req);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 
 		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 
 		rc = ioreq_sm_timedwait(req, IRS_WRITE_COMPLETE);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 
 		/* Returns immediately if all devices are in healthy state. */
 		rc = req->ir_ops->iro_dgmode_write(req, rmw);
 		if (rc != 0)
-			goto fail;
+			goto fail_locked;
 	}
 
 	/*
@@ -3456,6 +3458,9 @@ static int ioreq_iosm_handle(struct io_request *req)
 		ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 
 	M0_RETURN(0);
+
+fail_locked:
+	req->ir_ops->iro_file_unlock(req);
 fail:
 	ioreq_sm_failed(req, rc);
 	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
