@@ -32,6 +32,13 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
 	return m0_alloc(size);
 }
 
+M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
+			    struct m0_be_tx *tx, struct m0_be_op *op,
+			    void *ptr)
+{
+	m0_free(ptr);
+}
+
 M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 				  struct m0_be_seg *seg,
 				  const struct m0_be_btree_kv_ops *ops)
@@ -171,6 +178,53 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 				      struct m0_sm_group *grp,
 				      const char *name, void *value)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
+				      struct m0_sm_group *grp,
+				      const char *name)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
+			       uint64_t             tid,
+			       struct m0_be_domain *dom,
+			       struct m0_sm_group  *sm_group,
+			       m0_be_tx_cb_t        persistent,
+			       m0_be_tx_cb_t        discarded,
+			       void               (*filler)(struct m0_be_tx *tx,
+							    void *payload),
+			       void                *datum)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
+			       const struct m0_be_tx_credit *credit)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
+				   m0_time_t timeout)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
