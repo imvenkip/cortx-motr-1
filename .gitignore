@@ -108,6 +108,7 @@ gmon.out
 /ut-sandbox/
 /ub-sandbox/
 /m0.trace.*
+/m0trace.*
 *.log
 
 #
