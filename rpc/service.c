@@ -341,7 +341,7 @@ m0_rpc_service_reverse_session_lookup(struct m0_rpc_service    *svc,
 
 	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
 		if (strcmp(rem_ep, revc->rcf_rem_ep) == 0)
-			return *revc->rcf_sess;
+			return revc->rcf_sess;
 	} m0_tl_endfor;
 
 	return NULL;
@@ -350,7 +350,7 @@ m0_rpc_service_reverse_session_lookup(struct m0_rpc_service    *svc,
 M0_INTERNAL int
 m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
 				   const struct m0_rpc_item *item,
-				   struct m0_rpc_session   **session)
+				   struct m0_rpc_session    *session)
 {
 	int                           rc;
 	const char                   *rem_ep;
@@ -373,15 +373,10 @@ m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
 		goto err_ep;
 	}
 	strcpy(revc->rcf_rem_ep, rem_ep);
-	M0_ALLOC_PTR(revc->rcf_sess);
-	if (revc->rcf_sess == NULL) {
-		rc = -ENOMEM;
-		goto err_ep;
-	}
-	*revc->rcf_sess = *session;
 
+	revc->rcf_sess    = session;
 	revc->rcf_rpcmach = item->ri_rmachine;
-	revc->rcf_ft = M0_REV_CONNECT;
+	revc->rcf_ft      = M0_REV_CONNECT;
 	m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type, &rev_conn_fom_ops,
 		    NULL, NULL, reqhsvc->rs_reqh, reqhsvc->rs_type);
 
@@ -452,7 +447,6 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc)
 		rev_conn_tlink_del_fini(revc);
 		m0_chan_fini_lock(&revc->rcf_chan);
 		m0_mutex_fini(&revc->rcf_mutex);
-		m0_free(*revc->rcf_sess);
 		m0_free(revc->rcf_sess);
 		m0_free(revc->rcf_rem_ep);
 		m0_free(revc->rcf_conn);

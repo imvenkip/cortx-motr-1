@@ -368,12 +368,9 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 
 	if (fom->fo_fop->f_item.ri_session != NULL) {
 		remote->rem_session = m0_rpc_service_reverse_session_lookup(
-					&fom->fo_service->rs_rpc_svc,
-					&fom->fo_fop->f_item);
+					    &fom->fo_service->rs_rpc_svc,
+					    &fom->fo_fop->f_item);
 		if (remote->rem_session == NULL) {
-			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
-			m0_clink_add_lock(&service->rs_rev_conn_wait,
-					  &remote->rem_rev_sess_clink);
 			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
 				     &m0_rm_addb_ctx);
 			if (remote->rem_session == NULL)
@@ -381,7 +378,10 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			m0_rpc_service_reverse_session_get(
 				&service->rs_rpc_svc,
 				&fom->fo_fop->f_item,
-				&remote->rem_session);
+				remote->rem_session);
+			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
+			m0_clink_add_lock(&service->rs_rev_conn_wait,
+					  &remote->rem_rev_sess_clink);
 		}
 	}
 	M0_RETURN(0);

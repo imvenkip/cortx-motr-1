@@ -108,15 +108,15 @@ static void connection_wait_complete(struct m0_fom_callback *cb)
 		}
 		break;
 	case M0_RCS_SESSION_WAIT:
-		if (SESS_STATE(*revc->rcf_sess) == M0_RPC_SESSION_IDLE)
+		if (SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_IDLE)
 			m0_fom_ready(fom);
 		else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
 			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(*revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(*revc->rcf_sess),
+			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
 					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(*revc->rcf_sess));
+			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		}
 		break;
 	}
@@ -182,17 +182,17 @@ static int session_establish(struct m0_fom *fom)
 
 	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
 
-	rc = m0_rpc_session_init(*revc->rcf_sess, revc->rcf_conn, NR_SLOTS);
+	rc = m0_rpc_session_init(revc->rcf_sess, revc->rcf_conn, NR_SLOTS);
 	if (rc == 0) {
-		rc = m0_rpc_session_establish(*revc->rcf_sess,
+		rc = m0_rpc_session_establish(revc->rcf_sess,
 				      m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 		if (rc == 0) {
 			m0_fom_callback_init(&revc->rcf_fomcb);
 			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(*revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(*revc->rcf_sess),
+			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
 					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(*revc->rcf_sess));
+			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 			rc = M0_FSO_WAIT;
 		} else {
 			m0_fom_callback_cancel(&revc->rcf_fomcb);
@@ -222,28 +222,28 @@ static void disconnection_wait_complete(struct m0_fom_callback *cb)
 
 	switch (phase) {
 	case M0_RCS_CONN_WAIT:
-		if (SESS_STATE(*revc->rcf_sess) == M0_RPC_SESSION_IDLE)
+		if (SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_IDLE)
 			m0_fom_ready(fom);
 		else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
 			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(*revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(*revc->rcf_sess),
+			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
 					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(*revc->rcf_sess));
+			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		}
 		break;
 	case M0_RCS_SESSION:
-		if (SESS_STATE(*revc->rcf_sess) == M0_RPC_SESSION_TERMINATED ||
-		    SESS_STATE(*revc->rcf_sess) == M0_RPC_SESSION_FAILED)
+		if (SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_TERMINATED ||
+		    SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_FAILED)
 			m0_fom_ready(fom);
 		else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
 			revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(*revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(*revc->rcf_sess),
+			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
 					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(*revc->rcf_sess));
+			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		}
 		break;
 	case M0_RCS_SESSION_WAIT:
@@ -269,7 +269,7 @@ static int conn_terminate(struct m0_fom *fom)
 
 	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
 
-	m0_rpc_session_fini(*revc->rcf_sess);
+	m0_rpc_session_fini(revc->rcf_sess);
 	rc = m0_rpc_conn_terminate(revc->rcf_conn,
 				   m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 	if (rc == 0) {
@@ -305,15 +305,15 @@ static int session_terminate(struct m0_fom *fom)
 
 	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
 
-	if (SESS_STATE(*revc->rcf_sess) == M0_RPC_SESSION_IDLE) {
+	if (SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_IDLE) {
 		rc = M0_FSO_AGAIN;
 	} else {
 		m0_fom_callback_init(&revc->rcf_fomcb);
 		revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-		m0_sm_group_lock(SESS_GRP(*revc->rcf_sess));
-		m0_fom_callback_arm(fom, &SESS_CHAN(*revc->rcf_sess),
+		m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+		m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
 				    &revc->rcf_fomcb);
-		m0_sm_group_unlock(SESS_GRP(*revc->rcf_sess));
+		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		rc = M0_FSO_WAIT;
 	}
 	return rc;
@@ -326,15 +326,15 @@ static int session_disc_wait(struct m0_fom *fom)
 
 	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
 
-	rc = m0_rpc_session_terminate(*revc->rcf_sess,
+	rc = m0_rpc_session_terminate(revc->rcf_sess,
 				      m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 	if (rc == 0) {
 		m0_fom_callback_init(&revc->rcf_fomcb);
 		revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-		m0_sm_group_lock(SESS_GRP(*revc->rcf_sess));
-		m0_fom_callback_arm(fom, &SESS_CHAN(*revc->rcf_sess),
+		m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+		m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
 				    &revc->rcf_fomcb);
-		m0_sm_group_unlock(SESS_GRP(*revc->rcf_sess));
+		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		rc = M0_FSO_WAIT;
 	} else {
 		m0_fom_callback_cancel(&revc->rcf_fomcb);

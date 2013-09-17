@@ -46,17 +46,17 @@ enum {
 };
 
 struct m0_reverse_connection {
-	enum m0_rev_connection_fom_type   rcf_ft;
-	char                             *rcf_rem_ep;
-	struct m0_fom                     rcf_fom;
-	struct m0_tlink                   rcf_link;
-	struct m0_rpc_conn               *rcf_conn;
-	struct m0_rpc_session           **rcf_sess;
-	struct m0_rpc_machine            *rcf_rpcmach;
-	struct m0_fom_callback            rcf_fomcb;
-	struct m0_chan                    rcf_chan;
-	struct m0_mutex                   rcf_mutex;
-	uint64_t                          rcf_magic;
+	enum m0_rev_connection_fom_type  rcf_ft;
+	char                            *rcf_rem_ep;
+	struct m0_fom                    rcf_fom;
+	struct m0_tlink                  rcf_link;
+	struct m0_rpc_conn              *rcf_conn;
+	struct m0_rpc_session           *rcf_sess;
+	struct m0_rpc_machine           *rcf_rpcmach;
+	struct m0_fom_callback           rcf_fomcb;
+	struct m0_chan                   rcf_chan;
+	struct m0_mutex                  rcf_mutex;
+	uint64_t                         rcf_magic;
 };
 
 enum m0_rev_conn_states {

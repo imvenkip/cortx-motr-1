@@ -323,7 +323,7 @@ M0_INTERNAL void m0_rpc__service_fini(struct m0_rpc_service *service);
 M0_INTERNAL int
 m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
 				   const struct m0_rpc_item *item,
-				   struct m0_rpc_session   **session);
+				   struct m0_rpc_session    *session);
 
 M0_INTERNAL void
 m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc);
