@@ -22,7 +22,8 @@
 #include "lib/trace.h"
 
 #include "lib/assert.h"
-#include "lib/misc.h"    /* M0_CAT */
+#include "lib/misc.h"      /* M0_CAT */
+#include "mero/version.h"  /* m0_build_info */
 
 /**
    @addtogroup assert
@@ -35,13 +36,17 @@
  */
 void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 {
+	const struct m0_build_info *bi;
+
 	static int repanic = 0;
 
+	bi = m0_build_info_get();
+
 	if (repanic++ == 0) {
-		M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i) %s",
-		       expr, func, file, lineno,
-		       m0_failed_condition ?: "");
-		m0_arch_panic(expr, func, file, lineno);
+		M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i) %s [git: %s]",
+		       expr, func, file, lineno, m0_failed_condition ?: "",
+		       bi->bi_git_describe);
+		m0_arch_panic(expr, func, file, lineno, bi->bi_git_describe);
 	} else {
 		/* The death of God left the angels in a strange position. */
 		while (true) {

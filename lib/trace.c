@@ -650,7 +650,8 @@ M0_INTERNAL void m0_trace_args_unpack(const struct m0_trace_rec_header *trh,
 
 			if (total_str_len > trh->trh_string_data_size)
 				m0_arch_panic("trace record string data is invalid",
-					      __func__, __FILE__, __LINE__);
+					      __func__, __FILE__, __LINE__,
+					      m0_build_info_get()->bi_git_describe);
 
 			args[i].v64 = (uint64_t)str_data;
 			str_data += str_len + 1;

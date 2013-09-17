@@ -46,7 +46,7 @@ void m0_panic(const char *expr, const char *func, const char *file, int lineno)
 	__attribute__((noreturn));
 
 M0_INTERNAL void m0_arch_panic(const char *expr, const char *func,
-			       const char *file, int lineno)
+			       const char *file, int lineno, const char *gitrev)
 	__attribute__((noreturn));
 
 void m0_backtrace(void);

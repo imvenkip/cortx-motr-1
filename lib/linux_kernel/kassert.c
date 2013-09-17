@@ -33,10 +33,11 @@ void m0_arch_backtrace()
 }
 
 void m0_arch_panic(const char *expr, const char *func,
-		   const char *file, int lineno)
+		   const char *file, int lineno, const char *gitrev)
 {
-	pr_emerg("Mero panic: %s at %s() %s:%i (last failed: %s)\n",
-		 expr, func, file, lineno, m0_failed_condition ?: "none");
+	pr_emerg("Mero panic: %s at %s() %s:%i (last failed: %s) [git: %s]\n",
+		 expr, func, file, lineno, m0_failed_condition ?: "none",
+		 gitrev);
 	BUG();
 }
 

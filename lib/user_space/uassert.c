@@ -64,12 +64,13 @@ void m0_arch_backtrace(void)
    compiled with -rdynamic for this to work in the presence of dynamic linking.
  */
 void m0_arch_panic(const char *expr, const char *func,
-		   const char *file, int lineno)
+		   const char *file, int lineno, const char *gitrev)
 {
 	fprintf(stderr,
-		"Mero panic: %s at %s() %s:%i (errno: %i) (last failed: %s)\n",
-		expr, func, file, lineno, errno,
-		m0_failed_condition ?: "none");
+		"Mero panic: %s at %s() %s:%i (errno: %i) (last failed: %s)"
+		" [git: %s]\n",
+		expr, func, file, lineno, errno, m0_failed_condition ?: "none",
+		gitrev);
 	fflush(stderr);
 	m0_arch_backtrace();
 	if (m0_debugger_args[0] != NULL) {
