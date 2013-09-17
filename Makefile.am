@@ -166,7 +166,7 @@ mero_libmero_la_SOURCES  =
 include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/capa/Makefile.sub
+include $(top_srcdir)/capa/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
@@ -220,7 +220,7 @@ ut_libmero_ut_la_SOURCES   =
 include $(top_srcdir)/addb/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/capa/ut/Makefile.sub
+include $(top_srcdir)/capa/ut/Makefile.sub
 include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/conf/ut/Makefile.sub
