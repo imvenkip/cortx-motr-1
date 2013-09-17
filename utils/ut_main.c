@@ -121,7 +121,7 @@ void add_uts(void)
 	m0_ut_add(&fit_ut);
 	m0_ut_add(&fol_ut);
 	m0_ut_add(&frm_ut);
-	//m0_ut_add(&ios_bufferpool_ut);
+	m0_ut_add(&ios_bufferpool_ut);
 	m0_ut_add(&item_ut);
 	m0_ut_add(&item_source_ut);
 	m0_ut_add(&layout_ut);
