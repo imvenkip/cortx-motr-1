@@ -255,11 +255,13 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 
 	M0_ENTRY();
 
-	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
-	if (rc == 0) {
-		rc = m0_layout_standard_types_register(&reqh->rh_ldom);
-		if (rc != 0)
-			m0_layout_domain_fini(&reqh->rh_ldom);
+	if (reqh->rh_dbenv != NULL) {
+		rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+		if (rc == 0) {
+			rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+			if (rc != 0)
+				m0_layout_domain_fini(&reqh->rh_ldom);
+		}
 	}
 
 #ifndef __KERNEL__
@@ -321,8 +323,11 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 			m0_fol_fini(reqh->rh_fol);
 		}
 #endif
-		m0_layout_standard_types_unregister(&reqh->rh_ldom);
-		m0_layout_domain_fini(&reqh->rh_ldom);
+		if (reqh->rh_dbenv != NULL) {
+			m0_layout_standard_types_unregister(&reqh->rh_ldom);
+			m0_layout_domain_fini(&reqh->rh_ldom);
+			reqh->rh_dbenv = NULL;
+		}
 		reqh->rh_beseg = NULL;
 	}
 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
