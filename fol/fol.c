@@ -436,7 +436,7 @@ static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
 #else
 static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 {
-	M0_PRE(rec->fr_fol != NULL);
+	M0_PRE(fol != NULL);
 
 	m0_fol_rec_init(rec);
 	rec->fr_fol = fol;

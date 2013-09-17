@@ -146,6 +146,9 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
 	reqh->rh_fol     = reqh_args->rhia_fol;
 
+	if (reqh->rh_fol != NULL)
+		reqh->rh_fol->f_reqh = reqh;
+
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
 	m0_addb_mc_init(&reqh->rh_addb_mc);
@@ -300,6 +303,7 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 	}
 #endif
 
+	reqh->rh_fol->f_reqh = reqh;
 	reqh->rh_beseg = seg;
 	M0_POST(m0_reqh_invariant(reqh));
 
