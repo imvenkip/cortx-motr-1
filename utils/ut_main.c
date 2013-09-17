@@ -115,9 +115,9 @@ void add_uts(void)
 	m0_ut_add(&confc_ut);
 	m0_ut_add(&confstr_ut); /* db: panic: pair->dp_rec.db_i.db_dbt.b_nob <= rec.b_nob cursor_get() (db/db.c:612) */
 	m0_ut_add(&conn_ut);
-	//m0_ut_add(&db_cursor_ut);
-	//m0_ut_add(&db_ut);
-	//m0_ut_add(&emap_ut);
+	m0_ut_add(&db_cursor_ut);
+	m0_ut_add(&db_ut);
+	m0_ut_add(&emap_ut);
 	m0_ut_add(&fit_ut);
 	m0_ut_add(&fol_ut);
 	m0_ut_add(&frm_ut);
