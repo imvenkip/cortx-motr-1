@@ -108,8 +108,8 @@ void add_uts(void)
 	m0_ut_add(&bulkio_client_ut);
 	// m0_ut_add(&bulkio_server_ut); /* ad_rec_part_undo_redo_op() */
 	m0_ut_add(&capa_ut);
-	//m0_ut_add(&cm_cp_ut);
-	//m0_ut_add(&cm_generic_ut);
+	m0_ut_add(&cm_cp_ut);
+	m0_ut_add(&cm_generic_ut);
 	m0_ut_add(&cob_ut);
 	m0_ut_add(&conf_ut);
 	m0_ut_add(&confc_ut);
@@ -158,7 +158,7 @@ void add_uts(void)
 	m0_ut_add(&xcode_ff2c_ut);
 	m0_ut_add(&xcode_ut);
 	m0_ut_add(&cobfoms_ut);
-	// m0_ut_add(&mdservice_ut);   /* freeze */
+        // m0_ut_add(&mdservice_ut);	/* freeze */
 	/* These tests have redirection of messages. */
 	m0_ut_add(&console_ut);
 }
