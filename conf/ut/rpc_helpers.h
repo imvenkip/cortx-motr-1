@@ -27,8 +27,7 @@ struct m0_rpc_machine;
 /** Initialises net and rpc layers, performs m0_rpc_machine_init(). */
 M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 					struct m0_net_xprt *xprt,
-					const char *ep_addr,
-					const char *dbname);
+					const char *ep_addr);
 
 /** Performs m0_rpc_machine_fini(), finalises rpc and net layers. */
 M0_INTERNAL void m0_ut_rpc_machine_stop(struct m0_rpc_machine *mach);
