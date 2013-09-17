@@ -1453,7 +1453,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	else
 		M0_LOG(M0_DEBUG, "the same omgkey: %016lX is being added "
 		       "multiple times", omgkey.cok_omgid);
-
 	rc = 0;
 	cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
 out:
@@ -1604,11 +1603,18 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	struct m0_cob_oikey  oikey;
 	struct m0_buf        key;
 	struct m0_buf        val;
+	int                  rc;
 
 	M0_PRE(cob != NULL);
 	M0_PRE(nskey != NULL);
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 	M0_PRE(m0_cob_is_valid(cob));
+
+	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
+	m0_buf_init(&val, nsrec, sizeof *nsrec);
+	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);
+	if (rc == 0)
+		return -EEXIST;
 
 	/**
 	 * Add new name to object index table. Table insert should fail
