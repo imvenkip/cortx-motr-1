@@ -1373,12 +1373,14 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 				     ftype->ft_ops->fto_redo != NULL);
 			result = ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
 		} else {
+			m0_sm_group_lock(grp);
 			m0_dtx_init(&dtx, reqh->rh_beseg->bs_domain, grp);
 			m0_dtx_open_sync(&dtx);
 			result = dec_part->rp_ops->rpo_undo(dec_part,
 							    &dtx.tx_betx);
 			m0_dtx_done_sync(&dtx);
 			m0_dtx_fini(&dtx);
+			m0_sm_group_unlock(grp);
 		}
 		M0_UT_ASSERT(result == 0);
 	} m0_tl_endfor;

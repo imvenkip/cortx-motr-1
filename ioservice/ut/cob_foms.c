@@ -721,6 +721,7 @@ static void cc_cob_create_test()
 	/*
 	 * Start cleanup by deleting the COB
 	 */
+	m0_sm_group_lock(grp);
 	m0_dtx_init(&fom->fo_tx, dbenv->d_i.d_seg->bs_domain, grp);
 	m0_cob_tx_credit(test_cob->co_dom, M0_COB_OP_DELETE_PUT,
 				&fom->fo_tx.tx_betx_cred);
@@ -728,6 +729,7 @@ static void cc_cob_create_test()
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_cob_delete_put(test_cob, &fom->fo_tx.tx_betx);
 	m0_dtx_done_sync(&fom->fo_tx);
+	m0_sm_group_unlock(grp);
 	M0_UT_ASSERT(rc == 0);
 	test_cob = NULL;
 

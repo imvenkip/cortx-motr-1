@@ -541,15 +541,16 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		if (rc != 0)
 			goto cdom_fini;
 
+		m0_sm_group_lock(grp);
 		m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
 		m0_cob_tx_credit(cdom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
 		rc = m0_dtx_open_sync(&tx);
-		if (rc != 0)
-			goto cdom_fini;
-
-		rc = m0_cob_domain_mkfs(cdom, &M0_COB_SLASH_FID,
-					&M0_COB_ROOT_FID, &tx.tx_betx);
-		m0_dtx_done_sync(&tx);
+		if (rc == 0) {
+			rc = m0_cob_domain_mkfs(cdom, &M0_COB_SLASH_FID,
+						&M0_COB_ROOT_FID, &tx.tx_betx);
+			m0_dtx_done_sync(&tx);
+		}
+		m0_sm_group_unlock(grp);
 		if (rc != 0)
 			goto cdom_destroy;
 	}
