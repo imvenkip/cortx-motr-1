@@ -223,7 +223,7 @@ include $(top_srcdir)/be/ut/Makefile.sub
 include $(top_srcdir)/capa/ut/Makefile.sub
 include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/conf/ut/Makefile.sub
+include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/db/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
