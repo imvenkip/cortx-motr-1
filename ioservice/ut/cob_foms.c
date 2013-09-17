@@ -19,9 +19,10 @@
  * Original creation date: 03/07/2012
  */
 
+#include "lib/locality.h"
+#include "lib/finject.h"
 #include "ut/ut.h"
 #include "lib/memory.h"
-#include "lib/finject.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
 #include "fop/ut/fop_put_norpc.h"
@@ -635,10 +636,8 @@ static void cc_stob_create_test()
 static void cob_verify(struct m0_fom *fom, const bool exists)
 {
 	int		      rc;
-	struct m0_db_tx	      tx;
 	struct m0_cob_domain *cobdom;
 	struct m0_cob_nskey  *nskey;
-	struct m0_dbenv	     *dbenv;
 	struct m0_fid         fid = {0, COB_TEST_KEY};
         char                  nskey_bs[UINT32_MAX_STR_LEN];
         uint32_t              nskey_bs_len;
@@ -648,8 +647,6 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cobdom != NULL);
 
-	dbenv = m0_fom_reqh(fom)->rh_dbenv;
-
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
                  (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs);
@@ -657,11 +654,7 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	rc = m0_cob_nskey_make(&nskey, &fid, (char *)nskey_bs, nskey_bs_len);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_SET0(&tx);
-	rc = m0_db_tx_init(&tx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_lookup(cobdom, nskey, 0, &test_cob, &tx);
-	m0_db_tx_commit(&tx);
+	rc = m0_cob_lookup(cobdom, nskey, 0, &test_cob);
 
 	if (exists) {
 		M0_UT_ASSERT(rc == 0);
@@ -681,6 +674,7 @@ static void cc_cob_create_test()
 	int                   rc;
 	struct m0_fom        *fom;
 	struct m0_dbenv      *dbenv;
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_fom_cob_op *cc;
 
 	fom = cc_fom_alloc();
@@ -712,10 +706,7 @@ static void cc_cob_create_test()
 	/*
 	 * Test-case 1 - Verify COB creation
 	 */
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
 	cob_verify(fom, true);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	/*
 	 * Test-case 2 - Test failure case. Try to create the
@@ -730,10 +721,13 @@ static void cc_cob_create_test()
 	/*
 	 * Start cleanup by deleting the COB
 	 */
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+	m0_dtx_init(&fom->fo_tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_cob_tx_credit(test_cob->co_dom, M0_COB_OP_DELETE_PUT,
+				&fom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_delete_put(test_cob, &fom->fo_tx.tx_dbtx);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	rc = m0_cob_delete_put(test_cob, &fom->fo_tx.tx_betx);
+	m0_dtx_done_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 	test_cob = NULL;
 
@@ -1211,7 +1205,6 @@ static void cobfoms_fol_verify(void)
 	struct m0_reqh	  *reqh;
 	struct m0_fol_rec  dec_cc_rec;
 	struct m0_fol_rec  dec_cd_rec;
-	struct m0_dtx      dtx;
 	int		   result;
 	struct m0_fop	  *c_fop;
 	struct m0_fop     *d_fop;
@@ -1226,15 +1219,12 @@ static void cobfoms_fol_verify(void)
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
-	m0_dtx_init(&dtx);
-	m0_dtx_open(&dtx, reqh->rh_dbenv);
-
-	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(dec_cc_rec.fr_desc.rd_header.rh_parts_nr == 1);
 
-	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 1, &dec_cd_rec);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(dec_cd_rec.fr_desc.rd_header.rh_parts_nr == 1);
@@ -1253,7 +1243,6 @@ static void cobfoms_fol_verify(void)
 
 	m0_fol_lookup_rec_fini(&dec_cc_rec);
 	m0_fol_lookup_rec_fini(&dec_cd_rec);
-	m0_dtx_done(&dtx);
 
 	cobfoms_fop_thread_fini(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
 }

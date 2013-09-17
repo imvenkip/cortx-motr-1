@@ -22,6 +22,8 @@
 #include <sys/types.h>
 
 #include "lib/processor.h"
+#include "lib/locality.h"
+#include "lib/finject.h"
 #include "ut/ut.h"
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
@@ -29,7 +31,6 @@
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
 #include "mero/setup.h"
-#include "lib/finject.h"
 #include "fop/fom_generic.c"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
@@ -1067,7 +1068,10 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
         fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
 	M0_UT_ASSERT(fom_stdom != NULL);
 
-	m0_dtx_init(&fom->fo_tx);
+	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
+			&fom->fo_loc->fl_group);
+	m0_stob_create_helper_credit(fom_stdom, &stobid,
+			&fom->fo_tx.tx_betx_cred);
 	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);
         M0_UT_ASSERT(rc == 0);
 
@@ -1077,7 +1081,8 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
         M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
         M0_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_EXISTS);
 
-	m0_dtx_done(&fom->fo_tx);
+	rc = m0_dtx_done_sync(&fom->fo_tx);
+        M0_UT_ASSERT(rc == 0);
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
@@ -1279,7 +1284,6 @@ static void bulkio_server_write_fol_rec_verify(void)
 {
 	struct m0_reqh		 *reqh;
 	struct m0_fol_rec	  dec_rec;
-	struct m0_dtx             dtx;
 	int			  result;
 	struct m0_fol_rec_part	 *dec_part;
 	struct m0_fop		 *fop;
@@ -1291,10 +1295,7 @@ static void bulkio_server_write_fol_rec_verify(void)
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
-	m0_dtx_init(&dtx);
-	m0_dtx_open(&dtx, reqh->rh_dbenv);
-
-	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
 
@@ -1318,7 +1319,6 @@ static void bulkio_server_write_fol_rec_verify(void)
 	} m0_tl_endfor;
 
 	m0_fol_lookup_rec_fini(&dec_rec);
-	m0_dtx_done(&dtx);
 	io_fops_destroy(bp);
 }
 
@@ -1329,6 +1329,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	struct m0_reqh	       *reqh;
 	struct m0_fol_rec	dec_rec;
 	struct m0_dtx           dtx;
+	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
 	int			result;
 	struct m0_fol_rec_part *dec_part;
 
@@ -1351,10 +1352,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
-	m0_dtx_init(&dtx);
-	m0_dtx_open(&dtx, reqh->rh_dbenv);
-
-	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
 
@@ -1374,13 +1372,17 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
 				     ftype->ft_ops->fto_redo != NULL);
 			result = ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
-		} else
+		} else {
+			m0_dtx_init(&dtx, reqh->rh_beseg->bs_domain, grp);
+			m0_dtx_open_sync(&dtx);
 			result = dec_part->rp_ops->rpo_undo(dec_part,
-							    &dtx.tx_dbtx);
+							    &dtx.tx_betx);
+			m0_dtx_done_sync(&dtx);
+			m0_dtx_fini(&dtx);
+		}
 		M0_UT_ASSERT(result == 0);
 	} m0_tl_endfor;
 	m0_fol_lookup_rec_fini(&dec_rec);
-	m0_dtx_done(&dtx);
 
 	/* Read that data from file and compare it with data "b". */
 	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
