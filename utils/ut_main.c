@@ -138,7 +138,7 @@ void add_uts(void)
 	m0_ut_add(&m0d_ut);
 	m0_ut_add(&packet_encdec_ut);
 	m0_ut_add(&parity_math_ut);
-	//m0_ut_add(&poolmach_ut);
+	m0_ut_add(&poolmach_ut);
 	m0_ut_add(&reqh_ut);
 	m0_ut_add(&reqh_service_ut);
 	m0_ut_add(&rm_ut);
@@ -157,8 +157,8 @@ void add_uts(void)
 	m0_ut_add(&xcode_bufvec_fop_ut);
 	m0_ut_add(&xcode_ff2c_ut);
 	m0_ut_add(&xcode_ut);
-	//m0_ut_add(&cobfoms_ut);
-	m0_ut_add(&mdservice_ut);
+	m0_ut_add(&cobfoms_ut);
+	// m0_ut_add(&mdservice_ut);   /* freeze */
 	/* These tests have redirection of messages. */
 	m0_ut_add(&console_ut);
 }
