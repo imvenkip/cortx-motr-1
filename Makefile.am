@@ -202,7 +202,7 @@ include $(top_srcdir)/sns/cm/Makefile.sub
 include $(top_srcdir)/sns/cm/repair/Makefile.sub
 include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/udb/Makefile.sub
+include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
 
 #
@@ -249,7 +249,7 @@ include $(top_srcdir)/sm/ut/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/udb/ut/Makefile.sub
+include $(top_srcdir)/udb/ut/Makefile.sub
 include $(top_srcdir)/ut/Makefile.sub
 include $(top_srcdir)/xcode/ut/Makefile.sub
 
