@@ -137,7 +137,7 @@ void add_uts(void)
 	m0_ut_add(&m0_net_tm_prov_ut);
 	m0_ut_add(&m0d_ut);
 	m0_ut_add(&packet_encdec_ut);
-	//m0_ut_add(&parity_math_ut);
+	m0_ut_add(&parity_math_ut);
 	//m0_ut_add(&poolmach_ut);
 	m0_ut_add(&reqh_ut);
 	m0_ut_add(&reqh_service_ut);
