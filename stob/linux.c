@@ -28,6 +28,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
+#include "dtm/dtm.h"
 
 #include "stob/linux.h"
 #include "stob/linux_internal.h"
@@ -258,7 +259,11 @@ static void linux_stob_fini(struct m0_stob *stob)
  */
 static int linux_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
 {
-	return 0;
+	int rc = 0;
+
+	if (tx != NULL)
+		rc = m0_dtx_open_sync(tx);
+	return rc;
 }
 
 /**

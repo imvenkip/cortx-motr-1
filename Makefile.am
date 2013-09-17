@@ -246,7 +246,7 @@ include $(top_srcdir)/rm/ut/Makefile.sub
 include $(top_srcdir)/rpc/ub/Makefile.sub
 include $(top_srcdir)/rpc/ut/Makefile.sub
 include $(top_srcdir)/sm/ut/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
+include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
 include $(top_srcdir)/sns/ut/Makefile.sub
 include $(top_srcdir)/stob/ut/Makefile.sub
 include $(top_srcdir)/udb/ut/Makefile.sub

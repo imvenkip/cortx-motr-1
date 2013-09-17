@@ -23,6 +23,7 @@
 #endif
 
 #include "lib/misc.h"
+#include "lib/locality.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
@@ -195,8 +196,9 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 
 void write_post(void)
 {
-	struct m0_stob_domain           *sdom;
-	int                              rc;
+	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
+	struct m0_stob_domain  *sdom;
+	int                     rc;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
@@ -212,7 +214,9 @@ void write_post(void)
 	sdom = m0_cs_stob_domain_find(reqh, &sid);
 	M0_UT_ASSERT(sdom != NULL);
 
-	m0_dtx_init(&tx);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
+	m0_stob_create_helper_credit(sdom, &sid, &tx.tx_betx_cred);
 	rc = sdom->sd_ops->sdo_tx_make(sdom, &tx);
 	M0_ASSERT(rc == 0);
 	/*
@@ -221,9 +225,10 @@ void write_post(void)
 	 */
 	rc = m0_stob_create_helper(sdom, &tx, &sid, &stob);
 	M0_UT_ASSERT(rc == 0);
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 
 	m0_stob_put(stob);
-	m0_dtx_done(&tx);
 
 	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
 

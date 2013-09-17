@@ -18,6 +18,7 @@
  * Original creation date: 08/16/2012
  */
 
+#include "lib/locality.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "mero/setup.h"
@@ -241,6 +242,7 @@ static void cp_buf_free(struct m0_sns_cm_ag *sag)
 
 static void tgt_fid_cob_create()
 {
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
         struct m0_dbenv      *dbenv;
         struct m0_fid         gfid = {0, 4};
         int                   rc;
@@ -253,15 +255,17 @@ static void tgt_fid_cob_create()
         stob_dom = m0_cs_stob_domain_find(reqh, &sid);
         M0_ASSERT(stob_dom != NULL);
 
-        m0_dtx_init(&tx);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_stob_create_helper_credit(stob_dom, &sid, &tx.tx_betx_cred);
         rc = stob_dom->sd_ops->sdo_tx_make(stob_dom, &tx);
         M0_ASSERT(rc == 0);
-
         rc = m0_stob_create_helper(stob_dom, &tx, &sid, &stob);
         M0_ASSERT(rc == 0);
+        m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 
         m0_stob_put(stob);
-        m0_dtx_done(&tx);
 }
 
 static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
