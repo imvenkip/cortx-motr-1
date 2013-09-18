@@ -364,8 +364,8 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  */
 static int fom_txn_commit(struct m0_fom *fom)
 {
-	m0_dtx_done(&fom->fo_tx);
 	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
+	m0_dtx_done(&fom->fo_tx);
 
 	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
 
