@@ -122,7 +122,8 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_reqh_rpc_mach_tlink_del_fini(&ctx->rmc_rpc);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
 
-	m0_reqh_shutdown(&ctx->rmc_reqh);
+	if (m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_NORMAL)
+		m0_reqh_shutdown(&ctx->rmc_reqh);
 	m0_reqh_dbenv_fini(&ctx->rmc_reqh, true);
 
 	m0_reqh_services_terminate(&ctx->rmc_reqh);
