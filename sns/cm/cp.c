@@ -20,9 +20,8 @@
  * Original creation date: 08/06/2012
  */
 
-#ifndef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#endif
+#include "lib/trace.h"
 #include "lib/memory.h" /* m0_free() */
 #include "lib/misc.h"
 
@@ -144,6 +143,8 @@ static int next[] = {
 M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 {
 	int phase = m0_sns_cm_cp_next_phase_get(m0_fom_phase(&cp->c_fom), cp);
+
+	M0_LOG(M0_DEBUG, "phase=%d", phase);
 
 	m0_fom_phase_set(&cp->c_fom, phase);
 
@@ -292,6 +293,9 @@ const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops = {
 };
 
 /** @} SNSCMCP */
+
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

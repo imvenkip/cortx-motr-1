@@ -1121,7 +1121,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	struct m0_cob_fabkey  fabkey;
 	int                   rc;
 
-	M0_ENTRY();
 	M0_PRE(cob != NULL);
 	M0_PRE(nskey != NULL);
 	M0_PRE(nsrec != NULL);
@@ -1129,6 +1128,14 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	M0_PRE(omgrec != NULL);
 	M0_PRE(m0_fid_is_set(&nsrec->cnr_fid));
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
+
+	M0_ENTRY("nskey=([%d,%d], '%s') nsrec=([%d,%d], %d)",
+		(int)nskey->cnk_pfid.f_container,
+		(int)nskey->cnk_pfid.f_key,
+		(char*)nskey->cnk_name.b_data,
+		(int)nsrec->cnr_fid.f_container,
+		(int)nsrec->cnr_fid.f_key,
+		(int)nsrec->cnr_linkno);
 
 	rc = m0_cob_alloc_omgid(cob->co_dom, tx, &nsrec->cnr_omgid);
 	if (rc != 0)
