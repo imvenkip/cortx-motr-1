@@ -43,6 +43,25 @@ static int db_reset(void)
 	return rc;
 }
 
+static int _locate(int c, int k)
+{
+	struct m0_db_tx     tx;
+	struct m0_fid       fid;
+	struct m0_cob_oikey oikey;
+	int                 rc;
+
+	m0_fid_set(&fid, c, k);
+
+	oikey.cok_fid = fid;
+	oikey.cok_linkno = 0;
+
+	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+	rc = m0_cob_locate(&dom, &oikey, 0, &cob, &tx);
+	m0_db_tx_commit(&tx);
+
+	return rc;
+}
+
 static void test_mkfs(void)
 {
 	struct m0_db_tx tx;
@@ -61,6 +80,13 @@ static void test_mkfs(void)
 	rc = m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID,
 				&M0_COB_SESSIONS_FID, &tx);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = _locate(1, 2); /* slash */
+	M0_UT_ASSERT(rc == 0);
+	rc = _locate(1, 3); /* session */
+	M0_UT_ASSERT(rc == 0);
+	rc = _locate(1, 1); /* root */
+	M0_UT_ASSERT(rc != 0);
 	m0_db_tx_commit(&tx);
 
 	/* Fini everything */
@@ -216,31 +242,12 @@ static void test_lookup(void)
 	m0_cob_put(cob);
 }
 
-static int _locate(void)
-{
-	struct m0_db_tx     tx;
-	struct m0_fid       fid;
-	struct m0_cob_oikey oikey;
-	int                 rc;
-
-	m0_fid_set(&fid, 0xabc, 0xdef);
-
-	oikey.cok_fid = fid;
-	oikey.cok_linkno = 0;
-
-	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
-	rc = m0_cob_locate(&dom, &oikey, 0, &cob, &tx);
-	m0_db_tx_commit(&tx);
-
-	return rc;
-}
-
 /** Lookup by fid, make sure pfid is right. */
 static void test_locate(void)
 {
 	int rc;
 
-	rc = _locate();
+	rc = _locate(0xabc, 0xdef);
 	M0_UT_ASSERT(rc == 0);
 
 	M0_UT_ASSERT(cob != NULL);
@@ -255,6 +262,10 @@ static void test_locate(void)
 	M0_UT_ASSERT(cob->co_flags & M0_CA_NSREC);
 
 	m0_cob_put(cob);
+
+	/* We should fail here, since there is no such cob */
+	rc = _locate(0x123, 0x456);
+	M0_UT_ASSERT(rc != 0);
 }
 
 static void test_delete(void)
@@ -263,7 +274,7 @@ static void test_delete(void)
 	int             rc;
 
 	/* gets ref */
-	rc = _locate();
+	rc = _locate(0xabc, 0xdef);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
@@ -272,7 +283,7 @@ static void test_delete(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* should fail now */
-	rc = _locate();
+	rc = _locate(0xabc, 0xdef);
 	M0_UT_ASSERT(rc != 0);
 }
 
