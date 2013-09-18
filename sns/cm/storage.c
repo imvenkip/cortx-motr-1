@@ -22,6 +22,8 @@
 #include "config.h"
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "mero/setup.h"
@@ -146,6 +148,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	uint32_t                 bshift;
 	int                      rc;
 
+	M0_ENTRY("cp=%p op=%d", cp, op);
+
 	addb_ctx = &cp->c_ag->cag_cm->cm_service.rs_addb_ctx;
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
@@ -215,7 +219,7 @@ out:
 	} else
 		rc = cp->c_ops->co_phase_next(cp);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
@@ -233,7 +237,9 @@ M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
-	int                      rc = sns_cp->sc_stio.si_rc;
+	int                  rc;
+
+	M0_ENTRY("cp=%p", cp);
 
 	if (sns_cp->sc_stio.si_opcode == SIO_WRITE)
 		cp->c_ops->co_complete(cp);
@@ -245,15 +251,23 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	m0_stob_put(sns_cp->sc_stob);
 
 	m0_dtx_done(&cp->c_fom.fo_tx);
+
+	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_STIO);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-		return M0_FSO_WAIT;
+		rc = M0_FSO_WAIT;
+	} else {
+		rc = cp->c_ops->co_phase_next(cp);
 	}
-	return cp->c_ops->co_phase_next(cp);
+
+	M0_RETURN(rc);
 }
 
 /** @} SNSCMCP */
+
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

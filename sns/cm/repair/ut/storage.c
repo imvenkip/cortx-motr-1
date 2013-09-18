@@ -22,6 +22,8 @@
 #include "config.h"
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/locality.h"
 #include "reqh/reqh.h"
@@ -80,8 +82,14 @@ static uint64_t dummy_fom_locality(const struct m0_fom *fom)
  */
 static int dummy_fom_tick(struct m0_fom *fom)
 {
+	int rc;
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
-	return cp->c_ops->co_action[m0_fom_phase(fom)](cp);
+
+	M0_ENTRY("cp=%p phase=%d", cp, m0_fom_phase(fom));
+
+	rc = cp->c_ops->co_action[m0_fom_phase(fom)](cp);
+
+	M0_RETURN(rc);
 }
 
 static void dummy_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -178,8 +186,8 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 	.co_action = {
 		[M0_CCP_INIT]        = &dummy_cp_init,
 		[M0_CCP_READ]        = &dummy_cp_read,
-		[M0_CCP_WRITE]       = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT]     = &dummy_cp_read_io_wait,
+		[M0_CCP_WRITE]       = &m0_sns_cm_cp_write,
 		[M0_CCP_XFORM]       = &dummy_cp_phase,
                 [M0_CCP_SW_CHECK]    = &dummy_cp_phase,
                 [M0_CCP_SEND]        = &dummy_cp_phase,

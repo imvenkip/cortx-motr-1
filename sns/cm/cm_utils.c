@@ -151,6 +151,9 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 	struct m0_cob_oikey   oikey;
 	int                   rc;
 
+	M0_ENTRY("dom=%p cob=[%x,%x]", cdom,
+		(int)cob_fid->f_container, (int)cob_fid->f_key);
+
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
 	if (rc == 0) {
@@ -158,7 +161,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 		m0_cob_put(cob);
 	}
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
