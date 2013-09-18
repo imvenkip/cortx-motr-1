@@ -249,11 +249,8 @@ static int test_ad_fini(void)
 	int result;
 	int i;
 
-	m0_dtx_done(&tx);
-	result = m0_be_tx_timedwait(&tx.tx_betx, M0_BITS(M0_BTS_DONE),
-				    M0_TIME_NEVER);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
-
+	result = m0_dtx_done_sync(&tx);
+	M0_ASSERT(result == 0);
 	m0_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore, sm_grp);
 	dom_back->sd_ops->sdo_fini(dom_back, NULL);
@@ -396,10 +393,8 @@ static void test_ad_undo(void)
 	int                     result;
 	struct m0_fol_rec_part *rpart;
 
-	m0_dtx_done(&tx);
-	result = m0_be_tx_timedwait(&tx.tx_betx, M0_BITS(M0_BTS_DONE),
-				    M0_TIME_NEVER);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
+	result = m0_dtx_done_sync(&tx);
+	M0_UT_ASSERT(result == 0);
 
 	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	dom_fore->sd_ops->sdo_write_credit(dom_fore,
