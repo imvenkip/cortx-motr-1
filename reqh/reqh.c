@@ -131,7 +131,10 @@ static struct m0_sm_conf m0_reqh_sm_conf = {
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
 	return	reqh != NULL &&
-		reqh->rh_mdstore != NULL && reqh->rh_fol != NULL &&
+		reqh->rh_mdstore != NULL &&
+#ifndef __KERNEL__
+		reqh->rh_fol != NULL &&
+#endif
 		m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
@@ -301,9 +304,9 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 
 		m0_fol_init(reqh->rh_fol, seg);
 	}
+	reqh->rh_fol->f_reqh = reqh;
 #endif
 
-	reqh->rh_fol->f_reqh = reqh;
 	reqh->rh_beseg = seg;
 	M0_POST(m0_reqh_invariant(reqh));
 
