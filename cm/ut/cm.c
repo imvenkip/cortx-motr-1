@@ -90,6 +90,7 @@ static void cm_setup_ut(void)
 
 	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
+	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 }
