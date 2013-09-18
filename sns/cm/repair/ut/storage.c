@@ -215,7 +215,7 @@ void write_post(void)
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	w_sns_cp.sc_sid = sid;
 	w_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
-	w_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
+	w_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo + 1;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
@@ -287,7 +287,7 @@ static void read_post(void)
 	r_sag.sag_fnr = 1;
 	r_sns_cp.sc_sid = sid;
 	r_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
-	r_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
+	r_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo + 1;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 
         /* Wait till ast gets posted. */
