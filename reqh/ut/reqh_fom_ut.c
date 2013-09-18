@@ -24,8 +24,6 @@
 #include <err.h>
 
 #include "lib/memory.h"
-#include "ut/ut.h"
-
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -44,8 +42,10 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "balloc/balloc.h"
-
 #include "mdstore/mdstore.h"
+
+#include "ut/ut.h"
+#include "ut/be.h"
 /**
    @addtogroup reqh
    @{
@@ -57,7 +57,6 @@
 
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
-#define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
 
 enum {
@@ -71,8 +70,8 @@ static struct m0_stob_domain   *sdom;
 static struct m0_mdstore        srv_mdstore;
 static struct m0_cob_domain_id  srv_cob_dom_id;
 static struct m0_rpc_machine    srv_rpc_mach;
-static struct m0_dbenv          srv_db;
-static struct m0_fol            srv_fol;
+static struct m0_be_ut_backend  ut_be;
+static struct m0_be_ut_seg      ut_seg;
 static struct m0_reqh_service  *reqh_ut_service;
 
 /**
@@ -96,7 +95,8 @@ static struct reqh_ut_balloc *getballoc(struct m0_ad_balloc *ballroom)
 }
 
 static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom,
-			       struct m0_dbenv *db,
+			       struct m0_be_seg *db,
+			       struct m0_sm_group *grp,
 			       uint32_t bshift,
 			       m0_bindex_t container_size,
 			       m0_bcount_t groupsize,
@@ -168,19 +168,32 @@ static int server_init(const char             *stob_path,
 		       struct m0_stob_id      *rh_addb_stob_id)
 {
         int                          rc;
+	struct m0_sm_group          *grp;
 	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
-	struct m0_db_tx              tx;
+	struct m0_be_tx              tx;
+	struct m0_be_tx_credit       cred = {};
+	struct m0_be_seg            *seg;
 	uint32_t		     bufs_nr;
 	uint32_t		     tms_nr;
 	struct m0_reqh_service_type *stype;
 
         srv_cob_dom_id.id = 102;
 
-        /* Init the db */
-        rc = m0_dbenv_init(&srv_db, srv_db_name, 0);
+	rc = M0_REQH_INIT(&reqh,
+			  .rhia_dtm       = NULL,
+			  .rhia_db        = NULL,
+			  .rhia_mdstore   = &srv_mdstore,
+			  .rhia_fol       = NULL,
+			  .rhia_svc       = (void*)1);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_fol_init(&srv_fol, &srv_db);
+	m0_ut_backend_init(&ut_be, &ut_seg);
+	seg = &ut_seg.bus_seg;
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_be_seg_dict_create(seg, grp);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_reqh_dbenv_init(&reqh, seg, true);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
@@ -200,10 +213,10 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	rc = m0_ad_stob_domain_locate("", &sdom, *bstore);
+	rc = m0_ad_stob_domain_locate("", seg, grp, &sdom, *bstore);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ad_stob_setup(sdom, &srv_db, *bstore, &rb.rb_ballroom,
+	rc = m0_ad_stob_setup(sdom, seg, grp, *bstore, &rb.rb_ballroom,
 			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCK_SHIFT,
 			      BALLOC_DEF_BLOCKS_PER_GROUP,
 			      BALLOC_DEF_RESERVED_GROUPS);
@@ -221,34 +234,26 @@ static int server_init(const char             *stob_path,
 	M0_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_EXISTS);
 
         /* Init mdstore without reading root cob. */
-        rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
+        rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, false);
+        M0_UT_ASSERT(rc == -ENOENT);
+        rc = m0_mdstore_create(&srv_mdstore, grp);
         M0_UT_ASSERT(rc == 0);
-
-	rc = m0_db_tx_init(&tx, &srv_db, 0);
-	M0_UT_ASSERT(rc == 0);
 
 	/* Create root session cob and other structures */
+	m0_cob_tx_credit(&srv_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
+	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
 	rc = m0_cob_domain_mkfs(&srv_mdstore.md_dom, &M0_COB_SLASH_FID,
 				&M0_COB_SESSIONS_FID, &tx);
+	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Comit and finalize old mdstore. */
-	m0_db_tx_commit(&tx);
-
+	/* Finalize old mdstore. */
         m0_mdstore_fini(&srv_mdstore);
+
         /* Init new mdstore with open root flag. */
-        rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 1);
+        rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, true);
         M0_UT_ASSERT(rc == 0);
 
-	/* Initialising request handler */
-	rc = M0_REQH_INIT(&reqh,
-			  .rhia_dtm       = NULL,
-			  .rhia_db        = &srv_db,
-			  .rhia_mdstore   = &srv_mdstore,
-			  .rhia_fol       = &srv_fol,
-			  .rhia_svc       = NULL,
-			  .rhia_addb_stob = NULL);
-	M0_UT_ASSERT(rc == 0);
 	m0_reqh_start(&reqh);
 
 	tms_nr   = 1;
@@ -282,25 +287,40 @@ static int server_init(const char             *stob_path,
 static void server_fini(struct m0_stob_domain *bdom,
 			struct m0_stob        *reqh_addb_stob)
 {
-	m0_reqh_rpc_mach_tlink_del_fini(&srv_rpc_mach);
+	int rc;
+	struct m0_sm_group *grp;
+
+	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
+		m0_reqh_shutdown(&reqh);
+
+	m0_reqh_dbenv_fini(&reqh, true);
+
         /* Fini the rpc_machine */
+	m0_reqh_rpc_mach_tlink_del_fini(&srv_rpc_mach);
         m0_rpc_machine_fini(&srv_rpc_mach);
-
 	m0_rpc_net_buffer_pool_cleanup(&app_pool);
-
-        /* Fini the mdstore */
-        m0_mdstore_fini(&srv_mdstore);
 
 	m0_stob_put(reqh_addb_stob);
 	m0_reqh_service_stop(reqh_ut_service);
 	m0_reqh_service_fini(reqh_ut_service);
 	m0_reqh_services_terminate(&reqh);
-	m0_reqh_fini(&reqh);
+
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_mdstore_destroy(&srv_mdstore, grp);
+	M0_UT_ASSERT(rc == 0);
+	m0_mdstore_fini(&srv_mdstore);
+
 	M0_UT_ASSERT(sdom != NULL);
-	sdom->sd_ops->sdo_fini(sdom);
-	bdom->sd_ops->sdo_fini(bdom);
-	m0_fol_fini(&srv_fol);
-	m0_dbenv_fini(&srv_db);
+	sdom->sd_ops->sdo_fini(sdom, grp);
+	bdom->sd_ops->sdo_fini(bdom, NULL);
+
+	rc = m0_be_seg_dict_destroy(&ut_seg.bus_seg, grp);
+	M0_ASSERT(rc == 0);
+	m0_ut_backend_fini(&ut_be, &ut_seg);
+
+	m0_reqh_fom_domain_idle_wait(&reqh);
+	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
+	m0_reqh_fini(&reqh);
 }
 
 static void fop_send(struct m0_fop *fop, struct m0_rpc_session *session)
@@ -380,7 +400,6 @@ void test_reqh(void)
 	struct m0_net_xprt    *xprt        = &m0_net_lnet_xprt;
 	struct m0_net_domain   net_dom     = { };
 	struct m0_net_domain   srv_net_dom = { };
-	struct m0_dbenv        client_dbenv;
 	struct m0_stob_domain *bdom;
 	struct m0_stob_id      backid;
 	struct m0_stob        *bstore;
@@ -397,8 +416,6 @@ void test_reqh(void)
 		.rcx_net_dom            = &net_dom,
 		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rcx_db_name            = CLIENT_DB_NAME,
-		.rcx_dbenv              = &client_dbenv,
 		.rcx_nr_slots           = SESSION_SLOTS,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};

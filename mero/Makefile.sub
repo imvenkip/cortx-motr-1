@@ -6,8 +6,8 @@ nobase_mero_include_HEADERS += mero/init.h  \
 
 mero_libmero_la_SOURCES += mero/init.c  \
                            mero/setup.c \
-                           mero/conf.c \
                            mero/version.c
+                           #XXX_BE_DB mero/conf.c
 
 mero_m0d_SOURCES = mero/m0d.c \
                    mero/setup_internal.h

@@ -175,12 +175,11 @@ static void test_service(void)
 	for (i = 0; i < MAX_REQH_UT_FOP; ++i)
 		m0_reqh_fop_handle(reqh, fop);
 
-	m0_reqh_shutdown_wait(reqh);
-
 	m0_fop_put(fop);
 
 	m0_reqh_service_stop(reqh_svc);
 	m0_reqh_service_fini(reqh_svc);
+
 	m0_ut_rpc_mach_fini(&rmach_ctx);
 
 	m0_reqhut_fop_fini();

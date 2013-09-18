@@ -53,6 +53,11 @@ M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)
 	return loc->lo_grp != NULL ? loc : &locs_fallback;
 }
 
+M0_INTERNAL struct m0_locality *m0_locality0_get(void)
+{
+	return &locs_fallback;
+}
+
 M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_locality *val)
 {
 	struct m0_locality *loc = &locs[id];

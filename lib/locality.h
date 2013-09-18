@@ -72,6 +72,8 @@ M0_INTERNAL struct m0_locality *m0_locality_here(void);
  */
 M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value);
 
+M0_INTERNAL struct m0_locality *m0_locality0_get(void);
+
 /**
  * Initialises per-core state for the specified core.
  *

@@ -19,7 +19,7 @@
  */
 
 #include "ut/ut.h"
-#include "ut/ast_thread.h"
+#include "be/ut/helper.h"
 
 /*
  * TODO
@@ -68,6 +68,7 @@ extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
 
+
 const struct m0_test_suite be_ut = {
 	.ts_name = "be-ut",
 	.ts_init = NULL,
@@ -88,8 +89,8 @@ const struct m0_test_suite be_ut = {
 		{ "seg-multiple",        m0_be_ut_seg_multiple         },
 		{ "group_ondisk",        m0_be_ut_group_ondisk         },
 		{ "domain",              m0_be_ut_domain               },
-		{ "tx-states",		 m0_be_ut_tx_states	       },
-		{ "tx-empty",		 m0_be_ut_tx_empty	       },
+		{ "tx-states",           m0_be_ut_tx_states            },
+		{ "tx-empty",            m0_be_ut_tx_empty             },
 		{ "tx-usecase_success",  m0_be_ut_tx_usecase_success   },
 		{ "tx-usecase_failure",  m0_be_ut_tx_usecase_failure   },
 		{ "tx-single",           m0_be_ut_tx_single            },

@@ -19,6 +19,7 @@
  */
 
 #include "lib/misc.h"
+#include "lib/locality.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh.h"
 #include "sns/cm/net.c"
@@ -72,7 +73,6 @@ enum {
 };
 
 static struct m0_net_domain  client_net_dom;
-static struct m0_dbenv       client_dbenv;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
@@ -80,15 +80,12 @@ static struct m0_semaphore   read_cp_sem;
 
 const char client_addr[]    = "0@lo:12345:34:2";
 const char server_addr[]    = "0@lo:12345:34:1";
-const char client_db_name[] = "cm_client_db";
 static const char send_db[] = "send-db";
 
 static struct m0_rpc_client_ctx cctx = {
         .rcx_net_dom            = &client_net_dom,
         .rcx_local_addr         = client_addr,
         .rcx_remote_addr        = server_addr,
-        .rcx_db_name            = client_db_name,
-        .rcx_dbenv              = &client_dbenv,
         .rcx_nr_slots           = SESSION_SLOTS,
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
@@ -446,6 +443,7 @@ static void receiver_ag_create()
 
 static void receiver_stob_create()
 {
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
         struct m0_cob_domain *cdom;
         struct m0_dbenv      *dbenv;
 	struct m0_fid         gfid = {0, 4};
@@ -458,7 +456,9 @@ static void receiver_stob_create()
         sdom = m0_cs_stob_domain_find(s0_reqh, &sid);
         M0_UT_ASSERT(sdom != NULL);
 
-        m0_dtx_init(&tx);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_stob_create_helper_credit(sdom, &sid, &tx.tx_betx_cred);
         rc = sdom->sd_ops->sdo_tx_make(sdom, &tx);
         M0_UT_ASSERT(rc == 0);
         /*
@@ -467,9 +467,10 @@ static void receiver_stob_create()
          */
         rc = m0_stob_create_helper(sdom, &tx, &sid, &stob);
         M0_UT_ASSERT(rc == 0);
+        m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 
         m0_stob_put(stob);
-        m0_dtx_done(&tx);
 }
 
 static void cm_ready(struct m0_cm *cm)

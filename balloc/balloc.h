@@ -23,11 +23,11 @@
 #ifndef __MERO_BALLOC_BALLOC_H__
 #define __MERO_BALLOC_BALLOC_H__
 
-#include "db/db.h"
 #include "lib/ext.h"
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
+#include "be/btree.h"
 #include "stob/ad.h"
 
 /**
@@ -120,25 +120,23 @@ enum m0_balloc_super_block_version {
 };
 
 /**
-   In-memory data structure for the balloc environment.
+   BE-backed in-memory data structure for the balloc environment.
 
    It includes pointers to db, various flags and parameters.
  */
 struct m0_balloc {
-	struct m0_dbenv             *cb_dbenv;
+	struct m0_be_seg            *cb_be_seg;
 
 	/** container this block allocator belongs to. */
 	uint64_t                     cb_container_id;
-	/** db for sb */
-	struct m0_table              cb_db_sb;
 	/** the on-disk and in-memory sb */
 	struct m0_balloc_super_block cb_sb;
 	/** super block lock */
         struct m0_mutex              cb_sb_mutex;
 	/** db for free extent */
-	struct m0_table              cb_db_group_extents;
+	struct m0_be_btree           cb_db_group_extents;
 	/** db for group desc */
-	struct m0_table              cb_db_group_desc;
+	struct m0_be_btree           cb_db_group_desc;
 	/** array of group info */
 	struct m0_balloc_group_info *cb_group_info;
 
@@ -147,7 +145,7 @@ struct m0_balloc {
 	struct m0_ad_balloc          cb_ballroom;
 };
 
-static inline struct m0_balloc *b2m0(struct m0_ad_balloc *ballroom)
+static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)
 {
 	return container_of(ballroom, struct m0_balloc, cb_ballroom);
 }
@@ -252,14 +250,24 @@ enum {
 };
 
 /**
-   Allocates struct m0_balloc instance and initialises struct ad_balloc_ops
-   vector. One balloc instance is allocated and initialised per storage domain.
-   @note The allocated struct m0_balloc instance is freed by balloc_fini().
+   Creates struct m0_balloc instance @out with container @id
+   on back-end segment @seg.
+
+   One balloc instance is allocated and initialised per storage domain.
 
    @see struct ad_balloc_ops
    @pre out != NULL
  */
-M0_INTERNAL int m0_balloc_allocate(uint64_t cid, struct m0_balloc **out);
+M0_INTERNAL int m0_balloc_create(uint64_t           cid,
+				 struct m0_be_seg  *seg,
+				 struct m0_sm_group *grp,
+				 struct m0_balloc **out);
+
+/**
+   Destroys struct m0_balloc instance @bal.
+ */
+M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal,
+				  struct m0_sm_group *grp);
 
 /* Interfaces for UT */
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
@@ -271,7 +279,9 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp);
 M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 				       struct m0_balloc_group_info *grp,
-				       struct m0_db_tx *tx);
+				       struct m0_be_tx *tx);
+M0_INTERNAL void m0_balloc_load_extents_credit(const struct m0_balloc *cb,
+					       struct m0_be_tx_credit *accum);
 M0_INTERNAL struct m0_balloc_group_info *m0_balloc_gn2info(struct m0_balloc *cb,
 							   m0_bindex_t groupno);
 M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,

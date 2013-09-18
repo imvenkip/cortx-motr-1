@@ -22,7 +22,10 @@
 #include "config.h"
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
 #include "lib/misc.h"
+#include "lib/locality.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
@@ -79,8 +82,14 @@ static uint64_t dummy_fom_locality(const struct m0_fom *fom)
  */
 static int dummy_fom_tick(struct m0_fom *fom)
 {
+	int rc;
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
-	return cp->c_ops->co_action[m0_fom_phase(fom)](cp);
+
+	M0_ENTRY("cp=%p phase=%d", cp, m0_fom_phase(fom));
+
+	rc = cp->c_ops->co_action[m0_fom_phase(fom)](cp);
+
+	M0_RETURN(rc);
 }
 
 static void dummy_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -177,8 +186,8 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 	.co_action = {
 		[M0_CCP_INIT]        = &dummy_cp_init,
 		[M0_CCP_READ]        = &dummy_cp_read,
-		[M0_CCP_WRITE]       = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT]     = &dummy_cp_read_io_wait,
+		[M0_CCP_WRITE]       = &m0_sns_cm_cp_write,
 		[M0_CCP_XFORM]       = &dummy_cp_phase,
                 [M0_CCP_SW_CHECK]    = &dummy_cp_phase,
                 [M0_CCP_SEND]        = &dummy_cp_phase,
@@ -195,8 +204,9 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 
 void write_post(void)
 {
-	struct m0_stob_domain           *sdom;
-	int                              rc;
+	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
+	struct m0_stob_domain  *sdom;
+	int                     rc;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
@@ -205,14 +215,16 @@ void write_post(void)
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	w_sns_cp.sc_sid = sid;
 	w_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
-	w_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
+	w_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo + 1;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
 	sdom = m0_cs_stob_domain_find(reqh, &sid);
 	M0_UT_ASSERT(sdom != NULL);
 
-	m0_dtx_init(&tx);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
+	m0_stob_create_helper_credit(sdom, &sid, &tx.tx_betx_cred);
 	rc = sdom->sd_ops->sdo_tx_make(sdom, &tx);
 	M0_ASSERT(rc == 0);
 	/*
@@ -221,9 +233,10 @@ void write_post(void)
 	 */
 	rc = m0_stob_create_helper(sdom, &tx, &sid, &stob);
 	M0_UT_ASSERT(rc == 0);
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 
 	m0_stob_put(stob);
-	m0_dtx_done(&tx);
 
 	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
 
@@ -274,7 +287,7 @@ static void read_post(void)
 	r_sag.sag_fnr = 1;
 	r_sns_cp.sc_sid = sid;
 	r_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
-	r_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
+	r_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo + 1;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 
         /* Wait till ast gets posted. */

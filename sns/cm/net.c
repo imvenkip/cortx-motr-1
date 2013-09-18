@@ -428,7 +428,9 @@ M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
         rc = m0_rpc_bulk_load(rbulk, session->s_conn,
                               sns_cpx->scx_cp.cpx_desc.id_descs);
         if (rc != 0) {
+                m0_mutex_lock(&rbulk->rb_mutex);
                 m0_fom_callback_cancel(&cp->c_fom.fo_cb);
+                m0_mutex_unlock(&rbulk->rb_mutex);
                 m0_rpc_bulk_buflist_empty(rbulk);
                 m0_fom_phase_move(&cp->c_fom, rc, M0_FOPH_FAILURE);
                 return M0_FSO_AGAIN;

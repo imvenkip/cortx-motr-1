@@ -374,8 +374,7 @@ static void test_confc_net(void)
 	rc = service_start(&confd);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR,
-				     "ut_confc.db");
+	rc = m0_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR);
 	M0_UT_ASSERT(rc == 0);
 
 	confc_test(SERVER_ENDPOINT_ADDR, &mach, NULL);

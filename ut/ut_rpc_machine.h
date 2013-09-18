@@ -24,7 +24,6 @@
 #ifndef __MERO_UT_UT_RPC_MACHINE_H__
 #define __MERO_UT_UT_RPC_MACHINE_H__
 
-#include "db/db.h"
 #include "cob/cob.h"
 #include "net/lnet/lnet.h"
 #include "net/buffer_pool.h"
@@ -32,13 +31,14 @@
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_machine.h"
+#include "be/ut/helper.h"
 
 struct m0_ut_rpc_mach_ctx {
 	const char                *rmc_ep_addr;
 	const char                *rmc_dbname;
 	struct m0_rpc_machine      rmc_rpc;
-	struct m0_dbenv            rmc_dbenv;
-	struct m0_fol              rmc_fol;
+	struct m0_be_ut_backend    rmc_ut_be;
+	struct m0_be_ut_seg        rmc_ut_seg;
 	struct m0_cob_domain_id    rmc_cob_id;
 	struct m0_mdstore          rmc_mdstore;
 	struct m0_cob_domain       rmc_cob_dom;

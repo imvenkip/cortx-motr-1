@@ -43,7 +43,8 @@ struct m0_chan;
 struct m0_indexvec;
 struct m0_io_scope;
 
-struct m0_db_tx;
+struct m0_be_tx_credit;
+struct m0_be_seg;
 
 /**
    @defgroup stob Storage objects
@@ -88,6 +89,8 @@ struct m0_stob_type_op {
 	*/
 	int (*sto_domain_locate)(struct m0_stob_type *type,
 				 const char *domain_name,
+				 struct m0_be_seg *be_seg,
+				 struct m0_sm_group *grp,
 				 struct m0_stob_domain **dom,
 				 uint64_t dom_id);
 };
@@ -117,6 +120,7 @@ struct m0_stob_domain {
 	const char		       *sd_name;
 	const struct m0_stob_domain_op *sd_ops;
 	struct m0_stob_type            *sd_type;
+	struct m0_be_domain            *sd_bedom;
 	uint32_t			sd_dom_id;
 	struct m0_tlink                 sd_domain_linkage;
 	struct m0_rwlock                sd_guard;
@@ -131,7 +135,7 @@ struct m0_stob_domain_op {
 	/**
 	   Cleanup this domain: e.g. delete itself from the domain list in type.
 	*/
-	void (*sdo_fini)(struct m0_stob_domain *self);
+	void (*sdo_fini)(struct m0_stob_domain *self, struct m0_sm_group *grp);
 	/**
 	   Returns an in-memory representation for the storage object with given
 	   identifier in this domain, either by creating a new m0_stob or
@@ -150,12 +154,24 @@ struct m0_stob_domain_op {
 	   place.
 	 */
 	int (*sdo_tx_make)(struct m0_stob_domain *dom, struct m0_dtx *tx);
+	/**
+	   Calculates the credit for write operation.
+	 */
+	void (*sdo_write_credit)(struct m0_stob_domain  *dom,
+				 m0_bcount_t             size,
+				 struct m0_be_tx_credit *accum);
 };
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t,
-				     uint64_t dom_id);
+				     uint64_t dom_id,
+				     struct m0_be_domain *be_dom);
+
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
+
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
+				      m0_bcount_t             size,
+				      struct m0_be_tx_credit *accum);
 
 /**
    m0_stob state specifying its relationship with the underlying storage object.
@@ -219,6 +235,7 @@ struct m0_stob_op {
 	   or cache it in some internal data-structure.
 	 */
 	void (*sop_fini)(struct m0_stob *stob);
+
 	/**
 	  Create an object.
 
@@ -230,13 +247,19 @@ struct m0_stob_op {
 	int (*sop_create)(struct m0_stob *stob, struct m0_dtx *tx);
 
 	/**
+	  Calculates the BE (Back-End) credit needed to create an object.
+	*/
+	void (*sop_create_credit)(struct m0_stob *stob,
+				  struct m0_be_tx_credit *accum);
+
+	/**
 	   Locate a storage object for this m0_stob.
 
 	   @return 0 success, other values mean error
 	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
 	*/
-	int (*sop_locate)(struct m0_stob *obj, struct m0_dtx *tx);
+	int (*sop_locate)(struct m0_stob *obj);
 
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
@@ -307,7 +330,7 @@ M0_INTERNAL void m0_stob_fini(struct m0_stob *obj);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
    @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
-M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx);
+M0_INTERNAL int m0_stob_locate(struct m0_stob *obj);
 
 /**
    Create an object.
@@ -318,6 +341,10 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
 M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx);
+
+/** Calculate BE tx credit for m0_stob_create() */
+M0_INTERNAL void m0_stob_create_credit(struct m0_stob *obj,
+					struct m0_be_tx_credit *accum);
 
 /**
    Acquires an additional reference on the object.
@@ -355,6 +382,11 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 				      struct m0_dtx *dtx,
 				      const struct m0_stob_id *stob_id,
 				      struct m0_stob **out);
+
+/** Calculate BE tx credit for m0_stob_create_helper() */
+M0_INTERNAL void m0_stob_create_helper_credit(struct m0_stob_domain *dom,
+				      const struct m0_stob_id *stob_id,
+				      struct m0_be_tx_credit *accum);
 
 /**
    @name adieu

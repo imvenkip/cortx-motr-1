@@ -214,7 +214,7 @@ enum m0_be_tx_state {
 	 * failing to allocate internal memory in m0_be_tx_open() call or by
 	 * growing too large (larger than the total log space) in prepare state.
 	 */
-	M0_BTS_FAILED,
+	M0_BTS_FAILED = 1,
 	/**
 	 * State in which transaction is being prepared to opening; initial
 	 * state after m0_be_tx_init().
@@ -372,6 +372,7 @@ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
 M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx *tx,
 				    const struct m0_be_reg *reg);
 
+/* XXX change to (tx, seg, ptr) */
 #define M0_BE_TX_CAPTURE_PTR(seg, tx, ptr) \
 	m0_be_tx_capture((tx), &M0_BE_REG((seg), sizeof *(ptr), (ptr)))
 

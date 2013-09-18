@@ -25,7 +25,6 @@
 #include "ut/cs_fop_foms_xc.h"  /* cs_ds2_req_fop */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 
-#define CLIENT_DB_NAME       "rpc_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 
 #define SERVER_DB_NAME        "rpc_ut_server.db"
@@ -46,14 +45,10 @@ static struct m0_net_xprt  *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain client_net_dom;
 
 #ifndef __KERNEL__
-static struct m0_dbenv      client_dbenv;
-
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom               = &client_net_dom,
 	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
-	.rcx_db_name               = CLIENT_DB_NAME,
-	.rcx_dbenv                 = &client_dbenv,
 	.rcx_nr_slots              = SESSION_SLOTS,
 	.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,

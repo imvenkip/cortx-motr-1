@@ -141,7 +141,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	for (i = 0; i < N + K; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
+		rc = m0_sns_cm_cob_locate(it->si_cob_dom,
 					  &cobfid);
 		if (rc == 0 && m0_sns_cm_is_cob_failed(scm, &cobfid)) {
 			rc = m0_sns_repair_spare_map(pm, gfid, pl, group, i, &spare);
@@ -150,7 +150,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 			sa.sa_unit = spare;
 			/* Identify the COB hosting the spare unit. */
 			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-			rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
+			rc = m0_sns_cm_cob_locate(it->si_cob_dom,
 						  &cobfid);
 			if (rc != 0) {
 				M0_LOG(M0_DEBUG, "true: %lu", group);

@@ -27,9 +27,10 @@
    @defgroup fol File operations log
 
    File operations log (fol) is a per-node collection of records, describing
-   updates to file system state carried out on the node. See HLD (url below) for
-   the description of requirements, usage patterns and constraints on fol, as
-   well as important terminology (update, operation, etc.).
+   updates to file system state carried out on the node. See HLD for the
+   description of requirements, usage patterns and constraints on fol,
+   as well as important terminology (update, operation, etc.):
+   https://docs.google.com/a/xyratex.com/document/d/1_5UGU0n7CATMiuG6V9eK3cMshiYFotPVnIy478MMnvM/comment .
 
    A fol is represented by an instance of struct m0_fol. A fol record has two
    data-types associated with it:
@@ -40,13 +41,13 @@
    location in the fol.
 
    A fol record contains the list of fol record parts, belonging to fol record
-   part types, added during updates. These fol record parts provides flexibility
+   part types, added during updates. These fol record parts provide flexibility
    for modules to participate in a transaction without global knowledge.
 
    @see m0_fol_rec_part : FOL record part.
    @see m0_fol_rec_part_type : FOL record part type.
 
-   m0_fol_rec_part_ops contains operations for undo and redo of
+   m0_fol_rec_part_ops structure contains operations for undo and redo of
    FOL record parts.
 
    @see m0_fol_rec_part_init() : Initializes m0_fol_rec_part with
@@ -56,18 +57,17 @@
    @see m0_fol_rec_part_type_register() : Registers FOL record part type.
    @see m0_fol_rec_part_type_deregister() : Deregisters FOL record part type.
 
-   FOL record parts list is kept in m0_fol_rec::fr_fol_rec_parts which is
-   initialized in m0_fol_rec_init()
+   FOL record parts list is kept in m0_fol_rec::fr_parts which is
+   initialized in m0_fol_rec_init().
 
    m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
    and parts.
    fol_record_encode() encodes the FOL record parts in the list
-   m0_fol_rec:fr_fol_rec_parts in a buffer, which then will be added into the db
+   m0_fol_rec:fr_parts in a buffer, which then will be added into the db
    using m0_fol_add_buf().
 
    @see m0_fol_rec_add()
    @see m0_fol_rec_lookup()
-   @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
 
    m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
    to initialize and finalize FOL part types.
@@ -77,9 +77,9 @@
    After successful execution of updates on server side, in FOM generic phase
    using m0_fom_fol_rec_add() FOL record parts in the list are combined in a
    FOL record and is made persistent. Before this phase all FOL record parts
-   needs to be added in the list after completing their updates.
+   need to be added in the list after completing their updates.
 
-   After retrieving FOL record from data base, FOL record parts are decoded
+   After retrieving FOL record from the storage, FOL record parts are decoded
    based on part type using index and are used in undo or redo operations.
    <hr>
    @section IOFOLDLD-conformance Conformance
@@ -87,28 +87,35 @@
    @{
  */
 
+#define XXX_USE_DB5 0
+
 /* export */
 struct m0_fol;
 struct m0_fol_rec_desc;
 struct m0_fol_rec;
 
 /* import */
-#include "lib/types.h"    /* uint64_t */
-#include "lib/arith.h"    /* M0_IS_8ALIGNED */
+#include "lib/types.h"      /* uint64_t */
+#include "lib/arith.h"      /* M0_IS_8ALIGNED */
 #include "lib/mutex.h"
-#include "lib/vec.h"
 #include "fid/fid.h"
-#include "dtm/dtm_update.h" /* m0_update_id, m0_update_state */
-#include "dtm/verno.h"    /* m0_verno */
-#include "db/db.h"        /* m0_table, m0_db_cursor */
-#include "fol/lsn.h"      /* m0_lsn_t */
-
+#include "dtm/dtm_update.h" /* m0_update_id, m0_epoch_id */
+#include "dtm/verno.h"      /* m0_verno */
+#if XXX_USE_DB5
+#  include "db/db.h"        /* m0_table, m0_db_cursor */
+#else
+#  include "be/btree.h"
+#endif
+#include "fol/lsn.h"        /* m0_lsn_t */
 #include "fid/fid_xc.h"
 #include "dtm/verno_xc.h"
 #include "dtm/dtm_update_xc.h"
 
+#if XXX_USE_DB5
 struct m0_dbenv;
 struct m0_db_tx;
+#endif
+struct m0_be_tx;
 struct m0_epoch_id;
 
 /**
@@ -124,13 +131,18 @@ struct m0_epoch_id;
    functions against the same fol (except for m0_fol_init() and m0_fol_fini()).
  */
 struct m0_fol {
+#if XXX_USE_DB5
 	/** Table where fol records are stored. */
-	struct m0_table f_table;
+	struct m0_table    f_table;
+#else
+	/** KV storage of fol records. */
+	struct m0_be_btree f_store;
+#endif
 	/** Next lsn to use in the fol. */
-	m0_lsn_t        f_lsn;
+	m0_lsn_t           f_lsn;
 	/** Lock, serializing fol access. */
-	struct m0_mutex f_lock;
-	struct m0_reqh *f_reqh;
+	struct m0_mutex    f_lock;
+	struct m0_reqh    *f_reqh;
 };
 
 /**
@@ -139,8 +151,34 @@ struct m0_fol {
 
    @post ergo(result == 0, m0_lsn_is_valid(fol->f_lsn))
  */
+#if XXX_USE_DB5
 M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
+#else
+M0_INTERNAL void m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
+
+M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_tx *tx,
+			      struct m0_be_op *op);
+
+M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol, struct m0_be_tx *tx,
+			        struct m0_be_op *op);
+#endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
+
+#if !XXX_USE_DB5
+/** Fol operations that modify back-end segment. */
+enum m0_fol_op {
+	M0_FO_CREATE,    /**< m0_fol_create() */
+	M0_FO_DESTROY,   /**< m0_fol_destroy() */
+	M0_FO_REC_ADD  /**< m0_fol_rec_add() */
+};
+
+/**
+ * Calculates the credit needed to perform `nr' fol operations of type
+ * `optype' and adds this credit to `accum'.
+ */
+M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
+			       m0_bcount_t nr, struct m0_be_tx_credit *accum);
+#endif
 
 /**
    Adds a record to the fol, in the transaction context.
@@ -154,8 +192,34 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
    @pre m0_lsn_is_valid(drec->rd_lsn);
    @see m0_fol_add_buf()
  */
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
+#if XXX_USE_DB5
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
+			       struct m0_db_tx *tx,
 			       struct m0_fol_rec *rec);
+#else
+M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
+			       struct m0_fol_rec *rec,
+			       struct m0_be_tx *tx,
+			       struct m0_be_op *op);
+#endif
+
+/**
+   Similar to m0_fol_rec_add(), but with a record already packed into a buffer.
+
+   @pre m0_lsn_is_valid(drec->rd_lsn);
+ */
+#if XXX_USE_DB5
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
+			       struct m0_db_tx *tx,
+			       struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf);
+#else
+M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
+			       struct m0_fol_rec_desc *drec,
+			       struct m0_buf *buf,
+			       struct m0_be_tx *tx,
+			       struct m0_be_op *op);
+#endif
 
 /**
    Reserves and returns lsn.
@@ -163,15 +227,6 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol, struct m0_db_tx *tx,
    @post m0_lsn_is_valid(result);
  */
 M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
-
-/**
-   Similar to m0_fol_rec_add(), but with a record already packed into a buffer.
-
-   @pre m0_lsn_is_valid(drec->rd_lsn);
- */
-M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
-			       struct m0_fol_rec_desc *drec,
-			       struct m0_buf *buf);
 
 /**
    Forces the log.
@@ -220,9 +275,9 @@ struct m0_fol_obj_ref {
    @todo More detailed description is to be supplied as part of DTM design.
  */
 struct m0_fol_update_ref {
-	/* taken from enum m0_update_state  */
-	uint32_t             ur_state;
-	struct m0_update_id  ur_id;
+	/* taken from enum m0_update_state */
+	uint32_t            ur_state;
+	struct m0_update_id ur_id;
 } M0_XCA_RECORD;
 
 /**
@@ -231,22 +286,27 @@ struct m0_fol_update_ref {
    @see m0_fol_rec_desc
  */
 struct m0_fol_rec_header {
-	/** number of outstanding references to the record */
+	/** Number of outstanding references to the record. */
 	uint64_t            rh_refcount;
-	/** number of objects modified by this update */
+	/** Number of objects modified by this update. */
 	uint32_t            rh_obj_nr;
-	/** number of sibling updates in the same operation */
+	/** Number of sibling updates in the same operation. */
 	uint32_t            rh_sibling_nr;
-	/** number of record parts added to the record */
+	/** Number of record parts added to the record. */
 	uint32_t            rh_parts_nr;
-	/** length of the remaining operation type specific data in bytes */
+	/**
+	 * Length of the remaining operation type specific data in bytes.
+	 *
+	 * @note XXX Currently this is the length of encoded record.
+	 */
 	uint32_t            rh_data_len;
 	/**
-	    Identifier of this update.
-
-	    @note that the update might be for a different node.
+	 * Identifier of this update.
+	 *
+	 * @note The update might be for a different node.
 	 */
 	struct m0_update_id rh_self;
+	uint64_t            rh_magic;
 } M0_XCA_RECORD;
 
 M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_rec_header)));
@@ -269,15 +329,15 @@ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_fol_update_ref)));
    it is done with inspecting the record.
  */
 struct m0_fol_rec_desc {
-	/** record log sequence number */
-	m0_lsn_t                      rd_lsn;
-	struct m0_fol_rec_header      rd_header;
-	/** references to the objects modified by this update. */
-	struct m0_fol_obj_ref        *rd_ref;
-	/** a DTM epoch this update is a part of. */
-	struct m0_epoch_id           *rd_epoch;
-	/** identifiers of sibling updates. */
-	struct m0_fol_update_ref     *rd_sibling;
+	/** Record log sequence number. */
+	m0_lsn_t                  rd_lsn;
+	struct m0_fol_rec_header  rd_header;
+	/** References to the objects modified by this update. */
+	struct m0_fol_obj_ref    *rd_ref;
+	/** A DTM epoch this update is a part of. */
+	struct m0_epoch_id       *rd_epoch;
+	/** Identifiers of sibling updates. */
+	struct m0_fol_update_ref *rd_sibling;
 };
 
 /**
@@ -309,17 +369,23 @@ struct m0_fol_rec_desc {
    fields (reference counter and sibling updates state).
  */
 struct m0_fol_rec {
-	struct m0_fol               *fr_fol;
-	struct m0_fol_rec_desc       fr_desc;
+	struct m0_fol            *fr_fol;
+	struct m0_fol_rec_desc    fr_desc;
 	/**
 	   A list of all FOL record parts in a record.
 	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
 	 */
-	struct m0_tl		     fr_fol_rec_parts;
+	struct m0_tl              fr_parts;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
-	struct m0_db_cursor          fr_ptr;
-	struct m0_db_pair            fr_pair;
+#if XXX_USE_DB5
+	struct m0_db_cursor       fr_ptr;
+	struct m0_db_pair         fr_pair;
+#else
+	struct m0_be_btree_cursor fr_ptr;
+	struct m0_buf             fr_key;
+	struct m0_buf             fr_val;
+#endif
 };
 
 /** Initializes fol record parts list. */
@@ -337,7 +403,10 @@ M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
    @post ergo(result == 0, out->fr_d.rd_refcount > 0)
    @post ergo(result == 0, m0_fol_rec_invariant(&out->fr_d))
  */
-M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
+M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol,
+#if XXX_USE_DB5
+				  struct m0_db_tx *tx,
+#endif
 				  m0_lsn_t lsn, struct m0_fol_rec *out);
 
 /**
@@ -428,8 +497,13 @@ struct m0_fol_rec_part_type_ops {
  */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;
+#if XXX_USE_DB5
 	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
 	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
+#else
+	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
+	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
+#endif
 };
 
 struct m0_fol_rec_part_header {
@@ -489,10 +563,9 @@ static const struct m0_fol_rec_part_type_ops part ## _type_ops = { \
 #define M0_FOL_REC_PART_TYPE_INIT(part, name)		        \
 part ## _type = M0_FOL_REC_PART_TYPE_XC_OPS(name, part ## _xc,  \
 				            &part ## _type_ops)
-/** @} end of fol group */
 
-/* __MERO_FOL_FOL_H__ */
-#endif
+/** @} end of fol group */
+#endif /* __MERO_FOL_FOL_H__ */
 
 /*
  *  Local variables:

@@ -26,17 +26,6 @@ static struct m0_fol             g_fol;
 static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
 static struct m0_net_buffer_pool g_buf_pool;
-static struct m0_dbenv           g_dbenv;
-
-static int db_init(const char *dbname)
-{
-	return m0_dbenv_init(&g_dbenv, dbname, 0);
-}
-
-static void db_fini(void)
-{
-	m0_dbenv_fini(&g_dbenv);
-}
 
 static int net_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 {
@@ -65,7 +54,7 @@ static struct m0_net_xprt *net_xprt(const struct m0_rpc_machine *mach)
 
 M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 					struct m0_net_xprt *xprt,
-					const char *ep_addr, const char *dbname)
+					const char *ep_addr)
 {
 	enum {
 		NR_TMS = 1,
@@ -84,18 +73,14 @@ M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 	if (rc != 0)
 		goto net;
 
-	rc = db_init(dbname);
-	if (rc != 0)
-		goto buf_pool;
-
 	rc = M0_REQH_INIT(&g_reqh,
 			  .rhia_dtm       = (void*)1,
-			  .rhia_db        = &g_dbenv,
+			  .rhia_db        = NULL,
 			  .rhia_mdstore   = (void*)1,
 			  .rhia_fol       = &g_fol,
 			  .rhia_svc       = (void*)1);
 	if (rc != 0)
-		goto db;
+		goto buf_pool;
 	m0_reqh_start(&g_reqh);
 
 	rc = m0_rpc_machine_init(mach, &g_net_dom, ep_addr, &g_reqh,
@@ -107,8 +92,6 @@ M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 		return 0;
 	}
 
-db:
-	db_fini();
 buf_pool:
 	m0_rpc_net_buffer_pool_cleanup(&g_buf_pool);
 net:
@@ -123,7 +106,6 @@ M0_INTERNAL void m0_ut_rpc_machine_stop(struct m0_rpc_machine *mach)
 	m0_rpc_machine_fini(mach);
 	m0_reqh_services_terminate(&g_reqh);
 	m0_reqh_fini(&g_reqh);
-	db_fini();
 	m0_rpc_net_buffer_pool_cleanup(&g_buf_pool);
 	net_fini(xprt, &g_net_dom);
 }

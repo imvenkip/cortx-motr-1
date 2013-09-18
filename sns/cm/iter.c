@@ -248,28 +248,18 @@ static int iter_fid_next_wait(struct m0_sns_cm_iter *it)
 M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 {
 	int             rc;
-	struct m0_db_tx tx;
 
 	M0_ENTRY("it = %p", it);
 
-	rc = m0_db_tx_init(&tx, it->si_dbenv, 0);
-	if (rc != 0)
-		return rc;
-	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
+	rc = m0_cob_ns_iter_next(&it->si_cns_it, fid_next);
         if (rc == 0 || rc == -ENOENT) {
 		M0_ADDB_POST(&m0_addb_gmc,
 			     &m0_addb_rt_sns_iter_next_gfid,
 			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
 			     fid_next->f_container, fid_next->f_key);
-                m0_db_tx_commit(&tx);
 	}
         else {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_FID_NEXT);
-		/**
-		 * XXX: Abort the transaction. Commented out because not yet
-		 * implemented.
-		 * m0_db_tx_abort(&tx);
-		 */
 	}
 	M0_RETURN(rc);
 }
@@ -584,7 +574,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(sfc, cob_fid);
-		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom, cob_fid);
+		rc = m0_sns_cm_cob_locate(it->si_cob_dom, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
 		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid));
@@ -755,7 +745,7 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 	M0_PRE(it != NULL);
 	M0_PRE(iter_phase(it) == ITPH_IDLE);
 
-	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_dbenv, it->si_cob_dom);
+	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_cob_dom);
 	if (rc == 0)
 		M0_SET0(&it->si_fc);
 

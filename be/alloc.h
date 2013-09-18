@@ -205,7 +205,7 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
  */
 #define M0_BE_ALLOC_ARR(seg, tx, op, shift, arr, nr)			\
 	((arr) = m0_be_alloc(&(seg)->bs_allocator, (tx), (op),		\
-			     (nr) * sizeof ((arr)[0])), (shift))
+			     (nr) * sizeof ((arr)[0]), (shift)))
 
 /**
  * Allocate structure.

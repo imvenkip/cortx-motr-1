@@ -348,8 +348,9 @@
 
  */
 
-#include "lib/refs.h" /* m0_ref */
-#include "dtm/dtm.h"  /* m0_dtx */
+#include "lib/refs.h"		/* m0_ref */
+#include "lib/locality.h"	/* m0_locality0_get */
+#include "dtm/dtm.h"		/* m0_dtx */
 #include "stob/stob.h"
 
 /**
@@ -541,14 +542,6 @@ static int stobsink_header_read(struct stobsink *sink,
 	M0_PRE(!pb->spb_busy);
 
 	dom = sink->ss_stob->so_domain;
-	m0_dtx_init(&pb->spb_tx);
-	rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "header_read tx_make for offset %ld failed %d",
-		       (unsigned long) offset, rc);
-		return rc;
-	}
-
 	bshift = sink->ss_bshift;
 	pb->spb_io_iv_index = offset >> bshift;
 	pb->spb_io.si_opcode = SIO_READ;
@@ -561,11 +554,10 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
 	M0_LOG(M0_DEBUG, "pb=%p: launching stob io...", pb);
-	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, &pb->spb_tx, NULL);
+	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, NULL, NULL);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "pb=%p: failed, rc=%d", pb, rc);
 		pb->spb_busy = false;
-		m0_dtx_done(&pb->spb_tx);
 	} else {
 		while (pb->spb_busy) {
 			M0_LOG(M0_DEBUG, "pb=%p: wait...", pb);
@@ -677,6 +669,7 @@ static void stobsink_offset_search(struct stobsink *sink, uint64_t first_seq_nr)
  */
 static bool stobsink_chan_cb(struct m0_clink *link)
 {
+	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
 	struct stobsink_poolbuf *pb =
 	    container_of(link, struct stobsink_poolbuf, spb_wait);
 	bool sync;
@@ -692,7 +685,11 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 		       pb->spb_sink->ss_bshift,
 		       pb->spb_io.si_rc);
 	/** @todo alert some component if the operation fails */
-	m0_dtx_done(&pb->spb_tx);
+	if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
+		m0_sm_group_lock(grp);
+		m0_dtx_done_sync(&pb->spb_tx);
+		m0_sm_group_unlock(grp);
+	}
 	pb->spb_busy = false;
 	m0_mutex_unlock(&pb->spb_sink->ss_mutex);
 
@@ -780,6 +777,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 			     m0_bindex_t              offset,
 			     uint32_t                 record_nr)
 {
+	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
 	struct stobsink           *sink;
 	struct m0_stob_domain     *dom;
 	struct m0_bufvec_cursor    cur;
@@ -826,20 +824,32 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
 	m0_mutex_unlock(&sink->ss_mutex);
-	m0_dtx_init(&pb->spb_tx);
-	rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
-	if (rc != 0) {
-		m0_mutex_lock(&sink->ss_mutex);
-		pb->spb_busy = false;
-		M0_LOG(M0_ERROR, "segment tx_make for offset %ld failed %d",
-		       (unsigned long) offset, rc);
-		/** @todo alert some component that the db/tx has failed */
-		m0_dtx_done(&pb->spb_tx);
-		return;
+	if (dom->sd_bedom != NULL) {
+		m0_sm_group_lock(grp);
+		m0_dtx_init(&pb->spb_tx, dom->sd_bedom, grp);
+		dom->sd_ops->sdo_write_credit(dom,
+				m0_vec_count(&pb->spb_io.si_user.ov_vec),
+				&pb->spb_tx.tx_betx_cred);
+		rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
+		if (rc != 0) {
+			m0_dtx_fini(&pb->spb_tx);
+			m0_sm_group_unlock(grp);
+			m0_mutex_lock(&sink->ss_mutex);
+			pb->spb_busy = false;
+			M0_LOG(M0_ERROR, "%s: tx_make for offset=%ld "
+					 "and size=%ld failed: rc=%d",
+				dom->sd_name,
+				(long)offset,
+				(long)m0_vec_count(&pb->spb_io.si_user.ov_vec), rc);
+			/** @todo alert some component that the db/tx has failed */
+			return;
+		}
 	}
 
 	M0_LOG(M0_DEBUG, "pb=%p: launching stob io...", pb);
 	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, &pb->spb_tx, NULL);
+	if (dom->sd_bedom != NULL)
+		m0_sm_group_unlock(grp);
 	m0_mutex_lock(&sink->ss_mutex);
 
 	if (rc != 0) {
@@ -847,7 +857,12 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 		M0_LOG(M0_ERROR, "segment persist at offset %ld failed %d",
 		       (unsigned long) offset, rc);
 		/** @todo alert some component that the stob has failed */
-		m0_dtx_done(&pb->spb_tx);
+		if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
+			m0_sm_group_lock(grp);
+			m0_dtx_done_sync(&pb->spb_tx);
+			m0_dtx_fini(&pb->spb_tx);
+			m0_sm_group_unlock(grp);
+		}
 	}
 	M0_POST(stobsink_invariant(sink));
 }

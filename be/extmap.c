@@ -165,6 +165,7 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
 				   struct m0_be_op   *op)
 {
 	M0_PRE(map->em_seg != NULL);
+	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	M0_BE_OP_SYNC(local_op,
@@ -177,6 +178,8 @@ M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
 				    struct m0_be_tx   *tx,
 				    struct m0_be_op   *op)
 {
+	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,
@@ -212,6 +215,7 @@ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
 				   struct m0_be_emap_cursor *it)
 {
 	M0_PRE(offset <= M0_BINDEX_MAX);
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_lookup(map, prefix, offset, it);
@@ -229,6 +233,7 @@ M0_INTERNAL void m0_be_emap_close(struct m0_be_emap_cursor *it)
 M0_INTERNAL void m0_be_emap_next(struct m0_be_emap_cursor *it)
 {
 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_next(it);
@@ -238,6 +243,7 @@ M0_INTERNAL void m0_be_emap_next(struct m0_be_emap_cursor *it)
 M0_INTERNAL void m0_be_emap_prev(struct m0_be_emap_cursor *it)
 {
 	M0_PRE(!m0_be_emap_ext_is_first(&it->ec_seg.ee_ext));
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	be_emap_prev(it);
@@ -248,6 +254,8 @@ M0_INTERNAL void m0_be_emap_extent_update(struct m0_be_emap_cursor *it,
 					  struct m0_be_tx          *tx,
 				    const struct m0_be_emap_seg    *es)
 {
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
+
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
 	emap_extent_update(it, tx, es);
 	m0_be_op_state_set(&it->ec_op, M0_BOS_SUCCESS);
@@ -280,6 +288,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
 	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
@@ -310,6 +319,7 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 				  struct m0_indexvec       *vec)
 {
 	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
@@ -345,6 +355,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	int rc = 0;
 
 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
+	M0_PRE(m0_be_op_state(&it->ec_op) == M0_BOS_INIT);
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_state_set(&it->ec_op, M0_BOS_ACTIVE);
@@ -475,6 +486,8 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 			         const struct m0_uint128 *prefix,
 				       uint64_t           val)
 {
+	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
 	map->em_key.ek_prefix = *prefix;
@@ -498,6 +511,8 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 {
 	struct m0_be_emap_cursor it;
 	int                      rc;
+
+	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
@@ -544,6 +559,8 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 {
 	int rc = 0;
 
+	M0_PRE(m0_be_op_state(&car->ct_it->ec_op) == M0_BOS_INIT);
+
 	m0_be_op_state_set(&car->ct_it->ec_op, M0_BOS_ACTIVE);
 
 	M0_ASSERT(be_emap_caret_invariant(car));
@@ -565,6 +582,21 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 					M0_BOS_SUCCESS : M0_BOS_FAILURE);
 	M0_ASSERT(be_emap_caret_invariant(car));
 	return rc < 0 ? rc : car->ct_index == M0_BINDEX_MAX + 1;
+}
+
+M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
+				           m0_bcount_t              count)
+{
+	int rc = 0;
+
+	m0_be_op_init(&car->ct_it->ec_op);
+	rc = m0_be_emap_caret_move(car, count);
+	if (rc == 0) {
+		rc = m0_be_op_wait(&car->ct_it->ec_op);
+		M0_ASSERT(rc == 0);
+	}
+
+	return rc;
 }
 
 M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
@@ -614,12 +646,12 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		 * In worst case there can be one split from left and one
 		 * split from right sides - i.e. on 4 new segments in total.
 		 */
-		m0_be_emap_credit(map, M0_BEO_SPLIT, 4, accum);
+		m0_be_emap_credit(map, M0_BEO_SPLIT, 4 * nr, accum);
 		/*
 		 * Sequential deletes in btree end up in one delete credit
 		 * (according to Nikita).
 		 */
-		m0_be_btree_delete_credit(&map->em_mapping, 1,
+		m0_be_btree_delete_credit(&map->em_mapping, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	default:

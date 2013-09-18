@@ -24,15 +24,14 @@
  * @{
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
-#include "lib/trace.h"
+#include <math.h>      /* pow */
 
-#include "lib/misc.h" /* M0_UNUSED */
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BTREE
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "be/btree.h"
 #include "be/alloc.h"
 #include "be/seg.h"
-#include <math.h>      /* pow */
 
 #include "db/db.h"	/* m0_table */ /* XXX */
 
@@ -268,6 +267,7 @@ static void node_update(struct m0_be_bnode       *node,
 static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
 	btree->bb_root = allocate_btree_node(btree, tx);
+	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 
 	/* memory for the node has to be reserved by m0_be_tx_open() */
 	M0_ASSERT(btree->bb_root != NULL);
@@ -980,33 +980,6 @@ static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
 	mem_free(btree, tx, kv, sizeof(struct bt_key_val));
 }
 
-/* XXX DELETEME? */
-M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
-						     struct m0_be_tx    *tx,
-						     void *key, size_t key_size,
-						     void *val, size_t val_size)
-{
-	struct bt_key_val *kv;
-
-	M0_PRE(val_size == be_btree_vsize(btree, val));
-	M0_PRE(key_size == be_btree_ksize(btree, key));
-
-	/* XXX: ENOMEM has to be checked */
-
-	kv = (struct bt_key_val *)mem_alloc(btree, tx, sizeof(struct bt_key_val));
-	M0_ASSERT(kv != NULL);
-
-	kv->key = mem_alloc(btree, tx, key_size);
-	M0_ASSERT(kv != NULL);
-
-	kv->val = mem_alloc(btree, tx, val_size);
-	M0_ASSERT(kv != NULL);
-
-	bcopy(key, kv->key, key_size);
-	bcopy(val, kv->val, val_size);
-
-	return kv;
-}
 
 /* ------------------------------------------------------------------
  * Btree external interfaces implementation
@@ -1079,6 +1052,7 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 	btree_destroy(tree, tx);
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
+	op_tree(op)->t_rc = 0;
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
@@ -1744,7 +1718,6 @@ static int btree_cursor_seek(struct m0_be_btree_cursor *cur, void *key)
 {
 	const struct m0_buf kbuf =
 		M0_BUF_INIT(be_btree_ksize(cur->bc_tree, key), key);
-
 	return m0_be_btree_cursor_get_sync(cur, &kbuf, true);
 }
 
@@ -1866,6 +1839,36 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 out:
 	m0_rwlock_read_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+}
+
+M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *cur)
+{
+	struct m0_be_op *op = &cur->bc_op;
+	int              rc;
+
+	m0_be_op_init(op);
+	m0_be_btree_cursor_next(cur);
+	rc = m0_be_op_wait(op);
+	M0_ASSERT(rc == 0);
+	rc = op_tree(op)->t_rc;
+	m0_be_op_fini(op);
+
+	return rc;
+}
+
+M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
+{
+	struct m0_be_op *op = &cur->bc_op;
+	int              rc;
+
+	m0_be_op_init(op);
+	m0_be_btree_cursor_prev(cur);
+	rc = m0_be_op_wait(op);
+	M0_ASSERT(rc == 0);
+	rc = op_tree(op)->t_rc;
+	m0_be_op_fini(op);
+
+	return rc;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)

@@ -27,6 +27,7 @@
 #include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
+#include "lib/locality.h"
 
 #include "net/buffer_pool.h"
 #include "net/lnet/lnet.h"
@@ -137,6 +138,7 @@ static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 {
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
 	struct m0_fid         cob_fid;
 	struct m0_dtx         tx;
@@ -166,16 +168,21 @@ M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	M0_ASSERT(rc == 0 && fabrec != NULL);
-	rc = m0_db_tx_init(&tx.tx_dbtx, dbenv, 0);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &tx.tx_dbtx);
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &tx.tx_betx);
 	M0_ASSERT(rc == 0);
-	m0_db_tx_commit(&tx.tx_dbtx);
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 	m0_cob_put(cob);
 }
 
 static void cob_delete(uint64_t cont, uint64_t key)
 {
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
 	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
@@ -187,13 +194,18 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	dbenv_cob_domain_get(&dbenv, &cdom);
 	m0_fid_set(&cob_fid, cont, key);
 	m0_cob_oikey_make(&oikey, &cob_fid, 0);
-	rc = m0_db_tx_init(&tx.tx_dbtx, dbenv, 0);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx.tx_dbtx);
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
+	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_DELETE_PUT, &tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&tx);
+	M0_ASSERT(rc == 0);
+	rc = m0_cob_delete_put(cob, &tx.tx_betx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_delete_put(cob, &tx.tx_dbtx);
-	M0_UT_ASSERT(rc == 0);
-	m0_db_tx_commit(&tx.tx_dbtx);
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
 }
 
 static void buf_put(struct m0_sns_cm_cp *scp)

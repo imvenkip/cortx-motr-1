@@ -394,10 +394,10 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_uint128      *uuid)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
-	struct m0_rpc_service   *rpcsvc = &service->rs_rpc_svc;
 	struct m0_rpc_machine   *rmach;
 	const char              *ep;
 	struct m0_uint128        uuid1;
+	struct m0_rpc_service   *rpcsvc = &service->rs_rpc_svc;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_sm.sm_state == M0_RST_INITIALISING);

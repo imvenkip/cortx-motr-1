@@ -246,7 +246,7 @@ void rmsvc(void)
 	m0_mutex_init(&rr_tests_chan_mutex);
 	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
 
-	for (rc = 0; rc <= 1; ++rc) {
+	for (rc = 0; rc < 2; ++rc) {
 		M0_SET0(&rm_ctx[rc]);
 		rm_ctx[rc].rc_id = rc;
 		rm_ctx[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
@@ -271,7 +271,7 @@ void rmsvc(void)
 	m0_thread_fini(&server_ctx->rc_thr);
 	m0_thread_fini(&client_ctx->rc_thr);
 
-	for (rc = 0; rc <= 1; ++rc) {
+	for (rc = 0; rc < 2; ++rc) {
 		m0_clink_del_lock(&tests_clink[rc]);
 		m0_clink_fini(&tests_clink[rc]);
 	}

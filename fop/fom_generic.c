@@ -117,6 +117,7 @@ struct fom_phase_desc {
 	uint64_t	   fpd_pre_phase;
 };
 
+#if XXX_USE_DB5
 /**
  * Checks if transaction context is valid.
  * We check if m0_db_tx::dt_env is initialised or not.
@@ -128,6 +129,7 @@ static bool is_tx_initialized(const struct m0_db_tx *tx)
 {
 	return tx->dt_env != 0;
 }
+#endif
 
 /**
  * Begins fom execution, transitions fom to its first
@@ -233,31 +235,57 @@ static int fom_auth_wait(struct m0_fom *fom)
 }
 
 /**
- * Creates fom local transactional context, the fom operations
+ * Initialize fom local transactional context, the fom operations
  * are executed in this context.
- * After fom execution is completed the transaction is commited.
+ * After fom execution is completed the transaction is committed.
  */
-static int create_loc_ctx(struct m0_fom *fom)
+static int loc_ctx_init(struct m0_fom *fom)
 {
-	int		rc;
 	struct m0_reqh *reqh;
 
+#if XXX_USE_DB5
         M0_PRE(!is_tx_initialized(&fom->fo_tx.tx_dbtx));
+#endif
 	reqh = m0_fom_reqh(fom);
-	m0_dtx_init(&fom->fo_tx);
-	rc = m0_dtx_open(&fom->fo_tx, reqh->rh_dbenv);
-	if (rc < 0)
-		return rc;
+
+	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
+		    &fom->fo_loc->fl_group);
 
 	return M0_FSO_AGAIN;
 }
 
 /**
- * Resumes fom execution after completing a blocking operation,
- * M0_FOPH_TXN_CONTEXT phase.
+ * Creates fom local transactional context.
  */
-static int create_loc_ctx_wait(struct m0_fom *fom)
+static int loc_ctx_open(struct m0_fom *fom)
 {
+	struct m0_reqh *reqh;
+
+	reqh = m0_fom_reqh(fom);
+
+	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, &fom->fo_tx.tx_betx_cred);
+
+	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
+	m0_dtx_open(&fom->fo_tx);
+	m0_fom_phase_set(fom, M0_FOPH_TXN_WAIT);
+
+	return M0_FSO_WAIT;
+}
+
+/**
+ * Resumes fom execution after completing a blocking operation,
+ * issued at the M0_FOPH_TXN_OPEN phase.
+ */
+static int loc_ctx_wait(struct m0_fom *fom)
+{
+	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+
+	M0_PRE((M0_BITS(m0_be_tx_state(tx)) &
+	        M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)) != 0);
+
+	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
+		return -EAGAIN;
+
 	return M0_FSO_AGAIN;
 }
 
@@ -319,12 +347,10 @@ static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
  */
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
-	int rc;
-
 	if (!fom->fo_local) {
-		m0_fom_block_enter(fom);
+		int rc;
+
 		rc = m0_fom_fol_rec_add(fom);
-		m0_fom_block_leave(fom);
 		if (rc < 0)
 			return rc;
 	}
@@ -338,15 +364,12 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  */
 static int fom_txn_commit(struct m0_fom *fom)
 {
-	int rc;
+	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
+	m0_dtx_done(&fom->fo_tx);
 
-	rc = m0_dtx_done(&fom->fo_tx);
-	if (rc < 0) {
-		set_gen_err_reply(fom);
-		return rc;
-	}
+	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
 
-	return M0_FSO_AGAIN;
+	return M0_FSO_WAIT;
 }
 
 /**
@@ -355,6 +378,16 @@ static int fom_txn_commit(struct m0_fom *fom)
  */
 static int fom_txn_commit_wait(struct m0_fom *fom)
 {
+	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+
+	while (m0_be_tx_state(tx) != M0_BTS_DONE) {
+		m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan,
+					&fom->fo_cb);
+		return M0_FSO_WAIT;
+	}
+
+	m0_dtx_fini(&fom->fo_tx);
+
 	return M0_FSO_AGAIN;
 }
 
@@ -440,21 +473,25 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_obj_check_wait",
 					      1 << M0_FOPH_OBJECT_CHECK_WAIT },
 	[M0_FOPH_AUTHORISATION] =	   { &fom_auth,
-					      M0_FOPH_TXN_CONTEXT,
+					      M0_FOPH_TXN_INIT,
 					     "fom_auth",
 					      1 << M0_FOPH_AUTHORISATION },
 	[M0_FOPH_AUTHORISATION_WAIT] =	   { &fom_auth_wait,
-					      M0_FOPH_TXN_CONTEXT,
+					      M0_FOPH_TXN_INIT,
 					     "fom_auth_wait",
 					      1 << M0_FOPH_AUTHORISATION_WAIT },
-	[M0_FOPH_TXN_CONTEXT] =		   { &create_loc_ctx,
+	[M0_FOPH_TXN_INIT] =		   { &loc_ctx_init,
+					      M0_FOPH_TXN_OPEN,
+					     "loc_ctx_init",
+					      1 << M0_FOPH_TXN_INIT },
+	[M0_FOPH_TXN_OPEN] =		   { &loc_ctx_open,
+					      M0_FOPH_TXN_WAIT,
+					     "loc_ctx_init",
+					      1 << M0_FOPH_TXN_OPEN },
+	[M0_FOPH_TXN_WAIT] =		   { &loc_ctx_wait,
 					      M0_FOPH_TYPE_SPECIFIC,
-					     "create_loc_ctx",
-					      1 << M0_FOPH_TXN_CONTEXT },
-	[M0_FOPH_TXN_CONTEXT_WAIT] =	   { &create_loc_ctx_wait,
-					      M0_FOPH_TYPE_SPECIFIC,
-					     "create_loc_ctx_wait",
-					      1 << M0_FOPH_TXN_CONTEXT_WAIT },
+					     "loc_ctx_wait",
+					      1 << M0_FOPH_TXN_WAIT },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
 					      M0_FOPH_FOL_REC_PART_ADD,
 					     "fom_success",
@@ -468,7 +505,7 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_fol_rec_add",
 					      1 << M0_FOPH_FOL_REC_ADD },
 	[M0_FOPH_TXN_COMMIT] =		   { &fom_txn_commit,
-					      M0_FOPH_QUEUE_REPLY,
+					      M0_FOPH_TXN_COMMIT_WAIT,
 					     "fom_txn_commit",
 					      1 << M0_FOPH_TXN_COMMIT },
 	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_txn_commit_wait,
@@ -550,22 +587,23 @@ static struct m0_sm_state_descr generic_phases[] = {
 	[M0_FOPH_AUTHORISATION] = {
 		.sd_name      = "fom_auth",
 		.sd_allowed   = M0_BITS(M0_FOPH_AUTHORISATION_WAIT,
-					M0_FOPH_TXN_CONTEXT,
+					M0_FOPH_TXN_INIT,
 					M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_AUTHORISATION_WAIT] = {
 		.sd_name      = "fom_auth_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_CONTEXT, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_INIT, M0_FOPH_FAILURE)
 	},
-	[M0_FOPH_TXN_CONTEXT] = {
-		.sd_name      = "create_loc_ctx",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_CONTEXT_WAIT,
-					M0_FOPH_SUCCESS,
-					M0_FOPH_FAILURE,
-					M0_FOPH_TYPE_SPECIFIC)
+	[M0_FOPH_TXN_INIT] = {
+		.sd_name      = "loc_ctx_init",
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN)
 	},
-	[M0_FOPH_TXN_CONTEXT_WAIT] = {
-		.sd_name      = "create_loc_ctx_wait",
+	[M0_FOPH_TXN_OPEN] = {
+		.sd_name      = "loc_ctx_open",
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_WAIT)
+	},
+	[M0_FOPH_TXN_WAIT] = {
+		.sd_name      = "loc_ctx_wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE,
 					M0_FOPH_TYPE_SPECIFIC)
 	},
@@ -640,6 +678,11 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 	} else if (rc == M0_FSO_AGAIN) {
+		if (m0_fom_phase(fom) < M0_FOPH_NR &&
+		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
+			M0_LOG(M0_DEBUG, "phase set: %s -> %s",
+			    fpd_phase->fpd_name,
+			    fpd_table[fpd_phase->fpd_nextphase].fpd_name);
 		m0_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
@@ -653,6 +696,7 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
 	struct m0_fol_rec_desc *desc;
 	struct m0_fol	       *fol;
+	int                     rc;
 
 	M0_PRE(fom != NULL);
 
@@ -664,7 +708,13 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	/* @todo an arbitrary number for now */
 	desc->rd_header.rh_refcount = 1;
 
+#if XXX_USE_DB5
 	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
+#else
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec,
+					      &fom->fo_tx.tx_betx, &op));
+	return rc;
+#endif
 }
 
 /** @} end of fom group */

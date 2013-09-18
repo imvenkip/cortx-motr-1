@@ -18,29 +18,26 @@
  * Original creation date: 5-Jun-2013
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
-#include "lib/trace.h"
-
-#include "be/ut/helper.h"	/* m0_be_ut_backend */
-
-#include "lib/memory.h"		/* m0_alloc */
-#include "lib/misc.h"		/* M0_BITS */
-#include "lib/arith.h"		/* M0_CNT_INC */
-#include "lib/errno.h"		/* ENOMEM */
-
-#include "stob/stob.h"		/* m0_stob_id */
-#include "stob/linux.h"		/* m0_linux_stob_domain_locate */
-#include "dtm/dtm.h"		/* m0_dtx_init */
-#include "rpc/rpclib.h"		/* m0_rpc_server_start */
-#include "net/net.h"		/* m0_net_xprt */
-
 #include <stdlib.h>		/* system */
-
 #include <sys/stat.h>		/* mkdir */
 #include <sys/types.h>		/* mkdir */
 #include <pthread.h>		/* pthread_once */
 #include <unistd.h>		/* syscall */
 #include <sys/syscall.h>	/* syscall */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+#include "lib/memory.h"		/* m0_alloc */
+#include "lib/misc.h"		/* M0_BITS */
+#include "lib/arith.h"		/* M0_CNT_INC */
+#include "lib/errno.h"		/* ENOMEM */
+#include "stob/stob.h"		/* m0_stob_id */
+#include "stob/linux.h"		/* m0_linux_stob_domain_locate */
+#include "rpc/rpclib.h"		/* m0_rpc_server_start */
+#include "net/net.h"		/* m0_net_xprt */
+
+#include "ut/ast_thread.h"
+#include "be/ut/helper.h"	/* m0_be_ut_backend */
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
@@ -49,6 +46,14 @@
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
 	BE_UT_SEG_START_ID   = 42ULL,
+};
+
+struct m0_be_ut_sm_group_thread {
+	struct m0_thread    sgt_thread;
+	pid_t		    sgt_tid;
+	struct m0_semaphore sgt_stop_sem;
+	struct m0_sm_group  sgt_grp;
+	bool		    sgt_lock_new;
 };
 
 struct be_ut_helper_struct {
@@ -483,7 +488,7 @@ void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy)
 
 	M0_CNT_DEC(h->buh_storage_ref_cnt);
 	if (h->buh_storage_ref_cnt == 0) {
-		h->buh_stob_dom->sd_ops->sdo_fini(h->buh_stob_dom);
+		h->buh_stob_dom->sd_ops->sdo_fini(h->buh_stob_dom, NULL);
 		h->buh_stob_dom = NULL;
 		if (stob_destroy) {
 #if 0

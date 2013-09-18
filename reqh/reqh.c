@@ -31,6 +31,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/atomic.h"
+#include "lib/locality.h"
 
 #include "mero/magic.h"
 #include "stob/stob.h"
@@ -76,7 +77,7 @@ M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
  */
 static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
         [M0_REQH_ST_INIT] = {
-                .sd_flags       = M0_SDF_INITIAL,
+                .sd_flags       = M0_SDF_INITIAL | M0_SDF_FINAL,
                 .sd_name        = "Init",
                 .sd_allowed     = M0_BITS(M0_REQH_ST_MGMT_STARTED,
 					  M0_REQH_ST_NORMAL,
@@ -129,8 +130,11 @@ static struct m0_sm_conf m0_reqh_sm_conf = {
 
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
-	return reqh != NULL && reqh->rh_dbenv != NULL &&
-		reqh->rh_mdstore != NULL && reqh->rh_fol != NULL &&
+	return	reqh != NULL &&
+		reqh->rh_mdstore != NULL &&
+#ifndef __KERNEL__
+		reqh->rh_fol != NULL &&
+#endif
 		m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
@@ -140,66 +144,26 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	int rc;
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
-	reqh->rh_dbenv   = reqh_args->rhia_db;
+	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_svc     = reqh_args->rhia_svc;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
 	reqh->rh_fol     = reqh_args->rhia_fol;
 
-	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
-
-	rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_layout_standard_types_register(&reqh->rh_ldom);
-	if (rc != 0)
-		goto layout_dom_fini;
-
 	if (reqh->rh_fol != NULL)
 		reqh->rh_fol->f_reqh = reqh;
 
+	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
+
 	m0_addb_mc_init(&reqh->rh_addb_mc);
 
-	/** @todo Currently passing dbenv to this api, the duty of the
-	    thread doing the io is to create/use a local/embedded m0_dtx
-	    and do m0_db_tx_init() of its m0_db_tx member and then do the
-	    io (invocation of m0_stob_io_launch(), etc) apis. Need to validate
-	    this.
-	 */
-	if (reqh_args->rhia_addb_stob != NULL) {
-#ifndef __KERNEL__
-		/**
-		 * @todo Need to replace these 3 with conf parameters and
-		 * correct values, these are temporary
-		 */
-		m0_bcount_t addb_stob_seg_size =
-		    M0_RPC_DEF_MAX_RPC_MSG_SIZE * 2;
-		m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
-		m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
-
-		rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
-						    reqh_args->rhia_addb_stob,
-						    addb_stob_seg_size,
-						    addb_stob_size,
-						    addb_stob_timeout);
-		if (rc != 0)
-			goto layout_types_unreg;
-
-		m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
-		if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
-			m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
-		M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
-				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-#endif
-	} else { /* for UT specifically */
-		M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
-				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-	}
+	/* for UT specifically */
+	M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
+			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
 
 	reqh->rh_fom_dom.fd_reqh = reqh;
 	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
 	if (rc != 0)
-		goto layout_types_unreg;
+		return rc;
 
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
@@ -211,20 +175,174 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		   &reqh->rh_sm_grp);
 	m0_reqh_lockers_init(reqh);
 
-	M0_POST(m0_reqh_invariant(reqh));
-	return 0;
+	if (reqh->rh_beseg != NULL)
+		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg, false);
 
-layout_types_unreg:
-	m0_layout_standard_types_unregister(&reqh->rh_ldom);
-layout_dom_fini:
-	m0_layout_domain_fini(&reqh->rh_ldom);
 	return rc;
+}
+
+#ifndef __KERNEL__
+static struct m0_fol *
+fol_alloc(struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+	struct m0_fol      *fol;
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC,
+			sizeof *fol, 0, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, fol = m0_be_alloc(&seg->bs_allocator,
+			&tx.tx_betx, &op, sizeof *fol, 0));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+
+	return fol;
+}
+
+static void
+fol_free(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE,
+			sizeof *fol, 0, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, m0_be_free(&seg->bs_allocator,
+				&tx.tx_betx, &op, fol));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+}
+
+static int fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+	int                 rc;
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_fol_credit(fol, M0_FO_CREATE, 1, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx.tx_betx, &op));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+
+	return rc;
+}
+
+static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dtx       tx = {};
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_fol_credit(fol, M0_FO_DESTROY, 1, &tx.tx_betx_cred);
+	m0_dtx_open_sync(&tx);
+	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx.tx_betx, &op));
+	m0_dtx_done_sync(&tx);
+	m0_sm_group_unlock(grp);
+}
+#endif
+
+M0_INTERNAL int
+m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
+			bool create)
+{
+	int rc = 0;
+
+	M0_PRE(seg != NULL);
+
+	M0_ENTRY();
+
+	if (reqh->rh_dbenv != NULL) {
+		rc = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+		if (rc == 0) {
+			rc = m0_layout_standard_types_register(&reqh->rh_ldom);
+			if (rc != 0)
+				m0_layout_domain_fini(&reqh->rh_ldom);
+		}
+	}
+
+#ifndef __KERNEL__
+	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
+	if (rc == -ENOENT) {
+		struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
+		if (!create) {
+			M0_LOG(M0_ERROR, "fol not found in BE");
+			M0_RETURN(rc);
+		}
+		reqh->rh_fol = fol_alloc(seg);
+		if (reqh->rh_fol == NULL)
+			M0_RETURN(-ENOMEM);
+
+		m0_fol_init(reqh->rh_fol, seg);
+		rc = fol_create(reqh->rh_fol, seg);
+		if (rc == 0) {
+			m0_sm_group_lock(grp);
+			rc = m0_be_seg_dict_insert(seg, grp,
+					"fol", reqh->rh_fol);
+			m0_sm_group_unlock(grp);
+			if (rc != 0)
+				fol_destroy(reqh->rh_fol, seg);
+		}
+		if (rc != 0) {
+			fol_free(reqh->rh_fol, seg);
+			reqh->rh_fol = NULL;
+			M0_RETURN(rc);
+		}
+	} else {
+		if (create)
+			M0_RETURN(-EEXIST);
+
+		m0_fol_init(reqh->rh_fol, seg);
+	}
+	reqh->rh_fol->f_reqh = reqh;
+#endif
+
+	reqh->rh_beseg = seg;
+	M0_POST(m0_reqh_invariant(reqh));
+
+	return rc;
+}
+
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
+{
+	if (reqh->rh_beseg != NULL) {
+#ifndef __KERNEL__
+		if (destroy) {
+			struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
+			m0_sm_group_lock(grp);
+			m0_be_seg_dict_delete(reqh->rh_beseg, grp, "fol");
+			m0_sm_group_unlock(grp);
+			fol_destroy(reqh->rh_fol, reqh->rh_beseg);
+			m0_fol_fini(reqh->rh_fol);
+			fol_free(reqh->rh_fol, reqh->rh_beseg);
+		} else {
+			m0_fol_fini(reqh->rh_fol);
+		}
+#endif
+		if (reqh->rh_dbenv != NULL) {
+			m0_layout_standard_types_unregister(&reqh->rh_ldom);
+			m0_layout_domain_fini(&reqh->rh_ldom);
+			reqh->rh_dbenv = NULL;
+		}
+		reqh->rh_beseg = NULL;
+	}
+	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-	m0_layout_standard_types_unregister(&reqh->rh_ldom);
-	m0_layout_domain_fini(&reqh->rh_ldom);
+	m0_reqh_dbenv_fini(reqh, false);
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
@@ -252,6 +370,42 @@ M0_INTERNAL int m0_reqhs_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_reqh_mod);
 	m0_bob_type_tlist_init(&rqsvc_bob, &m0_reqh_svc_tl);
 	return 0;
+}
+
+M0_INTERNAL int
+m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
+{
+#ifndef __KERNEL__
+	/**
+	 * @todo Need to replace these 3 with conf parameters and
+	 * correct values, these are temporary
+	 */
+	m0_bcount_t addb_stob_seg_size =
+	    M0_RPC_DEF_MAX_RPC_MSG_SIZE * 2;
+	m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
+	m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
+	int rc;
+
+	M0_ENTRY();
+
+	rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
+					    stob,
+					    addb_stob_seg_size,
+					    addb_stob_size,
+					    addb_stob_timeout);
+	if (rc != 0)
+		M0_RETURN(rc);
+
+	m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
+	if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
+		m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
+	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
+	M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
+			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
+	M0_RETURN(rc);
+#else
+	return 0;
+#endif
 }
 
 M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh)
@@ -401,7 +555,7 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 	m0_clink_fini(&clink);
 }
 
-M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh)
 {
 	struct m0_reqh_service *service;
 	struct m0_reqh_service *mdservice = NULL;
@@ -442,7 +596,11 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	    M0_IN(m0_reqh_service_state_get(rpcservice),
 		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_prepare_to_stop(rpcservice);
+}
 
+M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+{
+	m0_reqh_shutdown(reqh);
 	m0_reqh_fom_domain_idle_wait(reqh);
 }
 
@@ -513,17 +671,17 @@ M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
 	m0_reqh_service_init(service, reqh, NULL);
 	reqh->rh_mgmt_svc = service;
 
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	rc = m0_reqh_service_start(service);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+	m0_rwlock_write_lock(&reqh->rh_rwlock);
 
 	if (rc != 0)
 		goto start_failed;
 	M0_POST(reqh->rh_mgmt_svc == service);
 	M0_POST(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED);
  done:
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
 
  start_failed:

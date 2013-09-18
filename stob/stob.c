@@ -85,8 +85,8 @@ M0_INTERNAL int m0_stob_domain_locate(struct m0_stob_type *type,
 				      struct m0_stob_domain **dom,
 				      uint64_t dom_id)
 {
-	return M0_STOB_TYPE_OP(type, sto_domain_locate, domain_name, dom,
-			       dom_id);
+	return M0_STOB_TYPE_OP(type, sto_domain_locate, domain_name,
+			       NULL, NULL, dom, dom_id);
 }
 
 M0_INTERNAL struct m0_stob_domain *
@@ -104,13 +104,23 @@ m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id)
 }
 
 
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
+				      m0_bcount_t             size,
+				      struct m0_be_tx_credit *accum)
+{
+	if (dom->sd_ops->sdo_write_credit != NULL)
+		dom->sd_ops->sdo_write_credit(dom, size, accum);
+}
+
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 				     struct m0_stob_type *t,
-				     uint64_t dom_id)
+				     uint64_t dom_id,
+				     struct m0_be_domain *be_dom)
 {
 	m0_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
 	dom->sd_dom_id = dom_id;
+	dom->sd_bedom = be_dom;
 	dom_tlink_init_at_tail(dom, &t->st_domains);
 	/** @todo m0_addb_ctx_init(&dom->sd_addb, &m0_stob_domain_addb,
 	    &t->st_addb);
@@ -150,13 +160,13 @@ M0_INTERNAL void m0_stob_fini(struct m0_stob *obj)
 
 M0_BASSERT(sizeof(struct m0_uint128) == sizeof(struct m0_stob_id));
 
-M0_INTERNAL int m0_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
+M0_INTERNAL int m0_stob_locate(struct m0_stob *obj)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
-		result = obj->so_op->sop_locate(obj, tx);
+		result = obj->so_op->sop_locate(obj);
 		switch (result) {
 		case 0:
 			obj->so_state = CSS_EXISTS;
@@ -203,6 +213,13 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 	}
 	M0_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
 	return result;
+}
+
+M0_INTERNAL void m0_stob_create_credit(struct m0_stob *obj,
+					struct m0_be_tx_credit *accum)
+{
+	if (obj->so_op->sop_create_credit != NULL)
+		obj->so_op->sop_create_credit(obj, accum);
 }
 
 M0_INTERNAL void m0_stob_get(struct m0_stob *obj)
@@ -344,7 +361,7 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 		 * point.
 		 */
 		if (stob->so_state == CSS_UNKNOWN)
-			rc = m0_stob_locate(stob, dtx);
+			rc = m0_stob_locate(stob);
 		if (stob->so_state == CSS_NOENT)
 			rc = m0_stob_create(stob, dtx);
 
@@ -353,6 +370,20 @@ M0_INTERNAL int m0_stob_create_helper(struct m0_stob_domain *dom,
 			m0_stob_put(stob);
 	}
 	return rc;
+}
+
+M0_INTERNAL void m0_stob_create_helper_credit(struct m0_stob_domain *dom,
+				      const struct m0_stob_id *stob_id,
+				      struct m0_be_tx_credit *accum)
+{
+	struct m0_stob *stob;
+	int             rc;
+
+	rc = m0_stob_find(dom, stob_id, &stob);
+	if (rc == 0) {
+		m0_stob_create_credit(stob, accum);
+		m0_stob_put(stob);
+	}
 }
 
 M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)

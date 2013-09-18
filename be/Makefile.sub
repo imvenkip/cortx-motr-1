@@ -29,6 +29,7 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/be.c        	\
 			   be/btree.c     	\
 			   be/extmap.c		\
+			   be/extmap_xc.c	\
 			   be/domain.c		\
 			   be/engine.c       	\
 			   be/io.c        	\

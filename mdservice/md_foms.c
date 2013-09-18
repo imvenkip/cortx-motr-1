@@ -112,28 +112,36 @@ M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
 	body->b_version = attr->ca_version;
 }
 
+static void m0_md_create_credit(struct m0_mdstore *md,
+				struct m0_be_tx_credit *accum)
+{
+	m0_mdstore_create_credit(md, accum);
+	m0_mdstore_link_credit(md, accum);
+	m0_mdstore_setattr_credit(md, accum);
+}
+
 /**
    Create object in @pfid with @tfid and attributes from @attr.
    Handle possible variants for existing/missing objects and
    links.
  */
-static int m0_md_create(struct m0_mdstore  *md,
+static int m0_md_create(struct m0_mdstore   *md,
 			struct m0_fid       *pfid,
 			struct m0_fid       *tfid,
 			struct m0_cob_attr  *attr,
-			struct m0_db_tx     *tx)
+			struct m0_be_tx     *tx)
 {
 	struct m0_cob *scob = NULL;
 	int            rc;
 
 	rc = m0_mdstore_locate(md, tfid, &scob,
-				M0_MD_LOCATE_STORED, tx);
+				M0_MD_LOCATE_STORED);
 	if (rc == -ENOENT) {
 		/*
 		 * Statdata cob is not found, let's create it. This
 		 * must be normal create case.
 		 */
-		rc = m0_mdstore_create(md, pfid, attr, &scob, tx);
+		rc = m0_mdstore_fcreate(md, pfid, attr, &scob, tx);
 	} else if (rc == 0) {
 		/*
 		 * There is statdata name, this must be hardlink
@@ -174,6 +182,7 @@ static inline int m0_md_tick_generic(struct m0_fom *fom)
 
 static int m0_md_tick_create(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_cob_attr        attr;
 	struct m0_fop_cob        *body;
 	struct m0_fop_create     *req;
@@ -182,6 +191,10 @@ static int m0_md_tick_create(struct m0_fom *fom)
 	struct m0_fop            *fop_rep;
 	int                       rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -217,10 +230,8 @@ static int m0_md_tick_create(struct m0_fom *fom)
 		m0_buf_init(&attr.ca_link, (char *)req->c_target.s_buf, attr.ca_size);
 	}
 
-	m0_fom_block_enter(fom);
-	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
-			  &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
-	m0_fom_block_leave(fom);
+	rc = m0_md_create(md, &body->b_pfid,
+			  &body->b_tfid, &attr, &fom->fo_tx.tx_betx);
 out:
 	M0_LOG(M0_DEBUG, "Create finished with %d", rc);
 	rep->c_body.b_rc = rc;
@@ -230,6 +241,7 @@ out:
 
 static int m0_md_tick_link(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_fop_cob        *body;
 	struct m0_fop_link       *req;
 	struct m0_fop_link_rep   *rep;
@@ -238,6 +250,10 @@ static int m0_md_tick_link(struct m0_fom *fom)
 	struct m0_cob_attr        attr;
 	int                       rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -267,11 +283,9 @@ static int m0_md_tick_link(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
-	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+	rc = m0_md_create(md,
 			  &body->b_pfid, &body->b_tfid, &attr,
-			  &fom->fo_tx.tx_dbtx);
-	m0_fom_block_leave(fom);
+			  &fom->fo_tx.tx_betx);
 out:
 	M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] finished with %d",
 	       body->b_pfid.f_container, body->b_pfid.f_key,
@@ -294,6 +308,7 @@ static void m0_md_fom_addb_init(struct m0_fom *fom,
 
 static int m0_md_tick_unlink(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_cob_attr        attr;
 	struct m0_fop_cob        *body;
 	struct m0_cob            *scob = NULL;
@@ -301,10 +316,13 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	struct m0_fop_unlink_rep *rep;
 	struct m0_fop            *fop;
 	struct m0_fop            *fop_rep;
-	struct m0_db_tx          *tx;
-	struct m0_mdstore        *md;
+	struct m0_be_tx          *tx;
 	int                       rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_mdstore_unlink_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -319,7 +337,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	rep = m0_fop_data(fop_rep);
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
-	tx = &fom->fo_tx.tx_dbtx;
+	tx = &fom->fo_tx.tx_betx;
 
 	m0_md_cob_wire2mem(&attr, body);
 	m0_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
@@ -336,15 +354,12 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
-	rc = m0_mdstore_locate(md, &body->b_tfid, &scob, M0_MD_LOCATE_STORED,
-			       tx);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &scob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
 		       body->b_pfid.f_container, body->b_pfid.f_key,
 		       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
 			rc);
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
@@ -355,10 +370,8 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 		       body->b_pfid.f_container, body->b_pfid.f_key,
 		       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
 			rc);
-		m0_fom_block_leave(fom);
 		goto out;
 	}
-	m0_fom_block_leave(fom);
 out:
 	M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s finished with %d",
 	       body->b_pfid.f_container, body->b_pfid.f_key,
@@ -368,7 +381,14 @@ out:
 	return M0_FSO_AGAIN;
 }
 
-static int m0_md_rename(struct m0_mdstore  *md,
+static void m0_md_rename_credit(struct m0_mdstore  *md,
+				struct m0_be_tx_credit *accum)
+{
+	m0_mdstore_rename_credit(md, accum);
+	m0_mdstore_setattr_credit(md, accum);
+}
+
+static int m0_md_rename(struct m0_mdstore   *md,
 			struct m0_fid       *pfid_tgt,
 			struct m0_fid       *pfid_src,
 			struct m0_fid       *tfid_tgt,
@@ -377,7 +397,7 @@ static int m0_md_rename(struct m0_mdstore  *md,
 			struct m0_cob_attr  *sattr,
 			struct m0_cob       *tcob,
 			struct m0_cob       *scob,
-			struct m0_db_tx     *tx)
+			struct m0_be_tx     *tx)
 {
 	int rc;
 
@@ -407,6 +427,7 @@ static int m0_md_rename(struct m0_mdstore  *md,
 
 static int m0_md_tick_rename(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_fop_cob        *sbody;
 	struct m0_fop_cob        *tbody;
 	struct m0_fop_rename     *req;
@@ -417,10 +438,13 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	struct m0_cob            *scob = NULL;
 	struct m0_cob_attr        sattr;
 	struct m0_cob_attr        tattr;
-	struct m0_db_tx          *tx;
-	struct m0_mdstore        *md;
+	struct m0_be_tx          *tx;
 	int                       rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_md_rename_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -433,8 +457,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	M0_ASSERT(fop_rep != NULL);
 	rep = m0_fop_data(fop_rep);
 
-	tx = &fom->fo_tx.tx_dbtx;
-	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+	tx = &fom->fo_tx.tx_betx;
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -453,11 +476,8 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	m0_md_cob_wire2mem(&sattr, sbody);
 	m0_buf_init(&sattr.ca_name, req->r_sname.s_buf, req->r_sname.s_len);
 
-	m0_fom_block_enter(fom);
-	rc = m0_mdstore_locate(md, &sbody->b_tfid, &scob,
-			       M0_MD_LOCATE_STORED, tx);
+	rc = m0_mdstore_locate(md, &sbody->b_tfid, &scob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 	if (m0_fid_eq(&tbody->b_tfid, &sbody->b_tfid)) {
@@ -466,9 +486,8 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 				  &sattr, scob, scob, tx);
 	} else {
 		rc = m0_mdstore_locate(md, &tbody->b_tfid, &tcob,
-					M0_MD_LOCATE_STORED, tx);
+					M0_MD_LOCATE_STORED);
 		if (rc != 0) {
-			m0_fom_block_leave(fom);
 			goto out;
 		}
 		rc = m0_md_rename(md, &tbody->b_pfid, &sbody->b_pfid,
@@ -477,7 +496,6 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 		m0_cob_put(tcob);
 	}
 	m0_cob_put(scob);
-	m0_fom_block_leave(fom);
 out:
 	rep->r_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -486,6 +504,7 @@ out:
 
 static int m0_md_tick_open(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_fop_cob        *body;
 	struct m0_cob            *cob;
 	struct m0_fop_open       *req;
@@ -495,6 +514,10 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	struct m0_cob_attr        attr;
 	int                       rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -518,13 +541,10 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	body = &req->o_body;
 	m0_md_cob_wire2mem(&attr, body);
 
-	m0_fom_block_enter(fom);
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc == 0) {
-		rc = m0_mdstore_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-				     cob, body->b_flags, &fom->fo_tx.tx_dbtx);
+		rc = m0_mdstore_open(md,
+				     cob, body->b_flags, &fom->fo_tx.tx_betx);
 		if (rc == 0 &&
 		    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
 			/*
@@ -532,9 +552,8 @@ static int m0_md_tick_open(struct m0_fom *fom)
 			 * to store to db.
 			 */
 			attr.ca_valid &= ~M0_COB_MODE;
-			rc = m0_mdstore_setattr(
-				fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-				cob, &attr, &fom->fo_tx.tx_dbtx);
+			rc = m0_mdstore_setattr(md,
+				cob, &attr, &fom->fo_tx.tx_betx);
 		}
 		m0_cob_put(cob);
 	} else if (rc == -ENOENT) {
@@ -545,11 +564,9 @@ static int m0_md_tick_open(struct m0_fom *fom)
 		 */
 		/* M0_ASSERT(!(body->b_flags & M0_MD_OPEN_CREAT)); */
 	} else if (rc != 0) {
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
-	m0_fom_block_leave(fom);
 out:
 	rep->o_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -558,6 +575,7 @@ out:
 
 static int m0_md_tick_close(struct m0_fom *fom)
 {
+	struct m0_mdstore        *md;
 	struct m0_fop_cob        *body;
 	struct m0_cob            *cob;
 	struct m0_fop_close      *req;
@@ -567,6 +585,10 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	struct m0_cob_attr        attr;
 	int                       rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -590,23 +612,18 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	body = &req->c_body;
 	m0_md_cob_wire2mem(&attr, body);
 
-	m0_fom_block_enter(fom);
 	/*
 	 * @TODO: This should lookup for cobs in special opened
 	 * cobs table. But so far orphans and open/close are not
 	 * quite implemented and we lookup on main store to make
 	 * ut happy.
 	 */
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
-	rc = m0_mdstore_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_close(md, cob, &fom->fo_tx.tx_betx);
 	if (rc == 0 &&
 	    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
 		/*
@@ -614,11 +631,9 @@ static int m0_md_tick_close(struct m0_fom *fom)
 		 * to store to db.
 		 */
 		attr.ca_valid &= ~M0_COB_MODE;
-		rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-					cob, &attr, &fom->fo_tx.tx_dbtx);
+		rc = m0_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_betx);
 	}
 	m0_cob_put(cob);
-	m0_fom_block_leave(fom);
 out:
 	rep->c_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -627,6 +642,7 @@ out:
 
 static int m0_md_tick_setattr(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
 	struct m0_cob_attr             attr;
 	struct m0_fop_cob             *body;
 	struct m0_cob                 *cob;
@@ -636,6 +652,10 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	struct m0_fop                 *fop_rep;
 	int                            rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -662,27 +682,21 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
-
 	/*
 	 * Setattr fop does not carry enough information to create
 	 * an object in case there is no target yet. This is why
 	 * we return quickly if no object is found.
 	 */
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_locate(md,
+			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
 		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
-	rc = m0_mdstore_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
-				&attr, &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_betx);
 	m0_cob_put(cob);
-	m0_fom_block_leave(fom);
 out:
 	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] finished with %d",
 	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
@@ -693,6 +707,7 @@ out:
 
 static int m0_md_tick_lookup(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
 	struct m0_cob_attr             attr;
 	struct m0_fop_cob             *body;
 	struct m0_cob                 *cob;
@@ -703,6 +718,8 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 	struct m0_fid                  tfid;
 	int                            rc;
 	struct m0_buf                  name;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -731,13 +748,9 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
-
-	rc = m0_mdstore_lookup(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_pfid, &name, &cob, &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_lookup(md, &body->b_pfid, &name, &cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "m0_mdstore_lookup() failed with %d", rc);
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 	tfid = *cob->co_fid;
@@ -746,20 +759,15 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 	M0_LOG(M0_DEBUG, "Found object [%lx:%lx] go for getattr",
 	       tfid.f_container, tfid.f_key);
 
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &tfid, &cob, M0_MD_LOCATE_STORED,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_locate(md, &tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
 		       tfid.f_container, tfid.f_key, rc);
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
-	rc = m0_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-				cob, &attr, &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_getattr(md, cob, &attr);
 	m0_cob_put(cob);
-	m0_fom_block_leave(fom);
 
 	if (rc == 0) {
 		attr.ca_valid = M0_COB_ALL;
@@ -778,6 +786,7 @@ out:
 
 static int m0_md_tick_getattr(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
 	struct m0_cob_attr             attr;
 	struct m0_fop_cob             *body;
 	struct m0_cob                 *cob;
@@ -786,6 +795,8 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 	struct m0_fop                 *fop;
 	struct m0_fop                 *fop_rep;
 	int                            rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -811,21 +822,15 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
 		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
-	rc = m0_mdstore_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-				cob, &attr, &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_getattr(md, cob, &attr);
 	m0_cob_put(cob);
-	m0_fom_block_leave(fom);
 	if (rc == 0) {
 		attr.ca_valid = M0_COB_ALL;
 		m0_md_cob_mem2wire(&rep->g_body, &attr);
@@ -854,6 +859,7 @@ static void md_statfs_mem2wire(struct m0_fop_statfs_rep *rep,
 
 static int m0_md_tick_getxattr(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
         struct m0_cob_eakey           *eakey;
         struct m0_cob_earec           *earec;
         struct m0_fop_cob             *body;
@@ -863,6 +869,8 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
         struct m0_fop                 *fop;
         struct m0_fop                 *fop_rep;
         int                            rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
@@ -889,34 +897,27 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
         if (rc != 0)
                 goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
+        rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
         if (rc != 0) {
                 M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
                        body->b_tfid.f_container, body->b_tfid.f_key, rc);
-                m0_fom_block_leave(fom);
                 goto out;
         }
 
         rc = m0_cob_eakey_make(&eakey, cob->co_fid, (char *)req->g_key.s_buf,
                                req->g_key.s_len);
         if (rc != 0) {
-                m0_fom_block_leave(fom);
                 goto out;
         }
 
         earec = m0_alloc(m0_cob_max_earec_size());
         if (earec == NULL) {
-                m0_fom_block_leave(fom);
                 m0_free(eakey);
                 goto out;
         }
 
-        rc = m0_cob_ea_get(cob, eakey, earec, &fom->fo_tx.tx_dbtx);
+        rc = m0_cob_ea_get(cob, eakey, earec, &fom->fo_tx.tx_betx);
         m0_cob_put(cob);
-        m0_fom_block_leave(fom);
         if (rc == 0) {
                 rep->g_value.s_len = earec->cer_size;
                 rep->g_value.s_buf = m0_alloc(earec->cer_size);
@@ -940,6 +941,7 @@ out:
 
 static int m0_md_tick_setxattr(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
         struct m0_cob_eakey           *eakey;
         struct m0_cob_earec           *earec;
         struct m0_fop_cob             *body;
@@ -950,7 +952,13 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         struct m0_fop                 *fop_rep;
         int                            rc;
 
-        rc = m0_md_tick_generic(fom);
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+		/* XXX use m0_cob_ea_set_credit() when implemented */
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+	}
+	rc = m0_md_tick_generic(fom);
         if (rc != 0)
                 return rc;
 
@@ -976,27 +984,21 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         if (rc != 0)
                 goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
+        rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
         if (rc != 0) {
                 M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
                        body->b_tfid.f_container, body->b_tfid.f_key, rc);
-                m0_fom_block_leave(fom);
                 goto out;
         }
 
         rc = m0_cob_eakey_make(&eakey, cob->co_fid, (char *)req->s_key.s_buf,
                                req->s_key.s_len);
         if (rc != 0) {
-                m0_fom_block_leave(fom);
                 goto out;
         }
 
         earec = m0_alloc(m0_cob_max_earec_size());
         if (earec == NULL) {
-                m0_fom_block_leave(fom);
                 m0_free(eakey);
                 goto out;
         }
@@ -1004,9 +1006,8 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         earec->cer_size = req->s_value.s_len;
         memcpy(earec->cer_body, req->s_value.s_buf, earec->cer_size);
 
-        rc = m0_cob_ea_set(cob, eakey, earec, &fom->fo_tx.tx_dbtx);
+        rc = m0_cob_ea_set(cob, eakey, earec, &fom->fo_tx.tx_betx);
         m0_cob_put(cob);
-        m0_fom_block_leave(fom);
         m0_free(eakey);
         m0_free(earec);
 out:
@@ -1019,6 +1020,7 @@ out:
 
 static int m0_md_tick_delxattr(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
         struct m0_cob_eakey           *eakey;
         struct m0_fop_cob             *body;
         struct m0_cob                 *cob;
@@ -1028,6 +1030,12 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
         struct m0_fop                 *fop_rep;
         int                            rc;
 
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
+
+	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+		/* XXX use m0_cob_ea_del_credit() when implemented */
+		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+	}
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
                 return rc;
@@ -1052,27 +1060,21 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
         if (rc != 0)
                 goto out;
 
-        m0_fom_block_enter(fom);
-        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-                               &fom->fo_tx.tx_dbtx);
+        rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
         if (rc != 0) {
                 M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
                        body->b_tfid.f_container, body->b_tfid.f_key, rc);
-                m0_fom_block_leave(fom);
                 goto out;
         }
 
         rc = m0_cob_eakey_make(&eakey, cob->co_fid, (char *)req->d_key.s_buf,
                                req->d_key.s_len);
         if (rc != 0) {
-                m0_fom_block_leave(fom);
                 goto out;
         }
 
-        rc = m0_cob_ea_del(cob, eakey, &fom->fo_tx.tx_dbtx);
+        rc = m0_cob_ea_del(cob, eakey, &fom->fo_tx.tx_betx);
         m0_cob_put(cob);
-        m0_fom_block_leave(fom);
         m0_free(eakey);
 out:
         M0_LOG(M0_DEBUG, "Delxattr for [%lx:%lx] finished with %d",
@@ -1112,10 +1114,8 @@ static int m0_md_tick_statfs(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	m0_fom_block_enter(fom);
 	rc = m0_mdstore_statfs(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &statfs, &fom->fo_tx.tx_dbtx);
-	m0_fom_block_leave(fom);
+			       &statfs);
 	if (rc == 0)
 		md_statfs_mem2wire(rep, &statfs);
 out:
@@ -1129,6 +1129,7 @@ out:
 
 static int m0_md_tick_readdir(struct m0_fom *fom)
 {
+	struct m0_mdstore             *md;
 	struct m0_fop_cob             *body;
 	struct m0_cob                 *cob;
 	struct m0_fop_readdir         *req;
@@ -1138,6 +1139,8 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 	struct m0_rdpg                 rdpg;
 	void                          *addr;
 	int                            rc;
+
+	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
@@ -1160,17 +1163,12 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 		goto out;
 
 	body = &req->r_body;
-	m0_fom_block_enter(fom);
-	rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
-			       &fom->fo_tx.tx_dbtx);
+	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
-		m0_fom_block_leave(fom);
 		goto out;
 	}
 
 	if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-		m0_fom_block_leave(fom);
 		rc = -ENOTDIR;
 		m0_cob_put(cob);
 		goto out;
@@ -1179,7 +1177,6 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 	M0_SET0(&rdpg);
 	rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN);
 	if (rdpg.r_pos == NULL) {
-		m0_fom_block_leave(fom);
 		m0_cob_put(cob);
 		rc = -ENOMEM;
 		goto out;
@@ -1189,7 +1186,6 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 
 	addr = m0_alloc(M0_MD_READDIR_BUFF_SIZE);
 	if (addr == NULL) {
-		m0_fom_block_leave(fom);
 		m0_bitstring_free(rdpg.r_pos);
 		m0_cob_put(cob);
 		rc = -ENOMEM;
@@ -1198,9 +1194,7 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 
 	m0_buf_init(&rdpg.r_buf, addr, M0_MD_READDIR_BUFF_SIZE);
 
-	rc = m0_mdstore_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
-				cob, &rdpg, &fom->fo_tx.tx_dbtx);
-	m0_fom_block_leave(fom);
+	rc = m0_mdstore_readdir(md, cob, &rdpg);
 	m0_free(rdpg.r_pos);
 	m0_cob_put(cob);
 	if (rc < 0) {
@@ -1244,6 +1238,7 @@ out:
 	return M0_FSO_AGAIN;
 }
 
+#ifdef XXX_DB5
 static void layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
 			    void *area, m0_bcount_t num_bytes)
 {
@@ -1288,7 +1283,6 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 
 	reqh = fom->fo_service->rs_reqh;
 
-	m0_fom_block_enter(fom);
 	switch (req->l_op) {
 	case M0_LAYOUT_OP_ADD:
 	case M0_LAYOUT_OP_DELETE:
@@ -1311,10 +1305,10 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 					req->l_buf.b_addr,
 					req->l_buf.b_count);
 			if (req->l_op == M0_LAYOUT_OP_ADD)
-				rc = m0_layout_add(l, &fom->fo_tx.tx_dbtx,
+				rc = m0_layout_add(l, &fom->fo_tx.tx_betx,
 						   &pair);
 			else if (req->l_op == M0_LAYOUT_OP_DELETE)
-				rc = m0_layout_delete(l, &fom->fo_tx.tx_dbtx,
+				rc = m0_layout_delete(l, &fom->fo_tx.tx_betx,
 						      &pair);
 			M0_LOG(M0_DEBUG, "Done");
 		}
@@ -1338,19 +1332,19 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 		/* lookup from db and encode into pair */
 		rc = m0_layout_lookup(&reqh->rh_ldom, req->l_lid,
 				      &m0_pdclust_layout_type,
-				      &fom->fo_tx.tx_dbtx, &pair, &l);
+				      &fom->fo_tx.tx_betx, &pair, &l);
 		if (rc == 0)
 			m0_layout_put(l);
 		M0_LOG(M0_DEBUG, "Lookup Done");
 		break;
 	}
 
-	m0_fom_block_leave(fom);
 out:
 	rep->lr_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }
+#endif
 
 
 static int m0_md_req_path_get(struct m0_mdstore *mdstore,
@@ -1604,12 +1598,14 @@ static const struct m0_fom_ops m0_md_fom_readdir_ops = {
         .fo_addb_init = m0_md_fom_addb_init
 };
 
+#ifdef XXX_DB5
 static const struct m0_fom_ops m0_md_fom_layout_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_layout,
 	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
+#endif
 
 
 M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
@@ -1695,10 +1691,12 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		ops = &m0_md_fom_readdir_ops;
 		rep_fopt = &m0_fop_readdir_rep_fopt;
 		break;
+#ifdef XXX_DB5
 	 case M0_LAYOUT_OPCODE:
 		ops = &m0_md_fom_layout_ops;
 		rep_fopt = &m0_fop_layout_rep_fopt;
 		break;
+#endif
 	default:
 		m0_free(fom_obj);
 		return -EOPNOTSUPP;

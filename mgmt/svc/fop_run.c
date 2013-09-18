@@ -215,15 +215,15 @@ static void mgmt_fop_run_fo_fini(struct m0_fom *fom)
 
 	M0_ENTRY();
 
+	mgmt_fop_run_fom_bob_fini(sffom);
+	m0_fom_fini(fom);
+	m0_free(sffom);
+
 	/* decrement count and notify waiters */
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_atomic64_dec(&mgmt_svc->ms_run_foms);
 	m0_chan_broadcast(&reqh->rh_sm_grp.s_chan);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
-
-	mgmt_fop_run_fom_bob_fini(sffom);
-	m0_fom_fini(fom);
-	m0_free(sffom);
 
 	M0_LEAVE();
 }

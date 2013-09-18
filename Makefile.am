@@ -168,10 +168,11 @@ mero_includedir             = $(includedir)/mero
 nobase_mero_include_HEADERS =
 mero_libmero_la_SOURCES  =
 
+include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
-include $(top_srcdir)/cfg/Makefile.sub
+#XXX_BE_DB include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
@@ -183,17 +184,16 @@ include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
-include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/ha/Makefile.sub
 include $(top_srcdir)/ioservice/Makefile.sub
 include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
-include $(top_srcdir)/m0t1fs/Makefile.sub
+#XXX_BE_DB include $(top_srcdir)/m0t1fs/Makefile.sub
 include $(top_srcdir)/mdservice/Makefile.sub
 include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
 include $(top_srcdir)/mgmt/Makefile.sub
-include $(top_srcdir)/mw/Makefile.sub
+#XXX_BE_DB include $(top_srcdir)/mw/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
@@ -315,57 +315,57 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 # balloc/ut
 #
 
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/m0blkformat
-endif
-balloc_ut_m0blkformat_CPPFLAGS    = -DM0_TARGET='m0blkformat' $(AM_CPPFLAGS)
-balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/m0blkfree
-endif
-balloc_ut_m0blkfree_CPPFLAGS      = -DM0_TARGET='m0blkfree' $(AM_CPPFLAGS)
-balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/m0blkdump
-endif
-balloc_ut_m0blkdump_CPPFLAGS      = -DM0_TARGET='m0blkdump' $(AM_CPPFLAGS)
-balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/perf
-endif
-balloc_ut_perf_CPPFLAGS           = -DM0_TARGET='balloc-perf' $(AM_CPPFLAGS)
-balloc_ut_perf_LDADD              = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                  += balloc/ut/mperf
-endif
-balloc_ut_mperf_CPPFLAGS          = -DM0_TARGET='mperf' $(AM_CPPFLAGS)
-balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
-                                    $(top_builddir)/ut/libmero-ut.la
-
-#
-# m0t1fs/linux_kernel/ut
-#
-
-include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
-
-#
-# db/ut
-#
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS      += db/ut/elist
-endif
-db_ut_elist_CPPFLAGS  = -DM0_TARGET='elist' $(AM_CPPFLAGS)
-db_ut_elist_LDADD     = $(top_builddir)/mero/libmero.la \
-                        $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/m0blkformat
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_m0blkformat_CPPFLAGS    = -DM0_TARGET='m0blkformat' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_m0blkformat_LDADD       = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/m0blkfree
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_m0blkfree_CPPFLAGS      = -DM0_TARGET='m0blkfree' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_m0blkfree_LDADD         = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/m0blkdump
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_m0blkdump_CPPFLAGS      = -DM0_TARGET='m0blkdump' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_m0blkdump_LDADD         = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/perf
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_perf_CPPFLAGS           = -DM0_TARGET='balloc-perf' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_perf_LDADD              = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS                  += balloc/ut/mperf
+#XXX_BE_DB endif
+#XXX_BE_DB balloc_ut_mperf_CPPFLAGS          = -DM0_TARGET='mperf' $(AM_CPPFLAGS)
+#XXX_BE_DB balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
+#XXX_BE_DB
+#XXX_BE_DB #
+#XXX_BE_DB # m0t1fs/linux_kernel/ut
+#XXX_BE_DB #
+#XXX_BE_DB
+#XXX_BE_DB include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
+#XXX_BE_DB
+#XXX_BE_DB #
+#XXX_BE_DB # db/ut
+#XXX_BE_DB #
+#XXX_BE_DB
+#XXX_BE_DB if ENABLE_UNIT_TESTS
+#XXX_BE_DB noinst_PROGRAMS      += db/ut/elist
+#XXX_BE_DB endif
+#XXX_BE_DB db_ut_elist_CPPFLAGS  = -DM0_TARGET='elist' $(AM_CPPFLAGS)
+#XXX_BE_DB db_ut_elist_LDADD     = $(top_builddir)/mero/libmero.la \
+#XXX_BE_DB                         $(top_builddir)/ut/libmero-ut.la
 
 #
 # desim/ut
@@ -599,15 +599,15 @@ mero_m0d_altogether_CPPFLAGS = -DM0_TARGET='m0d-altogether' $(AM_CPPFLAGS)
 mero_m0d_altogether_SOURCES  = $(mero_m0d_SOURCES)
 mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
 
-#
-# console/bin/m0console
-#
-
-sbin_PROGRAMS                  += console/bin/m0console
-console_bin_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
-console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
-
-include $(top_srcdir)/console/bin/Makefile.sub
+#XXX_BE_DB #
+#XXX_BE_DB # console/bin/m0console
+#XXX_BE_DB #
+#XXX_BE_DB
+#XXX_BE_DB sbin_PROGRAMS                  += console/bin/m0console
+#XXX_BE_DB console_bin_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
+#XXX_BE_DB console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
+#XXX_BE_DB
+#XXX_BE_DB include $(top_srcdir)/console/bin/Makefile.sub
 
 #
 # pool
@@ -617,25 +617,25 @@ bin_PROGRAMS             += pool/m0poolmach
 pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
 pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
 
-#
-# addb/dump
-#
-
-sbin_PROGRAMS                 += addb/dump/m0addbdump
-addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
-addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
-
-include $(top_srcdir)/addb/dump/Makefile.sub
-
-#
-# mgmt/ctl/m0ctl
-# (This is unrelated to utils/linux_kernel/ctl.c).
-#
-
-bin_PROGRAMS               += mgmt/ctl/m0ctl
-mgmt_ctl_m0ctl_LDADD        = $(top_builddir)/mero/libmero.la
-
-include $(top_srcdir)/mgmt/ctl/Makefile.sub
+#XXX_BE_DB #
+#XXX_BE_DB # addb/dump
+#XXX_BE_DB #
+#XXX_BE_DB
+#XXX_BE_DB sbin_PROGRAMS                 += addb/dump/m0addbdump
+#XXX_BE_DB addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
+#XXX_BE_DB addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
+#XXX_BE_DB
+#XXX_BE_DB include $(top_srcdir)/addb/dump/Makefile.sub
+#XXX_BE_DB
+#XXX_BE_DB #
+#XXX_BE_DB # mgmt/ctl/m0ctl
+#XXX_BE_DB # (This is unrelated to utils/linux_kernel/ctl.c).
+#XXX_BE_DB #
+#XXX_BE_DB
+#XXX_BE_DB bin_PROGRAMS               += mgmt/ctl/m0ctl
+#XXX_BE_DB mgmt_ctl_m0ctl_LDADD        = $(top_builddir)/mero/libmero.la
+#XXX_BE_DB
+#XXX_BE_DB include $(top_srcdir)/mgmt/ctl/Makefile.sub
 
 ################################################################################
 #                        Init scripts and config files

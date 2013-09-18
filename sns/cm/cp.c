@@ -20,9 +20,8 @@
  * Original creation date: 08/06/2012
  */
 
-#ifndef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
-#endif
+#include "lib/trace.h"
 #include "lib/memory.h" /* m0_free() */
 #include "lib/misc.h"
 
@@ -42,7 +41,6 @@
 */
 
 M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
-				       struct m0_dbenv *dbenv,
 				       struct m0_cob_domain *cdom);
 
 M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp);
@@ -145,6 +143,8 @@ M0_INTERNAL int m0_sns_cm_cp_phase_next(struct m0_cm_cp *cp)
 {
 	int phase = m0_sns_cm_cp_next_phase_get(m0_fom_phase(&cp->c_fom), cp);
 
+	M0_LOG(M0_DEBUG, "phase=%d", phase);
+
 	m0_fom_phase_set(&cp->c_fom, phase);
 
         return M0_IN(phase, (M0_CCP_IO_WAIT, M0_CCP_SEND_WAIT,
@@ -156,7 +156,6 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 {
         struct m0_sns_cm     *scm;
 	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
-        struct m0_dbenv      *dbenv;
         struct m0_cob_domain *cdom;
         int                   rc;
 
@@ -169,9 +168,8 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 
 	if ((phase == M0_CCP_INIT && scp->sc_is_acc) || phase == M0_CCP_XFORM) {
 		scm = cm2sns(cp->c_ag->cag_cm);
-		dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
 		cdom  = scm->sc_it.si_cob_dom;
-		rc = m0_sns_cm_cob_is_local(&scp->sc_cobfid, dbenv, cdom);
+		rc = m0_sns_cm_cob_is_local(&scp->sc_cobfid, cdom);
 		if (rc == 0)
 			return M0_CCP_WRITE;
 		else if (rc == -ENOENT)
@@ -292,6 +290,9 @@ const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops = {
 };
 
 /** @} SNSCMCP */
+
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

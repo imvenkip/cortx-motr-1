@@ -28,6 +28,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
+#include "dtm/dtm.h"
 
 #include "stob/linux.h"
 #include "stob/linux_internal.h"
@@ -99,7 +100,8 @@ static void linux_stob_type_fini(struct m0_stob_type *stype)
 
    Finalizes all still existing in-memory objects.
  */
-static void linux_domain_fini(struct m0_stob_domain *self)
+static void linux_domain_fini(struct m0_stob_domain *self,
+			      struct m0_sm_group *grp)
 {
 	struct linux_domain *ldom;
 
@@ -121,6 +123,8 @@ static void linux_domain_fini(struct m0_stob_domain *self)
  */
 static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 					 const char *domain_name,
+					 struct m0_be_seg *be_seg,
+				         struct m0_sm_group *grp,
 					 struct m0_stob_domain **out,
 					 uint64_t dom_id)
 {
@@ -136,13 +140,13 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 		strcpy(ldom->sdl_path, domain_name);
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
-		m0_stob_domain_init(dom, type, dom_id);
+		m0_stob_domain_init(dom, type, dom_id, NULL);
 		m0_stob_cache_init(&ldom->sdl_cache);
 		result = linux_domain_io_init(dom);
 		if (result == 0)
 			*out = dom;
 		else
-			linux_domain_fini(dom);
+			linux_domain_fini(dom, NULL);
 		ldom->sdl_use_directio = false;
 		dom->sd_name = ldom->sdl_path;
 	} else {
@@ -159,7 +163,7 @@ M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
 
 	return lstat(domain_name, &info) ?:
 	       M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_domain_locate,
-			       domain_name, dom, info.st_ino);
+			       domain_name, NULL, NULL, dom, info.st_ino);
 }
 
 
@@ -255,7 +259,11 @@ static void linux_stob_fini(struct m0_stob *stob)
  */
 static int linux_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
 {
-	return 0;
+	int rc = 0;
+
+	if (tx != NULL)
+		rc = m0_dtx_open_sync(tx);
+	return rc;
 }
 
 /**
@@ -345,7 +353,7 @@ static int linux_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
 /**
    Implementation of m0_stob_op::sop_locate().
  */
-static int linux_stob_locate(struct m0_stob *obj, struct m0_dtx *tx)
+static int linux_stob_locate(struct m0_stob *obj)
 {
 	int oflags = O_RDWR;
 	struct linux_domain *ldom;

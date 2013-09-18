@@ -69,12 +69,12 @@ enum {
 
 /** True iff the argument might be an lsn of an existing fol record. */
 M0_INTERNAL bool m0_lsn_is_valid(m0_lsn_t lsn);
+
 /** 3-way comparison (-1, 0, +1) of lsns, compatible with record
     dependencies. */
 M0_INTERNAL int m0_lsn_cmp(m0_lsn_t lsn0, m0_lsn_t lsn1);
 
-/* __MERO_FOL_LSN_H__ */
-#endif
+#endif /* __MERO_FOL_LSN_H__ */
 
 /*
  *  Local variables:

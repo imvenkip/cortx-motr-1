@@ -162,7 +162,9 @@ static int conn_establish(struct m0_fom *fom)
 		if (rc == 0) {
 			rc = M0_FSO_WAIT;
 		} else {
+			m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
 			m0_fom_callback_cancel(&revc->rcf_fomcb);
+			m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
 			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 			rc = M0_FSO_AGAIN;
 		}
@@ -195,7 +197,9 @@ static int session_establish(struct m0_fom *fom)
 			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 			rc = M0_FSO_WAIT;
 		} else {
+			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
 			m0_fom_callback_cancel(&revc->rcf_fomcb);
+			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 			rc = M0_FSO_AGAIN;
 		}
@@ -281,7 +285,9 @@ static int conn_terminate(struct m0_fom *fom)
 		m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
 		rc = M0_FSO_WAIT;
 	} else {
+		m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
 		m0_fom_callback_cancel(&revc->rcf_fomcb);
+		m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 	}
@@ -337,7 +343,9 @@ static int session_disc_wait(struct m0_fom *fom)
 		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		rc = M0_FSO_WAIT;
 	} else {
+		m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
 		m0_fom_callback_cancel(&revc->rcf_fomcb);
+		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 	}

@@ -26,10 +26,11 @@
 #include "stob/stob_id.h"
 #include "stob/stob_id_xc.h"
 #include "db/extmap_xc.h"
+#include "be/extmap_xc.h"	/* XXX_DB_BE */
 
 struct ad_rec_part_seg {
 	uint32_t            ps_segments;
-	struct m0_emap_seg *ps_old_data;
+	struct m0_be_emap_seg *ps_old_data;
 } M0_XCA_SEQUENCE;
 
 struct ad_rec_part {

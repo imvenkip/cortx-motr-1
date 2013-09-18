@@ -84,8 +84,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		sa.sa_group = group;
 		sa.sa_unit = N + K + i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
-					  &cobfid);
+		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
 		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
 			result = true;
 	}

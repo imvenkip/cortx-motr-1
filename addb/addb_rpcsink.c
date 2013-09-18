@@ -611,7 +611,6 @@ static int rpcsink_item_source_init(struct rpcsink             *rsink,
 	return m0_rpc_item_source_init(&rsinkis->ris_source,
 				       "RPC sink item source",
 				       &rpcsink_source_ops);
-
 }
 
 static void rpcsink_item_source_fini(struct rpcsink_item_source *rsinkis)

@@ -135,12 +135,12 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fom_generic_init, &m0_fom_generic_fini, "fom-generic" },
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
+#ifndef __KERNEL__
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
 	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
-#ifndef __KERNEL__
 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 #endif
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },

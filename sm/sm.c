@@ -655,6 +655,7 @@ M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state)
 }
 
 /** @} end of sm group */
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

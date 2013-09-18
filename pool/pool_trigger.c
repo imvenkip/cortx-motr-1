@@ -40,7 +40,6 @@
 /*#define RPC_ASYNC_MODE*/
 
 struct m0_net_domain     cl_ndom;
-struct m0_dbenv          cl_dbenv;
 struct m0_cob_domain     cl_cdom;
 struct m0_rpc_client_ctx cl_ctx;
 
@@ -62,7 +61,6 @@ const char *poolmach_state_name[] = {
 
 const char *cl_ep_addr;
 const char *srv_ep_addr[MAX_SERVERS];
-const char *dbname = "sr_cdb";
 
 struct rpc_ctx {
 	struct m0_rpc_conn    ctx_conn;
@@ -82,8 +80,6 @@ static int poolmach_client_init(void)
 	cl_ctx.rcx_net_dom            = &cl_ndom;
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
 	cl_ctx.rcx_remote_addr        = srv_ep_addr[0];
-	cl_ctx.rcx_db_name            = dbname;
-	cl_ctx.rcx_dbenv              = &cl_dbenv;
 	cl_ctx.rcx_nr_slots           = MAX_RPC_SLOTS_NR;
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 

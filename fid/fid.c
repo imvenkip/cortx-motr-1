@@ -31,49 +31,49 @@
 
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
-        return true;
+	return true; /* XXX TODO */
 }
 M0_EXPORTED(m0_fid_is_valid);
 
 M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid)
 {
-        static const struct m0_fid zero = {
-                .f_container = 0,
-                .f_key = 0
-        };
-        return !m0_fid_eq(fid, &zero);
+	static const struct m0_fid zero = {
+		.f_container = 0,
+		.f_key = 0
+	};
+	return !m0_fid_eq(fid, &zero);
 }
 M0_EXPORTED(m0_fid_is_set);
 
 M0_INTERNAL void m0_fid_set(struct m0_fid *fid, uint64_t container,
 			    uint64_t key)
 {
-        M0_PRE(fid != NULL);
+	M0_PRE(fid != NULL);
 
-        fid->f_container = container;
-        fid->f_key = key;
+	fid->f_container = container;
+	fid->f_key = key;
 }
 M0_EXPORTED(m0_fid_set);
 
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
-        return memcmp(fid0, fid1, sizeof *fid0) == 0;
+	return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
 M0_EXPORTED(m0_fid_eq);
 
 M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
-        const struct m0_uint128 u0 = {
-                .u_hi = fid0->f_container,
-                .u_lo = fid0->f_key
-        };
+	const struct m0_uint128 u0 = {
+		.u_hi = fid0->f_container,
+		.u_lo = fid0->f_key
+	};
 
-        const struct m0_uint128 u1 = {
-                .u_hi = fid1->f_container,
-                .u_lo = fid1->f_key
-        };
+	const struct m0_uint128 u1 = {
+		.u_hi = fid1->f_container,
+		.u_lo = fid1->f_key
+	};
 
-        return m0_uint128_cmp(&u0, &u1);
+	return m0_uint128_cmp(&u0, &u1);
 }
 M0_EXPORTED(m0_fid_cmp);
 

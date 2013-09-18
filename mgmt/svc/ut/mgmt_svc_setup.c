@@ -32,14 +32,11 @@ enum {
 
 static struct m0_net_xprt   *mgmt_svc_ut_xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain  mgmt_svc_ut_client_net_dom = { };
-static struct m0_dbenv       mgmt_svc_ut_client_dbenv;
 
 static struct m0_rpc_client_ctx mgmt_svc_ut_cctx = {
 	.rcx_net_dom               = &mgmt_svc_ut_client_net_dom,
 	.rcx_local_addr            = MGMT_SVC_UT_CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr           = MGMT_SVC_UT_SERVER_ENDPOINT_ADDR,
-	.rcx_db_name               = "mc.db",
-	.rcx_dbenv                 = &mgmt_svc_ut_client_dbenv,
 	.rcx_nr_slots              = MGMT_SVC_UT_SESSION_SLOTS,
 	.rcx_max_rpcs_in_flight    = MGMT_SVC_UT_MAX_RPCS_IN_FLIGHT,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,

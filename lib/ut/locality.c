@@ -18,8 +18,6 @@
  * Original creation date: 04-Jun-2013
  */
 
-#include "db/db.h"
-#include "cob/cob.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
 #include "fop/fom_simple.h"
@@ -37,8 +35,6 @@ static uint64_t             core[NR];
 static struct m0_mutex      lock;
 static struct m0_semaphore  sem[NR];
 static struct m0_sm_ast     ast[NR];
-static struct m0_dbenv      dbenv;
-static struct m0_cob_domain cob_dom;
 static struct m0_fol        fol;
 static struct m0_reqh       reqh;
 static struct m0_fom_simple s[NR];
@@ -48,15 +44,9 @@ static void _reqh_init(void)
 {
 	int result;
 
-	result = m0_dbenv_init(&dbenv, "locality-test", 0);
-	M0_UT_ASSERT(result == 0);
-	result = m0_cob_domain_init(&cob_dom, &dbenv,
-				    &(struct m0_cob_domain_id){ 1 });
-	M0_UT_ASSERT(result == 0);
-
 	result = M0_REQH_INIT(&reqh,
 			      .rhia_dtm       = (void*)1,
-			      .rhia_db        = &dbenv,
+			      .rhia_db        = NULL,
 			      .rhia_mdstore   = (void*)1,
 			      .rhia_fol       = &fol,
 			      .rhia_svc       = (void*)1);
@@ -69,8 +59,6 @@ static void _reqh_fini(void)
 	m0_reqh_shutdown_wait(&reqh);
 	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
-	m0_cob_domain_fini(&cob_dom);
-	m0_dbenv_fini(&dbenv);
 }
 
 static void _cb0(struct m0_sm_group *grp, struct m0_sm_ast *a)

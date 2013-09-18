@@ -383,12 +383,14 @@ enum m0_magic_satchel {
 	M0_FOM_LL_MAGIC = 0x330b1e55edb05577,
 
 /* FOL */
+	/* m0_fol_rec_header::rh_magic (facade decile) */
+	M0_FOL_REC_MAGIC = 0x33facadedec11e77,
+	/* m0_fol_rec_part_header:rph_magic (baseball aced) */
+	M0_FOL_REC_PART_MAGIC = 0x33ba5eba11aced77,
 	/* m0_fol_rec_part:rp_link (ceaseless deb) */
 	M0_FOL_REC_PART_LINK_MAGIC = 0x33cea5e1e55deb77,
 	/* m0_fol_rec_part:rp_magic (bloodied bozo) */
 	M0_FOL_REC_PART_HEAD_MAGIC = 0x33b100d1edb02077,
-	/* m0_fol_rec_part_header:rph_magic (baseball aced) */
-	M0_FOL_REC_PART_MAGIC = 0x33ba5eba11aced77,
 
 /* HA */
 	/* m0_ha_epoch_monitor::ham_magic (bead Adelaide) */
@@ -750,7 +752,6 @@ enum m0_magic_satchel {
 /* lib */
 	/* hashlist::hl_magic = invincibilis */
 	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,
-
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

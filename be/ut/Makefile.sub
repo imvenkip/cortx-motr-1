@@ -2,6 +2,8 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/btree.c           \
                             be/ut/domain.c          \
                             be/ut/extmap.c          \
+                            be/ut/helper.c          \
+                            be/ut/helper.h          \
                             be/ut/io.c              \
                             be/ut/list.c            \
                             be/ut/log.c             \
@@ -12,5 +14,3 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/tx.c              \
                             be/ut/tx_group_ondisk.c \
                             be/ut/tx_regmap.c
-                            #be/ut/helper.h          \
-                            #be/ut/helper.c

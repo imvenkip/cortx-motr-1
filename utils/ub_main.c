@@ -100,18 +100,18 @@ static void ub_add(const struct ub_args *args)
 	m0_ub_set_add(&m0_time_ub);
 	m0_ub_set_add(&m0_thread_ub);
 	m0_ub_set_add(&m0_rpc_ub);
-	m0_ub_set_add(&m0_parity_math_ub);
+//XXX_BE_DB	m0_ub_set_add(&m0_parity_math_ub);
 	m0_ub_set_add(&m0_memory_ub);
 	m0_ub_set_add(&m0_list_ub);
 	m0_ub_set_add(&m0_fom_ub);
 	m0_ub_set_add(&m0_fol_ub);
-	m0_ub_set_add(&m0_emap_ub);
-	m0_ub_set_add(&m0_db_ub);
-	m0_ub_set_add(&m0_cob_ub);
-	m0_ub_set_add(&m0_bitmap_ub);
-	m0_ub_set_add(&m0_atomic_ub);
-	m0_ub_set_add(&m0_adieu_ub);
-	m0_ub_set_add(&m0_ad_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_emap_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_db_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_cob_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_bitmap_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_atomic_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_adieu_ub);
+//XXX_BE_DB 	m0_ub_set_add(&m0_ad_ub);
 }
 
 static int ub_run(const struct ub_args *args)

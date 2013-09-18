@@ -67,25 +67,21 @@ M0_INTERNAL int m0_net_init()
 	m0_mutex_init(&m0_net_mutex);
 	m0_xc_net_otw_types_init();
 
-#undef CT_REG
-#define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_net_##n)
-	CT_REG(mod);
-	CT_REG(dom);
-	CT_REG(tm);
-	CT_REG(bp);
-#undef CT_REG
-#undef RT_REG
-#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_net_##n)
-	RT_REG(aggr_msg);
-	RT_REG(aggr_data);
-	RT_REG(recv_buf);
-	RT_REG(mq_r);
-	RT_REG(mq_s);
-	RT_REG(pq_r);
-	RT_REG(pq_s);
-	RT_REG(aq_r);
-	RT_REG(aq_s);
-#undef RT_REG
+	m0_addb_ctx_type_register(&m0_addb_ct_net_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_net_dom);
+	m0_addb_ctx_type_register(&m0_addb_ct_net_tm);
+	m0_addb_ctx_type_register(&m0_addb_ct_net_bp);
+
+	m0_addb_rec_type_register(&m0_addb_rt_net_aggr_msg);
+	m0_addb_rec_type_register(&m0_addb_rt_net_aggr_data);
+	m0_addb_rec_type_register(&m0_addb_rt_net_recv_buf);
+	m0_addb_rec_type_register(&m0_addb_rt_net_mq_r);
+	m0_addb_rec_type_register(&m0_addb_rt_net_mq_s);
+	m0_addb_rec_type_register(&m0_addb_rt_net_pq_r);
+	m0_addb_rec_type_register(&m0_addb_rt_net_pq_s);
+	m0_addb_rec_type_register(&m0_addb_rt_net_aq_r);
+	m0_addb_rec_type_register(&m0_addb_rt_net_aq_s);
+
 	m0_net__qstat_rts[M0_NET_QT_MSG_RECV]          = &m0_addb_rt_net_mq_r;
 	m0_net__qstat_rts[M0_NET_QT_MSG_SEND]          = &m0_addb_rt_net_mq_s;
 	m0_net__qstat_rts[M0_NET_QT_PASSIVE_BULK_RECV] = &m0_addb_rt_net_pq_r;

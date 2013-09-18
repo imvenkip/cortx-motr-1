@@ -134,15 +134,14 @@
 
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/string.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MGMT
-#include "lib/trace.h"
+#include "lib/string.h" /* m0_strdup */
 #include "lib/types.h"
 #include "lib/uuid.h"
-#include "lib/string.h" /* m0_strdup */
 #include "mero/magic.h"
 #include "mgmt/mgmt.h"
 

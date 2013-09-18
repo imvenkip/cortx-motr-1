@@ -19,6 +19,8 @@
  */
 
 #include "lib/assert.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
 #include "net/net_internal.h"
 
 /**
@@ -56,6 +58,8 @@ M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
 {
 	int rc;
 
+	M0_ENTRY();
+
 	M0_PRE(m0_mutex_is_locked(&m0_net_mutex));
 	M0_PRE(dom->nd_xprt == NULL);
 
@@ -74,7 +78,8 @@ M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
 		m0_net__domain_fini(dom);
 		NET_ADDB_FUNCFAIL(rc, DOM_INIT, ctx);
 	}
-	return rc;
+
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom)
@@ -112,6 +117,8 @@ DOM_GET_PARAM(max_buffer_size, m0_bcount_t);
 DOM_GET_PARAM(max_buffer_segment_size, m0_bcount_t);
 DOM_GET_PARAM(max_buffer_segments, int32_t);
 DOM_GET_PARAM(max_buffer_desc_size, m0_bcount_t);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of net group */
 

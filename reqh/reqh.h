@@ -113,6 +113,7 @@ struct m0_reqh {
 
 	/** Database environment for this request handler. */
 	struct m0_dbenv         *rh_dbenv;
+	struct m0_be_seg        *rh_beseg;
 
 	/** Mdstore for this request handler. */
 	struct m0_mdstore       *rh_mdstore;
@@ -188,15 +189,11 @@ struct m0_reqh {
 struct m0_reqh_init_args {
 	struct m0_dtm           *rhia_dtm;
 	/** Database environment for this request handler */
-	struct m0_dbenv         *rhia_db;
+	struct m0_be_seg        *rhia_db;
 	struct m0_mdstore       *rhia_mdstore;
 	/** fol File operation log to record fop execution */
 	struct m0_fol           *rhia_fol;
 	struct m0_local_service *rhia_svc;
-	/** Hard-coded stob to store ADDB records
-	    @see cs_addb_storage_init()
-	  */
-	struct m0_stob          *rhia_addb_stob;
 };
 
 /**
@@ -230,6 +227,24 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh);
    @pre reqh != NULL
  */
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh);
+
+/**
+   Initialises db-dependant part of request handler.
+
+   @pre dbenv != NULL
+ */
+M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
+				   struct m0_be_seg *dbenv,
+				   bool create);
+
+/**
+   Finalises db-dependant part of request handler.
+ */
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh,
+				    bool destroy);
+
+M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
+				       struct m0_stob *stob);
 
 /**
    Get the state of the request handler.
@@ -314,6 +329,16 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh);
 	       M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP)
  */
 M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state);
+
+/**
+   Initiates the termination of services.
+
+   @param reqh request handler to be shutdown
+   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
+   @post m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN
+   @see m0_reqh_service_prepare_to_stop(), m0_reqh_fom_domain_idle_wait()
+ */
+M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh);
 
 /**
    Initiates the termination of services and then wait for FOMs to

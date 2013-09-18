@@ -23,19 +23,22 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
-#include "dtm/dtm.h"     /* m0_dtx */
 #include "lib/arith.h"   /* min64u */
 #include "lib/misc.h"    /* M0_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/ub.h"
-#include "ut/ut.h"
 #include "lib/assert.h"
+#include "ut/ut.h"
+#include "ut/ast_thread.h"
 
+#include "dtm/dtm.h"     /* m0_dtx */
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "balloc/balloc.h"
+
+#include "be/ut/helper.h"
 
 /**
    @addtogroup stob
@@ -79,7 +82,10 @@ static char *read_bufs[NR];
 static m0_bindex_t stob_vec[NR];
 static struct m0_clink clink;
 static struct m0_dtx tx;
-static struct m0_dbenv db;
+struct m0_be_ut_backend	 ut_be;
+struct m0_be_ut_seg	 ut_seg;
+static struct m0_be_seg *db;
+static struct m0_sm_group *sm_grp;
 static uint32_t block_shift;
 static uint32_t buf_size;
 
@@ -93,7 +99,8 @@ static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
-static int mock_balloc_init(struct m0_ad_balloc *ballroom, struct m0_dbenv *db,
+static int mock_balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+			    struct m0_sm_group *grp,
 			    uint32_t bshift, m0_bindex_t container_size,
 			    m0_bcount_t groupsize, m0_bcount_t res_groups)
 {
@@ -156,8 +163,13 @@ static int test_ad_init(void)
 	result = mkdir("./__s/o", 0700);
 	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	result = m0_dbenv_init(&db, db_name, 0);
-	M0_ASSERT(result == 0);
+	/* Init BE */
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	db = &ut_seg.bus_seg;
+
+	sm_grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 
 	result = m0_linux_stob_domain_locate("./__s", &dom_back);
 	M0_ASSERT(result == 0);
@@ -170,10 +182,12 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj_back->so_state == CSS_EXISTS);
 
-	result = m0_ad_stob_domain_locate("", &dom_fore, obj_back);
+	result = m0_ad_stob_domain_locate("", db, sm_grp,
+					  &dom_fore, obj_back);
 	M0_ASSERT(result == 0);
 
-	result = m0_ad_stob_setup(dom_fore, &db, obj_back, &mb.mb_ballroom,
+	result = m0_ad_stob_setup(dom_fore, db, sm_grp, obj_back,
+				  &mb.mb_ballroom,
 				  BALLOC_DEF_CONTAINER_SIZE,
 				  BALLOC_DEF_BLOCK_SHIFT,
 				  BALLOC_DEF_BLOCKS_PER_GROUP,
@@ -186,23 +200,28 @@ static int test_ad_init(void)
 	M0_ASSERT(result == 0);
 	M0_ASSERT(obj_fore->so_state == CSS_UNKNOWN);
 
-	m0_dtx_init(&tx);
+	block_shift = obj_fore->so_op->sop_block_shift(obj_fore);
+	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
+	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
+	buf_size = max_check(MIN_BUF_SIZE
+			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
+
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
+	dom_fore->sd_ops->sdo_write_credit(dom_fore,
+				buf_size * (NR * NR / 2) /* test_ad() */ +
+				buf_size * NR, /* test_ad_rw_unordered() */
+						&tx.tx_betx_cred);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_ASSERT(result == 0);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
-	result = m0_stob_locate(obj_fore, &tx);
+	result = m0_stob_locate(obj_fore);
 	M0_ASSERT(result == 0 || result == -ENOENT);
 	if (result == -ENOENT) {
 		result = m0_stob_create(obj_fore, &tx);
 		M0_ASSERT(result == 0);
 	}
 	M0_ASSERT(obj_fore->so_state == CSS_EXISTS);
-
-	block_shift = obj_fore->so_op->sop_block_shift(obj_fore);
-	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
-	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
-	buf_size = max_check(MIN_BUF_SIZE
-			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -221,25 +240,31 @@ static int test_ad_init(void)
 		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
+
 	return result;
 }
 
 static int test_ad_fini(void)
 {
+	int result;
 	int i;
 
-	m0_dtx_done(&tx);
-
+	result = m0_dtx_done_sync(&tx);
+	M0_ASSERT(result == 0);
 	m0_stob_put(obj_fore);
-	dom_fore->sd_ops->sdo_fini(dom_fore);
-	dom_back->sd_ops->sdo_fini(dom_back);
-	m0_dbenv_fini(&db);
+	dom_fore->sd_ops->sdo_fini(dom_fore, sm_grp);
+	dom_back->sd_ops->sdo_fini(dom_back, NULL);
+
+	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
+
 	return 0;
 }
 
@@ -368,11 +393,15 @@ static void test_ad_undo(void)
 	int                     result;
 	struct m0_fol_rec_part *rpart;
 
-	m0_dtx_done(&tx);
+	result = m0_dtx_done_sync(&tx);
+	M0_UT_ASSERT(result == 0);
 
-	m0_dtx_init(&tx);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
+	dom_fore->sd_ops->sdo_write_credit(dom_fore,
+				buf_size * 2, &tx.tx_betx_cred);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 
 	memset(user_buf[0], 'a', buf_size);
 	test_write(1);
@@ -381,7 +410,7 @@ static void test_ad_undo(void)
 
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
 
-	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_fol_rec_parts);
+	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_parts);
 	M0_ASSERT(rpart != NULL);
 
 	/* Write new data in stob */
@@ -389,13 +418,15 @@ static void test_ad_undo(void)
 	test_write(1);
 
 	/* Do the undo operation. */
-	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_dbtx);
+	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
-	m0_dtx_done(&tx);
+	result = m0_dtx_done_sync(&tx);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
 
-	m0_dtx_init(&tx);
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	M0_UT_ASSERT(result == 0);
+	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
 	test_read(1);
 
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) != 0);

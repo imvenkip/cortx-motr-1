@@ -477,9 +477,8 @@ static void cb_done(struct m0_fom_callback *cb)
 	M0_PRE(m0_fom_invariant(cb->fc_fom));
 	M0_PRE(cb->fc_state == M0_FCS_ARMED);
 
+	M0_ASSERT(!m0_clink_is_armed(clink));
 	cb->fc_state = M0_FCS_DONE;
-	if (m0_clink_is_armed(clink))
-		m0_clink_del_lock(clink);
 }
 
 /**
@@ -956,7 +955,6 @@ void m0_fom_fini(struct m0_fom *fom)
 
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
 	M0_PRE(fom->fo_pending == NULL);
-        M0_PRE(!m0_db_tx_is_active(&fom->fo_tx.tx_dbtx));
 
 	loc  = fom->fo_loc;
 	reqh = loc->fl_dom->fd_reqh;
@@ -1095,7 +1093,7 @@ static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 M0_INTERNAL void m0_fom_callback_init(struct m0_fom_callback *cb)
 {
 	cb->fc_state = M0_FCS_DONE;
-	m0_clink_init(&cb->fc_clink, &fom_clink_cb);
+	m0_clink_init(&cb->fc_clink, fom_clink_cb);
 }
 
 M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
@@ -1109,6 +1107,7 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
 	cb->fc_ast.sa_cb = &fom_ast_cb;
 	cb->fc_state = M0_FCS_ARMED;
 	m0_mb();
+	cb->fc_clink.cl_is_oneshot = true;
 	m0_clink_add(chan, &cb->fc_clink);
 }
 
@@ -1143,9 +1142,13 @@ static void cb_cancel(struct m0_fom_callback *cb)
 
 M0_INTERNAL void m0_fom_callback_cancel(struct m0_fom_callback *cb)
 {
+	struct m0_clink *clink = &cb->fc_clink;
+
 	M0_PRE(cb->fc_state >= M0_FCS_ARMED);
 
 	if (cb->fc_state == M0_FCS_ARMED) {
+		if (m0_clink_is_armed(clink))
+			m0_clink_del(clink);
 		cb_done(cb);
 		/* Once the clink is finalised, the AST cannot be posted, cancel
 		   the AST. */

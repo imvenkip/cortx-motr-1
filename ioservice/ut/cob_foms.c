@@ -19,9 +19,10 @@
  * Original creation date: 03/07/2012
  */
 
+#include "lib/locality.h"
+#include "lib/finject.h"
 #include "ut/ut.h"
 #include "lib/memory.h"
-#include "lib/finject.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
 #include "fop/ut/fop_put_norpc.h"
@@ -71,7 +72,6 @@ enum {
 #define CLIENT_EP_ADDR              "0@lo:12345:34:*"
 #define SERVER_ENDP                 "lnet:" SERVER_EP_ADDR
 static const char *SERVER_LOGFILE = "cobfoms_ut.log";
-static const char *CLIENT_DBNAME  = "cobfops_ut.db";
 
 struct cobfoms_ut {
 	struct m0_rpc_server_ctx      cu_sctx;
@@ -84,7 +84,6 @@ struct cobfoms_ut {
 	struct m0_reqh_service_type **cu_stypes;
 	struct m0_net_xprt           *cu_xprt;
 	struct m0_net_domain          cu_nd;
-	struct m0_dbenv               cu_dbenv;
 	struct m0_cob_domain          cu_cob_dom;
 	uint64_t                      cu_thread_nr;
 	struct m0_thread            **cu_threads;
@@ -140,8 +139,6 @@ static void cobfoms_utinit(void)
 	cctx->rcx_net_dom            = &cut->cu_nd;
 	cctx->rcx_local_addr         = CLIENT_EP_ADDR;
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
-	cctx->rcx_dbenv              = &cut->cu_dbenv;
-	cctx->rcx_db_name            = CLIENT_DBNAME;
 	cctx->rcx_nr_slots           = CLIENT_RPC_SESSION_SLOTS;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 
@@ -639,10 +636,8 @@ static void cc_stob_create_test()
 static void cob_verify(struct m0_fom *fom, const bool exists)
 {
 	int		      rc;
-	struct m0_db_tx	      tx;
 	struct m0_cob_domain *cobdom;
 	struct m0_cob_nskey  *nskey;
-	struct m0_dbenv	     *dbenv;
 	struct m0_fid         fid = {0, COB_TEST_KEY};
         char                  nskey_bs[UINT32_MAX_STR_LEN];
         uint32_t              nskey_bs_len;
@@ -652,8 +647,6 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cobdom != NULL);
 
-	dbenv = m0_fom_reqh(fom)->rh_dbenv;
-
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u",
                  (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs);
@@ -661,11 +654,7 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	rc = m0_cob_nskey_make(&nskey, &fid, (char *)nskey_bs, nskey_bs_len);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_SET0(&tx);
-	rc = m0_db_tx_init(&tx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_lookup(cobdom, nskey, 0, &test_cob, &tx);
-	m0_db_tx_commit(&tx);
+	rc = m0_cob_lookup(cobdom, nskey, 0, &test_cob);
 
 	if (exists) {
 		M0_UT_ASSERT(rc == 0);
@@ -684,7 +673,8 @@ static void cc_cob_create_test()
 {
 	int                   rc;
 	struct m0_fom        *fom;
-	struct m0_dbenv      *dbenv;
+	struct m0_be_seg     *beseg;
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_fom_cob_op *cc;
 
 	fom = cc_fom_alloc();
@@ -701,11 +691,16 @@ static void cc_cob_create_test()
 	 * Set the FOM phase and set transaction context
 	 * Test-case 1: Test successful creation of COB
 	 */
-	dbenv = m0_fom_reqh(fom)->rh_dbenv;
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+	beseg = m0_fom_reqh(fom)->rh_beseg;
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&fom->fo_tx, beseg->bs_domain, grp);
+	cob_op_credit(fom, M0_COB_OP_CREATE, &fom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	m0_dtx_done_sync(&fom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_UT_ASSERT(rc == 0);
@@ -716,28 +711,34 @@ static void cc_cob_create_test()
 	/*
 	 * Test-case 1 - Verify COB creation
 	 */
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
 	cob_verify(fom, true);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	/*
 	 * Test-case 2 - Test failure case. Try to create the
 	 * same COB.
 	 */
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&fom->fo_tx, beseg->bs_domain, grp);
+	cob_op_credit(fom, M0_COB_OP_CREATE, &fom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
 	M0_UT_ASSERT(rc != 0);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	m0_dtx_done_sync(&fom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	/*
 	 * Start cleanup by deleting the COB
 	 */
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&fom->fo_tx, beseg->bs_domain, grp);
+	m0_cob_tx_credit(test_cob->co_dom, M0_COB_OP_DELETE_PUT,
+				&fom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cob_delete_put(test_cob, &fom->fo_tx.tx_dbtx);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	rc = m0_cob_delete_put(test_cob, &fom->fo_tx.tx_betx);
+	m0_dtx_done_sync(&fom->fo_tx);
+	m0_sm_group_unlock(grp);
 	M0_UT_ASSERT(rc == 0);
 	test_cob = NULL;
 
@@ -754,32 +755,36 @@ static void cc_fom_state_test(void)
 	int                   rc;
 	struct m0_fom        *cfom;
 	struct m0_fom        *dfom;
-	struct m0_dbenv      *dbenv;
+	struct m0_be_seg     *beseg;
 	struct m0_fom_cob_op *cc;
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 
 	cfom = cc_fom_alloc();
 	M0_UT_ASSERT(cfom != NULL);
 
-	dbenv = m0_fom_reqh(cfom)->rh_dbenv;
-	rc = m0_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
+	beseg = m0_fom_reqh(cfom)->rh_beseg;
+	cc = cob_fom_get(cfom);
+
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&cfom->fo_tx, beseg->bs_domain, grp);
+	cc_stob_create_credit(cfom, cc, &cfom->fo_tx.tx_betx_cred);
+	cob_op_credit(cfom, M0_COB_OP_CREATE, &cfom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&cfom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cob_ops_fom_tick(cfom);
 	M0_UT_ASSERT(m0_fom_rc(cfom) == 0);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(cfom);
-	m0_db_tx_commit(&cfom->fo_tx.tx_dbtx);
+	m0_dtx_done_sync(&cfom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(cfom) == M0_FOPH_SUCCESS);
 
-	cc = cob_fom_get(cfom);
 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_CONTAINER);
 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_lo == COB_TEST_KEY);
 
-	rc = m0_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
 	cob_verify(cfom, true);
-	m0_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 	/*
 	 * Now create delete fom. Use FOM functions to delete cob-data.
@@ -787,7 +792,10 @@ static void cc_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	M0_UT_ASSERT(dfom != NULL);
 
-	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&dfom->fo_tx, beseg->bs_domain, grp);
+	cob_op_credit(dfom, M0_COB_OP_DELETE, &dfom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&dfom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_PREPARE */
@@ -796,7 +804,8 @@ static void cc_fom_state_test(void)
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
 
-	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
+	m0_dtx_done_sync(&dfom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	cc_fom_dealloc(cfom);
 	cd_fom_dealloc(dfom);
@@ -905,9 +914,11 @@ static void cd_fom_populate_test()
  */
 static struct m0_fom *cob_testdata_create()
 {
-	struct m0_fom   *fom;
-	struct m0_dbenv *dbenv;
-	int	         rc;
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
+	struct m0_fom        *fom;
+	struct m0_be_seg     *beseg;
+	struct m0_fom_cob_op *cc;
+	int	              rc;
 
 	/*
 	 * Create cob-create FOM.
@@ -916,14 +927,21 @@ static struct m0_fom *cob_testdata_create()
 	fom = cc_fom_alloc();
 	M0_UT_ASSERT(fom != NULL);
 
-	dbenv = m0_fom_reqh(fom)->rh_dbenv;
-	rc = m0_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
+	beseg = m0_fom_reqh(fom)->rh_beseg;
+	cc = cob_fom_get(fom);
 
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&fom->fo_tx, beseg->bs_domain, grp);
+	cc_stob_create_credit(fom, cc, &fom->fo_tx.tx_betx_cred);
+	cob_op_credit(fom, M0_COB_OP_CREATE, &fom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
+	M0_UT_ASSERT(rc == 0);
 	rc = cob_ops_fom_tick(fom);
+	M0_UT_ASSERT(m0_fom_rc(fom) == 0);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(fom);
-	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+	m0_dtx_done_sync(&fom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
@@ -981,8 +999,9 @@ static void cd_cob_delete_test()
 	int                   rc;
 	struct m0_fom        *cfom;
 	struct m0_fom        *dfom;
-	struct m0_dbenv      *dbenv;
+	struct m0_be_seg     *beseg;
 	struct m0_fom_cob_op *cd;
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 
 	cfom = cob_testdata_create();
 
@@ -991,36 +1010,39 @@ static void cd_cob_delete_test()
 	M0_UT_ASSERT(dfom != NULL);
 
 	cd = cob_fom_get(dfom);
-	dbenv = m0_fom_reqh(dfom)->rh_dbenv;
+	beseg = m0_fom_reqh(dfom)->rh_beseg;
 	/*
 	 * Test-case 1: Delete cob. The test should succeed.
 	 */
-	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&dfom->fo_tx, beseg->bs_domain, grp);
+	cob_op_credit(dfom, M0_COB_OP_DELETE, &dfom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&dfom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cd_cob_delete(dfom, cd);
-	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_UT_ASSERT(rc == 0);
+
+	m0_dtx_done_sync(&dfom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	/*
 	 * Make sure that there no entry in the database.
 	 */
-	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
 	cob_verify(cfom, false);
-	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	/*
 	 * Test-case 2: Delete cob again. The test should fail.
 	 */
-	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&dfom->fo_tx, beseg->bs_domain, grp);
+	cob_op_credit(dfom, M0_COB_OP_DELETE, &dfom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&dfom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
-
 	rc = cd_cob_delete(dfom, cd);
-	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-	M0_UT_ASSERT(rc != 0);
+	m0_dtx_done_sync(&dfom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	/*
 	 * Now do the cleanup.
@@ -1041,7 +1063,8 @@ static void cd_fom_state_test(void)
 {
 	struct m0_fom		 *cfom;
 	struct m0_fom		 *dfom;
-	struct m0_dbenv		 *dbenv;
+	struct m0_be_seg	 *beseg;
+	struct m0_sm_group	 *grp = m0_locality0_get()->lo_grp;
 	int			  rc;
 
 	cfom = cob_testdata_create();
@@ -1050,17 +1073,21 @@ static void cd_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	M0_UT_ASSERT(dfom != NULL);
 
-	dbenv = m0_fom_reqh(cfom)->rh_dbenv;
-	rc = m0_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
+	beseg = m0_fom_reqh(cfom)->rh_beseg;
+	m0_sm_group_lock(grp);
+	m0_dtx_init(&dfom->fo_tx, beseg->bs_domain, grp);
+	cob_op_credit(dfom, M0_COB_OP_DELETE, &dfom->fo_tx.tx_betx_cred);
+	rc = m0_dtx_open_sync(&dfom->fo_tx);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cob_ops_fom_tick(dfom);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(dfom);
-	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+
+	m0_dtx_done_sync(&dfom->fo_tx);
+	m0_sm_group_unlock(grp);
 
 	cd_fom_dealloc(dfom);
 	cob_testdata_cleanup(cfom);
@@ -1174,7 +1201,7 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 	int			  result = 0;
 
 	cob_cmn =  m0_cobfop_common_get(fop);
-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, dec_part) {
+	m0_tl_for(m0_rec_part, &rec->fr_parts, dec_part) {
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
 		    m0_fop_fol_rec_part_type.rpt_index) {
 			struct m0_fop_cob_common   *cob_data;
@@ -1215,7 +1242,6 @@ static void cobfoms_fol_verify(void)
 	struct m0_reqh	  *reqh;
 	struct m0_fol_rec  dec_cc_rec;
 	struct m0_fol_rec  dec_cd_rec;
-	struct m0_dtx      dtx;
 	int		   result;
 	struct m0_fop	  *c_fop;
 	struct m0_fop     *d_fop;
@@ -1230,16 +1256,12 @@ static void cobfoms_fol_verify(void)
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
-	m0_dtx_init(&dtx);
-	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
-	M0_UT_ASSERT(result == 0);
-
-	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(dec_cc_rec.fr_desc.rd_header.rh_parts_nr == 1);
 
-	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 1, &dec_cd_rec);
 	M0_UT_ASSERT(result == 0);
 	M0_UT_ASSERT(dec_cd_rec.fr_desc.rd_header.rh_parts_nr == 1);
@@ -1258,7 +1280,6 @@ static void cobfoms_fol_verify(void)
 
 	m0_fol_lookup_rec_fini(&dec_cc_rec);
 	m0_fol_lookup_rec_fini(&dec_cd_rec);
-	m0_dtx_done(&dtx);
 
 	cobfoms_fop_thread_fini(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
 }

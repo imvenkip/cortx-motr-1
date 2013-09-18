@@ -257,7 +257,7 @@ static int m0t1fs_rpc_init(void)
 
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm       = (void*)1,
-			  .rhia_db        = dbenv,
+			  .rhia_db        = NULL,
 			  .rhia_mdstore   = (void*)1,
 			  .rhia_fol       = fol,
 			  .rhia_svc       = (void*)1);

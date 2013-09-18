@@ -415,7 +415,7 @@ struct m0_be_btree_cursor {
  *
  * Note: interface is synchronous.
  */
-M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
+M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *it,
 					 struct m0_be_btree *tree);
 
 /**
@@ -423,11 +423,11 @@ M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
  *
  * Note: interface is synchronous.
  */
-M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
+M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *it);
 
 /**
  * Fills cursor internal buffers with current key and value obtained from the
- * tree. Operation may cause IO dependigly on cursor::bc_op state
+ * tree. Operation may cause IO depending on cursor::bc_op state
  *
  * Note: interface is asynchronous and relies on cursor::bc_op::bo_sm. When it
  * transits into M0_BOS_SUCCESS | M0_BOS_FAILURE operation is considered to be
@@ -444,50 +444,56 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
  * @param slant[in] if slant == true then cursor will return a minimum key not
  *  less than given, otherwise it'll be set on exact key if it's possible.
  */
-M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
+M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *it,
 					const struct m0_buf *key, bool slant);
 
 /** Synchronous version of m0_be_btree_cursor_get(). */
-M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
+M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
 					    const struct m0_buf *key,
 					    bool slant);
 
 /**
  * Fills cursor internal buffers with next key and value obtained from the
- * tree. Operation may cause IO dependigly on cursor::bc_op state
+ * tree. Operation may cause IO depending on cursor::bc_op state
  *
  * Note: @see m0_be_btree_cursor_get note.
  */
-M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
+M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *it);
+
+/** Synchronous version of m0_be_btree_cursor_next(). */
+M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *it);
 
 /**
  * Fills cursor internal buffers with prev key and value obtained from the
- * tree. Operation may cause IO dependigly on cursor::bc_op state
+ * tree. Operation may cause IO depending on cursor::bc_op state
  *
  * Note: @see m0_be_btree_cursor_get note.
  */
-M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cursor);
+M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *it);
+
+/** Synchronous version of m0_be_btree_cursor_prev(). */
+M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *it);
 
 /**
  * Moves cursor to the first key in the btree.
  *
  * @note The call is synchronous.
  */
-M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *cur);
+M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *it);
 
 /**
  * Moves cursor to the last key in the btree.
  *
  * @note The call is synchronous.
  */
-M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur);
+M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *it);
 
 /**
  * Unpins pages associated with cursor, releases cursor values.
  *
  * Note: interface is synchronous.
  */
-M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
+M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *it);
 
 /**
  * Sets key and value buffers to point on internal structures of cursor
@@ -497,7 +503,7 @@ M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
  *
  * Note: interface is synchronous.
  */
-M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
+M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *it,
 					   struct m0_buf *key,
 					   struct m0_buf *val);
 

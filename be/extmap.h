@@ -103,6 +103,7 @@
  */
 
 #include "lib/ext.h"       /* m0_ext */
+#include "lib/ext_xc.h"	   /* m0_ext_xc */
 #include "lib/types.h"     /* struct m0_uint128 */
 #include "be/tx.h"
 #include "be/btree.h"
@@ -183,7 +184,7 @@ struct m0_be_emap_seg {
 	struct m0_ext     ee_ext;
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
-};
+} M0_XCA_RECORD;
 
 /** True iff the extent is the last one in a map. */
 M0_INTERNAL bool m0_be_emap_ext_is_last(const struct m0_ext *ext);
@@ -364,6 +365,10 @@ M0_INTERNAL void m0_be_emap_caret_fini(struct m0_be_emap_caret *car);
  */
 M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 				      m0_bcount_t              count);
+
+/** Synchronous equivalent of m0_be_emap_caret_move(). */
+M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
+				           m0_bcount_t              count);
 
 /** Returns how far is the end of extent. */
 M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret*);

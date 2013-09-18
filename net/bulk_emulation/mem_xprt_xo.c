@@ -19,6 +19,8 @@
  * Original creation date: 04/12/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "net/bulk_emulation/mem_xprt_pvt.h"
@@ -194,13 +196,15 @@ static int mem_xo_dom_init(struct m0_net_xprt *xprt,
 {
 	struct m0_net_bulk_mem_domain_pvt *dp;
 
+	M0_ENTRY();
+
 	if (dom->nd_xprt_private != NULL) {
 		M0_PRE(xprt != &m0_net_bulk_mem_xprt);
 		dp = dom->nd_xprt_private;
 	} else {
 		M0_ALLOC_PTR(dp);
 		if (dp == NULL) {
-			return -ENOMEM;
+			M0_RETURN(-ENOMEM);
 		}
 		dom->nd_xprt_private = dp;
 	}
@@ -222,7 +226,8 @@ static int mem_xo_dom_init(struct m0_net_xprt *xprt,
 		m0_list_add(&mem_domains, &dp->xd_dom_linkage);
 	}
 	M0_POST(mem_dom_invariant(dom));
-	return 0;
+
+	M0_RETURN(0);
 }
 
 /**
@@ -755,6 +760,8 @@ struct m0_net_xprt m0_net_bulk_mem_xprt = {
 	.nx_name = "bulk-mem",
 	.nx_ops  = &mem_xo_xprt_ops
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} */ /* bulkmem */
 

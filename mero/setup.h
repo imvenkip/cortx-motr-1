@@ -37,6 +37,8 @@
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "yaml.h"             /* yaml_document_t */
 
+#include "be/ut/helper.h"	/* XXX: prototype solution */
+
 /**
    @defgroup m0d Mero Setup
 
@@ -391,6 +393,7 @@ struct m0_reqh_context {
 	struct cs_addb_stob          rc_addb_stob;
 	/** Database used by the request handler */
 	struct m0_dbenv              rc_db;
+	struct m0_be_seg            *rc_beseg;
 
 	/** Path to the configuration database to be used by confd service. */
 	const char                  *rc_confdb;
@@ -401,7 +404,7 @@ struct m0_reqh_context {
 	struct m0_cob_domain_id      rc_cdom_id;
 
 	/** File operation log for a request handler */
-	struct m0_fol                rc_fol;
+	struct m0_fol               *rc_fol;
 
 	/** Request handler instance to be initialised */
 	struct m0_reqh               rc_reqh;

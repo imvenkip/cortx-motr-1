@@ -23,7 +23,6 @@
 #define __MERO_BE_UT_HELPER_H__
 
 #include "lib/types.h"		/* bool */
-
 #include "sm/sm.h"		/* m0_sm */
 #include "stob/stob.h"		/* m0_stob */
 
@@ -31,15 +30,7 @@
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
 
-#include <sys/types.h>		/* pid_t */
-
-struct m0_be_ut_sm_group_thread {
-	struct m0_thread    sgt_thread;
-	pid_t		    sgt_tid;
-	struct m0_semaphore sgt_stop_sem;
-	struct m0_sm_group  sgt_grp;
-	bool		    sgt_lock_new;
-};
+struct m0_be_ut_sm_group_thread;
 
 struct m0_be_ut_backend {
 	struct m0_be_domain		  but_dom;
