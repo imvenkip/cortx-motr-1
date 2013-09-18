@@ -797,6 +797,15 @@ static int cob_oi_lookup(struct m0_cob *cob, struct m0_db_tx *tx)
 		goto out;
 	}
 
+	nskey = (struct m0_cob_nskey *)cob->co_oipair.dp_rec.db_buf.b_addr;
+	M0_LOG(M0_DEBUG, "found: fid=[%x,%x] lno=%d pfid=[%x,%x] name='%s'",
+		(int)cob->co_oikey.cok_fid.f_container,
+		(int)cob->co_oikey.cok_fid.f_key,
+		(int)cob->co_oikey.cok_linkno,
+		(int)nskey->cnk_pfid.f_container,
+		(int)nskey->cnk_pfid.f_key,
+		(char*)nskey->cnk_name.b_data);
+
 	/*
 	 * Found position should have same fid.
 	 */
@@ -805,7 +814,6 @@ static int cob_oi_lookup(struct m0_cob *cob, struct m0_db_tx *tx)
 		goto out;
 	}
 
-	nskey = (struct m0_cob_nskey *)cob->co_oipair.dp_rec.db_buf.b_addr;
 	rc = m0_cob_nskey_make(&cob->co_nskey, &nskey->cnk_pfid,
 			       m0_bitstring_buf_get(&nskey->cnk_name),
 			       m0_bitstring_len_get(&nskey->cnk_name));
@@ -949,6 +957,11 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 
 	M0_PRE(m0_fid_is_set(&oikey->cok_fid));
 
+	M0_ENTRY("dom=%p oikey=([%x,%x], %d)", dom,
+		(int)oikey->cok_fid.f_container,
+		(int)oikey->cok_fid.f_key,
+		(int)oikey->cok_linkno);
+
 	/*
 	 * Zero out "out" just in case that if we fail here, it is
 	 * easier to find abnormal using of NULL cob.
@@ -959,32 +972,32 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 	/* Get cob memory. */
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
-		return rc;
+		M0_RETURN(rc);
 
 	cob->co_oikey = *oikey;
 	rc = cob_oi_lookup(cob, tx);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_oi_lookup() failed with %d", rc);
 		m0_cob_put(cob);
-		return rc;
+		M0_RETURN(rc);
 	}
 
 	rc = cob_ns_lookup(cob, tx);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_ns_lookup() failed with %d", rc);
 		m0_cob_put(cob);
-		return rc;
+		M0_RETURN(rc);
 	}
 
 	rc = cob_get_fabomg(cob, flags, tx);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_get_fabomg() failed with %d", rc);
 		m0_cob_put(cob);
-		return rc;
+		M0_RETURN(rc);
 	}
 
 	*out = cob;
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
@@ -1129,7 +1142,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	M0_PRE(m0_fid_is_set(&nsrec->cnr_fid));
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 
-	M0_ENTRY("nskey=([%d,%d], '%s') nsrec=([%d,%d], %d)",
+	M0_ENTRY("nskey=([%x,%x], '%s') nsrec=([%x,%x], %d)",
 		(int)nskey->cnk_pfid.f_container,
 		(int)nskey->cnk_pfid.f_key,
 		(char*)nskey->cnk_name.b_data,
