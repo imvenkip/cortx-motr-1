@@ -195,6 +195,8 @@ static void test_create(void)
 	ut_tx_open(tx, &accum);
 	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
+	M0_UT_ASSERT(rc == -EEXIST);
 
 	++nsrec.cnr_nlink;
 	rc = m0_cob_update(cob, &nsrec, NULL, NULL, tx);
