@@ -1249,8 +1249,12 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
 	m0_buf_init(&key, it->ci_key, m0_cob_nskey_size(it->ci_key));
 	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
-	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
-		rc = -ENOENT;
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
+		*it->ci_key = *(struct m0_cob_nskey*)key.b_addr;
+		if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+			rc = -ENOENT;
+	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
 }
@@ -1258,10 +1262,16 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
 	int rc;
+	struct m0_buf		  key;
+
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
-	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
-		rc = -ENOENT;
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
+		*it->ci_key = *(struct m0_cob_nskey*)key.b_addr;
+		if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+			rc = -ENOENT;
+	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return rc;
 }
@@ -1294,20 +1304,32 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 
 M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 {
+	int rc;
 	struct m0_buf key;
 
 	m0_buf_init(&key, it->ci_key, m0_cob_eakey_size(it->ci_key));
-	return m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
+	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
+		*it->ci_key = *(struct m0_cob_eakey*)key.b_addr;
+		if (!m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
+			rc = -ENOENT;
+	}
+	return rc;
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 {
 	int rc;
+	struct m0_buf key;
 
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
-
-	if (rc == 0 && !m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
-		return -ENOENT;
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
+		*it->ci_key = *(struct m0_cob_eakey*)key.b_addr;
+		if (!m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
+			rc = -ENOENT;
+	}
 
 	return rc;
 }
@@ -1330,7 +1352,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 {
 	struct m0_be_btree_cursor cursor;
 	struct m0_cob_omgkey      omgkey;
-	struct m0_buf             start;
+	struct m0_buf             kbuf;
 	int                       rc;
 
 	M0_ENTRY();
@@ -1343,8 +1365,8 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 	 * init time (mkfs or else).
 	 */
 	omgkey.cok_omgid = ~0ULL;
-	m0_buf_init(&start, &omgkey, sizeof omgkey);
-	rc = m0_be_btree_cursor_get_sync(&cursor, &start, true);
+	m0_buf_init(&kbuf, &omgkey, sizeof omgkey);
+	rc = m0_be_btree_cursor_get_sync(&cursor, &kbuf, true);
 
 	/*
 	 * In case of error, most probably due to no terminator record found,
@@ -1352,7 +1374,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 	 */
 	if (rc == 0) {
                 m0_be_op_init(&cursor.bc_op);
-                m0_be_btree_cursor_next(&cursor);
+                m0_be_btree_cursor_prev(&cursor);
                 m0_be_op_wait(&cursor.bc_op);
                 M0_ASSERT(m0_be_op_state(&cursor.bc_op) == M0_BOS_SUCCESS);
                 rc = cursor.bc_op.bo_u.u_btree.t_rc;
@@ -1361,6 +1383,8 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 			if (rc == 0) {
 				/* We found last allocated omgid.
 				 * Bump it by one. */
+				m0_be_btree_cursor_kv_get(&cursor, &kbuf, NULL);
+				omgkey = *(struct m0_cob_omgkey*)kbuf.b_addr;
 				*omgid = ++omgkey.cok_omgid;
 			} else {
 				/* No last allocated found, this alloc call is

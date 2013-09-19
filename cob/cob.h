@@ -542,7 +542,6 @@ struct m0_cob_iterator {
 	struct m0_cob            *ci_cob;      /**< the cob we iterate */
 	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_nskey      *ci_key;      /**< current iterator pos */
-	struct m0_cob_nsrec       ci_rec;      /**< current iterator rec */
 };
 
 /**

@@ -134,12 +134,12 @@ use_loop_device=0
 setup_local_server_config=0
 wait_after_mount=1
 
-M0_TRACE_IMMEDIATE_MASK=0
-M0_TRACE_LEVEL=debug+
-M0_TRACE_PRINT_CONTEXT=full
+M0_TRACE_IMMEDIATE_MASK=fop,cob
+M0_TRACE_LEVEL=call+
+M0_TRACE_PRINT_CONTEXT=func
 
 # kernel space tracing parameters
-MERO_MODULE_TRACE_MASK='!all'
+MERO_MODULE_TRACE_MASK=fop,m0t1fs
 MERO_TRACE_PRINT_CONTEXT=func
 MERO_TRACE_LEVEL='call+'
 

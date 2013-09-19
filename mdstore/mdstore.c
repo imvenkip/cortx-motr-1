@@ -816,9 +816,9 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 		reclen = m0_align(sizeof(*ent) + m0_bitstring_len_get(pos), 8);
 
 		if (nob >= reclen) {
-			memcpy(ent->d_name, m0_bitstring_buf_get(pos),
-			       m0_bitstring_len_get(pos));
 			ent->d_namelen = m0_bitstring_len_get(pos);
+			memcpy(ent->d_name, m0_bitstring_buf_get(pos),
+			       ent->d_namelen);
 			ent->d_reclen = reclen;
 			M0_LOG(M0_DEBUG,
 			       "Readdir filled entry \"%.*s\" recsize %d",
