@@ -134,14 +134,12 @@ static char *cs_ut_args_bad_cmd[] = { "m0d", "-r", "-p", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-A", "cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
-/* XXX_BE_DB
 static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096"};
-*/
 
 static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -150,7 +148,6 @@ static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-/* XXX_BE_DB
 static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
@@ -158,7 +155,6 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-s", "ioservice"};
-*/
 
 static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -171,7 +167,6 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ds1"};
 
-/* XXX_BE_DB
 static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
@@ -181,7 +176,6 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ioservice"};
-*/
 
 static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -510,7 +504,6 @@ static void test_cs_ut_lnet_ep_duplicate(void)
 				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
 }
 
-#if 0 // XXX_BE_DB
 static void test_cs_ut_lnet_multiple_if(void)
 {
 	struct m0_mero mero_ctx;
@@ -550,7 +543,6 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 	m0_cs_fini(&mero_ctx);
 	fclose(out);
 }
-#endif
 
 
 static void test_cs_ut_service_bad(void)
@@ -565,7 +557,6 @@ static void test_cs_ut_args_bad(void)
 				  ARRAY_SIZE(cs_ut_args_bad_cmd));
 }
 
-/* XXX_BE_DB
 static void test_cs_ut_buffer_pool(void)
 {
 	struct cl_ctx  cctx[1] = { };
@@ -573,7 +564,6 @@ static void test_cs_ut_buffer_pool(void)
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_buffer_pool_cmd,
 				  ARRAY_SIZE(cs_ut_buffer_pool_cmd));
 }
-*/
 
 static void test_cs_ut_lnet(void)
 {
@@ -602,12 +592,11 @@ const struct m0_test_suite m0d_ut = {
 		{ "cs-bad-network-ep", test_cs_ut_ep_bad},
 		{ "cs-bad-service", test_cs_ut_service_bad},
 		{ "cs-missing-options", test_cs_ut_args_bad},
-		//XXX_BE_DB { "cs-buffer_pool-options", test_cs_ut_buffer_pool},
+		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
 		{ "cs-bad-lnet-ep", test_cs_ut_lnet_ep_bad},
 		{ "cs-duplicate-lnet-ep", test_cs_ut_lnet_ep_duplicate},
-		//XXX_BE_DB uncomment these when ioservice will be ready
-		//XXX_BE_DB { "cs-duplicate-lnet-mixed-ep", test_cs_ut_lnet_ep_mixed_dup},
-		//XXX_BE_DB { "cs-lnet-multiple-interfaces", test_cs_ut_lnet_multiple_if},
+		{ "cs-duplicate-lnet-mixed-ep", test_cs_ut_lnet_ep_mixed_dup},
+		{ "cs-lnet-multiple-interfaces", test_cs_ut_lnet_multiple_if},
 		{ "cs-lnet-options", test_cs_ut_lnet},
                 { NULL, NULL }
         }
