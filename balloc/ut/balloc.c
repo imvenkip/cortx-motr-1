@@ -18,19 +18,20 @@
  * Original creation date: 09/02/2010
  */
 
-#include <stdio.h>        /* fprintf */
 #include <stdlib.h>       /* srand, rand */
 #include <errno.h>
 #include <sys/time.h>
 #include <err.h>
 
-#include "dtm/dtm.h"      /* m0_dtx */
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BALLOC
+#include "lib/trace.h"
 #include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
 #include "lib/misc.h"     /* M0_SET0 */
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
 #include "lib/getopts.h"
+#include "dtm/dtm.h"      /* m0_dtx */
 #include "mero/magic.h"
 #include "db/db.h"
 #include "ut/ut.h"
@@ -136,7 +137,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				    &tmp);
 			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
-				fprintf(stderr, "Error in allocation\n");
+				M0_LOG(M0_ERROR, "Error in allocation");
 				return result;
 			}
 
@@ -146,8 +147,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			 * or equal to the requested length. */
 			M0_UT_ASSERT(m0_ext_length(&ext[i]) <= count);
 			if (m0_ext_length(&ext[i]) > count) {
-				fprintf(stderr, "Allocation size mismatch: "
-					"requested count = %5d, result = %5d\n",
+				M0_LOG(M0_ERROR, "Allocation size mismatch: "
+					"requested count = %5d, result = %5d",
 					(int)count,
 					(int)m0_ext_length(&ext[i]));
 				result = -EINVAL;
@@ -155,16 +156,14 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 			M0_UT_ASSERT(balloc_ut_invariant(mero_balloc, ext[i],
 							 INVAR_ALLOC));
-#ifdef BALLOC_DEBUG
-			printf("%3d:rc = %d: requested count=%5d, result"
-			       " count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+			M0_LOG(M0_INFO, "%3d:rc=%d: req=%5d, got=%5d: "
+			       "[%08llx,%08llx)=[%8llu,%8llu)",
 			       i, result, (int)count,
 			       (int)m0_ext_length(&ext[i]),
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end,
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end);
-#endif
 			m0_ut_be_tx_end(tx);
 		}
 
@@ -213,29 +212,27 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 					    &ext[i]);
 			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
-				fprintf(stderr,"Error during free for size %5d",
+				M0_LOG(M0_ERROR, "Error during free for size %5d",
 					(int)m0_ext_length(&ext[i]));
 				return result;
 			}
 
 			M0_UT_ASSERT(balloc_ut_invariant(mero_balloc, ext[i],
 							 INVAR_FREE));
-#ifdef BALLOC_DEBUG
-			printf("%3d:rc = %d: freed:                          "
-			       "len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+			M0_LOG(M0_INFO, "%3d:rc=%d: freed=         %5d: "
+			       "[%08llx,%08llx)=[%8llu,%8llu)",
 			       i, result, (int)m0_ext_length(&ext[i]),
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end,
 			       (unsigned long long)ext[i].e_start,
 			       (unsigned long long)ext[i].e_end);
-#endif
 			m0_ut_be_tx_end(tx);
 		}
 
 		M0_UT_ASSERT(mero_balloc->cb_sb.bsb_freeblocks ==
 					prev_free_blocks);
 		if (mero_balloc->cb_sb.bsb_freeblocks != prev_free_blocks) {
-			fprintf(stderr, "Size mismatch during block reclaim\n");
+			M0_LOG(M0_ERROR, "Size mismatch during block reclaim");
 			result = -EINVAL;
 		}
 
@@ -260,7 +257,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 					mero_balloc->cb_sb.bsb_groupsize);
 				if (grp->bgi_freeblocks !=
 				    mero_balloc->cb_sb.bsb_groupsize) {
-					printf("corrupted grp %d: %llx != %llx\n",
+					M0_LOG(M0_ERROR, "corrupted grp %d: "
+					       "%llx != %llx",
 					       i, (unsigned long long)
 					       grp->bgi_freeblocks,
 					       (unsigned long long)
@@ -282,9 +280,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 	m0_free(prev_group_info_free_blocks);
 
-#ifdef BALLOC_DEBUG
-	printf("done. status = %d\n", result);
-#endif
+	M0_LOG(M0_INFO, "done. status = %d", result);
 	return result;
 }
 
