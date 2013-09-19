@@ -49,6 +49,8 @@ struct m0_db_buf_impl {
 };
 
 struct m0_db_tx_impl {
+        struct m0_be_tx *dt_txn;
+        bool dt_is_locked;
 };
 
 struct m0_db_tx_waiter_impl {

@@ -63,6 +63,7 @@ struct m0_db_buf_impl {
 
 struct m0_db_tx_impl {
         struct m0_be_tx *dt_txn;
+	bool             dt_is_locked;
 	struct m0_be_tx dt_tx;
 	struct m0_sm_ast dt_ast;
 	struct m0_semaphore dt_commit_sem;

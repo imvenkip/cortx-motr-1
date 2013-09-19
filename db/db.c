@@ -253,12 +253,14 @@ enum {
 
 static void db_tx_lock(struct m0_db_tx *tx_)
 {
-	m0_sm_group_lock(tx_->dt_i.dt_tx.t_sm.sm_grp);
+	if (!tx_->dt_i.dt_is_locked)
+		m0_sm_group_lock(tx_->dt_i.dt_txn->t_sm.sm_grp);
 }
 
 static void db_tx_unlock(struct m0_db_tx *tx_)
 {
-	m0_sm_group_unlock(tx_->dt_i.dt_tx.t_sm.sm_grp);
+	if (!tx_->dt_i.dt_is_locked)
+		m0_sm_group_unlock(tx_->dt_i.dt_txn->t_sm.sm_grp);
 }
 
 M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
@@ -423,6 +425,7 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
         tx = &tx_->dt_i.dt_tx;
 	tx_->dt_i.dt_txn = tx;
 	tx_->dt_i.dt_ut_be = &env->d_i.d_ut_be;
+	tx_->dt_i.dt_is_locked = false;
 
 	grp = m0_be_ut_backend_sm_group_lookup(&env->d_i.d_ut_be);
 
@@ -440,7 +443,7 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
 M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)
 {
 	struct m0_db_tx_impl *ti = &tx_->dt_i;
-        struct m0_be_tx	     *tx = &ti->dt_tx;
+        struct m0_be_tx	     *tx = ti->dt_txn;
 	struct m0_sm_group   *grp = tx->t_sm.sm_grp;
 
 	M0_ENTRY();

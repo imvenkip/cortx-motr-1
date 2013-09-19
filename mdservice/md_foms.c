@@ -1238,7 +1238,6 @@ out:
 	return M0_FSO_AGAIN;
 }
 
-#ifdef XXX_DB5
 static void layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
 			    void *area, m0_bcount_t num_bytes)
 {
@@ -1305,10 +1304,10 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 					req->l_buf.b_addr,
 					req->l_buf.b_count);
 			if (req->l_op == M0_LAYOUT_OP_ADD)
-				rc = m0_layout_add(l, &fom->fo_tx.tx_betx,
+				rc = m0_layout_add(l, &fom->fo_tx.tx_dbtx,
 						   &pair);
 			else if (req->l_op == M0_LAYOUT_OP_DELETE)
-				rc = m0_layout_delete(l, &fom->fo_tx.tx_betx,
+				rc = m0_layout_delete(l, &fom->fo_tx.tx_dbtx,
 						      &pair);
 			M0_LOG(M0_DEBUG, "Done");
 		}
@@ -1332,7 +1331,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 		/* lookup from db and encode into pair */
 		rc = m0_layout_lookup(&reqh->rh_ldom, req->l_lid,
 				      &m0_pdclust_layout_type,
-				      &fom->fo_tx.tx_betx, &pair, &l);
+				      &fom->fo_tx.tx_dbtx, &pair, &l);
 		if (rc == 0)
 			m0_layout_put(l);
 		M0_LOG(M0_DEBUG, "Lookup Done");
@@ -1344,8 +1343,6 @@ out:
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }
-#endif
-
 
 static int m0_md_req_path_get(struct m0_mdstore *mdstore,
 			      struct m0_fid *fid,
@@ -1598,15 +1595,12 @@ static const struct m0_fom_ops m0_md_fom_readdir_ops = {
         .fo_addb_init = m0_md_fom_addb_init
 };
 
-#ifdef XXX_DB5
 static const struct m0_fom_ops m0_md_fom_layout_ops = {
 	.fo_home_locality = m0_md_req_fom_locality_get,
 	.fo_tick   = m0_md_tick_layout,
 	.fo_fini   = m0_md_req_fom_fini,
 	.fo_addb_init = m0_md_fom_addb_init
 };
-#endif
-
 
 M0_INTERNAL int m0_md_rep_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				     struct m0_reqh *reqh)
@@ -1691,12 +1685,10 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		ops = &m0_md_fom_readdir_ops;
 		rep_fopt = &m0_fop_readdir_rep_fopt;
 		break;
-#ifdef XXX_DB5
 	 case M0_LAYOUT_OPCODE:
 		ops = &m0_md_fom_layout_ops;
 		rep_fopt = &m0_fop_layout_rep_fopt;
 		break;
-#endif
 	default:
 		m0_free(fom_obj);
 		return -EOPNOTSUPP;

@@ -347,7 +347,7 @@ M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
                                  .xt        = m0_fop_readdir_rep_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
                 M0_FOP_TYPE_INIT(&m0_fop_layout_rep_fopt,
-                                 .name      = "layout reply",
+                                 .name      = "Layout reply",
                                  .opcode    = M0_LAYOUT_REP_OPCODE,
                                  .xt        = m0_fop_layout_rep_xc,
                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);

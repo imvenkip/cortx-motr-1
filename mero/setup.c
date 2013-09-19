@@ -1342,7 +1342,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 			  .rhia_db        = NULL,
 			  .rhia_mdstore   = &rctx->rc_mdstore,
 			  .rhia_fol       = NULL,
-			  .rhia_svc       = (void*)1);
+			  .rhia_svc       = NULL);
 	if (rc != 0)
 		goto out;
 
