@@ -2092,7 +2092,6 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	 */
 	if (use_genders && profile != NULL)
 		M0_RETERR(-EPROTO, "genders use conflicts with confd profile");
-#if 0 // XXX_BE_DB
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
 		bool global_daemonize = cctx->cc_daemon;
@@ -2119,7 +2118,6 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
 				 NULL, NULL, NULL, &use_genders);
 	}
-#endif
 	if (rc == 0 && use_genders)
 		rc = -EINVAL;
 	M0_RETURN(rc);
