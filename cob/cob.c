@@ -64,6 +64,20 @@ enum {
 	M0_COB_EA_MAX   = 4096
 };
 
+struct m0_cob_tables {
+	struct m0_be_btree             **tree;
+	const struct m0_be_btree_kv_ops *ops;
+	const char                      *prefix;
+	char                             name[32];
+};
+
+#define M0_COB_TABLES(tables, dom) struct m0_cob_tables (tables)[] = {	    \
+	{ .tree=&dom->cd_namespace,      .ops=&cob_ns_ops,  .prefix="ns" }, \
+	{ .tree=&dom->cd_object_index,   .ops=&cob_oi_ops,  .prefix="oi" }, \
+	{ .tree=&dom->cd_fileattr_basic, .ops=&cob_fab_ops, .prefix="fb" }, \
+	{ .tree=&dom->cd_fileattr_omg,   .ops=&cob_omg_ops, .prefix="fo" }, \
+	{ .tree=&dom->cd_fileattr_ea,	 .ops=&cob_ea_ops,  .prefix="ea" }, \
+}
 /**
    Storage virtual root. All cobs are placed in it.
  */
@@ -111,6 +125,18 @@ M0_INTERNAL int m0_cob_mod_init(void)
 M0_INTERNAL void m0_cob_mod_fini(void)
 {
 	m0_addb_ctx_fini(&m0_cob_mod_ctx);
+}
+
+static void cob_domain__table_name_fill(struct m0_cob_tables *tables, size_t nr,
+					const struct m0_cob_domain_id *cid)
+{
+	size_t i;
+
+	for (i = 0; i < nr; ++i) {
+		M0_PRE(strlen(tables[i].prefix) == 2);
+		snprintf(tables[i].name, ARRAY_SIZE(tables[i].name),
+			 "%s:%016lX", tables[i].prefix, cid->id);
+	}
 }
 
 M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
@@ -454,22 +480,13 @@ int
 m0_cob_domain_init(struct m0_cob_domain *dom,
 		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
 {
-	struct {
-		struct m0_be_btree             **tree;
-		const struct m0_be_btree_kv_ops *ops;
-		const char                      *name;
-	} tables[] = {
-		{ &dom->cd_namespace,      &cob_ns_ops  , "ns" },
-		{ &dom->cd_object_index,   &cob_oi_ops  , "oi" },
-		{ &dom->cd_fileattr_basic, &cob_fab_ops , "fb" },
-		{ &dom->cd_fileattr_omg,   &cob_omg_ops , "fo" },
-		{ &dom->cd_fileattr_ea,    &cob_ea_ops  , "ea" },
-	};
+	M0_COB_TABLES(tables, dom);
 	int i;
 	int tables_read;
 	int rc;
 
 	M0_PRE(id->id != 0);
+	cob_domain__table_name_fill(tables, ARRAY_SIZE(tables), id);
 
 	dom->cd_id    = *id;
 	dom->cd_dbenv = seg;
@@ -501,17 +518,7 @@ M0_EXPORTED(m0_cob_domain_fini);
 
 int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
-	struct {
-		struct m0_be_btree             **tree;
-		const struct m0_be_btree_kv_ops *ops;
-		const char                      *name;
-	} tables[] = {
-		{ &dom->cd_namespace,      &cob_ns_ops  , "ns" },
-		{ &dom->cd_object_index,   &cob_oi_ops  , "oi" },
-		{ &dom->cd_fileattr_basic, &cob_fab_ops , "fb" },
-		{ &dom->cd_fileattr_omg,   &cob_omg_ops , "fo" },
-		{ &dom->cd_fileattr_ea,    &cob_ea_ops  , "ea" },
-	};
+	M0_COB_TABLES(tables, dom);
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_op        op;
 	struct m0_be_tx       *tx;
@@ -521,6 +528,7 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	int rc;
 
 	M0_PRE(seg != NULL);
+	cob_domain__table_name_fill(tables, ARRAY_SIZE(tables), &dom->cd_id);
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
@@ -578,23 +586,15 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 
 int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
-	struct {
-		struct m0_be_btree             **tree;
-		const struct m0_be_btree_kv_ops *ops;
-		const char                      *name;
-	} tables[] = {
-		{ &dom->cd_namespace,      &cob_ns_ops  , "ns" },
-		{ &dom->cd_object_index,   &cob_oi_ops  , "oi" },
-		{ &dom->cd_fileattr_basic, &cob_fab_ops , "fb" },
-		{ &dom->cd_fileattr_omg,   &cob_omg_ops , "fo" },
-		{ &dom->cd_fileattr_ea,    &cob_ea_ops  , "ea" },
-	};
+	M0_COB_TABLES(tables, dom);
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_op        op;
 	struct m0_be_tx       *tx;
 	struct m0_be_seg      *seg = dom->cd_dbenv;
 	int i;
 	int rc;
+
+	cob_domain__table_name_fill(tables, ARRAY_SIZE(tables), &dom->cd_id);
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
