@@ -34,19 +34,27 @@
 /**
  * Panic function.
  */
-void m0_panic(const char *expr, const char *func, const char *file, int lineno)
+void m0_panic(const char *expr, const char *func, const char *file, int lineno,
+	      const char *fmt, ...)
 {
-	const struct m0_build_info *bi;
-
 	static int repanic = 0;
+	va_list    ap;
 
-	bi = m0_build_info_get();
+	struct m0_panic_ctx c = {
+		.pc_expr   = expr,
+		.pc_func   = func,
+		.pc_file   = file,
+		.pc_lineno = lineno,
+		.pc_bi     = m0_build_info_get(),
+	};
 
 	if (repanic++ == 0) {
-		M0_LOG(M0_FATAL, "panic: %s %s() (%s:%i) %s [git: %s]",
-		       expr, func, file, lineno, m0_failed_condition ?: "",
-		       bi->bi_git_describe);
-		m0_arch_panic(expr, func, file, lineno, bi->bi_git_describe);
+		M0_LOG(M0_FATAL, "panic: %s at %s() (%s:%i) %s [git: %s]",
+		       c.pc_expr, c.pc_func, c.pc_file, c.pc_lineno,
+		       m0_failed_condition ?: "", c.pc_bi->bi_git_describe);
+		va_start(ap, fmt);
+		m0_arch_panic(&c, fmt, ap);
+		va_end(ap);
 	} else {
 		/* The death of God left the angels in a strange position. */
 		while (true) {

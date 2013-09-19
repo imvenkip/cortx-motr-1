@@ -1055,11 +1055,11 @@ static void client_bds_send(struct node_bulk_ctx *ctx,
 	/* Message buffer was taken from unused list */
 	bool			   msg_taken;
 	/* Message buffer index, makes sense iff (msg_taken) */
-	size_t			   msg_index;
+	size_t			   msg_index = 0;
 	/* Number of buffer descriptors in selected message buffer */
-	size_t			   msg_bd_nr;
-	struct buf_status_ping	  *msg_bs;
-	m0_bcount_t		   msg_offset;
+	size_t			   msg_bd_nr = 0;
+	struct buf_status_ping	  *msg_bs = 0;
+	m0_bcount_t		   msg_offset = 0;
 	m0_bcount_t		   len;
 	bool			   buf_last;
 	int			   rc;

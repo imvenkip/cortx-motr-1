@@ -23,6 +23,8 @@
 #ifndef __MERO_LIB_ASSERT_H__
 #define __MERO_LIB_ASSERT_H__
 
+#include <stdarg.h>   /* va_list */
+
 /**
    @defgroup assert Assertions, pre-conditions, post-conditions, invariants.
 
@@ -42,24 +44,63 @@
 #define M0_ASSERT_EX_ON (0)
 #endif
 
-void m0_panic(const char *expr, const char *func, const char *file, int lineno)
-	__attribute__((noreturn));
+/**
+ * Panic context
+ */
+struct m0_panic_ctx {
+	/**
+	 * Panic message, usually it's a failed condition, which "triggers"
+	 * panic.
+	 */
+	const char                  *pc_expr;
+	/** Name of a function, which calls m0_panic(), i.e. __func__ */
+	const char                  *pc_func;
+	/** Name of a file, i.e. __FILE__ */
+	const char                  *pc_file;
+	/** Line number, i.e. __LINE__ */
+	int                          pc_lineno;
+	/** Build information */
+	const struct m0_build_info  *pc_bi;
+};
 
-M0_INTERNAL void m0_arch_panic(const char *expr, const char *func,
-			       const char *file, int lineno, const char *gitrev)
+/**
+ * Display panic message and abort program execution.
+ *
+ * @param expr    Failed expression
+ * @param func    Name of a function, which calls m0_panic(), i.e. __func__
+ * @param file    Name of a file, i.e. __FILE__
+ * @param lineno  Line number, i.e. __LINE__
+ * @param fmt     Additional informational message with printf(3) like
+ *                formatting, which will be displayed after the failed condition
+ *                and can be used as an explanation of why condition has failed
+ */
+void m0_panic(const char *expr, const char *func, const char *file, int lineno,
+	      const char *fmt, ...)
+	__attribute__((noreturn)) __attribute__((format(printf, 5, 6)));
+
+M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *context,
+			       const char *fmt, va_list ap)
 	__attribute__((noreturn));
 
 void m0_backtrace(void);
 M0_INTERNAL void m0_arch_backtrace(void);
 
 /**
-   A macro to assert that a condition is true. If condition is true, M0_ASSERT()
-   does nothing. Otherwise it emits a diagnostics message and terminates the
-   system. The message and the termination method are platform dependent.
+ * The same as M0_ASSERT macro, but this version allows to specify additional
+ * informational message with printf(3) like formatting, which will be displayed
+ * after the failed condition and can be used as an explanation of why condition
+ * has failed.
  */
-#define M0_ASSERT(cond) \
-        (M0_ASSERT_OFF || (cond) ? (void)0 : \
-	    m0_panic(#cond, __func__, __FILE__, __LINE__))
+#define M0_ASSERT_INFO(cond, fmt, ...) \
+	(M0_ASSERT_OFF || (cond) ? (void)0 : \
+		m0_panic(#cond, __func__, __FILE__, __LINE__, fmt, ##__VA_ARGS__))
+
+/**
+ * A macro to assert that a condition is true. If condition is true, M0_ASSERT()
+ * does nothing. Otherwise it emits a diagnostics message and terminates the
+ * system. The message and the termination method are platform dependent.
+ */
+#define M0_ASSERT(cond)  M0_ASSERT_INFO((cond), " ")
 
 /**
  * The same as M0_ASSERT macro, but this version is disabled (optimized out) if
@@ -70,6 +111,15 @@ M0_INTERNAL void m0_arch_backtrace(void);
 ({					\
 	if (M0_ASSERT_EX_ON)		\
 		M0_ASSERT(cond);	\
+})
+
+/**
+ * A hybrid of M0_ASSERT_INFO() and M0_ASSERT_EX().
+ */
+#define M0_ASSERT_INFO_EX(cond, fmt, ...)			\
+({								\
+	if (M0_ASSERT_EX_ON)					\
+		M0_ASSERT_INFO((cond), (fmt), ##__VA_ARGS__);	\
 })
 
 /**

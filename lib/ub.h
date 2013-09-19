@@ -31,8 +31,7 @@
    @{
  */
 
-#define M0_UB_ASSERT(cond) \
-        ((cond) ? (void)0 : m0_panic(#cond, __func__, __FILE__, __LINE__))
+#define M0_UB_ASSERT(cond)  M0_ASSERT(cond)
 
 /**
  * Structure to define a unit benchmark.

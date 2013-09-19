@@ -1285,7 +1285,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 {
 	struct m0_confx_obj *flat;
 	uint32_t             i;
-	int                  rc;
+	int                  rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(resp->fr_rc == 0);

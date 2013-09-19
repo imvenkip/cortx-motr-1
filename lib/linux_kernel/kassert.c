@@ -25,19 +25,30 @@
  */
 
 #include <linux/kernel.h>         /* pr_emerg */
+#include <linux/string.h>         /* strcmp */
 
 #include "lib/assert.h"           /* m0_failed_condition */
+#include "mero/version.h"         /* m0_build_info */
 
 void m0_arch_backtrace()
 {
 }
 
-void m0_arch_panic(const char *expr, const char *func,
-		   const char *file, int lineno, const char *gitrev)
+M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c,
+			       const char *fmt, va_list ap)
 {
 	pr_emerg("Mero panic: %s at %s() %s:%i (last failed: %s) [git: %s]\n",
-		 expr, func, file, lineno, m0_failed_condition ?: "none",
-		 gitrev);
+		 c->pc_expr, c->pc_func, c->pc_file, c->pc_lineno,
+		 m0_failed_condition ?: "none", c->pc_bi->bi_git_describe);
+	/*
+	 * if additional format string is empty (contains only single space
+	 * character) don't display it
+	 */
+	if (strcmp(fmt, " ") != 0) {
+		pr_emerg("Mero panic reason: ");
+		vprintk(fmt, ap);
+		pr_emerg("\n");
+	}
 	BUG();
 }
 

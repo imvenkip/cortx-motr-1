@@ -222,10 +222,10 @@ M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
 			snprintf(buf, sizeof buf,
 				"Unit test assertion failed: %s", str_c);
 			buf[(sizeof buf) - 1] = '\0';
-			m0_panic(buf, func, file, lno);
+			m0_panic(buf, func, file, lno, " ");
 		}
-		printk(KERN_ERR "Unit test assertion failed: %s at %s:%d\n",
-				str_c, file, lno);
+		pr_err("Unit test assertion failed: %s at %s:%d\n",
+		       str_c, file, lno);
 		failed++;
 	} else
 		passed++;
