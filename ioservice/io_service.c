@@ -536,8 +536,11 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		rc = m0_cob_domain_init(cdom, reqh->rh_beseg, &cdom_id);
 		if (rc != 0 && rc != -ENOENT)
 			goto reqh_fini;
-		if (rc == -ENOENT)
+		if (rc == -ENOENT) {
+			m0_sm_group_lock(grp);
 			rc = m0_cob_domain_create(cdom, grp);
+			m0_sm_group_unlock(grp);
+		}
 		if (rc != 0)
 			goto cdom_fini;
 
