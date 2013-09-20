@@ -72,7 +72,7 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 	 * failed spare unit. Caller of this API should guarantee this
 	 * precondition.
 	 */
-        M0_PRE(m0_pdclust_unit_classify(pl, unit_number) != M0_PUT_SPARE);
+        //M0_PRE(m0_pdclust_unit_classify(pl, unit_number) != M0_PUT_SPARE);
 
         rc = device_index_get(fid, pl, group_number, unit_number,
 			      &device_index);

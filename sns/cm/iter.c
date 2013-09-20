@@ -507,6 +507,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		if (rc != 0) {
 			if (rc == -ENOBUFS)
 				iter_phase_set(it, ITPH_AG_SETUP);
+			else if (rc == -EREMOTE) {
+				rc = M0_FSO_AGAIN;
+				goto out;
+			}
 			M0_RETURN(rc);
 		}
 	}

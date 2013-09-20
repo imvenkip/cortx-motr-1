@@ -233,10 +233,13 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 {
 	struct m0_sns_cm    *scm = cm2sns(rag->rag_base.sag_base.cag_cm);
 	struct m0_sns_cm_ag *sag = &rag->rag_base;
+	struct m0_dbenv     *dbenv = scm->sc_it.si_dbenv;
+	struct m0_cob_domain *cdom = scm->sc_it.si_cob_dom;
 	uint64_t             tgt_unit;
 	uint64_t             fidx = 0;
 	int                  i;
 	int                  rc = 0;
+	bool                 discard_group = false;
 
 	M0_PRE(fmap != NULL);
 	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl)));
@@ -244,13 +247,29 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	for (i = 0; i < fmap->b_nr; ++i) {
 		if (!m0_bitmap_get(fmap, i))
 			continue;
+		if (m0_sns_cm_unit_is_spare(scm, pl, i))
+			continue;
+		discard_group = false;
 		tgt_unit = repair_ag_target_unit(sag, pl,
 						 scm->sc_it.si_fdata[fidx],
 						 i);
+		M0_LOG(M0_FATAL, "target_unit: [%lu]", tgt_unit);
 		rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl,
 					       &rag->rag_fc[fidx].fc_tgt_cobfid);
 		if (rc != 0)
 			return rc;
+		if (sag->sag_base.cag_has_incoming && sag->sag_base.cag_cp_local_nr == 0) {
+			rc = m0_sns_cm_cob_locate(dbenv, cdom,
+						  &rag->rag_fc[fidx].fc_tgt_cobfid);
+			if (rc == -ENOENT) {
+				M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] [%d]",
+					sag->sag_base.cag_id.ai_hi.u_hi, sag->sag_base.cag_id.ai_hi.u_lo,
+					sag->sag_base.cag_id.ai_lo.u_hi, sag->sag_base.cag_id.ai_lo.u_lo,
+					sag->sag_base.cag_has_incoming);
+				discard_group = true;
+			} else if (rc != 0)
+				return rc;
+		}
 		rag->rag_fc[fidx].fc_failed_idx = i;
 		rag->rag_fc[fidx].fc_tgt_idx = tgt_unit;
 		rag->rag_fc[fidx].fc_tgt_cob_index =
@@ -259,6 +278,8 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 	}
 
 	M0_POST(fidx == sag->sag_fnr);
+	if (discard_group)
+		rc = -EREMOTE;
 
 	return rc;
 }

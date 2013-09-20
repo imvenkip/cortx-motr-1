@@ -166,7 +166,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 
-	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%d]",
+	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] [%d]",
 	       id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
 	       ag->cag_has_incoming);
 	if (lo != NULL && hi != NULL) {
@@ -184,7 +184,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	    cm->cm_aggr_grps_out_nr == 0)
 		cm->cm_ops->cmo_complete(cm);
 
-	M0_LOG(M0_DEBUG, "in: [%lu] %p out: [%lu] %p",
+	M0_LOG(M0_FATAL, "in: [%lu] %p out: [%lu] %p",
 	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
@@ -313,6 +313,8 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	rc = cm->cm_ops->cmo_ag_alloc(cm, id, has_incoming, out);
 	if (rc == 0 || rc == -ENOBUFS)
 		m0_cm_aggr_group_add(cm, *out, has_incoming);
+	else if (rc != 0 && rc != -EREMOTE)
+		return rc;
 
 	/*
 	 * Save the HI incoming aggregation group identifier.
@@ -354,8 +356,12 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 			if (ag == NULL) {
 				rc = m0_cm_aggr_group_alloc(cm, &next,
 							    true, &ag);
-				if (rc != 0)
-					break;
+				if (rc != 0) {
+					if (rc == -EREMOTE)
+						rc = 0;
+					else
+						break;
+				}
 			}
 			id = next;
 			M0_SET0(&next);

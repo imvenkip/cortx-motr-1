@@ -155,11 +155,15 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 		(int)cob_fid->f_container, (int)cob_fid->f_key);
 
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
-	if (rc == 0) {
-		M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
-		m0_cob_put(cob);
-	}
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx);
+	if (rc == 0 || rc == -ENOENT) {
+		if (rc == 0) {
+			M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
+			m0_cob_put(cob);
+		}
+		m0_db_tx_commit(&tx);
+	} //else
+	//	m0_db_tx_abort(&tx);
 
 	M0_RETURN(rc);
 }
@@ -242,7 +246,7 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 {
         return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE &&
 	       !m0_poolmach_sns_repair_spare_contains_data(scm->sc_base.cm_pm,
-							   unit);
+				unit - m0_pdclust_N(pl) - m0_pdclust_K(pl));
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,

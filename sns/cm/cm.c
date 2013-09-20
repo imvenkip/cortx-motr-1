@@ -751,9 +751,14 @@ static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
 {
 	int rc;
 
-	rc = m0_cob_ns_next_of(cdom->cd_namespace, fid_curr, fid_next);
-	if (rc == 0)
-		*fid_curr = *fid_next;
+	rc = m0_cob_ns_next_of(&cdom->cd_namespace, &tx, fid_curr,
+			       fid_next);
+	if (rc == 0 || rc == -ENOENT) {
+		m0_db_tx_commit(&tx);
+		if (rc == 0)
+			*fid_curr = *fid_next;
+	} //else
+	//	m0_db_tx_abort(&tx);
 
 	return rc;
 }

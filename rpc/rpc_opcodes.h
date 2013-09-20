@@ -152,32 +152,31 @@ enum M0_RPC_OPCODES {
         M0_MDSERVICE_DELXATTR_REP_OPCODE    = 83,
         M0_MDSERVICE_LISTXATTR_REP_OPCODE   = 84,
 
-	M0_SNS_REPAIR_TRIGGER_OPCODE        = 85,
-	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 86,
-	M0_SNS_REBALANCE_TRIGGER_OPCODE     = 87,
-	M0_SNS_REBALANCE_TRIGGER_REP_OPCODE = 88,
-
 	/* RPC UT */
-	M0_RPC_ARROW_OPCODE                 = 89,
+	M0_RPC_ARROW_OPCODE                 = 85,
 
 	/** Resource manager opcodes */
-	M0_RM_FOP_BORROW                    = 90,
-	M0_RM_FOP_BORROW_REPLY              = 91,
-	M0_RM_FOP_REVOKE                    = 92,
-	M0_RM_FOP_REVOKE_REPLY              = 93,
-	M0_RM_FOP_CANCEL                    = 94,
+	M0_RM_FOP_BORROW                    = 86,
+	M0_RM_FOP_BORROW_REPLY              = 87,
+	M0_RM_FOP_REVOKE                    = 88,
+	M0_RM_FOP_REVOKE_REPLY              = 89,
+	M0_RM_FOP_CANCEL                    = 90,
 
-	M0_LAYOUT_OPCODE                    = 95,
-	M0_LAYOUT_REP_OPCODE                = 96,
+	M0_LAYOUT_OPCODE                    = 91,
+	M0_LAYOUT_REP_OPCODE                = 92,
 
 	/* Request handler ut dummy opcode */
-	M0_REQH_UT_DUMMY_OPCODE             = 97,
+	M0_REQH_UT_DUMMY_OPCODE             = 93,
 
 	/* SNS copy packet. */
-	M0_SNS_CM_REPAIR_CP_OPCODE          = 98,
-	M0_SNS_CM_REPAIR_CP_REP_OPCODE      = 99,
-	M0_SNS_CM_REBALANCE_CP_OPCODE       = 100,
-	M0_SNS_CM_REBALANCE_CP_REP_OPCODE   = 101,
+	M0_SNS_CM_REPAIR_CP_OPCODE          = 94,
+	M0_SNS_CM_REPAIR_CP_REP_OPCODE      = 95,
+	M0_SNS_CM_REBALANCE_CP_OPCODE       = 96,
+	M0_SNS_CM_REBALANCE_CP_REP_OPCODE   = 97,
+	M0_SNS_REPAIR_TRIGGER_OPCODE        = 98,
+	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 99,
+	M0_SNS_REBALANCE_TRIGGER_OPCODE     = 100,
+	M0_SNS_REBALANCE_TRIGGER_REP_OPCODE = 101,
 
 	/* RPC UB */
 	M0_RPC_UB_REQ_OPCODE                = 102,

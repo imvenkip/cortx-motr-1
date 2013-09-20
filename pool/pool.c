@@ -439,15 +439,18 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REPAIRING:
-		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRED)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRED,
+					     M0_PNDS_FAILED)))
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REPAIRED:
-		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REBALANCING)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REBALANCING,
+					     M0_PNDS_FAILED)))
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REBALANCING:
-		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
+					     M0_PNDS_FAILED)))
 			return -EINVAL;
 		break;
 	default:
@@ -716,7 +719,9 @@ m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *p,
 					   uint32_t spare_slot)
 {
 	return p->pm_state.pst_spare_usage_array[spare_slot].psu_device_index !=
-	       POOL_PM_SPARE_SLOT_UNUSED;
+	       POOL_PM_SPARE_SLOT_UNUSED &&
+	       p->pm_state.pst_spare_usage_array[spare_slot].psu_device_state !=
+	       M0_PNDS_SNS_REPAIRING;
 }
 
 M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
