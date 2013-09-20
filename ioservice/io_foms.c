@@ -1687,7 +1687,8 @@ static int io_finish(struct m0_fom *fom)
 		     m0_time_sub(m0_time_now(),
 				 fom_obj->fcrw_phase_start_time));
         m0_stob_put(fom_obj->fcrw_stob);
-
+	M0_ASSERT(ergo(rc == 0,
+		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 	rc = fom_obj->fcrw_rc ?: rc;
         if (rc != 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
