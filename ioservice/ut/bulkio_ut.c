@@ -1060,37 +1060,28 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 
         struct m0_io_fom_cob_rw  *fom_obj;
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	if (m0_fom_phase(fom) < M0_FOPH_NR)
+		return m0_fom_tick_generic(fom);
         rwfop = io_rw_get(fom->fo_fop);
-
 	M0_UT_ASSERT(rwfop->crw_desc.id_nr == rwfop->crw_ivecs.cis_nr);
         io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 	reqh = m0_fom_reqh(fom);
         fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
 	M0_UT_ASSERT(fom_stdom != NULL);
 
-	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
-			&fom->fo_loc->fl_group);
 	m0_stob_create_helper_credit(fom_stdom, &stobid,
 			&fom->fo_tx.tx_betx_cred);
-	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);
-        M0_UT_ASSERT(rc == 0);
-
 	rc = m0_stob_create_helper(fom_stdom, &fom->fo_tx, &stobid,
 				  &fom_obj->fcrw_stob);
         M0_UT_ASSERT(rc == 0);
         M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
         M0_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_EXISTS);
 
-	rc = m0_dtx_done_sync(&fom->fo_tx);
-        M0_UT_ASSERT(rc == 0);
-
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
 	wrep->c_rep.rwr_count = rwfop->crw_ivecs.cis_nr;
-	rc = m0_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
-	M0_UT_ASSERT(rc == 0);
-	m0_fom_phase_set(fom, M0_FOPH_FINISH);
-	return M0_FSO_WAIT;
+	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+	return M0_FSO_AGAIN;
 }
 
 static void bulkio_stob_create_fom_addb_init(struct m0_fom *fom,
@@ -1221,7 +1212,8 @@ static void bulkio_stob_create(void)
 		 */
                 bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_ops =
 		&bulkio_stob_create_fomt_ops;
-
+                bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_conf =
+		&m0_generic_conf;
 		rw = io_rw_get(&bp->bp_wfops[i]->if_fop);
 		bp->bp_wfops[i]->if_fop.f_type->ft_ops =
 		&bulkio_stob_create_ops;
@@ -1257,6 +1249,7 @@ static void io_single_fop_submit(enum M0_RPC_OPCODES op)
 	 */
 	fop->f_type->ft_ops = &io_fop_rwv_ops;
         fop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+        fop->f_type->ft_fom_type.ft_conf = &io_conf;
 	io_fops_submit(0, op);
 }
 
@@ -1299,7 +1292,9 @@ static void bulkio_server_write_fol_rec_verify(void)
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
 
-	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
+	/* FOL record parts are 2 for AD stob type and 1 for LINUX stob type. */
+	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 1 ||
+		     dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
 	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
 		struct m0_fop_fol_rec_part *fp_part = dec_part->rp_data;
 
@@ -1356,7 +1351,8 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
 
-	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
+	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 1 ||
+		     dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
 	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
 		    m0_fop_fol_rec_part_type.rpt_index) {
