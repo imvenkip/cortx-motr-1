@@ -70,6 +70,7 @@ static void arch_backtrace_detailed(void)
 		waitpid(pid, NULL, 0);
 	} else if (pid == 0) {
 		/* child */
+		dup2(STDERR_FILENO, STDOUT_FILENO);
 		execlp("gdb", "gdb", "-batch", "-nx", "-ex", gdb_cmd,
 		       path_str, pid_str, NULL);
 		/* if execlp failed */
