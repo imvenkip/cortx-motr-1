@@ -47,3 +47,5 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
 			   be/tx_regmap.c 	\
 			   be/tx_service.c	\
                            be/ut/helper.c
+
+XC_FILES += be/extmap_xc.h
