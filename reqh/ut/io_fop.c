@@ -509,6 +509,22 @@ static void  stob_read_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
+static void fom_stob_write_credit(struct m0_fom *fom)
+{
+	struct m0_stob_io_write *in_fop;
+	struct m0_stob          *stobj;
+	uint32_t                 bshift;
+	m0_bcount_t              count;
+
+	in_fop = m0_fop_data(fom->fo_fop);
+	stobj = stob_object_find(&in_fop->fiw_object, fom);
+	bshift = stobj->so_op->sop_block_shift(stobj);
+	count = in_fop->fiw_value.fi_count >> bshift;
+	m0_stob_write_credit(stobj->so_domain, count,
+				&fom->fo_tx.tx_betx_cred);
+	m0_stob_put(stobj);
+}
+
 /**
  * A simple non blocking write fop specific fom
  * state method implemention.
@@ -534,17 +550,8 @@ static int stob_write_fom_tick(struct m0_fom *fom)
         stio = &fom_obj->sif_stio;
 
         if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-			in_fop = m0_fop_data(fom->fo_fop);
-			fom_obj->sif_stobj =
-				stob_object_find(&in_fop->fiw_object, fom);
-			stobj = fom_obj->sif_stobj;
-			bshift = stobj->so_op->sop_block_shift(stobj);
-			count = in_fop->fiw_value.fi_count >> bshift;
-			m0_stob_write_credit(stobj->so_domain, count,
-						&fom->fo_tx.tx_betx_cred);
-			m0_stob_put(fom_obj->sif_stobj);
-		}
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+			fom_stob_write_credit(fom);
                 result = m0_fom_tick_generic(fom);
         } else {
                 out_fop = m0_fop_data(fom_obj->sif_rep_fop);
