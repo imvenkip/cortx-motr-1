@@ -22,15 +22,18 @@
 #include "lib/trace.h"
 
 #ifdef HAVE_BACKTRACE
-#  include <execinfo.h>
+#  include <execinfo.h>		/* backtrace */
 #endif
-#include <stdio.h>       /* fprintf, fflush */
-#include <stdlib.h>      /* abort */
-#include <unistd.h>      /* fork, execvp */
+#include <sys/types.h>		/* waitpid */
+#include <sys/wait.h>		/* waitpid */
+#include <linux/limits.h>	/* PATH_MAX */
+#include <stdio.h>		/* fprintf */
+#include <stdlib.h>		/* abort */
+#include <unistd.h>		/* fork */
 #include "lib/errno.h"
 #include "lib/assert.h"
-#include "lib/misc.h"      /* ARRAY_SIZE */
-#include "mero/version.h"  /* m0_build_info */
+#include "lib/misc.h"		/* ARRAY_SIZE */
+#include "mero/version.h"	/* m0_build_info */
 
 /**
  * @addtogroup assert
@@ -43,17 +46,49 @@ enum { BACKTRACE_DEPTH_MAX = 256 };
 
 M0_EXTERN char *m0_debugger_args[4];
 
+static void arch_backtrace_detailed(void)
+{
+	const char *gdb_cmd = "thread apply all bt";
+	pid_t	    pid;
+	char	    pid_str[32];
+	char	    path_str[PATH_MAX];
+	ssize_t	    path_str_len;
+
+	fprintf(stderr, "Trying to recover detailed backtrace...\n");
+	fflush(stderr);
+
+	snprintf(pid_str, sizeof(pid_str), "%ld", (long) getpid());
+	path_str_len = readlink("/proc/self/exe",
+				path_str, sizeof(path_str) - 1);
+	if (path_str_len == -1)
+		return;
+	path_str[path_str_len] = '\0';
+
+	pid = fork();
+	if (pid > 0) {
+		/* parent */
+		waitpid(pid, NULL, 0);
+	} else if (pid == 0) {
+		/* child */
+		execlp("gdb", "gdb", "-batch", "-nx", "-ex", gdb_cmd,
+		       path_str, pid_str, NULL);
+		/* if execlp failed */
+		_exit(EXIT_SUCCESS);
+	} else {
+		/* fork() failed, nothing to do */
+	}
+}
+
 void m0_arch_backtrace(void)
 {
 #ifdef HAVE_BACKTRACE
-	{
-		void *trace[BACKTRACE_DEPTH_MAX];
-		int nr;
+	void	   *trace[BACKTRACE_DEPTH_MAX];
+	int	    nr;
 
-		nr = backtrace(trace, ARRAY_SIZE(trace));
-		backtrace_symbols_fd(trace, nr, 2);
-	}
+	nr = backtrace(trace, ARRAY_SIZE(trace));
+	backtrace_symbols_fd(trace, nr, STDERR_FILENO);
 #endif
+	arch_backtrace_detailed();
 }
 
 /**
