@@ -726,7 +726,6 @@ pre-all: check-sources-prebuild
 check-sources-prebuild:
 	@echo -n 'Checking source files... '
 	@$(top_srcdir)/scripts/check-sources --noisy $(top_srcdir)
-	@$(top_srcdir)/scripts/check-xlibri-traces $(top_srcdir)
 	@echo 'OK'
 
 -include $(XC_DEPS_FILE)
