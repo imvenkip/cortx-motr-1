@@ -106,7 +106,7 @@ void add_uts(void)
 	m0_ut_add(&be_ut);
 	m0_ut_add(&buffer_pool_ut);
 	m0_ut_add(&bulkio_client_ut);
-	m0_ut_add(&bulkio_server_ut); /* ad_rec_part_undo_redo_op() */
+	m0_ut_add(&bulkio_server_ut);
 	m0_ut_add(&capa_ut);
 	m0_ut_add(&cm_cp_ut);
 	m0_ut_add(&cm_generic_ut);

@@ -770,10 +770,12 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 	    io->fcrw_curr_desc_index > rwfop->crw_desc.id_nr)
 		return false;
 
-	if (io->fcrw_curr_ivec_index < 0 ||
+	/** @todo Will be added again after io fop ivecs are optimized. */
+	/*
+	if (io->fcrw_curr_ivec_index < 0) ||
 	    io->fcrw_curr_ivec_index > rwfop->crw_ivecs.cis_nr)
 		return false;
-
+	*/
 	if (!M0_CHECK_EX(m0_tlist_invariant(&netbufs_tl, &io->fcrw_netbuf_list)))
 		return false;
 
@@ -1748,6 +1750,10 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count;
+		/** @todo Will be removed after io fop ivecs are optimized to reduce
+		 * fol size. */
+		rwfop->crw_ivecs.cis_nr = 0;
+		rwfop->crw_ivecs.cis_ivecs = NULL;
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,
