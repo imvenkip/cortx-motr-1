@@ -48,6 +48,7 @@ M0_EXTERN char *m0_debugger_args[4];
 
 static void arch_backtrace_detailed(void)
 {
+	const char *gdb_path = "/usr/bin/gdb";
 	const char *gdb_cmd = "thread apply all bt";
 	pid_t	    pid;
 	char	    pid_str[32];
@@ -71,9 +72,9 @@ static void arch_backtrace_detailed(void)
 	} else if (pid == 0) {
 		/* child */
 		dup2(STDERR_FILENO, STDOUT_FILENO);
-		execlp("gdb", "gdb", "-batch", "-nx", "-ex", gdb_cmd,
-		       path_str, pid_str, NULL);
-		/* if execlp failed */
+		execl(gdb_path, gdb_path, "-batch", "-nx", "-ex", gdb_cmd,
+		      path_str, pid_str, NULL);
+		/* if execl() failed */
 		_exit(EXIT_SUCCESS);
 	} else {
 		/* fork() failed, nothing to do */
