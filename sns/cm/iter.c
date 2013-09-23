@@ -251,16 +251,18 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 
 	M0_ENTRY("it = %p", it);
 
-	rc = m0_cob_ns_iter_next(&it->si_cns_it, fid_next);
-        if (rc == 0 || rc == -ENOENT) {
-		M0_ADDB_POST(&m0_addb_gmc,
-			     &m0_addb_rt_sns_iter_next_gfid,
-			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
-			     fid_next->f_container, fid_next->f_key);
-	}
-        else {
-		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_FID_NEXT);
-	}
+	rc = m0_db_tx_init(&tx, it->si_dbenv, 0);
+	if (rc != 0)
+		return rc;
+	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
+        //if (rc == 0 || rc == -ENOENT) {
+	//	M0_ADDB_POST(&m0_addb_gmc,
+	//		     &m0_addb_rt_sns_iter_next_gfid,
+	//		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
+	//		     fid_next->f_container, fid_next->f_key);
+                m0_db_tx_commit(&tx);
+	//}
+
 	M0_RETURN(rc);
 }
 
@@ -507,10 +509,10 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		if (rc != 0) {
 			if (rc == -ENOBUFS)
 				iter_phase_set(it, ITPH_AG_SETUP);
-			else if (rc == -EREMOTE) {
-				rc = M0_FSO_AGAIN;
-				goto out;
-			}
+			//else if (rc == -EREMOTE) {
+			//	rc = M0_FSO_AGAIN;
+			//	goto out;
+			//}
 			M0_RETURN(rc);
 		}
 	}

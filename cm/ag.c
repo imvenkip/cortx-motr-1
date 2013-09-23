@@ -313,7 +313,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	rc = cm->cm_ops->cmo_ag_alloc(cm, id, has_incoming, out);
 	if (rc == 0 || rc == -ENOBUFS)
 		m0_cm_aggr_group_add(cm, *out, has_incoming);
-	else if (rc != 0 && rc != -EREMOTE)
+	else if (rc != 0) // && rc != -EREMOTE)
 		return rc;
 
 	/*
@@ -357,10 +357,10 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 				rc = m0_cm_aggr_group_alloc(cm, &next,
 							    true, &ag);
 				if (rc != 0) {
-					if (rc == -EREMOTE)
-						rc = 0;
-					else
-						break;
+					//if (rc == -EREMOTE)
+					//	rc = 0;
+					//else
+					break;
 				}
 			}
 			id = next;
