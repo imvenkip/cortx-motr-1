@@ -82,7 +82,6 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
 	remote.rem_state = REM_FREED;
 	m0_rm_remote_init(&remote, rm_test_data.rd_res);
 	m0_cookie_init(&remote.rem_cookie, &rm_test_data.rd_owner->ro_id);
-	test_loan->rl_other = &remote;
 	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit, &remote);
 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
 }
@@ -92,7 +91,11 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
  */
 static void request_param_fini(void)
 {
+	if (test_loan != NULL)
+		m0_rm_loan_fini(test_loan);
+	m0_rm_remote_fini(&remote);
 	m0_free(test_loan);
+	m0_rm_remote_fini(rm_test_data.rd_owner->ro_creditor);
 	m0_free(rm_test_data.rd_owner->ro_creditor);
 	rm_test_data.rd_owner->ro_creditor = NULL;
 }
@@ -215,17 +218,19 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
  */
 static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 {
-	int		    rc;
-	struct m0_rpc_item *item;
+	int		          rc;
+	struct m0_rpc_item       *item;
+	struct m0_rm_remote      *other;
 
 	request_param_init(reqtype);
 
-	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
+	m0_fi_enable_once("outgoing_queue", "no-rpc");
 	switch (reqtype) {
 	case M0_RIT_BORROW:
 		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
+		other = rm_test_data.rd_owner->ro_creditor;
 		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
-				       &rm_test_data.rd_credit);
+				       &rm_test_data.rd_credit, other);
 		M0_UT_ASSERT(rc == 0);
 		item = rm_reply_create(M0_RIT_BORROW, err);
 		reply_process(item);
@@ -238,7 +243,8 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 	case M0_RIT_REVOKE:
 		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
 		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
-				       test_loan, &test_loan->rl_credit);
+				       test_loan, &test_loan->rl_credit,
+				       &remote);
 		item = rm_reply_create(M0_RIT_REVOKE, err);
 		m0_rm_owner_lock(rm_test_data.rd_owner);
 		m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_sublet,
@@ -275,7 +281,7 @@ static void request_test(enum m0_rm_incoming_type reqtype)
 
 	request_param_init(reqtype);
 
-	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
+	m0_fi_enable_once("outgoing_queue", "no-rpc");
 	m0_rm_credit_init(&rest, rm_test_data.rd_owner);
 	rc = rest.cr_ops->cro_copy(&rest, &rm_test_data.rd_credit);
 	M0_UT_ASSERT(rc == 0);
@@ -283,12 +289,12 @@ static void request_test(enum m0_rm_incoming_type reqtype)
 	case M0_RIT_BORROW:
 		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
 		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
-				       &rest);
+				       &rest, &remote);
 		break;
 	case M0_RIT_REVOKE:
 		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
 		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
-				       test_loan, &rest);
+				       test_loan, &rest, &remote);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid RM-FOM type");
@@ -340,7 +346,10 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 {
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan   *loan;
+	struct rm_out       *outreq;
 
+	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
+	loan = &outreq->ou_req.rog_want;
 	/*
 	 * A borrow error leaves the owner lists unaffected.
 	 * If borrow succeeds, the owner lists are updated. Hence they
@@ -354,12 +363,14 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
 			credit) {
 		m0_rm_ur_tlink_del_fini(credit);
+		m0_rm_credit_fini(credit);
 		m0_free(credit);
 	} m0_tl_endfor;
 
 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_borrowed, credit) {
 		m0_rm_ur_tlink_del_fini(credit);
 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+		m0_rm_loan_fini(loan);
 		m0_free(loan);
 	} m0_tl_endfor;
 	m0_rm_owner_unlock(rm_test_data.rd_owner);
@@ -475,7 +486,10 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 {
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan   *loan;
+	struct rm_out       *outreq;
 
+	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
+	loan = &outreq->ou_req.rog_want;
 	/*
 	 * After a successful revoke, sublet credit is transferred to
 	 * OWOS_CACHED. Otherwise it remains in the sublet list.
@@ -487,6 +501,7 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 			  &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
 			  credit) {
 			m0_rm_ur_tlink_del_fini(credit);
+			m0_rm_credit_fini(credit);
 			m0_free(credit);
 		} m0_tl_endfor;
 	} else {
@@ -494,6 +509,7 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 			m0_rm_ur_tlink_del_fini(credit);
 			loan = bob_of(credit, struct m0_rm_loan,
 				      rl_credit, &loan_bob);
+			m0_rm_loan_fini(loan);
 			m0_free(loan);
 		} m0_tl_endfor;
 	}

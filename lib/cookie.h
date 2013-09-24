@@ -100,6 +100,12 @@ M0_INTERNAL bool m0_addr_is_sane(const uint64_t * addr);
 M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie);
 
 /**
+ * Compares two cookies.
+ */
+M0_INTERNAL bool m0_cookie_is_eq(const struct m0_cookie *cookie1,
+				 const struct m0_cookie *cookie2);
+
+/**
  * A macro to retrive address of a parent structure, associated with an object
  * embedded in a cookie.
  */

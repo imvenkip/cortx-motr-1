@@ -102,8 +102,10 @@ M0_INTERNAL int m0_rms_register(void)
 
 #undef RT_REG
 #define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_rm_##n)
+	RT_REG(local_rate);
 	RT_REG(borrow_rate);
 	RT_REG(revoke_rate);
+	RT_REG(local_times);
 	RT_REG(borrow_times);
 	RT_REG(revoke_times);
 	RT_REG(credit_times);
@@ -294,7 +296,14 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 				rc = -ENOMEM;
 				goto err_resource;
 			} else {
-				m0_rm_owner_init(owner, resource, NULL);
+				/*
+				 * RM service does not belong to any group at
+				 * the moment. If we change this assumption,
+				 * we need to introduce function to source
+				 * the group id.
+				 */
+				m0_rm_owner_init(owner, &m0_rm_no_group,
+						 resource, NULL);
 
 				RM_ALLOC_PTR(ow_cr, OWNER_CREDIT_ALLOC,
 					     &m0_rm_addb_ctx);

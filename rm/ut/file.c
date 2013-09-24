@@ -55,11 +55,8 @@ static int clnt_counter;
 static int srv_counter;
 
 /* Maximum test servers for this testcase */
-static enum rm_server test_servers_nr;
-
-static struct m0_chan flock_tests_chan;
+static enum rm_server  test_servers_nr;
 static struct m0_clink tests_clink[LOCK_TESTS_NR];
-static struct m0_mutex flock_tests_chan_mutex;
 
 /*
  * m0_file_lock_type_register registers a single type
@@ -117,7 +114,7 @@ static void fl_owner_set(struct rm_ut_data *self)
 	M0_ALLOC_PTR(owner);
 	M0_UT_ASSERT(owner != NULL);
 	flock = container_of(self->rd_res, struct m0_file, fi_res);
-	m0_file_owner_init(owner, flock, NULL);
+	m0_file_owner_init(owner, &m0_rm_no_group, flock, NULL);
 	self->rd_owner = owner;
 }
 
@@ -402,7 +399,7 @@ static void client_tests(void)
 	client_lock_test();
 
 	/* Begin next test */
-	m0_chan_signal_lock(&flock_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	m0_chan_wait(&tests_clink[DISTRIBUTED_LOCK_TEST]);
 
 	client_dlock_run();
@@ -415,7 +412,7 @@ static void server_tests(void)
 	test_verify(LOCK_ON_SERVER_TEST);
 
 	/* Begin next test */
-	m0_chan_signal_lock(&flock_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	srv_dlock_run();
 }
 
@@ -446,10 +443,12 @@ static void rm_server_start(const int tid)
 static void server_hier_config(void)
 {
 	rm_ctx[SERVER_1].creditor_id = SERVER_2;
-	rm_ctx[SERVER_1].debtor_id = SERVER_INVALID;
+	rm_ctx[SERVER_1].debtor_id[0] = SERVER_INVALID;
+	rm_ctx[SERVER_1].rc_debtors_nr = 1;
 
 	rm_ctx[SERVER_2].creditor_id = SERVER_INVALID;
-	rm_ctx[SERVER_2].debtor_id = SERVER_1;
+	rm_ctx[SERVER_2].debtor_id[0] = SERVER_1;
+	rm_ctx[SERVER_2].rc_debtors_nr = 1;
 }
 
 static void flock_utinit(void)
@@ -462,12 +461,12 @@ static void flock_utinit(void)
 		rm_ctx_config(i);
 
 	server_hier_config();
-	m0_mutex_init(&flock_tests_chan_mutex);
-	m0_chan_init(&flock_tests_chan, &flock_tests_chan_mutex);
+	m0_mutex_init(&rm_ut_tests_chan_mutex);
+	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
 	/* Set up test sync points */
 	for (i = 0; i < LOCK_TESTS_NR; ++i) {
 		m0_clink_init(&tests_clink[i], NULL);
-		m0_clink_add_lock(&flock_tests_chan, &tests_clink[i]);
+		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[i]);
 	}
 }
 
@@ -499,8 +498,8 @@ static void flock_utfini(void)
 		m0_clink_del_lock(&tests_clink[i]);
 		m0_clink_fini(&tests_clink[i]);
 	}
-	m0_chan_fini_lock(&flock_tests_chan);
-	m0_mutex_fini(&flock_tests_chan_mutex);
+	m0_chan_fini_lock(&rm_ut_tests_chan);
+	m0_mutex_fini(&rm_ut_tests_chan_mutex);
 }
 
 void flock_test(void)
@@ -517,7 +516,7 @@ void flock_test(void)
 	}
 
 	/* Now start the tests - wait till all the servers are ready */
-	m0_chan_signal_lock(&flock_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	for (i = 0; i < test_servers_nr; ++i) {
 		m0_thread_join(&rm_ctx[i].rc_thr);
 		m0_thread_fini(&rm_ctx[i].rc_thr);

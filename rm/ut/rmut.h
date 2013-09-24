@@ -66,6 +66,19 @@ enum flock_tests {
 	LOCK_TESTS_NR,
 };
 
+enum group_tests {
+	/* A group of debtors borrowing the same credit */
+	GROUP_BORROW_TEST1 = 0,
+	GROUP_BORROW_TEST2,
+	/*
+	 * A stand-alone debtor borrowing a credit other than the group credit.
+	 */
+	STAND_ALONE_BORROW_TEST,
+	/* Revoking a credit from a group of debtors */
+	GROUP_REVOKE_TEST,
+	GROUP_TESTS_NR,
+};
+
 /* Forward declaration */
 struct rm_ut_data;
 
@@ -108,8 +121,9 @@ struct rm_context {
 	struct m0_rpc_session      rc_sess[SERVER_NR];
 	struct m0_clink           *rc_rev_sess_wait;
 	struct rm_ut_data          rc_test_data;
+	uint32_t                   rc_debtors_nr;
 	enum rm_server             creditor_id;
-	enum rm_server             debtor_id;
+	enum rm_server             debtor_id[SERVER_NR - 1];
 };
 
 /*
@@ -119,6 +133,9 @@ extern struct rm_ut_data     rm_test_data;
 M0_EXTERN struct rm_context  rm_ctx[];
 M0_EXTERN const char        *serv_addr[];
 M0_EXTERN const int          cob_ids[];
+M0_EXTERN const char        *db_name[];
+M0_EXTERN struct m0_chan     rm_ut_tests_chan;
+M0_EXTERN struct m0_mutex    rm_ut_tests_chan_mutex;
 M0_EXTERN const char        *db_name[];
 
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);

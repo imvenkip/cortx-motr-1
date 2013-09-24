@@ -80,27 +80,44 @@ enum {
 	M0_RM_ADDB_LOC_RESOURCE_LOCATE_FAIL = 34,
 
 	/* Resource manager record identifiers */
-	M0_ADDB_RECID_RM_BORROW_RATE        = 1600,
-	M0_ADDB_RECID_RM_REVOKE_RATE        = 1601,
-	M0_ADDB_RECID_RM_BORROW_TIMES       = 1602,
-	M0_ADDB_RECID_RM_REVOKE_TIMES       = 1603,
-	M0_ADDB_RECID_RM_CREDIT_TIMES       = 1604,
+	M0_ADDB_RECID_RM_LOCAL_RATE         = 1600,
+	M0_ADDB_RECID_RM_BORROW_RATE        = 1601,
+	M0_ADDB_RECID_RM_REVOKE_RATE        = 1602,
+	M0_ADDB_RECID_RM_LOCAL_TIMES        = 1603,
+	M0_ADDB_RECID_RM_BORROW_TIMES       = 1604,
+	M0_ADDB_RECID_RM_REVOKE_TIMES       = 1605,
+	M0_ADDB_RECID_RM_CREDIT_TIMES       = 1606,
 };
 
-/* Counter for Number of borrows and revokes */
+/**
+ * @todo local_rate and local_time counters are only initialised,
+ * update them appropriately.
+ */
+
+/* Counter for Number of local requests, borrows and revokes */
+M0_ADDB_RT_CNTR(m0_addb_rt_rm_local_rate, M0_ADDB_RECID_RM_LOCAL_RATE,
+		100, 200, 300, 400, 500, 600, 700, 800, 900);
+
 M0_ADDB_RT_CNTR(m0_addb_rt_rm_borrow_rate, M0_ADDB_RECID_RM_BORROW_RATE,
 		100, 200, 300, 400, 500, 600, 700, 800, 900);
 
 M0_ADDB_RT_CNTR(m0_addb_rt_rm_revoke_rate, M0_ADDB_RECID_RM_REVOKE_RATE,
 		100, 200, 300, 400, 500, 600, 700, 800, 900);
 
-/* Counter for timing required to perform borrow or revokes */
+/* Counter for timing required to perform local requests, borrow or revokes */
+M0_ADDB_RT_CNTR(m0_addb_rt_rm_local_times,  M0_ADDB_RECID_RM_LOCAL_TIMES,
+		100, 200, 300, 400, 500, 600, 700, 800, 900);
+
 M0_ADDB_RT_CNTR(m0_addb_rt_rm_borrow_times,  M0_ADDB_RECID_RM_BORROW_TIMES,
 		100, 200, 300, 400, 500, 600, 700, 800, 900);
 
 M0_ADDB_RT_CNTR(m0_addb_rt_rm_revoke_times,  M0_ADDB_RECID_RM_REVOKE_TIMES,
 		100, 200, 300, 400, 500, 600, 700, 800, 900);
 
+/**
+ * Time for which credit was held
+ * T(m0_rm_credit_put) - T(m0_rm_credit_get)
+ */
 M0_ADDB_RT_CNTR(m0_addb_rt_rm_credit_times,  M0_ADDB_RECID_RM_CREDIT_TIMES,
 		100, 200, 300, 400, 500, 600, 700, 800, 900);
 

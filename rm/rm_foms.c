@@ -56,7 +56,7 @@ static int    cancel_fom_create(struct m0_fop *fop, struct m0_fom **out,
 static void   cancel_fom_fini(struct m0_fom *fom);
 static int    borrow_fom_tick(struct m0_fom *);
 static int    revoke_fom_tick(struct m0_fom *);
-static int    process_cancel(struct m0_fom *fom);
+static int    cancel_process(struct m0_fom *fom);
 static int    cancel_fom_tick(struct m0_fom *);
 static size_t locality(const struct m0_fom *fom);
 
@@ -228,7 +228,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 		fom_ops = &rm_fom_borrow_ops;
 		break;
 	case FRT_REVOKE:
-		fopt = &m0_fop_generic_reply_fopt;
+		fopt = &m0_rm_fop_revoke_rep_fopt;
 		fom_ops = &rm_fom_revoke_ops;
 		break;
 	case FRT_CANCEL:
@@ -291,7 +291,8 @@ static size_t locality(const struct m0_fom *fom)
 static int reply_prepare(const enum m0_rm_incoming_type type,
 			 struct m0_fom *fom)
 {
-	struct m0_rm_fop_borrow_rep *reply_fop;
+	struct m0_rm_fop_borrow_rep *breply_fop;
+	struct m0_rm_fop_revoke_rep *rreply_fop;
 	struct rm_request_fom       *rfom;
 	struct m0_rm_loan	    *loan;
 	int			     rc = 0;
@@ -301,11 +302,11 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 
 	switch (type) {
 	case FRT_BORROW:
-		reply_fop = m0_fop_data(fom->fo_rep_fop);
-		reply_fop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
+		breply_fop = m0_fop_data(fom->fo_rep_fop);
+		breply_fop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
 
 		/*
-		 * Get the loan pointer, for processing reply, from the cookie.
+		 * Get the loan pointer from the cookie to process the reply.
 		 * It's safe to access loan as this get called when
 		 * m0_credit_get() succeeds. Hence the loan cookie is valid.
 		 */
@@ -313,12 +314,17 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 				    struct m0_rm_loan, rl_id);
 
 		M0_ASSERT(loan != NULL);
-		reply_fop->br_creditor_cookie = loan->rl_other->rem_cookie;
+		breply_fop->br_creditor_cookie =
+			 rfom->rf_in.ri_rem_owner_cookie;
 		/*
 		 * Memory for the buffer is allocated by the function.
 		 */
 		rc = m0_rm_credit_encode(&loan->rl_credit,
-					 &reply_fop->br_credit.cr_opaque);
+					 &breply_fop->br_credit.cr_opaque);
+		break;
+	case FRT_REVOKE:
+		rreply_fop = m0_fop_data(fom->fo_rep_fop);
+		rreply_fop->rr_debtor_cookie = rfom->rf_in.ri_rem_owner_cookie;
 		break;
 	default:
 		break;
@@ -333,24 +339,28 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 			 struct m0_fom *fom, int rc)
 {
 	struct m0_rm_fop_borrow_rep *bfop;
-	struct m0_fop_generic_reply *rfop = NULL;
+	struct m0_rm_fop_revoke_rep *rfop;
+	struct m0_fop_generic_reply *reply_fop = NULL;
 
 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
 
 	switch (type) {
 	case FRT_BORROW:
 		bfop = m0_fop_data(fom->fo_rep_fop);
-		rfop = &bfop->br_rc;
+		reply_fop = &bfop->br_rc;
 		break;
 	case FRT_REVOKE:
-	case FRT_CANCEL:
 		rfop = m0_fop_data(fom->fo_rep_fop);
+		reply_fop = &rfop->rr_rc;
+		break;
+	case FRT_CANCEL:
+		reply_fop = m0_fop_data(fom->fo_rep_fop);
 		break;
 	default:
 		M0_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
-	rfop->gr_rc = rc;
+	reply_fop->gr_rc = rc;
 	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	M0_LEAVE();
 }
@@ -368,8 +378,8 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 
 	if (fom->fo_fop->f_item.ri_session != NULL) {
 		remote->rem_session = m0_rpc_service_reverse_session_lookup(
-					    &fom->fo_service->rs_rpc_svc,
-					    &fom->fo_fop->f_item);
+					&fom->fo_service->rs_rpc_svc,
+					&fom->fo_fop->f_item);
 		if (remote->rem_session == NULL) {
 			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
 				     &m0_rm_addb_ctx);
@@ -419,6 +429,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		 */
 		/* Possibly M0_COOKIE_NULL */
 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
+		rfom->rf_in.ri_group_id = bfop->bo_group_id;
 		break;
 
 	case FRT_REVOKE:
@@ -466,6 +477,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 	rc = m0_rm_credit_decode(&in->rin_want, buf);
 	if (rc != 0)
 		m0_rm_incoming_fini(in);
+	in->rin_want.cr_group_id = rfom->rf_in.ri_group_id;
 
 	M0_RETURN(rc);
 }
@@ -548,7 +560,7 @@ static int request_fom_tick(struct m0_fom           *fom,
 		switch (m0_fom_phase(fom)) {
 		case FOPH_RM_REQ_START:
 			if (type == FRT_CANCEL)
-				rc = process_cancel(fom);
+				rc = cancel_process(fom);
 			else
 				rc = request_pre_process(fom, type);
 			break;
@@ -593,13 +605,14 @@ static int revoke_fom_tick(struct m0_fom *fom)
 	return request_fom_tick(fom, FRT_REVOKE);
 }
 
-static int process_cancel(struct m0_fom *fom)
+static int cancel_process(struct m0_fom *fom)
 {
-	struct m0_rm_fop_cancel *cfop;
-	struct rm_request_fom	*rfom;
-	struct m0_rm_loan       *loan;
-	struct m0_clink         *clink;
-	int			 rc = 0;
+	struct m0_rm_fop_cancel  *cfop;
+	struct rm_request_fom	 *rfom;
+	struct m0_rm_loan        *loan;
+	struct m0_rm_owner       *owner;
+	struct m0_clink          *clink;
+	int			  rc = 0;
 
 	cfop = m0_fop_data(fom->fo_fop);
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
@@ -608,12 +621,14 @@ static int process_cancel(struct m0_fom *fom)
 			    struct m0_rm_loan, rl_id);
 	M0_ASSERT(loan != NULL);
 	M0_ASSERT(loan->rl_other != NULL);
+
+	owner = loan->rl_credit.cr_owner;
 	clink = &loan->rl_other->rem_rev_sess_clink;
 	if (m0_clink_is_armed(clink)) {
 		m0_clink_del_lock(clink);
 		m0_clink_fini(clink);
 	}
-	rc = _sublet_remove(&loan->rl_credit);
+	rc = m0_rm_loan_settle(owner, loan);
 
 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
 	reply_err_set(FRT_CANCEL, fom, rc);

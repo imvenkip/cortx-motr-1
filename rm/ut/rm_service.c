@@ -40,23 +40,12 @@ static char *server_argv[] = {
 };
 
 extern struct m0_reqh_service_type      m0_rms_type;
-extern struct rm_context                rm_ctx[SERVER_NR];
-extern const char                      *serv_addr[];
-extern const int                        cob_ids[];
-extern const struct m0_rm_incoming_ops  server2_incoming_ops;
-extern struct m0_chan                   rr_tests_chan;
-extern struct m0_mutex                  rr_tests_chan_mutex;
-extern struct m0_clink                  tests_clink[];
 
 static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
 static struct rm_context  *server_ctx  = &rm_ctx[SERVER_1];
 static struct rm_context  *client_ctx  = &rm_ctx[SERVER_2];
+static struct m0_clink     tests_clink[TEST_NR];
 
-extern void rm_ctx_init(struct rm_context *rmctx);
-extern void rm_ctx_fini(struct rm_context *rmctx);
-extern void rm_connect(struct rm_context *src, const struct rm_context *dest);
-extern void rm_disconnect(struct rm_context *src,
-			  const struct rm_context *dest);
 extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
 
 enum {
@@ -98,13 +87,13 @@ static void rm_svc_server(const int tid)
 	rm_service_start(&sctx);
 
 	/* Signal client that server is now up and running */
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	/* Stay alive till client runs its test cases */
 	m0_chan_wait(&tests_clink[SERVER_2]);
 
 	rm_service_stop(&sctx);
 	/* Tell client that I am done */
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 }
 
 static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
@@ -115,7 +104,7 @@ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
 	struct m0_rm_incoming  in;
 
 	m0_file_init(file, fid, &rm_test_data.rd_dom);
-	m0_file_owner_init(owner, file, NULL);
+	m0_file_owner_init(owner, &m0_rm_no_group, file, NULL);
 	owner->ro_creditor = creditor;
 	m0_file_lock(owner, &in);
 	m0_rm_owner_lock(owner);
@@ -158,7 +147,7 @@ static void rm_client(const int tid)
 	m0_clink_init(&client_ctx->rc_clink, NULL);
 
 	/* Connect to end point of SERVER_1 */
-	rm_connect(client_ctx, server_ctx);
+	rm_ctx_connect(client_ctx, server_ctx);
 
 	M0_SET0(&file1);
 	M0_SET0(&file2);
@@ -201,10 +190,10 @@ static void rm_client(const int tid)
 	 */
 	test_flock(&owner, &file2, &fids[1], creditor, false);
 
-	rm_disconnect(client_ctx, server_ctx);
+	rm_ctx_disconnect(client_ctx, server_ctx);
 
 	/* Tell server to stop */
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	/* Wait for server to stop */
 	m0_chan_wait(&tests_clink[SERVER_1]);
 
@@ -243,17 +232,17 @@ void rmsvc(void)
 {
 	int rc;
 
-	m0_mutex_init(&rr_tests_chan_mutex);
-	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
+	m0_mutex_init(&rm_ut_tests_chan_mutex);
+	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
 
-	for (rc = 0; rc < 2; ++rc) {
+	for (rc = 0; rc <= 1; ++rc) {
 		M0_SET0(&rm_ctx[rc]);
 		rm_ctx[rc].rc_id = rc;
 		rm_ctx[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
 		rm_ctx[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
 		rm_ctx[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
 		m0_clink_init(&tests_clink[rc], NULL);
-		m0_clink_add_lock(&rr_tests_chan, &tests_clink[rc]);
+		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[rc]);
 	}
 
 	/* Start the server */
@@ -271,13 +260,13 @@ void rmsvc(void)
 	m0_thread_fini(&server_ctx->rc_thr);
 	m0_thread_fini(&client_ctx->rc_thr);
 
-	for (rc = 0; rc < 2; ++rc) {
+	for (rc = 0; rc <= 1; ++rc) {
 		m0_clink_del_lock(&tests_clink[rc]);
 		m0_clink_fini(&tests_clink[rc]);
 	}
 
-	m0_chan_fini_lock(&rr_tests_chan);
-	m0_mutex_fini(&rr_tests_chan_mutex);
+	m0_chan_fini_lock(&rm_ut_tests_chan);
+	m0_mutex_fini(&rm_ut_tests_chan_mutex);
 }
 
 /*

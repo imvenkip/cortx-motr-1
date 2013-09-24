@@ -95,6 +95,7 @@ struct m0_rm_fop_req {
 struct m0_rm_fop_borrow {
 	struct m0_rm_fop_req   bo_base;
 	struct m0_rm_fop_owner bo_creditor;
+	struct m0_uint128      bo_group_id;
 } M0_XCA_RECORD;
 
 struct m0_rm_fop_borrow_rep {
@@ -116,8 +117,20 @@ struct m0_rm_fop_revoke {
 	struct m0_rm_fop_loan fr_loan;
 } M0_XCA_RECORD;
 
+struct m0_rm_fop_revoke_rep {
+	struct m0_fop_generic_reply rr_rc;
+	/**
+	 * Debtor sends its own cookie.
+	 * This is useful for the creditor to identify the debtor.
+	 * It's necessary to identify the debtor when a loan has been
+	 * given to many debtors belonging to the same group.
+	 */
+	struct m0_cookie            rr_debtor_cookie;
+} M0_XCA_RECORD;
+
 struct m0_rm_fop_cancel {
 	struct m0_rm_fop_loan fc_loan;
+	struct m0_cookie      fc_debtor_cookie;
 } M0_XCA_RECORD;
 
 /**
@@ -126,6 +139,7 @@ struct m0_rm_fop_cancel {
 extern struct m0_fop_type m0_rm_fop_borrow_fopt;
 extern struct m0_fop_type m0_rm_fop_borrow_rep_fopt;
 extern struct m0_fop_type m0_rm_fop_revoke_fopt;
+extern struct m0_fop_type m0_rm_fop_revoke_rep_fopt;
 extern struct m0_fop_type m0_rm_fop_cancel_fopt;
 extern struct m0_fop_type m0_fop_generic_reply_fopt;
 

@@ -38,17 +38,18 @@ enum m0_file_credit {
  * (and CANCEL in future).
  */
 struct m0_rm_remote_incoming {
-	struct m0_rm_incoming  ri_incoming;
+	struct m0_rm_incoming ri_incoming;
 	/**
 	 * Cookie of local owner sent by the remote end.
 	 * This is used for locality determination.
 	 */
-	struct m0_cookie       ri_owner_cookie;
+	struct m0_cookie      ri_owner_cookie;
 	/**
 	 * Cookie of remote owner sent by the remote end.
 	 */
-	struct m0_cookie       ri_rem_owner_cookie;
-	struct m0_cookie       ri_loan_cookie;
+	struct m0_cookie      ri_rem_owner_cookie;
+	struct m0_cookie      ri_loan_cookie;
+	struct m0_uint128     ri_group_id;
 };
 
 /**
@@ -134,7 +135,8 @@ int m0_rm_resource_owner_find(const struct m0_rm_resource *resource,
 M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 				  struct m0_rm_incoming *in,
 				  struct m0_rm_loan *loan,
-				  struct m0_rm_credit *credit);
+				  struct m0_rm_credit *credit,
+				  struct m0_rm_remote *remote);
 
 /**
  * Initialises the fields of for incoming structure.
@@ -156,11 +158,11 @@ M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
 M0_INTERNAL void m0_rm_outgoing_fini(struct m0_rm_outgoing *out);
 
 /**
- * Initialise the loan
+ * Initialises the loan
  */
-M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
+M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
 				const struct m0_rm_credit *credit,
-				struct m0_rm_remote *creditor);
+				struct m0_rm_remote       *creditor);
 
 /**
  * Finalise the lona. Release ref count of remote owner.
@@ -168,16 +170,27 @@ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
 M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan);
 
 /**
- * Initialise the loan
+ * Allocates and initialises the loan
  *
  * @param loan - On success, this will contain an allocated and initialised
  *               loan strucutre
  * @param credit - the credits for which loan is being allocated/created.
- * @param creditor - Remote resource owner.
  */
-M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
-				 const struct m0_rm_credit *credit,
-				 struct m0_rm_remote *creditor);
+M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan         **loan,
+				 const struct m0_rm_credit  *credit,
+				 struct m0_rm_remote        *creditor);
+
+/**
+ * Debits (removes) a loan (borrowed or sublet) from a given list.
+ */
+M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
+				       struct m0_rm_loan  *paid_loan,
+				       struct m0_tl       *list);
+/**
+ * Pays back the loan. Removes the sublet loan and refreshes the credit cache.
+ */
+M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
+				  struct m0_rm_loan  *loan);
 
 /**
  * Called when an outgoing request completes (possibly with an error, like a
@@ -186,23 +199,13 @@ M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
 M0_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
 
 /**
- * Removes partial or full sublet matching the credit from the owner's sublet
- * list.
- */
-int _sublet_remove(struct m0_rm_credit *credit);
-
-/**
- * Removes partial or full credit from owners borrowed list
- */
-int _borrowed_remove(struct m0_rm_credit *credit);
-
-/**
  * Establish a reverse session to facilitate sending revoke requests
  */
 M0_INTERNAL int
 m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			  struct m0_rm_remote          *remote);
 
+M0_INTERNAL void m0_rm_rev_session_wait(struct m0_rm_remote *remote);
 /** @} end of rm-fop interface. */
 
 /**

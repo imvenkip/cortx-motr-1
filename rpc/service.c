@@ -373,10 +373,15 @@ m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
 		goto err_ep;
 	}
 	strcpy(revc->rcf_rem_ep, rem_ep);
+	M0_ALLOC_PTR(revc->rcf_sess);
+	if (revc->rcf_sess == NULL) {
+		rc = -ENOMEM;
+		goto err_ep;
+	}
+	revc->rcf_sess = session;
 
-	revc->rcf_sess    = session;
 	revc->rcf_rpcmach = item->ri_rmachine;
-	revc->rcf_ft      = M0_REV_CONNECT;
+	revc->rcf_ft = M0_REV_CONNECT;
 	m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type, &rev_conn_fom_ops,
 		    NULL, NULL, reqhsvc->rs_reqh, reqhsvc->rs_type);
 

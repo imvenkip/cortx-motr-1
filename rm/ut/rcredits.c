@@ -24,30 +24,9 @@
 #include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
 
-const char *db_name[] = {"ut-rm-cob_1",
-			 "ut-rm-cob_2",
-			 "ut-rm-cob_3"
-};
-
-/*
- * Hierarchy description:
- * SERVER_1 is downward debtor for SERVER_2.
- * SERVER_2 is upward creditor for SERVER_1 and downward debtor for SERVER_3.
- * SERVER_3 is upward creditor for SERVER_2.
- */
-const char *serv_addr[] = { "0@lo:12345:34:1",
-			    "0@lo:12345:34:2",
-			    "0@lo:12345:34:3"
-};
-
-const int cob_ids[] = { 20, 30, 40 };
 /* Maximum test servers for this testcase */
-static enum rm_server test_servers_nr;
-
-struct m0_chan    rr_tests_chan;
-struct m0_clink   tests_clink[TEST_NR];
-struct rm_context rm_ctx[SERVER_NR];
-struct m0_mutex   rr_tests_chan_mutex;
+static enum rm_server  test_servers_nr;
+static struct m0_clink tests_clink[TEST_NR];
 
 static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
 {
@@ -59,7 +38,7 @@ static void server1_in_conflict(struct m0_rm_incoming *in)
 {
 }
 
-const struct m0_rm_incoming_ops server1_incoming_ops = {
+static const struct m0_rm_incoming_ops server1_incoming_ops = {
 	.rio_complete = server1_in_complete,
 	.rio_conflict = server1_in_conflict
 };
@@ -74,7 +53,7 @@ static void server2_in_conflict(struct m0_rm_incoming *in)
 {
 }
 
-const struct m0_rm_incoming_ops server2_incoming_ops = {
+static const struct m0_rm_incoming_ops server2_incoming_ops = {
 	.rio_complete = server2_in_complete,
 	.rio_conflict = server2_in_conflict
 };
@@ -89,7 +68,7 @@ static void server3_in_conflict(struct m0_rm_incoming *in)
 {
 }
 
-const struct m0_rm_incoming_ops server3_incoming_ops = {
+static const struct m0_rm_incoming_ops server3_incoming_ops = {
 	.rio_complete = server3_in_complete,
 	.rio_conflict = server3_in_conflict
 };
@@ -159,7 +138,7 @@ static void server1_tests(void)
 	test2_verify();
 	m0_clink_del_lock(&rm_ctx[SERVER_1].rc_clink);
 
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 }
 
 static void test3_verify(void)
@@ -260,7 +239,7 @@ static void server2_tests(void)
 	test1_verify();
 
 	/* Begin next test */
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 
 	m0_chan_wait(&tests_clink[TEST3]);
 	test3_run();
@@ -268,7 +247,7 @@ static void server2_tests(void)
 	m0_clink_del_lock(&rm_ctx[SERVER_2].rc_clink);
 
 	/* Begin next test */
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 }
 
 static void test4_run(void)
@@ -287,6 +266,7 @@ static void test4_run(void)
 	m0_rm_owner_fini(so3);
 	M0_SET0(rm_ctx[SERVER_3].rc_test_data.rd_owner);
 	m0_rm_owner_init(rm_ctx[SERVER_3].rc_test_data.rd_owner,
+			 &m0_rm_no_group,
 			 rm_ctx[SERVER_3].rc_test_data.rd_res,
 			 NULL);
 }
@@ -298,44 +278,6 @@ static void server3_tests(void)
 			  &rm_ctx[SERVER_3].rc_clink);
 	test4_run();
 	m0_clink_del_lock(&rm_ctx[SERVER_3].rc_clink);
-}
-
-void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest)
-{
-	struct m0_net_end_point *ep;
-	int		         rc;
-
-	/*
-	 * Create a local end point to communicate with remote server.
-	 */
-	rc = m0_net_end_point_create(&ep,
-				     &src->rc_rmach_ctx.rmc_rpc.rm_tm,
-				     dest->rc_rmach_ctx.rmc_ep_addr);
-	M0_UT_ASSERT(rc == 0);
-	src->rc_ep[dest->rc_id] = ep;
-
-	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
-				ep, &src->rc_rmach_ctx.rmc_rpc, 15,
-				M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
-				   &src->rc_conn[dest->rc_id], 1,
-				   M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-}
-
-void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest)
-{
-	int rc;
-
-	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id], M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id], M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
 }
 
 static void rm_server_start(const int tid)
@@ -361,18 +303,24 @@ static void rm_server_start(const int tid)
 }
 
 /*
- * Configure server hierarchy.
+ * Hierarchy description:
+ * SERVER_1 is downward debtor for SERVER_2.
+ * SERVER_2 is upward creditor for SERVER_1 and downward debtor for SERVER_3.
+ * SERVER_3 is upward creditor for SERVER_2.
  */
 static void server_hier_config(void)
 {
 	rm_ctx[SERVER_1].creditor_id = SERVER_2;
-	rm_ctx[SERVER_1].debtor_id = SERVER_INVALID;
+	rm_ctx[SERVER_1].debtor_id[0] = SERVER_INVALID;
+	rm_ctx[SERVER_1].rc_debtors_nr = 1;
 
 	rm_ctx[SERVER_2].creditor_id = SERVER_3;
-	rm_ctx[SERVER_2].debtor_id = SERVER_1;
+	rm_ctx[SERVER_2].debtor_id[0] = SERVER_1;
+	rm_ctx[SERVER_2].rc_debtors_nr = 1;
 
 	rm_ctx[SERVER_3].creditor_id = SERVER_INVALID;
-	rm_ctx[SERVER_3].debtor_id = SERVER_2;
+	rm_ctx[SERVER_3].debtor_id[0] = SERVER_2;
+	rm_ctx[SERVER_3].rc_debtors_nr = 1;
 }
 
 static void remote_credits_utinit(void)
@@ -384,12 +332,12 @@ static void remote_credits_utinit(void)
 		rm_ctx_config(i);
 
 	server_hier_config();
-	m0_mutex_init(&rr_tests_chan_mutex);
-	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
+	m0_mutex_init(&rm_ut_tests_chan_mutex);
+	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
 	/* Set up test sync points */
 	for (i = 0; i < TEST_NR; ++i) {
 		m0_clink_init(&tests_clink[i], NULL);
-		m0_clink_add_lock(&rr_tests_chan, &tests_clink[i]);
+		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[i]);
 	}
 }
 
@@ -417,8 +365,8 @@ static void remote_credits_utfini(void)
 		m0_clink_del_lock(&tests_clink[i]);
 		m0_clink_fini(&tests_clink[i]);
 	}
-	m0_chan_fini_lock(&rr_tests_chan);
-	m0_mutex_fini(&rr_tests_chan_mutex);
+	m0_chan_fini_lock(&rm_ut_tests_chan);
+	m0_mutex_fini(&rm_ut_tests_chan_mutex);
 }
 
 void remote_credits_test(void)
@@ -435,7 +383,7 @@ void remote_credits_test(void)
 	}
 
 	/* Now start the tests - wait till all the servers are ready */
-	m0_chan_signal_lock(&rr_tests_chan);
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	for (i = 0; i < test_servers_nr; ++i) {
 		m0_thread_join(&rm_ctx[i].rc_thr);
 		m0_thread_fini(&rm_ctx[i].rc_thr);

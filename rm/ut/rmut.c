@@ -19,6 +19,7 @@
  */
 
 #include "lib/memory.h"
+#include "lib/cookie.h"
 #include "lib/misc.h"
 #include "ut/ut.h"
 #include "lib/ub.h"
@@ -29,10 +30,24 @@
 
 extern const struct m0_tl_descr m0_remotes_tl;
 
+const char *db_name[] = {"ut-rm-cob_1",
+			 "ut-rm-cob_2",
+			 "ut-rm-cob_3"
+};
+
+const char *serv_addr[] = { "0@lo:12345:34:1",
+			    "0@lo:12345:34:2",
+			    "0@lo:12345:34:3"
+};
+
+const int cob_ids[] = { 20, 30, 40 };
 /*
  * Test variable(s)
  */
 struct rm_ut_data rm_test_data;
+struct rm_context rm_ctx[SERVER_NR];
+struct m0_chan    rm_ut_tests_chan;
+struct m0_mutex   rm_ut_tests_chan_mutex;
 
 extern void rm_api_test(void);
 extern void local_credits_test(void);
@@ -40,6 +55,7 @@ extern void remote_credits_test(void);
 extern void rm_fom_funcs_test(void);
 extern void rm_fop_funcs_test(void);
 extern void flock_test(void);
+extern void rm_group_test(void);
 extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
 extern void m0_remotes_tlist_del(struct m0_rm_remote *other);
 extern void rmsvc(void);
@@ -178,7 +194,7 @@ void rm_ctx_fini(struct rm_context *rmctx)
 	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
 }
 
-void rm_connect(struct rm_context *src, const struct rm_context *dest)
+void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest)
 {
 	struct m0_net_end_point *ep;
 	int		         rc;
@@ -203,7 +219,7 @@ void rm_connect(struct rm_context *src, const struct rm_context *dest)
 	M0_UT_ASSERT(rc == 0);
 }
 
-void rm_disconnect(struct rm_context *src, const struct rm_context *dest)
+void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest)
 {
 	int rc;
 
@@ -222,7 +238,9 @@ void rm_ctx_server_start(enum rm_server srv_id)
 	struct m0_rm_owner  *owner;
 	struct rm_ut_data   *data = &rm_ctx[srv_id].rc_test_data;
 	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
-	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
+	enum rm_server	     debtr_id;
+	uint32_t             debtors_nr = rm_ctx[srv_id].rc_debtors_nr;
+	uint32_t             i;
 
 	rm_utdata_init(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
 	owner = rm_ctx[srv_id].rc_test_data.rd_owner;
@@ -242,8 +260,11 @@ void rm_ctx_server_start(enum rm_server srv_id)
 	} else
 		rm_test_owner_capital_raise(data->rd_owner, &data->rd_credit);
 
-	if (debt_id != SERVER_INVALID)
-		rm_ctx_connect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
+	for (i = 0; i < debtors_nr; ++i) {
+		debtr_id = rm_ctx[srv_id].debtor_id[i];
+		if (debtr_id != SERVER_INVALID)
+			rm_ctx_connect(&rm_ctx[srv_id], &rm_ctx[debtr_id]);
+	}
 
 }
 
@@ -266,27 +287,37 @@ void rm_ctx_server_windup(enum rm_server srv_id)
 void rm_ctx_server_stop(enum rm_server srv_id)
 {
 	enum rm_server cred_id = rm_ctx[srv_id].creditor_id;
-	enum rm_server debt_id = rm_ctx[srv_id].debtor_id;
+	enum rm_server debtr_id;
+	uint32_t       debtors_nr = rm_ctx[srv_id].rc_debtors_nr;
+	uint32_t       i;
 
 	if (cred_id != SERVER_INVALID)
 		rm_ctx_disconnect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
-	if (debt_id != SERVER_INVALID)
-		rm_ctx_disconnect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
+	for (i = 0; i < debtors_nr; ++i) {
+		debtr_id = rm_ctx[srv_id].debtor_id[i];
+		if (debtr_id != SERVER_INVALID)
+			rm_ctx_disconnect(&rm_ctx[srv_id], &rm_ctx[debtr_id]);
+	}
 }
 
 void loan_session_set(enum rm_server csrv_id,
 		      enum rm_server dsrv_id)
 {
-	struct m0_rm_owner *owner = rm_ctx[csrv_id].rc_test_data.rd_owner;
-	struct m0_rm_loan  *loan;
+	struct m0_rm_owner  *owner = rm_ctx[csrv_id].rc_test_data.rd_owner;
+	struct m0_rm_loan   *loan;
 	struct m0_rm_credit *credit;
+	struct m0_rm_remote *remote;
+	struct m0_cookie     dcookie;
 
 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_sublet));
 	m0_tl_for(m0_rm_ur, &owner->ro_sublet, credit) {
 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
-		M0_UT_ASSERT(loan != NULL && loan->rl_other != NULL);
-		loan->rl_other->rem_session =
-			&rm_ctx[csrv_id].rc_sess[dsrv_id];
+		M0_UT_ASSERT(loan != NULL);
+		m0_cookie_init(&dcookie,
+			       &rm_ctx[dsrv_id].rc_test_data.rd_owner->ro_id);
+		remote = loan->rl_other;
+		if (m0_cookie_is_eq(&dcookie, &remote->rem_cookie))
+			remote->rem_session = &rm_ctx[csrv_id].rc_sess[dsrv_id];
 	} m0_tl_endfor;
 }
 
@@ -297,7 +328,6 @@ void creditor_cookie_setup(enum rm_server dsrv_id,
 	struct m0_rm_owner *owner = rm_ctx[dsrv_id].rc_test_data.rd_owner;
 
 	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
-
 }
 
 const struct m0_test_suite rm_ut = {
@@ -311,6 +341,7 @@ const struct m0_test_suite rm_ut = {
 		{ "rcredits", remote_credits_test },
 		{ "rmsvc", rmsvc },
 		{ "flock", flock_test },
+		{ "group", rm_group_test },
 #endif
 		{ NULL, NULL }
 	}

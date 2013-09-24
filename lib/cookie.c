@@ -46,6 +46,12 @@
  * @{
  */
 
+#ifdef __KERNEL__
+#include <linux/string.h>
+#else
+#include <string.h>
+#endif
+
 #include "lib/types.h"
 #include "lib/errno.h" /* -EPROTO */
 #include "lib/cookie.h"
@@ -111,6 +117,12 @@ M0_INTERNAL bool m0_cookie_is_null(const struct m0_cookie cookie)
 {
 	return cookie.co_generation == M0_COOKIE_NULL.co_generation &&
 		cookie.co_addr == M0_COOKIE_NULL.co_addr;
+}
+
+M0_INTERNAL bool m0_cookie_is_eq(const struct m0_cookie *cookie1,
+				 const struct m0_cookie *cookie2)
+{
+	return memcmp(cookie1, cookie2, sizeof *cookie1) == 0;
 }
 
 M0_INTERNAL void m0_cookie_global_fini(void)

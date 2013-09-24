@@ -236,6 +236,8 @@ static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
 	m0_cookie_init(&brw_fop->bo_base.rrq_owner.ow_cookie,
 		       &rm_test_data.rd_owner->ro_id);
 	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
+	brw_fop->bo_group_id = M0_UINT128(0, 0);
+
 	switch (test) {
 	case RM_UT_FULL_CREDITS_TEST:
 	case RM_UT_MEMFAIL_TEST:
@@ -255,7 +257,7 @@ static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
 static void brw_test_cleanup(void)
 {
 	struct m0_rm_credit *credit;
-	struct m0_rm_loan  *loan;
+	struct m0_rm_loan   *loan;
 
 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_sublet, credit) {
 		m0_rm_ur_tlink_del_fini(credit);
@@ -467,7 +469,6 @@ static void rvk_test_cleanup(void)
 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_borrowed, credit) {
 		m0_rm_ur_tlink_del_fini(credit);
 		loan = container_of(credit, struct m0_rm_loan, rl_credit);
-		remote = loan->rl_other;
 		m0_rm_loan_fini(loan);
 		m0_free(loan);
 	} m0_tl_endfor;

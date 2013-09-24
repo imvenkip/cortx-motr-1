@@ -299,7 +299,7 @@ static void rings_owner_set(struct rm_ut_data *self)
 
 	M0_ALLOC_PTR(owner);
 	M0_ASSERT(owner != NULL);
-	m0_rm_owner_init(owner, self->rd_res, NULL);
+	m0_rm_owner_init(owner, &m0_rm_no_group, self->rd_res, NULL);
 	self->rd_owner = owner;
 }
 

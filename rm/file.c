@@ -481,11 +481,12 @@ M0_INTERNAL void m0_file_fini(struct m0_file *file)
 }
 M0_EXPORTED(m0_file_fini);
 
-M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner  *owner,
-				    struct m0_file      *file,
-				    struct m0_rm_remote *creditor)
+M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner      *owner,
+				    const struct m0_uint128 *grp_id,
+				    struct m0_file          *file,
+				    struct m0_rm_remote     *creditor)
 {
-	m0_rm_owner_init(owner, &file->fi_res, creditor);
+	m0_rm_owner_init(owner, grp_id, &file->fi_res, creditor);
 }
 M0_EXPORTED(m0_file_owner_init);
 
