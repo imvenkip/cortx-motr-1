@@ -1728,7 +1728,7 @@ static void stob_write_credit(struct m0_fom *fom)
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_io_indexvec    wire_ivec;
 	struct m0_stob_domain	*fom_stdom;
-	m0_bcount_t		 count;
+	m0_bcount_t		 count = 0;
 	int			 i;
 	int			 j;
 
@@ -1756,6 +1756,7 @@ static void stob_write_credit(struct m0_fom *fom)
 		for (j = 0; j < wire_ivec.ci_nr; j++)
 			count += wire_ivec.ci_iosegs[j].ci_count >> bshift;
 	}
+	M0_LOG(M0_DEBUG, "blocks=%d", (int)count);
 	m0_stob_write_credit(fom_stdom, count, &fom->fo_tx.tx_betx_cred);
 }
 
