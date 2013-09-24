@@ -513,14 +513,10 @@ static void fom_stob_write_credit(struct m0_fom *fom)
 {
 	struct m0_stob_io_write *in_fop;
 	struct m0_stob          *stobj;
-	uint32_t                 bshift;
-	m0_bcount_t              count;
 
 	in_fop = m0_fop_data(fom->fo_fop);
 	stobj = stob_object_find(&in_fop->fiw_object, fom);
-	bshift = stobj->so_op->sop_block_shift(stobj);
-	count = in_fop->fiw_value.fi_count >> bshift;
-	m0_stob_write_credit(stobj->so_domain, count,
+	m0_stob_write_credit(stobj->so_domain, 1,
 				&fom->fo_tx.tx_betx_cred);
 	m0_stob_put(stobj);
 }

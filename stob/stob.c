@@ -105,11 +105,11 @@ m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id)
 
 
 M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
-				      m0_bcount_t             size,
+				      m0_bcount_t             nr,
 				      struct m0_be_tx_credit *accum)
 {
 	if (dom->sd_ops->sdo_write_credit != NULL)
-		dom->sd_ops->sdo_write_credit(dom, size, accum);
+		dom->sd_ops->sdo_write_credit(dom, nr, accum);
 }
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
@@ -224,16 +224,16 @@ M0_INTERNAL void m0_stob_create_credit(struct m0_stob *obj,
 
 M0_INTERNAL void m0_stob_get(struct m0_stob *obj)
 {
-	M0_ENTRY();
+	M0_ENTRY("stob=%p", obj);
 	m0_atomic64_inc(&obj->so_ref);
-	M0_LEAVE("ref: %lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
+	M0_LEAVE("ref=%lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
 }
 
 M0_INTERNAL void m0_stob_put(struct m0_stob *obj)
 {
 	struct m0_stob_domain *dom;
 
-	M0_ENTRY("ref: %lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
+	M0_ENTRY("stob=%p", obj);
 
 	dom = obj->so_domain;
 	m0_rwlock_write_lock(&dom->sd_guard);
@@ -241,7 +241,7 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *obj)
 		obj->so_op->sop_fini(obj);
 	m0_rwlock_write_unlock(&dom->sd_guard);
 
-	M0_LEAVE();
+	M0_LEAVE("ref=%lu", (unsigned long)m0_atomic64_get(&obj->so_ref));
 }
 
 static void m0_stob_io_private_fini(struct m0_stob_io *io)

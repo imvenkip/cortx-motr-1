@@ -1431,36 +1431,40 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	return result;
 }
 
-static void ad_write_credit(struct ad_domain *dom, m0_bcount_t sz,
+static void ad_write_credit(struct ad_domain *dom, m0_bcount_t nr,
 			    struct m0_be_tx_credit *acc)
 {
-	sz >>= dom->ad_babshift;
-
+	M0_ENTRY("nr=%d cred=[%d:%d]", (int)nr,
+		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 	if (dom->ad_ballroom->ab_ops->bo_alloc_credit != NULL)
-		dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom, sz,
+		dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom, nr,
 							  acc);
-	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, sz, acc);
+	M0_LOG(M0_DEBUG, "after bo_alloc: cred=[%d:%d]",
+		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
+	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, nr, acc);
+	M0_LOG(M0_DEBUG, "after emap_cred: cred=[%d:%d]",
+		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 
 	if (dom->ad_ballroom->ab_ops->bo_free_credit != NULL)
 		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom, 3,
 							 acc);
+	M0_LEAVE("cred=[%d:%d]", (int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 }
 
 /**
    Implementation of m0_stob_domain_op::sdo_write_credit().
  */
 static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
-					m0_bcount_t             size,
+					m0_bcount_t             nr,
 					struct m0_be_tx_credit *accum)
 {
 	struct ad_domain     *adom    = domain2ad(dom);
 
 	M0_PRE(adom->ad_setup);
 	M0_PRE(dom->sd_type == &m0_ad_stob_type);
-	M0_PRE(size > 0);
 
-	ad_write_credit(adom, size, accum);
-	m0_stob_write_credit(adom->ad_bstore->so_domain, size, accum);
+	ad_write_credit(adom, nr, accum);
+	m0_stob_write_credit(adom->ad_bstore->so_domain, nr, accum);
 }
 
 /**

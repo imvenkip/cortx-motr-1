@@ -828,7 +828,7 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 		m0_sm_group_lock(grp);
 		m0_dtx_init(&pb->spb_tx, dom->sd_bedom, grp);
 		dom->sd_ops->sdo_write_credit(dom,
-				m0_vec_count(&pb->spb_io.si_user.ov_vec),
+				pb->spb_io.si_user.ov_vec.v_nr,
 				&pb->spb_tx.tx_betx_cred);
 		rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
 		if (rc != 0) {
