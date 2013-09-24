@@ -1373,6 +1373,8 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 		} else {
 			m0_sm_group_lock(grp);
 			m0_dtx_init(&dtx, reqh->rh_beseg->bs_domain, grp);
+			dec_part->rp_ops->rpo_undo_credit(dec_part,
+				&dtx.tx_betx_cred);
 			m0_dtx_open_sync(&dtx);
 			result = dec_part->rp_ops->rpo_undo(dec_part,
 							    &dtx.tx_betx);
@@ -1386,7 +1388,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 
 	/* Read that data from file and compare it with data "b". */
 	/** @todo Add this after AD stob type is enabled. */
-	/*	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE); */
+	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
 	io_fops_destroy(bp);
 }
 

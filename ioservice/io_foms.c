@@ -988,6 +988,39 @@ static inline m0_bcount_t io_descs_count(const struct m0_io_descs *io_descs)
 }
 
 /**
+ * Locates a storage object.
+ */
+static int stob_object_find(struct m0_fom *fom)
+{
+	int			 result;
+	struct m0_io_fom_cob_rw	*fom_obj;
+	struct m0_stob_id	 stobid;
+	struct m0_fop_cob_rw	*rwfop;
+	struct m0_stob_domain	*fom_stdom;
+
+	M0_PRE(fom != NULL);
+        M0_PRE(m0_is_io_fop(fom->fo_fop));
+
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+
+	rwfop = io_rw_get(fom->fo_fop);
+
+	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
+	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom), &stobid);
+	if (fom_stdom == NULL)
+		return -EINVAL;
+
+	result = m0_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
+	if (result != 0)
+		return result;
+	result = m0_stob_locate(fom_obj->fcrw_stob);
+	if (result != 0)
+		m0_stob_put(fom_obj->fcrw_stob);
+	return result;
+}
+
+/**
  * Create and initiate I/O FOM and return generic struct m0_fom
  * Find the corresponding fom_type and associate it with m0_fom.
  * Associate fop with fom type.
@@ -1485,12 +1518,9 @@ static int io_launch(struct m0_fom *fom)
 	uint32_t		 bshift;
 	struct m0_fop		*fop;
 	struct m0_io_fom_cob_rw	*fom_obj;
-	struct m0_stob_id	 stobid;
 	struct m0_net_buffer    *nb;
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_io_indexvec    wire_ivec;
-	struct m0_stob_domain	*fom_stdom;
-	struct m0_reqh          *reqh;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1505,21 +1535,9 @@ static int io_launch(struct m0_fom *fom)
 	fop = fom->fo_fop;
 	rwfop = io_rw_get(fop);
 
-	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
-	reqh = m0_fom_reqh(fom);
-	fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
-	if (fom_stdom == NULL) {
-		rc = -EINVAL;
-		goto cleanup;
-	}
-
-	rc = m0_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
+	rc = stob_object_find(fom);
 	if (rc != 0)
 		goto cleanup;
-
-	rc = m0_stob_locate(fom_obj->fcrw_stob);
-	if (rc != 0)
-		goto cleanup_st;
 
 	/*
 	   Since the upper layer IO block size could differ with IO block size
@@ -1631,7 +1649,6 @@ static int io_launch(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 	}
 
-cleanup_st:
 	m0_stob_put(fom_obj->fcrw_stob);
 cleanup:
 	M0_ASSERT(rc != 0);
@@ -1703,6 +1720,46 @@ static int io_finish(struct m0_fom *fom)
         return M0_FSO_AGAIN;
 }
 
+static void stob_write_credit(struct m0_fom *fom)
+{
+	int			 rc;
+	uint32_t		 bshift;
+	struct m0_io_fom_cob_rw	*fom_obj;
+	struct m0_fop_cob_rw	*rwfop;
+	struct m0_io_indexvec    wire_ivec;
+	struct m0_stob_domain	*fom_stdom;
+	m0_bcount_t		 count;
+	int			 i;
+	int			 j;
+
+	M0_PRE(fom != NULL);
+        M0_PRE(m0_is_io_fop(fom->fo_fop));
+
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+
+	rwfop = io_rw_get(fom->fo_fop);
+
+	rc = stob_object_find(fom);
+	M0_ASSERT(rc == 0);
+	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom),
+			&fom_obj->fcrw_stob->so_id);
+	M0_ASSERT(fom_stdom != NULL);
+	/*
+	   Since the upper layer IO block size could differ with IO block size
+	   of storage object, the block alignment and mapping is necessary.
+	 */
+	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
+
+	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
+		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
+		for (j = 0; j < wire_ivec.ci_nr; j++)
+			count += wire_ivec.ci_iosegs[j].ci_count >> bshift;
+	}
+	m0_stob_write_credit(fom_stdom, count, &fom->fo_tx.tx_betx_cred);
+}
+
+
 /**
  * State Transition function for I/O operation that executes
  * on data server.
@@ -1733,8 +1790,12 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	poolmach = m0_ios_poolmach_get(reqh);
 
 	/* first handle generic phase */
-        if (m0_fom_phase(fom) < M0_FOPH_NR)
+        if (m0_fom_phase(fom) < M0_FOPH_NR) {
+			if (m0_is_write_fop(fom->fo_fop) &&
+			    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+				stob_write_credit(fom);
                 return m0_fom_tick_generic(fom);
+	}
 
 	st = m0_is_read_fop(fom->fo_fop) ?
 		io_fom_read_st[m0_fom_phase(fom)] :

@@ -89,7 +89,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	strcpy(server_args[2], "-p");
 	strcpy(server_args[3], "-T");
 /** @todo Needs to be changed back to AD, once io works on AD stob type. */
-	strcpy(server_args[4], "Linux");
+	strcpy(server_args[4], "AD");
 	strcpy(server_args[5], "-D");
 	strcpy(server_args[6], S_DBFILE);
 	strcpy(server_args[7], "-S");
