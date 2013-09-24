@@ -242,7 +242,7 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 }
 
 
-M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, , NULL, NULL);
+M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, , NULL, NULL, NULL, NULL);
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_xc_fop_init();

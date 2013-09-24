@@ -503,6 +503,10 @@ struct m0_fol_rec_part_ops {
 #else
 	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
 	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
+	void (*rpo_undo_credit)(const struct m0_fol_rec_part *part,
+				struct m0_be_tx_credit *accum);
+	void (*rpo_redo_credit)(const struct m0_fol_rec_part *part,
+				struct m0_be_tx_credit *accum);
 #endif
 };
 
@@ -538,12 +542,15 @@ M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
 				     struct m0_fol_rec_part *part);
 
-#define M0_FOL_REC_PART_TYPE_DECLARE(part, scope, undo, redo)      \
+#define M0_FOL_REC_PART_TYPE_DECLARE(part, scope, undo, redo,	   \
+				     undo_cred, redo_cred)	   \
 scope struct m0_fol_rec_part_type part ## _type;		   \
 static const struct m0_fol_rec_part_ops part ## _ops = {           \
 	.rpo_type = &part ## _type,		                   \
 	.rpo_undo = undo,			                   \
-	.rpo_redo = redo			                   \
+	.rpo_redo = redo,			                   \
+	.rpo_undo_credit = undo_cred,			           \
+	.rpo_redo_credit = redo_cred,			           \
 };						                   \
 static void part ## _ops_init(struct m0_fol_rec_part *part)        \
 {							           \

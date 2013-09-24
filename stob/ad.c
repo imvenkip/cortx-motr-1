@@ -154,6 +154,31 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
+/**
+    Implementation of m0_fol_rec_part_ops::rpo_undo_credit and
+                      m0_fol_rec_part_ops::rpo_redo_credit().
+ */
+static void ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
+					  struct m0_be_tx_credit *accum)
+{
+	struct ad_rec_part    *arp;
+	struct m0_stob_domain *dom;
+	struct ad_domain      *adom;
+
+	M0_PRE(part != NULL);
+
+	arp = part->rp_data;
+	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
+	adom = domain2ad(dom);
+
+	m0_be_emap_credit(&adom->ad_adata, M0_BEO_UPDATE,
+			  arp->arp_seg.ps_segments, accum);
+}
+
+/**
+    Implementation of m0_fol_rec_part_ops::rpo_undo and
+                      m0_fol_rec_part_ops::rpo_redo ().
+ */
 static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 				    struct m0_be_tx	   *tx)
 {
@@ -163,7 +188,7 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 	struct m0_be_emap_cursor  it;
 	int		       i;
 	int		       rc = 0;
-	struct m0_be_emap_seg    *old_data;
+	struct m0_be_emap_seg *old_data;
 
 	M0_PRE(part != NULL);
 
@@ -197,8 +222,11 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 	return rc;
 }
 
-M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo_redo_op,
-			     ad_rec_part_undo_redo_op);
+M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static,
+			     ad_rec_part_undo_redo_op,
+			     ad_rec_part_undo_redo_op,
+			     ad_rec_part_undo_redo_op_cred,
+			     ad_rec_part_undo_redo_op_cred);
 /**
    Implementation of m0_stob_type_op::sto_init().
  */

@@ -70,7 +70,8 @@ static int verify_part_data(struct m0_fol_rec_part *part,
 			    struct m0_be_tx *tx
 #endif
 	);
-M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL);
+M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL,
+				NULL, NULL);
 
 static void test_init(void)
 {
