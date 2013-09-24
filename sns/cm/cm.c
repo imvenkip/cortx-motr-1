@@ -556,11 +556,9 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 		pme.pe_index = scm->sc_it.si_fdata[i];
 		pme.pe_state = state;
 		rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme, &tx);
-		if (rc == 0)
-			m0_db_tx_commit(&tx);
-		else
+		m0_db_tx_commit(&tx);
+		if (rc != 0)
 			break;
-			//m0_db_tx_abort(&tx);
 	}
 
 	return rc;
@@ -753,12 +751,9 @@ static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
 
 	rc = m0_cob_ns_next_of(&cdom->cd_namespace, &tx, fid_curr,
 			       fid_next);
-	if (rc == 0 || rc == -ENOENT) {
-		m0_db_tx_commit(&tx);
-		if (rc == 0)
-			*fid_curr = *fid_next;
-	} //else
-	//	m0_db_tx_abort(&tx);
+	if (rc == 0)
+		*fid_curr = *fid_next;
+	m0_db_tx_commit(&tx);
 
 	return rc;
 }

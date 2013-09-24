@@ -255,13 +255,7 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 	if (rc != 0)
 		return rc;
 	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
-        //if (rc == 0 || rc == -ENOENT) {
-	//	M0_ADDB_POST(&m0_addb_gmc,
-	//		     &m0_addb_rt_sns_iter_next_gfid,
-	//		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
-	//		     fid_next->f_container, fid_next->f_key);
-                m0_db_tx_commit(&tx);
-	//}
+	m0_db_tx_commit(&tx);
 
 	M0_RETURN(rc);
 }
@@ -472,7 +466,6 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	bool                             has_incoming = false;
 	uint64_t                         stob_offset;
 	uint64_t                         cp_data_seg_nr;
-	enum m0_sns_cm_op                op = scm->sc_op;
 	int                              rc = 0;
 	M0_ENTRY("it = %p", it);
 
@@ -509,34 +502,27 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		if (rc != 0) {
 			if (rc == -ENOBUFS)
 				iter_phase_set(it, ITPH_AG_SETUP);
-			//else if (rc == -EREMOTE) {
-			//	rc = M0_FSO_AGAIN;
-			//	goto out;
-			//}
 			M0_RETURN(rc);
 		}
 	}
 
-	if ((!sfc->sfc_cob_is_spare_unit && op == SNS_REPAIR) ||
-	    (sfc->sfc_cob_is_spare_unit && op == SNS_REBALANCE)) {
-		stob_offset = sfc->sfc_ta.ta_frame *
-			      m0_pdclust_unit_size(sfc->sfc_pdlayout);
-		scp = it->si_cp;
-		scp->sc_base.c_ag = ag;
-		scp->sc_is_local = true;
-		cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
-		/*
-		 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
-		 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
-		 */
-		rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
-					cp_data_seg_nr, ~0,
-					sfc->sfc_sa.sa_unit - 1);
-		if (rc < 0)
-			M0_RETURN(rc);
+	stob_offset = sfc->sfc_ta.ta_frame *
+		      m0_pdclust_unit_size(sfc->sfc_pdlayout);
+	scp = it->si_cp;
+	scp->sc_base.c_ag = ag;
+	scp->sc_is_local = true;
+	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
+	/*
+	 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
+	 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
+	 */
+	rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
+				cp_data_seg_nr, ~0,
+				sfc->sfc_sa.sa_unit - 1);
+	if (rc < 0)
+		M0_RETURN(rc);
 
-		rc = M0_FSO_AGAIN;
-	}
+	rc = M0_FSO_AGAIN;
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
 
@@ -556,9 +542,11 @@ out:
  */
 static int iter_cob_next(struct m0_sns_cm_iter *it)
 {
+	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_fid                   *cob_fid;
 	struct m0_pdclust_src_addr      *sa;
+	enum m0_sns_cm_op                op = scm->sc_op;
 	uint32_t                         upg;
 	int                              rc = 0;
 	M0_ENTRY("it = %p", it);
@@ -584,7 +572,9 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
-		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid));
+		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid) ||
+		 (sfc->sfc_cob_is_spare_unit && op == SNS_REPAIR) ||
+		 (!sfc->sfc_cob_is_spare_unit && op == SNS_REBALANCE));
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);

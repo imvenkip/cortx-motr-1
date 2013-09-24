@@ -76,7 +76,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    tgt_unit;
 	uint32_t                    N;
 	uint32_t                    K;
-	//uint32_t                    i;
 	uint32_t                    j;
 	bool                        result = false;
 	int                         rc;
@@ -94,9 +93,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 			return rc;
 		sa.sa_unit = tgt_unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		//rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl, &cobfid);
-	//	if (rc != 0)
-	//		return rc;
 		rc = m0_sns_cm_cob_locate(it->si_dbenv, it->si_cob_dom,
 					  &cobfid);
 		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid)) {
