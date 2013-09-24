@@ -265,9 +265,9 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_group_nr = 1,
 			.bec_log_size = 1 << 29,
 			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
-				1 << 20, 1 << 26),
-			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
 				1 << 21, 1 << 27),
+			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
+				1 << 22, 1 << 28),
 			.bec_group_tx_max = 20,
 			.bec_log_replay = false,
 		},
