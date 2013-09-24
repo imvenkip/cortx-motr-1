@@ -284,13 +284,15 @@ static int loc_ctx_wait(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
 
+	M0_ENTRY("fom=%p", fom);
+
 	M0_PRE((M0_BITS(m0_be_tx_state(tx)) &
 	        M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)) != 0);
 
 	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
-		return -EAGAIN;
+		m0_fom_phase_move(fom, tx->t_sm.sm_rc, M0_FOPH_TXN_OPEN_FAILED);
 
-	return M0_FSO_AGAIN;
+	M0_RETURN(M0_FSO_AGAIN);
 }
 
 /**
@@ -368,7 +370,11 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  */
 static int fom_txn_commit(struct m0_fom *fom)
 {
-	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
+	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+
+	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+
+	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
 	m0_dtx_done(&fom->fo_tx);
 
 	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
@@ -490,12 +496,16 @@ static const struct fom_phase_desc fpd_table[] = {
 					      1 << M0_FOPH_TXN_INIT },
 	[M0_FOPH_TXN_OPEN] =		   { &loc_ctx_open,
 					      M0_FOPH_TXN_WAIT,
-					     "loc_ctx_init",
+					     "loc_ctx_open",
 					      1 << M0_FOPH_TXN_OPEN },
 	[M0_FOPH_TXN_WAIT] =		   { &loc_ctx_wait,
 					      M0_FOPH_TYPE_SPECIFIC,
 					     "loc_ctx_wait",
 					      1 << M0_FOPH_TXN_WAIT },
+	[M0_FOPH_TXN_OPEN_FAILED] =	   { &fom_failure,
+					      M0_FOPH_QUEUE_REPLY,
+					     "loc_ctx_open_failed",
+					      1 << M0_FOPH_TXN_OPEN_FAILED },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
 					      M0_FOPH_FOL_REC_PART_ADD,
 					     "fom_success",
@@ -608,8 +618,13 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_TXN_WAIT] = {
 		.sd_name      = "loc_ctx_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE,
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN_FAILED,
 					M0_FOPH_TYPE_SPECIFIC)
+	},
+	[M0_FOPH_TXN_OPEN_FAILED] = {
+		.sd_flags     = M0_SDF_FAILURE,
+		.sd_name      = "loc_ctx_open_failure",
+		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
 	},
 	[M0_FOPH_SUCCESS] = {
 		.sd_name      = "fom_success",
@@ -682,6 +697,7 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 	} else if (rc == M0_FSO_AGAIN) {
+		fpd_phase = &fpd_table[m0_fom_phase(fom)];
 		if (m0_fom_phase(fom) < M0_FOPH_NR &&
 		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
 			M0_LOG(M0_DEBUG, "phase set: %s -> %s",

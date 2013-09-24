@@ -1791,9 +1791,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	/* first handle generic phase */
         if (m0_fom_phase(fom) < M0_FOPH_NR) {
-			if (m0_is_write_fop(fom->fo_fop) &&
-			    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-				stob_write_credit(fom);
+		if (m0_is_write_fop(fom->fo_fop) &&
+		    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+			stob_write_credit(fom);
                 return m0_fom_tick_generic(fom);
 	}
 
