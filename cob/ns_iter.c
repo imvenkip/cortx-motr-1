@@ -79,12 +79,17 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN);
         rc = m0_be_btree_cursor_get_sync(&it, &kbuf, true);
 	if (rc == 0) {
-			/*
-			 * Assign the fetched value to gfid, which is treated as
-			 * iterator output.
-			 */
-			next_gfid->f_container = key->cnk_pfid.f_container;
-			next_gfid->f_key = key->cnk_pfid.f_key;
+		/*
+		 * Assign the fetched value to gfid, which is treated as
+		 * iterator output.
+		 */
+		struct m0_cob_nskey* k;
+
+		m0_be_btree_cursor_kv_get(&it, &kbuf, NULL);
+		k = (struct m0_cob_nskey *)kbuf.b_addr;
+
+		next_gfid->f_container = k->cnk_pfid.f_container;
+		next_gfid->f_key = k->cnk_pfid.f_key;
 	}
 	m0_free(key);
         m0_be_btree_cursor_fini(&it);
