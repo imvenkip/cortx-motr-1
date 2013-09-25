@@ -20,6 +20,7 @@
 
 #include "lib/memory.h"
 #include "lib/misc.h"  /* SET0 */
+#include "lib/errno.h"
 #include "cob/ns_iter.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
 #include "lib/trace.h"
@@ -46,6 +47,7 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 	iter->cni_last_fid.f_container = gfid->f_container;
 	iter->cni_last_fid.f_key = gfid->f_key;
 
+	M0_LOG(M0_FATAL, "%lu %lu", iter->cni_last_fid.f_container, iter->cni_last_fid.f_key);
 	M0_POST(ns_iter_invariant(iter));
 
 	return 0;
@@ -55,36 +57,35 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 				  const struct m0_fid *key_gfid,
 				  struct m0_fid *next_gfid)
 {
-        struct m0_cob_nskey *key = NULL;
-        struct m0_buf        kbuf;
-        struct m0_be_btree_cursor it;
-	uint32_t             cob_idx = 0;
-        char                 nskey_bs[UINT32_MAX_STR_LEN];
-        uint32_t             nskey_bs_len;
-	int                  rc;
+        struct m0_cob_nskey       *key = NULL;
+        struct m0_buf              kbuf;
+        struct m0_be_btree_cursor  it;
+	uint32_t                   cob_idx = 0;
+        char                       nskey_bs[UINT32_MAX_STR_LEN];
+        uint32_t                   nskey_bs_len;
+	int                        rc;
 
         m0_be_btree_cursor_init(&it, cob_namespace);
-
 	M0_SET0(&nskey_bs);
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u", (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
+	M0_LOG(M0_FATAL, "%lu %lu", key_gfid->f_container, key_gfid->f_key);
         rc = m0_cob_nskey_make(&key, key_gfid, (char *)nskey_bs,
 			       nskey_bs_len);
         if (rc != 0)
                 return rc;
 
 	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN);
-        m0_be_btree_cursor_get_sync(&it, &kbuf, true);
-        m0_be_btree_cursor_kv_get(&it, &kbuf, NULL);
-
-	/*
-	 * Assign the fetched value to gfid, which is treated as
-	 * iterator output.
-	 */
-	next_gfid->f_container = key->cnk_pfid.f_container;
-	next_gfid->f_key = key->cnk_pfid.f_key;
-
+        rc = m0_be_btree_cursor_get_sync(&it, &kbuf, true);
+	if (rc == 0) {
+			/*
+			 * Assign the fetched value to gfid, which is treated as
+			 * iterator output.
+			 */
+			next_gfid->f_container = key->cnk_pfid.f_container;
+			next_gfid->f_key = key->cnk_pfid.f_key;
+	}
 	m0_free(key);
         m0_be_btree_cursor_fini(&it);
 
@@ -100,6 +101,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
 
+	M0_LOG(M0_FATAL, "%lu %lu", iter->cni_last_fid.f_container, iter->cni_last_fid.f_key);
 	key_fid.f_container = iter->cni_last_fid.f_container;
 	key_fid.f_key = iter->cni_last_fid.f_key;
 

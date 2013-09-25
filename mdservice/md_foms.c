@@ -824,7 +824,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 
 	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
+		M0_LOG(M0_FATAL, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
 		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
 		goto out;
 	}
@@ -836,7 +836,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 		m0_md_cob_mem2wire(&rep->g_body, &attr);
 	}
 out:
-	M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] finished with %d",
+	M0_LOG(M0_FATAL, "Getattr for [%lx:%lx] finished with %d",
 	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
 	rep->g_body.b_rc = rc;
 	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);

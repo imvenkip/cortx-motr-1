@@ -52,6 +52,7 @@ struct m0_cob_fid_ns_iter {
 	/** Cob domain. */
 	struct m0_cob_domain *cni_cdom;
 
+	struct m0_be_btree_cursor  cni_it;
 	/** Last fid value returned. */
 	struct m0_fid         cni_last_fid;
 };

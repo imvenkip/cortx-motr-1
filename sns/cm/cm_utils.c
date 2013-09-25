@@ -155,15 +155,12 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 		(int)cob_fid->f_container, (int)cob_fid->f_key);
 
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx);
-	if (rc == 0 || rc == -ENOENT) {
-		if (rc == 0) {
-			M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
-			m0_cob_put(cob);
-		}
-		m0_db_tx_commit(&tx);
-	} //else
-	//	m0_db_tx_abort(&tx);
+	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	//M0_LOG(M0_FATAL, "%lu %lu rc: %d", cob_fid->f_container, cob_fid->f_key, rc);
+	if (rc == 0) {
+		M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
+		m0_cob_put(cob);
+	}
 
 	M0_RETURN(rc);
 }

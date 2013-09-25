@@ -1643,6 +1643,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 	M0_PRE(m0_cob_is_valid(cob));
 
+	M0_LOG(M0_FATAL, "gfid: %lu %lu", nskey->cnk_pfid.f_container, nskey->cnk_pfid.f_key);
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
 	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);

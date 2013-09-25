@@ -187,7 +187,7 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	struct m0_cob        *cob;
 	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
-	struct m0_db_tx       tx;
+	struct m0_dtx         tx;
 	struct m0_dbenv      *dbenv;
 	struct m0_cob_oikey   oikey;
 	int                   rc;

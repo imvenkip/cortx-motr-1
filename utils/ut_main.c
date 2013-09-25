@@ -151,7 +151,7 @@ void add_uts(void)
 	// m0_ut_add(&snscm_net_ut); /* m0_db_tx_abort() */
 	m0_ut_add(&snscm_storage_ut);
 	m0_ut_add(&snscm_xform_ut);
-	// m0_ut_add(&sns_cm_repair_ut); /* m0_db_tx_abort() */
+	m0_ut_add(&sns_cm_repair_ut); /* m0_db_tx_abort() */
 	m0_ut_add(&stobio_ut);
 	m0_ut_add(&udb_ut);
 	m0_ut_add(&xcode_bufvec_fop_ut);

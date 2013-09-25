@@ -197,12 +197,10 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	struct m0_sns_cm        *scm;
 	struct m0_cm_aggr_group *ag  = &rag->rag_base.sag_base;
 	struct m0_cm_cp         *acc = &fc->fc_tgt_acc_cp.sc_base;
-        struct m0_dbenv         *dbenv;
         struct m0_cob_domain    *cdom;
 	int                      rc;
 
 	scm = cm2sns(ag->cag_cm);
-        dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
         cdom  = scm->sc_it.si_cob_dom;
 	/*
 	 * Check if all copy packets are processed at this stage,
@@ -213,8 +211,7 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	 * aggregation group are transformed, then transformation can
 	 * be marked complete.
 	 */
-	if ((rc = m0_sns_cm_cob_is_local(&fc->fc_tgt_cobfid, dbenv,
-					 cdom)) == 0 &&
+	if ((rc = m0_sns_cm_cob_is_local(&fc->fc_tgt_cobfid, cdom)) == 0 &&
 	    m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_global_nr -
 						rag->rag_base.sag_fnr)) {
 			rc = res_cp_enqueue(acc);

@@ -745,15 +745,16 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 }
 
 static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
-						 struct m0_fid *fid_next)
+		     struct m0_fid *fid_next)
 {
 	int rc;
 
-	rc = m0_cob_ns_next_of(&cdom->cd_namespace, &tx, fid_curr,
+	rc = m0_cob_ns_next_of(cdom->cd_namespace, fid_curr,
 			       fid_next);
-	if (rc == 0)
+	if (rc == 0) {
 		*fid_curr = *fid_next;
-	m0_db_tx_commit(&tx);
+		M0_LOG(M0_FATAL, "%lu %lu", fid_curr->f_container, fid_curr->f_key);
+	}
 
 	return rc;
 }
@@ -841,6 +842,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 				  struct m0_cm_ag_id *id_next)
 {
 	struct m0_sns_cm         *scm = cm2sns(cm);
+	struct m0_fid             fid_start = {0, SNS_COB_FID_START};
 	struct m0_fid             fid_curr;
 	struct m0_fid             fid_next = {0, 0};
 	struct m0_cm_ag_id        ag_id;
@@ -856,10 +858,16 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	agid2fid(&id_curr, &fid_curr);
-	++group;
+	if (!m0_cm_ag_id_is_set(&id_curr))
+		fid_curr = fid_start;
+	else {
+		++group;
+		agid2fid(&id_curr, &fid_curr);
+	}
 	do {
+		M0_LOG(M0_FATAL, "fid_curr: %lu %lu", fid_curr.f_container, fid_curr.f_key);
 		if (sns_cm_fid_is_valid(&fid_curr)) {
+			M0_LOG(M0_FATAL, "fetch layout: %lu %lu", fid_curr.f_container, fid_curr.f_key);
 			rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
 							      &pl, &fsize);
 			if (rc != 0)
@@ -887,6 +895,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 			fid_curr = fid_next;
 		/* Increment fid_curr.f_key to fetch next fid. */
 		M0_CNT_INC(fid_curr.f_key);
+		M0_LOG(M0_FATAL, "next: %lu %lu", fid_curr.f_container, fid_curr.f_key);
 	} while ((rc = _fid_next(cdom, &fid_curr, &fid_next)) == 0);
 
 	return rc;
