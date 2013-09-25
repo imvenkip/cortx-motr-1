@@ -24,7 +24,6 @@
 #include "lib/time.h"
 #include "lib/vec.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic.h"
 #include "fid/fid.h"
 #include "ut/ut.h"
 

@@ -52,6 +52,7 @@ extern const struct m0_test_suite confc_ut;
 extern const struct m0_test_suite confstr_ut;
 extern const struct m0_test_suite conn_ut;
 extern const struct m0_test_suite console_ut;
+extern const struct m0_test_suite di_ut;
 extern const struct m0_test_suite db_cursor_ut;
 extern const struct m0_test_suite db_ut;
 extern const struct m0_test_suite dtm_dtx_ut;
@@ -104,6 +105,7 @@ void add_uts(void)
 {
 	/* sort test suites in alphabetic order */
 	m0_ut_add(&libm0_ut); /* test lib first */
+	m0_ut_add(&di_ut);
 	m0_ut_add(&ad_ut);
 	m0_ut_add(&adieu_ut);
 	m0_ut_add(&balloc_ut);

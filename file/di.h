@@ -25,21 +25,34 @@
 
 #include "lib/types.h"
 #include "lib/vec.h"
+#include "ioservice/io_fops.h"
 
 struct m0_file;
 
 /**
- * @addtogroup data_integrity
- * @{
+ * @defgroup data_integrity Data integrity using checksum
+ *
+ * Checksum for data blocks is computed based on checksum algorithm
+ * selected from configuration.
+ * Also checksum length is chosen based on this algorithm.
+ *
+ * A di data bufvec, consisting of a single buffer is added as m0_buf in
+ * iofop and passed across the network.
+ *
  * Data-integrity type represents a particular combination of data-integrity
  * methods applied to a file.
  *
- * That is, data-integrity type prescribes a particular check-summing algorithm
+ * i.e., data-integrity type prescribes a particular check-summing algorithm
  * with a particular block size, producing output of a particular size, plus,
  * possibly, a particular encryption algorithm, etc.
  *
- * @see https://docs.google.com/a/xyratex.com/document/d/1DpfbZVjHxC2ZYID6uiJLKT4KAZGHm58gDDo-oKt3IZk/
- */
+ * Data integrity type and operations are initialized in m0_file.
+ * Using do_sum(), checksum values are computed for each block of data and
+ * using do_chk() checksum values are verified.
+ *
+ *  * @see https://docs.google.com/a/xyratex.com/document/d/1DpfbZVjHxC2ZYID6uiJLKT4KAZGHm58gDDo-oKt3IZk/
+ * @{
+ * */
 struct m0_di_type {
 	/**
 	 * Name can be something like "crc32-64K" or "t10-dif".
@@ -47,10 +60,17 @@ struct m0_di_type {
 	const char *dt_name;
 };
 
-/** Get these di types from configuration during initialization. */
+enum m0_di_checksum_len {
+	M0_DI_CRC32_LEN = 1,
+	M0_DI_ELEMENT_SIZE = 64,
+};
+
 enum m0_di_types {
+	/** CRC32 checksum for block size data of 4k. */
 	M0_DI_CRC32_4K,
+	/** CRC32 checksum for block size data of 16k. */
 	M0_DI_CRC32_64K,
+	/** T10 tag for block size data of 4k. */
 	M0_DI_T10_DIF,
 	M0_DI_NR
 };
@@ -67,12 +87,12 @@ struct m0_di_ops {
 	 *
 	 * If this is ~0ULL, the algorithm applies to an entire file.
 	 */
-	m0_bcount_t (*do_in_shift) (const struct m0_file *file);
+	uint64_t    (*do_in_shift) (const struct m0_file *file);
 	/**
 	 * Shift of output block size, that is, of number of bytes of di
 	 * data (e.g., check-sum) produced by this di type for each input block.
 	 */
-	m0_bcount_t (*do_out_shift)(const struct m0_file *file);
+	uint64_t    (*do_out_shift)(const struct m0_file *file);
 	/**
 	 * Calculate di data for the input bufvec (which is not necessarily
 	 * a multiple of input block size) and place the result in the
@@ -82,24 +102,20 @@ struct m0_di_ops {
 	 * they should not be overwritten. For example, the application already
 	 * calculated the t10-dif checksum, Mero only computes Reference and
 	 * Application Tags.
-	 * @param bitmask is used to identify already filled di data
 	 * @param io_info contains offsets and sizes of io data, used to compute
-	 *		  Tag values.
+	 *		  tag values.
 	 */
 	void        (*do_sum)      (const struct m0_file *file,
-				    uint64_t bitmask,
-				    const struct m0_indexvec *io_info,
+				    const struct m0_io_indexvec_seq *io_info,
 				    const struct m0_bufvec *in,
-				    const struct m0_bufvec *out);
+				    struct m0_bufvec *out);
 	/**
 	 * Check that di data in output bufvec match the input bufvec.
-	 * @param bitmask indicates which part of the output should be checked.
 	 * @param io_info contains offsets and sizes of io data, used to compute
-	 *		  Tag values and compare with values in di data.
+	 *		  tag values and compare with values in di data.
 	 */
 	bool        (*do_check)    (const struct m0_file *file,
-				    uint64_t bitmask,
-				    const struct m0_indexvec *io_info,
+				    const struct m0_io_indexvec_seq *io_info,
 				    const struct m0_bufvec *in,
 				    const struct m0_bufvec *out);
 };
@@ -135,6 +151,19 @@ M0_INTERNAL bool m0_md_di_chk(void *addr, m0_bcount_t nob,
 ({							   \
 	void *__obj = (obj);				   \
 	m0_md_di_chk(__obj, sizeof *(obj), &__obj->field); \
+})
+
+/**
+ * Computes crc32 checksum for data of length "len" and stores it in "di"
+ * which is of length "nr".
+ *
+ * @param data A block of data of size "len".
+ * @param len Length of data.
+ * @param di checksum to be computed is stored here.
+ * @param nr Number of checksum elements or size of di data to be computed.
+ */
+M0_INTERNAL void m0_crc32(const void *data, uint64_t len, uint64_t *di,
+			  uint32_t nr);
 
 /** @} end of data_integrity */
 #endif /* __MERO_FILE_DI_H__ */

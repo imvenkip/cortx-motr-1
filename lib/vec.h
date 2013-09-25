@@ -523,6 +523,35 @@ M0_INTERNAL int m0_data_to_bufvec_copy(struct m0_bufvec_cursor *cur, void *data,
 M0_INTERNAL int m0_bufvec_to_data_copy(struct m0_bufvec_cursor *cur, void *data,
 				       size_t len);
 
+/**
+ * Represents the extent information for an io segment. m0_ioseg typically
+ * represents a user space data buffer or a kernel page.
+ */
+struct m0_ioseg {
+	uint64_t ci_index;
+	uint64_t ci_count;
+} M0_XCA_RECORD;
+
+/**
+ * Represents an index vector with {index, count}  tuples for a target
+ * device (typically a cob).
+ */
+struct m0_io_indexvec {
+	uint32_t         ci_nr;
+	struct m0_ioseg *ci_iosegs;
+} M0_XCA_SEQUENCE;
+
+/**
+ * Represents sequence of index vector, one per network buffer.
+ * As a result of io coalescing, there could be multiple network
+ * buffers associated with an io fop. Hence a SEQUENCE of m0_io_indexvec
+ * is needed, one per network buffer.
+ */
+struct m0_io_indexvec_seq {
+	uint32_t               cis_nr;
+	struct m0_io_indexvec *cis_ivecs;
+} M0_XCA_SEQUENCE;
+
 /** @} end of vec group */
 
 /* __MERO_LIB_VEC_H__ */

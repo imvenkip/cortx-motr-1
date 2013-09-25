@@ -277,7 +277,6 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
 #define M0_UNUSED __attribute__((unused))
 
 M0_INTERNAL uint32_t m0_no_of_bits_set(const uint64_t mask);
-M0_INTERNAL uint32_t m0_start_of_bit_set(const uint64_t mask);
 
 #endif /* __MERO_LIB_MISC_H__ */
 
