@@ -400,8 +400,6 @@ static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx)
 		rc = fol_zero(fol, tx);
 	else if (rc == 0)
 		rc = fol_inc(fol, &rec);
-	else
-		return rc;
 
 	m0_fol_lookup_rec_fini(&rec);
 	return rc;
