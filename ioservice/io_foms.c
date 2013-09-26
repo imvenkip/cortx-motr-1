@@ -1723,14 +1723,12 @@ static int io_finish(struct m0_fom *fom)
 static void stob_write_credit(struct m0_fom *fom)
 {
 	int			 rc;
-	uint32_t		 bshift;
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_io_indexvec    wire_ivec;
 	struct m0_stob_domain	*fom_stdom;
 	m0_bcount_t		 count = 0;
 	int			 i;
-	int			 j;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1745,16 +1743,9 @@ static void stob_write_credit(struct m0_fom *fom)
 	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom),
 			&fom_obj->fcrw_stob->so_id);
 	M0_ASSERT(fom_stdom != NULL);
-	/*
-	   Since the upper layer IO block size could differ with IO block size
-	   of storage object, the block alignment and mapping is necessary.
-	 */
-	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
-
 	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
 		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
-		for (j = 0; j < wire_ivec.ci_nr; j++)
-			++count;
+		count += wire_ivec.ci_nr;
 	}
 	M0_LOG(M0_DEBUG, "count=%d", (int)count);
 	m0_stob_write_credit(fom_stdom, count, &fom->fo_tx.tx_betx_cred);
