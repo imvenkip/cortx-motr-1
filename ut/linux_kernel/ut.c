@@ -215,14 +215,16 @@ M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
 				  const char *file, const char *func,
 				  bool panic)
 {
-	static char  buf[1024];
+	static char buf[1024];
 
 	if (!c) {
 		if (panic) {
 			snprintf(buf, sizeof buf,
 				"Unit test assertion failed: %s", str_c);
-			buf[(sizeof buf) - 1] = '\0';
-			m0_panic(buf, func, file, lno, " ");
+			m0_panic(&(struct m0_panic_ctx){
+					.pc_expr = buf,  .pc_func   = func,
+					.pc_file = file, .pc_lineno = lno,
+					.pc_fmt  = " "});
 		}
 		pr_err("Unit test assertion failed: %s at %s:%d\n",
 		       str_c, file, lno);

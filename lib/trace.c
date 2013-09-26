@@ -648,14 +648,21 @@ M0_INTERNAL void m0_trace_args_unpack(const struct m0_trace_rec_header *trh,
 			size_t str_len = strlen(str_data);
 			total_str_len += str_len + 1;
 
+			/*
+			 * This code is a trace point creation code-path, so it
+			 * can't call M0_ASSERT() or m0_panic() to avoid
+			 * possible cyclic errors, because a trace point is
+			 * created inside m0_panic(), that's why m0_arch_panic()
+			 * is used directly here.
+			 */
 			if (total_str_len > trh->trh_string_data_size) {
 				struct m0_panic_ctx c;
 				c.pc_expr = "trace record string data is invalid";
 				c.pc_func   = __func__;
 				c.pc_file   = __FILE__;
 				c.pc_lineno = __LINE__;
-				c.pc_bi     = m0_build_info_get();
-				m0_arch_panic(&c, " ", NULL);
+				c.pc_fmt    = " ";
+				m0_arch_panic(&c, NULL);
 			}
 
 			args[i].v64 = (uint64_t)str_data;

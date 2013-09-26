@@ -23,6 +23,7 @@
 #ifndef __MERO_LIB_ASSERT_H__
 #define __MERO_LIB_ASSERT_H__
 
+#include <stddef.h>   /* NULL */
 #include <stdarg.h>   /* va_list */
 
 /**
@@ -71,48 +72,68 @@ struct m0_panic_ctx {
 	const char                  *pc_file;
 	/** Line number, i.e. __LINE__ */
 	int                          pc_lineno;
-	/** Build information */
-	const struct m0_build_info  *pc_bi;
+	/**
+	 * Additional informational message with printf(3) like formatting,
+	 * which will be displayed after the failed condition and can be used as
+	 * an explanation of why condition has failed
+	 */
+	const char                  *pc_fmt;
 };
 
 /**
  * Display panic message and abort program execution.
  *
- * @param expr    Failed expression
- * @param func    Name of a function, which calls m0_panic(), i.e. __func__
- * @param file    Name of a file, i.e. __FILE__
- * @param lineno  Line number, i.e. __LINE__
- * @param fmt     Additional informational message with printf(3) like
- *                formatting, which will be displayed after the failed condition
- *                and can be used as an explanation of why condition has failed
+ * @param ctx     panic context
+ * @param ...     arguments for printf format string m0_panic_ctx::pc_fmt
  */
-void m0_panic(const char *expr, const char *func, const char *file, int lineno,
-	      const char *fmt, ...)
-	__attribute__((noreturn)) __attribute__((format(printf, 5, 6)));
+void m0_panic(const struct m0_panic_ctx *ctx, ...)
+	__attribute__((noreturn));
 
-M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *context,
-			       const char *fmt, va_list ap)
+M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *ctx, va_list ap)
 	__attribute__((noreturn));
 
 void m0_backtrace(void);
 M0_INTERNAL void m0_arch_backtrace(void);
 
 /**
+ * Check printf format string against parameters.
+ *
+ * This function does nothing except checking that the format string matches the
+ * rest of arguments and producing a compilation warning in case it doesn't. It
+ * is handy in macros which accept printf-like parameters with a format string.
+ *
+ * For example usage, refer to M0_TRACE_POINT() macro
+ */
+__attribute__ ((format (printf, 1, 2))) static inline void
+printf_check(const char *fmt, ...)
+{}
+
+/**
  * The same as M0_ASSERT macro, but this version allows to specify additional
  * informational message with printf(3) like formatting, which will be displayed
  * after the failed condition and can be used as an explanation of why condition
  * has failed.
+ *
+ * Since our headers are processed by gccxml, which is essentially a C++
+ * compiler, we can't use C99 compound literals and designated initializers to
+ * construct m0_panic_ctx, so we use positional initializers and their order
+ * should match the fields declaration order in m0_panic_ctx structure.
  */
-#define M0_ASSERT_INFO(cond, fmt, ...) \
-	(M0_ASSERT_OFF || likely(cond) ? (void)0 : \
-		m0_panic(#cond, __func__, __FILE__, __LINE__, fmt, ##__VA_ARGS__))
+#define M0_ASSERT_INFO(cond, fmt, ...)					\
+({									\
+	static const struct m0_panic_ctx __pctx = {			\
+		#cond, __func__, __FILE__, __LINE__, (fmt)		\
+	};								\
+	printf_check(fmt, ##__VA_ARGS__);				\
+	(M0_ASSERT_OFF || likely(cond) ? (void)0 : m0_panic(&__pctx, ##__VA_ARGS__)); \
+})
 
 /**
  * A macro to assert that a condition is true. If condition is true, M0_ASSERT()
  * does nothing. Otherwise it emits a diagnostics message and terminates the
  * system. The message and the termination method are platform dependent.
  */
-#define M0_ASSERT(cond)  M0_ASSERT_INFO((cond), " ")
+#define M0_ASSERT(cond)  M0_ASSERT_INFO((cond), NULL)
 
 /**
  * The same as M0_ASSERT macro, but this version is disabled (optimized out) if

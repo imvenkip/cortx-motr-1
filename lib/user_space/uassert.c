@@ -101,21 +101,18 @@ void m0_arch_backtrace(void)
    <execinfo.h> header (checked for by ./configure). Object files should be
    compiled with -rdynamic for this to work in the presence of dynamic linking.
  */
-M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c,
-			       const char *fmt, va_list ap)
+M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 {
+	const struct m0_build_info *bi = m0_build_info_get();
+
 	fprintf(stderr,
 		"Mero panic: %s at %s() %s:%i (errno: %i) (last failed: %s)"
 		" [git: %s]\n",
 		c->pc_expr, c->pc_func, c->pc_file, c->pc_lineno, errno,
-		m0_failed_condition ?: "none", c->pc_bi->bi_git_describe);
-	/*
-	 * if additional format string is empty (contains only single space
-	 * character) don't display it
-	 */
-	if (strcmp(fmt, " ") != 0) {
+		m0_failed_condition ?: "none", bi->bi_git_describe);
+	if (c->pc_fmt != NULL) {
 		fprintf(stderr, "Mero panic reason: ");
-		vfprintf(stderr, fmt, ap);
+		vfprintf(stderr, c->pc_fmt, ap);
 		fprintf(stderr, "\n");
 	}
 	fflush(stderr);

@@ -264,19 +264,6 @@ M0_FIELD_IS(type, field, uint64_t) ? \
 #define M0_CAT(A, B) M0_CAT2(A, B)
 #define M0_CAT2(A, B) A ## B
 
-/**
- * Check printf format string against parameters.
- *
- * This function does nothing except checking that the format string matches the
- * rest of arguments and producing a compilation warning in case it doesn't. It
- * is handy in macros which accept printf-like parameters with a format string.
- *
- * For example usage, refer to M0_TRACE_POINT() macro
- */
-__attribute__ ((format (printf, 1, 2))) static inline void
-printf_check(const char *fmt, ...)
-{}
-
 #define M0_UNUSED __attribute__((unused))
 
 #endif /* __MERO_LIB_MISC_H__ */

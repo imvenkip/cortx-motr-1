@@ -34,19 +34,16 @@ void m0_arch_backtrace()
 {
 }
 
-M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c,
-			       const char *fmt, va_list ap)
+M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 {
+	const struct m0_build_info *bi = m0_build_info_get();
+
 	pr_emerg("Mero panic: %s at %s() %s:%i (last failed: %s) [git: %s]\n",
 		 c->pc_expr, c->pc_func, c->pc_file, c->pc_lineno,
-		 m0_failed_condition ?: "none", c->pc_bi->bi_git_describe);
-	/*
-	 * if additional format string is empty (contains only single space
-	 * character) don't display it
-	 */
-	if (strcmp(fmt, " ") != 0) {
+		 m0_failed_condition ?: "none", bi->bi_git_describe);
+	if (c->pc_fmt != NULL) {
 		pr_emerg("Mero panic reason: ");
-		vprintk(fmt, ap);
+		vprintk(c->pc_fmt, ap);
 		pr_emerg("\n");
 	}
 	BUG();
