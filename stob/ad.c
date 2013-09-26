@@ -324,6 +324,8 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 	struct m0_be_op         op;
 	int                     rc;
 
+	M0_ENTRY("name=%s id=%lld", domain_name,
+			(unsigned long long)dom_id);
 	M0_PRE(be_seg != NULL);
 	M0_PRE(out != NULL);
 	M0_PRE(domain_name != NULL);
@@ -380,7 +382,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 
 	m0_be_tx_fini(&tx);
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,

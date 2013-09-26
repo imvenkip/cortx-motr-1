@@ -780,10 +780,12 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	struct cs_ad_stob  *adstob;
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 
+	M0_ENTRY("cid=%d path=%s", (int)cid, f_path);
+
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL) {
 		M0_LOG(M0_ERROR, "malloc failed");
-		return -ENOMEM;
+		M0_RETURN(-ENOMEM);
 	}
 
 	bstob = &adstob->as_stob_back;
@@ -807,7 +809,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
-			bstob_id->si_bits.u_lo);
+					    bstob_id->si_bits.u_lo);
 		m0_sm_group_lock(grp);
 		rc = m0_ad_stob_domain_locate(ad_dname, db, grp,
 					      &adstob->as_dom, *bstob);
@@ -817,11 +819,11 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (rc != 0) {
 		m0_stob_put(*bstob);
 		m0_free(adstob);
-		return rc;
+		M0_RETURN(rc);
 	}
 
 	cs_ad_stob_bob_init(adstob);
-	astob_tlink_init_at_tail(adstob, &stob->s_adoms);
+	astob_tlink_init_at_tail(adstob, &stob->s_adstobs);
 
 	m0_sm_group_lock(grp);
 	rc =	m0_balloc_create(cid, db, grp, &cb) ?:
@@ -836,7 +838,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (rc == 0 && M0_FI_ENABLED("ad_stob_setup_fail"))
 		rc = -EINVAL;
 
-	return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -857,7 +859,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 
 	M0_PRE(stob != NULL);
 
-	astob_tlist_init(&stob->s_adoms);
+	astob_tlist_init(&stob->s_adstobs);
 	if (stob->s_sfile.sf_is_initialised) {
 		doc = &stob->s_sfile.sf_document;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
@@ -899,7 +901,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 
 	M0_PRE(stob != NULL);
 
-	m0_tl_for(astob, &stob->s_adoms, adstob) {
+	m0_tl_for(astob, &stob->s_adstobs, adstob) {
 		M0_ASSERT(cs_ad_stob_bob_check(adstob) &&
 			  adstob->as_dom != NULL);
 		bstob = adstob->as_stob_back;
@@ -915,7 +917,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 		cs_ad_stob_bob_fini(adstob);
 		m0_free(adstob);
 	} m0_tl_endfor;
-	astob_tlist_fini(&stob->s_adoms);
+	astob_tlist_fini(&stob->s_adstobs);
 }
 
 static void cs_linux_stob_fini(struct cs_stobs *stob)
@@ -940,7 +942,7 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
 	if (stob->s_stype == M0_LINUX_STOB)
 		return stob->s_ldom;
 	else if (stob->s_stype == M0_AD_STOB) {
-		m0_tl_for(astob, &stob->s_adoms, adstob) {
+		m0_tl_for(astob, &stob->s_adstobs, adstob) {
 			M0_ASSERT(cs_ad_stob_bob_check(adstob));
 			if (!stob->s_sfile.sf_is_initialised ||
 			    adstob->as_id_back.si_bits.u_hi ==
@@ -1278,8 +1280,8 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 		sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
 	} else {
 		M0_ASSERT(!m0_tlist_is_empty(&astob_tl,
-					     &addb_stob->cas_stobs.s_adoms));
-		ad_stob = astob_tlist_head(&addb_stob->cas_stobs.s_adoms);
+					     &addb_stob->cas_stobs.s_adstobs));
+		ad_stob = astob_tlist_head(&addb_stob->cas_stobs.s_adstobs);
 		M0_ASSERT(ad_stob != NULL);
 
 		sdom = ad_stob->as_dom;

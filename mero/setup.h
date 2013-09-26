@@ -304,7 +304,7 @@ struct cs_stobs {
 	struct m0_stob_domain *s_ldom;
 	struct cs_stob_file    s_sfile;
 	/** List of AD stobs */
-	struct m0_tl           s_adoms;
+	struct m0_tl           s_adstobs;
 };
 
 /**
