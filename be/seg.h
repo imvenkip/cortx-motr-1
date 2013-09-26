@@ -59,6 +59,10 @@ struct m0_be_seg {
 	/** Size at the start of segment which is used by segment internals. */
 	/** XXX use it in all UTs */
 	m0_bcount_t	       bs_reserved;
+	/**
+	 * Segment allocator.
+	 * m0_be_seg_allocator() should be used to access segment allocator.
+	 */
 	struct m0_be_allocator bs_allocator;
 	struct m0_be_domain   *bs_domain;
 	int                    bs_state;
@@ -85,6 +89,8 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
 
 M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
 					 void *addr);
+
+M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg);
 
 struct m0_be_reg {
 	struct m0_be_seg *br_seg;

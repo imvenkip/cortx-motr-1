@@ -25,15 +25,18 @@ struct m0_be_btree;
 struct m0_be_btree_kv_ops;
 struct m0_be_btree_cursor;
 
-M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
-			      struct m0_be_tx *tx, struct m0_be_op *op,
-			      m0_bcount_t size, unsigned shift)
+M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
+			     struct m0_be_tx *tx,
+			     struct m0_be_op *op,
+			     void **ptr,
+			     m0_bcount_t size)
 {
-	return m0_alloc(size);
+	*ptr = m0_alloc(size);
 }
 
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
-			    struct m0_be_tx *tx, struct m0_be_op *op,
+			    struct m0_be_tx *tx,
+			    struct m0_be_op *op,
 			    void *ptr)
 {
 	m0_free(ptr);

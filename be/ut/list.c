@@ -83,10 +83,8 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 		m0_be_list_init(&l, &test_tl, seg);
 
-		m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(elem[0]), SHIFT,
-				       &tcred);
-		m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(elem[0]), SHIFT,
-				       &tcred);
+		M0_BE_ALLOC_CREDIT_PTR(elem[0], seg, &tcred);
+		M0_BE_FREE_CREDIT_PTR(elem[0], seg, &tcred);
 		m0_be_tx_credit_mul(&tcred, ARRAY_SIZE(elem));
 
 		m0_be_list_credit(&l, M0_BLO_CREATE, 1, &ccred);
@@ -116,11 +114,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 	/* add */
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
-		m0_be_op_init(&op);
-		elem[i] = m0_be_alloc(a, &tx, &op, sizeof(*elem[0]), SHIFT);
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-							 M0_BOS_FAILURE)));
-		m0_be_op_fini(&op);
+		M0_BE_ALLOC_PTR_SYNC(elem[i], seg, &tx);
 		M0_UT_ASSERT(elem[i] != NULL);
 
 		m0_tlink_init(&test_tl, elem[i]);
@@ -157,11 +151,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 							 M0_BOS_FAILURE)));
 		m0_be_op_fini(&op);
 
-		m0_be_op_init(&op);
-		m0_be_free(a, &tx, &op, elem[i]);
-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
-							 M0_BOS_FAILURE)));
-		m0_be_op_fini(&op);
+		M0_BE_FREE_PTR_SYNC(elem[i], seg, &tx);
 		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
 	}
 

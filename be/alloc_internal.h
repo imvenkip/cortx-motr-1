@@ -65,7 +65,10 @@ struct be_alloc_chunk {
 	 */
 	/** M0_BE_ALLOC_MAGIC1 */
 	uint64_t	bac_magic1;
-	/** m0_be_alloc() will return address of bac_mem for allocated chunk */
+	/**
+	 * m0_be_alloc() and m0_be_alloc_aligned() will return address
+	 * of bac_mem for allocated chunk.
+	 */
 	char		bac_mem[0];
 };
 

@@ -61,6 +61,15 @@ struct m0_be_op {
 	enum m0_be_op_type bo_utype; /* bo_u type */
 	struct m0_be_op   *bo_parent_op;
 	union {
+		struct {
+			/**
+			 * Pointer to memory that was allocated by
+			 * m0_be_alloc() or m0_be_alloc_aligned().
+			 */
+			void *a_ptr;
+			/* XXX @todo refactor all _rc into m0_be_op.bo_rc */
+			int   a_rc;
+		} u_allocator;
 		/* Used by m0_be_reg_get(). */
 		struct m0_be_reg                   u_reg;
 
@@ -137,7 +146,7 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
 	} while (0)
 
 /**
- * Performs the action, waits for its completion, and returns numerical
+ * Performs the action, waits for its completion, and returns
  * result of operation.
  *
  * Example:
@@ -150,16 +159,17 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
  */
 #define M0_BE_OP_SYNC_RET(op_obj, action, member) \
 	({                                        \
-		struct m0_be_op op_obj;           \
-		int __rc;                         \
+		struct m0_be_op	      op_obj;     \
+		int		      __rc;	  \
+		typeof(op_obj.member) __result;   \
 						  \
 		m0_be_op_init(&op_obj);           \
 		action;                           \
 		__rc = m0_be_op_wait(&op_obj);    \
 		M0_ASSERT(__rc == 0);             \
-		__rc = op_obj.member;             \
+		__result = op_obj.member;         \
 		m0_be_op_fini(&op_obj);           \
-		__rc;                             \
+		__result;                         \
 	})
 
 M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op);

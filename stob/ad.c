@@ -259,7 +259,6 @@ static void ad_domain_fini(struct m0_stob_domain *self,
 {
 	struct ad_domain       *adom = domain2ad(self);
 	struct m0_be_seg       *seg  = adom->ad_be_seg;
-	struct m0_be_allocator *alloc = &seg->bs_allocator;
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = {};
 	struct m0_be_op         op;
@@ -275,7 +274,7 @@ static void ad_domain_fini(struct m0_stob_domain *self,
 
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
-	m0_be_allocator_credit(alloc, M0_BAO_FREE, sizeof *adom, 0, &cred);
+	M0_BE_FREE_CREDIT_PTR(adom, seg, &cred);
 	m0_be_emap_credit(&adom->ad_adata, M0_BEO_DESTROY, 1, &cred);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
@@ -287,11 +286,7 @@ static void ad_domain_fini(struct m0_stob_domain *self,
 		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 		m0_be_op_fini(&op);
 
-		m0_be_op_init(&op);
-		m0_be_free(alloc, &tx, &op, adom);
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+		M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
 
 		m0_be_tx_close_sync(&tx);
 	}
@@ -316,7 +311,6 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 {
 	struct ad_domain       *adom;
 	struct m0_stob_domain  *dom;
-	struct m0_be_allocator *alloc;
 	struct m0_be_emap       map;
 	struct m0_be_emap      *emap = &map;
 	struct m0_be_tx         tx = {};
@@ -332,11 +326,9 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 	M0_PRE(strlen(domain_name) <
 		  ARRAY_SIZE(adom->ad_path) - ARRAY_SIZE(prefix));
 
-	alloc = &be_seg->bs_allocator;
-
 	m0_be_tx_init(&tx, 0, be_seg->bs_domain, grp,
 		      NULL, NULL, NULL, NULL);
-	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *adom, 0, &cred);
+	M0_BE_ALLOC_CREDIT_PTR(adom, be_seg, &cred);
 	m0_be_emap_init(emap, be_seg);
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
 	m0_be_emap_fini(emap);
@@ -344,38 +336,30 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 	rc = m0_be_tx_open_sync(&tx);
 
 	if (rc == 0) {
-		m0_be_op_init(&op);
-		M0_BE_ALLOC_PTR(be_seg, &tx, &op, 0, adom);
-		rc = m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-		if (rc == 0) {
-			if (adom != NULL) {
-				adom->ad_setup = false;
-				dom = &adom->ad_base;
-				dom->sd_ops = &ad_stob_domain_op;
-				m0_stob_domain_init(dom, type, dom_id,
-						    be_seg->bs_domain);
-				m0_stob_cache_init(&adom->ad_cache);
-				sprintf(adom->ad_path, "%s%s", prefix,
-				        domain_name);
-				dom->sd_name = adom->ad_path;
-				emap = &adom->ad_adata;
-				m0_be_emap_init(emap, be_seg);
-				m0_be_op_init(&op);
-				m0_be_emap_create(emap, &tx, &op);
-				rc = m0_be_op_wait(&op);
-				M0_ASSERT(m0_be_op_state(&op) ==
-							M0_BOS_SUCCESS);
-				m0_be_op_fini(&op);
-				if (rc == 0) {
-					M0_BE_TX_CAPTURE_PTR(be_seg, &tx, adom);
-					*out = dom;
-				}
-			} else {
-				M0_STOB_OOM(AD_DOM_LOCATE);
-				rc = -ENOMEM;
+		M0_BE_ALLOC_PTR_SYNC(adom, be_seg, &tx);
+		if (adom != NULL) {
+			adom->ad_setup = false;
+			dom = &adom->ad_base;
+			dom->sd_ops = &ad_stob_domain_op;
+			m0_stob_domain_init(dom, type, dom_id,
+					    be_seg->bs_domain);
+			m0_stob_cache_init(&adom->ad_cache);
+			sprintf(adom->ad_path, "%s%s", prefix, domain_name);
+			dom->sd_name = adom->ad_path;
+			emap = &adom->ad_adata;
+			m0_be_emap_init(emap, be_seg);
+			m0_be_op_init(&op);
+			m0_be_emap_create(emap, &tx, &op);
+			rc = m0_be_op_wait(&op);
+			M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+			m0_be_op_fini(&op);
+			if (rc == 0) {
+				M0_BE_TX_CAPTURE_PTR(be_seg, &tx, adom);
+				*out = dom;
 			}
+		} else {
+			M0_STOB_OOM(AD_DOM_LOCATE);
+			rc = -ENOMEM;
 		}
 		m0_be_tx_close_sync(&tx);
 	}

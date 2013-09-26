@@ -71,17 +71,16 @@ M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx)
 M0_INTERNAL void *m0_ut_be_alloc(m0_bcount_t size, struct m0_be_seg *seg,
 				 struct m0_be_ut_backend *ut_be)
 {
-	enum { SHIFT = 0 };
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_tx tx;
 	void           *ptr;
 
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC, size, SHIFT,
+	m0_be_allocator_credit(m0_be_seg_allocator(seg), M0_BAO_ALLOC, size, 0,
 			       &cred);
 	m0_ut_be_tx_begin(&tx, ut_be, &cred);
-	M0_BE_OP_SYNC(
-		op,
-		ptr = m0_be_alloc(&seg->bs_allocator, &tx, &op, size, SHIFT));
+	M0_BE_OP_SYNC(op,
+		      m0_be_alloc(m0_be_seg_allocator(seg),
+				  &tx, &op, &ptr, size));
 	m0_ut_be_tx_end(&tx);
 	return ptr;
 }
@@ -90,14 +89,13 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
 			       struct m0_be_seg *seg,
 			       struct m0_be_ut_backend *ut_be)
 {
-	enum { SHIFT = 0 };
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_tx tx;
 
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE, size, SHIFT,
+	m0_be_allocator_credit(m0_be_seg_allocator(seg), M0_BAO_FREE, size, 0,
 			       &cred);
 	m0_ut_be_tx_begin(&tx, ut_be, &cred);
-	M0_BE_OP_SYNC(op, m0_be_free(&seg->bs_allocator, &tx, &op, ptr));
+	M0_BE_OP_SYNC(op, m0_be_free(m0_be_seg_allocator(seg), &tx, &op, ptr));
 	m0_ut_be_tx_end(&tx);
 }
 

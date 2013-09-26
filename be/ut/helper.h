@@ -73,7 +73,7 @@ struct m0_be_ut_seg {
 	struct m0_stob		 bus_stob_;
 	/** Segment to test */
 	struct m0_be_seg	 bus_seg;
-	/** Pointer to m0_be_ut_seg.bus_seg.bs_allocator */
+	/** Pointer to m0_be_ut_seg.bus_seg allocator */
 	struct m0_be_allocator	*bus_allocator;
 	void			*bus_copy;
 };

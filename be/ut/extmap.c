@@ -47,10 +47,9 @@ static struct m0_be_op         *it_op;
 static void emap_be_alloc(struct m0_be_tx *tx)
 {
 	M0_BE_TX_CREDIT(cred);
-	struct m0_be_allocator *a = &be_seg->bs_allocator;
 	int                     rc;
 
-	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *emap, 0, &cred);
+	M0_BE_ALLOC_CREDIT_PTR(emap, be_seg, &cred);
 
 	m0_be_ut_tx_init(tx, &be_ut_emap_backend);
 	m0_be_tx_prep(tx, &cred);
@@ -58,7 +57,7 @@ static void emap_be_alloc(struct m0_be_tx *tx)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_OP_SYNC(op, emap = m0_be_alloc(a, tx, &op, sizeof *emap, 0));
+	M0_BE_ALLOC_PTR_SYNC(emap, be_seg, tx);
 	M0_UT_ASSERT(emap != NULL);
 
 	m0_be_tx_close_sync(tx);
@@ -68,10 +67,9 @@ static void emap_be_alloc(struct m0_be_tx *tx)
 static void emap_be_free(struct m0_be_tx *tx)
 {
 	M0_BE_TX_CREDIT(cred);
-	struct m0_be_allocator *a = &be_seg->bs_allocator;
 	int                     rc;
 
-	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof *emap, 0, &cred);
+	M0_BE_FREE_CREDIT_PTR(emap, be_seg, &cred);
 
 	m0_be_ut_tx_init(tx, &be_ut_emap_backend);
 	m0_be_tx_prep(tx, &cred);
@@ -79,7 +77,7 @@ static void emap_be_free(struct m0_be_tx *tx)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, emap));
+	M0_BE_FREE_PTR_SYNC(emap, be_seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);

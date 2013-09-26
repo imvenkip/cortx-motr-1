@@ -180,7 +180,6 @@ static struct m0_be_btree *
 create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 {
 	M0_BE_TX_CREDIT(cred);
-	struct m0_be_allocator *a = &seg->bs_allocator;
 	struct m0_be_btree     *tree;
 	struct m0_be_tx        *tx;
 	struct m0_buf           key;
@@ -199,7 +198,7 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 		m0_be_btree_insert_credit(&t, INSERT_COUNT, INSERT_SIZE,
 					INSERT_SIZE, &cred);
 	}
-	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *tree, 0, &cred);
+	M0_BE_ALLOC_CREDIT_PTR(tree, seg, &cred);
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
@@ -210,7 +209,7 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	M0_UT_ASSERT(rc == 0);
 
 	/* start */
-	M0_BE_OP_SYNC(op, tree = m0_be_alloc(a, tx, &op, sizeof *tree, 0));
+	M0_BE_ALLOC_PTR_SYNC(tree, seg, tx);
 	m0_be_btree_init(tree, seg, &kv_ops);
 
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
@@ -273,14 +272,13 @@ static void destroy_tree(struct m0_be_btree *tree,
 			 struct m0_be_seg *seg)
 {
 	M0_BE_TX_CREDIT(cred);
-	struct m0_be_allocator *a = &seg->bs_allocator;
 	struct m0_be_tx        *tx;
 	int                     rc;
 
 	M0_ENTRY();
 
 	m0_be_btree_destroy_credit(tree, 1, &cred);
-	m0_be_allocator_credit(a, M0_BAO_FREE, sizeof *tree, 0, &cred);
+	M0_BE_FREE_CREDIT_PTR(tree, seg, &cred);
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
@@ -293,7 +291,7 @@ static void destroy_tree(struct m0_be_btree *tree,
 	M0_LOG(M0_INFO, "Btree %p destroy...", tree);
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));
 
-	M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, tree));
+	M0_BE_FREE_PTR_SYNC(tree, seg, tx);
 
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);

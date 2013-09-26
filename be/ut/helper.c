@@ -580,7 +580,8 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 	struct m0_be_tx         tx;
 	int                     rc;
 
-	a = ut_seg->bus_allocator = &ut_seg->bus_seg.bs_allocator;
+	ut_seg->bus_allocator = m0_be_seg_allocator(&ut_seg->bus_seg);
+	a = ut_seg->bus_allocator;
 
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(&tx, ut_be);

@@ -181,6 +181,11 @@ M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)
 	return m0_be_seg_offset(reg->br_seg, reg->br_addr);
 }
 
+M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
+{
+	return &seg->bs_allocator;
+}
+
 static int
 be_seg_io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 {

@@ -91,7 +91,7 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a);
 /**
  * Allocator invariant.
  *
- * It will perform detailed verefication of allocator data structures.
+ * It will perform detailed verification of allocator data structures.
  * It will ignore all user data.
  */
 M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
@@ -108,8 +108,8 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 /**
  * Destroy allocator on the segment.
  *
- * All memory allocations obtained from m0_be_alloc()
- * should be m0_be_free()'d before calling this function.
+ * All memory allocations obtained from m0_be_alloc{,_aligned}()
+ * should be m0_be_free{,_aligned}()'d before calling this function.
  */
 M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
 					 struct m0_be_tx *tx);
@@ -122,8 +122,10 @@ M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
 enum m0_be_allocator_op {
 	M0_BAO_CREATE,	/**< Allocator credit for m0_be_allocator_create() */
 	M0_BAO_DESTROY,	/**< Allocator credit for m0_be_allocator_destroy() */
-	M0_BAO_ALLOC,	/**< Allocator credit for m0_be_alloc() */
-	M0_BAO_FREE,	/**< Allocator credit for m0_be_free() */
+	M0_BAO_ALLOC,	      /**< Allocator credit for m0_be_alloc() */
+	M0_BAO_ALLOC_ALIGNED, /**< Allocator credit for m0_be_alloc_aligned() */
+	M0_BAO_FREE,	      /**< Allocator credit for m0_be_free() */
+	M0_BAO_FREE_ALIGNED,  /**< Allocator credit for m0_be_free_aligned() */
 };
 
 /**
@@ -131,13 +133,15 @@ enum m0_be_allocator_op {
  *
  * @param a Allocator
  * @param optype Allocator operation type
- * @param size Size of allocation for optype = M0_BAO_ALLOC.
- *	       It is ignored for optype = M0_BAO_FREE.
- * @param shift Memory for optype = M0_BAO_ALLOC.
- *	        It is ignored for optype = M0_BAO_FREE.
+ * @param size Size of allocation. Makes sense only for
+ *	       M0_IN(optype, (M0_BAO_ALLOC_ALIGNED, M0_BAO_ALLOC)).
+ *	       It is ignored for other optypes.
+ * @param shift Memory alignment shift. Makes sense only for
+ *		optype == M0_BAO_ALLOC_ALIGNED. It is ignored for other optypes.
  * @param accum Accumulator for credits.
  *
- * @see m0_be_alloc(), m0_be_free(), m0_be_tx_credit.
+ * @see m0_be_alloc_aligned(), m0_be_alloc(), m0_be_free(),
+ * m0_be_free_aligned(), m0_be_allocator_op, m0_be_tx_credit.
  */
 M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					enum m0_be_allocator_op optype,
@@ -150,44 +154,75 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
  *
  * @param a Allocator
  * @param tx Allocation will be done in this transaction
- * @param op XXX. Now m0_be_op state always set to M0_BOS_SUCCESS upon return
- *	     from this function.
+ * @param op See m0_be_op.
+ * @param ptr Pointer to allocated memory will be stored to *ptr.
+ *	      *ptr shouldn't be used before completion of the operation.
+ *	      Can be NULL.
  * @param size Memory size
  * @param shift Memory will be aligned on (shift^2)-byte boundary.
  *		It can be less than M0_BE_ALLOC_SHIFT_MIN - in this case
  *		allocation will be done as if it is equal to
  *		M0_BE_ALLOC_SHIFT_MIN.
  *
- * @todo use op.
- * @see m0_be_allocator_credit(), M0_BAO_ALLOC,
- * m0_alloc(), m0_alloc_aligned(), M0_BE_ALLOC_SHIFT_MIN.
+ * This function will return pointer to memory allocated in
+ * m0_be_op.bo_u.u_allocator.a_ptr (always) and in *ptr (if *ptr != NULL)
+ * and error code in m0_be_op.bo_u.u_allocator.a_rc (0 means no error).
+ * The memory should be freed using m0_be_free_aligned().
+ *
+ * @see m0_be_alloc(), m0_be_allocator_credit(), M0_BAO_ALLOC_ALIGNED,
+ * m0_alloc_aligned(), M0_BE_ALLOC_SHIFT_MIN.
  */
-M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
-			      struct m0_be_tx *tx, struct m0_be_op *op,
-			      m0_bcount_t size, unsigned shift);
+M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+				     struct m0_be_tx *tx,
+				     struct m0_be_op *op,
+				     void **ptr,
+				     m0_bcount_t size,
+				     unsigned shift);
+
+/**
+ * Allocate memory.
+ *
+ * The memory allocated is guaranteed to be suitably aligned
+ * for any kind of variable. See m0_be_alloc_aligned() for
+ * parameters description.
+ *
+ * @see m0_be_alloc_aligned(), M0_BAO_ALLOC, m0_alloc().
+ */
+M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
+			     struct m0_be_tx *tx,
+			     struct m0_be_op *op,
+			     void **ptr,
+			     m0_bcount_t size);
+
+/**
+ * Free memory allocated with m0_be_alloc_aligned().
+ *
+ * @param a Allocator
+ * @param tx Free operation will be done in this transaction
+ * @param op See m0_be_op.
+ * @param ptr Pointer to memory to release. May be NULL - in this case
+ *	      call to this function is no-op. If ptr is not NULL,
+ *	      then it should be exactly the pointer returned
+ *	      from m0_be_alloc() for allocator a. Double m0_be_free()
+ *	      is not allowed for the same pointer from one call to
+ *	      m0_be_alloc().
+ *
+ * @see m0_be_alloc_aligned(), M0_BAO_FREE_ALIGNED, m0_be_allocator_destroy().
+ */
+M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
+				    struct m0_be_tx *tx,
+				    struct m0_be_op *op,
+				    void *ptr);
 
 /**
  * Free memory allocated with m0_be_alloc().
  *
- * @param a Allocator
- * @param tx Free operation will be done in this transaction
- * @param op XXX. Now m0_be_op state always set to M0_BOS_SUCCESS upon return
- *	     from this function.
- * @param ptr Pointer to memory to release. May be NULL - in this case
- *	      op state set to M0_BOS_SUCCESS and call to this function is
- *	      no-op. If ptr is not NULL, then it should be exactly the pointer
- *	      returned from m0_be_alloc() for allocator a. Double m0_be_free()
- *	      is not allowed for the same pointer from one call to
- *	      m0_be_alloc().
- *
- * @todo use op.
- * @see m0_be_alloc(), m0_be_allocator_credit(), M0_BAO_FREE,
- * m0_be_allocator_destroy().
+ * @see m0_be_free_aligned(), M0_BAO_FREE.
  */
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
-			    struct m0_be_tx *tx, struct m0_be_op *op,
+			    struct m0_be_tx *tx,
+			    struct m0_be_op *op,
 			    void *ptr);
-
 /**
  * Return allocator statistics.
  *
@@ -203,9 +238,9 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
  * It is a wrapper around m0_be_alloc().
  * @see m0_be_alloc(), M0_ALLOC_ARR().
  */
-#define M0_BE_ALLOC_ARR(seg, tx, op, shift, arr, nr)			\
-	((arr) = m0_be_alloc(&(seg)->bs_allocator, (tx), (op),		\
-			     (nr) * sizeof ((arr)[0]), (shift)))
+#define M0_BE_ALLOC_ARR(arr, nr, seg, tx, op)				\
+		m0_be_alloc(m0_be_seg_allocator(seg), (tx), (op),	\
+			    (void **)&(arr), (nr) * sizeof((arr)[0]))
 
 /**
  * Allocate structure.
@@ -213,8 +248,29 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
  * It is a wrapper around m0_be_alloc().
  * @see m0_be_alloc(), M0_ALLOC_PTR(), M0_BE_ALLOC_ARR().
  */
-#define M0_BE_ALLOC_PTR(seg, tx, op, shift, ptr)			\
-		M0_BE_ALLOC_ARR(seg, tx, op, shift, ptr, 1)
+#define M0_BE_ALLOC_PTR(ptr, seg, tx, op)				\
+		M0_BE_ALLOC_ARR((ptr), 1, (seg), (tx), (op))
+
+#define M0_BE_ALLOC_ARR_SYNC(arr, nr, seg, tx)				\
+		M0_BE_OP_SYNC(__op,					\
+			      M0_BE_ALLOC_ARR((arr), (nr), (seg), (tx), &__op))
+
+#define M0_BE_ALLOC_PTR_SYNC(ptr, seg, tx)				\
+		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_PTR((ptr), (seg), (tx), &__op))
+
+#define M0_BE_FREE_PTR(ptr, seg, tx, op)				\
+		m0_be_free(m0_be_seg_allocator(seg), (tx), (op), (ptr))
+
+#define M0_BE_FREE_PTR_SYNC(ptr, seg, tx)				\
+		M0_BE_OP_SYNC(__op, M0_BE_FREE_PTR((ptr), (seg), (tx), &__op))
+
+#define M0_BE_ALLOC_CREDIT_PTR(ptr, seg, accum)				\
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
+				       M0_BAO_ALLOC, sizeof *(ptr), 0, (accum))
+
+#define M0_BE_FREE_CREDIT_PTR(ptr, seg, accum)				\
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
+				       M0_BAO_FREE, sizeof *(ptr), 0, (accum))
 
 /** @} end of be group */
 #endif /* __MERO_BE_ALLOC_H__ */

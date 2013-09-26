@@ -169,7 +169,7 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
 		m0_be_seg_init(seg, stob, &ut_be->but_dom);
 		rc = m0_be_seg_open(&ut_seg->bus_seg);
 		M0_ASSERT(rc == 0);
-		m0_be_allocator_init(&seg->bs_allocator, seg);
+		m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
 		m0_be_seg_dict_init(seg);
 
 		ut_seg->bus_copy = NULL;
@@ -318,8 +318,7 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 	db_tx_lock(&tx_);
 	tx = tx_.dt_i.dt_txn;
 
-	M0_BE_OP_SYNC(op, tree = m0_be_alloc(&seg->bs_allocator,
-					     tx, &op, sizeof *tree, 0));
+	M0_BE_ALLOC_PTR_SYNC(tree, seg, tx);
 	table->t_i.i_tree = tree;
 
         m0_be_btree_init(tree, seg, ops);

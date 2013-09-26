@@ -191,11 +191,9 @@ fol_alloc(struct m0_be_seg *seg)
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, seg->bs_domain, grp);
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC,
-			sizeof *fol, 0, &tx.tx_betx_cred);
+	M0_BE_ALLOC_CREDIT_PTR(fol, seg, &tx.tx_betx_cred);
 	m0_dtx_open_sync(&tx);
-	M0_BE_OP_SYNC(op, fol = m0_be_alloc(&seg->bs_allocator,
-			&tx.tx_betx, &op, sizeof *fol, 0));
+	M0_BE_ALLOC_PTR_SYNC(fol, seg, &tx.tx_betx);
 	m0_dtx_done_sync(&tx);
 	m0_sm_group_unlock(grp);
 
@@ -210,11 +208,9 @@ fol_free(struct m0_fol *fol, struct m0_be_seg *seg)
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, seg->bs_domain, grp);
-	m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE,
-			sizeof *fol, 0, &tx.tx_betx_cred);
+	M0_BE_FREE_CREDIT_PTR(fol, seg, &tx.tx_betx_cred);
 	m0_dtx_open_sync(&tx);
-	M0_BE_OP_SYNC(op, m0_be_free(&seg->bs_allocator,
-				&tx.tx_betx, &op, fol));
+	M0_BE_FREE_PTR_SYNC(fol, seg, &tx.tx_betx);
 	m0_dtx_done_sync(&tx);
 	m0_sm_group_unlock(grp);
 }

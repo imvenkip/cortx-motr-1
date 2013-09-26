@@ -33,24 +33,19 @@
  * @{
  */
 
-enum { ALLOC_SHIFT = 0 };
-
 M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 				   enum m0_be_list_op       optype,
 				   m0_bcount_t              nr,
 				   struct m0_be_tx_credit  *accum)
 {
 	M0_BE_TX_CREDIT(cred);
-	struct m0_be_allocator *a = &list->bl_seg->bs_allocator;
 
 	switch (optype) {
 	case M0_BLO_CREATE:
-		m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(*list),
-				       ALLOC_SHIFT, &cred);
+		M0_BE_ALLOC_CREDIT_PTR(list, list->bl_seg, &cred);
 		break;
 	case M0_BLO_DESTROY:
-		m0_be_allocator_credit(a, M0_BAO_FREE, sizeof(*list),
-				       ALLOC_SHIFT, &cred);
+		M0_BE_FREE_CREDIT_PTR(list, list->bl_seg, &cred);
 		break;
 	case M0_BLO_INSERT:
 	case M0_BLO_DELETE:
@@ -110,28 +105,32 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list       **list,
 				   struct m0_be_op          *op,
 				   struct m0_be_tx          *tx)
 {
-	struct m0_be_allocator *alloc = &seg->bs_allocator;
-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
-	*list = m0_be_alloc(alloc, tx, op, sizeof(**list), ALLOC_SHIFT);
+	M0_BE_ALLOC_PTR_SYNC(*list, seg, tx);
 	if (*list == NULL)
 		return;
 
 	m0_be_list_init(*list, desc, seg);
 	m0_tlist_init(desc, &(*list)->bl_list);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, *list);
+
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
 				    struct m0_be_op   *op,
 				    struct m0_be_tx   *tx)
 {
-	struct m0_be_seg       *seg   = list->bl_seg;
-	struct m0_be_allocator *alloc = &seg->bs_allocator;
+	struct m0_be_seg *seg   = list->bl_seg;
+
+	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
 	m0_be_list_fini(list);
-	m0_be_free(alloc, tx, op, list);
+	M0_BE_FREE_PTR_SYNC(list, seg, tx);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, list);
+
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
 /* XXX TODO: This function has to be reimplemented using m0_be_op */

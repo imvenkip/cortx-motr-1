@@ -536,8 +536,7 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 
 	m0_be_btree_create_credit(&dummy, ARRAY_SIZE(tables), &cred);
 	for (i = 0; i < ARRAY_SIZE(tables); ++i)
-		m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_ALLOC,
-				       sizeof(struct m0_be_btree), 0, &cred);
+		M0_BE_ALLOC_CREDIT_PTR(*tables[i].tree, seg, &cred);
 
 	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
 				NULL, NULL, NULL, NULL);
@@ -552,12 +551,7 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(tables); ++i) {
-		m0_be_op_init(&op);
-		*tables[i].tree = m0_be_alloc(&seg->bs_allocator, tx, &op,
-					      sizeof(struct m0_be_btree), 0);
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+		M0_BE_ALLOC_PTR_SYNC(*tables[i].tree, seg, tx);
 
 		m0_be_op_init(&op);
 		m0_be_btree_init(*tables[i].tree, seg, tables[i].ops);
@@ -604,8 +598,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 		m0_be_btree_destroy_credit(*tables[i].tree, 1, &cred);
 
 	for (i = 0; i < ARRAY_SIZE(tables); ++i)
-		m0_be_allocator_credit(&seg->bs_allocator, M0_BAO_FREE,
-				       sizeof(struct m0_be_btree), 0, &cred);
+		M0_BE_FREE_CREDIT_PTR(*tables[i].tree, seg, &cred);
 
 	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
 				NULL, NULL, NULL, NULL);
@@ -626,11 +619,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 		m0_be_op_fini(&op);
 
-		m0_be_op_init(&op);
-		m0_be_free(&seg->bs_allocator, tx, &op, *tables[i].tree);
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+		M0_BE_FREE_PTR_SYNC(*tables[i].tree, seg, tx);
 	}
 
 	m0_be_tx_close(tx);

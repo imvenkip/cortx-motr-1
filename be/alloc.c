@@ -792,12 +792,14 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	M0_BE_TX_CREDIT(chunk_add_after_credit);
 	M0_BE_TX_CREDIT(chunk_del_fini_credit);
 	M0_BE_TX_CREDIT(chunk_trymerge_credit);
+	M0_BE_TX_CREDIT(mem_zero_credit);
 	struct m0_be_tx_credit chunk_credit =
 		M0_BE_TX_CREDIT_INIT(1, sizeof(struct be_alloc_chunk));
 	struct m0_be_tx_credit header_credit =
 		M0_BE_TX_CREDIT_INIT(1, sizeof(struct m0_be_allocator_header));
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
+	mem_zero_credit = M0_BE_TX_CREDIT_OBJ(1, size * 2);
 
 	m0_be_tx_credit_add(&capture_around_credit, &header_credit);
 	m0_be_tx_credit_mac(&capture_around_credit, &chunk_credit, 3);
@@ -827,24 +829,36 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 			/* tlist_fini x2 */
 			m0_be_tx_credit_mac(accum, &header_credit, 2);
 			break;
-		case M0_BAO_ALLOC:
+		case M0_BAO_ALLOC_ALIGNED:
 			m0_be_tx_credit_add(accum, &chunk_del_fini_credit);
 			m0_be_tx_credit_mac(accum, &chunk_add_after_credit, 3);
 			m0_be_tx_credit_add(accum, &capture_around_credit);
+			m0_be_tx_credit_add(accum, &mem_zero_credit);
 			break;
-		case M0_BAO_FREE:
+		case M0_BAO_ALLOC:
+			m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED, size,
+					       M0_BE_ALLOC_SHIFT_MIN, accum);
+			break;
+		case M0_BAO_FREE_ALIGNED:
 			/* be_alloc_chunk_mark_free = tlist_add_before() */
 			m0_be_tx_credit_mac(accum, &capture_around_credit, 2);
 			m0_be_tx_credit_mac(accum, &chunk_trymerge_credit, 2);
+			break;
+		case M0_BAO_FREE:
+			m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED, size,
+					       shift, accum);
 			break;
 		default:
 			M0_IMPOSSIBLE("Invalid allocator operation type");
 	}
 }
 
-M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
-			      struct m0_be_tx *tx, struct m0_be_op *op,
-			      m0_bcount_t size, unsigned shift)
+M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+				     struct m0_be_tx *tx,
+				     struct m0_be_op *op,
+				     void **ptr,
+				     m0_bcount_t size,
+				     unsigned shift)
 {
 	struct be_alloc_chunk *iter;
 	struct be_alloc_chunk *c = NULL;
@@ -867,24 +881,44 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
 		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg,
 						c->bac_size, &c->bac_mem));
 	}
+	op->bo_u.u_allocator.a_ptr = c == NULL ?    NULL : &c->bac_mem;
+	op->bo_u.u_allocator.a_rc  = c == NULL ? -ENOMEM : 0;
+	if (ptr != NULL)
+		*ptr = op->bo_u.u_allocator.a_ptr;
 	/* and ends here */
-	m0_mutex_unlock(&a->ba_lock);
-
-	/* XXX */
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
-
 	if (c != NULL) {
 		M0_POST(!c->bac_free);
 		M0_POST(c->bac_size >= size);
 		M0_POST(m0_addr_is_aligned(&c->bac_mem, shift));
 		M0_POST(be_alloc_is_chunk_in_allocator(a, c));
 	}
+	/*
+	 * unlock mutex after post-conditions which are using allocator
+	 * internals
+	 */
+	m0_mutex_unlock(&a->ba_lock);
+
 	M0_POST(m0_be_allocator__invariant(a));
-	return c == NULL ? NULL : &c->bac_mem;
+	M0_POST(equi(op->bo_u.u_allocator.a_ptr != NULL,
+		     op->bo_u.u_allocator.a_rc == 0));
+
+	/* set op state after post-conditions because they are using op */
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
 
-M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
-			    struct m0_be_tx *tx, struct m0_be_op *op, void *ptr)
+M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
+			     struct m0_be_tx *tx,
+			     struct m0_be_op *op,
+			     void **ptr,
+			     m0_bcount_t size)
+{
+	m0_be_alloc_aligned(a, tx, op, ptr, size, M0_BE_ALLOC_SHIFT_MIN);
+}
+
+M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
+				    struct m0_be_tx *tx,
+				    struct m0_be_op *op,
+				    void *ptr)
 {
 	struct be_alloc_chunk *c;
 	struct be_alloc_chunk *prev;
@@ -894,7 +928,6 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 	M0_PRE(m0_be_allocator__invariant(a));
 	M0_PRE(ergo(ptr != NULL, be_alloc_is_mem_in_allocator(a, 1, ptr)));
 
-	/* XXX */
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
 	if (ptr != NULL) {
@@ -919,10 +952,17 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 		m0_mutex_unlock(&a->ba_lock);
 	}
 
-	/* XXX */
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 
 	M0_POST(m0_be_allocator__invariant(a));
+}
+
+M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
+			    struct m0_be_tx *tx,
+			    struct m0_be_op *op,
+			    void *ptr)
+{
+	m0_be_free_aligned(a, tx, op, ptr);
 }
 
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,

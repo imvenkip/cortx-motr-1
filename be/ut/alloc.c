@@ -99,7 +99,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 
 	size = rand_r(seed) % BE_UT_ALLOC_SIZE + 1;
 	shift = rand_r(seed) % BE_UT_ALLOC_SHIFT;
-	optype = *p == NULL ? M0_BAO_ALLOC : M0_BAO_FREE;
+	optype = *p == NULL ? M0_BAO_ALLOC_ALIGNED : M0_BAO_FREE_ALIGNED;
 
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(tx, ut_be);
@@ -113,12 +113,12 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 
 	m0_be_op_init(&op);
 	if (*p == NULL) {
-		*p = m0_be_alloc(a, tx, &op, /* XXX */ size, shift);
+		m0_be_alloc_aligned(a, tx, &op, p, size, shift);
 		rc = m0_be_op_wait(&op);
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
 	} else {
-		m0_be_free(a, tx, &op, /* XXX */ *p);
+		m0_be_free_aligned(a, tx, &op, *p);
 		rc = m0_be_op_wait(&op);
 		*p = NULL;
 	}
@@ -139,7 +139,7 @@ static void be_ut_alloc_thread(int index)
 	int				 i;
 	int				 j;
 
-	a = &be_ut_alloc_seg.bus_seg.bs_allocator;
+	a = m0_be_seg_allocator(&be_ut_alloc_seg.bus_seg);
 	M0_SET_ARR0(ts->ats_ptr);
 	for (j = 0; j < ts->ats_nr; ++j) {
 		i = rand_r(&seed) % ARRAY_SIZE(ts->ats_ptr);
@@ -191,7 +191,7 @@ M0_INTERNAL void m0_be_ut_alloc_transactional(void)
 {
 	struct m0_be_ut_backend *ut_be = &be_ut_alloc_backend;
 	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_allocator	*a = &ut_seg.bus_seg.bs_allocator;
+	struct m0_be_allocator	*a = m0_be_seg_allocator(&ut_seg.bus_seg);
 	void			*ptrs[BE_UT_ALLOC_PTR_NR];
 	unsigned		 seed = 0;
 	int			 i;
