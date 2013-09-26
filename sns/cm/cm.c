@@ -751,11 +751,8 @@ static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
 
 	rc = m0_cob_ns_next_of(cdom->cd_namespace, fid_curr,
 			       fid_next);
-	if (rc == 0) {
+	if (rc == 0)
 		*fid_curr = *fid_next;
-		M0_LOG(M0_FATAL, "%lu %lu", fid_curr->f_container, fid_curr->f_key);
-	}
-
 	return rc;
 }
 
@@ -865,9 +862,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 		agid2fid(&id_curr, &fid_curr);
 	}
 	do {
-		M0_LOG(M0_FATAL, "fid_curr: %lu %lu", fid_curr.f_container, fid_curr.f_key);
 		if (sns_cm_fid_is_valid(&fid_curr)) {
-			M0_LOG(M0_FATAL, "fetch layout: %lu %lu", fid_curr.f_container, fid_curr.f_key);
 			rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
 							      &pl, &fsize);
 			if (rc != 0)
@@ -895,7 +890,6 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 			fid_curr = fid_next;
 		/* Increment fid_curr.f_key to fetch next fid. */
 		M0_CNT_INC(fid_curr.f_key);
-		M0_LOG(M0_FATAL, "next: %lu %lu", fid_curr.f_container, fid_curr.f_key);
 	} while ((rc = _fid_next(cdom, &fid_curr, &fid_next)) == 0);
 
 	return rc;

@@ -83,7 +83,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	N = m0_pdclust_N(pl);
 	K = m0_pdclust_K(pl);
 	sa.sa_group = group;
-	M0_LOG(M0_FATAL, "in: group: %lu", group);
 	for (j = 0; j < N + K; ++j) {
 		sa.sa_unit = j;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
@@ -97,7 +96,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
 		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid)) {
 			result = true;
-			M0_LOG(M0_FATAL, "out: group: %lu", group);
 			break;
 		}
 	}

@@ -148,7 +148,7 @@ void add_uts(void)
 	m0_ut_add(&rpclib_ut);
 	m0_ut_add(&session_ut);
 	m0_ut_add(&sm_ut);
-	// m0_ut_add(&snscm_net_ut); /* m0_db_tx_abort() */
+	m0_ut_add(&snscm_net_ut); /* m0_db_tx_abort() */
 	m0_ut_add(&snscm_storage_ut);
 	m0_ut_add(&snscm_xform_ut);
 	m0_ut_add(&sns_cm_repair_ut); /* m0_db_tx_abort() */

@@ -47,7 +47,6 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 	iter->cni_last_fid.f_container = gfid->f_container;
 	iter->cni_last_fid.f_key = gfid->f_key;
 
-	M0_LOG(M0_FATAL, "%lu %lu", iter->cni_last_fid.f_container, iter->cni_last_fid.f_key);
 	M0_POST(ns_iter_invariant(iter));
 
 	return 0;
@@ -70,7 +69,6 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
         snprintf((char*)nskey_bs, UINT32_MAX_STR_LEN, "%u", (uint32_t)cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
-	M0_LOG(M0_FATAL, "%lu %lu", key_gfid->f_container, key_gfid->f_key);
         rc = m0_cob_nskey_make(&key, key_gfid, (char *)nskey_bs,
 			       nskey_bs_len);
         if (rc != 0)
@@ -106,7 +104,6 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
 
-	M0_LOG(M0_FATAL, "%lu %lu", iter->cni_last_fid.f_container, iter->cni_last_fid.f_key);
 	key_fid.f_container = iter->cni_last_fid.f_container;
 	key_fid.f_key = iter->cni_last_fid.f_key;
 

@@ -252,7 +252,6 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 	M0_ENTRY("it = %p", it);
 
 	rc = m0_cob_ns_iter_next(&it->si_cns_it, fid_next);
-	M0_LOG(M0_FATAL, "%lu %lu rc: %d", fid_next->f_container, fid_next->f_key, rc);
 
 	M0_RETURN(rc);
 }
@@ -294,15 +293,10 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 		}
 
 		rc = file_size_and_layout_fetch(it);
-		M0_LOG(M0_FATAL, "%d", rc);
 		if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
 			M0_RETURN(-ENODATA);
-		if (rc < 0) {
-		//	if (rc == -ENOENT)
-		//		M0_RETURN(-ENODATA);
-		//	else
+		if (rc < 0)
 			M0_RETURN(rc);
-		}
 
 		if (rc == IT_WAIT) {
 			iter_phase_set(it, ITPH_FID_NEXT_WAIT);

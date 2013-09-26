@@ -214,7 +214,8 @@ out:
 	if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_IO);
 		m0_fom_phase_move(cp_fom, rc, M0_CCP_FINI);
-		m0_dtx_done(&cp_fom->fo_tx);
+		m0_dtx_done_sync(&cp_fom->fo_tx);
+		m0_dtx_fini(&cp->c_fom.fo_tx);
 		rc = M0_FSO_WAIT;
 	} else
 		rc = cp->c_ops->co_phase_next(cp);
@@ -237,9 +238,24 @@ M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
+	struct m0_fom       *fom = &cp->c_fom;
+	struct m0_dtx       *tx = &fom->fo_tx;
 	int                  rc;
 
 	M0_ENTRY("cp=%p", cp);
+
+        if (tx->tx_state != M0_DTX_DONE) {
+                m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
+                m0_dtx_done(tx);
+                return M0_FSO_WAIT;
+        } else {
+                while (m0_be_tx_state(&tx->tx_betx) != M0_BTS_DONE) {
+                        m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan,
+                                                &fom->fo_cb);
+                        return M0_FSO_WAIT;
+                }
+        }
+        m0_dtx_fini(tx);
 
 	if (sns_cp->sc_stio.si_opcode == SIO_WRITE)
 		cp->c_ops->co_complete(cp);
@@ -249,8 +265,6 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	bufvec_free(&sns_cp->sc_stio.si_user);
 	m0_stob_io_fini(&sns_cp->sc_stio);
 	m0_stob_put(sns_cp->sc_stob);
-
-	m0_dtx_done(&cp->c_fom.fo_tx);
 
 	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {

@@ -424,12 +424,12 @@ static void cp_fom_fini(struct m0_fom *fom)
 	bool                     ag_fini;
 
 	M0_CNT_INC(ag->cag_freed_cp_nr);
+	m0_cm_lock(cm);
 	m0_cm_cp_fini(cp);
 	/**
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
 	 */
-	m0_cm_lock(cm);
 	cp->c_ops->co_free(cp);
 	ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
         if (ag_fini)

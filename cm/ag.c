@@ -166,7 +166,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 
-	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] [%d]",
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%d]",
 	       id.ai_hi.u_hi, id.ai_hi.u_lo, id.ai_lo.u_hi, id.ai_lo.u_lo,
 	       ag->cag_has_incoming);
 	if (lo != NULL && hi != NULL) {
@@ -184,7 +184,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	    cm->cm_aggr_grps_out_nr == 0)
 		cm->cm_ops->cmo_complete(cm);
 
-	M0_LOG(M0_FATAL, "in: [%lu] %p out: [%lu] %p",
+	M0_LOG(M0_DEBUG, "in: [%lu] %p out: [%lu] %p",
 	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
 	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
 
@@ -301,7 +301,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	M0_PRE(cm != NULL && id != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	M0_LOG(M0_FATAL, "id [%lu] [%lu] [%lu] [%lu] \
+	M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] \
 	       has_incoming:[%d]", id->ai_hi.u_hi, id->ai_hi.u_lo,
 	       id->ai_lo.u_hi, id->ai_lo.u_lo, has_incoming);
 	M0_LOG(M0_DEBUG, "last_saved_id [%lu] [%lu] [%lu] [%lu]",
@@ -364,7 +364,6 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 		}
 	} while (rc == 0);
 
-	M0_LOG(M0_FATAL, "%d", rc);
 	if (rc == -ENOSPC || rc == -ENOENT)
 		rc = 0;
 
