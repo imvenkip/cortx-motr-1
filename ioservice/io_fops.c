@@ -96,7 +96,7 @@ const struct m0_rpc_item_ops io_req_rpc_item_ops = {
 
 static const struct m0_rpc_item_type_ops io_item_type_ops = {
 	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
-        .rito_io_coalesce    = item_io_coalesce,
+        .rito_io_coalesce = item_io_coalesce,
 };
 
 static int io_fol_rec_part_undo_redo_op(struct m0_fop_fol_rec_part *fpart,
@@ -1568,6 +1568,13 @@ static void io_item_replied(struct m0_rpc_item *item)
 	rfop = m0_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
 
+	if (m0_rpc_item_is_generic_reply_fop(item)) {
+		IOS_ADDB_FUNCFAIL(
+		m0_rpc_item_generic_reply_rc(item->ri_reply),
+					     IO_ITEM_REPLIED,
+					     &m0_ios_addb_ctx);
+		return;
+	}
 	M0_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
