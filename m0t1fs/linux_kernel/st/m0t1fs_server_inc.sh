@@ -67,13 +67,13 @@ mero_service()
 		       if checkpid $pid 2>&1; then
 			   # TERM first, then KILL if not dead
 			   kill -TERM $pid >/dev/null 2>&1
-			   usleep 100000
-			   if checkpid $pid && sleep 1 &&
+			   sleep 5
+			   if checkpid $pid && sleep 5 &&
 			      checkpid $pid && sleep $delay &&
 			      checkpid $pid ; then
-                                kill -KILL $pid >/dev/null 2>&1
-				usleep 100000
-			   fi
+                               kill -KILL $pid >/dev/null 2>&1
+			       usleep 100000
+			    fi
 		        fi
 		       echo ----- $pid stopped --------
 		done

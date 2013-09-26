@@ -24,7 +24,8 @@ main()
 	m0t1fs_system_tests
 	rc=$?
 
-	mero_service stop --collect-addb
+	# mero_service stop --collect-addb
+	mero_service stop
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to stop Mero Service."
@@ -40,11 +41,11 @@ main()
 	# ADDB RPC sink ST usage ADDB client records generated
 	# from IO done by "m0t1fs_system_tests".
 	# ADDB dump file removed from rpcsink_addb_st after test.
-        rpcsink_addb_st
-	if [ $? -ne "0" ]
-	then
-                return 1
-	fi
+	# rpcsink_addb_st
+	# if [ $? -ne "0" ]
+	# then
+	# return 1
+	# fi
 
 	echo "Test log available at $MERO_TEST_LOGFILE."
 
