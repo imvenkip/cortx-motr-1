@@ -163,7 +163,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 	if (grp == NULL || grp->bgi_extents == NULL)
 		return;
 
-	M0_LOG(M0_DEBUG, "dumping free extents@%p:%s for %08llx",
+	M0_LOG(M0_DEBUG, "dumping free extents@%p:%s for grp=%04llx",
 		grp, (char*) tag, (unsigned long long) grp->bgi_groupno);
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
@@ -891,7 +891,8 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bcount_t		   maxchunk = 0;
 	m0_bcount_t		   count;
 
-	M0_ENTRY();
+	M0_ENTRY("grp=%d frags=%d", (int)grp->bgi_groupno,
+				    (int)grp->bgi_fragments);
 
 	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents != NULL) {
@@ -1120,10 +1121,8 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 
 		/* at the head of a free extent */
 		rc = btree_delete_sync(db, tx, &key);
-		if (rc) {
-			M0_LEAVE();
-			return rc;
-		}
+		if (rc != 0)
+			M0_RETURN(rc);
 
 		if (tgt->e_end < cur->e_end) {
 			/* A smaller extent still exists */
@@ -1131,10 +1130,8 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			rc = btree_insert_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 		} else {
 			grp->bgi_fragments--;
 		}
@@ -1147,10 +1144,8 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 		val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 		rc = btree_update_sync(db, tx, &key, &val);
-		if (rc) {
-			M0_LEAVE();
-			return rc;
-		}
+		if (rc != 0)
+			M0_RETURN(rc);
 
 		if (next.e_end > tgt->e_end) {
 			/* there is still a tail */
@@ -1158,10 +1153,8 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&next.e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&next.e_end);
 			rc = btree_update_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			grp->bgi_fragments++;
 		}
 	}
@@ -1176,9 +1169,7 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 	balloc_sb_sync(mero, tx);
 	rc = balloc_gi_sync(mero, tx, grp);
 
-	M0_LEAVE();
-
-	return rc;
+	M0_RETURN(rc);
 }
 
 static int balloc_free_db_update(struct m0_balloc *mero,
@@ -1220,7 +1211,7 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 		       (unsigned long long)cur->e_start);
 		m0_balloc_debug_dump_group_extent(
 			    "double free with cur", grp);
-		return -EINVAL;
+		M0_RETURN(-EINVAL);
 	}
 	if (pre && pre->e_end > tgt->e_start) {
 		M0_LOG(M0_ERROR, "!!!!!!!!!!!!!double free: "
@@ -1229,7 +1220,7 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 		       (unsigned long long)tgt->e_start);
 		m0_balloc_debug_dump_group_extent(
 			    "double free with pre", grp);
-		return -EINVAL;
+		M0_RETURN(-EINVAL);
 	}
 
 	if (!found) {
@@ -1238,10 +1229,8 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 			rc = btree_insert_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			grp->bgi_fragments++;
 		} else {
 			/* at the tail */
@@ -1250,10 +1239,8 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 				key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 				val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 				rc = btree_insert_sync(db, tx, &key, &val);
-				if (rc) {
-					M0_LEAVE();
-					return rc;
-				}
+				if (rc != 0)
+					M0_RETURN(rc);
 				grp->bgi_fragments++;
 			} else {
 				pre->e_end = tgt->e_end;
@@ -1261,10 +1248,8 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 				key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_start);
 				val = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 				rc = btree_update_sync(db, tx, &key, &val);
-				if (rc) {
-					M0_LEAVE();
-					return rc;
-				}
+				if (rc != 0)
+					M0_RETURN(rc);
 			}
 		}
 	} else if (found && pre == NULL) {
@@ -1275,29 +1260,23 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 			rc = btree_insert_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			grp->bgi_fragments++;
 		} else {
 			/* join the first one */
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_delete_sync(db, tx, &key);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			cur->e_start = tgt->e_start;
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			rc = btree_insert_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 		}
 	} else {
 		/* in the middle */
@@ -1307,19 +1286,15 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_delete_sync(db, tx, &key);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			pre->e_end = cur->e_end;
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_update_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			grp->bgi_fragments--;
 		} else
 		if (pre->e_end == tgt->e_start) {
@@ -1329,39 +1304,31 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_update_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 		} else
 		if (tgt->e_end == cur->e_start) {
 			/* joint with current */
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_delete_sync(db, tx, &key);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			cur->e_start = tgt->e_start;
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			rc = btree_insert_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 		} else {
 			/* add a new one */
 
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 			rc = btree_insert_sync(db, tx, &key, &val);
-			if (rc) {
-				M0_LEAVE();
-				return rc;
-			}
+			if (rc != 0)
+				M0_RETURN(rc);
 			grp->bgi_fragments++;
 		}
 	}
@@ -1376,9 +1343,7 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 	balloc_sb_sync(mero, tx);
 	rc = balloc_gi_sync(mero, tx, grp);
 
-	M0_LEAVE();
-
-	return rc;
+	M0_RETURN(rc);
 }
 
 static void
@@ -1825,8 +1790,7 @@ repeat:
 			}
 			bac->bac_scanned++;
 
-			m0_balloc_debug_dump_group_extent("AAAAAAAAAAAAAAAAAA",
-							  grp);
+			m0_balloc_debug_dump_group_extent("AAA", grp);
 			if (cr == 0)
 				rc = balloc_simple_scan_group(bac, grp);
 			else if (cr == 1 &&
@@ -1986,15 +1950,14 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 	start = req->bfr_physical;
 	len = req->bfr_len;
 
-	group = balloc_bn2gn(start + len, ctx);
 	M0_LOG(M0_DEBUG, "start=0x%llx len=0x%llx start_group=%llu "
 		"end_group=%llu group_count=%llu",
 		(unsigned long long)start,
 		(unsigned long long)len,
 		(unsigned long long)balloc_bn2gn(start, ctx),
 		(unsigned long long)balloc_bn2gn(start + len, ctx),
-		(unsigned long long)sb->bsb_groupcount
-		);
+		(unsigned long long)sb->bsb_groupcount);
+	group = balloc_bn2gn(start + len, ctx);
 	if (group > sb->bsb_groupcount)
 		return -EINVAL;
 
@@ -2010,8 +1973,7 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 			goto out;
 		}
 
-		m0_balloc_debug_dump_group_extent(
-			    "FFFFFFFFFFFFFFFFFFFFFFFFFFFF", grp);
+		m0_balloc_debug_dump_group_extent("FFF", grp);
 		off = start & (sb->bsb_groupsize - 1);
 		step = (off + len > sb->bsb_groupsize) ?
 			sb->bsb_groupsize - off : len;

@@ -1292,6 +1292,8 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 	void              *val_data;
 	struct bt_key_val *kv; /* XXX: update credit accounting */
 
+	M0_ENTRY("tree=%p", tree);
+
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
@@ -1316,11 +1318,15 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 
 		btree_insert_key(tree, tx, kv);
 		op_tree(op)->t_rc = 0;
-	} else
+	} else {
 		op_tree(op)->t_rc = -EEXIST;
+		M0_LOG(M0_NOTICE, "the key entry at %p already exist",
+			key->b_addr);
+	}
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	M0_LEAVE("tree=%p", tree);
 }
 
 M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
@@ -1365,6 +1371,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 {
 	int rc;
 
+	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 
@@ -1380,6 +1387,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 
 	m0_rwlock_write_unlock(&tree->bb_lock);
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	M0_LEAVE("tree=%p", tree);
 }
 
 M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
