@@ -75,7 +75,8 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
                 return rc;
 
 	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN);
-        m0_be_btree_cursor_get(&it, &kbuf, true);
+        m0_be_btree_cursor_get_sync(&it, &kbuf, true);
+        m0_be_btree_cursor_kv_get(&it, &kbuf, NULL);
 
 	/*
 	 * Assign the fetched value to gfid, which is treated as
