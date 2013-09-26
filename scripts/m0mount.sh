@@ -126,15 +126,15 @@ DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 STOB=linux
 LOCAL_SERVICES_NR=4
 SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-NR_DATA=3
+POOL_WIDTH=$SERVICES_NR
 NR_PARITY=1
-POOL_WIDTH=5
+NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2) # spare_nr == parity_nr
 UNIT_SIZE=262144
 use_loop_device=0
 setup_local_server_config=0
 wait_after_mount=1
 
-M0_TRACE_IMMEDIATE_MASK=fop,cob
+M0_TRACE_IMMEDIATE_MASK=fop,cob,m0d
 M0_TRACE_LEVEL=call+
 M0_TRACE_PRINT_CONTEXT=func
 
@@ -145,7 +145,7 @@ MERO_TRACE_LEVEL='call+'
 
 # number of disks to split by for each service
 # in ad-stob mode
-DISKS_SH_NR=1 #`expr $POOL_WIDTH / $SERVICES_NR + 1`
+DISKS_SH_NR=`expr $POOL_WIDTH / $SERVICES_NR + 1`
 # +1 for ADDB stob
 
 # Local mount data
@@ -202,6 +202,11 @@ setup_local_params()
 	if [ $use_loop_device -eq 1 ]; then
 		DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR*2 -1))]"
 	fi
+
+	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
+	POOL_WIDTH=$SERVICES_NR
+	NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)
+	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1)
 }
 
 function l_run () {
@@ -558,10 +563,6 @@ main()
 		setup_local_params
 	fi
 
-	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-
-	DISKS_SH_NR=`expr $POOL_WIDTH / $LOCAL_SERVICES_NR + 1`
-
 	if [ ! $BROOT -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory
 		exit 1
@@ -670,7 +671,6 @@ while getopts "$OPTIONS_STRING" OPTION; do
 	p)
             POOL_WIDTH="$OPTARG"
             ;;
-
         u)
             UNIT_SIZE="$OPTARG"
             ;;
