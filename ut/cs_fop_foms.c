@@ -196,16 +196,26 @@ static int cs_ds_req_fop_fom_create(struct m0_fop *fop,
 				    struct m0_fom **out, struct m0_reqh *reqh)
 {
         struct m0_fom *fom;
+	struct m0_fop *rfop;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(ops != NULL);
         M0_PRE(out != NULL);
+	M0_PRE(M0_IN(m0_fop_opcode(fop), (M0_CS_DS1_REQ_OPCODE,
+					  M0_CS_DS2_REQ_OPCODE)));
 
         M0_ALLOC_PTR(fom);
         if (fom == NULL)
                 return -ENOMEM;
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, NULL, reqh,
+	rfop = m0_fop_opcode(fop) == M0_CS_DS1_REQ_OPCODE ?
+		m0_fop_alloc(&cs_ds1_rep_fop_fopt, NULL) :
+		m0_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
+	if (rfop == NULL) {
+		m0_free(fom);
+		return -ENOMEM;
+	}
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, rfop, reqh,
 		    fop->f_type->ft_fom_type.ft_rstype);
 
         *out = fom;
@@ -255,7 +265,6 @@ static size_t cs_ut_find_fom_home_locality(const struct m0_fom *fom)
 static int cs_req_fop_fom_tick(struct m0_fom *fom)
 {
 	int                    rc;
-	struct m0_fop         *rfop;
 	struct cs_ds1_req_fop *ds1_reqfop;
 	struct cs_ds1_rep_fop *ds1_repfop;
 	struct cs_ds2_req_fop *ds2_reqfop;
@@ -270,28 +279,16 @@ static int cs_req_fop_fom_tick(struct m0_fom *fom)
 		opcode = m0_fop_opcode(fom->fo_fop);
 		switch (opcode) {
 		case M0_CS_DS1_REQ_OPCODE:
-			rfop = m0_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
-			if (rfop == NULL) {
-				m0_fom_phase_set(fom, M0_FOPH_FINISH);
-				return M0_FSO_WAIT;
-			}
 			ds1_reqfop = m0_fop_data(fom->fo_fop);
-			ds1_repfop = m0_fop_data(rfop);
+			ds1_repfop = m0_fop_data(fom->fo_rep_fop);
 			ds1_repfop->csr_rc = ds1_reqfop->csr_value;
-			fom->fo_rep_fop = rfop;
 			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 			rc = M0_FSO_AGAIN;
 			break;
 		case M0_CS_DS2_REQ_OPCODE:
-			rfop = m0_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
-			if (rfop == NULL) {
-				m0_fom_phase_set(fom, M0_FOPH_FINISH);
-				return M0_FSO_WAIT;
-			}
 			ds2_reqfop = m0_fop_data(fom->fo_fop);
-			ds2_repfop = m0_fop_data(rfop);
+			ds2_repfop = m0_fop_data(fom->fo_rep_fop);
 			ds2_repfop->csr_rc = ds2_reqfop->csr_value;
-			fom->fo_rep_fop = rfop;
 			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 			rc = M0_FSO_AGAIN;
 			break;

@@ -1365,6 +1365,31 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
 	return m0_addb_ctx_import(fom->fo_op_addb_ctx, id);
 }
 
+M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+{
+	struct m0_fol_rec_desc *desc;
+	struct m0_fol	       *fol;
+	int                     rc;
+
+	M0_PRE(fom != NULL);
+
+	fol  = m0_fom_reqh(fom)->rh_fol;
+	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
+
+	M0_SET0(desc);
+	desc->rd_lsn = m0_fol_lsn_allocate(fol);
+	/* @todo an arbitrary number for now */
+	desc->rd_header.rh_refcount = 1;
+
+#if XXX_USE_DB5
+	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
+#else
+	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec,
+					      &fom->fo_tx.tx_betx, &op));
+	return rc;
+#endif
+}
+
 /** @} endgroup fom */
 /*
  *  Local variables:

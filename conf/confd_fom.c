@@ -83,6 +83,7 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 {
 	struct m0_confd_fom     *m;
 	const struct m0_fom_ops *ops;
+	struct m0_fop           *rep_fop;
 
 	M0_ENTRY();
 
@@ -101,10 +102,15 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		m0_free(m);
 		M0_RETURN(-EOPNOTSUPP);
 	}
-
-	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, NULL,
+	rep_fop = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
+	if (rep_fop == NULL) {
+		m0_free(m);
+		M0_RETURN(-ENOMEM);
+	}
+	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop,
 	            reqh, fop->f_type->ft_fom_type.ft_rstype);
 	*out = &m->dm_fom;
+
 	M0_RETURN(0);
 }
 
@@ -118,13 +124,6 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
 
-	M0_ASSERT(fom->fo_rep_fop == NULL);
-	fom->fo_rep_fop = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
-	if (fom->fo_rep_fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-
 	q = m0_fop_data(fom->fo_fop);
 	r = m0_fop_data(fom->fo_rep_fop);
 
@@ -136,7 +135,6 @@ static int conf_fetch_tick(struct m0_fom *fom)
 	if (rc != 0)
 		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx_objs == NULL);
 	r->fr_rc = rc;
-out:
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
 }

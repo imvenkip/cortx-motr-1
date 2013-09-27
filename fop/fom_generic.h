@@ -65,8 +65,6 @@ enum m0_fom_standard_phase {
 	M0_FOPH_TXN_WAIT,           /*< waiting for log space. */
 	M0_FOPH_TXN_OPEN_FAILED,    /*< failed to open transaction. */
 	M0_FOPH_SUCCESS,            /*< fom execution completed successfully. */
-	M0_FOPH_FOL_REC_PART_ADD,   /*< add a fol record part for the fop to the
-					trasaction. */
 	M0_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
 	M0_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
 	M0_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
@@ -214,14 +212,6 @@ struct m0_fop_generic_reply {
 	uint32_t          gr_rc;
 	struct m0_fop_str gr_msg;
 } M0_XCA_RECORD;
-
-/**
- * Adds the FOL record prepared from the list of FOL record parts in
- * fom->fo_tx.tx_fol_rec.
- * Record can contain fop data from fom->fo_fop, fom->fo_rep_fop and other data
- * added in FOL record part.
- */
-M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
 extern struct m0_fop_type m0_fop_generic_reply_fopt;
 
