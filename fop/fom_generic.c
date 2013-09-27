@@ -294,8 +294,7 @@ static int loc_ctx_wait(struct m0_fom *fom)
 
 	M0_ENTRY("fom=%p", fom);
 
-	M0_PRE((M0_BITS(m0_be_tx_state(tx)) &
-	        M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)) != 0);
+	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
 	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
 		m0_fom_phase_move(fom, tx->t_sm.sm_rc, M0_FOPH_TXN_OPEN_FAILED);
