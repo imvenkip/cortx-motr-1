@@ -31,7 +31,10 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 			     void **ptr,
 			     m0_bcount_t size)
 {
-	*ptr = m0_alloc(size);
+	void *p = m0_alloc(size);
+	op->bo_u.u_allocator.a_ptr = p;
+	if (ptr != NULL)
+		*ptr = p;
 }
 
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
