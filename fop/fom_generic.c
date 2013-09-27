@@ -293,10 +293,9 @@ static int loc_ctx_wait(struct m0_fom *fom)
 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
 
 	M0_ENTRY("fom=%p", fom);
-
 	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
-	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
+	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
 		m0_fom_phase_move(fom, tx->t_sm.sm_rc, M0_FOPH_TXN_OPEN_FAILED);
 
 	M0_RETURN(M0_FSO_AGAIN);
@@ -392,15 +391,13 @@ static int fom_txn_commit_wait(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
 
-	while (m0_be_tx_state(tx) != M0_BTS_DONE) {
-		m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan,
-					&fom->fo_cb);
-		return M0_FSO_WAIT;
+	if (m0_be_tx_state(tx) == M0_BTS_DONE) {
+		m0_dtx_fini(&fom->fo_tx);
+		return M0_FSO_AGAIN;
 	}
 
-	m0_dtx_fini(&fom->fo_tx);
-
-	return M0_FSO_AGAIN;
+	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+	return M0_FSO_WAIT;
 }
 
 /**
