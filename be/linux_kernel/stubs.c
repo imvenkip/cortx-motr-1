@@ -18,8 +18,8 @@
  */
 
 #include "lib/memory.h" /* m0_alloc() */
-#include "be/op.h"  /* m0_be_op_state */
-#include "be/tx.h"  /* m0_be_tx_state */
+#include "be/op.h"      /* m0_be_op_state */
+#include "be/tx.h"      /* m0_be_tx_state */
 
 struct m0_be_btree;
 struct m0_be_btree_kv_ops;

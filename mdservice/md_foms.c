@@ -194,7 +194,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_md_create_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -231,7 +231,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 	}
 
 	rc = m0_md_create(md, &body->b_pfid,
-			  &body->b_tfid, &attr, &fom->fo_tx.tx_betx);
+			  &body->b_tfid, &attr, m0_fom_tx(fom));
 out:
 	M0_LOG(M0_DEBUG, "Create finished with %d", rc);
 	rep->c_body.b_rc = rc;
@@ -253,7 +253,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_md_create_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_md_create_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -285,7 +285,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
 
 	rc = m0_md_create(md,
 			  &body->b_pfid, &body->b_tfid, &attr,
-			  &fom->fo_tx.tx_betx);
+			  m0_fom_tx(fom));
 out:
 	M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] finished with %d",
 	       body->b_pfid.f_container, body->b_pfid.f_key,
@@ -322,7 +322,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_mdstore_unlink_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_mdstore_unlink_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -337,7 +337,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	rep = m0_fop_data(fop_rep);
 
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
-	tx = &fom->fo_tx.tx_betx;
+	tx = m0_fom_tx(fom);
 
 	m0_md_cob_wire2mem(&attr, body);
 	m0_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
@@ -444,7 +444,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_md_rename_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_md_rename_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -457,7 +457,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	M0_ASSERT(fop_rep != NULL);
 	rep = m0_fop_data(fop_rep);
 
-	tx = &fom->fo_tx.tx_betx;
+	tx = m0_fom_tx(fom);
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -517,7 +517,7 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -544,7 +544,7 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
 	if (rc == 0) {
 		rc = m0_mdstore_open(md,
-				     cob, body->b_flags, &fom->fo_tx.tx_betx);
+				     cob, body->b_flags, m0_fom_tx(fom));
 		if (rc == 0 &&
 		    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
 			/*
@@ -553,7 +553,7 @@ static int m0_md_tick_open(struct m0_fom *fom)
 			 */
 			attr.ca_valid &= ~M0_COB_MODE;
 			rc = m0_mdstore_setattr(md,
-				cob, &attr, &fom->fo_tx.tx_betx);
+				cob, &attr, m0_fom_tx(fom));
 		}
 		m0_cob_put(cob);
 	} else if (rc == -ENOENT) {
@@ -588,7 +588,7 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -623,7 +623,7 @@ static int m0_md_tick_close(struct m0_fom *fom)
 		goto out;
 	}
 
-	rc = m0_mdstore_close(md, cob, &fom->fo_tx.tx_betx);
+	rc = m0_mdstore_close(md, cob, m0_fom_tx(fom));
 	if (rc == 0 &&
 	    (!(attr.ca_valid & M0_COB_NLINK) || attr.ca_nlink > 0)) {
 		/*
@@ -631,7 +631,7 @@ static int m0_md_tick_close(struct m0_fom *fom)
 		 * to store to db.
 		 */
 		attr.ca_valid &= ~M0_COB_MODE;
-		rc = m0_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_betx);
+		rc = m0_mdstore_setattr(md, cob, &attr, m0_fom_tx(fom));
 	}
 	m0_cob_put(cob);
 out:
@@ -655,7 +655,7 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
 		return rc;
@@ -695,7 +695,7 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 		goto out;
 	}
 
-	rc = m0_mdstore_setattr(md, cob, &attr, &fom->fo_tx.tx_betx);
+	rc = m0_mdstore_setattr(md, cob, &attr, m0_fom_tx(fom));
 	m0_cob_put(cob);
 out:
 	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] finished with %d",
@@ -916,7 +916,7 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
                 goto out;
         }
 
-        rc = m0_cob_ea_get(cob, eakey, earec, &fom->fo_tx.tx_betx);
+        rc = m0_cob_ea_get(cob, eakey, earec, m0_fom_tx(fom));
         m0_cob_put(cob);
         if (rc == 0) {
                 rep->g_value.s_len = earec->cer_size;
@@ -956,7 +956,7 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 		/* XXX use m0_cob_ea_set_credit() when implemented */
-		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	}
 	rc = m0_md_tick_generic(fom);
         if (rc != 0)
@@ -1006,7 +1006,7 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         earec->cer_size = req->s_value.s_len;
         memcpy(earec->cer_body, req->s_value.s_buf, earec->cer_size);
 
-        rc = m0_cob_ea_set(cob, eakey, earec, &fom->fo_tx.tx_betx);
+        rc = m0_cob_ea_set(cob, eakey, earec, m0_fom_tx(fom));
         m0_cob_put(cob);
         m0_free(eakey);
         m0_free(earec);
@@ -1034,7 +1034,7 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 		/* XXX use m0_cob_ea_del_credit() when implemented */
-		m0_mdstore_setattr_credit(md, &fom->fo_tx.tx_betx_cred);
+		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	}
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
@@ -1073,7 +1073,7 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
                 goto out;
         }
 
-        rc = m0_cob_ea_del(cob, eakey, &fom->fo_tx.tx_betx);
+        rc = m0_cob_ea_del(cob, eakey, m0_fom_tx(fom));
         m0_cob_put(cob);
         m0_free(eakey);
 out:

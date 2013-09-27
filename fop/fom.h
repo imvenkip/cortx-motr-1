@@ -492,7 +492,11 @@ struct m0_fom {
 	struct m0_fop		 *fo_fop;
 	/** Reply fop object */
 	struct m0_fop		 *fo_rep_fop;
-	/** Transaction object to be used by this fom */
+	/**
+	 * Transaction object to be used by this fom.
+	 *
+	 * @see m0_fom_tx(), m0_fom_tx_credit()
+	 */
 	struct m0_dtx		  fo_tx;
 	/**
 	 *  Set when the fom is used to execute local operation,
@@ -550,6 +554,16 @@ struct m0_fom {
 
 	uint64_t		  fo_magic;
 };
+
+static inline struct m0_be_tx *m0_fom_tx(struct m0_fom *fom)
+{
+	return &fom->fo_tx.tx_betx;
+}
+
+static inline struct m0_be_tx_credit *m0_fom_tx_credit(struct m0_fom *fom)
+{
+	return &fom->fo_tx.tx_betx_cred;
+}
 
 /**
  * Queues a fom for the execution in a locality runq.
@@ -914,9 +928,8 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
+#endif /* __MERO_FOP_FOM_H__ */
 /** @} end of fom group */
-/* __MERO_FOP_FOM_H__ */
-#endif
 
 /*
  *  Local variables:
