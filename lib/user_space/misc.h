@@ -32,14 +32,6 @@
 	((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))
 #endif
 
-#ifndef likely
-#define likely(x)   __builtin_expect(!!(x), 1)
-#endif
-
-#ifndef unlikely
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#endif
-
 #ifndef NULL
 #define NULL ((void *)0)
 #endif

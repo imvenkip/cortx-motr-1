@@ -44,6 +44,18 @@
 #define M0_ASSERT_EX_ON (0)
 #endif
 
+/*
+ * likely() and unlikely() are defined here rather than in lib/misc.h to avoid
+ * circular dependency.
+ */
+#ifndef likely
+#define likely(x)   __builtin_expect(!!(x), 1)
+#endif
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
 /**
  * Panic context
  */
@@ -92,7 +104,7 @@ M0_INTERNAL void m0_arch_backtrace(void);
  * has failed.
  */
 #define M0_ASSERT_INFO(cond, fmt, ...) \
-	(M0_ASSERT_OFF || (cond) ? (void)0 : \
+	(M0_ASSERT_OFF || likely(cond) ? (void)0 : \
 		m0_panic(#cond, __func__, __FILE__, __LINE__, fmt, ##__VA_ARGS__))
 
 /**
