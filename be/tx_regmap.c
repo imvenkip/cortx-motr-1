@@ -49,7 +49,7 @@ M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd)
 	return m0_be__reg_invariant(&rd->rd_reg);
 #else
 	const struct m0_be_reg *reg = &rd->rd_reg;
-	return reg->br_addr != NULL && reg->br_size > 0;
+	return _0C(reg->br_addr != NULL) && _0C(reg->br_size > 0);
 #endif
 }
 
@@ -128,13 +128,13 @@ M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
 	return _0C(rdt != NULL) &&
 	       _0C(rdt->brt_r != NULL || rdt->brt_size == 0) &&
 	       _0C(rdt->brt_size <= rdt->brt_size_max) &&
-	       _0C(m0_forall(i, rdt->brt_size,
-			     m0_be_reg_d__invariant(&rdt->brt_r[i]))) &&
-	       _0C(m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
-			     rdt->brt_r[i].rd_reg.br_addr <
+	       m0_forall(i, rdt->brt_size,
+			 m0_be_reg_d__invariant(&rdt->brt_r[i])) &&
+	       m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
+			 _0C(rdt->brt_r[i].rd_reg.br_addr <
 			     rdt->brt_r[i + 1].rd_reg.br_addr)) &&
-	       _0C(m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
-			     !be_reg_d_are_overlapping(&rdt->brt_r[i],
+	       m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
+			 _0C(!be_reg_d_are_overlapping(&rdt->brt_r[i],
 						       &rdt->brt_r[i + 1])));
 }
 
@@ -262,7 +262,7 @@ M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm)
 
 M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm)
 {
-	return rm != NULL && m0_be_rdt__invariant(&rm->br_rdt);
+	return _0C(rm != NULL) && m0_be_rdt__invariant(&rm->br_rdt);
 }
 
 static struct m0_be_reg_d *be_regmap_find_fb(struct m0_be_regmap *rm,
@@ -417,9 +417,9 @@ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
 M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
 {
 	return m0_be_regmap__invariant(&ra->bra_map) &&
-	       ra->bra_data_copy == (ra->bra_area != NULL) &&
-	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size &&
-	       m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared);
+	       _0C(ra->bra_data_copy == (ra->bra_area != NULL)) &&
+	       _0C(ra->bra_area_used <= ra->bra_prepared.tc_reg_size) &&
+	       _0C(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
 }
 
 M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,

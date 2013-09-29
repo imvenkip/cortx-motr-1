@@ -86,16 +86,18 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 
 M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg)
 {
-	return seg != NULL && seg->bs_addr != NULL && seg->bs_size > 0;
+	return _0C(seg != NULL) &&
+	       _0C(seg->bs_addr != NULL) &&
+	       _0C(seg->bs_size > 0);
 }
 
 bool m0_be__reg_invariant(const struct m0_be_reg *reg)
 {
-	return reg != NULL && reg->br_seg != NULL &&
-		reg->br_size > 0 && reg->br_addr != NULL &&
-		m0_be_seg_contains(reg->br_seg, reg->br_addr) &&
-		m0_be_seg_contains(reg->br_seg,
-				   reg->br_addr + reg->br_size - 1);
+	return _0C(reg != NULL) && _0C(reg->br_seg != NULL) &&
+	       _0C(reg->br_size > 0) && _0C(reg->br_addr != NULL) &&
+	       _0C(m0_be_seg_contains(reg->br_seg, reg->br_addr)) &&
+	       _0C(m0_be_seg_contains(reg->br_seg,
+				      reg->br_addr + reg->br_size - 1));
 }
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)

@@ -48,12 +48,12 @@ static bool be_tx_state_invariant(const struct m0_sm *mach)
 
 static bool be_tx_is_locked(const struct m0_be_tx *tx);
 
-#define BE_TX_LOCKED_AT_STATE(tx, states)			\
-({								\
-	const struct m0_be_tx *__tx = (tx);			\
-								\
-	be_tx_is_locked(__tx) && m0_be_tx__invariant(__tx) &&	\
-		M0_IN(m0_be_tx_state(__tx), states);		\
+#define BE_TX_LOCKED_AT_STATE(tx, states)				\
+({									\
+	const struct m0_be_tx *__tx = (tx);				\
+									\
+	_0C(be_tx_is_locked(__tx)) && m0_be_tx__invariant(__tx) &&	\
+		_0C(M0_IN(m0_be_tx_state(__tx), states));		\
 })
 
 static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR] = {
@@ -381,7 +381,7 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx)
 {
 	return _0C(m0_be_tx_state(tx) < M0_BTS_NR) &&
-	       _0C(m0_be_reg_area__invariant(&tx->t_reg_area));
+	       m0_be_reg_area__invariant(&tx->t_reg_area);
 }
 
 static bool be_tx_is_locked(const struct m0_be_tx *tx)

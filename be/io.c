@@ -91,12 +91,13 @@ M0_INTERNAL bool m0_be_io__invariant(struct m0_be_io *bio)
 {
 	struct m0_stob_io *io = &bio->bio_io;
 
-	return bio != NULL &&
-	       io->si_user.ov_vec.v_nr == io->si_stob.iv_vec.v_nr &&
-			m0_vec_count(&io->si_user.ov_vec) ==
-			m0_vec_count(&io->si_stob.iv_vec) &&
-	       io->si_user.ov_vec.v_nr <= bio->bio_credit.tc_reg_nr &&
-	       m0_vec_count(&io->si_user.ov_vec) <= bio->bio_credit.tc_reg_size;
+	return _0C(bio != NULL) &&
+	       _0C(io->si_user.ov_vec.v_nr == io->si_stob.iv_vec.v_nr) &&
+	       _0C(m0_vec_count(&io->si_user.ov_vec) ==
+		   m0_vec_count(&io->si_stob.iv_vec)) &&
+	       _0C(io->si_user.ov_vec.v_nr <= bio->bio_credit.tc_reg_nr) &&
+	       _0C(m0_vec_count(&io->si_user.ov_vec) <=
+		   bio->bio_credit.tc_reg_size);
 	/* XXX m0_vec_count(&io->si_user.ov_vec) is called two times here. */
 }
 

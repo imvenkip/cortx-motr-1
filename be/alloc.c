@@ -411,22 +411,26 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
 		fnext = NULL;
 	}
 
-	return c != NULL &&
-	       be_alloc_is_chunk_in_allocator(a, c) &&
-	       ergo(cnext != NULL, be_alloc_is_chunk_in_allocator(a, cnext)) &&
-	       ergo(cprev != NULL, be_alloc_is_chunk_in_allocator(a, cprev)) &&
-	       ergo(fnext != NULL, be_alloc_is_chunk_in_allocator(a, fnext)) &&
-	       ergo(fprev != NULL, be_alloc_is_chunk_in_allocator(a, fprev)) &&
-	       c->bac_magic0 == M0_BE_ALLOC_MAGIC0 &&
-	       c->bac_magic1 == M0_BE_ALLOC_MAGIC1 &&
-	       be_alloc_chunk_is_not_overlapping(cprev, c) &&
-	       be_alloc_chunk_is_not_overlapping(c, cnext) &&
-	       be_alloc_chunk_is_not_overlapping(fprev, c) &&
-	       be_alloc_chunk_is_not_overlapping(c, fnext) &&
-	       ergo(fprev != cprev,
-		    be_alloc_chunk_is_not_overlapping(fprev, cprev)) &&
-	       ergo(cnext != fnext,
-		    be_alloc_chunk_is_not_overlapping(cnext, fnext));
+	return _0C(c != NULL) &&
+	       _0C(be_alloc_is_chunk_in_allocator(a, c)) &&
+	       _0C(ergo(cnext != NULL,
+			be_alloc_is_chunk_in_allocator(a, cnext))) &&
+	       _0C(ergo(cprev != NULL,
+			be_alloc_is_chunk_in_allocator(a, cprev))) &&
+	       _0C(ergo(fnext != NULL,
+			be_alloc_is_chunk_in_allocator(a, fnext))) &&
+	       _0C(ergo(fprev != NULL,
+			be_alloc_is_chunk_in_allocator(a, fprev))) &&
+	       _0C(c->bac_magic0 == M0_BE_ALLOC_MAGIC0) &&
+	       _0C(c->bac_magic1 == M0_BE_ALLOC_MAGIC1) &&
+	       _0C(be_alloc_chunk_is_not_overlapping(cprev, c)) &&
+	       _0C(be_alloc_chunk_is_not_overlapping(c, cnext)) &&
+	       _0C(be_alloc_chunk_is_not_overlapping(fprev, c)) &&
+	       _0C(be_alloc_chunk_is_not_overlapping(c, fnext)) &&
+	       _0C(ergo(fprev != cprev,
+		    be_alloc_chunk_is_not_overlapping(fprev, cprev))) &&
+	       _0C(ergo(cnext != fnext,
+		    be_alloc_chunk_is_not_overlapping(cnext, fnext)));
 }
 
 static void be_alloc_chunk_init(struct m0_be_allocator *a,

@@ -60,11 +60,11 @@ M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls)
 
 M0_INTERNAL bool m0_be_log_store__invariant(struct m0_be_log_store *ls)
 {
-	return ls != NULL &&
-		ls->ls_discarded <= ls->ls_pos &&
-		ls->ls_pos <= ls->ls_reserved &&
-		ergo(ls->ls_size > 0,
-		     (ls->ls_reserved - ls->ls_discarded) <= ls->ls_size);
+	return _0C(ls != NULL) &&
+	       _0C(ls->ls_discarded <= ls->ls_pos) &&
+	       _0C(ls->ls_pos <= ls->ls_reserved) &&
+	       _0C(ergo(ls->ls_size > 0,
+		     (ls->ls_reserved - ls->ls_discarded) <= ls->ls_size));
 }
 
 M0_INTERNAL int  m0_be_log_store_open(struct m0_be_log_store *ls)
@@ -288,7 +288,7 @@ M0_INTERNAL void m0_be_log_store_io_fini(struct m0_be_log_store_io *lsi)
 
 M0_INTERNAL bool m0_be_log_store_io__invariant(struct m0_be_log_store_io *lsi)
 {
-	return lsi != NULL && lsi->lsi_pos <= lsi->lsi_end;
+	return _0C(lsi != NULL) && _0C(lsi->lsi_pos <= lsi->lsi_end);
 }
 
 /** @} end of be group */
