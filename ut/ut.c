@@ -27,7 +27,6 @@ void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
 {
 	switch (m0_fom_phase(fom)) {
 	case M0_FOPH_SUCCESS:
-		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_PART_ADD);
 		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
 		/* fall through */
 	case M0_FOPH_FAILURE:

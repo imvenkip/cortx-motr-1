@@ -906,6 +906,14 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
 #define M0_FOM_ADDB_POST(fom, addb_mc, recid, ...) \
 	M0_ADDB_POST(addb_mc, recid, M0_FOM_ADDB_CTX_VEC(fom), ## __VA_ARGS__);
 
+/**
+ * Adds the FOL record prepared from the list of FOL record parts in
+ * fom->fo_tx.tx_fol_rec.
+ * Record can contain fop data from fom->fo_fop, fom->fo_rep_fop and other data
+ * added in FOL record part.
+ */
+M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
+
 /** @} end of fom group */
 /* __MERO_FOP_FOM_H__ */
 #endif

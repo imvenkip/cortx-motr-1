@@ -95,6 +95,13 @@ enum {
 };
 
 /**
+ * ADDB Function failure locations.
+ */
+enum {
+	M0_FOP_ADDB_LOC_GENERIC_REPLY_BUILD = 70
+};
+
+/**
  * FOM init datapoint record
  */
 M0_ADDB_RT_DP(m0_addb_rt_fom_init, M0_ADDB_RECID_FOM_INIT);

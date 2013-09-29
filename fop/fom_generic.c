@@ -36,6 +36,7 @@
 #include "reqh/reqh.h"
 #include "fop/fom_generic.h"
 #include "fop/fom_generic_xc.h"
+#include "fop/fop_addb.h"
 
 /**
    @addtogroup fom
@@ -260,6 +261,7 @@ static int loc_ctx_init(struct m0_fom *fom)
 
 /**
  * Creates fom local transactional context.
+ * Add a fol record part for the fop to the trasaction.
  */
 static int loc_ctx_open(struct m0_fom *fom)
 {
@@ -269,6 +271,12 @@ static int loc_ctx_open(struct m0_fom *fom)
 
 	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, &fom->fo_tx.tx_betx_cred);
 
+	if (!fom->fo_local) {
+		int rc;
+		rc = m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, &fom->fo_tx);
+		if (rc < 0)
+			return rc;
+	}
 	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
 	m0_dtx_open(&fom->fo_tx);
 	m0_fom_phase_set(fom, M0_FOPH_TXN_WAIT);
@@ -286,8 +294,7 @@ static int loc_ctx_wait(struct m0_fom *fom)
 
 	M0_ENTRY("fom=%p", fom);
 
-	M0_PRE((M0_BITS(m0_be_tx_state(tx)) &
-	        M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)) != 0);
+	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
 	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
 		m0_fom_phase_move(fom, tx->t_sm.sm_rc, M0_FOPH_TXN_OPEN_FAILED);
@@ -299,7 +306,7 @@ static int loc_ctx_wait(struct m0_fom *fom)
  * Allocates generic reqh error reply fop and sets the same
  * into fom->fo_rep_fop.
  */
-static int set_gen_err_reply(struct m0_fom *fom)
+static void generic_reply_build(struct m0_fom *fom)
 {
 	struct m0_fop               *rfop;
 	struct m0_fop_generic_reply *out_fop;
@@ -308,12 +315,11 @@ static int set_gen_err_reply(struct m0_fom *fom)
 
 	rfop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
 	if (rfop == NULL)
-		return -ENOMEM;
+		FOP_ADDB_FUNCFAIL(-ENOMEM, GENERIC_REPLY_BUILD,
+				  &fom->fo_addb_ctx);
 	out_fop = m0_fop_data(rfop);
 	out_fop->gr_rc = m0_fom_rc(fom);
 	fom->fo_rep_fop = rfop;
-
-	return 0;
 }
 
 /**
@@ -327,7 +333,7 @@ static int set_gen_err_reply(struct m0_fom *fom)
 static int fom_failure(struct m0_fom *fom)
 {
 	if (m0_fom_rc(fom) != 0 && fom->fo_rep_fop == NULL)
-		set_gen_err_reply(fom);
+		generic_reply_build(fom);
 
 	return M0_FSO_AGAIN;
 }
@@ -337,14 +343,6 @@ static int fom_failure(struct m0_fom *fom)
  */
 static int fom_success(struct m0_fom *fom)
 {
-	return M0_FSO_AGAIN;
-}
-
-static int fom_fop_fol_rec_part_add(struct m0_fom *fom)
-{
-	if (!fom->fo_local)
-		m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, &fom->fo_tx);
-
 	return M0_FSO_AGAIN;
 }
 
@@ -372,7 +370,11 @@ static int fom_txn_commit(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
 
-	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+	if (fom->fo_tx.tx_state != M0_DTX_OPEN) {
+		m0_dtx_fini(&fom->fo_tx);
+		return M0_FSO_AGAIN;
+	}
+	M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
 	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
 	m0_dtx_done(&fom->fo_tx);
@@ -507,19 +509,15 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "loc_ctx_open_failed",
 					      1 << M0_FOPH_TXN_OPEN_FAILED },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
-					      M0_FOPH_FOL_REC_PART_ADD,
+					      M0_FOPH_FOL_REC_ADD,
 					     "fom_success",
 					      1 << M0_FOPH_SUCCESS },
-	[M0_FOPH_FOL_REC_PART_ADD] =       { &fom_fop_fol_rec_part_add,
-					      M0_FOPH_FOL_REC_ADD,
-					     "fop_fol_rec_part_add",
-					      1 << M0_FOPH_FOL_REC_PART_ADD},
 	[M0_FOPH_FOL_REC_ADD] =		   { &fom_fol_rec_add,
 					      M0_FOPH_TXN_COMMIT,
 					     "fom_fol_rec_add",
 					      1 << M0_FOPH_FOL_REC_ADD },
 	[M0_FOPH_TXN_COMMIT] =		   { &fom_txn_commit,
-					      M0_FOPH_TXN_COMMIT_WAIT,
+					      M0_FOPH_QUEUE_REPLY,
 					     "fom_txn_commit",
 					      1 << M0_FOPH_TXN_COMMIT },
 	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_txn_commit_wait,
@@ -628,10 +626,6 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_SUCCESS] = {
 		.sd_name      = "fom_success",
-		.sd_allowed   = M0_BITS(M0_FOPH_FOL_REC_PART_ADD)
-	},
-	[M0_FOPH_FOL_REC_PART_ADD] = {
-		.sd_name      = "fom_fop_fol_rec_part_add",
 		.sd_allowed   = M0_BITS(M0_FOPH_FOL_REC_ADD)
 	},
 	[M0_FOPH_FOL_REC_ADD] = {
@@ -710,31 +704,6 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 		rc = M0_FSO_WAIT;
 
 	return rc;
-}
-
-M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
-{
-	struct m0_fol_rec_desc *desc;
-	struct m0_fol	       *fol;
-	int                     rc;
-
-	M0_PRE(fom != NULL);
-
-	fol  = m0_fom_reqh(fom)->rh_fol;
-	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
-
-	M0_SET0(desc);
-	desc->rd_lsn = m0_fol_lsn_allocate(fol);
-	/* @todo an arbitrary number for now */
-	desc->rd_header.rh_refcount = 1;
-
-#if XXX_USE_DB5
-	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
-#else
-	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec,
-					      &fom->fo_tx.tx_betx, &op));
-	return rc;
-#endif
 }
 
 /** @} end of fom group */

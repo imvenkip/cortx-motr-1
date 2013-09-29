@@ -193,7 +193,10 @@ static int server_init(const char             *stob_path,
 	rc = m0_be_seg_dict_create(seg, grp);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_reqh_dbenv_init(&reqh, seg, true);
+	rc = m0_reqh_fol_create(&reqh, seg);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_reqh_dbenv_init(&reqh, seg);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
@@ -293,8 +296,6 @@ static void server_fini(struct m0_stob_domain *bdom,
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(&reqh);
 
-	m0_reqh_dbenv_fini(&reqh, true);
-
         /* Fini the rpc_machine */
 	m0_reqh_rpc_mach_tlink_del_fini(&srv_rpc_mach);
         m0_rpc_machine_fini(&srv_rpc_mach);
@@ -314,12 +315,16 @@ static void server_fini(struct m0_stob_domain *bdom,
 	sdom->sd_ops->sdo_fini(sdom, grp);
 	bdom->sd_ops->sdo_fini(bdom, NULL);
 
+	m0_reqh_fom_domain_idle_wait(&reqh);
+	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
+
+	m0_reqh_fol_destroy(&reqh);
+	m0_reqh_dbenv_fini(&reqh);
+
 	rc = m0_be_seg_dict_destroy(&ut_seg.bus_seg, grp);
 	M0_ASSERT(rc == 0);
 	m0_ut_backend_fini(&ut_be, &ut_seg);
 
-	m0_reqh_fom_domain_idle_wait(&reqh);
-	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_fini(&reqh);
 }
 

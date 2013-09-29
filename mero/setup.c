@@ -1356,7 +1356,11 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	rctx->rc_beseg = rctx->rc_db.d_i.d_seg;
 	rctx->rc_reqh.rh_dbenv = &rctx->rc_db;
 
-	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg, true);
+	rc = m0_reqh_fol_create(&rctx->rc_reqh, rctx->rc_beseg);
+	if (rc != 0 && rc != -EEXIST)
+		goto reqh_fini;
+
+	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0)
 		goto dbenv_fini;
 
@@ -1423,9 +1427,11 @@ cleanup_addb_stob:
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_dbenv_fini:
-	m0_reqh_dbenv_fini(&rctx->rc_reqh, true);
+	m0_reqh_fol_destroy(&rctx->rc_reqh);
+	m0_reqh_dbenv_fini(&rctx->rc_reqh);
 dbenv_fini:
 	m0_dbenv_fini(&rctx->rc_db);
+reqh_fini:
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
 	M0_ASSERT(rc != 0);
@@ -1475,21 +1481,21 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
 
-	m0_reqh_dbenv_fini(reqh, true);
-
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
 		m0_reqh_services_terminate(reqh);
 
-	m0_mdstore_fini(&rctx->rc_mdstore);
-	cs_addb_storage_fini(&rctx->rc_addb_stob);
-	cs_storage_fini(&rctx->rc_stob);
-	m0_dbenv_fini(&rctx->rc_db);
 	m0_reqh_fom_domain_idle_wait(reqh);
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
 		m0_reqh_mgmt_service_stop(reqh);
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
+
+	m0_reqh_dbenv_fini(reqh);
+	m0_mdstore_fini(&rctx->rc_mdstore);
+	cs_addb_storage_fini(&rctx->rc_addb_stob);
+	cs_storage_fini(&rctx->rc_stob);
+	m0_dbenv_fini(&rctx->rc_db);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 }

@@ -176,7 +176,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_reqh_lockers_init(reqh);
 
 	if (reqh->rh_beseg != NULL)
-		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg, false);
+		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg);
 
 	return rc;
 }
@@ -245,11 +245,60 @@ static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
 	m0_dtx_done_sync(&tx);
 	m0_sm_group_unlock(grp);
 }
+
+M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
+				   struct m0_be_seg *seg)
+{
+	int rc;
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
+	M0_ENTRY("reqh=%p", reqh);
+
+	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
+	if (rc == 0)
+		M0_RETURN(-EEXIST);
+
+	reqh->rh_fol = fol_alloc(seg);
+	if (reqh->rh_fol == NULL)
+		M0_RETURN(-ENOMEM);
+
+	m0_fol_init(reqh->rh_fol, seg);
+	rc = fol_create(reqh->rh_fol, seg);
+	if (rc == 0) {
+		m0_sm_group_lock(grp);
+		rc = m0_be_seg_dict_insert(seg, grp,
+				"fol", reqh->rh_fol);
+		m0_sm_group_unlock(grp);
+		if (rc != 0)
+			fol_destroy(reqh->rh_fol, seg);
+	}
+	if (rc != 0) {
+		fol_free(reqh->rh_fol, seg);
+		reqh->rh_fol = NULL;
+	}
+
+	M0_RETURN(rc);
+}
+
+M0_INTERNAL void m0_reqh_fol_destroy(struct m0_reqh *reqh)
+{
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+
+	M0_PRE(reqh->rh_beseg != NULL);
+	M0_PRE(reqh->rh_fol   != NULL);
+
+	m0_sm_group_lock(grp);
+	m0_be_seg_dict_delete(reqh->rh_beseg, grp, "fol");
+	m0_sm_group_unlock(grp);
+	fol_destroy(reqh->rh_fol, reqh->rh_beseg);
+	m0_fol_fini(reqh->rh_fol);
+	fol_free(reqh->rh_fol, reqh->rh_beseg);
+	reqh->rh_fol = NULL;
+}
 #endif
 
 M0_INTERNAL int
-m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
-			bool create)
+m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 {
 	int rc = 0;
 
@@ -268,38 +317,9 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 
 #ifndef __KERNEL__
 	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
-	if (rc == -ENOENT) {
-		struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-
-		if (!create) {
-			M0_LOG(M0_ERROR, "fol not found in BE");
-			M0_RETURN(rc);
-		}
-		reqh->rh_fol = fol_alloc(seg);
-		if (reqh->rh_fol == NULL)
-			M0_RETURN(-ENOMEM);
-
-		m0_fol_init(reqh->rh_fol, seg);
-		rc = fol_create(reqh->rh_fol, seg);
-		if (rc == 0) {
-			m0_sm_group_lock(grp);
-			rc = m0_be_seg_dict_insert(seg, grp,
-					"fol", reqh->rh_fol);
-			m0_sm_group_unlock(grp);
-			if (rc != 0)
-				fol_destroy(reqh->rh_fol, seg);
-		}
-		if (rc != 0) {
-			fol_free(reqh->rh_fol, seg);
-			reqh->rh_fol = NULL;
-			M0_RETURN(rc);
-		}
-	} else {
-		if (create)
-			M0_RETURN(-EEXIST);
-
-		m0_fol_init(reqh->rh_fol, seg);
-	}
+	if (rc != 0)
+		M0_RETERR(rc, "fol not found in BE");
+	m0_fol_init(reqh->rh_fol, seg);
 	reqh->rh_fol->f_reqh = reqh;
 #endif
 
@@ -309,21 +329,13 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg,
 	return rc;
 }
 
-M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
+M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
 {
 	if (reqh->rh_beseg != NULL) {
 #ifndef __KERNEL__
-		if (destroy) {
-			struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-
-			m0_sm_group_lock(grp);
-			m0_be_seg_dict_delete(reqh->rh_beseg, grp, "fol");
-			m0_sm_group_unlock(grp);
-			fol_destroy(reqh->rh_fol, reqh->rh_beseg);
+		if (reqh->rh_fol != NULL) {
 			m0_fol_fini(reqh->rh_fol);
-			fol_free(reqh->rh_fol, reqh->rh_beseg);
-		} else {
-			m0_fol_fini(reqh->rh_fol);
+			reqh->rh_fol = NULL;
 		}
 #endif
 		if (reqh->rh_dbenv != NULL) {
@@ -338,7 +350,7 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh, bool destroy)
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
 {
-	m0_reqh_dbenv_fini(reqh, false);
+	m0_reqh_dbenv_fini(reqh);
 	m0_sm_group_lock(&reqh->rh_sm_grp);
 	m0_sm_fini(&reqh->rh_sm);
 	m0_sm_group_unlock(&reqh->rh_sm_grp);
