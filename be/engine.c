@@ -59,14 +59,25 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		.eng_group_nr = en_cfg->bec_group_nr,
 	};
 
-	M0_ASSERT(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
-				     &en_cfg->bec_group_size_max));
-	M0_ASSERT(en_cfg->bec_log_size >=
-		  en_cfg->bec_group_size_max.tc_reg_size);
-	/* only one group is supported at the moment */
-	M0_ASSERT(en_cfg->bec_group_nr == 1);
-	/* recovery isn't implemented */
-	M0_ASSERT(!en_cfg->bec_log_replay);
+	M0_ASSERT_INFO(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
+					  &en_cfg->bec_group_size_max),
+		       "Maximum transaction size shouldn't be greater than "
+		       "maximum group size: "
+		       "tx_size_max = (%lu, %lu), group_size_max = (%lu, %lu)",
+		       en_cfg->bec_tx_size_max.tc_reg_nr,
+		       en_cfg->bec_tx_size_max.tc_reg_size,
+		       en_cfg->bec_group_size_max.tc_reg_nr,
+		       en_cfg->bec_group_size_max.tc_reg_size);
+	M0_ASSERT_INFO(en_cfg->bec_log_size >=
+		       en_cfg->bec_group_size_max.tc_reg_size,
+		       "Log size shouldn't be less than maximum group size: "
+		       "log_size = %lu, group_size_max = %lu",
+		       en_cfg->bec_log_size,
+		       en_cfg->bec_group_size_max.tc_reg_size);
+	M0_ASSERT_INFO(en_cfg->bec_group_nr == 1,
+		       "Only one group is supported at the moment, "
+		       "but group_nr = %zu", en_cfg->bec_group_nr);
+	M0_ASSERT_INFO(!en_cfg->bec_log_replay, "Recovery is not implemented");
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
@@ -117,10 +128,17 @@ err:
 
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 {
-	int i;
+	m0_bcount_t log_size = m0_be_log_size(&en->eng_log);
+	m0_bcount_t log_free = m0_be_log_free(&en->eng_log);
+	int	    i;
 
 	M0_ENTRY();
 	M0_PRE(m0_be_engine__invariant(en));
+
+	M0_ASSERT_INFO(log_size == log_free,
+		       "There is at least one transaction which didn't become "
+		       "stable yet. log_size = %lu, log_free = %lu",
+		       log_size, log_free);
 
 	m0_mutex_fini(&en->eng_lock);
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
@@ -131,7 +149,6 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	}
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_fini(&en->eng_groups[i]), true));
-	M0_ASSERT(m0_be_log_size(&en->eng_log) == m0_be_log_free(&en->eng_log));
 	m0_be_log_destroy(&en->eng_log);
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);

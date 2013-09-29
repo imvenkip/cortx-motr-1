@@ -531,11 +531,21 @@ static const struct m0_be_regmap_ops be_reg_area_ops = {
 M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 					const struct m0_be_reg_d *rd)
 {
+	struct m0_be_tx_credit captured = ra->bra_captured;
+	struct m0_be_tx_credit prepared = ra->bra_captured;
+	m0_bcount_t	       reg_size = rd->rd_reg.br_size;
+
 	M0_PRE(m0_be_reg_area__invariant(ra));
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
 	m0_be_tx_credit_add(&ra->bra_captured, &M0_BE_REG_D_CREDIT(rd));
-	M0_ASSERT(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
+	M0_ASSERT_INFO(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared),
+		       "There is not enough credits for capturing: "
+		       "captured = (%lu, %lu), prepared = (%lu, %lu), "
+		       "region size = %lu",
+		       captured.tc_reg_nr, captured.tc_reg_size,
+		       prepared.tc_reg_nr, prepared.tc_reg_size, reg_size);
+
 	m0_be_regmap_add(&ra->bra_map, rd);
 
 	M0_POST(m0_be_reg_d__invariant(rd));
@@ -597,7 +607,12 @@ M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
 
 	seg = NULL;
 	M0_BE_REG_AREA_FORALL(ra, rd) {
-		M0_ASSERT(ergo(seg != NULL, seg == rd->rd_reg.br_seg));
+		M0_ASSERT_INFO(ergo(seg != NULL, seg == rd->rd_reg.br_seg),
+			       "Segment I/O with regions from multiple "
+			       "segments in the same reg_area "
+			       "is not supported: "
+			       "seg = %p, rd->rd_reg.br_seg = %p",
+			       seg, rd->rd_reg.br_seg);
 		m0_be_io_add(io, rd->rd_buf, m0_be_reg_offset(&rd->rd_reg),
 			     rd->rd_reg.br_size);
 		seg = rd->rd_reg.br_seg;
