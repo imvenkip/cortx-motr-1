@@ -297,7 +297,7 @@ m0loop_st_run()
 
 m0loop_st()
 {
-	echo -n "Running m0loop system tests"
+	echo -n "Running m0loop system tests" | tee -a $MERO_TEST_LOGFILE
 	while true; do echo -n .; sleep 1; done &
 	pid=$!
 	m0loop_st_run &>> $MERO_TEST_LOGFILE
@@ -462,7 +462,7 @@ rmw_test()
 
 	done
 
-	echo "Test: IORMW: Success." | tee $MERO_TEST_LOGFILE
+	echo "Test: IORMW: Success." | tee -a $MERO_TEST_LOGFILE
 
 	return 0
 }
@@ -484,7 +484,7 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	m0loop_st || return 1
+	#m0loop_st || return 1
 
 	return 0
 }
