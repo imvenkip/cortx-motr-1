@@ -29,6 +29,10 @@
 #include "ut/ut.h"
 #include <stdlib.h>	   /* atoi */
 
+static struct m0_be_ut_backend ut_be;
+static struct m0_be_ut_seg     ut_seg;
+static struct m0_be_seg       *seg;
+
 extern void btree_dbg_print(struct m0_be_btree *tree);
 
 static int tree_cmp(const void *key0, const void *key1)
@@ -52,22 +56,14 @@ enum {
 	INSERT_SIZE  = 4
 };
 
-static void check(struct m0_be_btree *tree,
-		  struct m0_be_ut_backend *ut_be,
-		  struct m0_be_seg *seg);
+static void check(struct m0_be_btree *tree);
 
-static struct m0_be_btree *create_tree(struct m0_be_ut_backend *ut_be,
-				       struct m0_be_seg *seg);
+static struct m0_be_btree *create_tree();
 
-static void destroy_tree(struct m0_be_btree *tree,
-			 struct m0_be_ut_backend *ut_be,
-			 struct m0_be_seg *seg);
+static void destroy_tree(struct m0_be_btree *tree);
 
 void m0_be_ut_btree_simple(void)
 {
-	struct m0_be_ut_backend ut_be;
-	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg;
 	struct m0_be_btree     *tree0;
 
 	M0_ENTRY();
@@ -78,7 +74,7 @@ void m0_be_ut_btree_simple(void)
 	seg = &ut_seg.bus_seg;
 
 	/* create btrees */
-	tree0 = create_tree(&ut_be, seg);
+	tree0 = create_tree();
 
 	/* Reload segment and check data */
 	/* XXX: this needs investigation, some parts of btree may stay
@@ -86,8 +82,8 @@ void m0_be_ut_btree_simple(void)
 	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 	m0_be_ut_seg_reload(&ut_seg);
 
-	check(tree0, &ut_be, seg);
-	destroy_tree(tree0, &ut_be, seg);
+	check(tree0);
+	destroy_tree(tree0);
 
 	/* XXX: this needs investigation, some parts of btree may stay
 	 * uncaptured and this is a valid scenario */
@@ -102,6 +98,88 @@ void m0_be_ut_btree_simple(void)
 	M0_LEAVE();
 }
 
+static int
+btree_insert(struct m0_be_btree *t, struct m0_buf *k, struct m0_buf *v)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx tx;
+	int             rc;
+
+	M0_ENTRY();
+
+	m0_be_btree_insert_credit(t, 1, INSERT_SIZE, INSERT_SIZE, &cred);
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+	m0_be_tx_prep(&tx, &cred);
+
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_BE_OP_SYNC(op, m0_be_btree_insert(t, &tx, &op, k, v));
+
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+
+	M0_RETURN(rc);
+}
+
+static int
+btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx           tx;
+	struct m0_be_btree_anchor anchor;
+	int                       rc;
+
+	M0_ENTRY();
+
+	m0_be_btree_insert_credit(t, 1, INSERT_SIZE, INSERT_SIZE, &cred);
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+	m0_be_tx_prep(&tx, &cred);
+
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc == 0);
+
+	anchor.ba_value.b_nob = INSERT_SIZE;
+	M0_BE_OP_SYNC(op, m0_be_btree_insert_inplace(t, &tx, &op,
+						     k, &anchor));
+	/* update value */
+	sprintf(anchor.ba_value.b_addr, "%03d", v);
+	m0_be_btree_release(t, &tx, &anchor);
+
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+
+	M0_RETURN(rc);
+}
+
+static int
+btree_delete(struct m0_be_btree *t, struct m0_buf *k)
+{
+	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx tx;
+	int             rc;
+
+	M0_ENTRY();
+
+	m0_be_btree_delete_credit(t, 1, INSERT_SIZE, INSERT_SIZE, &cred);
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+	m0_be_tx_prep(&tx, &cred);
+
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(t, &tx, &op, k),
+			       bo_u.u_btree.t_rc);
+
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+
+	M0_RETURN(rc);
+}
+
 static void shuffle_array(int a[], size_t n)
 {
 	if (n > 1) {
@@ -114,7 +192,7 @@ static void shuffle_array(int a[], size_t n)
 	}
 }
 
-static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
+static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 {
 	struct m0_buf key;
 	struct m0_buf val;
@@ -130,8 +208,7 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	M0_LOG(M0_INFO, "Check error code...");
 	sprintf(k, "%03d", INSERT_COUNT);
 
-	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, tx, &op, &key),
-			       bo_u.u_btree.t_rc);
+	rc = btree_delete(tree, &key);
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	btree_dbg_print(tree);
@@ -144,18 +221,14 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 		sprintf(k, "%03d", rand_keys[i]);
 		M0_LOG(M0_DEBUG, "%03d: delete key=%s", i, (char*)k);
 
-		rc = M0_BE_OP_SYNC_RET(op,
-				       m0_be_btree_delete(tree, tx, &op, &key),
-				       bo_u.u_btree.t_rc);
+		rc = btree_delete(tree, &key);
 		M0_UT_ASSERT(rc == 0);
 	}
 
 	M0_LOG(M0_INFO, "Make sure nothing is left...");
 	for (i = 0; i < INSERT_COUNT; ++i) {
 		sprintf(k, "%03d", i);
-		rc = M0_BE_OP_SYNC_RET(
-			op, m0_be_btree_delete(tree, tx, &op, &key),
-			bo_u.u_btree.t_rc);
+		rc = btree_delete(tree, &key);
 		M0_UT_ASSERT(rc == -ENOENT);
 	}
 
@@ -163,8 +236,7 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	for (i = 0; i < INSERT_COUNT; ++i) {
 		sprintf(k, "%03d", i);
 		sprintf(v, "%03d", i);
-		M0_BE_OP_SYNC(op,
-			      m0_be_btree_insert(tree, tx, &op, &key, &val));
+		btree_insert(tree, &key, &val);
 	}
 
 	M0_LOG(M0_INFO, "Deleting [%03d, %03d)...", INSERT_COUNT/4,
@@ -172,12 +244,11 @@ static void btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
 		sprintf(k, "%03d", i);
 		M0_LOG(M0_DEBUG, "delete key=%03d", i);
-		M0_BE_OP_SYNC(op, m0_be_btree_delete(tree, tx, &op, &key));
+		btree_delete(tree, &key);
 	}
 }
 
-static struct m0_be_btree *
-create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
+static struct m0_be_btree * create_tree()
 {
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_btree     *tree;
@@ -195,16 +266,13 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	   but for allocated below. This needs at least two transactions. */
 		struct m0_be_btree t = { .bb_seg = seg };
 		m0_be_btree_create_credit(&t, 1, &cred);
-		m0_be_btree_insert_credit(&t, INSERT_COUNT, INSERT_SIZE,
-					INSERT_SIZE, &cred);
 	}
 	M0_BE_ALLOC_CREDIT_PTR(tree, seg, &cred);
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
-	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_ut_tx_init(tx, &ut_be);
 	m0_be_tx_prep(tx, &cred);
-
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -214,6 +282,8 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
 	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
+	m0_be_tx_close_sync(tx); /* Make things persistent. */
+	m0_be_tx_fini(tx);
 
 	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_minkey(tree, &op, &key),
 			       bo_u.u_btree.t_rc);
@@ -230,29 +300,28 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	for (i = 0; i < INSERT_COUNT/2; ++i) {
 		sprintf(k, "%03d", i);
 		sprintf(v, "%03d", i);
-		M0_BE_OP_SYNC(op,
-			      m0_be_btree_insert(tree, tx, &op, &key, &val));
+		btree_insert(tree, &key, &val);
 	}
 	M0_UT_ASSERT(!m0_be_btree_is_empty(tree));
 
 	M0_LOG(M0_INFO, "Inserting inplace...");
 	/* insert inplace */
 	for (i = INSERT_COUNT/2; i < INSERT_COUNT; ++i) {
-		struct m0_be_btree_anchor anchor;
-
 		sprintf(k, "%03d", i);
-		anchor.ba_value.b_nob = sizeof v;
-		M0_BE_OP_SYNC(op, m0_be_btree_insert_inplace(tree, tx, &op,
-							     &key, &anchor));
-		/* update value */
-		sprintf(anchor.ba_value.b_addr, "%03d", i);
-		m0_be_btree_release(tree, tx, &anchor);
+		btree_insert_inplace(tree, &key, i);
 	}
 	btree_dbg_print(tree);
 
-	btree_delete(tree, tx);
+	btree_delete_test(tree, tx);
 
 	M0_LOG(M0_INFO, "Updating...");
+	m0_be_ut_tx_init(tx, &ut_be);
+	cred = M0_BE_TX_CREDIT_ZERO;
+	m0_be_btree_update_credit(tree, 1, INSERT_SIZE, &cred);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc == 0);
+
 	sprintf(k, "%03d", INSERT_COUNT - 1);
 	sprintf(v, "XYZ");
 	M0_BE_OP_SYNC(op, m0_be_btree_update(tree, tx, &op, &key, &val));
@@ -267,9 +336,7 @@ create_tree(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	return tree;
 }
 
-static void destroy_tree(struct m0_be_btree *tree,
-			 struct m0_be_ut_backend *ut_be,
-			 struct m0_be_seg *seg)
+static void destroy_tree(struct m0_be_btree *tree)
 {
 	M0_BE_TX_CREDIT(cred);
 	struct m0_be_tx        *tx;
@@ -282,7 +349,7 @@ static void destroy_tree(struct m0_be_btree *tree,
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
-	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_ut_tx_init(tx, &ut_be);
 	m0_be_tx_prep(tx, &cred);
 
 	rc = m0_be_tx_open_sync(tx);
@@ -386,8 +453,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	m0_be_btree_cursor_fini(&cursor);
 }
 
-static void check(struct m0_be_btree *tree, struct m0_be_ut_backend *ut_be,
-		  struct m0_be_seg *seg)
+static void check(struct m0_be_btree *tree)
 {
 	struct m0_buf   key;
 	struct m0_buf   val;
