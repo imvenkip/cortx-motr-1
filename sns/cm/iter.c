@@ -323,19 +323,18 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	struct m0_pdclust_instance *pi = it->si_fc.sfc_pi;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
-	int                         fnr_cnt = 0;
 	int                         i;
 
-	for (i = 0; i < m0_pdclust_K(pl); ++i) {
-		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl) + i;
+	for (i = 0; i < it->si_fc.sfc_upg; ++i) {
+		sa.sa_unit = i;
 		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    m0_sns_cm_unit_is_spare(scm, pl, sa.sa_unit))
-			M0_CNT_INC(fnr_cnt);
+		    !m0_sns_cm_unit_is_spare(scm, pl, sa.sa_unit))
+			return false;
 	}
 
-	return fnr_cnt == scm->sc_failures_nr;
+	return true;
 }
 
 /**

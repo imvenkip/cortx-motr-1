@@ -249,7 +249,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
                 m0_dtx_done(tx);
                 return M0_FSO_WAIT;
         } else {
-                while (m0_be_tx_state(&tx->tx_betx) != M0_BTS_DONE) {
+                if (m0_be_tx_state(&tx->tx_betx) != M0_BTS_DONE) {
                         m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan,
                                                 &fom->fo_cb);
                         return M0_FSO_WAIT;

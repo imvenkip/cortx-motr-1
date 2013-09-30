@@ -20,21 +20,21 @@ sns_repair_test()
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
-	dd if=/dev/urandom bs=20k count=500 \
+	dd if=/dev/urandom bs=4k count=9 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
 
-	dd if=/dev/urandom bs=20k count=500 \
+	dd if=/dev/urandom bs=4k count=9 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
 
-	dd if=/dev/urandom bs=20k count=500 \
+	dd if=/dev/urandom bs=4k count=9 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
@@ -63,8 +63,7 @@ sns_repair_test()
 		return 1
 	fi
 
-	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -N 1 -F $fail_device
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $repair_trigger
 
 	if ! $repair_trigger ; then
@@ -88,8 +87,7 @@ sns_repair_test()
 	fi
 
 	echo "Starting SNS Re-balance.."
-	rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -N 1 -F $fail_device
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+	rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $rebalance_trigger
 	if ! $rebalance_trigger ; then
 		echo "SNS Re-balance failed"

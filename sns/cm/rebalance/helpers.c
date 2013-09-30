@@ -40,7 +40,8 @@ static uint64_t rebalance_ag_nr_global_units(const struct m0_sns_cm *scm,
 
 static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				const struct m0_pdclust_layout *pl)
+				const struct m0_cm_ag_id *id,
+				struct m0_pdclust_layout *pl)
 {
 	return m0_pdclust_K(pl);
 }

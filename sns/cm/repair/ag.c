@@ -89,6 +89,8 @@ static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
 	M0_PRE(rag != NULL);
 
 	for (i = 0; i < rag->rag_base.sag_fnr; ++i) {
+		if (!rag->rag_fc[i].fc_is_inuse)
+			continue;
 		cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
 		m0_cm_cp_bufvec_merge(cp);
 		nbuf_head = cp_data_buf_tlist_head(&cp->c_buffers);
@@ -172,24 +174,18 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
         cm = ag->cag_cm;
         M0_ASSERT(cm != NULL);
         scm = cm2sns(cm);
-	/**
-	 * Free the aggregation group if this is the last copy packet
-	 * being finalised for a given aggregation group.
-	 */
-	if(rag->rag_acc_freed == sag->sag_fnr) {
-		if (ag->cag_has_incoming) {
-			pl = m0_layout_to_pdl(ag->cag_layout);
-			total_resbufs = m0_sns_cm_repair_ag_inbufs(scm,
-								   &ag->cag_id,
-								   pl);
-			m0_sns_cm_normalize_reservation(scm, ag, pl,
-							total_resbufs);
-		}
-		incr_recover_fini(rag);
-		m0_sns_cm_ag_fini(sag);
-		m0_free(rag->rag_fc);
-		m0_free(rag);
+	if (ag->cag_has_incoming) {
+		pl = m0_layout_to_pdl(ag->cag_layout);
+		total_resbufs = m0_sns_cm_repair_ag_inbufs(scm,
+							   &ag->cag_id,
+							   pl);
+		m0_sns_cm_normalize_reservation(scm, ag, pl,
+						total_resbufs);
 	}
+	incr_recover_fini(rag);
+	m0_sns_cm_ag_fini(sag);
+	m0_free(rag->rag_fc);
+	m0_free(rag);
 
 	M0_LEAVE();
 }
@@ -198,7 +194,7 @@ static bool repair_ag_can_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 
-	return rag->rag_acc_freed == rag->rag_base.sag_fnr;
+	return rag->rag_acc_freed == rag->rag_acc_inuse_nr;
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {
@@ -231,32 +227,57 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 					const struct m0_bitmap *fmap,
 					struct m0_pdclust_layout *pl)
 {
-	struct m0_sns_cm    *scm = cm2sns(rag->rag_base.sag_base.cag_cm);
-	struct m0_sns_cm_ag *sag = &rag->rag_base;
-	uint64_t             tgt_unit;
-	uint64_t             fidx = 0;
-	int                  i;
-	int                  rc = 0;
+	struct m0_sns_cm     *scm = cm2sns(rag->rag_base.sag_base.cag_cm);
+	struct m0_sns_cm_ag  *sag = &rag->rag_base;
+	struct m0_fid         cobfid;
+	struct m0_fid        *tgt_cobfid;
+	struct m0_cob_domain *cdom;
+	uint64_t              tgt_unit;
+	uint64_t              fidx = 0;
+	int                   i;
+	int                   rc = 0;
 
 	M0_PRE(fmap != NULL);
 	M0_PRE(fmap->b_nr == (m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl)));
 
+	cdom = scm->sc_it.si_cob_dom;
 	for (i = 0; i < fmap->b_nr; ++i) {
 		if (!m0_bitmap_get(fmap, i))
 			continue;
 		if (m0_sns_cm_unit_is_spare(scm, pl, i))
 			continue;
-		tgt_unit = repair_ag_target_unit(sag, pl,
-						 scm->sc_it.si_fdata[fidx],
-						 i);
-		rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl,
-					       &rag->rag_fc[fidx].fc_tgt_cobfid);
+		rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
 		if (rc != 0)
 			return rc;
-		rag->rag_fc[fidx].fc_failed_idx = i;
-		rag->rag_fc[fidx].fc_tgt_idx = tgt_unit;
-		rag->rag_fc[fidx].fc_tgt_cob_index =
+		tgt_unit = repair_ag_target_unit(sag, pl,
+						 cobfid.f_container, i);
+		tgt_cobfid = &rag->rag_fc[fidx].fc_tgt_cobfid;
+		rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl, tgt_cobfid);
+		if (rc != 0)
+			return rc;
+		/*
+		 * Number of accumulators allocated == number of failures in an
+		 * aggregation group.
+		 * So, if the target cob (cob hosting the spare unit) for the
+		 * given accumulator is not local and there are no local units
+		 * for the given aggregation group then this accumulator is not
+		 * used, thus not freed, this holds the aggregation group
+		 * finalisation. Thus mark the accumulator if it is used.
+		 * (struct m0_sns_cm_repair_ag_failure_ctx::fc_is_inuse) and
+		 * also account the number of used accumulators in an
+		 * aggregation group,
+		 * (struct m0_sns_cm_repair_ag::rag_acc_inuse_nr). Use this
+		 * information to finalise an aggregation group.
+		 */
+		if (m0_sns_cm_cob_locate(cdom, tgt_cobfid) == 0 ||
+		    sag->sag_base.cag_cp_local_nr != 0) {
+			rag->rag_fc[fidx].fc_failed_idx = i;
+			rag->rag_fc[fidx].fc_tgt_idx = tgt_unit;
+			rag->rag_fc[fidx].fc_tgt_cob_index =
 				m0_sns_cm_ag_unit2cobindex(sag, tgt_unit, pl);
+			M0_CNT_INC(rag->rag_acc_inuse_nr);
+			rag->rag_fc[fidx].fc_is_inuse = true;
+		}
 		++fidx;
 	}
 
@@ -305,8 +326,11 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 		goto cleanup_ag;
 
 	/* Initialise the accumulators. */
-	for (i = 0; i < sag->sag_fnr; ++i)
+	for (i = 0; i < sag->sag_fnr; ++i) {
+		if (!rag->rag_fc[i].fc_is_inuse)
+			continue;
 		m0_sns_cm_acc_cp_init(&rag->rag_fc[i].fc_tgt_acc_cp, sag);
+	}
 
 	/* Acquire buffers and setup the accumulators. */
 	rc = m0_sns_cm_repair_ag_setup(sag, pl);
@@ -322,8 +346,11 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 	goto done;
 
 cleanup_acc:
-	for (i = 0; i < sag->sag_fnr; ++i)
+	for (i = 0; i < sag->sag_fnr; ++i) {
+		if (!rag->rag_fc[i].fc_is_inuse)
+			continue;
 		m0_cm_cp_buf_release(&rag->rag_fc[i].fc_tgt_acc_cp.sc_base);
+	}
 cleanup_ag:
 	m0_layout_put(m0_pdl_to_layout(pl));
 	m0_cm_aggr_group_fini(&sag->sag_base);
@@ -349,6 +376,8 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	for (i = 0; i < sag->sag_fnr; ++i) {
+		if (!rag->rag_fc[i].fc_is_inuse)
+			continue;
 		rc = m0_sns_cm_acc_cp_setup(&rag->rag_fc[i].fc_tgt_acc_cp,
 					    &rag->rag_fc[i].fc_tgt_cobfid,
 					    rag->rag_fc[i].fc_tgt_cob_index,

@@ -124,8 +124,8 @@ struct m0_sns_cm_helpers {
 	 * received by this replica.
 	 */
 	uint64_t (*sch_ag_max_incoming_units)(const struct m0_sns_cm *scm,
-					      const struct m0_pdclust_layout
-					      *pl);
+					      const struct m0_cm_ag_id *id,
+					      struct m0_pdclust_layout *pl);
 
 	/**
 	 * Returns index of starting unit of the given aggregation group to
@@ -165,8 +165,6 @@ struct m0_sns_cm {
 	 * machine operation, viz. repair or re-balance.
 	 */
 	const struct m0_sns_cm_helpers *sc_helpers;
-
-	uint64_t                        sc_failures_nr;
 
 	/** SNS copy machine data iterator. */
 	struct m0_sns_cm_iter           sc_it;

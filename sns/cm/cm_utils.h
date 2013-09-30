@@ -86,7 +86,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm *scm,
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				const struct m0_pdclust_layout *pl);
+				const struct m0_cm_ag_id *id,
+				struct m0_pdclust_layout *pl);
 
 /**
  * Builds layout instance for new GOB fid calculated in ITPH_FID_NEXT phase.

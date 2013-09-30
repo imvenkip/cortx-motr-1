@@ -119,6 +119,11 @@ enum m0_pool_nd_state {
 	M0_PNDS_NR
 };
 
+enum {
+        /* Unused spare slot has this device index */
+        POOL_PM_SPARE_SLOT_UNUSED = 0xFFFFFFFF
+};
+
 /**
  * pool node. Data structure representing a node in a pool.
  *

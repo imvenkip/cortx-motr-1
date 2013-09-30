@@ -39,7 +39,6 @@ struct failure_data {
  * only.
  */
 struct trigger_fop {
-	struct failure_data fdata;
 	uint32_t            op;
 } M0_XCA_RECORD;
 

@@ -159,8 +159,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	struct trigger_fop          *treq;
 	struct trigger_rep_fop      *trep;
 	struct m0_fop_type          *ft = NULL;
-	//struct m0_clink              tclink;
-	int                          i;
 	int                          rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -173,32 +171,13 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		switch(m0_fom_phase(fom)) {
 			case TPH_READY:
 				treq = m0_fop_data(fom->fo_fop);
-				M0_ALLOC_ARR(scm->sc_it.si_fdata,
-						treq->fdata.fd_nr);
-				M0_ASSERT(scm->sc_it.si_fdata != NULL);
-				for (i = 0; i < treq->fdata.fd_nr; ++i)
-					scm->sc_it.si_fdata[i] =
-						treq->fdata.fd_index[i];
-				scm->sc_failures_nr += treq->fdata.fd_nr;
 				scm->sc_op             = treq->op;
 				m0_mutex_lock(&scm->sc_wait_mutex);
 				m0_fom_wait_on(fom, &scm->sc_wait,
 					       &fom->fo_cb);
 				m0_mutex_unlock(&scm->sc_wait_mutex);
-				/*m0_mutex_lock(&scm->sc_wait_mutex);
-				m0_clink_init(&tclink, NULL);
-				m0_clink_add(&scm->sc_wait, &tclink);
-				m0_mutex_unlock(&scm->sc_wait_mutex);
-				m0_fom_block_enter(fom);*/
 				rc = m0_cm_ready(cm);
 				M0_ASSERT(rc == 0);
-				/*if (cm->cm_proxy_nr > 0)
-					m0_chan_wait(&tclink);
-
-				m0_fom_block_leave(fom);
-				m0_mutex_lock(&scm->sc_wait_mutex);
-				m0_clink_del(&tclink);
-				m0_mutex_unlock(&scm->sc_wait_mutex);*/
 				m0_fom_phase_set(fom, TPH_START_WAIT);
 				rc = M0_FSO_WAIT;
 				M0_LOG(M0_DEBUG, "got trigger: ready done");

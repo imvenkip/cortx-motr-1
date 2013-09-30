@@ -204,11 +204,6 @@ M0_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", M0_INTERNAL,
 
 M0_TL_DEFINE(poolmach_events, M0_INTERNAL, struct m0_pool_event_link);
 
-enum {
-	/* Unused spare slot has this device index */
-	POOL_PM_SPARE_SLOT_UNUSED = 0xFFFFFFFF
-};
-
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, uint32_t width)
 {
 	pool->po_width = width;
@@ -430,8 +425,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			return -EINVAL;
 		break;
 	case M0_PNDS_OFFLINE:
-		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
-					     M0_PNDS_FAILED)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE)))
 			return -EINVAL;
 		break;
 	case M0_PNDS_FAILED:
@@ -439,18 +433,15 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REPAIRING:
-		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRED,
-					     M0_PNDS_FAILED)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRED)))
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REPAIRED:
-		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REBALANCING,
-					     M0_PNDS_FAILED)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REBALANCING)))
 			return -EINVAL;
 		break;
 	case M0_PNDS_SNS_REBALANCING:
-		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
-					     M0_PNDS_FAILED)))
+		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE)))
 			return -EINVAL;
 		break;
 	default:
@@ -496,7 +487,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index == event->pe_index){
 				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
-						     (M0_PNDS_SNS_REBALANCING)));
+					  (M0_PNDS_OFFLINE,
+					   M0_PNDS_SNS_REBALANCING)));
 				spare_array[i].psu_device_index =
 						POOL_PM_SPARE_SLOT_UNUSED;
 				break;

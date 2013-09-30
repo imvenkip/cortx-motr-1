@@ -98,26 +98,15 @@ int main(int argc, char *argv[])
 	struct m0_rpc_session *session;
 	struct m0_clink        repair_clink;
 	uint32_t               op;
-	uint64_t               fail_idx[MAX_FAILURES_NR];
 	m0_time_t              start;
 	m0_time_t              delta;
-	int                    fail_cnt = 0;
-	int32_t                n = 0;
 	int                    rc;
 	int                    i;
-	int                    j;
 
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O',
 				     "Operation, i.e. SNS_REPAIR = 2 or SNS_REBALANCE = 4",
 				     "%u", &op),
-			M0_FORMATARG('N', "Number of failed devices", "%d", &n),
-			M0_NUMBERARG('F', "Failure devices",
-				LAMBDA(void, (int64_t fdv)
-					{
-					fail_idx[fail_cnt] = fdv;
-					fail_cnt++;
-					})),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
 						cl_ep_addr = str;
@@ -159,12 +148,6 @@ int main(int argc, char *argv[])
 		else if (op == SNS_REBALANCE)
 			fop = m0_fop_alloc(&rebalance_trigger_fopt, NULL);
 		treq = m0_fop_data(fop);
-		treq->fdata.fd_nr = n;
-		M0_ALLOC_ARR(treq->fdata.fd_index, n);
-		M0_ASSERT(treq->fdata.fd_index != NULL);
-
-		for (j = 0; j < n; ++j)
-			treq->fdata.fd_index[j] = fail_idx[j];
 		treq->op = op;
 		session = &ctxs[i].ctx_session;
 		rc = repair_rpc_post(fop, session,

@@ -540,25 +540,59 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 					enum m0_pool_event_owner_type et,
 					enum m0_pool_nd_state state)
 {
-	struct m0_pool_event  pme;
-	struct m0_dbenv      *dbenv = scm->sc_it.si_dbenv;
-	struct m0_db_tx       tx;
-	int                   i;
-	int                   rc = 0;
+	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
+	struct m0_pool_spare_usage *spare_array;
+	struct m0_pooldev          *dev_array;
+	struct m0_pool_event        pme;
+	struct m0_dbenv            *dbenv = scm->sc_it.si_dbenv;
+	struct m0_db_tx             tx;
+	uint32_t                    dev_id;
+	bool                        transit;
+	int                         i;
+	int                         rc = 0;
 
-	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		rc = m0_db_tx_init(&tx, dbenv, 0);
-		if (rc != 0)
-			return rc;
-
-		M0_SET0(&pme);
-		pme.pe_type  = et;
-		pme.pe_index = scm->sc_it.si_fdata[i];
-		pme.pe_state = state;
-		rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme, &tx);
-		m0_db_tx_commit(&tx);
-		if (rc != 0)
+	spare_array = pm->pm_state.pst_spare_usage_array;
+	for (i = 0; spare_array[i].psu_device_index != POOL_PM_SPARE_SLOT_UNUSED; ++i) {
+		transit = false;
+		dev_id = spare_array[i].psu_device_index;
+		dev_array = pm->pm_state.pst_devices_array;
+		switch (state) {
+		case M0_PNDS_SNS_REPAIRING:
+			if (dev_array[dev_id].pd_state == M0_PNDS_FAILED)
+				transit = true;
 			break;
+		case M0_PNDS_SNS_REPAIRED:
+			if (dev_array[dev_id].pd_state ==
+			    M0_PNDS_SNS_REPAIRING)
+				transit = true;
+			break;
+		case M0_PNDS_SNS_REBALANCING:
+			if (dev_array[dev_id].pd_state ==
+			    M0_PNDS_SNS_REPAIRED)
+				transit = true;
+			break;
+		case M0_PNDS_ONLINE:
+			if (dev_array[dev_id].pd_state != M0_PNDS_SNS_REPAIRED)
+				transit = true;
+			break;
+		default:
+			M0_IMPOSSIBLE("Bad state");
+			break;
+		}
+		if (transit) {
+			rc = m0_db_tx_init(&tx, dbenv, 0);
+			if (rc != 0)
+				return rc;
+			M0_SET0(&pme);
+			pme.pe_type  = et;
+			pme.pe_index = dev_id;
+			pme.pe_state = state;
+			rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme,
+						       &tx);
+			m0_db_tx_commit(&tx);
+			if (rc != 0)
+				break;
+		}
 	}
 
 	return rc;
@@ -571,7 +605,6 @@ M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
-	M0_PRE(scm->sc_failures_nr > 0);
 
 	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
 	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
@@ -622,7 +655,6 @@ M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 	struct m0_sns_cm      *scm = cm2sns(cm);;
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
-	scm->sc_failures_nr = 0;
 	scm->sc_stop_time = m0_time_now();
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,
 		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
@@ -774,7 +806,7 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 	uint64_t      nr_incoming;
 	uint32_t      max_in_units;
 
-	max_in_units = m0_sns_cm_ag_max_incoming_units(scm, pl);
+	max_in_units = m0_sns_cm_ag_max_incoming_units(scm, id, pl);
         agid2fid(id, &gfid);
         group = agid2group(id);
 	nr_local_units = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);

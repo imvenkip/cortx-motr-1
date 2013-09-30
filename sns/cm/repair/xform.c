@@ -275,8 +275,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	if (!ag->cag_has_incoming)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
 	else
-		M0_ASSERT(ag->cag_transformed_cp_nr <=
-			 (ag->cag_cp_global_nr - sns_ag->sag_fnr));
+		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_global_nr);
 
 	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_cm_cp_bufvec_merge(cp);
@@ -288,7 +287,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		cp_rs_recover(cp, scp->sc_failed_idx);
 	}
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
-		if (rag->rag_fc[i].fc_is_active)
+		if (rag->rag_fc[i].fc_is_active || !rag->rag_fc[i].fc_is_inuse)
 			continue;
 		res_cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
 		if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)

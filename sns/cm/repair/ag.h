@@ -59,18 +59,28 @@ struct m0_sns_cm_repair_ag_failure_ctx {
 	/** Target unit offset within the cob identified by tgt_cobfid. */
 	uint64_t                     fc_tgt_cob_index;
 
+	/**
+	 * True, if the copy packet fom corresponding to this accumulator is
+	 * in-progress.
+	 */
 	bool                         fc_is_active;
+
+	/** True, if this accumulator is in use. */
+	bool                         fc_is_inuse;
 };
 
 struct m0_sns_cm_repair_ag {
 	/** Base aggregation group. */
-	struct m0_sns_cm_ag              rag_base;
+	struct m0_sns_cm_ag                     rag_base;
 
 	/**
 	 * Number of accumulator copy packets finalised.
 	 * This should be equal to sag_fnr.
 	 */
-	uint32_t                         rag_acc_freed;
+	uint32_t                                rag_acc_freed;
+
+	/** Number of accumulators actually in use. */
+	uint32_t                                rag_acc_inuse_nr;
 
 	/**
 	 * Aggregation group failure context.
@@ -80,10 +90,10 @@ struct m0_sns_cm_repair_ag {
 	struct m0_sns_cm_repair_ag_failure_ctx *rag_fc;
 
 	/** Parity math context required for incremental recovery algorithm. */
-	struct m0_parity_math            rag_math;
+	struct m0_parity_math                   rag_math;
 
 	/** Incremental recovery context. */
-	struct m0_sns_ir                 rag_ir;
+	struct m0_sns_ir                        rag_ir;
 };
 
 

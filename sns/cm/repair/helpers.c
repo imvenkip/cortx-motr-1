@@ -47,9 +47,25 @@ static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm *scm,
 }
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
-					     const struct m0_pdclust_layout *pl)
+					     const struct m0_cm_ag_id *id,
+					     struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_N(pl) + m0_pdclust_K(pl) - scm->sc_failures_nr;
+	struct m0_fid               fid;
+	struct m0_pdclust_instance *pi;
+	size_t                      fnr = 0;
+	uint64_t                    group;
+	int                         rc;
+
+	agid2fid(id,  &fid);
+	group = agid2group(id);
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
+	if (rc == 0) {
+                fnr = m0_sns_cm_ag_failures_nr(scm, &fid, pl, pi, group, NULL);
+		m0_layout_instance_fini(&pi->pi_base);
+		return m0_pdclust_N(pl) + m0_pdclust_K(pl) - fnr;
+	}
+
+	return ~0;
 }
 
 static uint64_t repair_ag_unit_start(const struct m0_pdclust_layout *pl)

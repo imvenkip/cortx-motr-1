@@ -102,15 +102,6 @@ struct m0_sns_cm_iter {
 	/** Iterator state machine. */
 	struct m0_sm                     si_sm;
 
-        /**
-         * Failure data received in trigger FOP.
-         * This is set when a TRIGGER FOP is received. For SNS repair, this
-         * will be the failed container id.
-         * SNS copy machine data iterator assumes this to be set before invoking
-         * m0_sns_cm_iter_next().
-         */
-        uint64_t                        *si_fdata;
-
 	struct m0_dbenv                 *si_dbenv;
 
 	struct m0_cob_domain            *si_cob_dom;

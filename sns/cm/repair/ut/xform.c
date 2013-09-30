@@ -285,6 +285,7 @@ static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
 	for (i = 0; i < failure_nr; ++i) {
 		fc[i].fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
 		fc[i].fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
+		fc[i].fc_is_inuse = true;
 	}
 	rag->rag_fc = fc;
 }
@@ -462,14 +463,15 @@ static void test_multi_cp_multi_failures(void)
 		   n_fc);
 	sag = &n_rag.rag_base;
 	for (i = 0; i < MULTI_FAILURES; ++i) {
-	       n_acc_buf[i][0].nb_pool = &nbp;
-	       cp_prepare(&n_fc[i].fc_tgt_acc_cp.sc_base, &n_acc_buf[i][0],
-			  SEG_NR, SEG_SIZE, sag, 0, &acc_cp_fom_ops,
-			  reqh, 0, true, NULL);
-	       buffers_attach(n_acc_buf[i], &n_fc[i].fc_tgt_acc_cp.sc_base, 0);
-	       m0_bitmap_init(&n_fc[i].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
-			      sag->sag_base.cag_cp_global_nr);
-	       m0_cm_cp_bufvec_merge(&n_fc[i].fc_tgt_acc_cp.sc_base);
+		n_acc_buf[i][0].nb_pool = &nbp;
+		cp_prepare(&n_fc[i].fc_tgt_acc_cp.sc_base, &n_acc_buf[i][0],
+			   SEG_NR, SEG_SIZE, sag, 0, &acc_cp_fom_ops,
+			   reqh, 0, true, NULL);
+		buffers_attach(n_acc_buf[i], &n_fc[i].fc_tgt_acc_cp.sc_base, 0);
+		m0_bitmap_init(&n_fc[i].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
+			       sag->sag_base.cag_cp_global_nr);
+		n_fc[i].fc_is_inuse = true;
+		m0_cm_cp_bufvec_merge(&n_fc[i].fc_tgt_acc_cp.sc_base);
 	}
 
 	rs_init();

@@ -56,7 +56,6 @@ static int sns_cm_ut_file_size_layout_fetch(struct m0_cm *cm,
 	struct m0_layout_linear_attr         lattr;
 	struct m0_pdclust_attr               plattr;
 	struct m0_layout                    *l = NULL;
-	struct m0_pdclust_layout            *pl = NULL;
 	struct m0_layout_linear_enum        *le;
 	struct m0_dbenv                     *dbenv;
 	struct m0_reqh                      *reqh;
@@ -67,7 +66,7 @@ static int sns_cm_ut_file_size_layout_fetch(struct m0_cm *cm,
 	dbenv = reqh->rh_dbenv;
 	l = m0_layout_find(&reqh->rh_ldom, SNS_DEFAULT_LAYOUT_ID);
 	if (l != NULL) {
-		pl = m0_layout_to_pdl(l);
+		*layout = m0_layout_to_pdl(l);
 		goto out;
 	}
 	lattr.lla_nr = SNS_DEFAULT_P;
@@ -82,14 +81,13 @@ static int sns_cm_ut_file_size_layout_fetch(struct m0_cm *cm,
 		plattr.pa_unit_size = SNS_DEFAULT_UNIT_SIZE;
 		m0_uint128_init(&plattr.pa_seed, "upjumpandpumpim,");
 		rc = m0_pdclust_build(&reqh->rh_ldom, lid, &plattr,
-				&le->lle_base, &pl);
+				&le->lle_base, layout);
 		if (rc != 0) {
 			m0_layout_enum_fini(&le->lle_base);
 			return rc;
 		}
 	}
 out:
-	*layout = pl;
 	*fsize = SNS_DEFAULT_FILE_SIZE;
 
 	return rc;
@@ -156,7 +154,6 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
-	//M0_LOG(M0_FATAL, "%lu %lu rc: %d", cob_fid->f_container, cob_fid->f_key, rc);
 	if (rc == 0) {
 		M0_ASSERT(m0_fid_eq(cob_fid, cob->co_fid));
 		m0_cob_put(cob);
@@ -227,11 +224,18 @@ M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid)
 {
-	int i;
+	struct m0_poolmach *pm = scm->sc_base.cm_pm;
+	int                 i = 0;
 
-	for (i = 0; i < scm->sc_failures_nr; ++i) {
-		if (cob_fid->f_container == scm->sc_it.si_fdata[i])
+	while (pm->pm_state.pst_spare_usage_array[i].psu_device_index !=
+	       POOL_PM_SPARE_SLOT_UNUSED) {
+		if (pm->pm_state.pst_spare_usage_array[i].psu_device_index ==
+		    cob_fid->f_container &&
+		    pm->pm_state.pst_spare_usage_array[i].psu_device_state !=
+		    M0_PNDS_ONLINE) {
 			return true;
+		}
+		++i;
 	}
 
 	return false;
@@ -488,7 +492,6 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 	uint64_t                   upg;
 	uint64_t                   unit;
 	size_t                     group_failures = 0;
-	int                        i;
 
 	M0_PRE(scm != NULL && pl != NULL);
 
@@ -499,13 +502,11 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 			continue;
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		for (i = 0; i < scm->sc_failures_nr; ++i) {
-			if (cobfid.f_container == scm->sc_it.si_fdata[i]) {
-				M0_CNT_INC(group_failures);
-				if (fmap_out != NULL) {
-					M0_ASSERT(fmap_out->b_nr == upg);
-					m0_bitmap_set(fmap_out, unit, 1);
-				}
+		if (m0_sns_cm_is_cob_failed(scm, &cobfid)) {
+			M0_CNT_INC(group_failures);
+			if (fmap_out != NULL) {
+				M0_ASSERT(fmap_out->b_nr == upg);
+				m0_bitmap_set(fmap_out, unit, true);
 			}
 		}
 	}
@@ -547,11 +548,12 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				const struct m0_pdclust_layout *pl)
+				const struct m0_cm_ag_id *id,
+				struct m0_pdclust_layout *pl)
 {
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	return scm->sc_helpers->sch_ag_max_incoming_units(scm, pl);
+	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, pl);
 }
 
 #undef M0_TRACE_SUBSYSTEM

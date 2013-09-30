@@ -417,6 +417,7 @@ static void receiver_ag_create()
         for (i = 0; i < sag->sag_fnr; ++i) {
 		rag.rag_fc[i].fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
 		rag.rag_fc[i].fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
+		rag.rag_fc[i].fc_is_inuse = true;
                 sns_cp = &rag.rag_fc[i].fc_tgt_acc_cp;
                 m0_sns_cm_acc_cp_init(sns_cp, sag);
                 sns_cp->sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
@@ -490,10 +491,6 @@ static void receiver_init()
         M0_UT_ASSERT(cm != NULL);
         scm = cm2sns(cm);
         scm->sc_op = SNS_REPAIR;
-        M0_ALLOC_ARR(scm->sc_it.si_fdata, FAIL_NR);
-        M0_UT_ASSERT(scm->sc_it.si_fdata != NULL);
-        scm->sc_it.si_fdata[0] = 1;
-	scm->sc_failures_nr = 1;
 	cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
 	M0_UT_ASSERT(cm->cm_pm != NULL);
 	m0_cm_lock(cm);
@@ -705,7 +702,6 @@ static void receiver_fini()
         m0_cm_proxy_del(cm, &recv_cm_proxy);
         m0_cm_unlock(cm);
         m0_cm_stop(cm);
-        m0_free(scm->sc_it.si_fdata);
 	m0_free(r_rag.rag_fc);
         cs_fini(&sctx);
 }

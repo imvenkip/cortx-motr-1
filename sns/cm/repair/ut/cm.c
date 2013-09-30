@@ -55,7 +55,6 @@ static struct m0_reqh   *reqh;
 static struct m0_reqh_service  *service;
 static struct m0_cm     *cm;
 static struct m0_sns_cm *scm;
-static uint64_t          fdata;
 
 static void service_start_success(void)
 {
@@ -84,10 +83,27 @@ static void service_start_failure(void)
 	M0_UT_ASSERT(rc != 0);
 }
 
-static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
+static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
+			      enum m0_pool_nd_state state)
 {
 	struct m0_pool_event pme;
 	struct m0_db_tx      tx;
+	int                  rc;
+
+	M0_SET0(&pme);
+	pme.pe_type  = M0_POOL_DEVICE;
+	pme.pe_index = fd;
+	pme.pe_state = state;
+        rc = m0_db_tx_init(&tx, scm->sc_it.si_dbenv, 0);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
+				       &tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_db_tx_commit(&tx);
+}
+
+static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
+{
 	int                  rc;
 
 	rc = sns_cm_ut_server_start();
@@ -99,23 +115,11 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 				       reqh);
 	M0_UT_ASSERT(service != NULL);
 
-	fdata = fd;
 	cm = container_of(service, struct m0_cm, cm_service);
 	cm->cm_pm = m0_ios_poolmach_get(reqh);
 	scm = cm2sns(cm);
-	scm->sc_it.si_fdata = &fdata;
-	scm->sc_failures_nr = 1;
+	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_FAILED);
 	scm->sc_op = op;
-	M0_SET0(&pme);
-	pme.pe_type  = M0_POOL_DEVICE;
-	pme.pe_index = fd;
-	pme.pe_state = M0_PNDS_FAILED;
-        rc = m0_db_tx_init(&tx, scm->sc_it.si_dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
-				       &tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_db_tx_commit(&tx);
 	rc = cm->cm_ops->cmo_ready(cm);
 	M0_UT_ASSERT(rc == 0);
 	rc = cm->cm_ops->cmo_start(cm);
@@ -218,12 +222,15 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 {
 	struct m0_sns_cm_repair_ag *rag;
 	struct m0_cm_aggr_group    *ag;
+	struct m0_cm_cp            *cp;
 	int                         i;
 
 	m0_tlist_for(descr, head, ag) {
 		rag = sag2repairag(ag2snsag(ag));
-		for (i = 0; i < rag->rag_base.sag_fnr; ++i)
-			buf_put(&rag->rag_fc[i].fc_tgt_acc_cp);
+		for (i = 0; i < rag->rag_base.sag_fnr; ++i) {
+			cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
+			cp->c_ops->co_free(cp);
+		}
 		ag->cag_ops->cago_fini(ag);
 	} m0_tlist_endfor;
 }
@@ -284,6 +291,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 		if (rc == M0_FSO_AGAIN) {
 			M0_UT_ASSERT(cp_verify(&scp));
 			sag = ag2snsag(scp.sc_base.c_ag);
+			M0_ASSERT(sag->sag_base.cag_layout != NULL);
 			buf_put(&scp);
 			cp_data_buf_tlist_fini(&scp.sc_base.c_buffers);
 		}
@@ -294,7 +302,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 	return rc;
 }
 
-static void iter_stop(uint64_t nr_files, uint64_t pool_width)
+static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 {
 	int rc;
 
@@ -305,9 +313,15 @@ static void iter_stop(uint64_t nr_files, uint64_t pool_width)
 	M0_UT_ASSERT(rc ==  0);
 	m0_cm_unlock(cm);
 	cobs_delete(nr_files, pool_width);
+	/* Transition the failed device M0_PNDS_SNS_REBALANCING->M0_PNDS_ONLINE,
+	 * for subsequent failure tests so that pool machine doesn't interpret
+	 * it as a multiple failure after reading from the persistence store.
+	 */
+	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REBALANCING);
+	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_ONLINE);
 	sns_cm_ut_server_stop();
 	/* Cleanup the old db files. Otherwise it messes */
-	system("rm -r sr_db > /dev/null");
+	//system("rm -r sr_db > /dev/null");
 }
 
 static void iter_repair_single_file(void)
@@ -317,7 +331,7 @@ static void iter_repair_single_file(void)
 	iter_setup(SNS_REPAIR, 2);
 	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(1, 10);
+	iter_stop(10, 1, 2);
 }
 
 static void iter_repair_multi_file(void)
@@ -327,7 +341,7 @@ static void iter_repair_multi_file(void)
 	iter_setup(SNS_REPAIR, 5);
 	rc = iter_run(10, 2);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(2, 10);
+	iter_stop(10, 2, 5);
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)
@@ -337,7 +351,7 @@ static void iter_repair_large_file_with_large_unit_size(void)
 	iter_setup(SNS_REPAIR, 9);
 	rc = iter_run(10, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(1, 10);
+	iter_stop(10, 1, 9);
 }
 
 /*
@@ -379,7 +393,7 @@ static void iter_invalid_nr_cobs(void)
 	iter_setup(SNS_REPAIR, 7);
 	rc = iter_run(3, 1);
 	M0_UT_ASSERT(rc == -ENODATA);
-	iter_stop(1, 3);
+	iter_stop(3, 1, 7);
 }
 
 const struct m0_test_suite sns_cm_repair_ut = {
