@@ -240,6 +240,7 @@ include $(top_srcdir)/file/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
+include $(top_srcdir)/ha/ut/Makefile.sub
 include $(top_srcdir)/ioservice/ut/Makefile.sub
 include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub

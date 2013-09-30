@@ -1,0 +1,3 @@
+ut_libmero_ut_la_SOURCES += ha/ut/note_test.c
+
+ut_libmero_ut_la_CPPFLAGS += -DM0_HA_UT_DIR=$(abs_top_builddir)/ha/ut/

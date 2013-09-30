@@ -64,6 +64,7 @@ extern const struct m0_test_suite emap_ut;
 extern const struct m0_test_suite fit_ut;
 extern const struct m0_test_suite fol_ut;
 extern const struct m0_test_suite frm_ut;
+extern const struct m0_test_suite ha_state_ut;
 extern const struct m0_test_suite ios_bufferpool_ut;
 extern const struct m0_test_suite item_ut;
 extern const struct m0_test_suite item_source_ut;
@@ -133,6 +134,7 @@ void add_uts(void)
 	m0_ut_add(&fit_ut);
 	m0_ut_add(&fol_ut);
 	m0_ut_add(&frm_ut);
+	m0_ut_add(&ha_state_ut);
 	m0_ut_add(&ios_bufferpool_ut);
 	m0_ut_add(&item_ut);
 	m0_ut_add(&item_source_ut);

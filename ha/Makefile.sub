@@ -1,2 +1,24 @@
-nobase_mero_include_HEADERS += ha/epoch.h
-mero_libmero_la_SOURCES  += ha/epoch.c
+nobase_mero_include_HEADERS += ha/epoch.h \
+                               ha/note.h \
+                               ha/note_xc.h \
+                               ha/note_fops.h \
+                               ha/note_fops_xc.h \
+                               ha/note_foms.h \
+                               ha/note_foms_internal.h
+
+mero_libmero_la_SOURCES  += ha/epoch.c \
+                            ha/note.c \
+                            ha/note_xc.c \
+                            ha/note_fops.c \
+                            ha/note_fops_xc.c \
+                            ha/note_foms.c
+
+XC_FILES   += ha/note_xc.h \
+              ha/note_fops_xc.h
+
+CLEANFILES += ha/note_xc.h \
+              ha/note_xc.c \
+              ha/note.gccxml \
+              ha/note_fops_xc.h \
+              ha/note_fops_xc.c \
+              ha/note_fops.gccxml

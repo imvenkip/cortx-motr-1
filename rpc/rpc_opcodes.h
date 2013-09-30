@@ -202,9 +202,15 @@ enum M0_RPC_OPCODES {
 	M0_STATS_UPDATE_FOP_OPCODE          = 115,
 	M0_STATS_QUERY_FOP_OPCODE           = 116,
 	M0_STATS_QUERY_REP_FOP_OPCODE       = 117,
+
 	/* DTM */
 	M0_DTM_NOTIFICATION_OPCODE          = 120,
-	M0_DTM_UP_OPCODE                    = 121
+	M0_DTM_UP_OPCODE                    = 121,
+
+	/* High Availability opcodes */
+	M0_HA_NOTE_GET_OPCODE               = 122,
+	M0_HA_NOTE_GET_REP_OPCODE           = 123,
+	M0_HA_NOTE_SET_OPCODE               = 124
 };
 /** @} endgroup rpc_layer_core */
 

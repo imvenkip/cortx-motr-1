@@ -1273,13 +1273,13 @@ void m0t1fs_layout_fini(struct m0t1fs_sb *csb)
 static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 {
 	struct m0t1fs_service_context *ctx;
-	struct m0_confc                confc;
 	struct m0_conf_obj            *fs;
 	const char                    *ep_addr;
 	struct m0_fid                  prof_fid;
 	uint32_t                       nr_ios = 0;
 	int                            rc;
 	struct fs_params               fs_params = {0};
+	struct m0_reqh                *reqh = &csb->csb_reqh;
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
@@ -1316,13 +1316,13 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		rc = -EINVAL;
 		goto err_layout_fini;
 	}
-	rc = m0_confc_init(&confc, &csb->csb_iogroup, &prof_fid,
+	rc = m0_confc_init(&reqh->rh_confc, &csb->csb_iogroup, &prof_fid,
 			   mops->mo_confd, &csb->csb_rpc_machine,
 			   mops->mo_local_conf);
 	if (rc != 0)
 		goto err_layout_fini;
 
-	rc = m0_confc_open_sync(&fs, confc.cc_root,
+	rc = m0_confc_open_sync(&fs, reqh->rh_confc.cc_root,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0)
 		goto confc_fini;
@@ -1370,7 +1370,6 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_poolmach_destroy;
 
-	m0_confc_fini(&confc);
 	return M0_RC(rc);
 
 err_poolmach_destroy:
@@ -1384,7 +1383,7 @@ addb_mc_unconf:
 err_disconnect:
 	disconnect_from_services(csb);
 confc_fini:
-	m0_confc_fini(&confc);
+	m0_confc_fini(&reqh->rh_confc);
 err_layout_fini:
 	m0t1fs_layout_fini(csb);
 err_addb_mon_fini:
@@ -1399,6 +1398,7 @@ err_return:
 
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 {
+	m0_confc_fini(&csb->csb_reqh.rh_confc);
 	m0t1fs_sb_layout_fini(csb);
 	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 	m0_pool_fini(&csb->csb_pool);

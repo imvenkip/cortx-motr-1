@@ -1,1 +1,6 @@
-m0mero_objects += ha/epoch.o
+m0mero_objects += ha/epoch.o \
+                  ha/note.o \
+                  ha/note_xc.o \
+                  ha/note_foms.o \
+                  ha/note_fops.o \
+                  ha/note_fops_xc.o

@@ -28,6 +28,7 @@
 #include "lib/lockers.h"
 #include "lib/bob.h"
 
+#include "conf/confc.h"
 #include "sm/sm.h"
 #include "fop/fom.h"
 #include "layout/layout.h"
@@ -99,7 +100,7 @@ struct m0_reqh {
 	 */
 	struct m0_sm_group            rh_sm_grp;
 
-	struct m0_dtm		     *rh_dtm;
+	struct m0_dtm                *rh_dtm;
 
 	/** Database environment for this request handler. */
 	struct m0_dbenv              *rh_dbenv;
@@ -109,10 +110,10 @@ struct m0_reqh {
 	struct m0_mdstore            *rh_mdstore;
 
 	/** Fol pointer for this request handler. */
-	struct m0_fol		      rh_fol;
+	struct m0_fol                 rh_fol;
 
 	/** Fom domain for this request handler. */
-	struct m0_fom_domain	      rh_fom_dom;
+	struct m0_fom_domain          rh_fom_dom;
 
         /**
 	    Services registered with this request handler.
@@ -173,6 +174,11 @@ struct m0_reqh {
 	 * Lockers to store private data
 	 */
 	struct m0_reqh_lockers        rh_lockers;
+
+	/**
+	 * Confc instance.
+	 */
+	struct m0_confc               rh_confc;
 };
 
 /**

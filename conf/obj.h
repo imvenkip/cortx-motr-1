@@ -21,6 +21,7 @@
 #ifndef __MERO_CONF_OBJ_H__
 #define __MERO_CONF_OBJ_H__
 
+#include "ha/note.h"      /* m0_ha_obj_state */
 #include "lib/chan.h"     /* m0_chan */
 #include "lib/tlist.h"    /* m0_tl, m0_tlink */
 #include "lib/bob.h"      /* m0_bob_type */
@@ -199,6 +200,9 @@ struct m0_conf_obj {
 	 * (see M0_CONF_CAST()).
 	 */
 	uint64_t                      co_con_magic;
+
+	/** HA-related state of this configuration object. */
+	enum m0_ha_obj_state          co_ha_state;
 };
 
 struct m0_conf_obj_type {
