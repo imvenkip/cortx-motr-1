@@ -45,7 +45,8 @@ PREPARE_STORAGE="-p"
 POOL_WIDTH=4
 NR_DATA=2
 NR_PARITY=1
-MAX_NR_FILES=250
+#MAX_NR_FILES=250
+MAX_NR_FILES=2 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
