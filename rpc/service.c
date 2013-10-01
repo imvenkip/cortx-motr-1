@@ -423,7 +423,7 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc)
 	 */
 	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
 		revc->rcf_ft = M0_REV_DISCONNECT;
-		M0_SET(&revc->rcf_fom);
+		M0_SET0(&revc->rcf_fom);
 		m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type,
 			    &rev_conn_fom_ops, NULL, NULL, reqhsvc->rs_reqh,
 			    reqhsvc->rs_type);
