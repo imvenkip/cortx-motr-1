@@ -1,5 +1,10 @@
 mero_service()
 {
+	local P=$POOL_WIDTH
+	if [ $# -eq 2 ]
+	then
+		P=$2
+	fi
         prog_start="$MERO_CORE_ROOT/mero/m0d"
         prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
 
@@ -33,7 +38,7 @@ mero_service()
 			$prog_start -r $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A addb-stobs \
-			 -w $POOL_WIDTH \
+			 -w $P \
 			 -G $XPT:${lnet_nid}:${EP[0]} \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
 			 $ios_eps \

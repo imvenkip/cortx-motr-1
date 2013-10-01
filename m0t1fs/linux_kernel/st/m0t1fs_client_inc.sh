@@ -1,13 +1,16 @@
 mount_m0t1fs()
 {
-	if [ $# -ne 2 ]
+	if [ $# -ne 5 ]
 	then
-		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)>"
+		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)> <N> <K> <p>"
 		return 1
 	fi
 
 	local m0t1fs_mount_dir=$1
 	local stride_size=`expr $2 \* 1024`
+	local N=$3
+	local K=$4
+	local P=$5
 
 	# Create mount directory
 	sudo mkdir -p $m0t1fs_mount_dir || {
@@ -45,9 +48,9 @@ mount_m0t1fs()
 [$((${#EP[*]} + 3)):
   ("prof", {1| ("fs")}),
   ("fs", {2| ((11, 22),
-	      [4: "pool_width=$POOL_WIDTH",
-		  "nr_data_units=$NR_DATA",
-		  "nr_parity_units=$NR_PARITY",
+	      [4: "pool_width=$P",
+		  "nr_data_units=$N",
+		  "nr_parity_units=$K",
 		  "unit_size=$stride_size"],
 	      [$((${#EP[*]} + 1)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
@@ -97,7 +100,7 @@ bulkio_test()
 	stride_size=$1
 	io_counts=$2
 
-	mount_m0t1fs $m0t1fs_mount_dir $stride_size || return 1
+	mount_m0t1fs $m0t1fs_mount_dir $stride_size $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Creating local input file of I/O size ..."
 	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -251,7 +254,7 @@ m0loop_st_run()
 	cmd="insmod `dirname $0`/../../../mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 || return 1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Create m0t1fs file..."
 	m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/file.img
@@ -313,7 +316,7 @@ m0loop_st()
 file_creation_test()
 {
 	nr_files=$1
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
@@ -332,7 +335,7 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}

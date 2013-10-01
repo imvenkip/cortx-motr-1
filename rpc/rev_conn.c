@@ -425,9 +425,7 @@ static void rev_conn_fom_fini(struct m0_fom *fom)
 	struct m0_reverse_connection *revc;
 
 	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
-
 	m0_fom_fini(fom);
-
 	if (revc->rcf_ft == M0_REV_DISCONNECT)
 		m0_chan_signal_lock(&revc->rcf_chan);
 }

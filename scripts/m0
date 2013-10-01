@@ -75,7 +75,9 @@ run_st() {
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 
     ## SNS repair
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh"
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_1f.sh"
+
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
 
     ## poolmachine query/set testing
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"
