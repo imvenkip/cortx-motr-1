@@ -63,11 +63,9 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 					  &en_cfg->bec_group_size_max),
 		       "Maximum transaction size shouldn't be greater than "
 		       "maximum group size: "
-		       "tx_size_max = (%lu, %lu), group_size_max = (%lu, %lu)",
-		       en_cfg->bec_tx_size_max.tc_reg_nr,
-		       en_cfg->bec_tx_size_max.tc_reg_size,
-		       en_cfg->bec_group_size_max.tc_reg_nr,
-		       en_cfg->bec_group_size_max.tc_reg_size);
+		       "tx_size_max = " BETXCR_F ", group_size_max = " BETXCR_F,
+		       BETXCR_P(&en_cfg->bec_tx_size_max),
+		       BETXCR_P(&en_cfg->bec_group_size_max));
 	M0_ASSERT_INFO(en_cfg->bec_log_size >=
 		       en_cfg->bec_group_size_max.tc_reg_size,
 		       "Log size shouldn't be less than maximum group size: "

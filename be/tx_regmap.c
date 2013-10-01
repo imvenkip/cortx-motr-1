@@ -541,10 +541,9 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 	m0_be_tx_credit_add(&ra->bra_captured, &M0_BE_REG_D_CREDIT(rd));
 	M0_ASSERT_INFO(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared),
 		       "There is not enough credits for capturing: "
-		       "captured = (%lu, %lu), prepared = (%lu, %lu), "
+		       "captured = " BETXCR_F ", prepared = " BETXCR_F ", "
 		       "region size = %lu",
-		       captured.tc_reg_nr, captured.tc_reg_size,
-		       prepared.tc_reg_nr, prepared.tc_reg_size, reg_size);
+		       BETXCR_P(&captured), BETXCR_P(&prepared), reg_size);
 
 	m0_be_regmap_add(&ra->bra_map, rd);
 
