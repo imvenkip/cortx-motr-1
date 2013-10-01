@@ -278,10 +278,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 
 M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp);
 M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
-				       struct m0_balloc_group_info *grp,
-				       struct m0_be_tx *tx);
-M0_INTERNAL void m0_balloc_load_extents_credit(const struct m0_balloc *cb,
-					       struct m0_be_tx_credit *accum);
+				       struct m0_balloc_group_info *grp);
 M0_INTERNAL struct m0_balloc_group_info *m0_balloc_gn2info(struct m0_balloc *cb,
 							   m0_bindex_t groupno);
 M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,

@@ -173,21 +173,16 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			struct m0_balloc_group_info *grp =
 				m0_balloc_gn2info(mero_balloc, i);
 
-			cred = M0_BE_TX_CREDIT(0, 0);
-			m0_balloc_load_extents_credit(mero_balloc, &cred);
-			m0_ut_be_tx_begin(tx, ut_be, &cred);
 			if (grp) {
 				m0_balloc_lock_group(grp);
 				result = m0_balloc_load_extents(mero_balloc,
-							     grp,
-							     &dtx.tx_betx);
+								grp);
 				if (result == 0)
 					m0_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
-			m0_ut_be_tx_end(tx);
 		}
 
 		/* randomize the array */
@@ -242,14 +237,10 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			struct m0_balloc_group_info *grp = m0_balloc_gn2info
 				(mero_balloc, i);
 
-			cred = M0_BE_TX_CREDIT(0, 0);
-			m0_balloc_load_extents_credit(mero_balloc, &cred);
-			m0_ut_be_tx_begin(tx, ut_be, &cred);
 			if (grp) {
 				m0_balloc_lock_group(grp);
 				result = m0_balloc_load_extents(mero_balloc,
-								grp,
-								&dtx.tx_betx);
+								grp);
 				if (result == 0)
 					m0_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
@@ -268,7 +259,6 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
-			m0_ut_be_tx_end(tx);
 		}
 
 		result = m0_balloc_destroy(mero_balloc, grp);
