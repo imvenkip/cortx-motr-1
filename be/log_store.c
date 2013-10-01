@@ -175,7 +175,7 @@ M0_INTERNAL void m0_be_log_store_cblock_io_credit(struct m0_be_tx_credit *credit
 	/*
 	 * commit block can wrap around
 	 */
-	*credit = M0_BE_TX_CREDIT_OBJ(2, cblock_size);
+	*credit = M0_BE_TX_CREDIT(2, cblock_size);
 }
 
 M0_INTERNAL void m0_be_log_store_io_init(struct m0_be_log_store_io *lsi,

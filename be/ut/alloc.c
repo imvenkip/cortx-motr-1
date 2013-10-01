@@ -88,7 +88,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 				   void **p,
 				   unsigned *seed)
 {
-	M0_BE_TX_CREDIT(credit);
+	struct m0_be_tx_credit	credit = {};
 	enum m0_be_allocator_op optype;
 	struct m0_be_op		op;
 	struct m0_be_tx		tx_;

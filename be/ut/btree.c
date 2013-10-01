@@ -101,9 +101,9 @@ void m0_be_ut_btree_simple(void)
 static int
 btree_insert(struct m0_be_btree *t, struct m0_buf *k, struct m0_buf *v)
 {
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
-	int             rc;
+	struct m0_be_tx_credit cred = {};
+	struct m0_be_tx	       tx;
+	int		       rc;
 
 	M0_ENTRY();
 
@@ -126,7 +126,7 @@ btree_insert(struct m0_be_btree *t, struct m0_buf *k, struct m0_buf *v)
 static int
 btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v)
 {
-	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx_credit	  cred = {};
 	struct m0_be_tx           tx;
 	struct m0_be_btree_anchor anchor;
 	int                       rc;
@@ -157,9 +157,9 @@ btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v)
 static int
 btree_delete(struct m0_be_btree *t, struct m0_buf *k)
 {
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
-	int             rc;
+	struct m0_be_tx_credit cred = {};
+	struct m0_be_tx	       tx;
+	int		       rc;
 
 	M0_ENTRY();
 
@@ -250,7 +250,7 @@ static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 
 static struct m0_be_btree * create_tree()
 {
-	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx_credit	cred = {};
 	struct m0_be_btree     *tree;
 	struct m0_be_tx        *tx;
 	struct m0_buf           key;
@@ -316,7 +316,7 @@ static struct m0_be_btree * create_tree()
 
 	M0_LOG(M0_INFO, "Updating...");
 	m0_be_ut_tx_init(tx, &ut_be);
-	cred = M0_BE_TX_CREDIT_ZERO;
+	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_btree_update_credit(tree, 1, INSERT_SIZE, &cred);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
@@ -338,7 +338,7 @@ static struct m0_be_btree * create_tree()
 
 static void destroy_tree(struct m0_be_btree *tree)
 {
-	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx_credit	cred = {};
 	struct m0_be_tx        *tx;
 	int                     rc;
 

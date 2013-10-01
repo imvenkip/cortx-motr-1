@@ -197,7 +197,7 @@ M0_INTERNAL int m0_be_io_sync(struct m0_stob *stob,
 	struct m0_be_io bio;
 	int             rc;
 
-	rc = m0_be_io_init(&bio, stob, &M0_BE_TX_CREDIT_OBJ(1, size));
+	rc = m0_be_io_init(&bio, stob, &M0_BE_TX_CREDIT(1, size));
 	if (rc == 0) {
 		m0_be_io_add(&bio, ptr_user, offset_stob, size);
 		m0_be_io_configure(&bio, opcode);

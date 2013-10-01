@@ -98,8 +98,8 @@ static int be_ut_group_ondisk_reserve(void)
 
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		rc = m0_be_log_reserve_tx(&but_group_ondisk_log,
-					  &M0_BE_TX_CREDIT_OBJ(i + 1,
-							       10 * (i + 1)));
+					  &M0_BE_TX_CREDIT(i + 1,
+							   10 * (i + 1)));
 		if (rc != 0)
 			return i;
 		grp_tlist_add(&but_group_ondisk_gr.tg_txs,
@@ -110,7 +110,7 @@ static int be_ut_group_ondisk_reserve(void)
 
 void m0_be_ut_group_ondisk(void)
 {
-	M0_BE_TX_CREDIT(gr_credit);
+	struct m0_be_tx_credit gr_credit = {};
 	struct m0_be_tx_credit tx_credit;
 	struct m0_be_tx_credit reserved;
 	struct m0_be_reg_d     rd[1+2+3];
@@ -127,7 +127,7 @@ void m0_be_ut_group_ondisk(void)
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
 
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
-		tx_credit = M0_BE_TX_CREDIT_OBJ(i + 1, 10 * (i + 1));
+		tx_credit = M0_BE_TX_CREDIT(i + 1, 10 * (i + 1));
 		rc = m0_be_reg_area_init(&but_group_ondisk_tx[i].t_reg_area,
 					 &tx_credit, true);
 		m0_be_tx_credit_add(&gr_credit, &tx_credit);

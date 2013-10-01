@@ -534,8 +534,7 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 	M0_PRE(m0_be_reg_area__invariant(ra));
 	M0_PRE(m0_be_reg_d__invariant(rd));
 
-	m0_be_tx_credit_add(&ra->bra_captured,
-			    &M0_BE_TX_CREDIT_OBJ(1, rd->rd_reg.br_size));
+	m0_be_tx_credit_add(&ra->bra_captured, &M0_BE_REG_D_CREDIT(rd));
 	M0_ASSERT(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
 	m0_be_regmap_add(&ra->bra_map, rd);
 

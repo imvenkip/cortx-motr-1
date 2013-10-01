@@ -264,10 +264,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_engine = {
 			.bec_group_nr = 1,
 			.bec_log_size = 1 << 29,
-			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(
-				1 << 21, 1 << 27),
-			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(
-				1 << 22, 1 << 28),
+			.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 21, 1 << 27),
+			.bec_group_size_max = M0_BE_TX_CREDIT(1 << 22, 1 << 28),
 			.bec_group_tx_max = 20,
 			.bec_log_replay = false,
 		},
@@ -575,7 +573,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 					 struct m0_be_ut_backend *ut_be,
 					 bool init)
 {
-	M0_BE_TX_CREDIT(credit);
+	struct m0_be_tx_credit	credit = {};
 	struct m0_be_allocator *a;
 	struct m0_be_tx         tx;
 	int                     rc;

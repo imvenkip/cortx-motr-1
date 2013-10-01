@@ -314,7 +314,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 	struct m0_be_emap       map;
 	struct m0_be_emap      *emap = &map;
 	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_INIT(0, 0);
+	struct m0_be_tx_credit  cred = {};
 	struct m0_be_op         op;
 	int                     rc;
 

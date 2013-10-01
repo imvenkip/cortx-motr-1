@@ -98,10 +98,10 @@ static int _locate(int c, int k)
 
 static void test_mkfs(void)
 {
-        struct m0_be_tx  tx_;
-        struct m0_be_tx *tx = &tx_;
-	M0_BE_TX_CREDIT(accum);
-	int rc;
+	struct m0_be_tx		tx_;
+	struct m0_be_tx	       *tx = &tx_;
+	struct m0_be_tx_credit	accum = {};
+	int			rc;
 
         m0_be_ut_backend_init(&ut_be);
         m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
@@ -167,15 +167,15 @@ static void test_fini(void)
 
 static void test_create(void)
 {
-	struct m0_cob_nskey  *key;
-	struct m0_cob_nsrec   nsrec;
-	struct m0_cob_fabrec *fabrec;
-	struct m0_cob_omgrec  omgrec;
-	struct m0_fid         pfid;
-        struct m0_be_tx       tx_;
-        struct m0_be_tx      *tx = &tx_;
-	int                   rc;
-	M0_BE_TX_CREDIT(accum);
+	struct m0_be_tx_credit	accum = {};
+	struct m0_cob_nskey    *key;
+	struct m0_cob_nsrec	nsrec;
+	struct m0_cob_fabrec  *fabrec;
+	struct m0_cob_omgrec	omgrec;
+	struct m0_fid		pfid;
+	struct m0_be_tx		tx_;
+	struct m0_be_tx	       *tx = &tx_;
+	int			rc;
 
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
@@ -209,12 +209,12 @@ static void test_create(void)
 
 static void test_add_name(void)
 {
-	struct m0_cob_nskey *nskey;
-	struct m0_fid        pfid;
-        struct m0_be_tx      tx_;
-        struct m0_be_tx     *tx = &tx_;
-	int                  rc;
-	M0_BE_TX_CREDIT(accum);
+	struct m0_cob_nskey    *nskey;
+	struct m0_fid		pfid;
+	struct m0_be_tx		tx_;
+	struct m0_be_tx	       *tx = &tx_;
+	int			rc;
+	struct m0_be_tx_credit	accum = {};
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
@@ -252,12 +252,12 @@ static void test_add_name(void)
 
 static void test_del_name(void)
 {
-	struct m0_cob_nskey *nskey;
-	struct m0_fid        pfid;
-        struct m0_be_tx      tx_;
-        struct m0_be_tx     *tx = &tx_;
-	int                  rc;
-	M0_BE_TX_CREDIT(accum);
+	struct m0_cob_nskey    *nskey;
+	struct m0_fid		pfid;
+	struct m0_be_tx		tx_;
+	struct m0_be_tx	       *tx = &tx_;
+	int			rc;
+	struct m0_be_tx_credit	accum = {};
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
@@ -336,10 +336,10 @@ static void test_locate(void)
 
 static void test_delete(void)
 {
-        struct m0_be_tx  tx_;
-        struct m0_be_tx *tx = &tx_;
-	int              rc;
-	M0_BE_TX_CREDIT(accum);
+	struct m0_be_tx		tx_;
+	struct m0_be_tx	       *tx = &tx_;
+	int		        rc;
+	struct m0_be_tx_credit	accum = {};
 
 	/* gets ref */
 	rc = _locate(0xabc, 0xdef);

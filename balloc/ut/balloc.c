@@ -124,7 +124,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 		for (i = 0; i < MAX; ++i) {
 			count = rand() % 1500 + 1;
 
-			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			cred = M0_BE_TX_CREDIT(0, 0);
 			mero_balloc->cb_ballroom.ab_ops->bo_alloc_credit(
 				    &mero_balloc->cb_ballroom, 1, &cred);
 			m0_ut_be_tx_begin(tx, ut_be, &cred);
@@ -173,7 +173,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			struct m0_balloc_group_info *grp =
 				m0_balloc_gn2info(mero_balloc, i);
 
-			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			cred = M0_BE_TX_CREDIT(0, 0);
 			m0_balloc_load_extents_credit(mero_balloc, &cred);
 			m0_ut_be_tx_begin(tx, ut_be, &cred);
 			if (grp) {
@@ -200,7 +200,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 		}
 
 		for (i = 0; i < MAX && result == 0; ++i) {
-			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			cred = M0_BE_TX_CREDIT(0, 0);
 			mero_balloc->cb_ballroom.ab_ops->bo_free_credit(
 				    &mero_balloc->cb_ballroom, 1, &cred);
 			m0_ut_be_tx_begin(tx, ut_be, &cred);
@@ -242,7 +242,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			struct m0_balloc_group_info *grp = m0_balloc_gn2info
 				(mero_balloc, i);
 
-			cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+			cred = M0_BE_TX_CREDIT(0, 0);
 			m0_balloc_load_extents_credit(mero_balloc, &cred);
 			m0_ut_be_tx_begin(tx, ut_be, &cred);
 			if (grp) {

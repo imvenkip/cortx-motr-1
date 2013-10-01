@@ -519,7 +519,7 @@ M0_EXPORTED(m0_cob_domain_fini);
 int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
 	M0_COB_TABLES(tables, dom);
-	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx_credit cred = {};
 	struct m0_be_op        op;
 	struct m0_be_tx       *tx;
 	struct m0_be_seg      *seg = dom->cd_dbenv;
@@ -581,7 +581,7 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
 	M0_COB_TABLES(tables, dom);
-	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx_credit cred = {};
 	struct m0_be_op        op;
 	struct m0_be_tx       *tx;
 	struct m0_be_seg      *seg = dom->cd_dbenv;

@@ -597,7 +597,7 @@ static void be_ut_reg_area_init(m0_bindex_t nr)
 	int rc;
 
 	rc = m0_be_reg_area_init(&be_ut_ra_reg_area,
-				 &M0_BE_TX_CREDIT_OBJ(nr, nr * BE_UT_RA_R_SIZE),
+				 &M0_BE_TX_CREDIT(nr, nr * BE_UT_RA_R_SIZE),
 				 true);
 	M0_UT_ASSERT(rc == 0);
 	be_ut_reg_area_reset(true);
@@ -974,11 +974,8 @@ void m0_be_ut_reg_area_merge(void)
 {
 	static struct m0_be_reg_area ra;
 	static struct m0_be_reg_area mra[BE_UT_RA_MERGE_NR]; /* merge ra */
-	struct m0_be_tx_credit prepared_ra = M0_BE_TX_CREDIT_INIT(
-		BE_UT_RA_MERGE_R_NR_MAX * BE_UT_RA_MERGE_NR,
-		BE_UT_RA_MERGE_SIZE_TOTAL * BE_UT_RA_MERGE_NR);
-	struct m0_be_tx_credit prepared_mra = M0_BE_TX_CREDIT_INIT(
-		BE_UT_RA_MERGE_R_NR_MAX, BE_UT_RA_MERGE_SIZE_TOTAL);
+	struct m0_be_tx_credit	     prepared_ra = {};
+	struct m0_be_tx_credit	     prepared_mra;
 	struct m0_be_ut_seg	     ut_seg;
 #if BE_UT_RA_MERGE_DEBUG
 	unsigned char		     mra_arr[BE_UT_RA_MERGE_SIZE_TOTAL];
@@ -990,6 +987,10 @@ void m0_be_ut_reg_area_merge(void)
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_MERGE_SEG_SIZE);
 	be_ut_ra_merge_seg = &ut_seg.bus_seg;
+
+	prepared_mra = M0_BE_TX_CREDIT(BE_UT_RA_MERGE_R_NR_MAX,
+				       BE_UT_RA_MERGE_SIZE_TOTAL);
+	m0_be_tx_credit_mac(&prepared_ra, &prepared_mra, BE_UT_RA_MERGE_NR);
 
 	rc = m0_be_reg_area_init(&ra, &prepared_ra, false);
 	M0_UT_ASSERT(rc == 0);

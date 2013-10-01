@@ -502,7 +502,7 @@ static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
 	m0_bcount_t			 i;
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
 	struct m0_be_tx                  tx = {};
-	struct m0_be_tx_credit           cred = M0_BE_TX_CREDIT_INIT(0, 0);
+	struct m0_be_tx_credit           cred = {};
 
 	M0_ENTRY();
 
@@ -2200,7 +2200,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	struct m0_balloc       *cb;
 	struct m0_be_btree      btree;
 	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT_INIT(0, 0);
+	struct m0_be_tx_credit  cred = {};
 	char                    cid_name[80];
 	int                     rc;
 

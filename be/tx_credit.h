@@ -69,18 +69,12 @@ struct m0_be_tx_credit {
 };
 
 /* invalid m0_be_tx_credit value */
-extern struct m0_be_tx_credit m0_be_tx_credit_invalid;
+extern const struct m0_be_tx_credit m0_be_tx_credit_invalid;
 
-#define M0_BE_TX_CREDIT(name) struct m0_be_tx_credit name = {0}
+#define M0_BE_TX_CREDIT(nr, size) \
+	(struct m0_be_tx_credit){ .tc_reg_nr = (nr), .tc_reg_size = (size) }
 
-#define M0_BE_TX_CREDIT_INIT(nr, size) \
-	{ .tc_reg_nr = (nr), .tc_reg_size = (size) }
-
-#define M0_BE_TX_CREDIT_OBJ(nr, size) \
-	(struct m0_be_tx_credit)M0_BE_TX_CREDIT_INIT(nr, size)
-
-#define M0_BE_TX_CREDIT_ZERO M0_BE_TX_CREDIT_OBJ(0, 0)
-#define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT_OBJ(1, sizeof (type))
+#define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof(type))
 
 /** c0 += c1 */
 M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,

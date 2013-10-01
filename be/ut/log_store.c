@@ -51,7 +51,7 @@ be_ut_log_store_io_read(struct m0_be_log_store *ls, char *buf, m0_bcount_t size)
 {
 	struct m0_be_io bio;
 
-	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT_OBJ(1, size));
+	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT(1, size));
 	m0_be_io_add(&bio, buf, 0, size);
 	m0_be_io_configure(&bio, SIO_READ);
 
@@ -73,11 +73,10 @@ be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr, m0_bcount_t size)
 		++buf[be_ut_log_store_rand(BE_UT_LOG_STOR_CR_NR)];
 	for (i = 0; i < BE_UT_LOG_STOR_CR_NR; ++i) {
 		if (buf[i] != 0)
-			m0_be_tx_credit_add(cr,
-					    &M0_BE_TX_CREDIT_OBJ(1, buf[i]));
+			m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, buf[i]));
 	}
 	/* wrap credit */
-	m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT_OBJ(1, 0));
+	m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, 0));
 }
 
 static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)

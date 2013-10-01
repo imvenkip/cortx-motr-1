@@ -92,7 +92,7 @@ int main(int argc, char **argv)
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	if (result == 0) {
-		cred = M0_BE_TX_CREDIT_OBJ(0, 0);
+		cred = M0_BE_TX_CREDIT(0, 0);
 		mero_balloc->cb_ballroom.ab_ops->bo_free_credit(
 			    &mero_balloc->cb_ballroom, 1, &cred);
 		result = be_tx_init_open(tx, &ut_be, &cred);

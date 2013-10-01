@@ -53,11 +53,11 @@ M0_UNUSED static void print(struct m0_be_list *list);
 M0_INTERNAL void m0_be_ut_list_api(void)
 {
 	enum { SHIFT = 0 };
-	M0_BE_TX_CREDIT(tcred); /* credits for structs "test" */
-	M0_BE_TX_CREDIT(ccred); /* credits for list creation */
-	M0_BE_TX_CREDIT(icred); /* credits for list insertions */
-	M0_BE_TX_CREDIT(dcred); /* credits for list deletions */
-	M0_BE_TX_CREDIT(cred);  /* total credits */
+	struct m0_be_tx_credit tcred = {}; /* credits for structs "test" */
+	struct m0_be_tx_credit ccred = {}; /* credits for list creation */
+	struct m0_be_tx_credit icred = {}; /* credits for list insertions */
+	struct m0_be_tx_credit dcred = {}; /* credits for list deletions */
+	struct m0_be_tx_credit cred = {};  /* total credits */
 	struct m0_be_allocator *a;
 	struct m0_be_list      *list;
 	struct m0_be_ut_backend ut_be;

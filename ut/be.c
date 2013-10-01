@@ -71,9 +71,9 @@ M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx)
 M0_INTERNAL void *m0_ut_be_alloc(m0_bcount_t size, struct m0_be_seg *seg,
 				 struct m0_be_ut_backend *ut_be)
 {
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
-	void           *ptr;
+	struct m0_be_tx_credit	cred = {};
+	struct m0_be_tx		tx;
+	void		       *ptr;
 
 	m0_be_allocator_credit(m0_be_seg_allocator(seg), M0_BAO_ALLOC, size, 0,
 			       &cred);
@@ -89,8 +89,8 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
 			       struct m0_be_seg *seg,
 			       struct m0_be_ut_backend *ut_be)
 {
-	M0_BE_TX_CREDIT(cred);
-	struct m0_be_tx tx;
+	struct m0_be_tx_credit cred = {};
+	struct m0_be_tx	       tx;
 
 	m0_be_allocator_credit(m0_be_seg_allocator(seg), M0_BAO_FREE, size, 0,
 			       &cred);

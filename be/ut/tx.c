@@ -34,8 +34,7 @@ void m0_be_ut_tx_usecase_success(void)
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_ut_seg     ut_seg;
 	struct m0_be_seg       *seg = &ut_seg.bus_seg;
-	struct m0_be_tx_credit  credit =
-		M0_BE_TX_CREDIT_INIT(1, sizeof(uint64_t));
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
 	struct m0_be_tx         tx;
 	uint64_t               *data;
 	int                     rc;
@@ -113,8 +112,7 @@ static void *be_ut_tx_alloc(void **alloc, m0_bcount_t size)
 void m0_be_ut_tx_states(void)
 {
 	struct m0_be_ut_backend ut_be;
-	struct m0_be_tx_credit  credit =
-		M0_BE_TX_CREDIT_INIT(1, sizeof(uint64_t));
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
 	struct m0_be_ut_seg     ut_seg;
 	struct m0_be_seg       *seg = &ut_seg.bus_seg;
 	struct m0_be_tx         tx;
@@ -186,8 +184,8 @@ void m0_be_ut_tx_empty(void)
 	int                     rc;
 	int			i;
 	struct m0_be_tx_credit  credit[] = {
-		M0_BE_TX_CREDIT_INIT(0, 0),
-		M0_BE_TX_CREDIT_INIT(1, sizeof(void *)),
+		M0_BE_TX_CREDIT(0, 0),
+		M0_BE_TX_CREDIT(1, sizeof(void *)),
 	};
 
 	m0_be_ut_backend_init(&ut_be);
@@ -292,7 +290,7 @@ static void be_ut_tx_test(size_t nr)
 	for (x = xs; x->size != 0; ++x) {
 		m0_be_ut_tx_init(&x->tx, &ut_be);
 		m0_be_tx_get(&x->tx);
-		x->cred = M0_BE_TX_CREDIT_OBJ(1, x->size);
+		x->cred = M0_BE_TX_CREDIT(1, x->size);
 	}
 
 	for (x = xs; x->size != 0; ++x)
@@ -372,7 +370,7 @@ void m0_be_ut_tx_persistence(void)
 
 		M0_SET0(&credit);
 		for (i = 0; i < ARRAY_SIZE(regs); ++i) {
-			m0_be_tx_credit_add(&credit, &M0_BE_TX_CREDIT_OBJ(
+			m0_be_tx_credit_add(&credit, &M0_BE_TX_CREDIT(
 						    1, regs[i].br_size));
 		}
 
@@ -435,7 +433,7 @@ void m0_be_ut_tx_fast(void)
 
 		if (i < BE_UT_TX_F_TX_NR) {
 			m0_be_ut_tx_init(tx, &ut_be);
-			m0_be_tx_prep(tx, &M0_BE_TX_CREDIT_OBJ(1, reg.br_size));
+			m0_be_tx_prep(tx, &M0_BE_TX_CREDIT(1, reg.br_size));
 			rc = m0_be_tx_open_sync(tx);
 			M0_UT_ASSERT(rc == 0);
 			m0_be_tx_capture(tx, &reg);

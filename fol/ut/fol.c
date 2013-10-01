@@ -90,8 +90,8 @@ static void test_init(void)
 	d = &r.fr_desc;
 	h = &d->rd_header;
 #else
-	M0_BE_TX_CREDIT(cred);
-	int rc;
+	struct m0_be_tx_credit cred = {};
+	int		       rc;
 
 	m0_ut_backend_init(&g_ut_be, &g_ut_seg);
 
@@ -129,7 +129,7 @@ static void test_fini(void)
 	m0_dbenv_fini(&db);
 	m0_buf_free(&buf);
 #else
-	M0_BE_TX_CREDIT(cred);
+	struct m0_be_tx_credit cred = {};
 
 	m0_fol_rec_fini(&g_rec);
 	m0_ut_be_tx_end(&g_tx);
@@ -302,7 +302,7 @@ static void test_fol_rec_part_encdec(void)
 	m0_fol_rec_fini(&g_rec);
 
 	m0_ut_be_tx_end(&g_tx);
-	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT_OBJ(0, 0));
+	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT(0, 0));
 
 	rc = m0_fol_rec_lookup(g_fol, lsn, &dec_rec);
 	M0_ASSERT(rc == 0);

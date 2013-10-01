@@ -46,8 +46,8 @@ static struct m0_be_op         *it_op;
 
 static void emap_be_alloc(struct m0_be_tx *tx)
 {
-	M0_BE_TX_CREDIT(cred);
-	int                     rc;
+	struct m0_be_tx_credit cred = {};
+	int		       rc;
 
 	M0_BE_ALLOC_CREDIT_PTR(emap, be_seg, &cred);
 
@@ -66,8 +66,8 @@ static void emap_be_alloc(struct m0_be_tx *tx)
 
 static void emap_be_free(struct m0_be_tx *tx)
 {
-	M0_BE_TX_CREDIT(cred);
-	int                     rc;
+	struct m0_be_tx_credit cred = {};
+	int		       rc;
 
 	M0_BE_FREE_CREDIT_PTR(emap, be_seg, &cred);
 
@@ -108,8 +108,8 @@ static void test_obj_fini(struct m0_be_tx *tx)
 
 static void test_init(void)
 {
-	M0_BE_TX_CREDIT(cred);
-	int             rc;
+	struct m0_be_tx_credit cred = {};
+	int		       rc;
 
 	M0_ENTRY();
 

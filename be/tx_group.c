@@ -271,7 +271,7 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op)
 {
-	M0_BE_TX_CREDIT(zero);
+	struct m0_be_tx_credit zero = {};
 
 	if (m0_be_tx_credit_eq(&gr->tg_used, &zero)) {
 		m0_be_op_state_set(op, M0_BOS_ACTIVE);

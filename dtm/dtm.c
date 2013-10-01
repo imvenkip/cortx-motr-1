@@ -49,7 +49,7 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 
 	m0_be_tx_init(&tx->tx_betx, 0, be_domain, sm_group,
 		      NULL, NULL, NULL, NULL);
-	tx->tx_betx_cred = M0_BE_TX_CREDIT_ZERO;
+	tx->tx_betx_cred = M0_BE_TX_CREDIT(0, 0);
 	tx->tx_state = M0_DTX_INIT;
 	m0_fol_rec_init(&tx->tx_fol_rec);
 }

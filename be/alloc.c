@@ -788,18 +788,19 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					unsigned                shift,
 					struct m0_be_tx_credit *accum)
 {
-	M0_BE_TX_CREDIT(capture_around_credit);
-	M0_BE_TX_CREDIT(chunk_add_after_credit);
-	M0_BE_TX_CREDIT(chunk_del_fini_credit);
-	M0_BE_TX_CREDIT(chunk_trymerge_credit);
-	M0_BE_TX_CREDIT(mem_zero_credit);
-	struct m0_be_tx_credit chunk_credit =
-		M0_BE_TX_CREDIT_INIT(1, sizeof(struct be_alloc_chunk));
-	struct m0_be_tx_credit header_credit =
-		M0_BE_TX_CREDIT_INIT(1, sizeof(struct m0_be_allocator_header));
+	struct m0_be_tx_credit capture_around_credit = {};
+	struct m0_be_tx_credit chunk_add_after_credit = {};
+	struct m0_be_tx_credit chunk_del_fini_credit = {};
+	struct m0_be_tx_credit chunk_trymerge_credit = {};
+	struct m0_be_tx_credit mem_zero_credit = {};
+	struct m0_be_tx_credit chunk_credit;
+	struct m0_be_tx_credit header_credit;
+
+	chunk_credit  = M0_BE_TX_CREDIT_TYPE(struct be_alloc_chunk);
+	header_credit = M0_BE_TX_CREDIT_TYPE(struct m0_be_allocator_header);
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
-	mem_zero_credit = M0_BE_TX_CREDIT_OBJ(1, size * 2);
+	mem_zero_credit = M0_BE_TX_CREDIT(1, size * 2);
 
 	m0_be_tx_credit_add(&capture_around_credit, &header_credit);
 	m0_be_tx_credit_mac(&capture_around_credit, &chunk_credit, 3);
