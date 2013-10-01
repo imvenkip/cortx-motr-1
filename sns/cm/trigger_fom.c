@@ -50,6 +50,9 @@ static void trigger_fom_fini(struct m0_fom *fom);
 static size_t trigger_fom_home_locality(const struct m0_fom *fom);
 static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 
+extern struct m0_fop_type repair_trigger_fopt;
+extern struct m0_fop_type rebalance_trigger_fopt;
+
 extern struct m0_fop_type repair_trigger_rep_fopt;
 extern struct m0_fop_type rebalance_trigger_rep_fopt;
 
@@ -115,11 +118,25 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
 			.sm        = &trigger_conf);
 }
 
+static bool is_repair_trigger_fop(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+
+	return fop->f_type == &repair_trigger_fopt;
+}
+
+static bool is_rebalance_trigger_fop(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+
+	return fop->f_type == &rebalance_trigger_fopt;
+}
 
 static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			      struct m0_reqh *reqh)
 {
 	struct m0_fom *fom;
+	struct m0_fop *rep_fop = NULL;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
@@ -127,9 +144,12 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_ALLOC_PTR(fom);
 	if (fom == NULL)
 		return -ENOMEM;
-
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop, NULL,
-		    reqh, fop->f_type->ft_fom_type.ft_rstype);
+	if (is_repair_trigger_fop(fop))
+		rep_fop = m0_fop_alloc(&repair_trigger_rep_fopt, NULL);
+	else if (is_rebalance_trigger_fop(fop))
+		rep_fop = m0_fop_alloc(&rebalance_trigger_rep_fopt, NULL);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop,
+		    rep_fop, reqh, fop->f_type->ft_fom_type.ft_rstype);
 
 	*out = fom;
 	return 0;
@@ -158,7 +178,6 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	struct m0_fop               *rfop;
 	struct trigger_fop          *treq;
 	struct trigger_rep_fop      *trep;
-	struct m0_fop_type          *ft = NULL;
 	int                          rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
@@ -195,16 +214,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				break;
 			case TPH_STOP_WAIT:
 				m0_fom_block_enter(fom);
-				if (scm->sc_op == SNS_REPAIR)
-					ft = &repair_trigger_rep_fopt;
-				else if (scm->sc_op == SNS_REBALANCE)
-					ft = &rebalance_trigger_rep_fopt;
-
-				rfop = m0_fop_alloc(ft, NULL);
-				if (rfop == NULL) {
-					m0_fom_phase_set(fom, M0_FOPH_FINISH);
-					return M0_FSO_WAIT;
-				}
+				rfop = fom->fo_rep_fop;
 				trep = m0_fop_data(rfop);
 				trep->rc = m0_fom_rc(fom);
 				fom->fo_rep_fop = rfop;
