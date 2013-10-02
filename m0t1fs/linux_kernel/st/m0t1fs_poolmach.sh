@@ -7,16 +7,11 @@
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
 
-
-sns_repair_test()
+pool_mach_test()
 {
-	local rc=0
-	local fail_device=1
-	local stride=20
-	local unit_size=$((stride * 1024))
+	rc=0
 
-	echo "Starting SNS repair testing ..."
-
+	echo "Testing pool machine.."
 	for ((i=1; i < ${#EP[*]}; i++)) ; do
 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
 	done
@@ -126,8 +121,8 @@ main()
 	fi
 
 	rc=0
-	sns_repair_test || {
-		echo "Failed: SNS repair failed.."
+	pool_mach_test || {
+		echo "Failed: pool machine failure."
 		rc=1
 	}
 

@@ -74,13 +74,14 @@ run_st() {
     ## other ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 
-    ## SNS repair
+    ## Pool machine query/set testing.
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"
+
+    ## SNS single failure repair and rebalance
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_1f.sh"
 
+    ## SNS multi failure repair
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
-
-    ## poolmachine query/set testing
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"
 }
 
 dist_check() {
