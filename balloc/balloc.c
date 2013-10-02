@@ -1054,19 +1054,21 @@ static void balloc_sb_sync_credit(const struct m0_balloc *bal,
 	m0_be_tx_credit_add(accum, &cred);
 }
 
-static void balloc_db_update_credit(const struct m0_balloc *bal,
+static void balloc_db_update_credit(const struct m0_balloc *bal, int nr,
 					  struct m0_be_tx_credit *accum)
 {
 	const struct m0_be_btree *tree = &bal->cb_db_group_extents;
+	struct m0_be_tx_credit    cred = {};
 
 	m0_be_btree_delete_credit(tree, 1,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), accum);
+		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	m0_be_btree_insert_credit(tree, 1,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), accum);
+		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	m0_be_btree_update_credit(tree, 2,
-		M0_MEMBER_SIZE(struct m0_ext, e_end), accum);
+		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+	m0_be_tx_credit_mac(accum, &cred, nr);
 	balloc_sb_sync_credit(bal, accum);
 	balloc_gi_sync_credit(bal, accum);
 }
@@ -1358,10 +1360,10 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 }
 
 static void
-balloc_find_by_goal_credit(const struct m0_balloc *bal,
+balloc_find_by_goal_credit(const struct m0_balloc *bal, int nr,
 				 struct m0_be_tx_credit *accum)
 {
-	balloc_db_update_credit(bal, accum);
+	balloc_db_update_credit(bal, nr, accum);
 }
 
 static int balloc_find_by_goal(struct m0_balloc_allocation_context *bac)
@@ -1703,15 +1705,13 @@ static void
 balloc_alloc_credit(const struct m0_ad_balloc *balroom, int nr,
 			  struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit	 cred1 = {0};
 	const struct m0_balloc	*bal = b2m0(balroom);
 
 	M0_ENTRY("cred=%lux%lu nr=%d",
 		(unsigned long)accum->tc_reg_nr,
 		(unsigned long)accum->tc_reg_size, nr);
-	balloc_find_by_goal_credit(bal, &cred1);
-	balloc_db_update_credit(bal, &cred1);
-	m0_be_tx_credit_mac(accum, &cred1, nr);
+	balloc_find_by_goal_credit(bal, nr, accum);
+	balloc_db_update_credit(bal, nr, accum);
 	M0_LEAVE("cred=%lux%lu",
 		(unsigned long)accum->tc_reg_nr,
 		(unsigned long)accum->tc_reg_size);
@@ -1924,12 +1924,7 @@ out:
 static void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
 				     struct m0_be_tx_credit *accum)
 {
-	struct m0_balloc		*bal = b2m0(balroom);
-	struct m0_balloc_super_block	*sb = &bal->cb_sb;
-	struct m0_be_tx_credit		 cred = {};
-
-	balloc_db_update_credit(bal, &cred);
-	m0_be_tx_credit_mac(accum, &cred, sb->bsb_groupcount * nr);
+	balloc_db_update_credit(b2m0(balroom), nr, accum);
 }
 
 /**
