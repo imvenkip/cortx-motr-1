@@ -1070,7 +1070,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	M0_UT_ASSERT(fom_stdom != NULL);
 
 	m0_stob_create_helper_credit(fom_stdom, &stobid,
-			&fom->fo_tx.tx_betx_cred);
+			m0_fom_tx_credit(fom));
 	rc = m0_stob_create_helper(fom_stdom, &fom->fo_tx, &stobid,
 				  &fom_obj->fcrw_stob);
         M0_UT_ASSERT(rc == 0);

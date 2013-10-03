@@ -354,7 +354,7 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 			fom_obj->sif_stobj =
 				stob_object_find(&in_fop->fic_object, fom);
 			m0_stob_create_credit(fom_obj->sif_stobj,
-				&fom->fo_tx.tx_betx_cred);
+				m0_fom_tx_credit(fom));
 			m0_stob_put(fom_obj->sif_stobj);
 		}
 		result = m0_fom_tick_generic(fom);
@@ -516,8 +516,7 @@ static void fom_stob_write_credit(struct m0_fom *fom)
 
 	in_fop = m0_fop_data(fom->fo_fop);
 	stobj = stob_object_find(&in_fop->fiw_object, fom);
-	m0_stob_write_credit(stobj->so_domain, 1,
-				&fom->fo_tx.tx_betx_cred);
+	m0_stob_write_credit(stobj->so_domain, 1, m0_fom_tx_credit(fom));
 	m0_stob_put(stobj);
 }
 

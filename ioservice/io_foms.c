@@ -1748,7 +1748,7 @@ static void stob_write_credit(struct m0_fom *fom)
 		count += wire_ivec.ci_nr;
 	}
 	M0_LOG(M0_DEBUG, "count=%d", (int)count);
-	m0_stob_write_credit(fom_stdom, count, &fom->fo_tx.tx_betx_cred);
+	m0_stob_write_credit(fom_stdom, count, m0_fom_tx_credit(fom));
 	m0_stob_put(fom_obj->fcrw_stob);
 }
 

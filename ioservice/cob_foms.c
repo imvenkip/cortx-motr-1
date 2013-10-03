@@ -278,12 +278,12 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			cob_op = cob_fom_get(fom);
 			if (fop_is_create) {
 				cc_stob_create_credit(fom, cob_op,
-						      &fom->fo_tx.tx_betx_cred);
+						      m0_fom_tx_credit(fom));
 				cob_op_credit(fom, M0_COB_OP_CREATE,
-					      &fom->fo_tx.tx_betx_cred);
+					      m0_fom_tx_credit(fom));
 			} else {
 				cob_op_credit(fom, M0_COB_OP_DELETE,
-					      &fom->fo_tx.tx_betx_cred);
+					      m0_fom_tx_credit(fom));
 			}
 		}
 		rc = m0_fom_tick_generic(fom);
@@ -427,7 +427,7 @@ static int cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 	}
 
 	m0_stob_create_helper_credit(sdom, &cc->fco_stobid,
-				     &fom->fo_tx.tx_betx_cred);
+				     m0_fom_tx_credit(fom));
 	return 0;
 }
 
@@ -501,7 +501,7 @@ static void cob_op_credit(struct m0_fom *fom, enum m0_cob_op opcode,
 	M0_PRE(fom != NULL);
 	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
-	m0_cob_tx_credit(cdom, opcode, &fom->fo_tx.tx_betx_cred);
+	m0_cob_tx_credit(cdom, opcode, m0_fom_tx_credit(fom));
 }
 
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
@@ -557,7 +557,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec,
-			   &fom->fo_tx.tx_betx);
+			   m0_fom_tx(fom));
 	if (rc) {
 	        /*
 	         * Cob does not free nskey and fab rec on errors. We need to do
@@ -630,7 +630,7 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	}
 
 	M0_ASSERT(cob != NULL);
-	rc = m0_cob_delete(cob, &fom->fo_tx.tx_betx);
+	rc = m0_cob_delete(cob, m0_fom_tx(fom));
 	if (rc != 0)
 		IOS_ADDB_FUNCFAIL(rc, CD_COB_DELETE_2, &m0_ios_addb_ctx);
 	else
