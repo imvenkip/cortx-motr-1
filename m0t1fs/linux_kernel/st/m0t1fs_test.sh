@@ -47,6 +47,7 @@ main()
 	# return 1
 	# fi
 
+	echo "System tests status: SUCCESS."
 	echo "Test log available at $MERO_TEST_LOGFILE."
 
 	return $rc
