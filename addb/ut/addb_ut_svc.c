@@ -157,7 +157,7 @@ void addb_ut_svc_test(void)
 	saved_period = addb_pfom_period;
 #undef MS
 #define MS(ms) (ms) * 1000000ULL
-	addb_pfom_period = MS(10);
+	addb_pfom_period = M0_MKTIME(5, 0);
 	M0_UT_ASSERT(!the_addb_pfom_started);
 	M0_UT_ASSERT(addb_ut_svc_rspa_called == 0);
 	M0_UT_ASSERT(server_start() == 0);
