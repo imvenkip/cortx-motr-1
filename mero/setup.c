@@ -1480,13 +1480,13 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
 		m0_reqh_services_terminate(reqh);
 
-	m0_reqh_fom_domain_idle_wait(reqh);
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
 		m0_reqh_mgmt_service_stop(reqh);
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
