@@ -688,6 +688,8 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 	} else if (rc == M0_FSO_AGAIN) {
+		/* update phase after fpd_action() like loc_ctx_wait() */
+		fpd_phase = &fpd_table[m0_fom_phase(fom)];
 		if (m0_fom_phase(fom) < M0_FOPH_NR &&
 		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
 			M0_LOG(M0_DEBUG, "phase set: %s -> %s",
