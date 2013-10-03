@@ -250,7 +250,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	struct m0_cm_aggr_group    *ag;
 	struct m0_cm_cp            *res_cp;
 	struct m0_cm_ag_id          id;
-	int                         rc;
+	int                         rc = 0;
 	int                         i;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_XFORM);
