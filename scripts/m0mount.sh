@@ -138,11 +138,6 @@ MERO_MODULE_TRACE_MASK=fop,m0t1fs
 MERO_TRACE_PRINT_CONTEXT=func
 MERO_TRACE_LEVEL='call+'
 
-# number of disks to split by for each service
-# in ad-stob mode
-DISKS_SH_NR=`expr $POOL_WIDTH / $SERVICES_NR + 1`
-# +1 for ADDB stob
-
 # Local mount data
 MP=/mnt/m0
 
@@ -560,7 +555,9 @@ main()
 	NR_PARITY=${NR_PARITY:-1}
 	# spare_nr == parity_nr, that's why we multiply on 2
 	NR_DATA=${NR_DATA:-$(expr $POOL_WIDTH - $NR_PARITY \* 2)}
-	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1)
+
+	# number of disks to split by for each service in ad-stob mode
+	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1) # +1 for ADDB stob
 
 	if [ ! $BROOT -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory
