@@ -124,11 +124,6 @@ THIS_HOST=$(hostname)
 DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 
 STOB=linux
-LOCAL_SERVICES_NR=4
-SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-POOL_WIDTH=$SERVICES_NR
-NR_PARITY=1
-NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2) # spare_nr == parity_nr
 UNIT_SIZE=262144
 use_loop_device=0
 setup_local_server_config=0
@@ -202,11 +197,6 @@ setup_local_params()
 	if [ $use_loop_device -eq 1 ]; then
 		DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR*2 -1))]"
 	fi
-
-	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-	POOL_WIDTH=$SERVICES_NR
-	NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)
-	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1)
 }
 
 function l_run () {
@@ -559,9 +549,18 @@ EOF
 
 main()
 {
+	LOCAL_SERVICES_NR=${LOCAL_SERVICES_NR:-4}
+
 	if [ $setup_local_server_config -eq 1 ]; then
 		setup_local_params
 	fi
+
+	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
+	POOL_WIDTH=${POOL_WIDTH:-$SERVICES_NR}
+	NR_PARITY=${NR_PARITY:-1}
+	# spare_nr == parity_nr, that's why we multiply on 2
+	NR_DATA=${NR_DATA:-$(expr $POOL_WIDTH - $NR_PARITY \* 2)}
+	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1)
 
 	if [ ! $BROOT -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory
