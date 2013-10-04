@@ -32,24 +32,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl)
 {
-        uint64_t          dpupg;
-        uint64_t          upg;
-        int               unit;
-        int               group_number;
-	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
-	struct m0_fid     fid;
-
-	group_number = agid2group(&sag->sag_base.cag_id);
-	agid2fid(&sag->sag_base.cag_id, &fid);
-
-        dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-        upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-        for (unit = dpupg; unit < upg; ++unit) {
-                if (!m0_sns_cm_unit_is_spare(scm, pl, &fid, group_number, unit))
-                        M0_CNT_INC(dpupg);
-        }
-
-        return dpupg;
+	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
 }
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,

@@ -287,6 +287,15 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 out:
 	m0_layout_instance_fini(&pi->pi_base);
 	return result;
+=======
+					 const struct m0_pdclust_layout *pl,
+					 int unit, bool check_state)
+{
+        return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE &&
+	       !m0_poolmach_sns_repair_spare_contains_data(scm->sc_base.cm_pm,
+				unit - m0_pdclust_N(pl) - m0_pdclust_K(pl),
+				check_state);
+>>>>>>> Changes related to cascaded repair.
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
