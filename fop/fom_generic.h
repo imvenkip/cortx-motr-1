@@ -67,12 +67,12 @@ enum m0_fom_standard_phase {
 	M0_FOPH_SUCCESS,            /*< fom execution completed successfully. */
 	M0_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
 	M0_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
+	M0_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
+	M0_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
 	M0_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
 	                                context. */
 	M0_FOPH_TIMEOUT,            /*< fom timed out. */
 	M0_FOPH_FAILURE,            /*< fom execution failed. */
-	M0_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
-	M0_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
 	M0_FOPH_NR,                  /*< number of standard phases. fom type
 	                                specific phases have numbers larger than
 	                                this. */

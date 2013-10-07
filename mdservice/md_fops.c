@@ -360,7 +360,8 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
          */
         m0_xc_md_fops_init();
 
-        return m0_mdservice_fopts_init() ?: m0_mdservice_rep_fopts_init();
+        return	m0_mdservice_fopts_init() ?:
+		m0_mdservice_rep_fopts_init();
 }
 M0_EXPORTED(m0_mdservice_fop_init);
 

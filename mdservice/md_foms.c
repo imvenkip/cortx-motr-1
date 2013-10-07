@@ -164,19 +164,9 @@ static inline int m0_md_tick_generic(struct m0_fom *fom)
 {
 	M0_PRE(m0_fom_invariant(fom));
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		/**
-		 * Don't send reply in case there is no service running.
-		 * This is local use of mdservice just like replicator needs.
-		 * In this case we jump right to finish phase of fom.
-		 */
-		if (fom->fo_service == NULL &&
-		    m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
-			m0_fom_phase_move(fom, 0, M0_FOPH_FINISH);
-			return M0_FSO_WAIT;
-		}
+	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
-	}
+
 	return 0;
 }
 
@@ -1471,6 +1461,8 @@ static void m0_md_req_fom_fini(struct m0_fom *fom)
 	struct m0_fom_md         *fom_obj;
 	struct m0_local_service  *svc;
 
+	M0_ENTRY("fom=%p", fom);
+
 	fom_obj = container_of(fom, struct m0_fom_md, fm_fom);
 
 	/* Let local sevice know that we have finished. */
@@ -1480,6 +1472,8 @@ static void m0_md_req_fom_fini(struct m0_fom *fom)
 	/* Fini fom itself. */
 	m0_fom_fini(fom);
 	m0_free(fom_obj);
+
+	M0_LEAVE();
 }
 
 static size_t m0_md_req_fom_locality_get(const struct m0_fom *fom)
@@ -1703,11 +1697,14 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	m0_fom_init(fom, &fop->f_type->ft_fom_type,
 		    ops, fop, rep_fop, reqh,
 		    fop->f_type->ft_fom_type.ft_rstype);
+	if (fom->fo_service == NULL)
+		fom->fo_local = true;
 
         m0_fop_put(rep_fop);
 	*m = fom;
 	return 0;
 }
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
