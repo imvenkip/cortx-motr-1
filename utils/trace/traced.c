@@ -54,14 +54,18 @@
  * @{
  */
 
-#define DEFAULT_IN_FILE_NAME   "/sys/kernel/debug/mero/trace/buffer"
-#define DEFAULT_OUT_FILE_NAME  "/var/log/mero/m0trace.bin"
+#define DEFAULT_IN_FILE_NAME          "/sys/kernel/debug/mero/trace/buffer"
+#define DEFAULT_OUT_FILE_NAME         "/var/log/mero/m0trace.bin"
+#define M0MERO_KO_CORE_IN_FILE_NAME   "/sys/kernel/debug/mero/core"
+#define M0MERO_KO_CORE_OUT_FILE_NAME  "/var/log/mero/m0mero.ko.img"
 
 static const char *progname;
-static const char *input_file_name = DEFAULT_IN_FILE_NAME;
+static const char *input_file_name  = DEFAULT_IN_FILE_NAME;
 static const char *output_file_name = DEFAULT_OUT_FILE_NAME;
+static const char *output_kore_file_name = M0MERO_KO_CORE_OUT_FILE_NAME;
 
 static bool     daemon_mode = false;
+static bool     save_kore = false;
 static int      log_level = LOG_INFO;
 static uint32_t log_rotation_dealy = 5; /* in seconds */
 static uint32_t max_log_size = 1024;    /* in MB */
@@ -269,12 +273,17 @@ static void wake_up_rotator_thread(enum lr_action a)
 }
 
 static int copy_file(int dest_fd, const char *dest_name, int source_fd,
-		     const char *source_name, off_t *offset, size_t count)
+		     const char *source_name, off_t *offset, off_t count)
 {
 	int rc = 0;
 
 	log_debug("%s: fd %d => %d, offset %zu, count %zu\n",
 		  __func__, source_fd, dest_fd, *offset, count);
+
+	if (offset == NULL) {
+		log_err("%s: invalid offset value: NULL\n", __func__);
+		return -EINVAL;
+	}
 
 	if (sendfile_is_supported) {
 		rc = sendfile(dest_fd, source_fd, offset, count);
@@ -341,7 +350,7 @@ static int copy_file(int dest_fd, const char *dest_name, int source_fd,
 
 		new_offset = lseek(source_fd, 0, SEEK_CUR);
 		if (new_offset == (off_t)-1) {
-			log_err("failed to get curret file position for '%s'"
+			log_err("failed to get current file position for '%s'"
 				" file: %s\n",
 				output_file_name, strerror(errno));
 			goto close;
@@ -615,6 +624,59 @@ static bool check_sendfile_support(void)
 
 #undef SENDFILE_KERNEL_VER
 
+int save_kore_file(void)
+{
+	int  ifd;
+	int  ofd;
+	int  nr = 0;
+	int  nw;
+	int  rc = 0;
+
+	static char buf[4 * 1024 * 1024]; /* 4MB */
+
+	/* open input kore file */
+	ifd = open(M0MERO_KO_CORE_IN_FILE_NAME, O_RDONLY);
+	if (ifd == -1) {
+		log_err("failed to open input file '%s': %s\n",
+			M0MERO_KO_CORE_IN_FILE_NAME, strerror(errno));
+		return EX_NOINPUT;
+	}
+
+	/* open output kore file */
+	ofd = open(output_kore_file_name, O_RDWR|O_CREAT|O_TRUNC,
+		   S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+	if (ofd == -1) {
+		log_err("failed to open output file '%s': %s\n",
+			output_kore_file_name, strerror(errno));
+		return EX_CANTCREAT;
+	}
+
+	while ((nr = read(ifd, buf, sizeof buf)) > 0) {
+		nw = write(ofd, buf, nr);
+		if (nw == -1) {
+			log_err("failed to write data to '%s' file: %s\n",
+				output_kore_file_name, strerror(errno));
+			rc = -errno;
+			goto close;
+		}
+	}
+
+	if (nr == -1) {
+		log_err("failed to read data from '%s' file: %s\n",
+			M0MERO_KO_CORE_IN_FILE_NAME, strerror(errno));
+		rc = -errno;
+		goto close;
+	}
+close:
+	close(ifd);
+	close(ofd);
+
+	if (rc == 0)
+		log_debug("m0mero.ko core image saved into '%s'\n",
+			  output_kore_file_name);
+	return rc;
+}
+
 int main(int argc, char *argv[])
 {
 	int  rc;
@@ -651,9 +713,21 @@ int main(int argc, char *argv[])
 			output_file_name = strdup(str);
 		})
 	  ),
+	  M0_STRINGARG('O',
+		"output file name for m0mero.ko core image, if none is provided"
+		", then " M0MERO_KO_CORE_OUT_FILE_NAME " is used by default;"
+		" it has effect only if -K option is also specified",
+		LAMBDA(void, (const char *str) {
+			output_kore_file_name = strdup(str);
+		})
+	  ),
 	  M0_FLAGARG('d',
 		  "daemon mode (run in the background, log errors into syslog)",
 		  &daemon_mode
+	  ),
+	  M0_FLAGARG('K',
+		  "save m0mero.ko core image into a file, specified by -O option",
+		  &save_kore
 	  ),
 	  M0_NUMBERARG('l', "log level number (from syslog.h)",
 		LAMBDA(void, (int64_t lvl) {
@@ -704,6 +778,12 @@ int main(int argc, char *argv[])
 		return rc;
 
 	sendfile_is_supported = check_sendfile_support();
+
+	if (save_kore) {
+		rc = save_kore_file();
+		if (rc != 0)
+			return rc;
+	}
 
 	/* open input file */
 	ifd = open(input_file_name, O_RDONLY);
