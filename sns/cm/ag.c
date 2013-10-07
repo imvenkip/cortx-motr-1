@@ -119,6 +119,7 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
 	}
 	m0_bitmap_fini(&sag->sag_fmap);
         scm = cm2sns(cm);
+	m0_layout_instance_fini(&sag->sag_base.cag_pi->pi_base);
         M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
                      M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
                      scm->sc_ibp.sb_bp.nbp_buf_nr,
@@ -179,13 +180,13 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
 					&sag->sag_fmap);
-	m0_layout_instance_fini(&pi->pi_base);
 	if (f_nr == 0) {
 		m0_layout_put(m0_pdl_to_layout(pl));
 		return -EINVAL;
 	}
 	sag->sag_fnr = f_nr;
 	sag->sag_base.cag_layout = m0_pdl_to_layout(pl);
+	sag->sag_base.cag_pi = pi;
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);

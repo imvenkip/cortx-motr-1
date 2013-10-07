@@ -286,7 +286,6 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 		if (m0_sns_cm_unit_is_spare(scm, pl, &fid, group_number,
 					data_unit_id_out))
 			continue;
-
 		rc = m0_sns_cm_ag_tgt_unit2cob(sag, data_unit_id_out, pl,
 				&cobfid);
 		if (rc != 0)

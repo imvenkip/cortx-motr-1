@@ -178,6 +178,10 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 {
 	int rc;
 
+	printf("Enqueue id [%lu] [%lu] [%lu] [%lu] \n",  
+		cp->c_ag->cag_id.ai_hi.u_hi, cp->c_ag->cag_id.ai_hi.u_lo,
+		cp->c_ag->cag_id.ai_lo.u_hi, cp->c_ag->cag_id.ai_lo.u_lo);
+
 	rc = cp_bufvec_split(cp);
 	if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,

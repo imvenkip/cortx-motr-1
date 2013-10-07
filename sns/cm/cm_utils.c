@@ -118,16 +118,12 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               gobfid;
 	struct m0_pdclust_instance *pi;
-	struct m0_layout_instance  *li;
 	int                         rc;
 
 	agid2fid(&sag->sag_base.cag_id, &gobfid);
-        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gobfid, &li);
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &godfid);
         if (rc != 0)
                 return -ENOENT;
-
-        pi = m0_layout_instance_to_pdi(li);
-
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
 	m0_pdclust_instance_map(pi, &sa, &ta);
@@ -235,7 +231,7 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
 				 &state_out);
 	return M0_IN(state_out, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
-				 M0_PNDS_SNS_REPAIRED));
+				M0_PNDS_SNS_REPAIRED));
 }
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
@@ -287,15 +283,6 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 out:
 	m0_layout_instance_fini(&pi->pi_base);
 	return result;
-=======
-					 const struct m0_pdclust_layout *pl,
-					 int unit, bool check_state)
-{
-        return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE &&
-	       !m0_poolmach_sns_repair_spare_contains_data(scm->sc_base.cm_pm,
-				unit - m0_pdclust_N(pl) - m0_pdclust_K(pl),
-				check_state);
->>>>>>> Changes related to cascaded repair.
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
@@ -324,16 +311,13 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               gobfid;
-        struct m0_layout_instance  *li;
         struct m0_pdclust_instance *pi;
 	int                         rc;
 
         agid2fid(&sag->sag_base.cag_id, &gobfid);
-        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gobfid, &li);
+        rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
         if (rc != 0)
                 return -ENOENT;
-
-        pi = m0_layout_instance_to_pdi(li);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = tgt_unit;
 	m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gobfid, cobfid);

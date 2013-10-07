@@ -56,6 +56,8 @@ struct m0_cm_aggr_group {
 
 	struct m0_layout                  *cag_layout;
 
+	struct m0_pdclust_instance        *cag_pi;
+
 	struct m0_mutex                    cag_mutex;
 
 	/**

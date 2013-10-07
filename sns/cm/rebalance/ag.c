@@ -136,7 +136,7 @@ static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
 			continue;
 		group = agid2group(&sag->sag_base.cag_id);
 		rc = m0_sns_repair_spare_map(pm, &gfid, pl,
-				pi, group, i, &tgt_unit);
+					pi, group, i, &tgt_unit);
 		if (rc != 0)
 			goto err;
                 rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl, &cobfid);
