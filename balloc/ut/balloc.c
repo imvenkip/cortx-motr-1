@@ -289,13 +289,13 @@ void test_balloc()
 	seg = &ut_seg.bus_seg;
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_seg_dict_create(seg, grp);
+	rc = m0_be_ut__seg_dict_create(seg, grp);
 	M0_ASSERT(rc == 0);
 
 	rc = test_balloc_ut_ops(&ut_be, seg);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_seg_dict_destroy(seg, grp);
+	rc = m0_be_ut__seg_dict_destroy(seg, grp);
 	M0_ASSERT(rc == 0);
 	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);

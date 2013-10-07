@@ -535,8 +535,11 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 		return -ENOMEM;
 
 	m0_be_btree_create_credit(&dummy, ARRAY_SIZE(tables), &cred);
-	for (i = 0; i < ARRAY_SIZE(tables); ++i)
+
+	for (i = 0; i < ARRAY_SIZE(tables); ++i) {
 		M0_BE_ALLOC_CREDIT_PTR(*tables[i].tree, seg, &cred);
+		m0_be_seg_dict_insert_credit(seg, tables[i].name, &cred);
+	}
 
 	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
 				NULL, NULL, NULL, NULL);
@@ -559,21 +562,20 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 		m0_be_op_wait(&op);
 		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 		m0_be_op_fini(&op);
+
+		rc = m0_be_seg_dict_insert(seg, tx, tables[i].name,
+					   *tables[i].tree);
+		if (rc != 0) {
+			m0_be_tx_fini(tx);
+			m0_free(tx);
+			return rc;
+		}
 	}
 
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-
-	if (rc == 0) { /* XXX: seems it's OK not to do any cleanup here */
-		for (i = 0; i < ARRAY_SIZE(tables); ++i) {
-			rc = m0_be_seg_dict_insert(seg, grp, tables[i].name,
-						            *tables[i].tree);
-			if (rc != 0)
-				return rc;
-		}
-	}
 
 	return rc;
 }
@@ -620,20 +622,15 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 		m0_be_op_fini(&op);
 
 		M0_BE_FREE_PTR_SYNC(*tables[i].tree, seg, tx);
+
+		rc = m0_be_seg_dict_delete(seg, tx, tables[i].name);
+		M0_ASSERT(rc == 0);
 	}
 
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-
-	if (rc == 0) { /* XXX: seems it's OK not to do any cleanup here */
-		for (i = 0; i < ARRAY_SIZE(tables); ++i) {
-			rc = m0_be_seg_dict_delete(seg, grp, tables[i].name);
-			if (rc != 0)
-				return rc;
-		}
-	}
 
 	return rc;
 }

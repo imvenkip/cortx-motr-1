@@ -96,6 +96,14 @@ struct m0_stob *m0_be_ut_stob_get(bool stob_create);
 struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create);
 void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy);
 
+
+M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
+					  struct m0_sm_group *grp);
+
+M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
+					   struct m0_sm_group *grp);
+
+
 #endif /* __MERO_BE_UT_HELPER_H__ */
 
 /*

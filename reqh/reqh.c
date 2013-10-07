@@ -220,12 +220,19 @@ static int fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 	struct m0_dtx       tx = {};
 	int                 rc;
+	void               *p;
+
+	M0_PRE(m0_be_seg_dict_lookup(seg, "fol", &p) != 0);
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, seg->bs_domain, grp);
 	m0_fol_credit(fol, M0_FO_CREATE, 1, &tx.tx_betx_cred);
+	m0_be_seg_dict_insert_credit(seg, "fol", &tx.tx_betx_cred);
 	m0_dtx_open_sync(&tx);
+	rc = m0_be_seg_dict_insert(seg, &tx.tx_betx, "fol", fol);
+	M0_ASSERT(rc == 0);
 	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx.tx_betx, &op));
+
 	m0_dtx_done_sync(&tx);
 	m0_sm_group_unlock(grp);
 
@@ -236,12 +243,17 @@ static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
 {
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 	struct m0_dtx       tx = {};
+	void               *p;
+
+	M0_PRE(m0_be_seg_dict_lookup(seg, "fol", &p) == 0);
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, seg->bs_domain, grp);
 	m0_fol_credit(fol, M0_FO_DESTROY, 1, &tx.tx_betx_cred);
+	m0_be_seg_dict_delete_credit(seg, "fol", &tx.tx_betx_cred);
 	m0_dtx_open_sync(&tx);
 	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx.tx_betx, &op));
+	(void) m0_be_seg_dict_delete(seg, &tx.tx_betx, "fol");
 	m0_dtx_done_sync(&tx);
 	m0_sm_group_unlock(grp);
 }
@@ -250,7 +262,6 @@ M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
 				   struct m0_be_seg *seg)
 {
 	int rc;
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
 
 	M0_ENTRY("reqh=%p", reqh);
 
@@ -264,14 +275,6 @@ M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
 
 	m0_fol_init(reqh->rh_fol, seg);
 	rc = fol_create(reqh->rh_fol, seg);
-	if (rc == 0) {
-		m0_sm_group_lock(grp);
-		rc = m0_be_seg_dict_insert(seg, grp,
-				"fol", reqh->rh_fol);
-		m0_sm_group_unlock(grp);
-		if (rc != 0)
-			fol_destroy(reqh->rh_fol, seg);
-	}
 	if (rc != 0) {
 		fol_free(reqh->rh_fol, seg);
 		reqh->rh_fol = NULL;
@@ -282,14 +285,9 @@ M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
 
 M0_INTERNAL void m0_reqh_fol_destroy(struct m0_reqh *reqh)
 {
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-
 	M0_PRE(reqh->rh_beseg != NULL);
 	M0_PRE(reqh->rh_fol   != NULL);
 
-	m0_sm_group_lock(grp);
-	m0_be_seg_dict_delete(reqh->rh_beseg, grp, "fol");
-	m0_sm_group_unlock(grp);
 	fol_destroy(reqh->rh_fol, reqh->rh_beseg);
 	m0_fol_fini(reqh->rh_fol);
 	fol_free(reqh->rh_fol, reqh->rh_beseg);

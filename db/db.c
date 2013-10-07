@@ -154,7 +154,7 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
 		m0_be_ut_seg_allocator_init(ut_seg, ut_be);
 		grp = m0_be_ut_backend_sm_group_lookup(ut_be);
 		m0_sm_group_lock(grp);
-		rc = m0_be_seg_dict_create(&ut_seg->bus_seg, grp);
+		rc = m0_be_seg_dict_create_grp(&ut_seg->bus_seg, grp);
 		m0_sm_group_unlock(grp);
 		M0_ASSERT(rc == 0);
 		if (smi == NULL) {
@@ -324,7 +324,7 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
         m0_be_btree_init(tree, seg, ops);
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
 
-	rc = m0_be_seg_dict_insert(seg, tx->t_sm.sm_grp, name, tree);
+	rc = m0_be_seg_dict_insert(seg, tx, name, tree);
 	M0_ASSERT(rc == 0);
 
 	db_tx_unlock(&tx_);
@@ -844,7 +844,7 @@ M0_INTERNAL int m0_db_start(struct m0_reqh *reqh)
 
 	m0_sm_group_lock(&__sm_group);
 	XXX_m0_be_ut_seg_allocator_init(&__seg, &__sm_group, &__dom);
-	rc = m0_be_seg_dict_create(&__seg.bus_seg, &__sm_group);
+	rc = m0_be_seg_dict_create_grp(&__seg.bus_seg, &__sm_group);
 	M0_ASSERT(rc == 0);
 	m0_sm_group_unlock(&__sm_group);
 

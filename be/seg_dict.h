@@ -31,22 +31,44 @@
  * @{
  */
 
+struct m0_be_tx;
 struct m0_be_seg;
 struct m0_sm_group;
+struct m0_be_tx_credit;
 
 M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg);
-M0_INTERNAL int m0_be_seg_dict_create(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp);
-M0_INTERNAL int m0_be_seg_dict_destroy(struct m0_be_seg *seg,
-				       struct m0_sm_group *grp);
 M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 				      const char *name,	void **out);
+
+/* tx based dictionary interface */
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name,	void *value);
+				      struct m0_be_tx  *tx,
+				      const char       *name,
+				      void             *value);
 M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name);
+				      struct m0_be_tx  *tx,
+				      const char       *name);
+M0_INTERNAL void m0_be_seg_dict_create(struct m0_be_seg *seg,
+				       struct m0_be_tx  *tx);
+M0_INTERNAL void m0_be_seg_dict_destroy(struct m0_be_seg *seg,
+					struct m0_be_tx  *tx);
+
+M0_INTERNAL void m0_be_seg_dict_create_credit(const struct m0_be_seg *seg,
+					      struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_seg_dict_destroy_credit(const struct m0_be_seg *seg,
+					       struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_seg_dict_insert_credit(const struct m0_be_seg *seg,
+					      const char             *name,
+					      struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_be_seg_dict_delete_credit(const struct m0_be_seg *seg,
+					      const char             *name,
+					      struct m0_be_tx_credit *accum);
+
+/* XXX: deprecated sm_group based interface, still here due to outgoing db/db */
+M0_INTERNAL int m0_be_seg_dict_create_grp(struct m0_be_seg *seg,
+					  struct m0_sm_group *grp);
+M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg *seg,
+					   struct m0_sm_group *grp);
 
 /** @} end of be group */
 

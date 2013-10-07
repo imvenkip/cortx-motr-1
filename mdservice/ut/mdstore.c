@@ -117,7 +117,7 @@ static void test_mkfs(void)
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	be_seg = &ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_seg_dict_create(be_seg, grp);
+	rc = m0_be_ut__seg_dict_create(be_seg, grp);
 	M0_ASSERT(rc == 0);
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
@@ -166,13 +166,14 @@ static void test_init(void)
 
         m0_fol_init(fol, be_seg);
 	m0_fol_credit(fol, M0_FO_CREATE, 1, &cred);
+	m0_be_seg_dict_insert_credit(be_seg, "fol", &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
 	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx, &op));
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_seg_dict_insert(be_seg, &tx, "fol", fol);
+	M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 
-	rc = m0_be_seg_dict_insert(be_seg, grp, "fol", fol);
-	M0_UT_ASSERT(rc == 0);
 
         rc = m0_mdstore_init(&md, &id, be_seg, true);
         M0_ASSERT(rc == 0);
@@ -214,7 +215,7 @@ static void test_fini(void)
 	m0_chan_fini_lock(&test_signal);
 	m0_mutex_fini(&mutex);
 
-	rc = m0_be_seg_dict_destroy(be_seg, grp);
+	rc = m0_be_ut__seg_dict_destroy(be_seg, grp);
 	M0_ASSERT(rc == 0);
 	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);

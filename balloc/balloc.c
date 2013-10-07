@@ -2219,6 +2219,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	m0_be_btree_fini(&btree);
 	m0_be_btree_init(&btree, seg, &gd_btree_ops);
 	m0_be_btree_create_credit(&btree, 1, &cred);
+	m0_be_seg_dict_insert_credit(seg, cid_name, &cred);
 	m0_be_btree_fini(&btree);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
@@ -2231,10 +2232,10 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 			cb->cb_container_id = cid;
 			cb->cb_ballroom.ab_ops = &balloc_ops;
 
-			m0_be_btree_init(&cb->cb_db_group_extents,
-					 seg, &ge_btree_ops);
-			m0_be_btree_init(&cb->cb_db_group_desc,
-					 seg, &gd_btree_ops);
+			m0_be_btree_init(&cb->cb_db_group_extents, seg,
+					 &ge_btree_ops);
+			m0_be_btree_init(&cb->cb_db_group_desc, seg,
+					 &gd_btree_ops);
 			rc = balloc_trees_create(cb, &tx);
 			if (rc == 0) {
 				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
@@ -2245,10 +2246,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	}
 
 	m0_be_tx_fini(&tx);
-
-	if (rc == 0)
-		rc = m0_be_seg_dict_insert(seg, grp,
-					cid_name, cb);
 
 	return rc;
 }

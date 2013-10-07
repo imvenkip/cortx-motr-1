@@ -82,7 +82,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_ut_backend_init(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
 	seg = &ctx->rmc_ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
-	rc = m0_be_seg_dict_create(seg, grp);
+	rc = m0_be_ut__seg_dict_create(seg, grp);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_reqh_fol_create(&ctx->rmc_reqh, seg);
@@ -140,7 +140,7 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	M0_ASSERT(rc == 0);
 	m0_mdstore_fini(&ctx->rmc_mdstore);
 
-	rc = m0_be_seg_dict_destroy(&ctx->rmc_ut_seg.bus_seg, grp);
+	rc = m0_be_ut__seg_dict_destroy(&ctx->rmc_ut_seg.bus_seg, grp);
 	M0_ASSERT(rc == 0);
 	m0_ut_backend_fini(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
 

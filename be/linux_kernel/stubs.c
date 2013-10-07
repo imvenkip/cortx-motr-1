@@ -182,15 +182,16 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 }
 
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name, void *value)
+				      struct m0_be_tx  *tx,
+				      const char       *name,
+				      void             *value)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
 M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
-				      struct m0_sm_group *grp,
-				      const char *name)
+				      struct m0_be_tx  *tx,
+				      const char       *name)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 }

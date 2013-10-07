@@ -434,12 +434,14 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *it);
  * finished.
  *
  * Note: allowed sequence of cursor calls is:
- * - m0_be_btree_cursor_init();
- * - m0_be_btree_cursor_get();
- * - m0_be_btree_cursor_next()* | m0_be_btree_cursor_prev()*;
- * - m0_be_btree_cursor_kv_get()*;
- * - m0_be_btree_cursor_put();
- * - m0_be_btree_cursor_fini();
+ * m0_be_btree_cursor_init()
+ * ( m0_be_btree_cursor_get()
+ *   ( m0_be_btree_cursor_next()
+ *   | m0_be_btree_cursor_prev()
+ *   | m0_be_btree_cursor_get()
+ *   | m0_be_btree_cursor_kv_get() )*
+ *   m0_be_btree_cursor_put() )*
+ * m0_be_btree_cursor_fini()
  *
  * @param slant[in] if slant == true then cursor will return a minimum key not
  *  less than given, otherwise it'll be set on exact key if it's possible.

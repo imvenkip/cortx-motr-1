@@ -190,7 +190,7 @@ static int server_init(const char             *stob_path,
 	m0_ut_backend_init(&ut_be, &ut_seg);
 	seg = &ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_seg_dict_create(seg, grp);
+	rc = m0_be_ut__seg_dict_create(seg, grp);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_reqh_fol_create(&reqh, seg);
@@ -321,7 +321,7 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_reqh_fol_destroy(&reqh);
 	m0_reqh_dbenv_fini(&reqh);
 
-	rc = m0_be_seg_dict_destroy(&ut_seg.bus_seg, grp);
+	rc = m0_be_ut__seg_dict_destroy(&ut_seg.bus_seg, grp);
 	M0_ASSERT(rc == 0);
 	m0_ut_backend_fini(&ut_be, &ut_seg);
 

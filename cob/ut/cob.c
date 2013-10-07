@@ -106,8 +106,8 @@ static void test_mkfs(void)
         m0_be_ut_backend_init(&ut_be);
         m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
         m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	rc = m0_be_seg_dict_create(&ut_seg.bus_seg,
-				   m0_be_ut_backend_sm_group_lookup(&ut_be));
+	rc = m0_be_ut__seg_dict_create(&ut_seg.bus_seg,
+				       m0_be_ut_backend_sm_group_lookup(&ut_be));
 	M0_UT_ASSERT(rc == 0);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
@@ -146,6 +146,8 @@ static void test_init(void)
 	rc = m0_be_seg_open(&ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_be_seg_dict_init(&ut_seg.bus_seg);
+
 	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id);
 	M0_UT_ASSERT(rc == 0);
 }
@@ -158,7 +160,7 @@ static void test_fini(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_domain_fini(&dom);
 
-	rc = m0_be_seg_dict_destroy(&ut_seg.bus_seg, grp);
+	rc = m0_be_ut__seg_dict_destroy(&ut_seg.bus_seg, grp);
 	M0_UT_ASSERT(rc == 0);
         m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
         m0_be_ut_seg_fini(&ut_seg);
