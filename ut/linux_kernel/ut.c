@@ -224,7 +224,7 @@ M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
 			m0_panic(&(struct m0_panic_ctx){
 					.pc_expr = buf,  .pc_func   = func,
 					.pc_file = file, .pc_lineno = lno,
-					.pc_fmt  = " "});
+					.pc_fmt  = NULL });
 		}
 		pr_err("Unit test assertion failed: %s at %s:%d\n",
 		       str_c, file, lno);
