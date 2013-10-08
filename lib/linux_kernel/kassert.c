@@ -26,9 +26,12 @@
 
 #include <linux/kernel.h>         /* pr_emerg */
 #include <linux/string.h>         /* strcmp */
+#include <linux/delay.h>          /* mdelay */
 
 #include "lib/assert.h"           /* m0_failed_condition */
 #include "mero/version.h"         /* m0_build_info */
+
+static int m0_panic_delay_msec = 110;
 
 void m0_arch_backtrace()
 {
@@ -46,6 +49,12 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 		vprintk(c->pc_fmt, ap);
 		pr_emerg("\n");
 	}
+	/*
+	 * Delay BUG() call in in order to allow m0traced process to fetch all
+	 * trace records from kernel buffer, before system-wide Kernel Panic is
+	 * triggered.
+	 */
+	mdelay(m0_panic_delay_msec);
 	BUG();
 }
 
