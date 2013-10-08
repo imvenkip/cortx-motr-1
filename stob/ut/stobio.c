@@ -475,13 +475,121 @@ void test_short_read(void)
 	m0_mutex_fini(&lock);
 }
 
+/*
+ * In stob_io, indexvec can have different number of elements
+ * than bufvec. Stob implementation will do all the splitting and merging
+ * internally, as necessary.
+ * This test tries to write 1M at offset 1M with a single indexvec. Data
+ * is available in 256 4K buffers.
+ */
+void test_single_ivec()
+{
+	int                i;
+	int                result;
+	struct m0_stob_io  io;
+	struct m0_clink    clink;
+	enum {
+		SHIFT          = 0,
+		VEC_NR         = 256,
+		BLOCK_SIZE     = 4096,
+		OFFSET_OR_SIZE = 1048576,
+	};
+	/* read/write buffers */
+	char              *st_rdbuf[VEC_NR];
+	char              *st_rdbuf_packed[VEC_NR];
+	char              *st_wrbuf[VEC_NR];
+	char              *st_wrbuf_packed[VEC_NR];
+	/* read/write vectors */
+	m0_bcount_t        index[1]     = {OFFSET_OR_SIZE >> SHIFT};
+	m0_bcount_t        stob_size[1] = {OFFSET_OR_SIZE >> SHIFT};
+	m0_bcount_t        size[VEC_NR];
+
+	m0_mutex_init(&lock);
+	result = stobio_storage_init();
+	M0_UT_ASSERT(result == 0);
+	WITH_LOCK(&lock, stobio_init, tests);
+
+	for (i = 0; i < VEC_NR; ++i) {
+		st_rdbuf[i] = m0_alloc_aligned(BLOCK_SIZE, SHIFT);
+		st_rdbuf_packed[i] = m0_stob_addr_pack(st_rdbuf[i], SHIFT);
+		M0_UT_ASSERT(st_rdbuf[i] != NULL);
+		size[i] = BLOCK_SIZE >> SHIFT;
+
+		st_wrbuf[i] = m0_alloc_aligned(BLOCK_SIZE, SHIFT);
+		st_wrbuf_packed[i] = m0_stob_addr_pack(st_wrbuf[i], SHIFT);
+		M0_UT_ASSERT(st_wrbuf[i] != NULL);
+		memset(st_wrbuf[i], ('a' + i) | 1, SHIFT);
+	}
+
+	/* Write */
+	m0_stob_io_init(&io);
+	io.si_opcode              = SIO_WRITE;
+	io.si_fol_rec_part        = (void *)1;
+	io.si_flags               = 0;
+	io.si_user.ov_vec.v_nr    = VEC_NR;
+	io.si_user.ov_vec.v_count = size;
+	io.si_user.ov_buf         = (void **) st_wrbuf_packed;
+	io.si_stob.iv_vec.v_nr    = 1;
+	io.si_stob.iv_vec.v_count = stob_size;
+	io.si_stob.iv_index       = index;
+
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&io.si_wait, &clink);
+	result = m0_stob_io_launch(&io, tests->st_obj, NULL, NULL);
+	M0_UT_ASSERT(result == 0);
+
+	m0_chan_wait(&clink);
+	M0_ASSERT(io.si_rc == 0);
+
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
+	m0_stob_io_fini(&io);
+
+	/* Read */
+	m0_stob_io_init(&io);
+	io.si_opcode              = SIO_READ;
+	io.si_fol_rec_part        = (void *)1;
+	io.si_flags               = 0;
+	io.si_user.ov_vec.v_nr    = VEC_NR;
+	io.si_user.ov_vec.v_count = size;
+	io.si_user.ov_buf         = (void **) st_rdbuf_packed;
+	io.si_stob.iv_vec.v_nr    = 1;
+	io.si_stob.iv_vec.v_count = stob_size;
+	io.si_stob.iv_index       = index;
+
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&io.si_wait, &clink);
+	result = m0_stob_io_launch(&io, tests->st_obj, NULL, NULL);
+	M0_UT_ASSERT(result == 0);
+
+	m0_chan_wait(&clink);
+	M0_ASSERT(io.si_rc == 0);
+
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
+	m0_stob_io_fini(&io);
+
+	for (i = 0; i < VEC_NR; ++i)
+		M0_ASSERT(memcmp(st_wrbuf[i], st_rdbuf[i], BLOCK_SIZE) == 0);
+
+	WITH_LOCK(&lock, stobio_fini, tests);
+	stobio_storage_fini();
+	m0_mutex_fini(&lock);
+
+	for (i = 0; i < VEC_NR; ++i) {
+		m0_free(st_wrbuf[i]);
+		m0_free(st_rdbuf[i]);
+	}
+}
+
 const struct m0_test_suite stobio_ut = {
 	.ts_name = "stobio-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "stobio",     test_stobio },
-		{ "short-read", test_short_read },
+		{ "stobio",             test_stobio },
+		{ "short-read",         test_short_read },
+		{ "stobio-single-ivec", test_single_ivec },
 		{ NULL, NULL }
 	}
 };

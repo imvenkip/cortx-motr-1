@@ -339,7 +339,8 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],
 				    bp->bp_readbuf,
-				    bp->bp_iobuf[i]->nb_buffer.ov_vec.v_count[j]);
+				    bp->bp_iobuf[i]->nb_buffer.ov_vec.
+				    v_count[j]);
 			M0_ASSERT(rc == 0);
 			memset(bp->bp_iobuf[i]->nb_buffer.ov_buf[j], 'a',
 			       M0_0VEC_ALIGN);

@@ -766,11 +766,8 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 		_0C(io->fcrw_ndesc == rwfop->crw_desc.id_nr) &&
 		_0C(io->fcrw_curr_desc_index >= 0) &&
 		_0C(io->fcrw_curr_desc_index <= rwfop->crw_desc.id_nr) &&
-	/** @todo Will be added again after io fop ivecs are optimized. */
-	/*
 		_0C(io->fcrw_curr_ivec_index >= 0) &&
 		_0C(io->fcrw_curr_ivec_index <= rwfop->crw_ivecs.cis_nr) &&
-	*/
 		_0C(M0_CHECK_EX(m0_tlist_invariant(&netbufs_tl,
 						   &io->fcrw_netbuf_list))) &&
 		_0C(io->fcrw_batch_size ==
@@ -871,13 +868,13 @@ static int indexvec_wire2mem(struct m0_fom	   *fom,
 			     struct m0_indexvec    *out,
 			     uint32_t		    bshift)
 {
-        int i;
+	int i;
 
         /*
          * This memory will be freed after its container stob
          * completes and before destructing container stob object.
          */
-        IOS_ALLOC_ARR(out->iv_vec.v_count, in->ci_nr, &fom->fo_addb_ctx,
+	IOS_ALLOC_ARR(out->iv_vec.v_count, in->ci_nr, &fom->fo_addb_ctx,
 		      INDEXVEC_WIRE2MEM_1);
         IOS_ALLOC_ARR(out->iv_index, in->ci_nr, &fom->fo_addb_ctx,
 		      INDEXVEC_WIRE2MEM_2);
@@ -888,7 +885,7 @@ static int indexvec_wire2mem(struct m0_fom	   *fom,
 	}
         out->iv_vec.v_nr = in->ci_nr;
         for (i = 0; i < in->ci_nr; i++) {
-                out->iv_index[i] = in->ci_iosegs[i].ci_index >> bshift;
+                out->iv_index[i]       = in->ci_iosegs[i].ci_index >> bshift;
                 out->iv_vec.v_count[i] = in->ci_iosegs[i].ci_count >> bshift;
         }
 
@@ -959,17 +956,6 @@ static int align_bufvec(struct m0_fom    *fom,
 	return 0;
 }
 
-static inline m0_bcount_t io_descs_count(const struct m0_io_descs *io_descs)
-{
-	uint32_t    i;
-	m0_bcount_t count = 0;
-
-	for (i = 0; i < io_descs->id_nr; ++i)
-		count += io_descs->id_descs[i].nbd_len;
-
-	return count;
-}
-
 /**
  * Locates a storage object.
  */
@@ -1001,6 +987,28 @@ static int stob_object_find(struct m0_fom *fom)
 	if (result != 0)
 		m0_stob_put(fom_obj->fcrw_stob);
 	return result;
+}
+
+static int ioseg_nr(struct m0_net_domain        *dom,
+		    const struct m0_io_indexvec *ioivec,
+		    uint32_t                    *segs_nr)
+{
+	m0_bcount_t count;
+	uint32_t    i;
+	m0_bcount_t max_seg_size;
+
+	M0_PRE(ioivec != NULL);
+	M0_LOG(M0_DEBUG, "ioivec->ci_nr %d", (int) ioivec->ci_nr);
+	max_seg_size = m0_net_domain_get_max_buffer_segment_size(dom);
+	if (ioivec->ci_nr > m0_net_domain_get_max_buffer_segments(dom))
+		return -EFBIG;
+	for (count = 0, i = 0; i < ioivec->ci_nr; ++i) {
+		/* overflow check */
+		M0_ASSERT(count + ioivec->ci_iosegs[i].ci_count >= count);
+		count += ioivec->ci_iosegs[i].ci_count;
+	}
+	*segs_nr = count / max_seg_size;
+	return 0;
 }
 
 /**
@@ -1395,12 +1403,16 @@ static int zero_copy_initiate(struct m0_fom *fom)
 
         /* Create rpc bulk bufs list using available net buffers */
         m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
-                int                     current_index;
-                uint32_t                segs_nr;
+                int                     cur_index;
+                uint32_t                segs_nr = 0;
                 struct m0_rpc_bulk_buf *rb_buf;
 
-	        current_index = fom_obj->fcrw_curr_desc_index;
-                segs_nr = rwfop->crw_ivecs.cis_ivecs[current_index].ci_nr;
+	        cur_index = fom_obj->fcrw_curr_desc_index;
+
+		rc = ioseg_nr(dom, &rwfop->crw_ivecs.
+			      cis_ivecs[cur_index], &segs_nr);
+
+		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
                 /*
                  * @todo : Since passing only number of segmnts, supports full
@@ -1410,7 +1422,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
                  *         I/O requests.
                  */
 
-                rc = m0_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
+		rc = rc ?: m0_rpc_bulk_buf_add(rbulk, segs_nr, dom,
+					       nb, &rb_buf);
                 if (rc != 0) {
                         m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
                         IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_1,
@@ -1447,7 +1460,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
                 IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_2, &fom->fo_addb_ctx);
                 return M0_FSO_AGAIN;
         }
-	M0_LOG(M0_DEBUG, "Zero-copy initiated.");
+	M0_LOG(M0_DEBUG, "Zero-copy initiated. Added buffers %d",
+	       buffers_added);
 
         return M0_FSO_WAIT;
 }
@@ -1849,10 +1863,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count;
-		/** @todo Will be removed after io fop ivecs are optimized to reduce
-		 * fol size. */
-		rwfop->crw_ivecs.cis_nr = 0;
-		rwfop->crw_ivecs.cis_ivecs = NULL;
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,

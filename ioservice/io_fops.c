@@ -1106,10 +1106,60 @@ M0_INTERNAL void io_fop_ivec_dealloc(struct m0_fop *fop)
 	rw->crw_ivecs.cis_nr = 0;
 }
 
+#define ZNR(zvec)       zvec->z_bvec.ov_vec.v_nr
+#define ZCOUNT(zvec, i) zvec->z_bvec.ov_vec.v_count[i]
+#define ZINDEX(zvec, i) zvec->z_index[i]
+
+#define INR(ivec)       ivec->ci_nr
+#define IINDEX(ivec, i) ivec->ci_iosegs[i].ci_index
+#define ICOUNT(ivec, i) ivec->ci_iosegs[i].ci_count
+
+static uint32_t io_fop_ivec_nr(const struct m0_0vec *zvec)
+{
+	uint32_t    i;
+	uint32_t    nr = 0;
+	m0_bindex_t prev_index;
+	m0_bcount_t prev_count;
+
+	if (ZNR(zvec) == 1)
+		return 1;
+	prev_index = ZINDEX(zvec, 0);
+	prev_count = ZCOUNT(zvec, 0);
+	for (i = 1; i < ZNR(zvec); ++i) {
+		if (prev_index + prev_count == ZINDEX(zvec, i))
+			++nr;
+		prev_index = ZINDEX(zvec, i);
+		prev_count = ZCOUNT(zvec, i);
+	}
+	return ZNR(zvec) - nr;
+}
+
+static void io_fop_ivec_squeeze(const struct m0_0vec  *zvec,
+				struct m0_io_indexvec *ivec)
+{
+	int i = 0;
+	int j;
+
+	IINDEX(ivec, 0) = ZINDEX(zvec, 0);
+	ICOUNT(ivec, 0) = ZCOUNT(zvec, 0);
+	for (j = i + 1; j < ZNR(zvec); ++j) {
+		if (IINDEX(ivec, i) + ICOUNT(ivec, i) ==
+		    ZINDEX(zvec, j)) {
+			ICOUNT(ivec, i) += ZCOUNT(zvec, i);
+		} else {
+			++i;
+			IINDEX(ivec, i) = ZINDEX(zvec, j);
+			ICOUNT(ivec, i) = ZCOUNT(zvec, j);
+		}
+	}
+	M0_ASSERT(INR(ivec) == i + 1);
+}
+
 /* Allocates memory for index vector/s from io fop wire format. */
 static int io_fop_ivec_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 {
 	int			 cnt = 0;
+	uint32_t                 nr;
 	struct m0_fop_cob_rw	*rw;
 	struct m0_io_indexvec	*ivec;
 	struct m0_rpc_bulk_buf	*rbuf;
@@ -1122,20 +1172,23 @@ static int io_fop_ivec_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 	rw = io_rw_get(fop);
 	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
 	IOS_ALLOC_ARR(rw->crw_ivecs.cis_ivecs, rw->crw_ivecs.cis_nr,
-			  &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_1);
+		      &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_1);
 	if (rw->crw_ivecs.cis_ivecs == NULL)
 		return -ENOMEM;
 
 	ivec = rw->crw_ivecs.cis_ivecs;
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
+		nr = io_fop_ivec_nr(&rbuf->bb_zerovec);
 		IOS_ALLOC_ARR(ivec[cnt].ci_iosegs,
-				  rbuf->bb_zerovec.z_bvec.ov_vec.v_nr,
-				  &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_2);
+			      nr, &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_2);
 		if (ivec[cnt].ci_iosegs == NULL)
 			goto cleanup;
-		ivec[cnt].ci_nr = rbuf->bb_zerovec.z_bvec.ov_vec.v_nr;
+		ivec[cnt].ci_nr = nr;
+		M0_LOG(M0_DEBUG, "Squeezed nr from %d->%d",
+		       rbuf->bb_zerovec.z_bvec.ov_vec.v_nr, nr);
 		++cnt;
 	} m0_tl_endfor;
+
 	return 0;
 cleanup:
 	io_fop_ivec_dealloc(fop);
@@ -1147,7 +1200,6 @@ static void io_fop_ivec_prepare(struct m0_fop *res_fop,
 				struct m0_rpc_bulk *rbulk)
 {
 	int			 cnt = 0;
-	uint32_t		 j;
 	struct m0_fop_cob_rw	*rw;
 	struct m0_io_indexvec	*ivec;
 	struct m0_rpc_bulk_buf	*buf;
@@ -1165,13 +1217,7 @@ static void io_fop_ivec_prepare(struct m0_fop *res_fop,
 	 * m0_rpc_bulk::rb_buflist.
 	 */
 	m0_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
-		for (j = 0; j < ivec[cnt].ci_nr ; ++j) {
-			ivec[cnt].ci_iosegs[j].ci_index =
-				buf->bb_zerovec.z_index[j];
-			ivec[cnt].ci_iosegs[j].ci_count =
-				buf->bb_zerovec.z_bvec.ov_vec.v_count[j];
-		}
-		++cnt;
+		io_fop_ivec_squeeze(&buf->bb_zerovec, &ivec[cnt++]);
 	} m0_tl_endfor;
 }
 

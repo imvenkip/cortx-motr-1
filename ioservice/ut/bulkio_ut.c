@@ -1305,12 +1305,9 @@ static void bulkio_server_write_fol_rec_verify(void)
 		    fp_part->ffrp_fop_code == M0_IOSERVICE_WRITEV_OPCODE) {
 			struct m0_fop_cob_writev_rep *wfop_rep;
 
-		/** @todo Will be added again after io fop ivecs are optimized. */
-		/*
 			M0_UT_ASSERT(m0_xcode_cmp(
-				&WRITE_FOP_DATA(fp_part->ffrp_fop),
-				&WRITE_FOP_DATA(wfop)) == 0);
-		*/
+			     &WRITE_FOP_DATA(fp_part->ffrp_fop),
+			     &WRITE_FOP_DATA(wfop)) == 0);
 			wfop_rep = fp_part->ffrp_rep;
 			M0_UT_ASSERT(wfop_rep->c_rep.rwr_rc == 0);
 			M0_UT_ASSERT(wfop_rep->c_rep.rwr_count > 0);
@@ -1389,7 +1386,6 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	m0_fol_lookup_rec_fini(&dec_rec);
 
 	/* Read that data from file and compare it with data "b". */
-	/** @todo Add this after AD stob type is enabled. */
 	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
 	io_fops_destroy(bp);
 }
@@ -1437,9 +1433,6 @@ static void bulkio_server_read_write_state_test(void)
  */
 static void bulkio_server_rw_state_transition_test(void)
 {
-	/** @todo Re-enable this test again after io fop ivecs are
-	 * optimized. */
-	return;
 	int		    j;
 	enum M0_RPC_OPCODES op;
 	struct m0_bufvec   *buf;

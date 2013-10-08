@@ -1115,10 +1115,10 @@ static uint32_t ad_write_map_count(struct m0_indexvec *iv)
 static uint32_t ad_write_count(struct m0_vec_cursor *src,
 			       struct ad_wext_cursor *wc)
 {
-	uint32_t               frags;
-	m0_bcount_t            frag_size;
-	bool                   eosrc;
-	bool                   eoext;
+	uint32_t    frags;
+	m0_bcount_t frag_size;
+	bool        eosrc;
+	bool        eoext;
 
 	frags = 0;
 
@@ -1474,14 +1474,11 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 			struct m0_indexvec *ivec;
 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
 			ad_wext_cursor_init(&wc, &head);
-
 			ad_write_back_fill(io, back, src, &wc);
-
 			m0_ivec_cursor_init(dst, &io->si_stob);
 			ad_wext_cursor_init(&wc, &head);
-
 			ivec = container_of(dst->ic_cur.vc_vec,
-						struct m0_indexvec, iv_vec);
+					    struct m0_indexvec, iv_vec);
 			frags = ad_write_map_count(ivec);
 			result = ad_write_map(io, adom, dst, map, &wc, frags);
 		}

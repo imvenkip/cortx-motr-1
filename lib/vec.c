@@ -80,13 +80,13 @@ M0_INTERNAL void m0_vec_cursor_init(struct m0_vec_cursor *cur,
 	cur->vc_seg    = 0;
 	cur->vc_offset = 0;
 	m0_vec_cursor_normalize(cur);
-	M0_ASSERT(m0_vec_cursor_invariant(cur));
+	M0_POST(m0_vec_cursor_invariant(cur));
 }
 
 M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
 				    m0_bcount_t count)
 {
-	M0_ASSERT(m0_vec_cursor_invariant(cur));
+	M0_PRE(m0_vec_cursor_invariant(cur));
 	while (count > 0 && cur->vc_seg < cur->vc_vec->v_nr) {
 		m0_bcount_t step;
 
@@ -108,7 +108,7 @@ M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
 M0_INTERNAL m0_bcount_t m0_vec_cursor_step(const struct m0_vec_cursor *cur)
 {
 	M0_PRE(cur->vc_seg < cur->vc_vec->v_nr);
-	M0_ASSERT(m0_vec_cursor_invariant(cur));
+	M0_PRE(m0_vec_cursor_invariant(cur));
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
 }
 
