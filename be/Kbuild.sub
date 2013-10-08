@@ -1,1 +1,1 @@
-m0mero_objects += be/linux_kernel/stubs.o
+m0mero_objects += be/btree.o be/linux_kernel/stubs.o

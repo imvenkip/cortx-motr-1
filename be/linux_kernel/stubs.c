@@ -37,6 +37,25 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 		*ptr = p;
 }
 
+M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+				     struct m0_be_tx *tx,
+				     struct m0_be_op *op,
+				     void **ptr,
+				     m0_bcount_t size,
+				     unsigned shift)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+					enum m0_be_allocator_op optype,
+					m0_bcount_t size,
+					unsigned shift,
+					struct m0_be_tx_credit *accum)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 			    struct m0_be_tx *tx,
 			    struct m0_be_op *op,
@@ -45,104 +64,10 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 	m0_free(ptr);
 }
 
-M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
-				  struct m0_be_seg *seg,
-				  const struct m0_be_btree_kv_ops *ops)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-	return true;
-}
-
-M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
-					   m0_bcount_t nr,
-					   struct m0_be_tx_credit *accum)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
-				    struct m0_be_tx *tx,
-				    struct m0_be_op *op)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree *tree,
-					    m0_bcount_t nr,
-					    struct m0_be_tx_credit *accum)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
-				     struct m0_be_tx *tx,
-				     struct m0_be_op *op)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
-					   m0_bcount_t nr,
-					   m0_bcount_t ksize,
-					   m0_bcount_t vsize,
-					   struct m0_be_tx_credit *accum)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op,
-				    const struct m0_buf *key,
-				    const struct m0_buf *value)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-
-M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
-					 struct m0_be_btree *tree)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
-					    const struct m0_buf *key,
-					    bool slant)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-	return -1;
-}
-
-M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-	return -1;
-}
-
-M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
-					   struct m0_buf *key,
-					   struct m0_buf *val)
-{
-	M0_IMPOSSIBLE("XXX Not implemented");
-}
-
-M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)
+				    void *ptr)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
@@ -157,9 +82,16 @@ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
+M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+}
+
 M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
 }
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx)
@@ -174,11 +106,23 @@ m0_be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
+M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return NULL;
+}
+
+M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return false;
+}
+
 M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 				      const char *name, void **out)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
-	return 0;
+	return -1;
 }
 
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
@@ -187,6 +131,7 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 				      void             *value)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
 }
 
 M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
@@ -194,6 +139,7 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
 				      const char       *name)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
 }
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
@@ -225,6 +171,12 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
+M0_INTERNAL void
+m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
@@ -232,6 +184,25 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 
 M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
 				   m0_time_t timeout)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+	return -1;
+}
+
+M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+				     const struct m0_be_tx_credit *c1)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
+{
+	M0_IMPOSSIBLE("XXX Not implemented");
+}
+
+M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
+				     const struct m0_be_tx_credit *c1,
+				     m0_bcount_t k)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 }

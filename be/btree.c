@@ -24,10 +24,9 @@
  * @{
  */
 
-#include <math.h>      /* pow */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BTREE
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "be/btree.h"
 #include "be/alloc.h"
