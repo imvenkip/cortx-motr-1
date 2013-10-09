@@ -530,6 +530,74 @@ static void rply_before_sentcb(void)
 }
 */
 
+static void check_cancel(void)
+{
+	int rc;
+
+	m0_rpc_item_delete(item);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_UNINITIALISED));
+	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
+				0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
+		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
+}
+
+static void test_cancel(void)
+{
+	int rc;
+
+	/* TEST5: Send item, cancel it and send again. */
+	M0_LOG(M0_DEBUG, "TEST:5:1:START");
+	fop = fop_alloc();
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
+				0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
+		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
+	check_cancel();
+	m0_fop_put(fop);
+	M0_LOG(M0_DEBUG, "TEST:5:1:END");
+
+	/* Cancel item while in formation. */
+	M0_LOG(M0_DEBUG, "TEST:5:2:START");
+	fop = fop_alloc();
+	item              = &fop->f_item;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = m0_time_from_now(50, 0);
+	rc = m0_rpc_post(item);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_ENQUEUED));
+	check_cancel();
+	m0_fop_put(fop);
+	M0_LOG(M0_DEBUG, "TEST:5:2:END");
+
+	/* Cancel while waiting for reply. */
+	M0_LOG(M0_DEBUG, "TEST:5:3:START");
+	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
+	fop = fop_alloc();
+	item              = &fop->f_item;
+	item->ri_session  = session;
+	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = m0_time_from_now(0, 0);
+	rc = m0_rpc_post(item);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_reply == NULL);
+	m0_nanosleep(m0_time(0, 100000000), NULL);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY));
+	check_cancel();
+	m0_fop_put(fop);
+	M0_LOG(M0_DEBUG, "TEST:5:3:END");
+}
+
 const struct m0_test_suite item_ut = {
 	.ts_name = "rpc-item-ut",
 	.ts_init = ts_item_init,
@@ -541,6 +609,7 @@ const struct m0_test_suite item_ut = {
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
 		{ "bound-item",             test_bound_items            },
+		{ "cancel",                 test_cancel                 },
 		{ NULL, NULL },
 	}
 };

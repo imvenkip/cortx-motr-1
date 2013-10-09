@@ -205,6 +205,7 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "lib/atomic.h"
 #include "lib/tlist.h"
 
+#include "dtm/dtm.h"               /* m0_dtx */
 #include "fol/fol.h"
 #include "dtm/dtm.h"           /* m0_dtx */
 #include "stob/stob.h"

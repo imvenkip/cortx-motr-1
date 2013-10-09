@@ -231,6 +231,7 @@ include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
 include $(top_srcdir)/db/ut/Makefile.sub
+include $(top_srcdir)/dtm/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub

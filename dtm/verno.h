@@ -127,24 +127,6 @@ M0_INTERNAL int m0_verno_is_undoable(const struct m0_verno *unit,
 M0_INTERNAL int m0_verno_cmp_invariant(const struct m0_verno *vn0,
 				       const struct m0_verno *vn1);
 
-/**
-   Increments unit version number.
-
-   This function pushes given fol record to the front of linked list of records
-   describing unit serial history (see HLD).
-
-   It assumes that the unit corresponds to the index-th slot in @rec's
-   m0_fol_rec_desc::rd_ref[] array.
-
-   @pre index < rec->fr_desc.rd_header.rh_obj_nr
-   @pre m0_lsn_is_valid(rec->fr_desc.rd_lsn)
-
-   @post unit->vn_lsn = rec->fr_desc.rd_lsn
-   @post m0_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver, unit) == -1
- */
-M0_INTERNAL void m0_verno_inc(struct m0_verno *unit,
-			      struct m0_fol_rec *rec, uint32_t index);
-
 /** @} end of dtm group */
 
 /* __MERO_DTM_VERNO_H__ */

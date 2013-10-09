@@ -75,7 +75,7 @@ M0_INTERNAL void m0_cookie_new(uint64_t * gen);
  * @param obj (in)	 address of an object
  * @param cookie (out)   address of a cookie in which obj gets embedded
  */
-M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, uint64_t * obj);
+M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, const uint64_t *obj);
 
 /**
  * Retrieves address of an object from a cookie.

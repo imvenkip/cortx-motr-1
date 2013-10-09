@@ -17,10 +17,6 @@
  * Original creation date: 08/13/2010
  */
 
-#include <stdio.h>     /* asprintf */
-#include <stdlib.h>
-#include <string.h>
-
 #include "lib/vec.h"
 #include "lib/errno.h"
 #include "lib/arith.h"   /* M0_3WAY */

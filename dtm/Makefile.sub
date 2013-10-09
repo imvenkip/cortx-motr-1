@@ -1,12 +1,61 @@
-nobase_mero_include_HEADERS += dtm/dtm.h \
+nobase_mero_include_HEADERS += \
+                                  dtm/catalogue.h \
+                                  dtm/domain.h \
+                                  dtm/dtm.h \
+                                  dtm/dtm_internal.h \
                                   dtm/dtm_update.h \
                                   dtm/dtm_update_xc.h \
+                                  dtm/dtx.h \
+                                  dtm/factory.h \
+                                  dtm/fol.h \
+                                  dtm/history.h \
+                                  dtm/ltx.h \
+                                  dtm/machine.h \
+                                  dtm/nucleus.h \
+                                  dtm/object.h \
+                                  dtm/operation.h \
+                                  dtm/remote.h \
+                                  dtm/update.h \
                                   dtm/verno.h \
                                   dtm/verno_xc.h
 
-mero_libmero_la_SOURCES  += dtm/dtm.c \
+mero_libmero_la_SOURCES  += \
+                                  dtm/catalogue.c \
+                                  dtm/domain.c \
+                                  dtm/dtm.c \
                                   dtm/dtm_update_xc.c \
+                                  dtm/dtx.c \
+                                  dtm/factory.c \
+                                  dtm/fol.c \
+                                  dtm/history.c \
+                                  dtm/ltx.c \
+                                  dtm/machine.c \
+                                  dtm/nucleus.c \
+                                  dtm/object.c \
+                                  dtm/operation.c \
+                                  dtm/operation_xc.c \
+                                  dtm/remote.c \
+                                  dtm/remote_xc.c \
+                                  dtm/update.c \
+                                  dtm/update_xc.c \
                                   dtm/verno.c \
                                   dtm/verno_xc.c
 
-XC_FILES   += dtm/dtm_update_xc.h dtm/verno_xc.h
+XC_FILES   += dtm/dtm_update_xc.h \
+              dtm/operation_xc.h \
+              dtm/remote_xc.h \
+              dtm/update_xc.h \
+              dtm/verno_xc.h
+
+CLEANFILES += dtm/dtm_update_xc.h   \
+              dtm/dtm_update_xc.c   \
+              dtm/dtm_update.gccxml \
+              dtm/operation_xc.h \
+              dtm/operation_xc.c \
+              dtm/operation.gccxml \
+              dtm/remote_xc.h \
+              dtm/remote_xc.c \
+              dtm/remote.gccxml \
+	      dtm/verno_xc.h \
+              dtm/verno_xc.c \
+              dtm/verno.gccxml

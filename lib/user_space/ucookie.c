@@ -18,11 +18,12 @@
  * Original creation date: 19/07/2012
  */
 
-#include <setjmp.h>    /* setjmp() and longjmp() */
-#include <stdlib.h>    /* abort(3) */
+#include <setjmp.h>        /* setjmp() and longjmp() */
+
 #include "lib/thread.h"
-#include "lib/misc.h"  /* M0_SET0 */
-#include "lib/errno.h" /* errno */
+#include "lib/misc.h"      /* M0_SET0 */
+#include "lib/errno.h"     /* errno */
+#include "lib/assert.h"    /* m0_panic */
 
 /**
    @addtogroup cookie
@@ -30,6 +31,13 @@
  */
 
 static pthread_key_t addr_check_key;
+static const struct m0_panic_ctx signal_panic = {
+	.pc_expr   = "fatal signal delivered",
+	.pc_func   = "unknown",
+	.pc_file   = "unknown",
+	.pc_lineno = 0,
+	.pc_fmt    = "signo: %i"
+};
 
 /**
  * Signal handler for SIGSEGV.
@@ -42,7 +50,7 @@ static void sigsegv(int sig)
 	if (buf != NULL)
 		longjmp(*buf, 1);
 	else
-		abort();
+		m0_panic(&signal_panic, sig);
 }
 
 /**

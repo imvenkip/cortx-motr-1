@@ -38,6 +38,7 @@
 #include "lib/processor.h"
 #include "db/db.h"
 #include "sm/sm.h"
+#include "dtm/dtm.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "fol/fol.h"
@@ -116,7 +117,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_db_init,          &m0_db_fini,          "db" },
-	{ &m0_dtm_init,         &m0_dtm_fini,         "dtm" },
 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
 	/* fops must be initialised before network, because network build fop
@@ -163,6 +163,7 @@ struct init_fini_call subsystem[] = {
 #endif /* __KERNEL__ */
 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
+	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 };
 
 static void fini_nr(int i)

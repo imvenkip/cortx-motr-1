@@ -82,7 +82,7 @@ M0_INTERNAL void m0_cookie_new(uint64_t * gen)
 	*gen = ++cookie_generation;
 }
 
-M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, uint64_t *obj)
+M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, const uint64_t *obj)
 {
 	M0_PRE(cookie != NULL);
 	M0_PRE(obj != NULL);

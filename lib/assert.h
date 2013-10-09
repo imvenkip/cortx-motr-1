@@ -218,6 +218,12 @@ printf_check(const char *fmt, ...)
 M0_EXTERN const char *m0_failed_condition;
 
 /**
+   Called by _0C() when invariant conjunct fails.
+
+   Useful thing to put a breakpoint at.
+ */
+M0_INTERNAL void m0__assertion_hook(void);
+/**
    A macro to remember failed invariant conjunct.
 
    This macro is used like the following:
@@ -243,8 +249,10 @@ bool foo_invariant(const struct foo *f)
 #define _0C(exp)				\
 ({						\
 	bool __exp = (exp);			\
-	if (!M0_ASSERT_OFF && !__exp)		\
+	if (!M0_ASSERT_OFF && !__exp) {		\
 		m0_failed_condition = #exp;	\
+		m0__assertion_hook();		\
+	}					\
 	__exp;					\
 })
 

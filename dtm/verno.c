@@ -83,21 +83,6 @@ M0_INTERNAL int m0_verno_cmp_invariant(const struct m0_verno *vn0,
 		M0_3WAY(vn0->vn_vc, vn1->vn_vc);
 }
 
-M0_INTERNAL void m0_verno_inc(struct m0_verno *unit, struct m0_fol_rec *rec,
-			      uint32_t index)
-{
-	M0_PRE(index < rec->fr_desc.rd_header.rh_obj_nr);
-	M0_PRE(m0_lsn_is_valid(rec->fr_desc.rd_lsn));
-
-	rec->fr_desc.rd_ref[index].or_before_ver = *unit;
-	unit->vn_vc++;
-	unit->vn_lsn = rec->fr_desc.rd_lsn;
-
-	M0_POST(unit->vn_vc != 0); /* overflow */
-	M0_POST(m0_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver,
-			     unit) == -1);
-}
-
 /** @} end of dtm group */
 
 /*

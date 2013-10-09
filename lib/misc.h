@@ -219,6 +219,11 @@ void __dummy_function(void);
 	((unsigned long)(idx)) < ARRAY_SIZE(array); \
 })
 
+#define M0_AMB(obj, ptr, field)					\
+({								\
+	(obj) = container_of((ptr), typeof(*(obj)), field);	\
+})
+
 /**
  * Produces an expression having the same type as a given field in a given
  * struct or union. Suitable to be used as an argument to sizeof() or typeof().

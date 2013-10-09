@@ -35,11 +35,6 @@
    @{
  */
 
-M0_TL_DESCR_DEFINE(txw, "tx waiters", M0_INTERNAL, struct m0_db_tx_waiter,
-		   tw_tx, tw_magix, M0_DB_TX_WAITER_MAGIC,
-		   0xd1550c1ab1ea11ce /* dissociable alice  */);
-
-
 M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf, uint32_t size_max);
 M0_INTERNAL void m0_db_buf_impl_fini(struct m0_db_buf *buf);
 M0_INTERNAL bool m0_db_buf_impl_invariant(const struct m0_db_buf *buf);
@@ -177,7 +172,6 @@ M0_INTERNAL int m0_db_tx_is_active(const struct m0_db_tx *tx)
 M0_INTERNAL void m0_db_common_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env)
 {
 	tx->dt_env = env;
-	txw_tlist_init(&tx->dt_waiters);
 	/** @todo m0_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type,
 	    &env->d_addb);
 	 */
@@ -186,7 +180,6 @@ M0_INTERNAL void m0_db_common_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env)
 M0_INTERNAL void m0_db_common_tx_fini(struct m0_db_tx *tx)
 {
 	/** @todo m0_addb_ctx_fini(&tx->dt_addb); */
-	txw_tlist_fini(&tx->dt_waiters);
 	tx->dt_env = NULL;
 }
 

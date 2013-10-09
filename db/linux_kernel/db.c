@@ -93,21 +93,11 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env,
 			      uint64_t flags)
 {
 	m0_db_common_tx_init(tx, env);
-	txw_tlist_init(&tx->dt_waiters);
 	return 0;
 }
 
 M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
 {
-	struct m0_db_tx_waiter *w;
-	struct m0_dbenv        *env;
-
-	env = tx->dt_env;
-	m0_tl_teardown(txw, &tx->dt_waiters, w) {
-		w->tw_commit(w);
-		w->tw_done(w);
-	}
-	m0_db_common_tx_fini(tx);
 	return 0;
 }
 
@@ -115,12 +105,6 @@ M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
 {
 	M0_IMPOSSIBLE("Aborting transaction in kernel space.");
 	return -ENOSYS;
-}
-
-M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,
-				     struct m0_db_tx_waiter *w)
-{
-	txw_tlist_add(&tx->dt_waiters, w);
 }
 
 static int key_cmp(struct m0_table *t,

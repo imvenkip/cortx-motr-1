@@ -740,6 +740,15 @@ struct __ ## name ## _terminate_me_with_a_semicolon { ; }
 	var == NULL;					\
 })
 
+/**
+ * Returns a disjunction (logical OR) of an expression, evaluated for each list
+ * element.
+ *
+ * @see m0_tl_forall()
+ */
+#define m0_tl_exists(name, var, head, ...)			\
+        (!m0_tl_forall(name, var, head, !({ __VA_ARGS__ ; })))
+
 /** @} end of tlist group */
 
 /* __MERO_LIB_TLIST_H__ */

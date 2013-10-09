@@ -108,6 +108,7 @@ m0ut_objects :=
 
 include $(src)/addb/ut/Kbuild.sub
 include $(src)/fop/ut/Kbuild.sub
+include $(src)/dtm/ut/Kbuild.sub
 include $(src)/ioservice/ut/Kbuild.sub
 include $(src)/layout/ut/Kbuild.sub
 include $(src)/lib/ut/Kbuild.sub

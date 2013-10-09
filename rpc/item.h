@@ -185,6 +185,13 @@ struct m0_rpc_item {
 	struct m0_rpc_session		*ri_session;
 	/** item operations */
 	const struct m0_rpc_item_ops	*ri_ops;
+	/**
+	 * Item flags. A bitmask of values from enum m0_rpc_item_flags.
+	 *
+	 * This field is packed in item header when the item is sent and copied
+	 * back in this field on receiver.
+	 */
+	uint32_t                         ri_flags;
 
 /* Public fields: read only */
 
@@ -251,6 +258,19 @@ struct m0_rpc_item {
 	struct m0_rpc_frm               *ri_frm;
 	/** M0_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
+};
+
+enum m0_rpc_item_flags {
+	/**
+	 * Item is being sent not for the first time.
+	 *
+	 * RPC sets this field internally, when the item is resent.
+	 */
+	M0_RIF_DUP  = 1 << 0,
+	/**
+	 * Sender already has the reply.
+	 */
+	M0_RIF_REPLIED = 1 << 1
 };
 
 struct m0_rpc_item_ops {
@@ -344,6 +364,15 @@ int m0_rpc_item_timedwait(struct m0_rpc_item *item,
  */
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 			       m0_time_t timeout);
+/**
+   Deletes the item from all rpc queues and moves it to
+   M0_RPC_ITEM_UNINITIALISED state. The item can be posted immediately after
+   this function returns. When posted, the item gets new xid and is treated as a
+   completely different item.
+
+   If reply arrives for the original deleted item, it is ignored.
+ */
+void m0_rpc_item_delete(struct m0_rpc_item *item);
 
 /**
    For default implementations of these interfaces for fops

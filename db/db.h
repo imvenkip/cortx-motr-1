@@ -51,9 +51,6 @@
 
    @li table cursor (m0_db_cursor) used to iterate over table records, and
 
-   @li transaction waiter (m0_db_tx_waiter) used to get notifications of (or to
-   wait until) transaction state changes.
-
    @{
  */
 
@@ -277,8 +274,6 @@ struct m0_table_ops {
 struct m0_db_tx {
 	/** An environment this transaction operates in. */
 	struct m0_dbenv     *dt_env;
-	/** A list of waiters (m0_db_tx_waiter). */
-	struct m0_tl         dt_waiters;
 	struct m0_db_tx_impl dt_i;
 	/** An ADDB context for events related to this transaction. */
 	struct m0_addb_ctx   dt_addb;
@@ -308,48 +303,6 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx);
    Transaction is invalid after this returns.
  */
 M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx);
-
-/**
-   An anchor to wait for transaction state change.
-
-   Liveness.
-
-   Once m0_db_tx_waiter::tw_commit() has been called, it is guaranteed that
-   m0_db_tx_waiter::tw_persistent() would eventually be called.
-
-   The implementation calls m0_db_tx_waiter::tw_done() as the last call-back and
-   won't touch the waiter afterwards. It is up to the caller to free the waiter
-   data-structure (e.g., this can be done inside of m0_db_tx_waiter::tw_done()).
- */
-struct m0_db_tx_waiter {
-	/** Called when the transaction is committed */
-	void                      (*tw_commit)(struct m0_db_tx_waiter *w);
-	/** Called when the transaction is aborted */
-	void                      (*tw_abort) (struct m0_db_tx_waiter *w);
-	/** Called when a committed transaction becomes persistent. */
-	void                      (*tw_persistent)(struct m0_db_tx_waiter *w);
-	/** Called when no further call-backs will be coming. */
-	void                      (*tw_done)(struct m0_db_tx_waiter *w);
-	/** Linkage into a list of all waiters for data-base environment. */
-	struct m0_tlink             tw_env;
-	/** Linkage into a list of all waiters for a given transaction. */
-	struct m0_tlink             tw_tx;
-	struct m0_db_tx_waiter_impl tw_i;
-	uint64_t                    tw_magix;
-};
-
-M0_TL_DESCR_DECLARE(txw, M0_EXTERN);
-M0_TL_DEFINE(txw, static inline, struct m0_db_tx_waiter);
-
-
-/**
-   Adds a waiter for a transaction.
-
-   Waiters call-backs will be called when the transaction changes its state
-   appropriately.
- */
-M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,
-				     struct m0_db_tx_waiter *w);
 
 /**
    Inserts (key, rec) pair into table as part of transaction tx.

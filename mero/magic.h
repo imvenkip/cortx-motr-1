@@ -340,12 +340,17 @@ enum m0_magic_satchel {
 	/* ca_tl::td_head_magic (scaffold sale) */
 	M0_DESIM_SIM_THREAD_HEAD_MAGIC = 0x335caff01d5a1e77,
 
-/* DB */
-	/* m0_db_tx_waiter::tw_magix (ascii salidas) */
-	M0_DB_TX_WAITER_MAGIC = 0x33a5c115a11da577,
-
-	/* enw_tl::td_head_magic (dazed coccidi) */
-	M0_DB_TX_WAITER_HEAD_MAGIC = 0x33da2edc0cc1d177,
+/* DTM */
+	/* m0_dtm_up::du_magix (blessed feoff) */
+	M0_DTM_UP_MAGIX = 0x33b1e55edfe0ff77,
+	/* m0_dtm_hi::hi_ups::t_magic (biblical food) */
+	M0_DTM_HI_MAGIX = 0x33b1b11ca1f00d77,
+	/* m0_dtm_op::op_ups::t_magic (feeble fiddle) */
+	M0_DTM_OP_MAGIX = 0x33feeb1ef1dd1e77,
+	/* m0_dtm_catalogue::d_cat[]::ca_el::t_magic (accessible 42) */
+	M0_DTM_CAT_MAGIX = 0x33acce551b1e4277,
+	/* m0_dtm::d_excited::t_magic (flooded baboo) */
+	M0_DTM_EXC_MAGIX = 0x33f100dedbab0077,
 
 /* Fault Injection */
 	/* fi_dynamic_id::fdi_magic (diabolic dill) */
