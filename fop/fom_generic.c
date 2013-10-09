@@ -367,13 +367,14 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  */
 static int fom_txn_commit(struct m0_fom *fom)
 {
-	struct m0_be_tx *tx = m0_fom_tx(fom);
+	struct m0_dtx   *dtx = &fom->fo_tx;
+	struct m0_be_tx *tx  = m0_fom_tx(fom);
 
-	if (fom->fo_tx.tx_state != M0_DTX_OPEN) {
-		m0_dtx_fini(&fom->fo_tx);
+	if (dtx->tx_state != M0_DTX_OPEN) {
+		m0_dtx_fini(dtx);
 	} else {
 		M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
-		m0_dtx_done(&fom->fo_tx);
+		m0_dtx_done(dtx);
 	}
 
 	return M0_FSO_AGAIN;
@@ -424,7 +425,9 @@ static int fom_queue_reply(struct m0_fom *fom)
  */
 static int fom_queue_reply_wait(struct m0_fom *fom)
 {
-	if (fom->fo_tx.tx_state != M0_DTX_DONE)
+	M0_PRE(M0_IN(fom->fo_tx.tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
+
+	if (fom->fo_tx.tx_state == M0_DTX_INIT)
 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
 
 	return M0_FSO_AGAIN;
