@@ -239,17 +239,6 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol);
 M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto);
 
 /**
-   Reference to a sibling update of the same operation.
-
-   @todo More detailed description is to be supplied as part of DTM design.
- */
-struct m0_fol_update_ref {
-	/* taken from enum m0_update_state */
-	uint32_t            ur_state;
-	struct m0_update_id ur_id;
-} M0_XCA_RECORD;
-
-/**
    Fixed part of a fol record.
 
    @see m0_fol_rec_desc
@@ -257,10 +246,6 @@ struct m0_fol_update_ref {
 struct m0_fol_rec_header {
 	/** Number of outstanding references to the record. */
 	uint64_t            rh_refcount;
-	/** Number of objects modified by this update. */
-	uint32_t            rh_obj_nr;
-	/** Number of sibling updates in the same operation. */
-	uint32_t            rh_sibling_nr;
 	/** Number of record parts added to the record. */
 	uint32_t            rh_parts_nr;
 	/**

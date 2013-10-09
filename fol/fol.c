@@ -62,8 +62,6 @@ M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
 		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
 M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
-#define REC_SIBLING_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_fol_update_ref_xc, ptr)
-
 #define REC_PART_HEADER_XCODE_OBJ(ptr) \
 	M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
 
@@ -627,7 +625,6 @@ static int fol_rec_desc_encdec(struct m0_fol_rec_desc *desc,
 			       enum m0_xcode_what what)
 {
 	struct m0_fol_rec_header *h = &desc->rd_header;
-	uint32_t		  i;
 	int			  rc;
 
 	M0_PRE(ergo(what == M0_XCODE_ENCODE, h->rh_magic == M0_FOL_REC_MAGIC));
