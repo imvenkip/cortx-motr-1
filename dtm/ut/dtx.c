@@ -28,7 +28,6 @@
 
 #include "lib/trace.h"
 #include "ut/ut.h"
-#include "lib/cdefs.h"
 #include "lib/misc.h"                    /* M0_SET0 */
 
 #include "dtm/dtm.h"

@@ -25,7 +25,7 @@
  * @{
  */
 
-#include "lib/cdefs.h"              /* IS_IN_ARRAY */
+#include "lib/misc.h"              /* IS_IN_ARRAY */
 #include "lib/assert.h"
 
 #include "dtm/update.h"             /* M0_DTM_USER_UPDATE_BASE */

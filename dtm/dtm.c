@@ -23,8 +23,7 @@
  * @{
  */
 
-#include "lib/misc.h"              /* M0_SET0, m0_forall */
-#include "lib/cdefs.h"             /* ARRAY_SIZE */
+#include "lib/misc.h"              /* M0_SET0, m0_forall, ARRAY_SIZE */
 
 #include "dtm/nucleus.h"
 #include "dtm/fol.h"

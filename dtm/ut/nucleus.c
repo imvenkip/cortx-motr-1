@@ -26,8 +26,7 @@
 
 #include "ut/ut.h"
 
-#include "lib/misc.h"         /* M0_SET0 */
-#include "lib/cdefs.h"        /* ARRAY_SIZE */
+#include "lib/misc.h"         /* M0_SET0, ARRAY_SIZE */
 
 #include "dtm/dtm_internal.h"
 #include "dtm/nucleus.h"
