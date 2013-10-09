@@ -90,6 +90,9 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 	if (rec == NULL) {
 		M0_LOG(M0_NOTICE, "Unable to post ADDB record rid=%lx len=%d",
 		       (unsigned long)rid, (int)len);
+		for (i = 0; i < fields_nr; ++i)
+			M0_LOG(M0_DEBUG, "field[%d]=%llx", i,
+				(unsigned long long)fields[i]);
 		return;
 	}
 

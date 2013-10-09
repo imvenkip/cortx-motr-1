@@ -367,20 +367,17 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  */
 static int fom_txn_commit(struct m0_fom *fom)
 {
-	struct m0_be_tx *tx = m0_fom_tx(fom);
+	struct m0_dtx   *dtx = &fom->fo_tx;
+	struct m0_be_tx *tx  = m0_fom_tx(fom);
 
-	if (fom->fo_tx.tx_state != M0_DTX_OPEN) {
-		m0_dtx_fini(&fom->fo_tx);
-		return M0_FSO_AGAIN;
+	if (dtx->tx_state != M0_DTX_OPEN) {
+		m0_dtx_fini(dtx);
+	} else {
+		M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+		m0_dtx_done(dtx);
 	}
-	M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 
-	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-	m0_dtx_done(&fom->fo_tx);
-
-	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
-
-	return M0_FSO_WAIT;
+	return M0_FSO_AGAIN;
 }
 
 /**
@@ -428,6 +425,11 @@ static int fom_queue_reply(struct m0_fom *fom)
  */
 static int fom_queue_reply_wait(struct m0_fom *fom)
 {
+	M0_PRE(M0_IN(fom->fo_tx.tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
+
+	if (fom->fo_tx.tx_state == M0_DTX_INIT)
+		m0_fom_phase_set(fom, M0_FOPH_FINISH);
+
 	return M0_FSO_AGAIN;
 }
 
@@ -517,8 +519,16 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_QUEUE_REPLY,
 					     "fom_txn_commit",
 					      1 << M0_FOPH_TXN_COMMIT },
+	[M0_FOPH_QUEUE_REPLY] =		   { &fom_queue_reply,
+					      M0_FOPH_QUEUE_REPLY_WAIT,
+					     "fom_queue_reply",
+					      1 << M0_FOPH_QUEUE_REPLY },
+	[M0_FOPH_QUEUE_REPLY_WAIT] =	   { &fom_queue_reply_wait,
+					      M0_FOPH_TXN_COMMIT_WAIT,
+					     "fom_queue_reply_wait",
+					      1 << M0_FOPH_QUEUE_REPLY_WAIT },
 	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_txn_commit_wait,
-					      M0_FOPH_QUEUE_REPLY,
+					      M0_FOPH_FINISH,
 					     "fom_txn_commit_wait",
 					      1 << M0_FOPH_TXN_COMMIT_WAIT },
 	[M0_FOPH_TIMEOUT] =		   { &fom_timeout,
@@ -529,14 +539,6 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_TXN_COMMIT,
 					     "fom_failure",
 					      1 << M0_FOPH_FAILURE },
-	[M0_FOPH_QUEUE_REPLY] =		   { &fom_queue_reply,
-					      M0_FOPH_FINISH,
-					     "fom_queue_reply",
-					      1 << M0_FOPH_QUEUE_REPLY },
-	[M0_FOPH_QUEUE_REPLY_WAIT] =	   { &fom_queue_reply_wait,
-					      M0_FOPH_FINISH,
-					     "fom_queue_reply_wait",
-					      1 << M0_FOPH_QUEUE_REPLY_WAIT }
 };
 
 /**
@@ -631,12 +633,21 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_TXN_COMMIT] = {
 		.sd_name      = "fom_txn_commit",
+		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
+	},
+	[M0_FOPH_QUEUE_REPLY] = {
+		.sd_name      = "fom_queue_reply",
+		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY_WAIT,
+					M0_FOPH_FINISH)
+	},
+	[M0_FOPH_QUEUE_REPLY_WAIT] = {
+		.sd_name      = "fom_queue_reply_wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT_WAIT,
-					M0_FOPH_QUEUE_REPLY)
+					M0_FOPH_FINISH)
 	},
 	[M0_FOPH_TXN_COMMIT_WAIT] = {
 		.sd_name      = "fom_txn_commit_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
+		.sd_allowed   = M0_BITS(M0_FOPH_FINISH)
 	},
 	[M0_FOPH_TIMEOUT] = {
 		.sd_name      = "fom_timeout",
@@ -646,15 +657,6 @@ static struct m0_sm_state_descr generic_phases[] = {
 		.sd_flags     = M0_SDF_FAILURE,
 		.sd_name      = "fom_failure",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT)
-	},
-	[M0_FOPH_QUEUE_REPLY] = {
-		.sd_name      = "fom_queue_reply",
-		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY_WAIT,
-					M0_FOPH_FINISH)
-	},
-	[M0_FOPH_QUEUE_REPLY_WAIT] = {
-		.sd_name      = "fom_queue_reply_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_FINISH)
 	},
 	[M0_FOPH_FINISH] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -683,24 +685,27 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 
 	fpd_phase = &fpd_table[m0_fom_phase(fom)];
 
+	M0_ENTRY("fom=%p phase=%s", fom,
+		m0_fom_phase_name(fom, m0_fom_phase(fom)));
+
 	rc = fpd_phase->fpd_action(fom);
 	if (rc < 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 	} else if (rc == M0_FSO_AGAIN) {
-		/* update phase after fpd_action() like loc_ctx_wait() */
+		/* fpd_action() could change phase */
 		fpd_phase = &fpd_table[m0_fom_phase(fom)];
-		if (m0_fom_phase(fom) < M0_FOPH_NR &&
-		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
-			M0_LOG(M0_DEBUG, "phase set: %s -> %s",
-			    fpd_phase->fpd_name,
-			    fpd_table[fpd_phase->fpd_nextphase].fpd_name);
+		M0_LOG(M0_DEBUG, "fom=%p phase set: %s -> %s", fom,
+			m0_fom_phase_name(fom, m0_fom_phase(fom)),
+			m0_fom_phase_name(fom, fpd_phase->fpd_nextphase));
 		m0_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
 	if (m0_fom_phase(fom) == M0_FOPH_FINISH)
 		rc = M0_FSO_WAIT;
 
+	M0_LEAVE("fom=%p phase=%s rc=%d", fom,
+		m0_fom_phase_name(fom, m0_fom_phase(fom)), rc);
 	return rc;
 }
 

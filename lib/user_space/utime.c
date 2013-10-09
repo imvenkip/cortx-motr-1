@@ -109,7 +109,7 @@ M0_INTERNAL m0_time_t m0_time_to_realtime(m0_time_t abs_time)
 	m0_time_t realtime;
 	m0_time_t monotonic;
 
-	if (abs_time != M0_TIME_NEVER) {
+	if (abs_time != M0_TIME_NEVER && abs_time != 0) {
 		switch (M0_CLOCK_SOURCE) {
 		case M0_CLOCK_SOURCE_MONOTONIC:
 		case M0_CLOCK_SOURCE_MONOTONIC_RAW:

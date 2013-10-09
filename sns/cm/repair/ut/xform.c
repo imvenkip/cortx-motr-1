@@ -64,7 +64,7 @@ static struct m0_bufvec xor;
 /* Global structures for single copy packet test. */
 static struct m0_sns_cm_repair_ag             s_rag;
 static struct m0_sns_cm_repair_ag_failure_ctx s_fc[SINGLE_FAILURE];
-static struct m0_cm_cp                        s_cp;
+static struct m0_sns_cm_cp                    s_cp;
 static struct m0_net_buffer                   s_buf;
 static struct m0_net_buffer                   s_acc_buf;
 
@@ -74,7 +74,7 @@ static struct m0_net_buffer                   s_acc_buf;
  */
 static struct m0_sns_cm_repair_ag             m_rag;
 static struct m0_sns_cm_repair_ag_failure_ctx m_fc[SINGLE_FAILURE];
-static struct m0_cm_cp                        m_cp[SINGLE_FAIL_MULTI_CP_NR];
+static struct m0_sns_cm_cp                    m_cp[SINGLE_FAIL_MULTI_CP_NR];
 static struct m0_net_buffer                   m_buf[SINGLE_FAIL_MULTI_CP_NR];
 static struct m0_net_buffer                   m_acc_buf[SINGLE_FAILURE];
 
@@ -84,7 +84,7 @@ static struct m0_net_buffer                   m_acc_buf[SINGLE_FAILURE];
  */
 static struct m0_sns_cm_repair_ag             n_rag;
 static struct m0_sns_cm_repair_ag_failure_ctx n_fc[MULTI_FAILURES];
-static struct m0_cm_cp                        n_cp[MULTI_FAIL_MULTI_CP_NR];
+static struct m0_sns_cm_cp                    n_cp[MULTI_FAIL_MULTI_CP_NR];
 static struct m0_net_buffer                   n_buf[MULTI_FAIL_MULTI_CP_NR][BUF_NR];
 static struct m0_net_buffer                   n_acc_buf[MULTI_FAILURES][BUF_NR];
 
@@ -315,19 +315,21 @@ static void test_bufvec_xor()
 static void test_single_cp(void)
 {
 	struct m0_sns_cm_ag *sag;
+	struct m0_cm_cp     *cp = &s_cp.sc_base;
 
 	m0_semaphore_init(&sem, 0);
 	ag_prepare(&s_rag, SINGLE_FAILURE, &group_single_ops, s_fc);
 	s_acc_buf.nb_pool = &nbp;
 	s_buf.nb_pool = &nbp;
 	sag = &s_rag.rag_base;
-	cp_prepare(&s_cp, &s_buf, SEG_NR, SEG_SIZE, sag, 'e',
+	cp_prepare(cp, &s_buf, SEG_NR, SEG_SIZE, sag, 'e',
 		   &single_cp_fom_ops, reqh, 0, false, NULL);
 	cp_prepare(&s_fc[0].fc_tgt_acc_cp.sc_base, &s_acc_buf, SEG_NR,
 		   SEG_SIZE, sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
 	m0_bitmap_init(&s_fc[0].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
 		       sag->sag_base.cag_cp_global_nr);
-	m0_fom_queue(&s_cp.c_fom, reqh);
+	s_cp.sc_is_local = true;
+	m0_fom_queue(&cp->c_fom, reqh);
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
@@ -355,6 +357,7 @@ static void test_single_cp(void)
 static void test_multi_cp_single_failure(void)
 {
 	struct m0_sns_cm_ag *sag;
+	struct m0_cm_cp     *cp;
 	int                  i;
 
 	m0_semaphore_init(&sem, 0);
@@ -368,9 +371,11 @@ static void test_multi_cp_single_failure(void)
 		       sag->sag_base.cag_cp_global_nr);
 	for (i = 0; i < SINGLE_FAIL_MULTI_CP_NR; ++i) {
 		m_buf[i].nb_pool = &nbp;
-		cp_prepare(&m_cp[i], &m_buf[i], SEG_NR, SEG_SIZE, sag,
+		cp = &m_cp[i].sc_base;
+		m_cp[i].sc_is_local = true;
+		cp_prepare(cp, &m_buf[i], SEG_NR, SEG_SIZE, sag,
 			   'r', &multiple_cp_fom_ops, reqh, i, false, NULL);
-		m0_fom_queue(&m_cp[i].c_fom, reqh);
+		m0_fom_queue(&cp->c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}
 
@@ -427,23 +432,23 @@ static void cp_multi_failures_post(char data, int cnt, int index)
 {
 	struct m0_net_buffer *nbuf;
 	struct m0_sns_cm_ag *sag;
-	struct m0_sns_cm_cp *scp;
+	struct m0_cm_cp *cp;
 
 	n_buf[cnt][0].nb_pool = &nbp;
 	sag = &n_rag.rag_base;
-	cp_prepare(&n_cp[cnt], &n_buf[cnt][0], SEG_NR, SEG_SIZE,
+	cp = &n_cp[cnt].sc_base;
+	cp_prepare(cp, &n_buf[cnt][0], SEG_NR, SEG_SIZE,
 		   sag, data, &multiple_cp_fom_ops, reqh, index,
 		   false, NULL);
-	nbuf = cp_data_buf_tlist_head(&n_cp[cnt].c_buffers);
-	buffers_attach(n_buf[cnt], &n_cp[cnt], data);
+	nbuf = cp_data_buf_tlist_head(&cp->c_buffers);
+	buffers_attach(n_buf[cnt], cp, data);
 
-	n_cp[cnt].c_data_seg_nr = SEG_NR * BUF_NR;
-	scp = (struct m0_sns_cm_cp *)&n_cp[cnt];
-	scp->sc_is_local = true;
-	m0_bitmap_init(&n_cp[cnt].c_xform_cp_indices,
+	cp->c_data_seg_nr = SEG_NR * BUF_NR;
+	n_cp[cnt].sc_is_local = true;
+	m0_bitmap_init(&cp->c_xform_cp_indices,
 			sag->sag_base.cag_cp_global_nr);
-	m0_bitmap_set(&n_cp[cnt].c_xform_cp_indices, index, true);
-	m0_fom_queue(&n_cp[cnt].c_fom, reqh);
+	m0_bitmap_set(&cp->c_xform_cp_indices, index, true);
+	m0_fom_queue(&cp->c_fom, reqh);
 	m0_semaphore_down(&sem);
 }
 

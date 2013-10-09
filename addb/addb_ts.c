@@ -309,7 +309,8 @@ static int addb_ts_extend(struct m0_addb_ts *ts, uint32_t npages)
 	M0_PRE(npages > 0);
 
 	if (npages + ADDB_TS_CUR_PAGES(ts) > ts->at_max_pages)
-		M0_RETERR(-E2BIG, "TS reached max size limit");
+		M0_RETERR(-E2BIG, "TS reached max size limit (%d + %d > %d)",
+			npages, ADDB_TS_CUR_PAGES(ts), ts->at_max_pages);
 
 	orig_pidx = pidx = ADDB_TS_CUR_PAGES(ts);
 	bits_per_page = ts->at_page_size / WORD_SIZE;
