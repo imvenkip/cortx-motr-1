@@ -73,7 +73,9 @@ M0_INTERNAL void m0_locality_set(m0_processor_nr_t id, struct m0_locality *val)
 static void locs_ast_handler(void *__unused)
 {
 	while (!locs_shutdown) {
-		m0_chan_wait(&locs_grp.s_clink);
+		while (!m0_chan_timedwait(&locs_grp.s_clink,
+					  m0_time_from_now(10, 0))) {
+		}
 		m0_sm_group_lock(&locs_grp);
 		m0_sm_asts_run(&locs_grp);
 		m0_sm_group_unlock(&locs_grp);
