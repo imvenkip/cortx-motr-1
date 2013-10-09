@@ -978,7 +978,7 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 	M0_PRE(nlx_ucore_tm_invariant(utm));
 
 	bewp.dbw_ktm = ctm->ctm_kpvt;
-	bewp.dbw_timeout = timeout;
+	bewp.dbw_timeout = m0_time_to_realtime(timeout);
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_BUF_EVENT_WAIT, &bewp);
 	if (rc < 0) {
 		if (rc != -ETIMEDOUT) /* valid return value */
