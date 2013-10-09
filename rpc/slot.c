@@ -408,11 +408,6 @@ static void __slot_item_add(struct m0_rpc_slot *slot,
 
 	slot->sl_xid++;
 	if (m0_rpc_item_is_update(item)) {
-		/*
-		 * When integrated with lsn,
-		 * use m0_fol_lsn_allocate() to allocate new lsn and
-		 * use m0_verno_inc() to advance vn_vc.
-		 */
 		slot->sl_verno.vn_lsn++;
 		slot->sl_verno.vn_vc++;
 	}
