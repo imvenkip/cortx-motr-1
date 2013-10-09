@@ -31,6 +31,13 @@
  */
 
 static pthread_key_t addr_check_key;
+static const struct m0_panic_ctx signal_panic = {
+	.pc_expr   = "fatal signal delivered",
+	.pc_func   = "unknown",
+	.pc_file   = "unknown",
+	.pc_lineno = 0,
+	.pc_fmt    = "signo: %i"
+};
 
 /**
  * Signal handler for SIGSEGV.
@@ -43,7 +50,7 @@ static void sigsegv(int sig)
 	if (buf != NULL)
 		longjmp(*buf, 1);
 	else
-		m0_panic("sigsegv", "unknown", "unknown", 0);
+		m0_panic(&signal_panic, sig);
 }
 
 /**
