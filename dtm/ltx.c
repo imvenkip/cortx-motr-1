@@ -26,51 +26,42 @@
  */
 
 #include "lib/assert.h"
+#include "lib/locality.h"
 
 #include "dtm/update.h"
 #include "dtm/ltx.h"
 
-static void ltx_persistent_hook(struct m0_db_tx_waiter *w);
-static void ltx_noop(struct m0_db_tx_waiter *w);
-static void ltx_abort(struct m0_db_tx_waiter *w);
+static void ltx_persistent_hook(const struct m0_be_tx *tx);
 static const struct m0_dtm_history_ops ltx_ops;
 static const struct m0_uint128 ltxid = M0_UINT128(0x10ca1, 0x10ca1);
 
 M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
-				 struct m0_dbenv *env)
+				 struct m0_be_domain *dom)
 {
 	m0_dtm_controlh_init(&ltx->lx_ch, dtm);
 	ltx->lx_ch.ch_history.h_ops = &ltx_ops;
 	ltx->lx_ch.ch_history.h_hi.hi_flags |= M0_DHF_OWNED;
 	ltx->lx_ch.ch_history.h_rem = NULL;
-	ltx->lx_env = env;
+	ltx->lx_dom = dom;
 }
 
-M0_INTERNAL int m0_dtm_ltx_open(struct m0_dtm_ltx *ltx)
+M0_INTERNAL void m0_dtm_ltx_open(struct m0_dtm_ltx *ltx)
 {
-	int result;
-
-	result = m0_db_tx_init(&ltx->lx_tx, ltx->lx_env, 0);
-	if (result == 0) {
-		ltx->lx_waiter.tw_persistent = &ltx_persistent_hook;
-		ltx->lx_waiter.tw_commit     = &ltx_noop;
-		ltx->lx_waiter.tw_done       = &ltx_noop;
-		ltx->lx_waiter.tw_abort      = &ltx_abort;
-		m0_db_tx_waiter_add(&ltx->lx_tx, &ltx->lx_waiter);
-	}
-	return result;
+	m0_be_tx_init(&ltx->lx_tx, 0, ltx->lx_dom, m0_locality_here()->lo_grp,
+		      &ltx_persistent_hook, NULL, NULL, NULL);
 }
 
-M0_INTERNAL int m0_dtm_ltx_close(struct m0_dtm_ltx *ltx)
+M0_INTERNAL void m0_dtm_ltx_close(struct m0_dtm_ltx *ltx)
 {
 	m0_dtm_controlh_close(&ltx->lx_ch);
 	m0_dtm_oper_done(&ltx->lx_ch.ch_clop, NULL);
-	return m0_db_tx_commit(&ltx->lx_tx);
+	m0_be_tx_close(&ltx->lx_tx);
 }
 
 M0_INTERNAL void m0_dtm_ltx_fini(struct m0_dtm_ltx *ltx)
 {
 	m0_dtm_controlh_fini(&ltx->lx_ch);
+	m0_be_tx_fini(&ltx->lx_tx);
 }
 
 M0_INTERNAL void m0_dtm_ltx_add(struct m0_dtm_ltx *ltx,
@@ -79,19 +70,11 @@ M0_INTERNAL void m0_dtm_ltx_add(struct m0_dtm_ltx *ltx,
 	m0_dtm_controlh_add(&ltx->lx_ch, oper);
 }
 
-static void ltx_persistent_hook(struct m0_db_tx_waiter *w)
+static void ltx_persistent_hook(const struct m0_be_tx *tx)
 {
-	struct m0_dtm_ltx *ltx = M0_AMB(ltx, w, lx_waiter);
+	struct m0_dtm_ltx *ltx = M0_AMB(ltx, tx, lx_tx);
 	M0_ASSERT(ltx->lx_ch.ch_history.h_hi.hi_flags & M0_DHF_CLOSED);
 	m0_dtm_history_persistent(&ltx->lx_ch.ch_history, ~0ULL);
-}
-
-static void ltx_noop(struct m0_db_tx_waiter *w)
-{}
-
-static void ltx_abort(struct m0_db_tx_waiter *w)
-{
-	M0_IMPOSSIBLE("Aborting ltx?");
 }
 
 static int ltx_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
@@ -120,11 +103,15 @@ static const struct m0_uint128 *ltx_id(const struct m0_dtm_history *history)
 	return &ltxid;
 }
 
+static void ltx_noop(struct m0_dtm_history *history)
+{
+}
+
 static const struct m0_dtm_history_ops ltx_ops = {
 	.hio_type       = &m0_dtm_ltx_htype,
 	.hio_id         = &ltx_id,
-	.hio_persistent = (void *)&ltx_noop,
-	.hio_fixed      = (void *)&ltx_noop,
+	.hio_persistent = &ltx_noop,
+	.hio_fixed      = &ltx_noop,
 	.hio_update     = &m0_dtm_controlh_update
 };
 

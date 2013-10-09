@@ -32,7 +32,7 @@
  */
 
 /* import */
-#include "db/db.h"
+#include "be/tx.h"
 #include "dtm/history.h"
 struct m0_dtm_oper;
 
@@ -41,17 +41,16 @@ struct m0_dtm_ltx;
 
 struct m0_dtm_ltx {
 	struct m0_dtm_controlh lx_ch;
-	struct m0_dbenv       *lx_env;
-	struct m0_db_tx        lx_tx;
-	struct m0_db_tx_waiter lx_waiter;
+	struct m0_be_domain   *lx_dom;
+	struct m0_be_tx        lx_tx;
 };
 
 M0_INTERNAL void m0_dtm_ltx_init(struct m0_dtm_ltx *ltx, struct m0_dtm *dtm,
-				 struct m0_dbenv *env);
-M0_INTERNAL int  m0_dtm_ltx_open(struct m0_dtm_ltx *ltx);
+				 struct m0_be_domain *dom);
+M0_INTERNAL void m0_dtm_ltx_open(struct m0_dtm_ltx *ltx);
 M0_INTERNAL void m0_dtm_ltx_add(struct m0_dtm_ltx *ltx,
 				struct m0_dtm_oper *oper);
-M0_INTERNAL int m0_dtm_ltx_close(struct m0_dtm_ltx *ltx);
+M0_INTERNAL void m0_dtm_ltx_close(struct m0_dtm_ltx *ltx);
 M0_INTERNAL void m0_dtm_ltx_fini(struct m0_dtm_ltx *ltx);
 
 M0_EXTERN const struct m0_dtm_history_type m0_dtm_ltx_htype;

@@ -29,9 +29,8 @@
 #include "lib/trace.h"
 #include "ut/ut.h"
 #include "ut/ut_rpc_machine.h"
-#include "lib/misc.h"         /* m0_forall */
+#include "lib/misc.h"         /* m0_forall, IS_IN_ARRAY */
 #include "lib/tlist.h"
-#include "lib/cdefs.h"        /* IS_IN_ARRAY */
 #include "lib/errno.h"        /* EPROTO */
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -619,13 +618,7 @@ static void transmit_test(void)
 	src_fini();
 }
 
-#ifndef __KERNEL__
-
-#include "db/extmap.h"
-
-static struct m0_dbenv   db;
-static const char        db_name[] = "ut-dtm";
-static struct m0_emap    emap;
+#if 0
 
 static void db_init(void)
 {
@@ -731,7 +724,7 @@ const struct m0_test_suite dtm_transmit_ut = {
 	.ts_name = "dtm-transmit-ut",
 	.ts_tests = {
 		{ "transmit",    transmit_test  },
-#ifndef __KERNEL__
+#if 0
 		{ "ltx-1-N",     ltx_test_1_N   },
 		{ "ltx-N-N",     ltx_test_N_N   },
 #endif
