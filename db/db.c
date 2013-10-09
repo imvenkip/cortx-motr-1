@@ -462,12 +462,6 @@ M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
 	return -1;
 }
 
-M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,
-				     struct m0_db_tx_waiter *w)
-{
-	M0_IMPOSSIBLE("");
-}
-
 /* --------------------------------------------------------------------------
  * Table operations
  * ------------------------------------------------------------------------ */
@@ -865,55 +859,10 @@ static int ast_init(void)
 	return m0_ut_ast_thread_start(&__sm_group);
 }
 
-<<<<<<< HEAD
 static void ast_fini(void)
 {
 	m0_ut_ast_thread_stop();
 	m0_sm_group_fini(&__sm_group);
-=======
-   @li sleep for some time.
- */
-static void dbenv_thread(struct m0_dbenv *env)
-{
-	bool                  last;
-	DB_LSN                next;
-	DB_LOG_STAT          *st;
-	struct m0_dbenv_impl *di;
-
-	di = &env->d_i;
-
-	M0_SET0(&next);
-	last = false;
-	do {
-		int                     rc;
-		int                     nr_pages;
-		struct m0_db_tx_waiter *w;
-
-		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
-		rc = DBENV_CALL(env, log_stat, &st, 0);
-		m0_mutex_lock(&di->d_lock);
-		last = di->d_shutdown;
-		if (rc == 0) {
-			/*
-			 * Reconstruct LSN from DB_LOG_STAT fields. This has
-			 * been reverse engineered from the db5 sources.
-			 */
-			next.file   = st->st_disk_file;
-			next.offset = st->st_disk_offset;
-			m0_free(st);
-			m0_tl_for(enw, &di->d_waiters, w) {
-				if (log_compare(&w->tw_i.tw_lsn, &next) <= 0 &&
-				    w->tw_committed) {
-					w->tw_persistent(w);
-					waiter_fini(w);
-				}
-			} m0_tl_endfor;
-		}
-		m0_cond_timedwait(&di->d_shutdown_cond, m0_time_from_now(1, 0));
-		m0_mutex_unlock(&di->d_lock);
-	} while (!last);
-	M0_ASSERT(enw_tlist_is_empty(&env->d_i.d_waiters));
->>>>>>> More DTM prototype code:
 }
 #endif
 

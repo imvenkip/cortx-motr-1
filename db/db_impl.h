@@ -66,11 +66,7 @@ struct m0_db_tx_impl {
 	bool             dt_is_locked;
 	struct m0_be_tx dt_tx;
 	struct m0_sm_ast dt_ast;
-	struct m0_semaphore dt_commit_sem;
 	struct m0_be_ut_backend *dt_ut_be;
-};
-
-struct m0_db_tx_waiter_impl {
 };
 
 struct m0_db_cursor_impl {

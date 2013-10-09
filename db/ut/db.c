@@ -216,110 +216,6 @@ static void test_delete(void)
         dbut_fini(&db, &table, &tx, &m0_db_tx_commit);
 }
 
-static void test_abort(void)
-{
-	struct m0_dbenv   db;
-	struct m0_db_tx   tx;
-	struct m0_table   table;
-	struct m0_db_pair cons;
-	int               result;
-	uint64_t          key;
-	uint64_t          rec;
-
-        dbut_init(db_name, test_table, &db, &table, &tx);
-
-	key = 44;
-	rec = 18;
-	m0_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
-
-	result = m0_table_insert(&tx, &cons);
-	M0_UT_ASSERT(result == 0);
-
-	m0_db_pair_fini(&cons);
-        dbut_fini(&db, &table, &tx, &m0_db_tx_abort);
-
-        dbut_init(db_name, test_table, &db, &table, &tx);
-
-	m0_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
-	result = m0_table_lookup(&tx, &cons);
-	M0_UT_ASSERT(result == -ENOENT);
-
-	m0_db_pair_fini(&cons);
-        dbut_fini(&db, &table, &tx, &m0_db_tx_commit);
-}
-
-static void test_waiter(void)
-{
-	struct m0_dbenv        db;
-	struct m0_db_tx        tx;
-	struct m0_table        table;
-	struct m0_db_pair      cons;
-	int                    result;
-	uint64_t               key;
-	uint64_t               rec;
-	int                    wflag;
-	struct m0_db_tx_waiter wait;
-
-        dbut_init(db_name, test_table, &db, &table, &tx);
-
-	key = 45;
-	rec = 19;
-	m0_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
-
-	result = m0_table_insert(&tx, &cons);
-	M0_UT_ASSERT(result == 0);
-
-	wflag = 0;
-	wait.tw_abort = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(w == &wait);
-			wflag = 1;
-		});
-	wait.tw_commit = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(false);
-		});
-	wait.tw_persistent = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(false);
-		});
-	wait.tw_done = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(wflag == 1);
-			wflag = 2;
-		});
-	m0_db_tx_waiter_add(&tx, &wait);
-
-	m0_db_pair_fini(&cons);
-        dbut_fini(&db, &table, &tx, &m0_db_tx_abort);
-
-	M0_UT_ASSERT(wflag == 2);
-
-        dbut_init(db_name, test_table, &db, &table, &tx);
-
-	m0_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
-	result = m0_table_insert(&tx, &cons);
-	M0_UT_ASSERT(result == 0);
-
-	wflag = 0;
-	wait.tw_abort = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(false);
-		});
-	wait.tw_commit = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(w == &wait);
-			wflag = 1;
-		});
-	wait.tw_persistent = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(wflag == 1);
-			wflag = 2;
-		});
-	wait.tw_done = LAMBDA(void, (struct m0_db_tx_waiter *w) {
-			M0_UT_ASSERT(wflag == 2);
-			wflag = 3;
-		});
-	m0_db_tx_waiter_add(&tx, &wait);
-
-	m0_db_pair_fini(&cons);
-        dbut_fini(&db, &table, &tx, &m0_db_tx_commit);
-	M0_UT_ASSERT(wflag == 3);
-}
-
 const struct m0_test_suite db_ut = {
 	.ts_name = "libdb-ut",
 	.ts_init = db_reset,
@@ -331,9 +227,6 @@ const struct m0_test_suite db_ut = {
 		{ "insert", test_insert },
 		{ "delete", test_delete },
 		{ NULL, NULL },
-		{ "abort", test_abort },
-		{ "waiter", test_waiter },
-		{ NULL, NULL }
 	}
 };
 

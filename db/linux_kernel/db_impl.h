@@ -53,9 +53,6 @@ struct m0_db_tx_impl {
         bool dt_is_locked;
 };
 
-struct m0_db_tx_waiter_impl {
-};
-
 /**
    (key, record) pair in a kernel memory.
  */
