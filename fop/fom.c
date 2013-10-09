@@ -600,7 +600,11 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 		 * with &loc->fl_idle by loc_thr_create().
 		 */
 		M0_ASSERT(th->lt_state == IDLE);
-		m0_chan_wait(clink);
+		while (!m0_chan_timedwait(clink,
+					  m0_time_from_now(LOC_HT_WAIT, 0))) {
+			/* wake up every LOC_HT_WAIT seconds to avoid triggering
+			   kernel hung thread watchdog. */
+		}
 
 		/* become the handler thread */
 		group_lock(loc);
@@ -652,8 +656,9 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 				 * &loc->fl_runrun or &loc->fl_group.s_clink to
 				 * wake.
 				 */
-				m0_chan_timedwait(clink, m0_time_from_now(
-							  LOC_HT_WAIT, 0));
+				m0_chan_timedwait(clink,
+						  m0_time_from_now(LOC_HT_WAIT,
+								   0));
 		}
 		loc->fl_handler = NULL;
 		th->lt_state = IDLE;
