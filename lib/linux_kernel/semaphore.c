@@ -18,9 +18,12 @@
  * Original creation date: 03/11/2011
  */
 
+#include <linux/jiffies.h>  /* timespec_to_jiffies */
 #include "lib/semaphore.h"
 #include "lib/assert.h"
-#include <linux/jiffies.h>  /* timespec_to_jiffies */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
+#include "lib/trace.h"
 
 /**
    @addtogroup semaphore
@@ -69,6 +72,7 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 	unsigned long reljiffies;
 	struct timespec ts;
 
+	M0_LOG(M0_DEBUG, "tmo=%lld", (long long)(abs_timeout - nowtime));
 	/* same semantics as user_space semaphore: allow abs_time < now */
 	if (abs_timeout > nowtime)
 		reltime = m0_time_sub(abs_timeout, nowtime);
@@ -82,6 +86,8 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 }
 
 /** @} end of semaphore group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

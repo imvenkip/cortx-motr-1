@@ -1485,8 +1485,10 @@ static long nlx_dev_ioctl(struct file *file,
 	}
 
 done:
-	if (rc < 0)
+	if (rc < 0 && ergo(cmd == M0_LNET_BUF_EVENT_WAIT, rc != -ETIMEDOUT)) {
+		M0_LOG(M0_ERROR, "cmd=%d rc=%d", cmd, rc);
 		LNET_ADDB_FUNCFAIL(rc, KD_IOCTL, &kd->kd_addb_ctx);
+	}
 	return rc;
 }
 
