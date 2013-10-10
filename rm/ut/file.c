@@ -407,6 +407,8 @@ static void client_tests(void)
 
 static void server_tests(void)
 {
+	/* Now start the tests - wait till all the servers are ready */
+	m0_chan_signal_lock(&rm_ut_tests_chan);
 	m0_chan_wait(&tests_clink[LOCK_ON_SERVER_TEST]);
 	server_lock_test();
 	test_verify(LOCK_ON_SERVER_TEST);
@@ -515,8 +517,6 @@ void flock_test(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 
-	/* Now start the tests - wait till all the servers are ready */
-	m0_chan_signal_lock(&rm_ut_tests_chan);
 	for (i = 0; i < test_servers_nr; ++i) {
 		m0_thread_join(&rm_ctx[i].rc_thr);
 		m0_thread_fini(&rm_ctx[i].rc_thr);
