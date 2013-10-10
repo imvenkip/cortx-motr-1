@@ -181,6 +181,7 @@ M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &tx.tx_betx);
 	M0_ASSERT(rc == 0);
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 	m0_cob_put(cob);
 }
@@ -210,6 +211,7 @@ static void cob_delete(uint64_t cont, uint64_t key)
 	rc = m0_cob_delete_put(cob, &tx.tx_betx);
 	M0_UT_ASSERT(rc == 0);
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 }
 

@@ -311,6 +311,7 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 {
 	m0_forall(i, ut_be->but_sgt_size,
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
+	m0_free(ut_be->but_sgt);
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 #ifndef REQH_EMU
@@ -434,9 +435,6 @@ struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create)
 
 	stob_id.si_bits = M0_UINT128(0, id);
 
-	M0_ALLOC_PTR(stob);
-	M0_ASSERT(stob != NULL);
-
 	m0_mutex_lock(&h->buh_seg_lock);
 	if (h->buh_storage_ref_cnt == 0) {
 #if 0
@@ -460,6 +458,9 @@ struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create)
 					   &stob);
 		M0_ASSERT(rc == 0);
 	} else {
+		/* XXX memory leak here */
+		M0_ALLOC_PTR(stob);
+		M0_ASSERT(stob != NULL);
 		m0_stob_init(stob, &stob_id, h->buh_stob_dom);
 	}
 	m0_mutex_unlock(&h->buh_seg_lock);
@@ -496,9 +497,6 @@ void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy)
 		}
 	}
 	m0_mutex_unlock(&h->buh_seg_lock);
-
-	/* XXX memory leak here */
-	/* m0_free(stob); */
 }
 
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,

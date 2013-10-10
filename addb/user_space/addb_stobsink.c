@@ -688,6 +688,7 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 	if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
 		m0_sm_group_lock(grp);
 		m0_dtx_done_sync(&pb->spb_tx);
+		m0_dtx_fini(&pb->spb_tx);
 		m0_sm_group_unlock(grp);
 	}
 	pb->spb_busy = false;

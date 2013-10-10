@@ -195,6 +195,7 @@ fol_alloc(struct m0_be_seg *seg)
 	m0_dtx_open_sync(&tx);
 	M0_BE_ALLOC_PTR_SYNC(fol, seg, &tx.tx_betx);
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 
 	return fol;
@@ -212,6 +213,7 @@ fol_free(struct m0_fol *fol, struct m0_be_seg *seg)
 	m0_dtx_open_sync(&tx);
 	M0_BE_FREE_PTR_SYNC(fol, seg, &tx.tx_betx);
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 }
 
@@ -234,6 +236,7 @@ static int fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
 	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx.tx_betx, &op));
 
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 
 	return rc;
@@ -255,6 +258,7 @@ static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
 	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx.tx_betx, &op));
 	(void) m0_be_seg_dict_delete(seg, &tx.tx_betx, "fol");
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 }
 

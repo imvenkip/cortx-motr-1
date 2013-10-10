@@ -181,6 +181,7 @@ static int timer_posix_init(struct m0_timer *timer)
 	timer_t ptimer;
 	int rc;
 
+	M0_SET0(&se);
 	se.sigev_notify = SIGEV_THREAD_ID;
 	se.sigev_signo = TIMER_SIGNO;
 	se._sigev_un._tid = timer->t_tid;

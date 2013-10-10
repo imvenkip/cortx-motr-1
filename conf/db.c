@@ -420,6 +420,7 @@ confdb_objs_count(struct m0_table *tables, struct m0_db_tx *tx, size_t *result)
 			++*result;
 
 		m0_db_cursor_fini(&cur);
+		m0_db_pair_fini(&pair);
 
 		/* Make sure we are at the end of the table. */
 		M0_ASSERT(rc == -ENOENT);
@@ -498,6 +499,7 @@ confx_fill(struct m0_confx *dest, struct m0_table *tables, struct m0_db_tx *tx)
 		}
 
 		m0_db_cursor_fini(&cur);
+		m0_db_pair_fini(&pair);
 		M0_ASSERT(rc == -ENOENT); /* end of the table */
 		rc = 0;
 	}

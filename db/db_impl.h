@@ -52,8 +52,9 @@ struct m0_dbenv_impl {
 };
 
 struct m0_table_impl {
-        struct m0_be_btree *i_tree;
-
+	struct m0_be_btree	  *i_tree;
+	struct m0_be_btree_kv_ops *i_btree_ops;
+	struct m0_table_ops	  *i_table_ops;
 };
 
 struct m0_db_buf_impl {

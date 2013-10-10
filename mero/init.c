@@ -111,9 +111,9 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
+	{ &m0_threads_init,     &m0_threads_fini,     "thread" },
 	/* localities must be initialised before lib/processor.h */
 	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
-	{ &m0_threads_init,     &m0_threads_fini,     "thread" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
 	{ &m0_addb_init,        &m0_addb_fini,        "addb" },
 	{ &m0_db_init,          &m0_db_fini,          "db" },

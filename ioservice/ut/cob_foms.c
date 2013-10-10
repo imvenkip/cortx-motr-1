@@ -1255,6 +1255,7 @@ static void fom_dtx_init_open(struct m0_fom *fom, struct m0_sm_group *grp,
 static void fom_dtx_done(struct m0_fom *fom, struct m0_sm_group *grp)
 {
 	m0_dtx_done_sync(&fom->fo_tx);
+	m0_dtx_fini(&fom->fo_tx);
 	m0_sm_group_unlock(grp);
 }
 

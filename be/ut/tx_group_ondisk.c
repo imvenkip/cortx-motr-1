@@ -180,16 +180,17 @@ void m0_be_ut_group_ondisk(void)
 	for (i = 0; i < groups_logged; ++i)
 		be_ut_group_ondisk_log_discard();
 
-	m0_be_log_destroy(&but_group_ondisk_log);
-	m0_be_log_fini(&but_group_ondisk_log);
-	m0_be_ut_stob_put(stob, true);
-
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		grp_tlink_fini(&but_group_ondisk_tx[i]);
 		m0_be_reg_area_fini(&but_group_ondisk_tx[i].t_reg_area);
 	}
-
 	grp_tlist_fini(&but_group_ondisk_gr.tg_txs);
+
+	m0_be_group_ondisk_fini(&but_group_ondisk_gr.tg_od);
+
+	m0_be_log_destroy(&but_group_ondisk_log);
+	m0_be_log_fini(&but_group_ondisk_log);
+	m0_be_ut_stob_put(stob, true);
 
 	m0_be_ut_seg_fini(&ut_seg);
 	be_ut_group_ondisk_rb_fini();

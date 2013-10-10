@@ -554,6 +554,7 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 						&tx.tx_betx);
 			m0_dtx_done_sync(&tx);
 		}
+		m0_dtx_fini(&tx);
 		m0_sm_group_unlock(grp);
 		if (rc != 0)
 			goto cdom_destroy;

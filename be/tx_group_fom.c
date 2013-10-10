@@ -98,8 +98,10 @@ static void reqh_emu_loc_handler_thread(struct reqh_emu_fom *re)
 				rc = fom->fo_ops->fo_tick(fom);
 			} while (rc == M0_FSO_AGAIN);
 			M0_ASSERT(rc == M0_FSO_WAIT);
-			if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH)
+			if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
+				m0_sm_group_unlock(grp);
 				break;
+			}
 		}
 
 		m0_sm_asts_run(grp);
@@ -168,7 +170,9 @@ void reqh_emu_fom_fini(struct m0_fom *fom)
 	M0_ASSERT(rc == 0);
 	m0_thread_fini(&re->re_thread);
 
+	m0_sm_group_lock(re->re_grp);
 	m0_sm_fini(&fom->fo_sm_phase);
+	m0_sm_group_unlock(re->re_grp);
 
 	m0_semaphore_fini(&re->re_stop_sem);
 	m0_semaphore_fini(&re->re_fom_wakeup);
@@ -373,11 +377,6 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 
 static void tx_group_fom_fini(struct m0_fom *fom)
 {
-	M0_ENTRY();
-
-	m0_fom_fini(fom);
-
-	M0_LEAVE();
 }
 
 static size_t tx_group_fom_locality(const struct m0_fom *fom)
@@ -461,7 +460,7 @@ M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 	m0_be_op_fini(&m->tgf_op);
 	m0_semaphore_fini(&m->tgf_started);
 	m0_semaphore_fini(&m->tgf_stopped);
-	/* TODO */
+	m0_fom_fini(&m->tgf_gen);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)

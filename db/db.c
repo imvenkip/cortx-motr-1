@@ -41,6 +41,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
+#include "lib/string.h"		/* m0_strdup */
 
 #include "conf/buf_ext.h" /* m0_buf_is_aimed */
 #include "mero/magic.h"
@@ -75,7 +76,7 @@ enum {
 };
 
 struct seg_map_item {
-	const char	    *smi_name;
+	char		    *smi_name;
 	uint64_t	     smi_stob_id;
 	void		    *smi_seg_addr;
 	struct m0_be_ut_seg *smi_ut_seg;
@@ -103,7 +104,7 @@ static void seg_map_add(const char *name,
 {
 	seg_map_lock();
 	seg_map[seg_map_size] = (struct seg_map_item) {
-		.smi_name     = strdup(name),	/* XXX memory leak here */
+		.smi_name     = m0_strdup(name),
 		.smi_stob_id  = stob_id,
 		.smi_seg_addr = seg_addr,
 		.smi_ut_seg   = ut_seg,
@@ -305,6 +306,10 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 	tops->ops = ops;
 	table->t_ops = tops;
 
+	/* save for m0_free() */
+	table->t_i.i_btree_ops = ops;
+	table->t_i.i_table_ops = tops;
+
         rc = m0_be_seg_dict_lookup(seg, name, &p);
         if (rc == 0) {
 		tree = (struct m0_be_btree*)p;
@@ -337,9 +342,8 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 M0_INTERNAL void m0_table_fini(struct m0_table *table)
 {
 	m0_be_btree_fini(table->t_i.i_tree);
-#if 0
-	m0_free((void *)table->t_i.i_tree->bb_ops); /* XXX undefined behavior */
-#endif
+	m0_free(table->t_i.i_btree_ops);
+	m0_free(table->t_i.i_table_ops);
 }
 
 static void db_buf_copy_to_impl(struct m0_db_buf *buf)
@@ -383,18 +387,16 @@ M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf, uint32_t size_max)
         dbt->b_addr = buf->db_buf.b_addr;
         dbt->b_nob  = buf->db_buf.b_nob;
 #else
-	m0_buf_init(dbt, m0_alloc(size_max), size_max);	/* XXX memory leak here */
+	m0_buf_init(dbt, m0_alloc(size_max), size_max);
 	db_buf_copy_to_impl(buf);
 #endif
 }
 
 M0_INTERNAL void m0_db_buf_impl_fini(struct m0_db_buf *buf)
 {
-#if 0
         struct m0_buf *dbt = &buf->db_i.db_dbt;
 
 	m0_free(dbt->b_addr);
-#endif
 }
 
 M0_INTERNAL bool m0_db_buf_impl_invariant(const struct m0_db_buf *buf)
@@ -800,6 +802,10 @@ M0_INTERNAL int m0_db_init(void)
 
 M0_INTERNAL void m0_db_fini(void)
 {
+	int i;
+
+	for (i = 0; i < seg_map_size; ++i)
+		m0_free(seg_map[i].smi_name);
 	m0_mutex_fini(&seg_map_lock_);
         m0_addb_ctx_fini(&m0_db_mod_ctx);
 	m0_xc_extmap_fini();

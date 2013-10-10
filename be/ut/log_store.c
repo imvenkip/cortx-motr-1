@@ -63,15 +63,14 @@ be_ut_log_store_io_read(struct m0_be_log_store *ls, char *buf, m0_bcount_t size)
 static void
 be_ut_log_store_rand_cr(struct m0_be_tx_credit *cr, m0_bcount_t size)
 {
-	int         buf[BE_UT_LOG_STOR_SIZE];
+	int         buf[BE_UT_LOG_STOR_CR_NR];
 	m0_bcount_t i;
 
-	M0_CASSERT(BE_UT_LOG_STOR_CR_NR <= ARRAY_SIZE(buf));
-
 	M0_SET0(cr);
+	M0_SET_ARR0(buf);
 	for (i = 0; i < size; ++i)
-		++buf[be_ut_log_store_rand(BE_UT_LOG_STOR_CR_NR)];
-	for (i = 0; i < BE_UT_LOG_STOR_CR_NR; ++i) {
+		++buf[be_ut_log_store_rand(ARRAY_SIZE(buf))];
+	for (i = 0; i < ARRAY_SIZE(buf); ++i) {
 		if (buf[i] != 0)
 			m0_be_tx_credit_add(cr, &M0_BE_TX_CREDIT(1, buf[i]));
 	}
