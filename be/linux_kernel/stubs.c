@@ -182,8 +182,8 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
 	M0_IMPOSSIBLE("XXX Not implemented");
 }
 
-M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
-				   m0_time_t timeout)
+M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, uint64_t states,
+				   m0_time_t deadline)
 {
 	M0_IMPOSSIBLE("XXX Not implemented");
 	return -1;

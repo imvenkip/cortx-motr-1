@@ -84,14 +84,14 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 }
 
-M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg)
+M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg)
 {
 	return _0C(seg != NULL) &&
 	       _0C(seg->bs_addr != NULL) &&
 	       _0C(seg->bs_size > 0);
 }
 
-bool m0_be__reg_invariant(const struct m0_be_reg *reg)
+bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 {
 	return _0C(reg != NULL) && _0C(reg->br_seg != NULL) &&
 	       _0C(reg->br_size > 0) && _0C(reg->br_addr != NULL) &&
@@ -152,7 +152,7 @@ M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg)
 	/* XXX not implemented */
 }
 
-M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg)
+M0_INTERNAL bool m0_be_reg__is_pinned(const struct m0_be_reg *reg)
 {
 	/* XXX not implemented */
 	return true;

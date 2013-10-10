@@ -278,12 +278,12 @@ M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx)
 }
 
 M0_INTERNAL int
-m0_be_tx_timedwait(struct m0_be_tx *tx, int states, m0_time_t timeout)
+m0_be_tx_timedwait(struct m0_be_tx *tx, uint64_t states, m0_time_t deadline)
 {
 	M0_ENTRY();
 	M0_PRE(be_tx_is_locked(tx));
 
-	m0_sm_timedwait(&tx->t_sm, states, timeout);
+	m0_sm_timedwait(&tx->t_sm, states, deadline);
 	M0_RETURN(tx->t_sm.sm_rc);
 }
 
@@ -292,10 +292,9 @@ M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx)
 	return tx->t_sm.sm_state;
 }
 
-M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
-					    enum m0_be_tx_state state)
+M0_INTERNAL const char *m0_be_tx_state_name(enum m0_be_tx_state state)
 {
-	return m0_sm_state_name(&tx->t_sm, state);
+	return m0_sm_conf_state_name(&be_tx_sm_conf, state);
 }
 
 static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
@@ -303,8 +302,7 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 	enum m0_be_tx_state tx_state = m0_be_tx_state(tx);
 
 	M0_LOG(M0_DEBUG, "ast: tx = %p, %s -> %s",
-	       tx, m0_be_tx_state_name(tx, tx_state),
-	       m0_be_tx_state_name(tx, state));
+	       tx, m0_be_tx_state_name(tx_state), m0_be_tx_state_name(state));
 
 	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
 		be_tx_state_move(tx, state,
@@ -320,16 +318,16 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 			     int rc)
 {
 	M0_ENTRY("tx %p: %s --> %s, rc = %d", tx,
-		 m0_be_tx_state_name(tx, m0_be_tx_state(tx)),
-		 m0_be_tx_state_name(tx, state), rc);
+		 m0_be_tx_state_name(m0_be_tx_state(tx)),
+		 m0_be_tx_state_name(state), rc);
 
 	M0_PRE(m0_be_tx__invariant(tx));
 	M0_PRE(be_tx_is_locked(tx));
 
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "%s -> %s: transaction failure: err=%d",
-			m0_be_tx_state_name(tx, m0_be_tx_state(tx)),
-			m0_be_tx_state_name(tx, state), rc);
+			m0_be_tx_state_name(m0_be_tx_state(tx)),
+			m0_be_tx_state_name(state), rc);
 
 	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
 		tx->t_persistent(tx);
@@ -373,7 +371,7 @@ M0_INTERNAL void m0_be_tx__state_post(struct m0_be_tx *tx,
 	M0_PRE(M0_IN(state, (M0_BTS_ACTIVE, M0_BTS_FAILED, M0_BTS_GROUPED,
 			     M0_BTS_LOGGED, M0_BTS_PLACED, M0_BTS_DONE)));
 	M0_LOG(M0_DEBUG, "tx = %p, state = %s",
-	       tx, m0_be_tx_state_name(tx, state));
+	       tx, m0_be_tx_state_name(state));
 
 	m0_sm_ast_post(tx->t_sm.sm_grp, be_tx_ast(tx, state));
 }
@@ -392,6 +390,33 @@ static bool be_tx_is_locked(const struct m0_be_tx *tx)
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx)
 {
 	return &tx->t_reg_area;
+}
+
+M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx)
+{
+	enum m0_be_tx_state state;
+	int		    rc;
+
+	m0_be_tx_open(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
+
+	state = m0_be_tx_state(tx);
+	M0_ASSERT_INFO(equi(rc == 0, state == M0_BTS_ACTIVE) &&
+		       equi(rc != 0, state == M0_BTS_FAILED),
+		       "rc = %d, tx = %p, m0_be_tx_state(tx) = %s",
+		       rc, tx, m0_be_tx_state_name(state));
+	return rc;
+}
+
+M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx)
+{
+	int rc;
+
+	m0_be_tx_close(tx);
+	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_ASSERT_INFO(rc == 0, "Transaction can't fail after m0_be_tx_open(): "
+		       "rc = %d, tx = %p", rc, tx);
 }
 
 #undef BE_TX_LOCKED_AT_STATE

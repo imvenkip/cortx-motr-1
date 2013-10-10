@@ -34,10 +34,6 @@
 struct m0_be_tx;
 enum m0_be_tx_state;
 
-/** XXX remove tx from parameters */
-M0_INTERNAL const char *m0_be_tx_state_name(const struct m0_be_tx *tx,
-					    enum m0_be_tx_state state);
-
 M0_INTERNAL struct m0_be_reg_area *m0_be_tx__reg_area(struct m0_be_tx *tx);
 
 /** Posts an AST that will move transaction's state machine to given state. */

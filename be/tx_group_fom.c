@@ -336,6 +336,10 @@ static int tx_group_fom_tick(struct m0_fom *fom)
 		m0_semaphore_up(&m->tgf_started);
 		return M0_FSO_AGAIN;
 	case TGS_OPEN:
+		if (m->tgf_stopping) {
+			m0_fom_phase_set(fom, TGS_STOPPING);
+			return M0_FSO_AGAIN;
+		}
 		break;
 	case TGS_LOGGING:
 		be_op_reset(op);
@@ -427,7 +431,11 @@ static void be_tx_group_move(struct m0_sm_group *_, struct m0_sm_ast *ast)
 
 	M0_PRE(M0_IN(state, (TGS_LOGGING, TGS_STOPPING)));
 
-	m0_fom_phase_set(&m->tgf_gen, state);
+	if (state == TGS_STOPPING) {
+		m->tgf_stopping = true;
+	} else {
+		m0_fom_phase_set(&m->tgf_gen, state);
+	}
 	m0_fom_wakeup(&m->tgf_gen);
 }
 
@@ -439,7 +447,10 @@ m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 	m0_fom_init(&m->tgf_gen, &tx_group_fom_type,
 		    &tx_group_fom_ops, NULL, NULL, reqh, &m0_be_txs_stype);
 
-	m->tgf_reqh = reqh;
+	m->tgf_reqh	= reqh;
+	m->tgf_stable	= false;
+	m->tgf_stopping = false;
+
 	m0_fom_timeout_init(&m->tgf_to);
 
 	m->tgf_ast_stable = (struct m0_sm_ast){ .sa_cb = be_tx_group_stable };
@@ -498,9 +509,6 @@ M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *gf,
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stable);
-
-	/* XXX workaround for race condition in tx_group_fom */
-	m0_nanosleep(m0_time(0, 2 * 1000 * 1000), NULL);
 }
 
 static void be_op_reset(struct m0_be_op *op)

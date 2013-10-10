@@ -43,14 +43,14 @@
 
 M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd)
 {
-#if 0 /* XXX USEME */
-	/* XXX Could we also check that rd->rd_buf belongs
-	 * transaction-private memory buffer? */
-	return m0_be__reg_invariant(&rd->rd_reg);
-#else
 	const struct m0_be_reg *reg = &rd->rd_reg;
+
+	/**
+	 * m0_be_reg__invariant() can't be used here because it checks
+	 * m0_be_reg segment, and UT can test m0_be_reg_d-related
+	 * structures without m0_be_seg initialization.
+	 */
 	return _0C(reg->br_addr != NULL) && _0C(reg->br_size > 0);
-#endif
 }
 
 M0_INTERNAL bool m0_be_reg_d_is_in(const struct m0_be_reg_d *rd, void *ptr)

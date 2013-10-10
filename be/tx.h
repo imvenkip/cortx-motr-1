@@ -388,27 +388,27 @@ M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
  * @note To wait for a M0_BTS_PLACED state, caller must guarantee that the
  * transaction are not in M0_BTS_DONE state, e.g., by calling m0_be_tx_get().
  */
-M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int states,
-				   m0_time_t timeout);
+M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
+				   uint64_t states,
+				   m0_time_t deadline);
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
+M0_INTERNAL const char *m0_be_tx_state_name(enum m0_be_tx_state state);
 
-static inline int m0_be_tx_open_sync(struct m0_be_tx *tx)
-{
-	m0_be_tx_open(tx);
-	return m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				  M0_TIME_NEVER);
-}
+/**
+ * Call m0_be_tx_open() and then wait until transaction reached
+ * M0_BTS_ACTIVE or M0_BTS_FAILED state.
+ *
+ * @post equi(rc == 0, m0_be_tx_state(tx) == M0_BTS_ACTIVE)
+ * @post equi(rc != 0, m0_be_tx_state(tx) == M0_BTS_FAILED)
+ */
+M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx);
 
-static inline void m0_be_tx_close_sync(struct m0_be_tx *tx)
-{
-	int rc;
-
-	m0_be_tx_close(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
-	M0_ASSERT_INFO(rc == 0, "Transaction can't fail after m0_be_tx_open(): "
-		       "rc = %d", rc);
-}
+/**
+ * Call m0_be_tx_close() and then wait until transaction reached
+ * M0_BTS_DONE state.
+ */
+M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

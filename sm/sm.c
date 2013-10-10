@@ -648,10 +648,16 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 	}
 }
 
+M0_INTERNAL const char *m0_sm_conf_state_name(const struct m0_sm_conf *conf,
+					      int state)
+{
+	return state_is_valid(conf, state) ?
+	       conf->scf_state[state].sd_name : "invalid";
+}
+
 M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state)
 {
-	return state_is_valid(mach->sm_conf, state) ?
-	       state_get(mach, state)->sd_name : "invalid";
+	return m0_sm_conf_state_name(mach->sm_conf, state);
 }
 
 /** @} end of sm group */

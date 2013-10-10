@@ -58,6 +58,7 @@ struct m0_be_tx_group_fom {
 	 * state.
 	 */
 	bool                   tgf_stable;
+	bool		       tgf_stopping;
 	struct m0_sm_ast       tgf_ast_stable;
 	struct m0_sm_ast       tgf_ast_move;
 	struct m0_semaphore    tgf_started;

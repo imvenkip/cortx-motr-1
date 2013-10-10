@@ -137,7 +137,6 @@ void m0_be_ut_group_ondisk(void)
 		for (j = 0; j < i+1; ++j) {
 			M0_UT_ASSERT(j < ARRAY_SIZE(rd));
 			rd[j] = (struct m0_be_reg_d) {
-				.rd_tx	= &but_group_ondisk_tx[i],
 				.rd_reg = M0_BE_REG(seg, i+2,
 						    seg->bs_addr + i*100 + j*10)
 			};

@@ -73,7 +73,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom);
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg);
-M0_INTERNAL bool m0_be__seg_invariant(const struct m0_be_seg *seg);
+M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg);
 
 /** Opens existing stob, reads segment header from it, etc. */
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg);
@@ -121,12 +121,12 @@ M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
 /**
  * XXX DOCUMENTME
  *
- * @pre m0_be__reg_is_pinned(reg)
+ * @pre m0_be_reg__is_pinned(reg)
  */
 M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg);
 
 /**
- * @pre m0_be__reg_is_pinned(reg)
+ * @pre m0_be_reg__is_pinned(reg)
  */
 M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg);
 
@@ -143,9 +143,9 @@ M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg);
 	m0_be_reg_put(M0_BE_REG((seg), (sizeof *ptr), (ptr)))
 
 /* Returns true iff all region's pages are pinned. */
-M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg);
+M0_INTERNAL bool m0_be_reg__is_pinned(const struct m0_be_reg *reg);
 
-M0_INTERNAL bool m0_be__reg_invariant(const struct m0_be_reg *reg);
+M0_INTERNAL bool m0_be_reg__invariant(const struct m0_be_reg *reg);
 
 /*
  * XXX Synchronous operations.

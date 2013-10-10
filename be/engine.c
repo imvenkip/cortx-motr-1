@@ -322,8 +322,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
-	M0_LOG(M0_DEBUG, "tx %p: => %s",
-	       tx, m0_be_tx_state_name(tx, state));
+	M0_LOG(M0_DEBUG, "tx %p: => %s", tx, m0_be_tx_state_name(state));
 
 	if (state != M0_BTS_PREPARE)
 		etx_tlist_del(tx);

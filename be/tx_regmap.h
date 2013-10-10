@@ -52,8 +52,6 @@ struct m0_be_reg_d {
 	 * data is copied to.
 	 */
 	void            *rd_buf;
-
-	struct m0_be_tx *rd_tx; /* XXX DELETEME */
 };
 
 #define M0_BE_REG_D(reg, buf) (struct m0_be_reg_d) \

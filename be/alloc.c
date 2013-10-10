@@ -682,7 +682,7 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 				     struct m0_be_seg *seg)
 {
-	M0_PRE(m0_be__seg_invariant(seg));
+	M0_PRE(m0_be_seg__invariant(seg));
 
 	m0_mutex_init(&a->ba_lock);
 
