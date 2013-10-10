@@ -111,6 +111,21 @@ static int trc_immediate_mask_release(struct inode *i, struct file *f)
 	return 0;
 }
 
+static size_t buf_add(char *buf, size_t buf_size, size_t buf_used,
+		      const char *fmt, ...)
+{
+	size_t  n = 0;
+	va_list args;
+
+	va_start(args, fmt);
+	n += vsnprintf(buf + buf_used,
+		       buf_used >= buf_size ? 0 : buf_size - buf_used,
+		       fmt, args);
+	va_end(args);
+
+	return n;
+}
+
 static ssize_t trc_immediate_mask_read(struct file *file, char __user *ubuf,
 			      size_t ubuf_size, loff_t *ppos)
 {
@@ -134,8 +149,8 @@ static ssize_t trc_immediate_mask_read(struct file *file, char __user *ubuf,
 			subsys_name = m0_trace_subsys_name(subsys);
 			if (subsys_name == NULL)
 				continue;
-			buf_used += snprintf(buf + buf_used,
-				     sizeof buf - buf_used, "%s ", subsys_name);
+			buf_used += buf_add(buf, sizeof buf, buf_used,
+					    "%s ", subsys_name);
 			if (buf_used >= sizeof buf) {
 				buf_used = sizeof buf - 2;
 				break;
@@ -207,8 +222,8 @@ static ssize_t trc_level_read(struct file *file, char __user *ubuf,
 		level = m0_trace_level & (1 << i);
 		if (level != M0_NONE) {
 			level_name = m0_trace_level_name(level);
-			buf_used += snprintf(buf + buf_used,
-				      sizeof buf - buf_used, "%s ", level_name);
+			buf_used += buf_add(buf, sizeof buf, buf_used,
+					    "%s ", level_name);
 			if (buf_used >= sizeof buf) {
 				buf_used = sizeof buf - 2;
 				break;
@@ -388,69 +403,57 @@ static ssize_t trc_stat_read(struct file *file, char __user *ubuf,
 	avg_rec_size      = stats->trs_avg_rec_size;
 	max_rec_size      = stats->trs_max_rec_size;
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "buffer address:       0x%p\n",
-			     m0_trace_logbuf_get());
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "buffer address:       0x%p\n",
+			    m0_trace_logbuf_get());
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "buffer size:          %-12u  %s\n",
-			     logbuf_size, bytes_to_human_str(logbuf_size));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "buffer size:          %-12u  %s\n",
+			    logbuf_size, bytes_to_human_str(logbuf_size));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "buffer abs pos:       %-12llu  %s\n",
-			     logbuf_pos, bytes_to_human_str(logbuf_pos));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "buffer abs pos:       %-12llu  %s\n",
+			    logbuf_pos, bytes_to_human_str(logbuf_pos));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "total rec num:        %-12llu  %s\n",
-			     total_rec_num, bytes_to_human_str(total_rec_num));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "total rec num:        %-12llu  %s\n",
+			    total_rec_num, bytes_to_human_str(total_rec_num));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "records per sec:      %-12u  %s\n",
-			     rec_per_sec, bytes_to_human_str(rec_per_sec));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "records per sec:      %-12u  %s\n",
+			    rec_per_sec, bytes_to_human_str(rec_per_sec));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "bytes per sec:        %-12u  %s\n",
-			     bytes_per_sec, bytes_to_human_str(bytes_per_sec));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "bytes per sec:        %-12u  %s\n",
+			    bytes_per_sec, bytes_to_human_str(bytes_per_sec));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "avg records per sec:  %-12u  %s\n",
-			     avg_rec_per_sec,
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "avg records per sec:  %-12u  %s\n",
+			    avg_rec_per_sec,
 			     bytes_to_human_str(avg_rec_per_sec));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "avg bytes per sec:    %-12u  %s\n",
-			     avg_bytes_per_sec,
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "avg bytes per sec:    %-12u  %s\n",
+			    avg_bytes_per_sec,
 			     bytes_to_human_str(avg_bytes_per_sec));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "max records per sec:  %-12u  %s\n",
-			     max_rec_per_sec,
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "max records per sec:  %-12u  %s\n",
+			    max_rec_per_sec,
 			     bytes_to_human_str(max_rec_per_sec));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "max bytes per sec:    %-12u  %s\n",
-			     max_bytes_per_sec,
-			     bytes_to_human_str(max_bytes_per_sec));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "max bytes per sec:    %-12u  %s\n",
+			    max_bytes_per_sec,
+			    bytes_to_human_str(max_bytes_per_sec));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "avg record size:      %-12u  %s\n",
-			     avg_rec_size, bytes_to_human_str(avg_rec_size));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "avg record size:      %-12u  %s\n",
+			    avg_rec_size, bytes_to_human_str(avg_rec_size));
 
-	buf_used += snprintf(buf + buf_used,
-			     buf_used >= buf_size ? 0 : buf_size - buf_used,
-			     "max record size:      %-12u  %s\n",
-			     max_rec_size, bytes_to_human_str(max_rec_size));
+	buf_used += buf_add(buf, buf_size, buf_used,
+			    "max record size:      %-12u  %s\n",
+			    max_rec_size, bytes_to_human_str(max_rec_size));
 
 	if (buf_used >= sizeof buf)
 		buf_used = buf_size - 1;
