@@ -288,7 +288,9 @@ m0loop_st_run()
 	cmd="umount $ext4fs_mpoint"
 	echo $cmd && $cmd || return 1
 	cmd="losetup -d /dev/m0loop0"
-	echo $cmd && $cmd || return 1
+	# losetup -d may fail if not all m0loop buffers are flushed yet,
+	# in this case we sleep for 5 secods and try again.
+	echo $cmd && $cmd || { sleep 5 && $cmd; } || return 1
 	cmd="umount $MERO_M0T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
 	cmd="rmmod m0loop"
@@ -487,7 +489,7 @@ m0t1fs_system_tests()
 		return 1
 	}
 
-	#m0loop_st || return 1
+	m0loop_st || return 1
 
 	return 0
 }
