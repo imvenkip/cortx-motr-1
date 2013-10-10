@@ -231,7 +231,7 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
 				 &state_out);
 	return M0_IN(state_out, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
-				M0_PNDS_SNS_REPAIRED));
+				 M0_PNDS_SNS_REPAIRED));
 }
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,

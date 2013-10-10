@@ -141,7 +141,8 @@ M0_TRACE_LEVEL=notice+
 M0_TRACE_PRINT_CONTEXT=func
 
 # kernel space tracing parameters
-MERO_MODULE_TRACE_MASK=fop,m0t1fs
+#MERO_MODULE_TRACE_MASK=fop,m0t1fs
+MERO_MODULE_TRACE_MASK=!all
 MERO_TRACE_PRINT_CONTEXT=func
 MERO_TRACE_LEVEL='notice+'
 

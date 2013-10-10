@@ -154,20 +154,30 @@ static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
 	struct m0_net_buffer       *nbuf_acc_head;
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
 	enum m0_sns_ir_block_type   bt;
+	int i;
 
 	nbuf_head = cp_data_buf_tlist_head(&src_cp->c_buffers);
 	scp = cp2snscp(src_cp);
 	bt = scp->sc_is_local ? M0_SI_BLOCK_LOCAL : M0_SI_BLOCK_REMOTE;
 	m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
 			  &src_cp->c_xform_cp_indices, failed_index, bt);
-	nbuf_acc_head =
-	cp_data_buf_tlist_head(&rag->rag_fc[0].fc_tgt_acc_cp.sc_base.c_buffers);
-	printf("\nag_cp_idx:[%lu],ag_id:[%lu],data:[%c],acc_data:[%c][%d]\n",
+
+	printf("\nag_cp_idx:[%lu],ag_id:[%lu],data:[%c]",
 			src_cp->c_ag_cp_idx,
 			src_cp->c_ag->cag_id.ai_lo.u_lo,
-			*(char *)nbuf_head->nb_buffer.ov_buf[0],
+			*(char *)nbuf_head->nb_buffer.ov_buf[0]);
+	for (i = 0; i < rag->rag_base.sag_fnr; ++i) {
+		if (rag->rag_fc[i].fc_is_inuse) {
+			nbuf_acc_head =
+			cp_data_buf_tlist_head(&rag->rag_fc[i].fc_tgt_acc_cp.sc_base.c_buffers);
+		printf("acc[%d] : [%c][%d] failed index : [%d]",
+			i,
 			*(char *)nbuf_acc_head->nb_buffer.ov_buf[0],
-			*(char *)nbuf_acc_head->nb_buffer.ov_buf[0]);
+			*(char *)nbuf_acc_head->nb_buffer.ov_buf[0],
+			rag->rag_fc[i].fc_failed_idx);
+		}
+	}
+	printf("\n\n");
 }
 
 /** Merges the source bitmap to the destination bitmap. */
