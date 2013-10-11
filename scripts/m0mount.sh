@@ -130,13 +130,13 @@ setup_local_server_config=0
 wait_after_mount=1
 
 M0_TRACE_IMMEDIATE_MASK=fop,cob,m0d
-M0_TRACE_LEVEL=call+
+M0_TRACE_LEVEL=notice+
 M0_TRACE_PRINT_CONTEXT=func
 
 # kernel space tracing parameters
 MERO_MODULE_TRACE_MASK=fop,m0t1fs
 MERO_TRACE_PRINT_CONTEXT=func
-MERO_TRACE_LEVEL='call+'
+MERO_TRACE_LEVEL='notice+'
 
 # Local mount data
 MP=/mnt/m0

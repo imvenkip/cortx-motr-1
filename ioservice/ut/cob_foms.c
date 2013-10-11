@@ -505,15 +505,21 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
  */
 static void fom_fini_test(enum cob_fom_type fomtype)
 {
-	size_t	       tot_mem;
-	size_t	       base_mem;
-	struct m0_fom *fom;
+	size_t	        tot_mem;
+	size_t	        base_mem;
+	struct m0_fom  *fom;
+	struct m0_reqh *reqh;
 
 	/*
 	 * 1. Allocate FOM object of interest
 	 * 2. Calculate memory usage before and after object allocation
 	 *    and de-allocation.
+	 * 3. Before taking memory record, make sure there are no
+	 *    stray foms around.
 	 */
+	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
+	m0_reqh_fom_domain_idle_wait(reqh);
+
 	base_mem = m0_allocated();
 	fom_create(&fom, fomtype);
 
