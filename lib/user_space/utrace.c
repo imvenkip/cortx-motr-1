@@ -104,9 +104,9 @@ static int logbuf_map(uint32_t logbuf_size)
 	} else {
 		m0_logbuf_header = &trace_area->ta_header;
 		m0_logbuf = trace_area->ta_buf;
-		m0_logbufsize = logbuf_size;
+		m0_trace_logbuf_size_set(logbuf_size);
 		memset(trace_area, 0, trace_area_size);
-		m0_trace_buf_header_init();
+		m0_trace_buf_header_init(&trace_area->ta_header);
 	}
 
 	return -errno;
@@ -196,9 +196,14 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
+	void     *old_buffer      = m0_logbuf_header;
+	uint32_t  old_buffer_size = M0_TRACE_BUF_HEADER_SIZE +
+				    m0_trace_logbuf_size_get();
+
+	m0_trace_switch_to_static_logbuf();
+
 	if (m0_trace_use_mmapped_buffer())
-		munmap(m0_logbuf_header,
-		       M0_TRACE_BUF_HEADER_SIZE + m0_logbufsize);
+		munmap(old_buffer, old_buffer_size);
 	close(logfd);
 }
 

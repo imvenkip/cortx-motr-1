@@ -63,6 +63,7 @@ M0_INTERNAL void m0_trace_args_unpack(const struct m0_trace_rec_header *trh,
 M0_INTERNAL const struct m0_trace_buf_header *m0_trace_logbuf_header_get(void);
 M0_INTERNAL const void *m0_trace_logbuf_get(void);
 M0_INTERNAL uint32_t m0_trace_logbuf_size_get(void);
+M0_INTERNAL void m0_trace_logbuf_size_set(uint32_t size);
 M0_INTERNAL uint64_t m0_trace_logbuf_pos_get(void);
 M0_INTERNAL const void *m0_trace_magic_sym_addr_get(void);
 M0_INTERNAL const char *m0_trace_magic_sym_name_get(void);
@@ -71,8 +72,10 @@ M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void);
 
 M0_INTERNAL void m0_trace_stats_update(uint32_t rec_size);
 
-M0_INTERNAL void m0_trace_buf_header_init(void);
+M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh);
 M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh);
+
+M0_INTERNAL void m0_trace_switch_to_static_logbuf(void);
 
 #endif /* __MERO_LIB_TRACE_INTERNAL_H__ */
 

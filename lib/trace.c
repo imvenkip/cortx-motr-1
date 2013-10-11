@@ -132,10 +132,9 @@ M0_INTERNAL int m0_trace_init(void)
 	M0_PRE(m0_is_po2(M0_TRACE_BUFSIZE));
 
 	rc = m0_arch_trace_init(M0_TRACE_BUFSIZE);
-	if (rc == 0)
-		bufmask = m0_logbufsize - 1;
 
 	M0_POST((m0_logbufsize % m0_pagesize_get()) == 0);
+	M0_POST(m0_is_po2(bufmask + 1));
 
 	return rc;
 }
@@ -143,7 +142,6 @@ M0_INTERNAL int m0_trace_init(void)
 M0_INTERNAL void m0_trace_fini(void)
 {
 	m0_arch_trace_fini();
-	m0_logbuf = NULL;
 }
 
 
@@ -581,6 +579,14 @@ M0_INTERNAL uint32_t m0_trace_logbuf_size_get(void)
 }
 M0_EXPORTED(m0_trace_logbuf_size_get);
 
+M0_INTERNAL void m0_trace_logbuf_size_set(uint32_t size)
+{
+	M0_PRE(m0_is_po2(size) && size % m0_pagesize_get() == 0);
+	m0_logbufsize = size;
+	bufmask = size - 1;
+}
+M0_EXPORTED(m0_trace_logbuf_size_set);
+
 M0_INTERNAL uint64_t m0_trace_logbuf_pos_get(void)
 {
 	return m0_atomic64_get(&m0_logbuf_header->tbh_cur_pos);
@@ -859,9 +865,8 @@ M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void)
 M0_EXPORTED(m0_trace_last_record_get);
 
 
-M0_INTERNAL void m0_trace_buf_header_init(void)
+M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh)
 {
-	struct m0_trace_buf_header  *tbh = m0_logbuf_header;
 	const struct m0_build_info  *bi = m0_build_info_get();
 
 	tbh->tbh_magic          = M0_TRACE_BUF_HEADER_MAGIC;
@@ -883,6 +888,13 @@ M0_INTERNAL void m0_trace_buf_header_init(void)
 	m0_arch_trace_buf_header_init(tbh);
 }
 M0_EXPORTED(m0_trace_buf_header_init);
+
+M0_INTERNAL void m0_trace_switch_to_static_logbuf(void)
+{
+	m0_logbuf_header = &bootlog.bl_area.ta_header;
+	m0_logbuf = bootlog.bl_area.ta_buf;
+	m0_trace_logbuf_size_set(sizeof bootlog.bl_area.ta_buf);
+}
 
 /** @} end of trace group */
 

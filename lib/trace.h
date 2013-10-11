@@ -279,7 +279,6 @@ M0_BASSERT(M0_TRACE_BUF_HEADER_SIZE % PAGE_SIZE == 0);
 
 extern struct m0_trace_buf_header *m0_logbuf_header; /**< Trace buffer header pointer */
 extern void      *m0_logbuf;        /**< Trace buffer pointer */
-extern uint32_t   m0_logbufsize;    /**< The real buffer size */
 
 enum m0_trace_buf_type {
 	M0_TRACE_BUF_KERNEL = 1,

@@ -65,6 +65,7 @@ MODULE_PARM_DESC(trace_buf_size, "size of trace buffer in bytes");
 
 static struct m0_trace_stats stats;
 
+
 M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 {
 	int            rc;
@@ -181,17 +182,18 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t default_trace_buf_size)
 		return -EINVAL;
 	}
 
-	trace_area = vzalloc(M0_TRACE_BUF_HEADER_SIZE + trace_buf_size);
+	trace_area = vzalloc(sizeof (trace_area->ta_header) + trace_buf_size);
 	if (trace_area == NULL) {
 		pr_err("mero: failed to allocate %u bytes for trace buffer\n",
 		       trace_buf_size);
 		return -ENOMEM;
 	}
+
+	m0_trace_buf_header_init(&trace_area->ta_header);
+
 	m0_logbuf_header = &trace_area->ta_header;
 	m0_logbuf = trace_area->ta_buf;
-	m0_logbufsize = trace_buf_size;
-
-	m0_trace_buf_header_init();
+	m0_trace_logbuf_size_set(trace_buf_size);
 
 	pr_info("mero: trace buffer address: 0x%p\n", m0_logbuf);
 
@@ -200,7 +202,10 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t default_trace_buf_size)
 
 M0_INTERNAL void m0_arch_trace_fini(void)
 {
-	vfree(m0_logbuf_header);
+	void *old_buffer = m0_logbuf_header;
+
+	m0_trace_switch_to_static_logbuf();
+	vfree(old_buffer);
 }
 
 M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
