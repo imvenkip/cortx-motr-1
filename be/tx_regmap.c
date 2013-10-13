@@ -128,14 +128,16 @@ M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
 	return _0C(rdt != NULL) &&
 	       _0C(rdt->brt_r != NULL || rdt->brt_size == 0) &&
 	       _0C(rdt->brt_size <= rdt->brt_size_max) &&
-	       m0_forall(i, rdt->brt_size,
-			 m0_be_reg_d__invariant(&rdt->brt_r[i])) &&
-	       m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
-			 _0C(rdt->brt_r[i].rd_reg.br_addr <
-			     rdt->brt_r[i + 1].rd_reg.br_addr)) &&
-	       m0_forall(i, rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
-			 _0C(!be_reg_d_are_overlapping(&rdt->brt_r[i],
-						       &rdt->brt_r[i + 1])));
+	       M0_CHECK_EX(m0_forall(i, rdt->brt_size,
+				     m0_be_reg_d__invariant(&rdt->brt_r[i]))) &&
+	       M0_CHECK_EX(m0_forall(i,
+				     rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
+				     _0C(rdt->brt_r[i].rd_reg.br_addr <
+					 rdt->brt_r[i + 1].rd_reg.br_addr))) &&
+	       M0_CHECK_EX(m0_forall(i,
+				     rdt->brt_size == 0 ? 0 : rdt->brt_size - 1,
+		     _0C(!be_reg_d_are_overlapping(&rdt->brt_r[i],
+						   &rdt->brt_r[i + 1]))));
 }
 
 M0_INTERNAL size_t m0_be_rdt_size(const struct m0_be_reg_d_tree *rdt)
