@@ -760,7 +760,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 
 	/** @todo PUT_PTR h */
 
-	M0_POST(m0_be_allocator__invariant(a));
+	M0_POST_EX(m0_be_allocator__invariant(a));
 	return 0;
 }
 
@@ -770,7 +770,7 @@ M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
 	struct m0_be_allocator_header *h;
 	struct be_alloc_chunk	      *c;
 
-	M0_PRE(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a));
 
 	h = a->ba_h;
 	c = chunks_all_tlist_head(&h->bah_chunks.bl_list);
@@ -868,7 +868,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	struct be_alloc_chunk *iter;
 	struct be_alloc_chunk *c = NULL;
 
-	M0_PRE(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a));
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 
 	/* XXX */
@@ -903,7 +903,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	 */
 	m0_mutex_unlock(&a->ba_lock);
 
-	M0_POST(m0_be_allocator__invariant(a));
+	M0_POST_EX(m0_be_allocator__invariant(a));
 	M0_POST(equi(op->bo_u.u_allocator.a_ptr != NULL,
 		     op->bo_u.u_allocator.a_rc == 0));
 
@@ -930,7 +930,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	struct be_alloc_chunk *next;
 	bool		       chunks_were_merged;
 
-	M0_PRE(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a));
 	M0_PRE(ergo(ptr != NULL, be_alloc_is_mem_in_allocator(a, 1, ptr)));
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
@@ -959,7 +959,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 
-	M0_POST(m0_be_allocator__invariant(a));
+	M0_POST_EX(m0_be_allocator__invariant(a));
 }
 
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
@@ -973,7 +973,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 				   struct m0_be_allocator_stats *out)
 {
-	M0_PRE(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a));
 
 	/** @todo GET_PTR a->ba_h */
 	m0_mutex_lock(&a->ba_lock);
