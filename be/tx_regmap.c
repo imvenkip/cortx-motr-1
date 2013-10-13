@@ -145,21 +145,55 @@ M0_INTERNAL size_t m0_be_rdt_size(const struct m0_be_reg_d_tree *rdt)
 	return rdt->brt_size;
 }
 
+/** Time complexity is O(1) */
+static bool be_rdt_check_i(const struct m0_be_reg_d_tree *rdt,
+			   void *addr,
+			   size_t index)
+{
+	struct m0_be_reg_d *r	 = rdt->brt_r;
+	size_t		    size = m0_be_rdt_size(rdt);
+
+	return  (size == 0 && index == 0) ||
+		(size != 0 &&
+		 ((index == size && !m0_be_reg_d_is_in(&r[size - 1], addr) &&
+		   addr > r[size - 1].rd_reg.br_addr) ||
+		  (index == 0 && (m0_be_reg_d_is_in(&r[0], addr) ||
+				  addr < r[0].rd_reg.br_addr)) ||
+		  (index < size && m0_be_reg_d_is_in(&r[index], addr)) ||
+		  (index < size && index > 0 &&
+		   !m0_be_reg_d_is_in(&r[index - 1], addr) &&
+		   addr < r[index].rd_reg.br_addr &&
+		   addr > r[index - 1].rd_reg.br_addr)));
+}
+
+/** Time complexity is O(log(m0_be_rdt_size(rdt) + 1)) */
 static size_t be_rdt_find_i(const struct m0_be_reg_d_tree *rdt, void *addr)
 {
-	struct m0_ext e;
-	m0_bindex_t   a = (m0_bindex_t) addr;
-	size_t	      i;
+	size_t begin = 0;
+	size_t mid;
+	size_t end   = m0_be_rdt_size(rdt);
+	size_t res   = m0_be_rdt_size(rdt) + 1;
+	size_t size  = m0_be_rdt_size(rdt);
 
-	M0_CASSERT(sizeof(a) >= sizeof(addr));
-	/** @todo use binary search */
-	for (i = 0; i < rdt->brt_size; ++i) {
-		e = REGD_EXT(&rdt->brt_r[i]);
-		if (m0_ext_is_in(&e, a) || a < e.e_start)
-			break;
+	while (begin + 1 < end) {
+		mid = (begin + end) / 2;
+		M0_ASSERT_INFO(mid > begin && mid < end,
+			       "begin = %zu, mid = %zu, end = %zu",
+			       begin, mid, end);
+		if (rdt->brt_r[mid].rd_reg.br_addr < addr) {
+			begin = mid;
+		} else {
+			end   = mid;
+		}
 	}
+	res = be_rdt_check_i(rdt, addr, begin) ? begin : res;
+	res = be_rdt_check_i(rdt, addr, end)   ? end   : res;
+
+	M0_ASSERT_INFO(size == 0 || res <= size, "size = %zu, res = %zu",
+		       size, res);
 	M0_POST(m0_be_rdt__invariant(rdt));
-	return i;
+	M0_POST(be_rdt_check_i(rdt, addr, res));
+	return res;
 }
 
 
