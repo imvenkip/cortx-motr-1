@@ -43,6 +43,7 @@ static const struct m0_build_info build_info = {
 	.bi_cflags         = M0_VERSION_BUILD_CFLAGS,
 	.bi_kcflags        = M0_VERSION_BUILD_KCFLAGS,
 	.bi_ldflags        = M0_VERSION_BUILD_LDFLAGS,
+	.bi_configure_opts = M0_VERSION_BUILD_CONFIGURE_OPTS,
 };
 
 const struct m0_build_info *m0_build_info_get(void)
@@ -74,6 +75,7 @@ void m0_build_info_print(void)
 
 	m0_console_printf(BI_PREFIX "\n");
 
+	m0_console_printf(BI_PREFIX "CONFIGURE OPTS: %s\n", bi->bi_configure_opts);
 #ifdef __KERNEL__
 	m0_console_printf(BI_PREFIX "KCFLAGS: %s\n", bi->bi_kcflags);
 #else

@@ -39,6 +39,7 @@ struct m0_build_info {
 	const char  *bi_cflags;
 	const char  *bi_kcflags;
 	const char  *bi_ldflags;
+	const char  *bi_configure_opts;
 };
 
 const struct m0_build_info *m0_build_info_get(void);
