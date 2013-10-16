@@ -533,9 +533,9 @@ function setup_loops () {
 	echo Setting up loop devices ...
 
 	for ((i = 0; i <= $((LOCAL_SERVICES_NR*2 -1)); i++)); do
-		lrun dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
+		l_run dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
 			bs=1M seek=1M count=1
-		lrun losetup /dev/loop$i $WORK_ARENA/disk-image-$i
+		l_run losetup /dev/loop$i $WORK_ARENA/disk-image-$i
 		loop_used=$i
 	done
 }
