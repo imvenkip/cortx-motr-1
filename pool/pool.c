@@ -685,7 +685,7 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	m0_rwlock_read_lock(&pm->pm_lock);
 	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
 	if (!M0_IN(device_state, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
-				  M0_PNDS_SNS_REPAIRED)))
+				  M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)))
 		goto out;
 
 	spare_usage_array = pm->pm_state.pst_spare_usage_array;
@@ -694,7 +694,8 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
 						(M0_PNDS_FAILED,
 						 M0_PNDS_SNS_REPAIRING,
-						 M0_PNDS_SNS_REPAIRED)));
+						 M0_PNDS_SNS_REPAIRED,
+						 M0_PNDS_SNS_REBALANCING)));
 			*spare_slot_out = i;
 			rc = 0;
 			break;

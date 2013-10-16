@@ -185,6 +185,8 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 		return -EINVAL;
 	}
 	sag->sag_fnr = f_nr;
+	if (has_incoming)
+		sag->sag_incoming_nr = m0_sns_cm_ag_max_incoming_units(scm, id, pl);
 	sag->sag_base.cag_layout = m0_pdl_to_layout(pl);
 	sag->sag_base.cag_pi = pi;
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,

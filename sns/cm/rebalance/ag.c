@@ -89,10 +89,10 @@ static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag)
 
 	M0_PRE(ag != NULL);
 
-        if (ag->cag_has_incoming) {
+        if (ag->cag_has_incoming)
 		return ag->cag_freed_cp_nr == rag->rag_incoming_nr +
 					      ag->cag_cp_local_nr;
-        } else
+        else
 		return ag->cag_freed_cp_nr == ag->cag_cp_local_nr;
 }
 
@@ -128,6 +128,8 @@ static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
         for (i = 0; i < fmap->b_nr; ++i) {
                 if (!m0_bitmap_get(fmap, i))
                         continue;
+		if (m0_pdclust_unit_classify(pl, i) == M0_PUT_SPARE)
+			continue;
                 rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
                 if (rc != 0)
 			goto err;

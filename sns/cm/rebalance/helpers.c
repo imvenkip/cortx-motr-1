@@ -60,71 +60,29 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 					     struct m0_sns_cm_cp *scp)
 {
 	struct m0_cm               *cm;
-	struct m0_poolmach         *pm;
 	struct m0_pdclust_layout   *pl;
-	struct m0_fid               gfid;
 	struct m0_fid               cobfid;
-        struct m0_layout_instance  *li;
-        struct m0_pdclust_instance *pi;
-	uint64_t                    group;
-	uint32_t                    spare;
 	uint64_t                    offset;
-	int                         i;
 	int                         rc = 0;
 
 	cm = sag->sag_base.cag_cm;
-	m0_cm_lock(cm);
-	pm = sag->sag_base.cag_cm->cm_pm;
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
-	agid2fid(&sag->sag_base.cag_id, &gfid);
-        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gfid, &li);
-        if (rc != 0)
-                return -ENOENT;
-
-        pi = m0_layout_instance_to_pdi(li);
-
-	group = agid2group(&sag->sag_base.cag_id);
-	for (i = 0; i < sag->sag_fmap.b_nr; ++i) {
-		if (!m0_bitmap_get(&sag->sag_fmap, i))
-			continue;
+		rc = m0_sns_cm_ag_tgt_unit2cob(sag, scp->sc_base.c_ag_cp_idx,
+					       pl, &cobfid);
+	if (rc == 0) {
+		offset = m0_sns_cm_ag_unit2cobindex(sag,
+						    scp->sc_base.c_ag_cp_idx,
+						    pl);
 		/*
-		 * Find the spare unit for the given data/parity unit in the
-		 * aggregation group.
+		 * Change the target cobfid and offset of the copy
+		 * packet to write the data from spare unit back to
+		 * previously failed data unit but now available data/
+		 * parity unit in the aggregation group.
 		 */
-		rc = m0_sns_repair_spare_map(pm, &gfid, pl,
-				pi, group, i, &spare);
-		if (rc != 0)
-			break;
-		/* Identify the COB hosting the spare unit. */
-		rc = m0_sns_cm_ag_tgt_unit2cob(sag, spare, pl, &cobfid);
-		if (rc != 0)
-			break;
-		/*
-		 * Check if the copy packet corresponds to the calculated
-		 * spare.
-		 */
-		if (cobfid.f_container == scp->sc_cobfid.f_container) {
-			/*
-			 * Identify the COB hosting the failed data/parity
-			 * unit.
-			 */
-			rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
-			if (rc != 0)
-				goto out;
-			M0_ASSERT(m0_fid_is_set(&cobfid));
-			offset = m0_sns_cm_ag_unit2cobindex(sag, i, pl);
-			/*
-			 * Change the target cobfid and offset of the copy
-			 * packet to write the data from spare unit back to
-			 * previously failed data unit but now available data/
-			 * parity unit in the aggregation group.
-			 */
-			m0_sns_cm_cp_tgt_info_fill(scp, &cobfid, offset, i);
-		}
+		m0_sns_cm_cp_tgt_info_fill(scp, &cobfid, offset,
+					   scp->sc_base.c_ag_cp_idx);
 	}
-out:
-	m0_cm_unlock(cm);
-	m0_layout_instance_fini(&pi->pi_base);
+
 	return rc;
 }
 

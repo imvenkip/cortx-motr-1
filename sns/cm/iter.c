@@ -364,7 +364,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	sa = &sfc->sfc_sa;
 	for (group = sa->sa_group; group < sfc->sfc_groups_nr; ++group) {
 		group_fnr = 0;
-
 		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_progress,
 			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
 			     scm->sc_it.si_total_files, group + 1,
@@ -540,6 +539,26 @@ out:
 	M0_RETURN(rc);
 }
 
+static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
+{
+	struct m0_sns_cm_file_context *sfc = &scm->sc_it.si_fc;
+	struct m0_pdclust_layout      *pl = scm->sc_it.si_fc.sfc_pdlayout;
+	enum m0_sns_cm_op              op = scm->sc_op;
+
+	switch(op) {
+	case SNS_REPAIR:
+		return !sfc->sfc_cob_is_spare_unit;
+	case SNS_REBALANCE:
+		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE)
+			return !sfc->sfc_cob_is_spare_unit;
+		break;
+	default:
+		M0_IMPOSSIBLE("Bad operation");
+	}
+
+	return false;
+}
+
 /**
  * Finds next local COB corresponding to a unit in the parity group to perform
  * read/write. For each unit in the given parity group, it calculates its
@@ -557,7 +576,8 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_fid                   *cob_fid;
 	struct m0_pdclust_src_addr      *sa;
-	enum m0_sns_cm_op                op = scm->sc_op;
+	bool                             has_data;
+	//enum m0_sns_cm_op                op = scm->sc_op;
 	uint32_t                         upg;
 	int                              rc = 0;
 	M0_ENTRY("it = %p", it);
@@ -580,12 +600,12 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(sfc, cob_fid);
+		has_data = unit_has_data(scm, sa->sa_unit);
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
 		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid) ||
-		 (sfc->sfc_cob_is_spare_unit && op == SNS_REPAIR) ||
-		 (!sfc->sfc_cob_is_spare_unit && op == SNS_REBALANCE));
+		 !has_data);
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);

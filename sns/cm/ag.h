@@ -44,6 +44,8 @@ struct m0_sns_cm_ag {
 	/** Total number of failure units in this aggregation group. */
 	uint32_t                         sag_fnr;
 
+	uint32_t                         sag_incoming_nr;
+
 	/** Bitmap of failed units in the aggregation group. */
 	struct m0_bitmap                 sag_fmap;
 

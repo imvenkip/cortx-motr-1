@@ -231,7 +231,7 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
 				 &state_out);
 	return M0_IN(state_out, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
-				 M0_PNDS_SNS_REPAIRED));
+				 M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING));
 }
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
@@ -253,6 +253,17 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 	M0_ASSERT(rc == 0);
 
 	if (m0_pdclust_unit_classify(pl, spare_unit_number) == M0_PUT_SPARE) {
+		M0_SET0(&sa);
+		M0_SET0(&ta);
+
+		sa.sa_unit = spare_unit_number;
+		sa.sa_group = group_number;
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
+		rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
+			cobfid.f_container, &state_out);
+		M0_ASSERT(rc == 0);
+		if (state_out == M0_PNDS_SNS_REPAIRED)
+			return true;
 		rc = m0_sns_repair_data_map(scm->sc_base.cm_pm, fid, pl,
 				group_number, spare_unit_number,
 				&data_unit_id_out);
@@ -274,10 +285,9 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 			rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
 				cobfid.f_container, &state_out);
 			M0_ASSERT(rc == 0);
-			if (state_out != M0_PNDS_SNS_REPAIRED) {
-				result = true;
-				goto out;
-			}
+			if (!M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
+					       M0_PNDS_SNS_REBALANCING)))
+				return true;
 		}
 	}
 out:
@@ -507,13 +517,6 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 	return NULL;
 }
 
-
-M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
-					struct m0_cob_domain *cdom)
-{
-	return m0_sns_cm_cob_locate(cdom, cobfid);
-}
-
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,
@@ -566,7 +569,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                 group = id->ai_lo.u_lo;
                 /* Firstly check if this group has any failed units. */
                 group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
-                                                          pi, group, NULL);
+                                                         pi, group, NULL);
                 if (group_failures > 0 ) {
 			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 			       id->ai_hi.u_hi, id->ai_hi.u_lo,

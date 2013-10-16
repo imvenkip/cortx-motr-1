@@ -32,6 +32,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/ag.h"
+#include "sns/cm/cm_utils.h"
 #include "sns/cm/sns_cp_onwire.h"
 
 /**
@@ -169,7 +170,7 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 	if ((phase == M0_CCP_INIT && scp->sc_is_acc) || phase == M0_CCP_XFORM) {
 		scm = cm2sns(cp->c_ag->cag_cm);
 		cdom  = scm->sc_it.si_cob_dom;
-		rc = m0_sns_cm_cob_is_local(&scp->sc_cobfid, cdom);
+		rc = m0_sns_cm_cob_locate(cdom, &scp->sc_cobfid);
 		if (rc == 0)
 			return M0_CCP_WRITE;
 		else if (rc == -ENOENT)

@@ -151,9 +151,6 @@ M0_INTERNAL int m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 					 struct m0_fid *gfid);
 
-M0_INTERNAL int m0_sns_cm_cob_is_local(struct m0_fid *cobfid,
-                                       struct m0_cob_domain *cdom);
-
 M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 					    const struct m0_fid *gfid,
 					    struct m0_pdclust_layout *pl,

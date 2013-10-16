@@ -211,9 +211,9 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	 * aggregation group are transformed, then transformation can
 	 * be marked complete.
 	 */
-	if ((rc = m0_sns_cm_cob_is_local(&fc->fc_tgt_cobfid, cdom)) == 0 &&
-	    m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_global_nr -
-						rag->rag_base.sag_fnr)) {
+	if ((rc = m0_sns_cm_cob_locate(cdom, &fc->fc_tgt_cobfid)) == 0 &&
+	    m0_sns_cm_ag_acc_is_full_with(acc, rag->rag_base.sag_incoming_nr +
+						ag->cag_cp_local_nr)) {
 			rc = res_cp_enqueue(acc);
 			if (rc != 0)
 				return rc;

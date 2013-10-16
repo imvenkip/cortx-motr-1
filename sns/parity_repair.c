@@ -155,6 +155,7 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
         struct m0_layout_instance  *li;
         struct m0_pdclust_instance *pi;
 	enum m0_pool_nd_state       state_out;
+	uint64_t                    spare_in;
         uint32_t                    device_index;
         uint64_t                    spare_id;
         uint64_t                    frame;
@@ -166,9 +167,10 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 		return -ENOENT;
 
 	pi = m0_layout_instance_to_pdi(li);
+	spare_in = spare_unit_number;
 
 	do {
-		spare_id = spare_unit_number - m0_pdclust_N(pl) -
+		spare_id = spare_in - m0_pdclust_N(pl) -
 			m0_pdclust_K(pl);
 		device_index = pm->pm_state.pst_spare_usage_array[spare_id].
 			psu_device_index;
@@ -204,10 +206,10 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 			rc = -ENOENT;
 			goto out;
 		}
-		spare_unit_number = sa.sa_unit;
+		spare_in = sa.sa_unit;
 
 	} while(m0_pdclust_unit_classify(pl, sa.sa_unit) == M0_PUT_SPARE &&
-			state_out == M0_PNDS_SNS_REPAIRED);
+			M0_IN(state_out, (M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)));
 out:
 	m0_layout_instance_fini(&pi->pi_base);
 
