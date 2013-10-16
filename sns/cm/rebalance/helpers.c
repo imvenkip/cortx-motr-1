@@ -32,8 +32,8 @@
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);
 
-static uint64_t rebalance_ag_nr_global_units(const struct m0_sns_cm *scm,
-					     const struct m0_pdclust_layout *pl)
+static uint64_t rebalance_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
+					     struct m0_pdclust_layout *pl)
 {
 	return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 }
@@ -64,6 +64,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	struct m0_pdclust_layout   *pl;
 	struct m0_fid               gfid;
 	struct m0_fid               cobfid;
+        struct m0_layout_instance  *li;
+        struct m0_pdclust_instance *pi;
 	uint64_t                    group;
 	uint32_t                    spare;
 	uint64_t                    offset;
@@ -75,6 +77,12 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	pm = sag->sag_base.cag_cm->cm_pm;
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
 	agid2fid(&sag->sag_base.cag_id, &gfid);
+        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gfid, &li);
+        if (rc != 0)
+                return -ENOENT;
+
+        pi = m0_layout_instance_to_pdi(li);
+
 	group = agid2group(&sag->sag_base.cag_id);
 	for (i = 0; i < sag->sag_fmap.b_nr; ++i) {
 		if (!m0_bitmap_get(&sag->sag_fmap, i))
@@ -83,7 +91,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 		 * Find the spare unit for the given data/parity unit in the
 		 * aggregation group.
 		 */
-		rc = m0_sns_repair_spare_map(pm, &gfid, pl, group, i, &spare);
+		rc = m0_sns_repair_spare_map(pm, &gfid, pl,
+				pi, group, i, &spare);
 		if (rc != 0)
 			break;
 		/* Identify the COB hosting the spare unit. */
@@ -101,7 +110,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 			 */
 			rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
 			if (rc != 0)
-				return rc;
+				goto out;
 			M0_ASSERT(m0_fid_is_set(&cobfid));
 			offset = m0_sns_cm_ag_unit2cobindex(sag, i, pl);
 			/*
@@ -113,8 +122,9 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 			m0_sns_cm_cp_tgt_info_fill(scp, &cobfid, offset, i);
 		}
 	}
+out:
 	m0_cm_unlock(cm);
-
+	m0_layout_instance_fini(&pi->pi_base);
 	return rc;
 }
 
@@ -145,7 +155,8 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom,
 					  &cobfid);
 		if (rc == 0 && m0_sns_cm_is_cob_failed(scm, &cobfid)) {
-			rc = m0_sns_repair_spare_map(pm, gfid, pl, group, i, &spare);
+			rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
+					group, i, &spare);
 			if (rc != 0)
 				return false;
 			sa.sa_unit = spare;

@@ -33,14 +33,31 @@
  * @param pl pdclust layout instance.
  * @param group_number Parity group number for a given file.
  * @param unit_number Unit number in the parity group.
- * @param spare_slot_out the output spair slot.
+ * @param spare_slot_out the output spare slot.
  */
 M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 					const struct m0_fid *fid,
 					struct m0_pdclust_layout *pl,
+					struct m0_pdclust_instance *pi,
 					uint64_t group_number,
 					uint64_t unit_number,
 					uint32_t *spare_slot_out);
+
+/**
+ * Map the {spare slot, data/parity unit id} pair after repair.
+ * @param pm pool machine.
+ * @param fid Global file id.
+ * @param pl pdclust layout instance.
+ * @param group_number Parity group number for a given file.
+ * @param unit_number Spare unit number in the parity group.
+ * @param data_unit_id_out the output data unit index.
+ */
+M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
+                                       const struct m0_fid *fid,
+                                       struct m0_pdclust_layout *pl,
+                                       uint64_t group_number,
+                                       uint64_t spare_unit_number,
+                                       uint64_t *data_unit_id_out);
 
 #endif /* __MERO_SNS_PARITY_REPAIR_H__ */
 

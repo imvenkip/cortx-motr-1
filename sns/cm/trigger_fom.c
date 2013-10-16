@@ -198,7 +198,14 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				rc = m0_cm_ready(cm);
 				M0_ASSERT(rc == 0);
 				m0_fom_phase_set(fom, TPH_START_WAIT);
-				rc = M0_FSO_WAIT;
+				if (cm->cm_proxy_nr > 1)
+					rc = M0_FSO_WAIT;
+				else {
+					m0_mutex_lock(&scm->sc_wait_mutex);
+					m0_fom_callback_cancel(&fom->fo_cb);
+					m0_mutex_unlock(&scm->sc_wait_mutex);
+					rc = M0_FSO_AGAIN;
+				}
 				M0_LOG(M0_DEBUG, "got trigger: ready done");
 				break;
 			case TPH_START_WAIT:

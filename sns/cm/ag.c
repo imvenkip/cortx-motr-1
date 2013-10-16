@@ -167,6 +167,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 						      &fsize);
 	if (rc != 0)
 		return rc;
+
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
 	if (rc != 0) {
 		m0_layout_put(m0_pdl_to_layout(pl));
@@ -187,7 +188,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	sag->sag_base.cag_layout = m0_pdl_to_layout(pl);
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      ag_ops);
-	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(scm, pl);
+	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
 		     id->ai_hi.u_hi, id->ai_hi.u_lo,

@@ -80,9 +80,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 						 uint64_t group);
 
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm *scm,
-						  const struct m0_pdclust_layout
-						  *pl);
+M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *ag,
+						  struct m0_pdclust_layout *pl);
 
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
@@ -109,8 +108,10 @@ m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 			   uint64_t fidx);
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
-					 const struct m0_pdclust_layout *pl,
-					 int unit);
+                                         struct m0_pdclust_layout *pl,
+                                         const struct m0_fid *fid,
+                                         uint64_t group_number,
+                                         uint64_t spare_unit_number);
 
 /**
  * Returns starting index of the unit in the aggregation group relevant to

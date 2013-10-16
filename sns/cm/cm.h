@@ -116,8 +116,8 @@ struct m0_sns_cm_helpers {
 	/**
 	 * Returns number of total global units for a given aggregation group.
 	 */
-	uint64_t (*sch_ag_nr_global_units)(const struct m0_sns_cm *scm,
-					   const struct m0_pdclust_layout *pl);
+	uint64_t (*sch_ag_nr_global_units)(const struct m0_sns_cm_ag *sag,
+					   struct m0_pdclust_layout *pl);
 
 	/**
 	 * Returns maximum possible number of aggregation group units to be
@@ -198,6 +198,10 @@ struct m0_sns_cm {
 	 */
 	struct m0_chan             sc_wait;
 	struct m0_mutex            sc_wait_mutex;
+
+
+	/** Tracks the number for which repair operation has been executed. */
+	uint32_t		   sc_repair_done;
 
 	/**
 	 * Start time for sns copy machine. This is recorded when the ready fop

@@ -426,10 +426,12 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
  * data unit has been repaired onto the given spare slot.
  * @param pm pool machine.
  * @param spare_slot the slot index which needs to be checked.
+ * @param check_state check the device state before making the decision.
  */
 M0_INTERNAL bool
 m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *pm,
-					   uint32_t spare_slot);
+					   uint32_t spare_slot,
+					   bool check_state);
 
 
 /**

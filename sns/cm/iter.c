@@ -34,6 +34,7 @@
 
 #include "cm/proxy.h"
 #include "sns/sns_addb.h"
+#include "sns/parity_repair.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
@@ -222,8 +223,8 @@ static void unit_to_cobfid(struct m0_sns_cm_file_context *sfc,
 	pl = sfc->sfc_pdlayout;
 	sa = &sfc->sfc_sa;
 	ta = &sfc->sfc_ta;
-	sfc->sfc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(scm, pl,
-							     sa->sa_unit);
+	sfc->sfc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(scm, pl, fid,
+			sa->sa_group, sa->sa_unit);
 	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
 }
 
@@ -323,14 +324,18 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	struct m0_pdclust_instance *pi = it->si_fc.sfc_pi;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
+        enum                        m0_pool_nd_state state_out = 0;
 	int                         i;
 
 	for (i = 0; i < it->si_fc.sfc_upg; ++i) {
 		sa.sa_unit = i;
 		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
+		m0_poolmach_device_state(scm->sc_base.cm_pm,
+				cobfid.f_container, &state_out);
 		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    !m0_sns_cm_unit_is_spare(scm, pl, sa.sa_unit))
+		    state_out != M0_PNDS_SNS_REPAIRED &&
+		    !m0_sns_cm_unit_is_spare(scm, pl, fid, group, sa.sa_unit))
 			return false;
 	}
 
@@ -458,9 +463,12 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_cm_aggr_group         *ag;
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_sns_cm_cp             *scp;
+	struct m0_fid                    fid;
+	uint64_t                         group_number;
 	bool                             has_incoming = false;
 	uint64_t                         stob_offset;
 	uint64_t                         cp_data_seg_nr;
+	uint64_t                         ag_cp_idx;
 	int                              rc = 0;
 	M0_ENTRY("it = %p", it);
 
@@ -469,6 +477,8 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
 	has_incoming = __has_incoming(scm, pl, &agid);
 	ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
+	agid2fid(&agid, &fid);
+	group_number = agid2group(&agid);
 	if (ag == NULL) {
 		/*
 		 * Allocate new aggregation group for the given aggregation
@@ -511,9 +521,15 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
 	 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
 	 */
+	ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
+	if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
+		rc = m0_sns_repair_data_map(cm->cm_pm, &fid, pl,
+				group_number, ag_cp_idx, &ag_cp_idx);
+		if (rc != 0)
+			M0_RETURN(rc);
+	}
 	rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
-				cp_data_seg_nr, ~0,
-				sfc->sfc_sa.sa_unit - 1);
+				cp_data_seg_nr, ~0, ag_cp_idx);
 	if (rc < 0)
 		M0_RETURN(rc);
 

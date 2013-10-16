@@ -29,21 +29,27 @@
 M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl);
 
-static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm *scm,
-					  const struct m0_pdclust_layout *pl)
+static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
+					  struct m0_pdclust_layout *pl)
 {
-	uint64_t dpupg;
-	uint64_t upg;
-	int      unit;
+        uint64_t          dpupg;
+        uint64_t          upg;
+        int               unit;
+        int               group_number;
+	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
+	struct m0_fid     fid;
 
-	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-	for (unit = dpupg; unit < upg; ++unit) {
-		if (!m0_sns_cm_unit_is_spare(scm, pl, unit))
-			M0_CNT_INC(dpupg);
-	}
+	group_number = agid2group(&sag->sag_base.cag_id);
+	agid2fid(&sag->sag_base.cag_id, &fid);
 
-	return dpupg;
+        dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+        upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+        for (unit = dpupg; unit < upg; ++unit) {
+                if (!m0_sns_cm_unit_is_spare(scm, pl, &fid, group_number, unit))
+                        M0_CNT_INC(dpupg);
+        }
+
+        return dpupg;
 }
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
@@ -75,7 +81,7 @@ static uint64_t repair_ag_unit_start(const struct m0_pdclust_layout *pl)
 
 static uint64_t repair_ag_unit_end(const struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 }
 
 static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
@@ -104,7 +110,8 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
-		rc = m0_sns_repair_spare_map(pm, gfid, pl, group, j, &tgt_unit);
+		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
+				group, j, &tgt_unit);
 		if (rc != 0)
 			return rc;
 		sa.sa_unit = tgt_unit;

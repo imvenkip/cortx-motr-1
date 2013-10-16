@@ -106,42 +106,56 @@ static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
                                       struct m0_pdclust_layout *pl,
 				      struct m0_cob_domain *cdom)
 {
-	struct m0_poolmach *pm = sag->sag_base.cag_cm->cm_pm;
-        struct m0_bitmap   *fmap = &sag->sag_fmap;
-        struct m0_fid       cobfid;
-        struct m0_fid       gfid;
-	uint32_t            tgt_unit;
-	uint64_t            group;
-        uint64_t            i;
-        int32_t             incoming_nr = 0;
-	int                 rc;
+	struct m0_poolmach         *pm = sag->sag_base.cag_cm->cm_pm;
+        struct m0_bitmap           *fmap = &sag->sag_fmap;
+        struct m0_fid               cobfid;
+        struct m0_fid               gfid;
+        struct m0_layout_instance  *li;
+        struct m0_pdclust_instance *pi;
+        int32_t                     incoming_nr = 0;
+	uint32_t                    tgt_unit;
+	uint64_t                    group;
+        uint64_t                    i;
+	int                         rc;
+
+	agid2fid(&sag->sag_base.cag_id, &gfid);
+        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gfid, &li);
+        if (rc != 0)
+                return ~0;
+
+        pi = m0_layout_instance_to_pdi(li);
 
         for (i = 0; i < fmap->b_nr; ++i) {
                 if (!m0_bitmap_get(fmap, i))
                         continue;
                 rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
                 if (rc != 0)
-                        return ~0;
+			goto err;
                 rc = m0_sns_cm_cob_locate(cdom, &cobfid);
                 if (rc != 0)
 			continue;
-		agid2fid(&sag->sag_base.cag_id, &gfid);
 		group = agid2group(&sag->sag_base.cag_id);
-		rc = m0_sns_repair_spare_map(pm, &gfid, pl, group, i, &tgt_unit);
+		rc = m0_sns_repair_spare_map(pm, &gfid, pl,
+				pi, group, i, &tgt_unit);
 		if (rc != 0)
-			return ~0;
+			goto err;
                 rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl, &cobfid);
                 if (rc != 0)
-                        return ~0;
+			goto err;
                 rc = m0_sns_cm_cob_locate(cdom, &cobfid);
                 if (rc != 0) {
 			if (rc == -ENOENT)
 				M0_CNT_INC(incoming_nr);
 			else
-				return ~0;
+				goto err;
 		}
 	}
-
+	goto out;
+err:
+	m0_layout_instance_fini(&pi->pi_base);
+	return ~0;
+out:
+	m0_layout_instance_fini(&pi->pi_base);
 	return incoming_nr;
 }
 

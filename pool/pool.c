@@ -708,12 +708,19 @@ out:
 
 M0_INTERNAL bool
 m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *p,
-					   uint32_t spare_slot)
+					   uint32_t spare_slot,
+					   bool check_state)
 {
-	return p->pm_state.pst_spare_usage_array[spare_slot].psu_device_index !=
-	       POOL_PM_SPARE_SLOT_UNUSED &&
-	       p->pm_state.pst_spare_usage_array[spare_slot].psu_device_state !=
-	       M0_PNDS_SNS_REPAIRING;
+	if (!check_state)
+		return p->pm_state.pst_spare_usage_array[spare_slot].
+		       psu_device_index != POOL_PM_SPARE_SLOT_UNUSED &&
+		       p->pm_state.pst_spare_usage_array[spare_slot].
+		       psu_device_state != M0_PNDS_SNS_REPAIRING;
+	else
+		return p->pm_state.pst_spare_usage_array[spare_slot].
+		       psu_device_index != POOL_PM_SPARE_SLOT_UNUSED &&
+		       p->pm_state.pst_spare_usage_array[spare_slot].
+		       psu_device_state != M0_PNDS_SNS_REPAIRED;
 }
 
 M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,

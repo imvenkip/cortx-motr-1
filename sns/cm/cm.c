@@ -660,6 +660,7 @@ M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 		     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
 		     m0_time_sub(scm->sc_stop_time,scm->sc_start_time),
 		     scm->sc_it.si_total_fsize);
+	M0_CNT_INC(scm->sc_repair_done);
 	return 0;
 }
 

@@ -966,6 +966,7 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
 				break;
 		}
 	}
+	M0_ASSERT(is_valid_block_idx(ir, block_idx));
 	blocks = ir->si_blocks;
 	switch (block_type) {
 	/* Input block is assumed to be an untransformed block, and is used for
@@ -1201,8 +1202,10 @@ static inline const struct m0_matrix* recovery_mat_get(const struct m0_sns_ir
 
 static inline  bool are_failures_mixed(const struct m0_sns_ir *ir)
 {
-	return !!ir->si_data_nr && !!ir->si_parity_nr;
+	return !!ir->si_failed_data_nr &&
+		block_count(ir) != ir->si_failed_data_nr + ir->si_alive_nr;
 }
+
 static inline uint32_t block_count(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;

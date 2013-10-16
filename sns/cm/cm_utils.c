@@ -28,6 +28,7 @@
 #include "ioservice/io_service.h"
 
 #include "pool/pool.h"
+#include "sns/parity_repair.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/iter.h"
 #include "sns/cm/cm_utils.h"
@@ -115,16 +116,20 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 {
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
-	struct m0_pdclust_instance *pi;
 	struct m0_fid               gobfid;
+	struct m0_pdclust_instance *pi;
+	struct m0_layout_instance  *li;
 	int                         rc;
 
 	agid2fid(&sag->sag_base.cag_id, &gobfid);
+        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gobfid, &li);
+        if (rc != 0)
+                return -ENOENT;
+
+        pi = m0_layout_instance_to_pdi(li);
+
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gobfid);
-	if (rc != 0)
-		return ~0;
 	m0_pdclust_instance_map(pi, &sa, &ta);
 	m0_layout_instance_fini(&pi->pi_base);
 	return ta.ta_frame * m0_pdclust_unit_size(pl);
@@ -192,7 +197,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		M0_SET0(&cobfid);
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
-		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid))
+		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
+		    !m0_sns_cm_unit_is_spare(scm, pl, fid, group, i))
 			M0_CNT_INC(nrlu);
 	}
 	m0_layout_instance_fini(&pi->pi_base);
@@ -200,11 +206,12 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	return nrlu;
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm *scm,
-						  const struct m0_pdclust_layout
-						  *pl)
+M0_INTERNAL
+uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
+		struct m0_pdclust_layout *pl)
 {
-	return scm->sc_helpers->sch_ag_nr_global_units(scm, pl);
+	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
+	return scm->sc_helpers->sch_ag_nr_global_units(sag, pl);
 }
 
 M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
@@ -224,30 +231,62 @@ M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid)
 {
-	struct m0_poolmach *pm = scm->sc_base.cm_pm;
-	int                 i = 0;
-
-	while (pm->pm_state.pst_spare_usage_array[i].psu_device_index !=
-	       POOL_PM_SPARE_SLOT_UNUSED) {
-		if (pm->pm_state.pst_spare_usage_array[i].psu_device_index ==
-		    cob_fid->f_container &&
-		    pm->pm_state.pst_spare_usage_array[i].psu_device_state !=
-		    M0_PNDS_ONLINE) {
-			return true;
-		}
-		++i;
-	}
-
-	return false;
+	enum m0_pool_nd_state state_out = 0;
+	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
+				 &state_out);
+	return M0_IN(state_out, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
+				 M0_PNDS_SNS_REPAIRED));
 }
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
-					 const struct m0_pdclust_layout *pl,
-					 int unit)
+					 struct m0_pdclust_layout *pl,
+					 const struct m0_fid *fid,
+					 uint64_t group_number,
+					 uint64_t spare_unit_number)
 {
-        return m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE &&
-	       !m0_poolmach_sns_repair_spare_contains_data(scm->sc_base.cm_pm,
-				unit - m0_pdclust_N(pl) - m0_pdclust_K(pl));
+	uint64_t                    data_unit_id_out;
+	struct m0_fid               cobfid;
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_pdclust_instance *pi;
+	enum m0_pool_nd_state       state_out;
+	bool                        result = false;
+	int                         rc;
+
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
+	M0_ASSERT(rc == 0);
+
+	if (m0_pdclust_unit_classify(pl, spare_unit_number) == M0_PUT_SPARE) {
+		rc = m0_sns_repair_data_map(scm->sc_base.cm_pm, fid, pl,
+				group_number, spare_unit_number,
+				&data_unit_id_out);
+		if (rc == -ENOENT) {
+			result = true;
+			goto out;
+		}
+
+		M0_SET0(&sa);
+		M0_SET0(&ta);
+
+		sa.sa_unit = data_unit_id_out;
+		sa.sa_group = group_number;
+
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
+		if (m0_poolmach_device_is_in_spare_usage_array(
+					scm->sc_base.cm_pm,
+					cobfid.f_container)) {
+			rc = m0_poolmach_device_state(scm->sc_base.cm_pm,
+				cobfid.f_container, &state_out);
+			M0_ASSERT(rc == 0);
+			if (state_out != M0_PNDS_SNS_REPAIRED) {
+				result = true;
+				goto out;
+			}
+		}
+	}
+out:
+	m0_layout_instance_fini(&pi->pi_base);
+	return result;
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
@@ -273,22 +312,25 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl,
 					  struct m0_fid *cobfid)
 {
-	struct m0_pdclust_src_addr       sa;
-	struct m0_pdclust_tgt_addr       ta;
-	struct m0_pdclust_instance      *pi;
-	struct m0_fid                    gobfid;
-	int                              rc;
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_fid               gobfid;
+        struct m0_layout_instance  *li;
+        struct m0_pdclust_instance *pi;
+	int                         rc;
 
-	agid2fid(&sag->sag_base.cag_id, &gobfid);
+        agid2fid(&sag->sag_base.cag_id, &gobfid);
+        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gobfid, &li);
+        if (rc != 0)
+                return -ENOENT;
+
+        pi = m0_layout_instance_to_pdi(li);
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = tgt_unit;
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gobfid);
-	if (rc != 0)
-		return rc;
 	m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gobfid, cobfid);
 	m0_layout_instance_fini(&pi->pi_base);
 
-	return rc;
+	return 0;
 }
 
 /**
@@ -498,7 +540,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 	sa.sa_group = group;
 	for (unit = 0; unit < upg; ++unit) {
-		if (m0_sns_cm_unit_is_spare(scm, pl, unit))
+		if (m0_sns_cm_unit_is_spare(scm, pl, gfid, group, unit))
 			continue;
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
