@@ -1,10 +1,17 @@
 # optional configure options
 %define with_linux %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
 
+%define kernel_ver %(
+                      if test -n "$kernel_src"; then
+                          basename "$kernel_src" | tr - _
+                      else
+                          uname -r | tr - _
+                      fi
+                    )
+
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
-# TODO: add kernel version to release string like in lustre
-Release:        1@GIT_REV_ID_RPM@%{?dist}
+Release:        1_%{kernel_ver}.git679347c%{?dist}
 Summary:        Mero filesystem and development libraries
 Group:          System Environment/Base
 License:        Xyratex
