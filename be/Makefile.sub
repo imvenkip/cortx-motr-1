@@ -49,3 +49,5 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
                            be/ut/helper.c
 
 XC_FILES += be/extmap_xc.h
+
+EXTRA_DIST += be/linux_kernel/stubs.c

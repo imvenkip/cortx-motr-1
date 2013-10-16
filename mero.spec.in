@@ -33,7 +33,8 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 %files
 %doc AUTHORS README NEWS ChangeLog COPYING
 %{_bindir}/*
-%{_sbindir}/*
+# comment /sbin until we got something installed there
+#%{_sbindir}/*
 %{_libdir}/*
 %{_sysconfdir}/*
 %{_mandir}/*
