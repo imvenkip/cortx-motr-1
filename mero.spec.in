@@ -22,10 +22,7 @@ Mero filesystem runtime environment and servers.
 %setup -q
 
 %build
-# TODO: when we have release and debug rpms, need to use
-# --disable-immediate-trace and --disable-expensive-checks configure options for
-# release build
-%configure %{with_linux} --disable-unit-tests --disable-finject
+%configure %{with_linux} --enable-release --disable-unit-tests
 make %{?_smp_mflags}
 
 %install

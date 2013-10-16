@@ -110,12 +110,14 @@ AS_CASE([$host_os],
 AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([GCCXML],  [gccxml command])
 
-AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in automic functions])
-AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info.])
+AH_TEMPLATE([ENABLE_DEV_MODE],        [Eeable developer mode.])
+AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
+AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info and disable optimizations.])
 AH_TEMPLATE([ENABLE_PROFILER],        [Enable profile samples gathering.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
+AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in automic functions])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
@@ -127,8 +129,22 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 
+AC_ARG_ENABLE([dev-mode],
+        [AS_HELP_STRING([--disable-dev-mode],
+                        [disable developer mode (additional checks and tests)])],
+        [], [enable_dev_mode=yes]
+)
+
+AC_ARG_ENABLE([release],
+        [AS_HELP_STRING([--enable-release],
+                        [enable release mode (it has the same effect as --disable-dev-mode)])],
+        [AS_IF([test x$enable_release = xyes],
+               [enable_dev_mode=no],[enable_dev_mode=yes])]
+)
+
 AC_ARG_ENABLE([debug],
-        [AS_HELP_STRING([--enable-debug], [enable debug information and logs])],
+        [AS_HELP_STRING([--enable-debug],
+                        [enable debug information and disable optimizations])],
         [], [enable_debug=no]
 )
 AM_CONDITIONAL([ENABLE_DEBUG],
@@ -149,14 +165,16 @@ AC_SUBST([ENABLE_COVERAGE], [$enable_coverage])
 
 AC_ARG_ENABLE([finject],
         AS_HELP_STRING([--disable-finject],[disable fault injection support]),
-        [], [enable_finject=yes]
+        [],
+        [enable_finject=$enable_dev_mode]
 )
 AS_IF([test x$enable_finject = xyes],
       AC_DEFINE([ENABLE_FAULT_INJECTION]))
 
 AC_ARG_ENABLE([immediate-trace],
         AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing]),
-        [], [enable_immediate_trace=yes]
+        [],
+        [enable_immediate_trace=$enable_dev_mode]
 )
 AS_IF([test x$enable_immediate_trace = xyes],
       AC_DEFINE([ENABLE_IMMEDIATE_TRACE]))
@@ -170,7 +188,8 @@ AS_IF([test x$enable_sync_atomic = xyes],
       AC_DEFINE([ENABLE_SYNC_ATOMIC]))
 
 AC_ARG_ENABLE([mcheck],
-        [AS_HELP_STRING([--enable-mcheck],[enable glibc malloc check])], [],
+        [AS_HELP_STRING([--enable-mcheck], [enable glibc malloc check])],
+        [],
         [enable_mcheck=no]
 )
 
@@ -183,7 +202,8 @@ AS_IF([test x$enable_m0_asserts = xno],
 
 AC_ARG_ENABLE([expensive_checks],
         AS_HELP_STRING([--disable-expensive-checks],[disable expensive checks]),
-        [], [enable_expensive_checks=yes]
+        [],
+        [enable_expensive_checks=$enable_dev_mode]
 )
 AS_IF([test x$enable_expensive_checks = xyes],
       AC_DEFINE([ENABLE_EXPENSIVE_CHECKS]))
