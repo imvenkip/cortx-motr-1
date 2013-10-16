@@ -78,6 +78,12 @@ M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx)
 	M0_PRE(m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE);
 	m0_be_tx_prep(&tx->tx_betx, &tx->tx_betx_cred);
 	m0_be_tx_open(&tx->tx_betx);
+}
+
+M0_INTERNAL void m0_dtx_opened(struct m0_dtx *tx)
+{
+	M0_PRE(tx->tx_state == M0_DTX_INIT);
+	M0_PRE(m0_be_tx_state(&tx->tx_betx) == M0_BTS_ACTIVE);
 	tx->tx_state = M0_DTX_OPEN;
 }
 
@@ -89,8 +95,8 @@ M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx)
 	rc = m0_be_tx_timedwait(&tx->tx_betx,
 				M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
 				M0_TIME_NEVER);
-	if (m0_be_tx_state(&tx->tx_betx) != M0_BTS_ACTIVE)
-		tx->tx_state = M0_DTX_INIT;
+	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_ACTIVE)
+		m0_dtx_opened(tx);
 
 	return rc;
 }
