@@ -64,7 +64,7 @@ Usage:
 The script should be run from mero directory:
 
 $ cd ~/path/to/mero
-$ sudo ~/path/to/m0mount.sh [-L] [-a] [-l] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
+$ sudo ~/path/to/m0mount.sh [-L] [-a] [-l] [-s] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
 
 Where:
 -a: Use AD stobs
@@ -79,6 +79,8 @@ Where:
     should be prepeared for ad stobs beforehand.
 
 -l: Use loop device for ad stob configuration
+
+-s: Setup loop devices
 
 -L: Use local machine configuration.
     start the services on the local host only,
@@ -103,7 +105,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="aln:d:k:p:u:qhL"
+OPTIONS_STRING="aln:d:k:p:u:qhLs"
 
 # This example puts ioservices on 3 nodes, and uses 4 data blocks
 SERVICES=(
@@ -114,6 +116,9 @@ SERVICES=(
 	sjt00-c1 172.18.50.161@o2ib:12345:41:101
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
+
+# to make command output parsing predictable
+LC_MESSAGES=C
 
 declare -A NODE_UUID
 NODE_UUID[sjt02-c1]=30ab1a00-8085-40d1-a557-8996e2369a7a
@@ -126,6 +131,8 @@ DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 STOB=linux
 UNIT_SIZE=262144
 use_loop_device=0
+setup_loops_p=0
+loop_used=-1
 setup_local_server_config=0
 wait_after_mount=1
 
@@ -522,6 +529,17 @@ function stop_servers () {
 	done
 }
 
+function setup_loops () {
+	echo Setting up loop devices ...
+
+	for ((i = 0; i <= $((LOCAL_SERVICES_NR*2 -1)); i++)); do
+		lrun dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
+			bs=1M seek=1M count=1
+		lrun losetup /dev/loop$i $WORK_ARENA/disk-image-$i
+		loop_used=$i
+	done
+}
+
 function cleanup () {
 	echo Cleaning up ...
 	if [ "x_$IS_MOUNTED" == "x_yes" ]; then
@@ -537,6 +555,10 @@ EOF
 	fi
 	stop_servers || return 1
 	teardown_hosts
+	for ((i = $loop_used; i >= 0; i--)); do
+		losetup -d /dev/loop$i
+		rm -f $WORK_ARENA/disk-image-$i
+	done
 }
 
 ######
@@ -548,6 +570,10 @@ main()
 
 	if [ $setup_local_server_config -eq 1 ]; then
 		setup_local_params
+	fi
+
+	if [ $setup_loops_p -ne 0 ]; then
+		setup_loops
 	fi
 
 	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
@@ -647,6 +673,9 @@ while getopts "$OPTIONS_STRING" OPTION; do
             ;;
         l)
             use_loop_device=1
+            ;;
+        s)
+            setup_loops_p=1
             ;;
         L)
             setup_local_server_config=1
