@@ -240,7 +240,7 @@ static int fom_auth_wait(struct m0_fom *fom)
  * are executed in this context.
  * After fom execution is completed the transaction is committed.
  */
-static int tx_init(struct m0_fom *fom)
+static int fom_tx_init(struct m0_fom *fom)
 {
 	struct m0_reqh *reqh;
 
@@ -263,7 +263,7 @@ static int tx_init(struct m0_fom *fom)
  * Creates fom local transactional context.
  * Add a fol record part for the fop to the trasaction.
  */
-static int tx_open(struct m0_fom *fom)
+static int fom_tx_open(struct m0_fom *fom)
 {
 	struct m0_reqh *reqh = m0_fom_reqh(fom);
 	struct m0_dtx  *dtx  = &fom->fo_tx;
@@ -288,7 +288,7 @@ static int tx_open(struct m0_fom *fom)
  * Resumes fom execution after completing a blocking operation,
  * issued at the M0_FOPH_TXN_OPEN phase.
  */
-static int tx_wait(struct m0_fom *fom)
+static int fom_tx_wait(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
@@ -497,21 +497,21 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_TXN_INIT,
 					     "fom_auth_wait",
 					      1 << M0_FOPH_AUTHORISATION_WAIT },
-	[M0_FOPH_TXN_INIT] =		   { &tx_init,
+	[M0_FOPH_TXN_INIT] =		   { &fom_tx_init,
 					      M0_FOPH_TXN_OPEN,
-					     "tx_init",
+					     "fom_tx_init",
 					      1 << M0_FOPH_TXN_INIT },
-	[M0_FOPH_TXN_OPEN] =		   { &tx_open,
+	[M0_FOPH_TXN_OPEN] =		   { &fom_tx_open,
 					      M0_FOPH_TXN_WAIT,
-					     "tx_open",
+					     "fom_tx_open",
 					      1 << M0_FOPH_TXN_OPEN },
-	[M0_FOPH_TXN_WAIT] =		   { &tx_wait,
+	[M0_FOPH_TXN_WAIT] =		   { &fom_tx_wait,
 					      M0_FOPH_TYPE_SPECIFIC,
-					     "tx_wait",
+					     "fom_tx_wait",
 					      1 << M0_FOPH_TXN_WAIT },
 	[M0_FOPH_TXN_OPEN_FAILED] =	   { &fom_failure,
 					      M0_FOPH_QUEUE_REPLY,
-					     "tx_open_failed",
+					     "fom_tx_open_failed",
 					      1 << M0_FOPH_TXN_OPEN_FAILED },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
 					      M0_FOPH_FOL_REC_ADD,
@@ -612,21 +612,21 @@ static struct m0_sm_state_descr generic_phases[] = {
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_INIT, M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_TXN_INIT] = {
-		.sd_name      = "tx_init",
+		.sd_name      = "fom_tx_init",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN)
 	},
 	[M0_FOPH_TXN_OPEN] = {
-		.sd_name      = "tx_open",
+		.sd_name      = "fom_tx_open",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_WAIT)
 	},
 	[M0_FOPH_TXN_WAIT] = {
-		.sd_name      = "tx_wait",
+		.sd_name      = "fom_tx_wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN_FAILED,
 					M0_FOPH_TYPE_SPECIFIC)
 	},
 	[M0_FOPH_TXN_OPEN_FAILED] = {
 		.sd_flags     = M0_SDF_FAILURE,
-		.sd_name      = "tx_open_failure",
+		.sd_name      = "fom_tx_open_failure",
 		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
 	},
 	[M0_FOPH_SUCCESS] = {
