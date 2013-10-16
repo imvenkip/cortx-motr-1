@@ -24,6 +24,9 @@
 #ifndef __MERO_CLOVIS_CLOVIS_H__
 #define __MERO_CLOVIS_CLOVIS_H__
 
+#include "lib/vec.h"
+#include "lib/types.h"
+#include "sm/sm.h"
 
 /**
  * @defgroup clovis
@@ -46,57 +49,145 @@
  *
  *     - object (m0_clovis_obj) is an array of fixed-size blocks;
  *
- *     - container (m0_clovis_bag) is a key-value store;
+ *     - index (m0_clovis_idx) is a key-value store;
  *
- *     - domain is a collection of objects and containers with a specified
- *       access discipline and certain guaranteed fault-tolerance
- *       characteristics. There are different types of domains, specified by the
- *       enum m0_clovis_dom_type. Initially clovis supports only domains of
- *       M0_CLOVIS_DOM_TYPE_EXCL. Such domains have, at any given moment, at
- *       most one application accessing the domain. This application is called
- *       "domain owner".
+ *     - scope (m0_clovis_scope) is a spatial and temporal part of system with a
+ *       prescribed access discipline. Objects, indices and operations live in
+ *       scopes;
  *
- *     - operation (m0_clovis_obj_op, m0_clovis_bag_op) is a process of querying
- *       or updating object or container;
+ *     - operation (m0_clovis_op) is a process of querying or updating system
+ *       state;
+ *
+ * Scopes are further sub-divided in:
  *
  *     - transaction (m0_clovis_dtx) is a collection of operations atomic in the
- *       face of failures. All operations from a transaction belong to the same
- *       domain.
+ *       face of failures;
  *
- * Objects, containers and domains have unique identifiers (m0_clovis_id) from
- * disjoint name-spaces (that is, an object, a container and a domain might have
- * the same identifier). Identifier management is up to the application, except
- * for the single reserved identifier for "domain0", see below and for
- * transaction identifiers, which are assigned by the clovis implementation.
+ *     - epoch (m0_clovis_epoch) is...
  *
- * All clovis entry points are non-blocking: a structure representing object,
- * container, domain, transaction or operation contains an embedded state
- * machine (m0_sm). A call to a clovis function would, if necessary, change the
- * state machine state, initiate some asynchronous activity and immediately
- * return without waiting for the activity to complete. The caller is expected
- * to wait for the state machine state changes using m0_sm interface. Errors are
- * returned through m0_sm::sm_rc.
+ *     - container (m0_clovis_container) is a collection of objects used by a
+ *       particular application or group of applications.
+ *
+ * Object, index and scope are sub-types of entity (m0_clovis_entity). An entity
+ * exists in some scope and has a 128-bit identifier, unique within all entities
+ * of the same type in the scope. Identifier management is up to the
+ * application, except for the single reserved identifier for "uber scope"
+ * (M0_CLOVIS_UBER_SCOPE), representing the root of scope hierarchy.
+ *
+ * All clovis entry points are non-blocking. To perform a potentially lengthy
+ * activity, that might involve network communication (for example, read from an
+ * object), clovis entry point (m0_clovis_obj_op() in the case of object read),
+ * sets up an operation (m0_clovis_ops) structure containing the parameters of
+ * the activity and immediately returns to the caller. The caller must
+ * explicitly launch a set of previously prepared operations by calling
+ * m0_clovis_op_launch(). Separation of setup and launch provides for more
+ * efficient network communication, where multiple operations are accumulated in
+ * the same RPC message.
+ *
+ * The user can track the state of the operation either synchronously, by
+ * waiting until the operation reaches a particular state, or asynchronously by
+ * supplying (m0_clovis_op_setup()) a call-back to be called when the operation
+ * reaches a particular state.
+ *
+ * An entity embeds an operation (m0_clovis_entity::en_op) used by the common
+ * entity operations: entity creation, deletion, opening and closing, see
+ * m0_clovis_entity_create(), m0_clovis_entity_delete(),
+ * m0_clovis_entity_open(), m0_clovis_entity_close().
+ *
+ * Operation structures for other operations (object read-write, index get-put)
+ * are allocated by the appropriate entry points, see "op" parameter of
+ * m0_clovis_obj_op() for an example.
+ *
+ * Operation errors are returned through m0_clovis_op::op_sm::sm_rc.
+ *
+ * Sub-typing
+ * ----------
+ *
+ * @verbatim
+ *
+ *        entity (create, delete, open, close, fini) [abstract, no constructor]
+ *          |
+ *          |
+ *          +---- object (init, read, write, alloc, free)
+ *          |
+ *          |
+ *          +---- index (init, get, put, next)
+ *          |
+ *          |
+ *          +---- scope () [abstract, no constructor]
+ *                  |
+ *                  |
+ *                  +---- container (init)
+ *                  |
+ *                  |
+ *                  +---- epoch (init)
+ *                  |
+ *                  |
+ *                  +---- dtx (init)
+ *
+ *
+ *        op (init, wait, fini) [has private sub-types in clovis_private.h]
+ *
+ * @endverbatim
+ *
+ * Operations, common for all entity types are implemented at the entity level:
+ * m0_clovis_entity_create(), m0_clovis_entity_delete(),
+ * m0_clovis_entity_open(), m0_clovis_entity_close(), m0_clovis_entity_fini().
+ *
+ * A typical usage would involve initialisation of a concrete entity (e.g.,
+ * object), execution of some generic operations and then of some concrete
+ * operations, for example:
+ *
+ * @code
+ * m0_clovis_obj  o;
+ * m0_clovis_op   ops[2];
+ *
+ * // initialise object in-memory structure
+ * m0_clovis_obj_init(&o, &container, &id);
+ *
+ * // initiate object creation
+ * m0_clovis_entity_create(&o.ob_entity);
+ *
+ * // initiate write data in the object
+ * result = m0_clovis_obj_op(&o, M0_CLOVIS_OC_WRITE, ..., &ops[1]);
+ *
+ * // launch both operations (creation and write)
+ * ops[0] = &o.ob_entity.en_op;
+ * m0_clovis_op_launch(ops, ARRAY_SIZE(ops));
+ *
+ * // wait until creation completes
+ * result = m0_clovis_op_wait(op[0]);
+ *
+ * // wait until write completes
+ * result = m0_clovis_op_wait(op[1]);
+ *
+ * // finalise the object
+ * m0_clovis_entity_fini(&o.ob_entity);
+ * @endcode
+ *
  *
  * Ownership
  * ---------
  *
- * Clovis data structures (domains, objects, containers, transactions and
- * operations) are allocated by the application. The application may free a
- * structure after completing the corresponding finalisation call.
+ * Clovis data structures (scopes, objects and indices) are allocated by the
+ * application. The application may free a structure after completing the
+ * corresponding finalisation call.
  *
- * Data blocks (m0_clovis_data) used by scatter-gather-scatter lists
- * (m0_clovis_sgsl) and key-value records (m0_clovis_rec) are allocated by the
- * application. For queries ("read-only" operations: M0_COOT_READ,
- * M0_CBOT_LOOKUP and M0_CBOT_CURSOR) the application may free the data blocks
- * as soon as the operation completes or fails. For updating operations, the
- * data blocks may be freed as soon as the transaction of which the operation is
+ * An operation structure allocated by the clovis implementation is freed by the
+ * clovis after the operation completes.
+ *
+ * Data blocks used by scatter-gather-scatter lists and key-value records are
+ * allocated by the application. For read-only operations M0_CLOVIS_OC_READ,
+ * M0_CLOVIS_IC_GET and M0_CLOVIS_IC_NEXT) the application may free the data
+ * blocks as soon as the operation completes or fails. For updating operations,
+ * the data blocks may be freed as soon as the scope of which the operation is
  * part, becomes stable.
  *
  * Concurrency
  * -----------
  *
- * Clovis implementation guarantees that concurrent calls to the same container
- * are linearizable.
+ * Clovis implementation guarantees that concurrent calls to the same index are
+ * linearizable.
  *
  * All other concurrency control, including ordering of reads and writes to a
  * clovis object, and distributed transaction serializability, is up to the
@@ -106,6 +197,142 @@
  *
  * @{
  */
+
+enum m0_clovis_entity_type {
+	M0_CLOVIS_ET_SCOPE,
+	M0_CLOVIS_ET_OBJ,
+	M0_CLOVIS_ET_IDX,
+};
+
+struct m0_clovis_op {
+	unsigned int                   op_code;
+	struct m0_sm                   op_sm;
+	const struct m0_clovis_op_ops *op_ops;
+	struct m0_clovis_entity       *op_entity;
+	m0_time_t                      op_linger; /* a town in Luxembourg. */
+};
+
+struct m0_clovis_entity {
+	enum m0_clovis_entity_type en_type;
+	struct m0_uint128          en_id;
+	struct m0_clovis_scope    *en_scope;
+	struct m0_sm               en_sm;
+	struct m0_clovis_op        en_op;
+};
+
+struct m0_clovis_obj {
+	struct m0_clovis_entity ob_entity;
+};
+
+struct m0_clovis_idx {
+	struct m0_clovis_entity in_entity;
+};
+
+struct m0_clovis_scope {
+	struct m0_clovis_entity   sc_entity;
+	enum m0_clovis_scope_type sc_type,
+};
+
+struct m0_clovis_container {
+	struct m0_clovis_scope co_scope;
+};
+
+struct m0_clovis_epoch {
+	struct m0_clovis_scope ep_scope;
+};
+
+struct m0_clovis_dtx {
+	struct m0_clovis_scope dt_scope;
+};
+
+struct m0_clovis_op_ops {
+	void (*oop_replied)(struct m0_clovis_op *op);
+	void (*oop_aborted)(struct m0_clovis_op *op);
+	void (*oop_done)   (struct m0_clovis_op *op);
+};
+
+extern const struct m0_uint128 M0_CLOVIS_UBER_SCOPE;
+
+void m0_clovis_op_setup(struct m0_clovis_op *op,
+			const struct m0_clovis_op_ops *ops,
+			m0_time_t linger);
+void m0_clovis_op_launch(struct m0_clovis_op **op, uint32_t nr);
+int32_t m0_clovis_wait(struct m0_clovis_op *op);
+
+void m0_clovis_container_init(struct m0_clovis_obj    *obj,
+			      struct m0_clovis_scope  *parent,
+			      const struct m0_uint128 *id);
+void m0_clovis_epoch_init(struct m0_clovis_obj    *obj,
+			  struct m0_clovis_scope  *parent,
+			  const struct m0_uint128 *id);
+void m0_clovis_dtx_init(struct m0_clovis_obj    *obj,
+			struct m0_clovis_scope  *parent,
+			const struct m0_uint128 *id);
+
+void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
+			struct m0_clovis_scope  *parent,
+			const struct m0_uint128 *id);
+
+enum m0_clovis_obj_opcode {
+	M0_CLOVIS_OC_READ,
+	M0_CLOVIS_OC_WRITE,
+	M0_CLOVIS_OC_ALLOC,
+	M0_CLOVIS_OC_FREE
+};
+
+int m0_clovis_obj_op(struct m0_clovis_obj       *obj,
+		     enum m0_clovis_obj_opcode   opcode,
+		     struct m0_indexvec         *ext,
+		     struct m0_bufvec           *data,
+		     struct m0_bufvec           *attr,
+		     struct uint64_t             attr_mask,
+		     struct m0_clovis_op       **op);
+
+void m0_clovis_idx_init(struct m0_clovis_idx    *idx,
+			struct m0_clovis_scope  *parent,
+			const struct m0_uint128 *id);
+
+enum m0_clovis_idx_opcode {
+	M0_CLOVIS_IC_GET,
+	M0_CLOVIS_IC_PUT,
+	M0_CLOVIS_IC_NEXT,
+};
+
+int m0_clovis_idx_op(struct m0_clovis_idx       *idx,
+		     enum m0_clovis_idx_opcode   opcode,
+		     struct m0_bufvec           *key,
+		     struct m0_bufvec           *val,
+		     struct m0_bufvec           *chk,
+		     struct m0_clovis_op       **op);
+
+enum m0_clovis_scope_type {
+	M0_CLOVIS_ST_CONTAINER,
+	M0_CLOVIS_ST_EPOCH,
+	M0_CLOVIS_ST_DTX
+};
+
+void m0_clovis_scope_create(struct m0_clovis_scope    *scope,
+			    struct m0_clovis_scope_op *op,
+			    struct m0_clovis_scope    *parent,
+			    struct m0_uint128          id,
+			    enum m0_clovis_scope_type  stype,
+			    uint64_t wcount, uint64_t rcount);
+
+void m0_clovis_scope_open(struct m0_clovis_scope   *scope,
+			  struct m0_clovis_op      *op,
+			  struct m0_clovis_scope   *parent,
+			  struct m0_uint128         id);
+
+void m0_clovis_scope_close(struct m0_clovis_scope   *scope,
+			   struct m0_clovis_op      *op,
+			   uint64_t wcount, uint64_t rcount);
+
+void m0_clovis_entity_create(struct m0_clovis_entity *entity);
+void m0_clovis_entity_delete(struct m0_clovis_entity *entity);
+void m0_clovis_entity_open  (struct m0_clovis_entity *entity);
+void m0_clovis_entity_close (struct m0_clovis_entity *entity);
+void m0_clovis_entity_fini  (struct m0_clovis_entity *entity);
+
 
 /* import */
 #include "lib/types.h"
