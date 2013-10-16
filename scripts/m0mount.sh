@@ -152,7 +152,7 @@ MP=/mnt/m0
 FSTMID=1
 
 # Remote work arena
-WORK_ARENA=/var/tmp/m0
+WORK_ARENA=/var/mero
 
 # transport related variables
 XPT=lnet
@@ -532,6 +532,7 @@ function stop_servers () {
 function setup_loops () {
 	echo Setting up loop devices ...
 
+	l_run mkdir -p $WORK_ARENA
 	for ((i = 0; i <= $((LOCAL_SERVICES_NR*2 -1)); i++)); do
 		l_run dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
 			bs=1M seek=1M count=1
