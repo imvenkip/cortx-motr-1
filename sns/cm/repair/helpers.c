@@ -29,12 +29,6 @@
 M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl);
 
-static uint64_t repair_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
-					  struct m0_pdclust_layout *pl)
-{
-        return m0_pdclust_N(pl) + m0_pdclust_K(pl);
-}
-
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 					     const struct m0_cm_ag_id *id,
 					     struct m0_pdclust_layout *pl)
@@ -127,7 +121,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 }
 
 const struct m0_sns_cm_helpers repair_helpers = {
-	.sch_ag_nr_global_units     = repair_ag_nr_global_units,
 	.sch_ag_max_incoming_units  = repair_ag_max_incoming_units,
 	.sch_ag_unit_start          = repair_ag_unit_start,
 	.sch_ag_unit_end            = repair_ag_unit_end,

@@ -31,13 +31,6 @@
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);
-
-static uint64_t rebalance_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
-					     struct m0_pdclust_layout *pl)
-{
-	return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-}
-
 static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
@@ -134,7 +127,6 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 }
 
 const struct m0_sns_cm_helpers rebalance_helpers = {
-	.sch_ag_nr_global_units     = rebalance_ag_nr_global_units,
 	.sch_ag_max_incoming_units  = rebalance_ag_max_incoming_units,
 	.sch_ag_unit_start          = rebalance_ag_unit_start,
 	.sch_ag_unit_end            = rebalance_ag_unit_end,

@@ -114,12 +114,6 @@ struct m0_sns_cm_buf_pool {
  */
 struct m0_sns_cm_helpers {
 	/**
-	 * Returns number of total global units for a given aggregation group.
-	 */
-	uint64_t (*sch_ag_nr_global_units)(const struct m0_sns_cm_ag *sag,
-					   struct m0_pdclust_layout *pl);
-
-	/**
 	 * Returns maximum possible number of aggregation group units to be
 	 * received by this replica.
 	 */

@@ -206,8 +206,7 @@ M0_INTERNAL
 uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
 		struct m0_pdclust_layout *pl)
 {
-	struct m0_sns_cm *scm = cm2sns(sag->sag_base.cag_cm);
-	return scm->sc_helpers->sch_ag_nr_global_units(sag, pl);
+	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
 }
 
 M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
@@ -246,16 +245,21 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_pdclust_instance *pi;
 	enum m0_pool_nd_state       state_out;
-	bool                        result = false;
+	bool                        result = true;
 	int                         rc;
 
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
 	M0_ASSERT(rc == 0);
 
 	if (m0_pdclust_unit_classify(pl, spare_unit_number) == M0_PUT_SPARE) {
+		/*
+		 * Firstly, check if the device corresponding to the given spare
+		 * unit is already repaired. If yes then the spare unit is empty
+		 * or the data is already moved. So we need not repair the spare
+		 * unit.
+		 */
 		M0_SET0(&sa);
 		M0_SET0(&ta);
-
 		sa.sa_unit = spare_unit_number;
 		sa.sa_group = group_number;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
@@ -263,14 +267,20 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 			cobfid.f_container, &state_out);
 		M0_ASSERT(rc == 0);
 		if (state_out == M0_PNDS_SNS_REPAIRED)
-			return true;
+			goto out;
+
+		/*
+		 * Failed spare unit may contain data of previously failed data
+		 * unit from the parity group. Reverse map the spare unit to the
+		 * repaired data/parity unit from the parity group.
+		 * If we fail to map the spare unit to any of the previously
+		 * failed data unit, means the spare is empty.
+		 */
 		rc = m0_sns_repair_data_map(scm->sc_base.cm_pm, fid, pl,
 				group_number, spare_unit_number,
 				&data_unit_id_out);
-		if (rc == -ENOENT) {
-			result = true;
+		if (rc == -ENOENT)
 			goto out;
-		}
 
 		M0_SET0(&sa);
 		M0_SET0(&ta);
@@ -278,6 +288,15 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 		sa.sa_unit = data_unit_id_out;
 		sa.sa_group = group_number;
 
+		/*
+		 * The mechanism to reverse map the spare unit to any of the
+		 * previously failed data unit is generic and based to device
+		 * failure information from the pool machine.
+		 * Thus if the device hosting the reverse mapped data unit for the
+		 * given spare is in M0_PNDS_SNS_REPAIRED state, means the given
+		 * spare unit contains data and needs to be repaired, else it is
+		 * empty.
+		 */
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
 		if (m0_poolmach_device_is_in_spare_usage_array(
 					scm->sc_base.cm_pm,
@@ -287,9 +306,10 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 			M0_ASSERT(rc == 0);
 			if (!M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
 					       M0_PNDS_SNS_REBALANCING)))
-				return true;
+				goto out;
 		}
 	}
+	result = false;
 out:
 	m0_layout_instance_fini(&pi->pi_base);
 	return result;
