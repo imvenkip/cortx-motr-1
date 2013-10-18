@@ -24,6 +24,7 @@ sns_repair_test()
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
+
 	dd if=/dev/urandom bs=$unit_size count=9 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
@@ -98,6 +99,33 @@ sns_repair_test()
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	fi
+
+        echo "Starting SNS Re-balance.."
+        rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+        echo $rebalance_trigger
+
+        if ! $rebalance_trigger ; then
+                echo "SNS Re-balance failed"
+                return 1
+        fi
+
+        poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device1
+                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+        echo $poolmach
+        if ! $poolmach ; then
+                echo "m0poolmach failed"
+                unmount_and_clean &>> $MERO_TEST_LOGFILE
+                return 1
+        fi
+
+        poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device2
+                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+        echo $poolmach
+        if ! $poolmach ; then
+                echo "m0poolmach failed"
+                unmount_and_clean &>> $MERO_TEST_LOGFILE
+                return 1
+        fi
 
 	echo "unmounting and cleaning.."
 	unmount_and_clean &>> $MERO_TEST_LOGFILE

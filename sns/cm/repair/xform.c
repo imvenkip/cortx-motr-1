@@ -205,8 +205,9 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	/*
 	 * Check if all copy packets are processed at this stage,
 	 * For incoming path transformation can be marked as complete
-	 * iff bitmap of transformed copy packets "global" to
-	 * aggregation group is full.
+	 * iff all the local (@ag->cag_cp_local_nr) as well as all the
+	 * incoming (@rag->rag_base.sag_incoming_nr) copy packets are
+	 * transformed for the given aggregation group.
 	 * For outgoing path, iff all "local" copy packets in
 	 * aggregation group are transformed, then transformation can
 	 * be marked complete.

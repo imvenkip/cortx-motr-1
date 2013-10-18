@@ -121,7 +121,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 	int                         rc;
 
 	agid2fid(&sag->sag_base.cag_id, &gobfid);
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &godfid);
+	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gobfid);
         if (rc != 0)
                 return -ENOENT;
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
@@ -345,7 +345,7 @@ M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 	int                         rc;
 
         agid2fid(&sag->sag_base.cag_id, &gobfid);
-        rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
+        rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gobfid);
         if (rc != 0)
                 return -ENOENT;
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);

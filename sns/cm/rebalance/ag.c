@@ -90,7 +90,7 @@ static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag)
 	M0_PRE(ag != NULL);
 
         if (ag->cag_has_incoming)
-		return ag->cag_freed_cp_nr == rag->rag_incoming_nr +
+		return ag->cag_freed_cp_nr == rag->rag_base.sag_incoming_nr +
 					      ag->cag_cp_local_nr;
         else
 		return ag->cag_freed_cp_nr == ag->cag_cp_local_nr;
@@ -102,71 +102,11 @@ static const struct m0_cm_aggr_group_ops sns_cm_rebalance_ag_ops = {
 	.cago_local_cp_nr = m0_sns_cm_ag_local_cp_nr
 };
 
-static uint32_t sns_cm_ag_incoming_nr(struct m0_sns_cm_ag *sag,
-                                      struct m0_pdclust_layout *pl,
-				      struct m0_cob_domain *cdom)
-{
-	struct m0_poolmach         *pm = sag->sag_base.cag_cm->cm_pm;
-        struct m0_bitmap           *fmap = &sag->sag_fmap;
-        struct m0_fid               cobfid;
-        struct m0_fid               gfid;
-        struct m0_layout_instance  *li;
-        struct m0_pdclust_instance *pi;
-        int32_t                     incoming_nr = 0;
-	uint32_t                    tgt_unit;
-	uint64_t                    group;
-        uint64_t                    i;
-	int                         rc;
-
-	agid2fid(&sag->sag_base.cag_id, &gfid);
-        rc = m0_layout_instance_build(&pl->pl_base.sl_base, &gfid, &li);
-        if (rc != 0)
-                return ~0;
-
-        pi = m0_layout_instance_to_pdi(li);
-
-        for (i = 0; i < fmap->b_nr; ++i) {
-                if (!m0_bitmap_get(fmap, i))
-                        continue;
-		if (m0_pdclust_unit_classify(pl, i) == M0_PUT_SPARE)
-			continue;
-                rc = m0_sns_cm_ag_tgt_unit2cob(sag, i, pl, &cobfid);
-                if (rc != 0)
-			goto err;
-                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
-                if (rc != 0)
-			continue;
-		group = agid2group(&sag->sag_base.cag_id);
-		rc = m0_sns_repair_spare_map(pm, &gfid, pl,
-					pi, group, i, &tgt_unit);
-		if (rc != 0)
-			goto err;
-                rc = m0_sns_cm_ag_tgt_unit2cob(sag, tgt_unit, pl, &cobfid);
-                if (rc != 0)
-			goto err;
-                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
-                if (rc != 0) {
-			if (rc == -ENOENT)
-				M0_CNT_INC(incoming_nr);
-			else
-				goto err;
-		}
-	}
-	goto out;
-err:
-	m0_layout_instance_fini(&pi->pi_base);
-	return ~0;
-out:
-	m0_layout_instance_fini(&pi->pi_base);
-	return incoming_nr;
-}
-
 M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
 					     const struct m0_cm_ag_id *id,
 					     bool has_incoming,
 					     struct m0_cm_aggr_group **out)
 {
-	struct m0_sns_cm              *scm = cm2sns(cm);
 	struct m0_sns_cm_rebalance_ag *rag;
 	struct m0_sns_cm_ag           *sag;
 	struct m0_pdclust_layout      *pl;
@@ -190,8 +130,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
         }
 
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
-	rag->rag_incoming_nr = sns_cm_ag_incoming_nr(sag, pl,
-						     scm->sc_it.si_cob_dom);
 	*out = &sag->sag_base;
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),

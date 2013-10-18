@@ -172,6 +172,10 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 	do {
 		spare_id = spare_in - m0_pdclust_N(pl) -
 			m0_pdclust_K(pl);
+		/*
+		 * Fetch the correspinding data/parity unit device index for
+		 * the given spare unit.
+		 */
 		device_index = pm->pm_state.pst_spare_usage_array[spare_id].
 			psu_device_index;
 
@@ -180,6 +184,10 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 			goto out;
 		}
 
+		/*
+		 * Find the data/parity unit frame for the @group_number on the
+		 * given device represented by @device_index.
+		 */
 		frame = frame_get(pi, group_number, device_index);
 		if (frame == -ENOENT) {
 			rc = -ENOENT;
@@ -198,14 +206,29 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 			goto out;
 		}
 
+		/*
+		 * Doing inverse mapping from the frame in the device to the
+		 * corresponding unit in parity group @group_number.
+		 */
 		m0_pdclust_instance_inv(pi, &ta, &sa);
 
 		*data_unit_id_out = sa.sa_unit;
 
+		/*
+		 * It is possible that the unit mapped corresponding to the given
+		 * spare_unit_number is same as the spare_unit_number.
+		 * Thus this means that there is no data/parity unit repaired on
+		 * the given spare_unit_number and the spare is empty.
+		 */
 		if (spare_unit_number == sa.sa_unit) {
 			rc = -ENOENT;
 			goto out;
 		}
+
+		/*
+		 * We have got another spare unit, so further try again to map
+		 * this spare unit to the actual failed data/parity unit.
+		 */
 		spare_in = sa.sa_unit;
 
 	} while(m0_pdclust_unit_classify(pl, sa.sa_unit) == M0_PUT_SPARE &&
@@ -215,6 +238,7 @@ out:
 
 	return rc;
 }
+
 #undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:

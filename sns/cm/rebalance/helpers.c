@@ -36,7 +36,62 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
 				struct m0_pdclust_layout *pl)
 {
-	return m0_pdclust_K(pl);
+        struct m0_poolmach         *pm = scm->sc_base.cm_pm;
+        struct m0_fid               cobfid;
+        struct m0_fid               gfid;
+        struct m0_pdclust_instance *pi;
+        struct m0_cob_domain       *cdom;
+        struct m0_pdclust_src_addr  sa;
+        struct m0_pdclust_tgt_addr  ta;
+        int32_t                     incoming_nr = 0;
+        uint32_t                    tgt_unit;
+        uint64_t                    unit;
+	uint64_t                    upg;
+        int                         rc;
+
+        cdom  = scm->sc_it.si_cob_dom;
+        M0_SET0(&sa);
+        M0_SET0(&ta);
+        agid2fid(id, &gfid);
+        sa.sa_group = agid2group(id);
+        rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
+        if (rc != 0)
+                return ~0;
+	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	for (unit = 0; unit < upg; ++unit) {
+		sa.sa_unit = unit;
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
+				      &cobfid);
+		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
+			continue;
+		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE)
+                        continue;
+                sa.sa_unit = unit;
+                m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
+                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
+                if (rc != 0)
+                        continue;
+                rc = m0_sns_repair_spare_map(pm, &gfid, pl,
+                                             pi, sa.sa_group, unit, &tgt_unit);
+                if (rc != 0)
+                        goto err;
+                sa.sa_unit = tgt_unit;
+                m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
+                rc = m0_sns_cm_cob_locate(cdom, &cobfid);
+                if (rc != 0) {
+                        if (rc == -ENOENT)
+                                M0_CNT_INC(incoming_nr);
+                        else
+                                goto err;
+                }
+	}
+        goto out;
+err:
+        m0_layout_instance_fini(&pi->pi_base);
+        return ~0;
+out:
+        m0_layout_instance_fini(&pi->pi_base);
+        return incoming_nr;
 }
 
 static uint64_t rebalance_ag_unit_start(const struct m0_pdclust_layout *pl)

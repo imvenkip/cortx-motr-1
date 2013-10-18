@@ -35,9 +35,6 @@
 struct m0_sns_cm_rebalance_ag {
 	/** Base aggregation group. */
 	struct m0_sns_cm_ag  rag_base;
-
-	/** Number of incoming copy packets. */
-	uint32_t             rag_incoming_nr;
 };
 
 

@@ -278,11 +278,22 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 					&data_unit_id_out);
 				if (rc != 0)
 					return rc;
+			/*
+			 * If the mapped data unit @data_unit_id_out
+			 * corresponding to spare unit @i is same as the spare
+			 * unit @i then ignore and nove to next failed unit in
+			 * the parity group.
+			 */
 			if (data_unit_id_out == i)
 				continue;
 		} else
 			data_unit_id_out = i;
 
+		/*
+		 * Move to next failed unit in the parity group if the mapped
+		 * data unit @data_unit_id_out is another spare unit in the
+		 * aggregation group (i.e N + K < i < N + 2K).
+		 */
 		if (m0_sns_cm_unit_is_spare(scm, pl, &fid, group_number,
 					data_unit_id_out))
 			continue;
@@ -290,7 +301,13 @@ static int repair_ag_failure_ctxs_setup(struct m0_sns_cm_repair_ag *rag,
 				&cobfid);
 		if (rc != 0)
 			return rc;
-
+		/*
+		 * Failed unit is data/parity unit.
+		 * Check the device state for the device hosting the failed unit.
+		 * If the device state == M0_PNDS_SNS_REPAIRED, means failed
+		 * unit @i was already repaired in previous sns repair operation.
+		 * Hence move to next failed unit in the aggregation group.
+		 */
 		if (data_unit_id_out == i) {
 			rc = m0_poolmach_device_state(cm->cm_pm,
 					cobfid.f_container, &state_out);

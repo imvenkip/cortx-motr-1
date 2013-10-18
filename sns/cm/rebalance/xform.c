@@ -68,7 +68,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 	if (!ag->cag_has_incoming)
 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
 
-	/* Calculate target info */
 	M0_ASSERT(m0_fid_is_set(&scp->sc_cobfid));
 	rc = m0_sns_cm_rebalance_tgt_info(sns_ag, scp);
 	M0_ASSERT(m0_fid_is_set(&scp->sc_cobfid));

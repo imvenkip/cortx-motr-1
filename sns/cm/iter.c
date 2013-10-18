@@ -519,8 +519,16 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	/*
 	 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
 	 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
+	 * see iter_cob_next().
 	 */
 	ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
+	/*
+	 * If the aggregation group unit to be read is a spare unit
+	 * (i.e. contains data) then map the spare unit to its corresponding
+	 * failed data/parity unit in the aggregation group @ag.
+	 * This is required to mark the appropriate data/parity unit of
+	 * which this spare contains data.
+	 */
 	if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
 		rc = m0_sns_repair_data_map(cm->cm_pm, &fid, pl,
 				group_number, ag_cp_idx, &ag_cp_idx);
@@ -577,7 +585,6 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_fid                   *cob_fid;
 	struct m0_pdclust_src_addr      *sa;
 	bool                             has_data;
-	//enum m0_sns_cm_op                op = scm->sc_op;
 	uint32_t                         upg;
 	int                              rc = 0;
 	M0_ENTRY("it = %p", it);
