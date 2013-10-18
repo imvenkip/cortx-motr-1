@@ -63,7 +63,7 @@ if [ -n "$MOUNTED" ] ; then
 	echo Error $MP is already mounted
 	exit 1
 fi
-SERVERS=$(pgrep -f m0d)
+SERVERS=$(pgrep m0d)
 if [ -n "$SERVERS" ] ; then
 	echo Error m0d processes already running
 	exit 1

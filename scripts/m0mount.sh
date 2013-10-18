@@ -232,7 +232,7 @@ function setup_host () {
 		XPT_PARAM=$XPT_PARAM_L
 	fi
 	# check if a mero process is running
-	local SVRS=$($RUN pgrep -f m0d)
+	local SVRS=$($RUN pgrep m0d)
 	if [ -n "$SVRS" ]; then
 		echo $SVRS
 		echo ERROR: m0d process already running on $H
