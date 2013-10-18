@@ -291,8 +291,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .name   = "Failure vector update notification",
 				 .opcode = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
 				 .xt        = m0_fop_fv_notification_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_ONEWAY);
+				 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
 }
 
 /**

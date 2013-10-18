@@ -128,11 +128,17 @@ M0_INTERNAL void m0_rpc_item_module_fini(void)
 
 M0_INTERNAL void m0_rpc_item_type_register(struct m0_rpc_item_type *item_type)
 {
-
+	uint64_t dir_flag;
 	M0_ENTRY("item_type: %p, item_opcode: %u", item_type,
 		 item_type->rit_opcode);
 	M0_PRE(item_type != NULL);
+	dir_flag = item_type->rit_flags | (M0_RPC_ITEM_TYPE_REQUEST |
+		   M0_RPC_ITEM_TYPE_REPLY | M0_RPC_ITEM_TYPE_ONEWAY);
 	M0_PRE(!opcode_is_dup(item_type->rit_opcode));
+	M0_PRE(dir_flag != 0);
+	M0_PRE(m0_is_po2(dir_flag));
+	M0_PRE(ergo(item_type->rit_flags & M0_RPC_ITEM_TYPE_MUTABO,
+		    dir_flag == M0_RPC_ITEM_TYPE_REQUEST));
 
 	m0_rwlock_write_lock(&rpc_item_types_lock);
 	rit_tlink_init_at(item_type, &rpc_item_types_list);
