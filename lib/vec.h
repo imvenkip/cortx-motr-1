@@ -50,7 +50,7 @@ struct m0_vec {
 	uint32_t     v_nr;
 	/** array of segment counts */
 	m0_bcount_t *v_count;
-} M0_XCA_RECORD;
+} M0_XCA_SEQUENCE;
 
 /** Returns total count of vector */
 M0_INTERNAL m0_bcount_t m0_vec_count(const struct m0_vec *vec);
