@@ -75,6 +75,32 @@ M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm);
 
 M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
 
+
+/**
+ * Initializes sliding window persistent store for this copy machine.
+ */
+M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm);
+
+/**
+ * Load sliding window data from persistent storage.
+ *
+ * -ENOENT is returned if no sliding window data is found on storage.
+ * The caller should call m0_cm_sw_store_init() to initialize the storage.
+ */
+M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out);
+
+/**
+ * Update sliding window data to the last completed aggregation group.
+ */
+M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+				      const struct m0_cm_sw *last);
+
+/**
+ * Mark the cm operation as done by deleting sliding window data from storage.
+ */
+M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm);
+
+
 /** @} CMSW */
 
 #endif /* __MERO_CM_SW_H__ */

@@ -71,6 +71,7 @@
          - @ref CMDLD-lspec-cm-cp-pump
          - @ref CMDLD-lspec-cm-active
       - @ref CMDLD-lspec-cm-sliding-window
+      - @ref CMDLD-lspec-cm-sliding-window-persistance
       - @ref CMDLD-lspec-cm-stop
       - @ref CMDLD-lspec-cm-fini
       - @ref CMDLD-lspec-thread
@@ -137,6 +138,7 @@
       - @ref CMDLD-lspec-cm-cp-pump
       - @ref CMDLD-lspec-cm-active
    - @ref CMDLD-lspec-cm-sliding-window
+   - @ref CMDLD-lspec-cm-sliding-window-persistence
    - @ref CMDLD-lspec-cm-stop
    - @ref CMDLD-lspec-cm-fini
 
@@ -239,6 +241,88 @@
    Periodically, updated sliding window is communicated to remote replica.
    @see m0_cm_proxy_sw_update_ast_post()
    @see m0_cm_proxy_remote_update()
+
+   @subsection CMDLD-lspec-cm-sliding-window-persistence Copy machine sliding \
+ window persistence
+   Copy machine sliding window is an in-memory data structure to keep track of
+   progress of some operations. When some failure happens, e.g. software or node
+   crash, this in-memory sliding window information is lost. Copy machine has
+   no clue how to resume the operations at the point of failure. To solve this
+   problem, copy machine stores some information about the completed operations
+   onto persistent storage transactionally. So when node and/or copy machine
+   restarts after failure, it reads from persistent storage and resumes its
+   operations.
+
+   The following information is to be stored on persistent storage,
+   i)  copy machine id. It is struct m0_cm::cm_id.
+   ii) last completed aggregation group id.
+
+   This information is stored in BE. It is also inserted into BE dictionary,
+   with the key "CM ${ID}". Copy machine can find a pointer to this information
+   from BE dictionary with proper key.
+
+   The following interfaces are provided to manage this information,
+   - m0_cm_sw_store_init()            Init data on persistent storage.
+   - m0_cm_sw_store_load()            Load data from persistent storage.
+   - m0_cm_sw_store_update()          Update data to the last completed AG.
+   - m0_cm_sw_store_complete()        Mark the cm operation as done.
+
+   These interfaces will be used in various copy machine operations to manage
+   the persistent information. For example, m0_cm_sw_store_load() will be used
+   in copy machine start routine to check if a previous unfinished operation
+   is in-progress. m0_cm_sw_store_update() will be called when sliding window
+   advances. m0_cm_sw_store_complete() is called when a copy machine operation
+   completes. In this case, the stored AG id will be deleted from storage,
+   to indicate that the operation has already completed successfully. When
+   node failure happens at this time, and then restarts again, it loads from
+   storage, and -ENOENT indicates no pending copy machine operation is progress.
+
+   The call sequence of these interfaces is:
+
+   @verbatim
+                                         |
+                                         |
+                                         V
+                             --------------------------
+                             | m0_cm_sw_store_load()? |
+                             --------------------------
+                                   /         \
+                                  /           \
+                  ret == 0       /             \ ret == -ENOENT
+         A restart from failure /               \ A fresh new operation
+         A valid sw is returned/                 \ No sw info on storage.
+                              /                   \
+                             V                     V
+         -----------------------------     ----------------------------
+         | setup sliding window with |     | m0_cm_sw_store_init():   |
+         | the returned sw.          |     | Allocate a persistent sw |
+         | CM operation will start   |     | and init it to zero. CM  |
+         | from this sw.             |     | starts from scratch      |
+         -----------------------------     ----------------------------
+                            \                        /
+                             \                      /
+                              \                    /
+                               \                  /
+                                \                /
+                                 V              V
+                            ---------------------------     operation completed
+                   -------> | m0_cm_sw_store_update() |----------------------->
+                   |        ---------------------------                       |
+                   |                    |                                     |
+                   |                    |                                     |
+                   |                    |                                     |
+                   <--------------------V                                     |
+                     operation continue                                       |
+                                                                              V
+                                                   ----------------------------
+                                                   |m0_cm_sw_store_complete():|
+                                                   |delete sw info from       |
+                                                   |persistent storage.       |
+                                                   |m0_cm_sw_store_load()     |
+                                                   |returns -ENOENT after this|
+                                                   |call.                     |
+                                                   ----------------------------
+   @endverbatim
 
    @subsection CMDLD-lspec-cm-stop Copy machine stop
    Once operation completes successfully, copy machine performs required tasks,

@@ -223,15 +223,90 @@ static void cm_ag_ut(void)
 	cm_ut_service_cleanup();
 }
 
+static void cm_sw_persistence_ut(void)
+{
+	struct m0_cm      *cm = &cm_ut[0].ut_cm;
+	struct m0_cm_sw    sw;
+	struct m0_cm_sw    out;
+	struct m0_cm_ag_id id_lo;
+	struct m0_cm_ag_id id_hi;
+	int                i;
+	int                rc;
+
+	cm_ut_service_alloc_init();
+
+	/* Internally calls m0_cm_setup(). */
+	rc = m0_reqh_service_start(cm_ut_service);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_ios_poolmach_init(cm_ut_service);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_cm_lock(cm);
+	m0_cm_state_set(cm, M0_CMS_READY);
+	m0_cm_unlock(cm);
+
+	/* Check if we have pending operation from last run */
+	rc = m0_cm_sw_store_load(cm, &out);
+	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(rc == -ENOENT);
+	/* Init the sw persistent storage */
+	rc = m0_cm_sw_store_init(cm);
+	M0_UT_ASSERT(rc == 0);
+	for(i = 0; i < 10; i++) {
+
+		M0_SET0(&id_lo);
+		M0_SET0(&id_hi);
+		ag_id_assign(&id_lo, i, i, i, i);
+		ag_id_assign(&id_hi, i + 1, i + 1, i + 1, i + 1);
+		m0_cm_sw_set(&sw, &id_lo, &id_hi);
+		rc = m0_cm_sw_store_update(cm, &sw);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_cm_sw_store_load(cm, &out);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_cm_ag_id_cmp(&sw.sw_lo, &out.sw_lo);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_cm_ag_id_cmp(&sw.sw_hi, &out.sw_hi);
+		M0_UT_ASSERT(rc == 0);
+	}
+	rc = m0_cm_sw_store_complete(cm);
+	M0_UT_ASSERT(rc == 0);
+	/* successfully completed an operation.*/
+
+	/* start another one */
+	rc = m0_cm_sw_store_load(cm, &out);
+	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(rc == -ENOENT);
+	rc = m0_cm_sw_store_update(cm, &sw);
+	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(rc == -ENOENT);
+	rc = m0_cm_sw_store_init(cm);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cm_sw_store_update(cm, &sw);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cm_sw_store_load(cm, &out);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cm_ag_id_cmp(&sw.sw_lo, &out.sw_lo);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cm_ag_id_cmp(&sw.sw_hi, &out.sw_hi);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cm_sw_store_complete(cm);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_ios_poolmach_fini(cm_ut_service);
+	cm_ut_service_cleanup();
+}
+
 const struct m0_test_suite cm_generic_ut = {
         .ts_name = "cm-ut",
         .ts_init = &cm_ut_init,
         .ts_fini = &cm_ut_fini,
         .ts_tests = {
-                { "cm_setup_ut", cm_setup_ut },
-		{ "cm_setup_failure_ut", cm_setup_failure_ut },
-		{ "cm_init_failure_ut", cm_init_failure_ut },
-		{ "cm_ag_ut", cm_ag_ut },
+		{ "cm_setup_ut",          cm_setup_ut          },
+		{ "cm_setup_failure_ut",  cm_setup_failure_ut  },
+		{ "cm_init_failure_ut",   cm_init_failure_ut   },
+		{ "cm_ag_ut",             cm_ag_ut             },
+		{ "cm_sw_persistence_ut", cm_sw_persistence_ut },
 		{ NULL, NULL }
         }
 };
