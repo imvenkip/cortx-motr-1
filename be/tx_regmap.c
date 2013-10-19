@@ -568,7 +568,7 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 					const struct m0_be_reg_d *rd)
 {
 	struct m0_be_tx_credit *captured = &ra->bra_captured;
-	struct m0_be_tx_credit *prepared = &ra->bra_captured;
+	struct m0_be_tx_credit *prepared = &ra->bra_prepared;
 	m0_bcount_t	        reg_size = rd->rd_reg.br_size;
 
 	M0_PRE(m0_be_reg_area__invariant(ra));
