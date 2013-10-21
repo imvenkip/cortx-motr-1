@@ -33,17 +33,21 @@
 
 M0_BASSERT(M0_SEG_SIZE == M0_0VEC_ALIGN);
 
-M0_INTERNAL m0_bcount_t m0_vec_count(const struct m0_vec *vec)
+static m0_bcount_t vec_count(const struct m0_vec *vec, uint32_t i)
 {
 	m0_bcount_t count;
-	uint32_t    i;
 
-	for (count = 0, i = 0; i < vec->v_nr; ++i) {
+	for (count = 0; i < vec->v_nr; ++i) {
 		/* overflow check */
 		M0_ASSERT(count + vec->v_count[i] >= count);
 		count += vec->v_count[i];
 	}
 	return count;
+}
+
+M0_INTERNAL m0_bcount_t m0_vec_count(const struct m0_vec *vec)
+{
+	return vec_count(vec, 0);
 }
 
 static bool m0_vec_cursor_invariant(const struct m0_vec_cursor *cur)
@@ -106,6 +110,12 @@ M0_INTERNAL m0_bcount_t m0_vec_cursor_step(const struct m0_vec_cursor *cur)
 	M0_PRE(cur->vc_seg < cur->vc_vec->v_nr);
 	M0_ASSERT(m0_vec_cursor_invariant(cur));
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
+}
+
+M0_INTERNAL m0_bcount_t m0_vec_cursor_end(const struct m0_vec_cursor *cur)
+{
+	return m0_vec_cursor_step(cur) +
+	       vec_count(cur->vc_vec, cur->vc_seg + 1);
 }
 
 
@@ -298,6 +308,40 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 }
 M0_EXPORTED(m0_bufvec_free_aligned);
 
+static uint32_t vec_pack(struct m0_vec *vec, m0_bindex_t *idx)
+{
+	uint32_t i = 0;
+	uint32_t j;
+
+	if (vec->v_nr == 0)
+		return 0;
+
+	for (j = i + 1; j < vec->v_nr; ++j) {
+		if (idx[i] + vec->v_count[i] == idx[j]) {
+			vec->v_count[i] += vec->v_count[j];
+		} else {
+			++i;
+			if (i != j) {
+				idx[i] = idx[j];
+				vec->v_count[i] = vec->v_count[j];
+			}
+		}
+	}
+	vec->v_nr = i + 1;
+
+	return j - vec->v_nr;
+}
+
+M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bv)
+{
+	return vec_pack(&bv->ov_vec, (m0_bindex_t*)bv->ov_buf);
+}
+
+M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *iv)
+{
+	return vec_pack(&iv->iv_vec, iv->iv_index);
+}
+
 M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
 				  uint32_t len,
 				  struct m0_addb_ctx *ctx,
@@ -473,6 +517,24 @@ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur)
         M0_PRE(cur != NULL);
 
         return m0_vec_cursor_step(&cur->ic_cur);
+}
+
+M0_INTERNAL m0_bcount_t m0_ivec_cursor_cstep(const struct m0_ivec_cursor *cur)
+{
+        struct m0_indexvec	*ivec;
+	m0_bcount_t		 cstep	= m0_ivec_cursor_step(cur);
+	uint32_t		 seg;
+
+	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
+
+	for (seg = cur->ic_cur.vc_seg;
+	     seg < ivec->iv_vec.v_nr - 1 &&
+	       ivec->iv_index[seg] + ivec->iv_vec.v_count[seg] ==
+	       ivec->iv_index[seg + 1];
+	     seg++)
+		cstep += ivec->iv_vec.v_count[seg + 1];
+
+	return cstep;
 }
 
 M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur)

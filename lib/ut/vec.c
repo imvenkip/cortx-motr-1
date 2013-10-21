@@ -141,18 +141,22 @@ void test_vec(void)
 static void test_ivec_cursor(void)
 {
 	int		      nr;
-	m0_bindex_t	      segs[1];
+	m0_bindex_t	      segs[3];
 	m0_bindex_t	      index;
-	m0_bcount_t	      counts[1];
+	m0_bcount_t	      counts[3];
 	m0_bcount_t	      c;
 	struct m0_indexvec    ivec;
 	struct m0_ivec_cursor cur;
 
 	segs[0]   = 0;
-	counts[0] = 4096;
+	segs[1]   = 2;
+	segs[2]   = 8;
+	counts[0] = 2;
+	counts[1] = 2;
+	counts[2] = 4;
 
 	ivec.iv_index       = segs;
-	ivec.iv_vec.v_nr    = 1;
+	ivec.iv_vec.v_nr    = 3;
 	ivec.iv_vec.v_count = counts;
 
 	m0_ivec_cursor_init(&cur, &ivec);
@@ -160,11 +164,22 @@ static void test_ivec_cursor(void)
 	M0_UT_ASSERT(cur.ic_cur.vc_seg    == 0);
 	M0_UT_ASSERT(cur.ic_cur.vc_offset == 0);
 
-	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 4096);
+	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 2);
+	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 4);
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 0);
-	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 2048));
-	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 2048);
-	M0_UT_ASSERT(m0_ivec_cursor_move(&cur, 2048));
+	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 1);
+	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 1);
+	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 3);
+	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 2);
+	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 2);
+	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 2);
+	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 2));
+	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 8);
+	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 4);
+	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 4);
+	M0_UT_ASSERT(m0_ivec_cursor_move(&cur, 4));
 
 	m0_ivec_cursor_init(&cur, &ivec);
 	c = 0;
@@ -174,7 +189,18 @@ static void test_ivec_cursor(void)
 		c = m0_ivec_cursor_step(&cur);
 		++nr;
 	}
-	M0_UT_ASSERT(nr == 1);
+	M0_UT_ASSERT(nr == 3);
+
+	M0_UT_ASSERT(m0_vec_count(&ivec.iv_vec) == 8);
+	M0_UT_ASSERT(m0_indexvec_pack(&ivec) == 1);
+	M0_UT_ASSERT(m0_vec_count(&ivec.iv_vec) == 8);
+	M0_UT_ASSERT(ivec.iv_vec.v_nr == 2);
+	M0_UT_ASSERT(ivec.iv_index[0] == 0);
+	M0_UT_ASSERT(ivec.iv_vec.v_count[0] == 4);
+	M0_UT_ASSERT(ivec.iv_index[1] == 8);
+	M0_UT_ASSERT(ivec.iv_vec.v_count[1] == 4);
+	M0_UT_ASSERT(m0_indexvec_pack(&ivec) == 0);
+	M0_UT_ASSERT(m0_vec_count(&ivec.iv_vec) == 8);
 }
 
 static void test_bufvec_cursor(void)

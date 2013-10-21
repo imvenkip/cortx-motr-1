@@ -122,6 +122,14 @@ M0_INTERNAL bool m0_vec_cursor_move(struct m0_vec_cursor *cur,
  */
 M0_INTERNAL m0_bcount_t m0_vec_cursor_step(const struct m0_vec_cursor *cur);
 
+/**
+   Return number of bytes that the cursor have to be moved to reach the
+   end of the vector position.
+
+   @pre cur->vc_seg < cur->vc_vec->v_nr
+ */
+M0_INTERNAL m0_bcount_t m0_vec_cursor_end(const struct m0_vec_cursor *cur);
+
 /** Vector of extents in a linear name-space */
 struct m0_indexvec {
 	/** Number of extents and their sizes. */
@@ -234,6 +242,13 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 					unsigned shift);
 
 /**
+ * Packs buffers vector by squashing its contiguous chunks.
+ * @pre bufvec->ov_vec.v_nr > 0.
+ * @return the number of squashed chunks.
+ */
+M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bufvec);
+
+/**
  * Allocate memory for index array and counts array in index vector.
  * @param len Number of elements to allocate memory for.
  * @param ctx Addb context to log addb messages in case of failure.
@@ -254,6 +269,13 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec, uint32_t len,
  *       ivec->iv_vec.v_nr == 0.
  */
 M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec);
+
+/**
+ * Packs index vector by squashing its contiguous chunks.
+ * @pre ivec->iv_vec.v_nr > 0.
+ * @return the number of squashed chunks.
+ */
+M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *ivec);
 
 /** Cursor to traverse a bufvec */
 struct m0_bufvec_cursor {
@@ -389,6 +411,14 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cursor,
  * @ret   Number of bytes needed to move the cursor to next segment.
  */
 M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur);
+
+/**
+ * Returns the number of bytes needed to move cursor to next non-contiguous
+ * segment in given index vector.
+ * @param cur Index vector to be moved.
+ * @ret   Number of bytes needed to move the cursor to next segment.
+ */
+M0_INTERNAL m0_bcount_t m0_ivec_cursor_cstep(const struct m0_ivec_cursor *cur);
 
 /**
  * Returns index at current cursor position.
