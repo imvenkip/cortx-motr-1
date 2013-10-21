@@ -68,20 +68,18 @@ static const struct m0_stob_id id_fore = {
 	}
 };
 
-static const char db_name[] = "ut-ad";
-
 static struct m0_stob *obj_back;
 static struct m0_stob *obj_fore;
-static const char path[] = "./__s/o/0000000000000001.0000000000000002";
 static struct m0_stob_io io;
-static m0_bcount_t user_vec[NR];
+static m0_bcount_t user_vc[NR];
+static m0_bcount_t stob_vc[NR];
 static char *user_buf[NR];
 static char *read_buf[NR];
 static char *user_bufs[NR];
 static char *read_bufs[NR];
-static m0_bindex_t stob_vec[NR];
+static m0_bindex_t stob_vi[NR];
 static struct m0_clink clink;
-static struct m0_dtx tx;
+static struct m0_dtx g_tx;
 struct m0_be_ut_backend	 ut_be;
 struct m0_be_ut_seg	 ut_seg;
 static struct m0_be_seg *db;
@@ -149,6 +147,20 @@ struct mock_balloc mb = {
 	}
 };
 
+static void init_vecs()
+{
+	int i;
+
+	for (i = 0; i < NR; ++i) {
+		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
+		read_bufs[i] = m0_stob_addr_pack(read_buf[i], block_shift);
+		user_vc[i] = buf_size >> block_shift;
+		stob_vc[i] = buf_size >> block_shift;
+		stob_vi[i] = (buf_size * (2 * i + 1)) >> block_shift;
+		memset(user_buf[i], ('a' + i)|1, buf_size);
+	}
+}
+
 static int test_ad_init(void)
 {
 	int	i;
@@ -206,22 +218,22 @@ static int test_ad_init(void)
 	buf_size = max_check(MIN_BUF_SIZE
 			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	m0_stob_create_credit(obj_fore, &tx.tx_betx_cred);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
+	m0_dtx_init(&g_tx, db->bs_domain, sm_grp);
+	m0_stob_create_credit(obj_fore, &g_tx.tx_betx_cred);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &g_tx);
 	M0_ASSERT(result == 0);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
+	M0_ASSERT(m0_be_tx_state(&g_tx.tx_betx) == M0_BTS_ACTIVE);
 
 	result = m0_stob_locate(obj_fore);
 	M0_ASSERT(result == 0 || result == -ENOENT);
 	if (result == -ENOENT) {
-		result = m0_stob_create(obj_fore, &tx);
+		result = m0_stob_create(obj_fore, &g_tx);
 		M0_ASSERT(result == 0);
 	}
 	M0_ASSERT(obj_fore->so_state == CSS_EXISTS);
-	result = m0_dtx_done_sync(&tx);
+	result = m0_dtx_done_sync(&g_tx);
 	M0_ASSERT(result == 0);
-	m0_dtx_fini(&tx);
+	m0_dtx_fini(&g_tx);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -233,13 +245,7 @@ static int test_ad_init(void)
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
-	for (i = 0; i < NR; ++i) {
-		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
-		read_bufs[i] = m0_stob_addr_pack(read_buf[i], block_shift);
-		user_vec[i] = buf_size >> block_shift;
-		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
-		memset(user_buf[i], ('a' + i)|1, buf_size);
-	}
+	init_vecs();
 
 	return result;
 }
@@ -265,10 +271,11 @@ static int test_ad_fini(void)
 	return 0;
 }
 
-static void test_write(int i)
+static void test_write(int nr, struct m0_dtx *tx)
 {
 	int			result;
 	struct m0_fol_rec_part *fol_rec_part;
+	bool                    is_local_tx = false;
 
 	/* @Note: This Fol record part object is not freed and shows as leak,
 	 * as it is passed as embbedded object in other places.
@@ -281,24 +288,41 @@ static void test_write(int i)
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
 	io.si_fol_rec_part = fol_rec_part;
-	io.si_user.ov_vec.v_nr = i;
-	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_vec.v_nr = nr;
+	io.si_user.ov_vec.v_count = user_vc;
 	io.si_user.ov_buf = (void **)user_bufs;
 
-	io.si_stob.iv_vec.v_nr = i;
-	io.si_stob.iv_vec.v_count = user_vec;
-	io.si_stob.iv_index = stob_vec;
+	io.si_stob.iv_vec.v_nr = nr;
+	io.si_stob.iv_vec.v_count = stob_vc;
+	io.si_stob.iv_index = stob_vi;
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	result = m0_stob_io_launch(&io, obj_fore, &tx, NULL);
+	if (tx == NULL) {
+		tx = &g_tx;
+		m0_dtx_init(tx, db->bs_domain, sm_grp);
+		is_local_tx = true;
+	}
+	dom_fore->sd_ops->sdo_write_credit(dom_fore, &io.si_stob,
+						&tx->tx_betx_cred);
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, tx);
 	M0_ASSERT(result == 0);
+	M0_ASSERT(m0_be_tx_state(&tx->tx_betx) == M0_BTS_ACTIVE);
+
+	result = m0_stob_io_launch(&io, obj_fore, tx, NULL);
+	M0_ASSERT(result == 0);
+
+	if (is_local_tx) {
+		result = m0_dtx_done_sync(tx);
+		M0_ASSERT(result == 0);
+		m0_dtx_fini(tx);
+	}
 
 	m0_chan_wait(&clink);
 
 	M0_ASSERT(io.si_rc == 0);
-	M0_ASSERT(io.si_count == (buf_size * i) >> block_shift);
+	M0_ASSERT(io.si_count == (buf_size * nr) >> block_shift);
 
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
@@ -315,17 +339,17 @@ static void test_read(int i)
 	io.si_opcode = SIO_READ;
 	io.si_flags  = 0;
 	io.si_user.ov_vec.v_nr = i;
-	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_vec.v_count = user_vc;
 	io.si_user.ov_buf = (void **)read_bufs;
 
 	io.si_stob.iv_vec.v_nr = i;
-	io.si_stob.iv_vec.v_count = user_vec;
-	io.si_stob.iv_index = stob_vec;
+	io.si_stob.iv_vec.v_count = stob_vc;
+	io.si_stob.iv_index = stob_vi;
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	result = m0_stob_io_launch(&io, obj_fore, &tx, NULL);
+	result = m0_stob_io_launch(&io, obj_fore, &g_tx, NULL);
 	M0_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
@@ -341,30 +365,26 @@ static void test_read(int i)
 
 static void test_ad_rw_unordered()
 {
-	int result;
 	int i;
 
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	dom_fore->sd_ops->sdo_write_credit(dom_fore, NR, &tx.tx_betx_cred);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
-
 	/* Unorderd write requests */
+	init_vecs();
 	for (i = NR/2; i < NR; ++i) {
-		stob_vec[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
+		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
 	}
-	test_write(NR/2);
+	test_write(NR/2, NULL);
 
+	init_vecs();
 	for (i = 0; i < NR/2; ++i) {
-		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
+		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
-	test_write(NR/2);
+	test_write(NR/2, NULL);
 
+	init_vecs();
 	for (i = 0; i < NR; ++i) {
-		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
+		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
 
@@ -372,10 +392,6 @@ static void test_ad_rw_unordered()
 	test_read(NR);
 	for (i = 0; i < NR; ++i)
 		M0_ASSERT(memcmp(user_buf[i], read_buf[i], buf_size) == 0);
-
-	result = m0_dtx_done_sync(&tx);
-	M0_ASSERT(result == 0);
-	m0_dtx_fini(&tx);
 }
 
 /**
@@ -384,63 +400,55 @@ static void test_ad_rw_unordered()
 static void test_ad(void)
 {
 	int i;
-	int result;
 
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	dom_fore->sd_ops->sdo_write_credit(dom_fore, (NR * NR / 2),
-						&tx.tx_betx_cred);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
+	for (i = 1; i <= NR; ++i)
+		test_write(i, NULL);
 
-	for (i = 1; i < NR; ++i)
-		test_write(i);
-
-	for (i = 1; i < NR; ++i) {
+	for (i = 1; i <= NR; ++i) {
 		int j;
 		test_read(i);
 		for (j = 0; j < i; ++j)
 			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
 	}
-	result = m0_dtx_done_sync(&tx);
-	M0_ASSERT(result == 0);
-	m0_dtx_fini(&tx);
 }
 
 static void test_ad_undo(void)
 {
 	int                     result;
 	struct m0_fol_rec_part *rpart;
+	struct m0_dtx           tx;
 
-	m0_dtx_init(&tx, db->bs_domain, sm_grp);
-	dom_fore->sd_ops->sdo_write_credit(dom_fore, 2, &tx.tx_betx_cred);
-	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
-	M0_UT_ASSERT(result == 0);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_ACTIVE);
+	m0_dtx_init(&g_tx, db->bs_domain, sm_grp);
 
 	memset(user_buf[0], 'a', buf_size);
-	test_write(1);
+	test_write(1, &g_tx);
+	result = m0_dtx_done_sync(&g_tx);
+	M0_ASSERT(result == 0);
 
 	test_read(1);
 
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
 
-	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_parts);
+	rpart = m0_rec_part_tlist_head(&g_tx.tx_fol_rec.fr_parts);
 	M0_ASSERT(rpart != NULL);
 
 	/* Write new data in stob */
+	m0_dtx_init(&tx, db->bs_domain, sm_grp);
+	rpart->rp_ops->rpo_undo_credit(rpart, &tx.tx_betx_cred);
 	memset(user_buf[0], 'b', buf_size);
-	test_write(1);
+	test_write(1, &tx);
 
 	/* Do the undo operation. */
 	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
 	M0_UT_ASSERT(result == 0);
 
-	test_read(1);
-
 	result = m0_dtx_done_sync(&tx);
-	M0_ASSERT(m0_be_tx_state(&tx.tx_betx) == M0_BTS_DONE);
+	M0_ASSERT(result == 0);
 	m0_dtx_fini(&tx);
+
+	m0_dtx_fini(&g_tx);
+
+	test_read(1);
 
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) != 0);
 
@@ -460,7 +468,7 @@ const struct m0_test_suite ad_ut = {
 
 static void ub_write(int i)
 {
-	test_write(NR - 1);
+	test_write(NR - 1, NULL);
 }
 
 static void ub_read(int i)

@@ -24,13 +24,14 @@
 #include "be/extmap.h"
 #include "dtm/dtm.h"                /* m0_dtx */
 #include "fol/fol.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADSTOB
 #include "lib/trace.h"
 #include "lib/thread.h"             /* LAMBDA */
 #include "lib/memory.h"
 #include "lib/arith.h"              /* min_type, min3 */
 #include "lib/misc.h"		    /* M0_SET0 */
 
+#include "balloc/balloc.h"
 #include "stob/stob.h"
 #include "stob/cache.h"
 #include "stob/ad.h"
@@ -864,7 +865,8 @@ static int ad_vec_alloc(struct m0_stob *obj,
    @note cursors and fragment sizes are measured in blocks.
  */
 static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
-			  struct m0_vec_cursor *src, struct m0_vec_cursor *dst,
+			  struct m0_vec_cursor *src,
+			  struct m0_vec_cursor *dst,
 			  struct m0_be_emap_caret *car)
 {
 	struct m0_be_emap_cursor *it;
@@ -923,6 +925,11 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(!eomap);
 		M0_ASSERT(m0_ext_is_in(&seg->ee_ext, off));
 
+		M0_LOG(M0_DEBUG, "ext=[0x%llx, 0x%llx) val=0x%llx",
+			(unsigned long long)seg->ee_ext.e_start,
+			(unsigned long long)seg->ee_ext.e_end,
+			(unsigned long long)seg->ee_val);
+
 		frag_size = min3(m0_vec_cursor_step(src),
 				 m0_vec_cursor_step(dst),
 				 m0_be_emap_caret_step(car));
@@ -947,6 +954,9 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(eosrc == eodst);
 		M0_ASSERT(!eomap);
 	} while (!eosrc);
+
+	M0_LOG(M0_DEBUG, "frags=%d frags_not_empty=%d",
+			(int)frags, (int)frags_not_empty);
 
 	ad_cursors_fini(it, src, dst, car);
 
@@ -1058,6 +1068,32 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, m0_bcount_t count)
 	return wc->wc_wext == NULL;
 }
 
+static uint32_t ad_write_frags_count(struct m0_indexvec *iv)
+{
+	uint32_t               frags;
+	m0_bcount_t            frag_size;
+	m0_bcount_t            grp_size;
+	bool                   eov;
+	struct m0_ivec_cursor  it;
+
+	frags = 0;
+	m0_ivec_cursor_init(&it, iv);
+	grp_size = BALLOC_DEF_BLOCKS_PER_GROUP << BALLOC_DEF_BLOCK_SHIFT;
+
+	m0_indexvec_pack(iv);
+	do {
+		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
+		M0_ASSERT(frag_size > 0);
+		M0_ASSERT(frag_size <= (size_t)~0ULL);
+
+		eov = m0_ivec_cursor_move(&it, frag_size);
+
+		++frags;
+	} while (!eov);
+
+	return frags;
+}
+
 /**
    Calculates how many fragments this IO request contains.
 
@@ -1065,7 +1101,7 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, m0_bcount_t count)
    for data, ignoring existing allocations in the overwritten extent of the
    file.
  */
-static uint32_t ad_write_count(struct m0_stob_io *io, struct m0_vec_cursor *src,
+static uint32_t ad_write_count(struct m0_vec_cursor *src,
 			       struct ad_wext_cursor *wc)
 {
 	uint32_t               frags;
@@ -1153,7 +1189,7 @@ static int seg_free(struct m0_stob_io *io, struct ad_domain *adom,
    storage object name-space.
  */
 static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
-			    m0_bindex_t offset, struct m0_be_emap_cursor *orig,
+			    m0_bindex_t off, struct m0_be_emap_cursor *orig,
 			    const struct m0_ext *ext)
 {
 	int                    result;
@@ -1161,19 +1197,24 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	struct m0_be_emap_cursor  it;
 	/* an extent in the logical name-space to be mapped to ext. */
 	struct m0_ext          todo = {
-		.e_start = offset,
-		.e_end   = offset + m0_ext_length(ext)
+		.e_start = off,
+		.e_end   = off + m0_ext_length(ext)
 	};
 
+	M0_ENTRY("ext=[0x%llx, 0x%llx) val=0x%llx",
+		(unsigned long long)todo.e_start,
+		(unsigned long long)todo.e_end,
+		(unsigned long long)ext->e_start);
+
 	m0_be_op_init(&it.ec_op);
-	m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre, offset, &it);
+	m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre, off, &it);
 	m0_be_op_wait(&it.ec_op);
 	M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
 	result = it.ec_op.bo_u.u_emap.e_rc;
 	m0_be_op_fini(&it.ec_op);
 
 	if (result != 0)
-		return result;
+		M0_RETURN(result);
 	/*
 	 * Insert a new segment into extent map, overwriting parts of the map.
 	 *
@@ -1188,8 +1229,7 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	 * of the corresponding physical extent.
 	 */
 	m0_be_op_init(&it.ec_op);
-	m0_be_emap_paste
-		(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
+	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
 			 /* handle extent deletion. */
 			 rc = rc ?: seg_free(io, adom, seg,
@@ -1228,7 +1268,7 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_op_fini(&it.ec_op);
 	m0_be_emap_close(&it);
 
-	return result ?: rc;
+	M0_RETURN(result ?: rc);
 }
 
 static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
@@ -1265,12 +1305,13 @@ static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 
  */
 static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
-			struct m0_vec_cursor *dst,
+			struct m0_ivec_cursor *dst,
 			struct m0_be_emap_caret *map, struct ad_wext_cursor *wc,
 			uint32_t frags)
 {
 	int			result;
 	m0_bcount_t		frag_size;
+	m0_bindex_t		off;
 	bool			eodst;
 	bool			eoext;
 	struct m0_ext		todo;
@@ -1288,39 +1329,39 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 	arp->arp_dom_id  = adom->ad_base.sd_dom_id;
 
 	do {
-		m0_bindex_t offset;
-
-		offset    = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
-		frag_size = min_check(m0_vec_cursor_step(dst),
+		off = m0_ivec_cursor_index(dst);
+		frag_size = min_check(m0_ivec_cursor_step(dst),
 				      ad_wext_cursor_step(wc));
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 
 		M0_ASSERT(i < frags);
-		arp->arp_seg.ps_old_data[i] = (struct m0_be_emap_seg ) {
+		arp->arp_seg.ps_old_data[i] = (struct m0_be_emap_seg) {
 			.ee_ext = {
-				.e_start = offset,
-				.e_end   = offset + m0_ext_length(&todo)
+				.e_start = off,
+				.e_end   = off + m0_ext_length(&todo)
 			},
 			.ee_val = todo.e_start,
 			.ee_pre = map->ct_it->ec_seg.ee_pre
 		};
 		++i;
 
-		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
+		result = ad_write_map_ext(io, adom, off, map->ct_it, &todo);
 
 		if (result != 0)
 			break;
 
-		eodst = m0_vec_cursor_move(dst, frag_size);
+		eodst = m0_ivec_cursor_move(dst, frag_size);
 		eoext = ad_wext_cursor_move(wc, frag_size);
 
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
 
-	if (result == 0)
+	if (result == 0) {
+		arp->arp_seg.ps_segments = i;
 		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
+	}
 
 	return result;
 }
@@ -1351,7 +1392,8 @@ static void ad_wext_fini(struct ad_write_ext *wext)
        (ad_write_map()).
  */
 static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
-			   struct m0_vec_cursor *src, struct m0_vec_cursor *dst,
+			   struct m0_vec_cursor *src,
+			   struct m0_ivec_cursor *dst,
 			   struct m0_be_emap_caret *map)
 {
 	m0_bcount_t           todo;
@@ -1397,19 +1439,20 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
-		frags = ad_write_count(io, src, &wc);
+		frags = ad_write_count(src, &wc);
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
-			m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
 			ad_wext_cursor_init(&wc, &head);
 
 			ad_write_back_fill(io, back, src, &wc);
 
-			m0_vec_cursor_init(src, &io->si_user.ov_vec);
-			m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
+			m0_ivec_cursor_init(dst, &io->si_stob);
 			ad_wext_cursor_init(&wc, &head);
 
+			ivec = container_of(dst->ic_cur.vc_vec,
+						struct m0_indexvec, iv_vec);
+			frags = ad_write_map_count(ivec);
 			result = ad_write_map(io, adom, dst, map, &wc, frags);
 		}
 	}
@@ -1417,23 +1460,32 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	return result;
 }
 
-static void ad_write_credit(struct ad_domain *dom, m0_bcount_t nr,
+static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
 			    struct m0_be_tx_credit *acc)
 {
-	M0_ENTRY("nr=%d cred=[%d:%d]", (int)nr,
+	int blocks = m0_vec_count(&iv->iv_vec) >> dom->ad_babshift;
+	int bfrags = blocks / BALLOC_DEF_BLOCKS_PER_GROUP + 1;
+	int frags;
+
+	M0_ENTRY("vnr=%d cred=[%d:%d]", (int)iv->iv_vec.v_nr,
 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
+
 	if (dom->ad_ballroom->ab_ops->bo_alloc_credit != NULL)
-		dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom, nr,
-							  acc);
+		dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom,
+							  bfrags, acc);
 	M0_LOG(M0_DEBUG, "after bo_alloc: cred=[%d:%d]",
 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
-	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, nr, acc);
+
+	frags = ad_write_frags_count(iv);
+	M0_LOG(M0_DEBUG, "frags=%d", frags);
+	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, frags, acc);
 	M0_LOG(M0_DEBUG, "after emap_cred: cred=[%d:%d]",
 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 
+	/* for each emap_paste() seg_free() could be called 3 times */
 	if (dom->ad_ballroom->ab_ops->bo_free_credit != NULL)
-		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom, 3,
-							 acc);
+		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom,
+							 3, acc);
 	M0_LEAVE("cred=[%d:%d]", (int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 }
 
@@ -1441,7 +1493,7 @@ static void ad_write_credit(struct ad_domain *dom, m0_bcount_t nr,
    Implementation of m0_stob_domain_op::sdo_write_credit().
  */
 static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
-					m0_bcount_t             nr,
+					struct m0_indexvec     *iv,
 					struct m0_be_tx_credit *accum)
 {
 	struct ad_domain     *adom    = domain2ad(dom);
@@ -1449,8 +1501,8 @@ static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
 	M0_PRE(adom->ad_setup);
 	M0_PRE(dom->sd_type == &m0_ad_stob_type);
 
-	ad_write_credit(adom, nr, accum);
-	m0_stob_write_credit(adom->ad_bstore->so_domain, nr, accum);
+	ad_write_credit(adom, iv, accum);
+	m0_stob_write_credit(adom->ad_bstore->so_domain, iv, accum);
 }
 
 /**
@@ -1465,7 +1517,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	struct ad_stob_io    *aio     = io->si_stob_private;
 	struct m0_be_emap_cursor it;
 	struct m0_vec_cursor  src;
-	struct m0_vec_cursor  dst;
+	struct m0_ivec_cursor dst;
 	struct m0_be_emap_caret  map;
 	struct m0_stob_io    *back    = &aio->ai_back;
 	int                   result;
@@ -1481,7 +1533,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	/* only read-write at the moment */
 	M0_ASSERT(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
 
-	result = ad_cursors_init(io, adom, &it, &src, &dst, &map);
+	result = ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
 	if (result != 0)
 		return result;
 
@@ -1491,7 +1543,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 
 	switch (io->si_opcode) {
 	case SIO_READ:
-		result = ad_read_launch(io, adom, &src, &dst, &map);
+		result = ad_read_launch(io, adom, &src, &dst.ic_cur, &map);
 		break;
 	case SIO_WRITE:
 		result = ad_write_launch(io, adom, &src, &dst, &map);
@@ -1499,7 +1551,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	default:
 		M0_IMPOSSIBLE("Invalid io type.");
 	}
-	ad_cursors_fini(&it, &src, &dst, &map);
+	ad_cursors_fini(&it, &src, &dst.ic_cur, &map);
 	if (result == 0) {
 		if (back->si_stob.iv_vec.v_nr > 0) {
 			/**
@@ -1603,6 +1655,7 @@ M0_INTERNAL void m0_ad_stobs_fini(void)
 
 /** @} end group stobad */
 
+#undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

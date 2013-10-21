@@ -165,20 +165,16 @@ static void test_ivec_cursor(void)
 	M0_UT_ASSERT(cur.ic_cur.vc_offset == 0);
 
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 2);
-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 4);
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 0);
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 1);
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 1);
-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 3);
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 2);
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 2);
-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 2);
 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 2));
 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 8);
 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 4);
-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 4);
 	M0_UT_ASSERT(m0_ivec_cursor_move(&cur, 4));
 
 	m0_ivec_cursor_init(&cur, &ivec);

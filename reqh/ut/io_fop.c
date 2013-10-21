@@ -513,10 +513,19 @@ static void fom_stob_write_credit(struct m0_fom *fom)
 {
 	struct m0_stob_io_write *in_fop;
 	struct m0_stob          *stobj;
+	m0_bcount_t              count;
+	m0_bindex_t              index;
+	struct m0_indexvec       iv;
 
 	in_fop = m0_fop_data(fom->fo_fop);
 	stobj = stob_object_find(&in_fop->fiw_object, fom);
-	m0_stob_write_credit(stobj->so_domain, 1, m0_fom_tx_credit(fom));
+	index = 0;
+	count = in_fop->fiw_value.fi_count >>
+		stobj->so_op->sop_block_shift(stobj);
+	iv = (struct m0_indexvec) {
+		.iv_vec = (struct m0_vec) {.v_nr = 1, .v_count = &count},
+		.iv_index = &index};
+	m0_stob_write_credit(stobj->so_domain, &iv, m0_fom_tx_credit(fom));
 	m0_stob_put(stobj);
 }
 

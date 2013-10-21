@@ -158,7 +158,7 @@ struct m0_stob_domain_op {
 	   Calculates the credit for write operation.
 	 */
 	void (*sdo_write_credit)(struct m0_stob_domain  *dom,
-				 m0_bcount_t             nr,
+				 struct m0_indexvec     *ivec,
 				 struct m0_be_tx_credit *accum);
 };
 
@@ -170,7 +170,7 @@ M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
 M0_INTERNAL void m0_stob_domain_fini(struct m0_stob_domain *dom);
 
 M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
-				      m0_bcount_t             nr,
+				      struct m0_indexvec     *ivec,
 				      struct m0_be_tx_credit *accum);
 
 /**

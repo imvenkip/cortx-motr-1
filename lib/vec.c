@@ -519,24 +519,6 @@ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur)
         return m0_vec_cursor_step(&cur->ic_cur);
 }
 
-M0_INTERNAL m0_bcount_t m0_ivec_cursor_cstep(const struct m0_ivec_cursor *cur)
-{
-        struct m0_indexvec	*ivec;
-	m0_bcount_t		 cstep	= m0_ivec_cursor_step(cur);
-	uint32_t		 seg;
-
-	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
-
-	for (seg = cur->ic_cur.vc_seg;
-	     seg < ivec->iv_vec.v_nr - 1 &&
-	       ivec->iv_index[seg] + ivec->iv_vec.v_count[seg] ==
-	       ivec->iv_index[seg + 1];
-	     seg++)
-		cstep += ivec->iv_vec.v_count[seg + 1];
-
-	return cstep;
-}
-
 M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur)
 {
         struct m0_indexvec *ivec;

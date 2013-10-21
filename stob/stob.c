@@ -105,11 +105,11 @@ m0_stob_domain_lookup(struct m0_stob_type *type, uint32_t domain_id)
 
 
 M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain  *dom,
-				      m0_bcount_t             nr,
+				      struct m0_indexvec     *ivec,
 				      struct m0_be_tx_credit *accum)
 {
 	if (dom->sd_ops->sdo_write_credit != NULL)
-		dom->sd_ops->sdo_write_credit(dom, nr, accum);
+		dom->sd_ops->sdo_write_credit(dom, ivec, accum);
 }
 
 M0_INTERNAL void m0_stob_domain_init(struct m0_stob_domain *dom,
@@ -303,9 +303,8 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 		io->si_rc    = 0;
 		io->si_count = 0;
 		result = io->si_op->sio_launch(io);
-		if (result != 0) {
+		if (result != 0)
 			io->si_state = SIS_IDLE;
-		}
 	}
 	M0_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;

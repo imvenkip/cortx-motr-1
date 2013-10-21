@@ -413,14 +413,6 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cursor,
 M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur);
 
 /**
- * Returns the number of bytes needed to move cursor to next non-contiguous
- * segment in given index vector.
- * @param cur Index vector to be moved.
- * @ret   Number of bytes needed to move the cursor to next segment.
- */
-M0_INTERNAL m0_bcount_t m0_ivec_cursor_cstep(const struct m0_ivec_cursor *cur);
-
-/**
  * Returns index at current cursor position.
  * @param cur Given index vector cursor.
  * @ret   Index at current cursor position.

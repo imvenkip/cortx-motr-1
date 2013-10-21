@@ -1723,12 +1723,16 @@ static int io_finish(struct m0_fom *fom)
 static void stob_write_credit(struct m0_fom *fom)
 {
 	int			 rc;
+	uint32_t		 bshift;
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_io_indexvec    wire_ivec;
 	struct m0_stob_domain	*fom_stdom;
-	m0_bcount_t		 count = 0;
+	struct m0_indexvec	 iv = {};
+	m0_bcount_t		*cnts;
+	m0_bindex_t		*offs;
 	int			 i;
+	int			 j;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1743,12 +1747,36 @@ static void stob_write_credit(struct m0_fom *fom)
 	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom),
 			&fom_obj->fcrw_stob->so_id);
 	M0_ASSERT(fom_stdom != NULL);
+	/*
+	   Since the upper layer IO block size could differ with IO block size
+	   of storage object, the block alignment and mapping is necessary.
+	 */
+	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
+
 	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
 		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
-		count += wire_ivec.ci_nr;
+		iv.iv_vec.v_nr += wire_ivec.ci_nr;
 	}
-	M0_LOG(M0_DEBUG, "count=%d", (int)count);
-	m0_stob_write_credit(fom_stdom, count, m0_fom_tx_credit(fom));
+	M0_LOG(M0_DEBUG, "bshift=%d vnr=%d", (int)bshift, (int)iv.iv_vec.v_nr);
+	if (iv.iv_vec.v_nr == 0)
+		goto out;
+	M0_ALLOC_ARR(iv.iv_index, iv.iv_vec.v_nr);
+	M0_ASSERT(iv.iv_index != NULL); // XXX handle this error!
+	M0_ALLOC_ARR(iv.iv_vec.v_count, iv.iv_vec.v_nr);
+	M0_ASSERT(iv.iv_vec.v_count != NULL); // XXX handle this error!
+	offs = iv.iv_index;
+	cnts = iv.iv_vec.v_count;
+	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
+		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
+		for (j = 0; j < wire_ivec.ci_nr; j++) {
+			*(offs++) = wire_ivec.ci_iosegs[j].ci_index >> bshift;
+			*(cnts++) = wire_ivec.ci_iosegs[j].ci_count >> bshift;
+		}
+	}
+	m0_stob_write_credit(fom_stdom, &iv, m0_fom_tx_credit(fom));
+	m0_free(iv.iv_index);
+	m0_free(iv.iv_vec.v_count);
+out:
 	m0_stob_put(fom_obj->fcrw_stob);
 }
 
