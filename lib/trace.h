@@ -205,31 +205,32 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
   M0_TRACE_SUBSYS(UT,         2) \
 				 \
   M0_TRACE_SUBSYS(ADDB,       3) \
-  M0_TRACE_SUBSYS(BALLOC,     4) \
-  M0_TRACE_SUBSYS(BE,         5) \
-  M0_TRACE_SUBSYS(CM,         6) \
-  M0_TRACE_SUBSYS(COB,        7) \
-  M0_TRACE_SUBSYS(CONF,       8) \
-  M0_TRACE_SUBSYS(DTM ,       9) \
-  M0_TRACE_SUBSYS(FOP,       10) \
-  M0_TRACE_SUBSYS(FORMATION, 11) \
-  M0_TRACE_SUBSYS(IOSERVICE, 12) \
-  M0_TRACE_SUBSYS(LAYOUT,    13) \
-  M0_TRACE_SUBSYS(LNET,      14) \
-  M0_TRACE_SUBSYS(M0D,       15) \
-  M0_TRACE_SUBSYS(M0T1FS,    16) \
-  M0_TRACE_SUBSYS(MEMORY,    17) \
-  M0_TRACE_SUBSYS(MGMT,      18) \
-  M0_TRACE_SUBSYS(NET,       19) \
-  M0_TRACE_SUBSYS(POOL,      20) \
-  M0_TRACE_SUBSYS(RM,        21) \
-  M0_TRACE_SUBSYS(RPC,       22) \
-  M0_TRACE_SUBSYS(SM,        23) \
-  M0_TRACE_SUBSYS(SNS,       24) \
-  M0_TRACE_SUBSYS(SNSCM,     25) \
-  M0_TRACE_SUBSYS(STOB,      26) \
-  M0_TRACE_SUBSYS(BTREE,     27) \
-  M0_TRACE_SUBSYS(EXTMAP,    28)
+  M0_TRACE_SUBSYS(ADSTOB,     4) \
+  M0_TRACE_SUBSYS(BALLOC,     5) \
+  M0_TRACE_SUBSYS(BE,         6) \
+  M0_TRACE_SUBSYS(BTREE,      7) \
+  M0_TRACE_SUBSYS(CM,         8) \
+  M0_TRACE_SUBSYS(COB,        9) \
+  M0_TRACE_SUBSYS(CONF,      10) \
+  M0_TRACE_SUBSYS(DTM ,      11) \
+  M0_TRACE_SUBSYS(EXTMAP,    12) \
+  M0_TRACE_SUBSYS(FOP,       13) \
+  M0_TRACE_SUBSYS(FORMATION, 14) \
+  M0_TRACE_SUBSYS(IOSERVICE, 15) \
+  M0_TRACE_SUBSYS(LAYOUT,    16) \
+  M0_TRACE_SUBSYS(LNET,      17) \
+  M0_TRACE_SUBSYS(M0D,       18) \
+  M0_TRACE_SUBSYS(M0T1FS,    19) \
+  M0_TRACE_SUBSYS(MEMORY,    20) \
+  M0_TRACE_SUBSYS(MGMT,      21) \
+  M0_TRACE_SUBSYS(NET,       22) \
+  M0_TRACE_SUBSYS(POOL,      23) \
+  M0_TRACE_SUBSYS(RM,        24) \
+  M0_TRACE_SUBSYS(RPC,       25) \
+  M0_TRACE_SUBSYS(SM,        26) \
+  M0_TRACE_SUBSYS(SNS,       27) \
+  M0_TRACE_SUBSYS(SNSCM,     28) \
+  M0_TRACE_SUBSYS(STOB,      29)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
