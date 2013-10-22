@@ -142,9 +142,11 @@ static bool be_io_cb(struct m0_clink *link)
 	struct m0_stob_io *io = &bio->bio_io;
 
 	m0_clink_del(&bio->bio_clink);
+	M0_ASSERT_INFO(io->si_rc == 0, "stob I/O operation failed: "
+		       "bio = %p, op = %p, io = %p, io->si_rc = %d",
+		       bio, op, io, io->si_rc);
 	op->bo_sm.sm_rc = io->si_rc;
-	m0_be_op_state_set(op,
-			   io->si_rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	/* XXX add fsync() to linux stob fd
 	 * stob2linux
 	 * fd
