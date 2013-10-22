@@ -194,13 +194,13 @@ M0_INTERNAL bool sm_invariant0(const struct m0_sm *mach)
 {
 	const struct m0_sm_state_descr *sd = sm_state(mach);
 
-	return equi((mach->sm_rc != 0), (sd->sd_flags & M0_SDF_FAILURE)) &&
-	       ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
+	return _0C(equi((mach->sm_rc != 0), (sd->sd_flags & M0_SDF_FAILURE))) &&
+	       _0C(ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach)));
 }
 
 M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach)
 {
-	return sm_is_locked(mach) && sm_invariant0(mach);
+	return _0C(sm_is_locked(mach)) && sm_invariant0(mach);
 }
 
 static bool conf_invariant(const struct m0_sm_conf *conf)
