@@ -60,9 +60,9 @@ static void service_start_success(void)
 {
 	int rc;
 
-        rc = sns_cm_ut_server_start();
-        M0_UT_ASSERT(rc == 0);
-	sns_cm_ut_server_stop();
+        rc = cs_init(&sctx);
+        M0_ASSERT(rc == 0);
+	cs_fini(&sctx);
 }
 
 static void service_init_failure(void)
@@ -70,8 +70,8 @@ static void service_init_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_init", "init_failure");
-	rc = sns_cm_ut_server_start();
-	M0_UT_ASSERT(rc != 0);
+        rc = cs_init(&sctx);
+        M0_ASSERT(rc != 0);
 }
 
 static void service_start_failure(void)
@@ -79,8 +79,8 @@ static void service_start_failure(void)
 	int rc;
 
 	m0_fi_enable_once("m0_cm_setup", "setup_failure");
-	rc = sns_cm_ut_server_start();
-	M0_UT_ASSERT(rc != 0);
+        rc = cs_init(&sctx);
+        M0_ASSERT(rc != 0);
 }
 
 static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
@@ -106,8 +106,8 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int                  rc;
 
-	rc = sns_cm_ut_server_start();
-	M0_UT_ASSERT(rc == 0);
+        rc = cs_init(&sctx);
+        M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
 	M0_UT_ASSERT(reqh != NULL);
@@ -231,6 +231,8 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 		rag = sag2repairag(ag2snsag(ag));
 		for (i = 0; i < rag->rag_base.sag_fnr; ++i) {
 			cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
+			buf_put(&rag->rag_fc[i].fc_tgt_acc_cp);
+			m0_cm_cp_only_fini(cp);
 			cp->c_ops->co_free(cp);
 		}
 		ag->cag_ops->cago_fini(ag);
@@ -287,16 +289,16 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 	do {
 		M0_SET0(&scp);
 		scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
-		m0_cm_cp_init(cm, &scp.sc_base);
+		m0_cm_cp_only_init(cm, &scp.sc_base);
 		scm->sc_it.si_cp = &scp;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			M0_UT_ASSERT(cp_verify(&scp));
 			sag = ag2snsag(scp.sc_base.c_ag);
 			M0_ASSERT(sag->sag_base.cag_layout != NULL);
-			buf_put(&scp);
-			cp_data_buf_tlist_fini(&scp.sc_base.c_buffers);
 		}
+		buf_put(&scp);
+		m0_cm_cp_only_fini(&scp.sc_base);
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
 	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
@@ -312,7 +314,7 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	ag_destroy();
 	/* Destroy previously created aggregation groups manually. */
 	rc = cm->cm_ops->cmo_stop(cm);
-	M0_UT_ASSERT(rc ==  0);
+	M0_UT_ASSERT(rc == 0);
 	m0_cm_unlock(cm);
 	cobs_delete(nr_files, pool_width);
 	/* Transition the failed device M0_PNDS_SNS_REBALANCING->M0_PNDS_ONLINE,
@@ -321,7 +323,7 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	 */
 	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REBALANCING);
 	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_ONLINE);
-	sns_cm_ut_server_stop();
+	cs_fini(&sctx);
 	/* Cleanup the old db files. Otherwise it messes */
 	//system("rm -r sr_db > /dev/null");
 }
@@ -410,10 +412,6 @@ const struct m0_test_suite sns_cm_repair_ut = {
 		{ "iter-repair-multi-file", iter_repair_multi_file},
 		{ "iter-repair-large-file-with-large-unit-size",
 		  iter_repair_large_file_with_large_unit_size},
-	/*	{ "iter-rebalance-single-file", iter_rebalance_single_file},
-		{ "iter-rebalance-multi-file", iter_rebalance_multi_file},
-		{ "iter-rebalance-large-file-with-large-unit-size",
-		  iter_rebalance_large_file_with_large_unit_size},*/
 		{ "iter-invalid-nr-cobs", iter_invalid_nr_cobs},
 		{ NULL, NULL }
 	}

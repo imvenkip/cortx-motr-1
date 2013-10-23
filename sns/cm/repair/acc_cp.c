@@ -103,7 +103,7 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
 	 */
 	m0_bitmap_init(&scp->sc_base.c_xform_cp_indices,
 		       sag->sag_base.cag_cp_global_nr);
-        m0_cm_cp_init(sag->sag_base.cag_cm, cp);
+        m0_cm_cp_fom_init(sag->sag_base.cag_cm, cp);
 }
 
 /**

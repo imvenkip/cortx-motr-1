@@ -162,7 +162,7 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
  */
 void dummy_cp_fom_fini(struct m0_fom *fom)
 {
-	m0_cm_cp_fini(bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob));
+	m0_cm_cp_fom_fini(bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob));
 }
 
 void dummy_cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -206,7 +206,7 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 	cp->c_ag = ag;
 	sns_cp->sc_sid = sid;
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
-	m0_cm_cp_init(ag->cag_cm, cp);
+	m0_cm_cp_fom_init(ag->cag_cm, cp);
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	m0_cm_cp_buf_add(cp, nb);

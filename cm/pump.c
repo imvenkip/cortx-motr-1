@@ -121,7 +121,7 @@ static int cpp_alloc(struct m0_cm_cp_pump *cp_pump)
 	if (cp == NULL) {
 		pump_move(cp_pump, -ENOMEM, CPP_FAIL);
 	} else {
-		m0_cm_cp_init(cm, cp);
+		m0_cm_cp_fom_init(cm, cp);
 		cp_pump->p_cp = cp;
 		pump_move(cp_pump, 0, CPP_DATA_NEXT);
 	}

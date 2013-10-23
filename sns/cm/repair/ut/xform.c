@@ -179,14 +179,14 @@ static void single_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	m0_cm_cp_fini(cp);
+	m0_cm_cp_fom_fini(cp);
 }
 
 static void multiple_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
 
-	m0_cm_cp_fini(cp);
+	m0_cm_cp_fom_fini(cp);
 }
 
 /* Over-ridden copy packet FOM ops. */

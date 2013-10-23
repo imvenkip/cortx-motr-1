@@ -249,19 +249,29 @@ struct m0_cm_cp_ops {
 M0_INTERNAL void m0_cm_cp_module_init(void);
 
 /**
- * Initialises generic copy packet.
+ * Initialises generic copy packet only.
+ */
+M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp);
+
+/**
+ * Initialises generic copy packet and its corresponding copy packet FOM.
  *
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == M0_FOPH_INIT
  */
-M0_INTERNAL void m0_cm_cp_init(struct m0_cm *cm, struct m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp);
 
 /**
- * Finalises generic copy packet and copy packet FOM.
+ * Finalises generic copy packet only.
+ */
+M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp);
+
+/**
+ * Finalises generic copy packet and its copy packet FOM.
  *
  * @pre cp->c_fom.fo_phase == M0_FOPH_FINISH
  */
-M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_cm_cp *cp);
 
 /** Submits copy packet FOM to request handler for processing.*/
 M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp);

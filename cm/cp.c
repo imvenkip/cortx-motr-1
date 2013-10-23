@@ -425,7 +425,7 @@ static void cp_fom_fini(struct m0_fom *fom)
 
 	M0_CNT_INC(ag->cag_freed_cp_nr);
 	m0_cm_lock(cm);
-	m0_cm_cp_fini(cp);
+	m0_cm_cp_fom_fini(cp);
 	/**
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
@@ -492,7 +492,7 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
         if (cp == NULL)
                 return -ENOMEM;
 
-	m0_cm_cp_init(cm, cp);
+	m0_cm_cp_fom_init(cm, cp);
 	cp->c_fom.fo_addb_ctx.ac_magic = 0;
         m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, fop,
                     NULL, reqh, service->rs_type);
@@ -593,25 +593,29 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 	       m0_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 
-M0_INTERNAL void m0_cm_cp_init(struct m0_cm *cm, struct m0_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
-	struct m0_reqh_service *service;
-
-	M0_PRE(cm != NULL && cp != NULL && cp->c_ops != NULL);
-
 	m0_cm_cp_bob_init(cp);
 	cp_data_buf_tlist_init(&cp->c_buffers);
-
-	service = &cm->cm_service;
-	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
-		    service->rs_reqh, service->rs_type);
 	m0_rpc_bulk_init(&cp->c_bulk);
 	m0_mutex_init(&cp->c_reply_wait_mutex);
 	m0_chan_init(&cp->c_reply_wait, &cp->c_reply_wait_mutex);
 	proxy_cp_tlink_init(cp);
 }
 
-M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)
+{
+	struct m0_reqh_service *service;
+
+	M0_PRE(cm != NULL && cp != NULL && cp->c_ops != NULL);
+
+	m0_cm_cp_only_init(cm, cp);
+	service = &cm->cm_service;
+	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
+		    service->rs_reqh, service->rs_type);
+}
+
+M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp)
 {
 	/*
 	 * If the copy packet is not an accumulator copy packet, it will get
@@ -624,8 +628,14 @@ M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 	m0_mutex_fini(&cp->c_reply_wait_mutex);
 	m0_rpc_bulk_fini(&cp->c_bulk);
 	proxy_cp_tlink_fini(cp);
-	m0_fom_fini(&cp->c_fom);
 	m0_cm_cp_bob_fini(cp);
+
+}
+
+M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_cm_cp *cp)
+{
+	m0_fom_fini(&cp->c_fom);
+	m0_cm_cp_only_fini(cp);
 }
 
 M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
@@ -661,7 +671,7 @@ M0_INTERNAL void m0_cm_cp_buf_release(struct m0_cm_cp *cp)
 		M0_ASSERT(nbp != NULL);
 		colour = cp->c_ops->co_home_loc_helper(cp) % nbp->nbp_colours_nr;
 		cp_data_buf_tlink_del_fini(nbuf);
-		m0_cm_buffer_put(nbp, nbuf, M0_BUFFER_ANY_COLOUR);
+		m0_cm_buffer_put(nbp, nbuf, colour);
 	} m0_tl_endfor;
 	cp_data_buf_tlist_fini(&cp->c_buffers);
 }

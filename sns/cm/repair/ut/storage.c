@@ -67,7 +67,7 @@ enum {
 /* Over-ridden copy packet FOM fini. */
 static void dummy_fom_fini(struct m0_fom *fom)
 {
-	m0_cm_cp_fini(container_of(fom, struct m0_cm_cp, c_fom));
+	m0_cm_cp_fom_fini(container_of(fom, struct m0_cm_cp, c_fom));
 }
 
 /* Over-ridden copy packet FOM locality (using single locality). */
@@ -302,7 +302,7 @@ static void test_cp_write_read(void)
 {
 	int                    rc;
 
-	rc = sns_cm_ut_server_start();
+	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
@@ -325,7 +325,7 @@ static void test_cp_write_read(void)
 
 	bv_free(&r_buf.nb_buffer);
 	bv_free(&w_buf.nb_buffer);
-	sns_cm_ut_server_stop();
+	cs_fini(&sctx);
 }
 
 const struct m0_test_suite snscm_storage_ut = {

@@ -118,7 +118,7 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	if (!is_acc_cp)
 		cp->c_ops = &m0_sns_cm_repair_cp_ops;
 	cp->c_ops = &m0_sns_cm_acc_cp_ops;
-	m0_cm_cp_init(cm, cp);
+	m0_cm_cp_fom_init(cm, cp);
 	m0_cm_cp_buf_add(cp, buf);
 	cp->c_data_seg_nr = bv_seg_nr;
 	buf->nb_pool->nbp_seg_nr = bv_seg_nr;
@@ -142,14 +142,15 @@ int cs_init(struct m0_mero *sctx)
 	M0_ASSERT(lfile != NULL);
 
 	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-	M0_ASSERT(rc == 0);
+	if (rc != 0)
+		return rc;
 
 	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_cm_ut_svc),
 			     sns_cm_ut_svc);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_cs_start(sctx);
-	M0_ASSERT(rc == 0);
+	if (rc == 0)
+		rc = m0_cs_start(sctx);
+	if (rc != 0)
+		cs_fini(sctx);
 
 	return rc;
 }
@@ -159,34 +160,6 @@ void cs_fini(struct m0_mero *sctx)
 {
 	m0_cs_fini(sctx);
 	fclose(lfile);
-}
-
-void sns_cm_ut_server_stop(void)
-{
-	m0_cs_fini(&sctx);
-	fclose(lfile);
-}
-
-int sns_cm_ut_server_start(void)
-{
-	int rc;
-
-	M0_SET0(&sctx);
-	lfile = fopen(log_file_name, "w+");
-	M0_UT_ASSERT(lfile != NULL);
-
-	rc = m0_cs_init(&sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cs_setup_env(&sctx, ARRAY_SIZE(sns_cm_ut_svc),
-			     sns_cm_ut_svc);
-	if (rc == 0)
-		rc = m0_cs_start(&sctx);
-	if (rc != 0)
-		sns_cm_ut_server_stop();
-
-	return rc;
 }
 
 /*

@@ -160,7 +160,7 @@ static const struct m0_cm_aggr_group_ops group_ops = {
 static void dummy_fom_fini(struct m0_fom *fom)
 {
         struct m0_cm_cp *cp = container_of(fom, struct m0_cm_cp, c_fom);
-        m0_cm_cp_fini(cp);
+        m0_cm_cp_fom_fini(cp);
         m0_semaphore_up(&cp_sem);
 }
 
@@ -258,7 +258,7 @@ static int dummy_read_fom_tick(struct m0_fom *fom)
 /* Over-ridden read copy packet FOM fini. */
 static void dummy_read_fom_fini(struct m0_fom *fom)
 {
-        m0_cm_cp_fini(container_of(fom, struct m0_cm_cp, c_fom));
+        m0_cm_cp_fom_fini(container_of(fom, struct m0_cm_cp, c_fom));
         m0_semaphore_up(&read_cp_sem);
 }
 
