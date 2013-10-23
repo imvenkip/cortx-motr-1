@@ -1035,6 +1035,8 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 				   struct m0_reqh *reqh)
 {
 	int                      rc = 0;
+	int                      i;
+	uint32_t                 frags_nr = 0;
 	struct m0_fom           *fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
@@ -1044,10 +1046,25 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_PRE(m0_is_io_fop(fop));
 	M0_PRE(out != NULL);
 
+	M0_ENTRY();
+
+	rwfop = io_rw_get(fop);
+
+	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++)
+		frags_nr += rwfop->crw_ivecs.cis_ivecs[i].ci_nr;
+	M0_LOG(M0_DEBUG, "frags_nr=%d", (int)frags_nr);
+
 	IOS_ALLOC_PTR(fom_obj, &m0_ios_addb_ctx, FOM_COB_RW_CREATE);
-	if (fom_obj == NULL) {
-		rc = -ENOMEM;
-		return rc;
+	if (fom_obj == NULL)
+		M0_RETURN(-ENOMEM);
+
+	if (m0_is_write_fop(fop) && frags_nr > 0) {
+		rc = m0_indexvec_alloc(&fom_obj->fcrw_ivec, frags_nr,
+			&m0_ios_addb_ctx, M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC);
+		if (rc != 0) {
+			m0_free(fom_obj);
+			M0_RETURN(rc);
+		}
 	}
 
 	rep_fop = m0_is_read_fop(fop) ?
@@ -1055,8 +1072,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
 	if (rep_fop == NULL) {
 		m0_free(fom_obj);
-		rc = -ENOMEM;
-		return rc;
+		M0_RETURN(-ENOMEM);
 	}
 
 	fom  = &fom_obj->fcrw_gen;
@@ -1068,8 +1084,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 
 	fom_obj->fcrw_fom_start_time = m0_time_now();
 	fom_obj->fcrw_stob = NULL;
-
-	rwfop = io_rw_get(fop);
 
 	fom_obj->fcrw_ndesc               = rwfop->crw_desc.id_nr;
 	fom_obj->fcrw_curr_desc_index     = 0;
@@ -1086,7 +1100,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_LOG(M0_DEBUG, "FOM created : operation=%s, desc=%d.",
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
 
-        return rc;
+        M0_RETURN(rc);
 }
 
 /**
@@ -1728,7 +1742,6 @@ static void stob_write_credit(struct m0_fom *fom)
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_io_indexvec    wire_ivec;
 	struct m0_stob_domain	*fom_stdom;
-	struct m0_indexvec	 iv = {};
 	m0_bcount_t		*cnts;
 	m0_bindex_t		*offs;
 	int			 i;
@@ -1739,6 +1752,9 @@ static void stob_write_credit(struct m0_fom *fom)
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+
+	if (fom_obj->fcrw_ivec.iv_vec.v_nr == 0)
+		return;
 
 	rwfop = io_rw_get(fom->fo_fop);
 
@@ -1753,19 +1769,8 @@ static void stob_write_credit(struct m0_fom *fom)
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
-	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
-		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
-		iv.iv_vec.v_nr += wire_ivec.ci_nr;
-	}
-	M0_LOG(M0_DEBUG, "bshift=%d vnr=%d", (int)bshift, (int)iv.iv_vec.v_nr);
-	if (iv.iv_vec.v_nr == 0)
-		goto out;
-	M0_ALLOC_ARR(iv.iv_index, iv.iv_vec.v_nr);
-	M0_ASSERT(iv.iv_index != NULL); // XXX handle this error!
-	M0_ALLOC_ARR(iv.iv_vec.v_count, iv.iv_vec.v_nr);
-	M0_ASSERT(iv.iv_vec.v_count != NULL); // XXX handle this error!
-	offs = iv.iv_index;
-	cnts = iv.iv_vec.v_count;
+	offs = fom_obj->fcrw_ivec.iv_index;
+	cnts = fom_obj->fcrw_ivec.iv_vec.v_count;
 	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
 		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
 		for (j = 0; j < wire_ivec.ci_nr; j++) {
@@ -1773,10 +1778,9 @@ static void stob_write_credit(struct m0_fom *fom)
 			*(cnts++) = wire_ivec.ci_iosegs[j].ci_count >> bshift;
 		}
 	}
-	m0_stob_write_credit(fom_stdom, &iv, m0_fom_tx_credit(fom));
-	m0_free(iv.iv_index);
-	m0_free(iv.iv_vec.v_count);
-out:
+	m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
+				m0_fom_tx_credit(fom));
+	m0_indexvec_free(&fom_obj->fcrw_ivec);
 	m0_stob_put(fom_obj->fcrw_stob);
 }
 

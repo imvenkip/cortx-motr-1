@@ -183,6 +183,13 @@ struct m0_io_fom_cob_rw {
         m0_bcount_t                      fcrw_req_count;
         /** Number of bytes successfully transferred. */
         m0_bcount_t                      fcrw_count;
+
+	/**
+	 * Summary index vector representing the extent information
+	 * for the IO request. Used for BE-credit calculation.
+	 */
+	struct m0_indexvec               fcrw_ivec;
+
         /** Number of STOB I/O launched */
         int                              fcrw_num_stobio_launched;
         /** Pointer to buffer pool refered by FOM */
