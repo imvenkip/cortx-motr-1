@@ -1068,7 +1068,7 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, m0_bcount_t count)
 	return wc->wc_wext == NULL;
 }
 
-static uint32_t ad_write_frags_count(struct m0_indexvec *iv)
+static uint32_t ad_write_map_count(struct m0_indexvec *iv)
 {
 	uint32_t               frags;
 	m0_bcount_t            frag_size;
@@ -1292,6 +1292,14 @@ static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 	return 0;
 }
 
+static void ad_fol_part_free(struct m0_fol_rec_part *part)
+{
+	struct ad_rec_part *arp = part->rp_data;
+
+	m0_free(arp->arp_seg.ps_old_data);
+	m0_free(arp);
+}
+
 /**
    Updates extent map, inserting newly allocated extents into it.
 
@@ -1358,10 +1366,10 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
 
-	if (result == 0) {
-		arp->arp_seg.ps_segments = i;
+	if (result == 0)
 		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
-	}
+	else
+		ad_fol_part_free(part);
 
 	return result;
 }
@@ -1442,6 +1450,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		frags = ad_write_count(src, &wc);
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
+			struct m0_indexvec *ivec;
 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
 			ad_wext_cursor_init(&wc, &head);
 
@@ -1476,7 +1485,7 @@ static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
 	M0_LOG(M0_DEBUG, "after bo_alloc: cred=[%d:%d]",
 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 
-	frags = ad_write_frags_count(iv);
+	frags = ad_write_map_count(iv);
 	M0_LOG(M0_DEBUG, "frags=%d", frags);
 	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, frags, acc);
 	M0_LOG(M0_DEBUG, "after emap_cred: cred=[%d:%d]",
