@@ -402,8 +402,8 @@
  *     - if there are EARLY and no LATE updates, then the operation is EARLY;
  *
  *     - otherwise there are both EARLY and LATE updates and the operation is
- *       *misordered*, that is, cannot be consistently recorded in its consittuent
- *       histories (op_cmp() returns MISER).
+ *       *misordered*, that is, cannot be consistently recorded in its
+ *       consituent histories (op_cmp() returns MISER).
  *
  * Misordering means that DTM user violated serialisability conditions.
  *
