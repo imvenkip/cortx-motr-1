@@ -331,9 +331,9 @@ file_creation_test()
 	unmount_and_clean &>> $MERO_TEST_LOGFILE
 	echo -n "Test: file creation: " >> $MERO_TEST_LOGFILE
 	if [ $i -eq $nr_files ]; then
-		echo "Creation Success." >> $MERO_TEST_LOGFILE
+		echo "success." >> $MERO_TEST_LOGFILE
 	else
-		echo "Creation Failed." >> $MERO_TEST_LOGFILE
+		echo "failed." >> $MERO_TEST_LOGFILE
 		return 1
 	fi
 
@@ -350,14 +350,13 @@ file_creation_test()
 	unmount_and_clean &>> $MERO_TEST_LOGFILE
 	echo -n "Test: file removal: " >> $MERO_TEST_LOGFILE
 	if [ $i -eq $nr_files ]; then
-		echo "Removal Success." >> $MERO_TEST_LOGFILE
-		return 0
+		echo "success." >> $MERO_TEST_LOGFILE
 	else
-		echo "Removal Failed." >> $MERO_TEST_LOGFILE
+		echo "failed." >> $MERO_TEST_LOGFILE
 		return 1
 	fi
 
-	return 1
+	return 0
 }
 
 rmw_test()

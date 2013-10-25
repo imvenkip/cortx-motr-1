@@ -1,3 +1,40 @@
+mkloopdevs()
+{
+	local i=$1
+	local dir=$2
+	local ldev1="/dev/loop$((i * 2))"
+	local ldev2="/dev/loop$((i * 2 + 1))"
+	local adisk=addb-disk.img
+	local ddisk=data-disk.img
+
+	cd $dir || return 1
+
+	dd if=/dev/zero of=$adisk bs=1M seek=1M count=1 || return 1
+	if ((i > 0)); then
+		dd if=/dev/zero of=$ddisk bs=1M seek=1M count=1 ||
+			return 1
+	fi
+	losetup -d $ldev1 $ldev2 >& /dev/null
+	losetup $ldev1 $adisk || return 1
+	if ((i > 0)); then
+		  losetup $ldev2 $ddisk || return 1
+	fi
+
+	cat > disks.conf << EOF
+Device:
+   - id: 0
+     filename: $ldev1
+EOF
+	if ((i > 0)); then
+		cat >> disks.conf << EOF
+   - id: $i
+     filename: $ldev2
+EOF
+	fi
+
+	return $?
+}
+
 mero_service()
 {
 	local P=$POOL_WIDTH
@@ -33,8 +70,11 @@ mero_service()
 
 			rm -rf $MERO_M0T1FS_TEST_DIR/d$i
 			mkdir $MERO_M0T1FS_TEST_DIR/d$i
+
+			mkloopdevs $i $MERO_M0T1FS_TEST_DIR/d$i || return 1
+
 			ulimit -c unlimited
-			cmd="cd $MERO_M0T1FS_TEST_DIR/d$i; \
+			cmd="cd $MERO_M0T1FS_TEST_DIR/d$i && exec \
 			$prog_start -r $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A addb-stobs \
@@ -45,9 +85,9 @@ mero_service()
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN"
 			echo $cmd
-			(eval $cmd) &
+			(eval "$cmd") &
 
-			sleep 2
+			sleep 5
 			status $prog_exec
 			if [ $? -eq 0 ]; then
 				SNAME=$(echo $SNAME | sed 's/-s //g')
@@ -91,6 +131,11 @@ mero_service()
 		then
 			collect_addb_from_all_services
 		fi
+
+		for ((i=0; i < ${#EP[*]}; i++)) ; do
+			losetup -d /dev/loop$((i * 2))
+			losetup -d /dev/loop$((i * 2 + 1))
+		done
 
 		unprepare
 	}

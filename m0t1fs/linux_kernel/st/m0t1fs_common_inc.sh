@@ -15,8 +15,7 @@ else
 	fi
 fi
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
-MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs_$$
-#MERO_M0T1FS_TEST_DIR=/tmp/test_m0t1fs
+MERO_M0T1FS_TEST_DIR=/var/mero/systest-$$
 
 MERO_MODULE=m0mero
 
@@ -39,11 +38,11 @@ MERO_MDSERVICE_NAME=mdservice
 MERO_SNSREPAIRSERVICE_NAME=sns_repair
 MERO_SNSREBALANCESERVICE_NAME=sns_rebalance
 MERO_RMSERVICE_NAME=rmservice
-MERO_STOB_DOMAIN=linux
+MERO_STOB_DOMAIN="ad -d disks.conf"
 
 PREPARE_STORAGE="-p"
-POOL_WIDTH=4
-NR_DATA=2
+POOL_WIDTH=3
+NR_DATA=1
 NR_PARITY=1
 #MAX_NR_FILES=250
 MAX_NR_FILES=2 # XXX temporary workaround for performance issues
@@ -148,10 +147,4 @@ unprepare()
 		unload_kernel_module
 	fi
 	modunload_galois
-
-	if [ -d $MERO_M0T1FS_TEST_DIR ]; then
-		# don't cleanup core dumps
-		[ "`find $MERO_M0T1FS_TEST_DIR -name 'core.*'`" ] ||
-			rm -rf $MERO_M0T1FS_TEST_DIR
-	fi
 }
