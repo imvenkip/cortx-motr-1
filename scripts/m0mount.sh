@@ -85,12 +85,12 @@ Where:
 -L: Use local machine configuration.
     start the services on the local host only,
     it is convenient for debugging on a local devvm.
-    The number of services is controlled by LOCAL_SERVICES_NR
-    variable. The default number is $LOCAL_SERVICES_NR.
+    The number of services is controlled by SERVICES_NR
+    variable. The default number is $SERVICES_NR.
 
 -h: Print this help.
 
--n NUM: Start 'NUM' number of local m0d. (default is $LOCAL_SERVICES_NR)
+-n NUM: Start 'NUM' number of local m0d. (default is $SERVICES_NR)
 
 -d NUM: Use NUM number of data units. (default is $NR_DATA)
 
@@ -107,7 +107,7 @@ Where:
 
 OPTIONS_STRING="aln:d:k:p:u:qhLs"
 
-# This example puts ioservices on 3 nodes, and uses 4 data blocks
+# This example puts ioservices on 3 nodes
 SERVICES=(
 	sjt02-c1 172.18.50.40@o2ib:12345:41:101
 	sjt02-c1 172.18.50.40@o2ib:12345:41:102
@@ -117,13 +117,13 @@ SERVICES=(
 	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
-# to make command output parsing predictable
-LC_MESSAGES=C
-
 declare -A NODE_UUID
 NODE_UUID[sjt02-c1]=30ab1a00-8085-40d1-a557-8996e2369a7a
 NODE_UUID[sjt02-c2]=6485c5f9-fbde-4e39-8c6a-bb9d46b3bf8a
 NODE_UUID[sjt00-c1]=54b0a56a-56ba-41a8-9caf-3f3981cfdf69
+
+# to make command output parsing predictable
+LC_MESSAGES=C
 
 THIS_HOST=$(hostname)
 DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
@@ -189,16 +189,22 @@ setup_local_params()
 	LOCAL_EP_PREFIX=12345:41:10
 	NODE_UUID[$THIS_HOST]=02e94b88-19ab-4166-b26b-91b51f22ad91
 
+	SERVICES_NR=${SERVICES_NR:-4}
+	POOL_WIDTH=${POOL_WIDTH:-$SERVICES_NR}
+	if ((POOL_WIDTH < SERVICES_NR)); then
+		SERVICES_NR=$POOL_WIDTH
+	fi
+
 	unset SERVICES
 	# Update each field of SERVICES array with local node values
 	# Update hostname and end point addresses
-	for ((i = 0; i < $LOCAL_SERVICES_NR; i++)); do
+	for ((i = 0; i < $SERVICES_NR; i++)); do
 		SERVICES[((i*2))]=$THIS_HOST
 		SERVICES[((i*2 +1))]="${LOCAL_NID}:${LOCAL_EP_PREFIX}"$((i+1))
 	done
 
 	if [ $use_loop_device -eq 1 ]; then
-		DISKS_PATTERN="/dev/loop[0-$((LOCAL_SERVICES_NR*2 -1))]"
+		DISKS_PATTERN="/dev/loop*"
 	fi
 }
 
@@ -534,7 +540,7 @@ function setup_loops () {
 	echo Setting up loop devices ...
 
 	l_run mkdir -p $WORK_ARENA
-	for ((i = 0; i <= $((LOCAL_SERVICES_NR*2 -1)); i++)); do
+	for ((i = 0; i < $((POOL_WIDTH + SERVICES_NR)); i++)); do
 		l_run dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
 			bs=1M seek=1M count=1
 		l_run losetup /dev/loop$i $WORK_ARENA/disk-image-$i
@@ -568,18 +574,22 @@ EOF
 
 main()
 {
-	LOCAL_SERVICES_NR=${LOCAL_SERVICES_NR:-4}
-
 	if [ $setup_local_server_config -eq 1 ]; then
 		setup_local_params
+	fi
+
+	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
+	POOL_WIDTH=${POOL_WIDTH:-$SERVICES_NR}
+	if ((POOL_WIDTH % SERVICES_NR != 0)); then
+		echo -n "ERROR: Pool width ($POOL_WIDTH) must be multiple of "
+		echo    "services number ($SERVICES_NR)"
+		exit 1
 	fi
 
 	if [ $setup_loops_p -ne 0 ]; then
 		setup_loops
 	fi
 
-	SERVICES_NR=$(expr ${#SERVICES[*]} / 2)
-	POOL_WIDTH=${POOL_WIDTH:-$SERVICES_NR}
 	NR_PARITY=${NR_PARITY:-1}
 	# spare_nr == parity_nr, that's why we multiply on 2
 	NR_DATA=${NR_DATA:-$(expr $POOL_WIDTH - $NR_PARITY \* 2)}
@@ -687,7 +697,7 @@ while getopts "$OPTIONS_STRING" OPTION; do
             exit 0
             ;;
         n)
-            LOCAL_SERVICES_NR="$OPTARG"
+            SERVICES_NR="$OPTARG"
             ;;
         d)
             NR_DATA="$OPTARG"
