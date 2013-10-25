@@ -188,41 +188,13 @@ io_combinations()
 	# I/O sizes are multiple of stripe size
 
 	# stripe unit (stride) size in K
-	for stride_size in 4 12 20 28
+	for stride_size in 4 8 16 32 64 128 256 512 1024
 	do
 	    stripe_size=`expr $stride_size '*' $data_units`
 
-	    # Small I/Os (KBs)
-	    for io_size in 1 2 3 4 5 6 7 8
+	    for io_size in 1 2 4 8
 	    do
 		io_size=`expr $io_size '*' $stripe_size`
-		io_size=${io_size}K
-		echo -n "Test: I/O for stripe = ${stripe_size}K," \
-		     "bs = $io_size, count = 1... "
-		bulkio_test $stride_size 1 &>> $MERO_TEST_LOGFILE
-		if [ $? -ne "0" ]
-		then
-			return 1
-		fi
-		show_write_speed
-
-		# Multiple I/Os
-		echo -n "Test: I/O for stripe = ${stripe_size}K," \
-		     "bs = $io_size, count = 2... "
-		bulkio_test $stride_size 2 &>> $MERO_TEST_LOGFILE
-		if [ $? -ne "0" ]
-		then
-			return 1
-		fi
-		show_write_speed
-	    done
-
-	    # Large I/Os (MBs)
-	    for io_size in 1 2 4 5 8
-	    do
-		stripe_1M_mult=`expr 1024 / $stripe_size`
-		[ $stripe_1M_mult -ge 1 ] || stripe_1M_mult=1
-		io_size=`expr $io_size '*' $stripe_size '*' $stripe_1M_mult`
 		io_size=${io_size}K
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 1... "
@@ -361,12 +333,9 @@ file_creation_test()
 
 rmw_test()
 {
-	max_stride_size=32
-	max_count=2
-
-	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
+	for stride_size in 4 8 16 32
 	do
-		for io in 1 2 3 4 5 15 16 17 32 64 128
+		for io in 1 2 3 4 5 15 16 17 32
 		do
 			io_size=${io}K
 			echo -n "IORMW Test: I/O for stride ="\
@@ -375,95 +344,13 @@ rmw_test()
 				return 1
 			show_write_speed
 
-			for((j=2; j<=$max_count; j*=2))
-			do
 			# Multiple I/O
-			    echo -n "IORMW Test: I/O for stride ="\
-			       "${stride_size}K, bs = $io_size, count = $j... "
-			    bulkio_test $stride_size $j &>> \
-			          $MERO_TEST_LOGFILE || return 1
-			    show_write_speed
-			done
-		done
-	done
-
-	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
-	do
-		# Small I/O
-		for ((io=1; io<=$max_count; io*=2))
-		do
-			io_size=$i
-			echo -n "IORMW Small IO Test: I/O for stride ="\
-			     "${stride_size}K, bs = $io_size, count = 1... "
-			bulkio_test $stride_size 1 &>> $MERO_TEST_LOGFILE ||
-				return 1
-			show_write_speed
-
-			for((j=2; j<=$max_count; j*=2))
-			do
-				# Multiple I/O
-				echo -n "IORMW Small IO Test: I/O for stride"\
-				        "= ${stride_size}K, bs = $io_size,"\
-				        "count = $j... "
-				bulkio_test $stride_size $j &>> \
-					$MERO_TEST_LOGFILE || return 1
-				show_write_speed
-			done
-		done
-	done
-
-	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
-	do
-		# Large I/O
-		for ((io=8; io<=16; io*=2))
-		do
-			io_size=${io}M
-			echo -n "IORMW Large IO Test: I/O for stride ="\
-			     "${stride_size}K, bs = $io_size, count = 1... "
-			bulkio_test $stride_size 1 &>> $MERO_TEST_LOGFILE ||
-				return 1
-			show_write_speed
-			for((j=2; j<=$max_count; j*=2))
-			do
-				# Multiple I/O
-				echo -n "IORMW Large IO Test: I/O for stride"\
-				        "= ${stride_size}K, bs = $io_size,"\
-				        "count = $j... "
-				bulkio_test $stride_size $j &>> \
-					$MERO_TEST_LOGFILE || return 1
-				show_write_speed
-			done
-		done
-	done
-
-	for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
-	do
-		# I/O With large count
-		for i in 10 20 30 40
-		do
-			io_size=1M
-			echo -n "IORMW Large Count Test: I/O for stride ="\
-			     "${stride_size}K, bs = $io_size, count = $i... "
-			bulkio_test $stride_size $i &>> \
-				$MERO_TEST_LOGFILE || return 1
+			echo -n "IORMW Test: I/O for stride ="\
+			   "${stride_size}K, bs = $io_size, count = 2... "
+			bulkio_test $stride_size 2 &>> \
+			      $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
-
-		for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
-		do
-			# I/O With large Block
-			for i in 16M
-			do
-				io_size=$i
-				echo -n "IORMW Large Block Test: I/O for stride ="\
-				"${stride_size}K, bs = $io_size, count = 1... "
-				bulkio_test $stride_size 1 &>> \
-				$MERO_TEST_LOGFILE || return 1
-				show_write_speed
-			done
-
-		done
-
 	done
 
 	echo "Test: IORMW: Success." | tee -a $MERO_TEST_LOGFILE
