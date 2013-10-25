@@ -355,7 +355,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_pdclust_src_addr      *sa;
 	uint64_t                         group;
-	uint32_t                         group_fnr;
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
@@ -363,7 +362,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 						 sfc->sfc_fsize);
 	sa = &sfc->sfc_sa;
 	for (group = sa->sa_group; group < sfc->sfc_groups_nr; ++group) {
-		group_fnr = 0;
 		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_progress,
 			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
 			     scm->sc_it.si_total_files, group + 1,
@@ -371,15 +369,10 @@ static int __group_next(struct m0_sns_cm_iter *it)
 
 		if (__group_skip(it, group))
 			continue;
-		group_fnr = m0_sns_cm_ag_failures_nr(scm, &sfc->sfc_gob_fid,
-						     sfc->sfc_pdlayout,
-						     sfc->sfc_pi, group, NULL);
-		if (group_fnr > 0){
-			sfc->sfc_sa.sa_group = group;
-			sfc->sfc_sa.sa_unit = 0;
-			iter_phase_set(it, ITPH_COB_NEXT);
-			goto out;
-		}
+		sfc->sfc_sa.sa_group = group;
+		sfc->sfc_sa.sa_unit = 0;
+		iter_phase_set(it, ITPH_COB_NEXT);
+		goto out;
 	}
 
 	iter_phase_set(it, ITPH_FID_NEXT);
@@ -547,7 +540,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
 		/*
 		 * If the aggregation group unit to be read is a spare unit
-		 * (i.e. contains data) then map the spare unit to its corresponding
+		 * containing data then map the spare unit to its corresponding
 		 * failed data/parity unit in the aggregation group @ag.
 		 * This is required to mark the appropriate data/parity unit of
 		 * which this spare contains data.

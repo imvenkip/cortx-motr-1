@@ -162,7 +162,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 					  &cobfid);
 		if (rc == 0 && m0_sns_cm_is_cob_failed(scm, &cobfid)) {
 			rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
-					group, i, &spare);
+						     group, i, &spare);
 			if (rc != 0)
 				return false;
 			sa.sa_unit = spare;
