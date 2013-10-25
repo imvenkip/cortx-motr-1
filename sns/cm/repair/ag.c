@@ -193,10 +193,14 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 	M0_LEAVE();
 }
 
-static bool repair_ag_can_fini(struct m0_cm_aggr_group *ag)
+static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
+	struct m0_cm_ag_id         *id = &rag->rag_base.sag_base.cag_id;
 
+        M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%u] [%u]",
+               id->ai_hi.u_hi, id->ai_hi.u_lo, id->ai_lo.u_hi, id->ai_lo.u_lo,
+	       rag->rag_acc_freed, rag->rag_acc_inuse_nr);
 	return rag->rag_acc_freed == rag->rag_acc_inuse_nr;
 }
 
@@ -376,6 +380,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 		return -ENOMEM;
 	rc = m0_sns_cm_ag_init(&rag->rag_base, cm, id, &sns_cm_repair_ag_ops,
 			       has_incoming);
+	M0_ASSERT(rc <= 0);
 	if (rc != 0) {
 		m0_free(rag);
 		return rc;
@@ -390,6 +395,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
 	/* Set the target cob fid of accumulators for this aggregation group. */
 	rc = repair_ag_failure_ctxs_setup(rag, &sag->sag_fmap, pl);
+	M0_ASSERT(rc <= 0);
 	if (rc != 0)
 		goto cleanup_ag;
 
@@ -402,6 +408,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 
 	/* Acquire buffers and setup the accumulators. */
 	rc = m0_sns_cm_repair_ag_setup(sag, pl);
+	M0_ASSERT(rc <= 0);
 	if (rc != 0 && rc != -ENOBUFS)
 		goto cleanup_acc;
 	*out = &sag->sag_base;
@@ -427,6 +434,7 @@ cleanup_ag:
 	m0_free(rag);
 done:
 	M0_LEAVE("ag: %p", &sag->sag_base);
+	M0_ASSERT(rc <= 0);
 	return rc;
 }
 

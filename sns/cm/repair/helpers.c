@@ -54,7 +54,8 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 			sa.sa_unit = unit;
 			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
 					      &cobfid);
-			if (!m0_sns_cm_unit_is_spare(scm, pl, &gfid, sa.sa_group, unit) &&
+			if (!m0_sns_cm_unit_is_spare(scm, pl, &gfid, sa.sa_group,
+						     unit) &&
 			    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
 			    m0_sns_cm_cob_locate(cdom, &cobfid) == -ENOENT)
 				M0_CNT_INC(incoming);

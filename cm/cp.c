@@ -423,8 +423,8 @@ static void cp_fom_fini(struct m0_fom *fom)
 	struct m0_cm            *cm = ag->cag_cm;
 	bool                     ag_fini;
 
-	M0_CNT_INC(ag->cag_freed_cp_nr);
 	m0_cm_lock(cm);
+	M0_CNT_INC(ag->cag_freed_cp_nr);
 	m0_cm_cp_fom_fini(cp);
 	/**
 	 * Try to create a new copy packet since this copy packet is

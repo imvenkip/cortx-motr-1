@@ -143,7 +143,7 @@ static void cp_ag_fini(struct m0_cm_aggr_group *ag)
         m0_cm_aggr_group_fini(ag);
 }
 
-static bool cp_ag_can_fini(struct m0_cm_aggr_group *ag)
+static bool cp_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 

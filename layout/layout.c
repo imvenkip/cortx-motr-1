@@ -913,8 +913,8 @@ M0_INTERNAL void m0_layout_put(struct m0_layout *l)
 
 	M0_ENTRY("lid %llu, ref_count %ld", (unsigned long long)l->l_id,
 		 (long)m0_ref_read(&l->l_ref));
-	m0_mutex_lock(&l->l_dom->ld_lock);
 	m0_mutex_lock(&l->l_lock);
+	m0_mutex_lock(&l->l_dom->ld_lock);
 	killme = m0_ref_read(&l->l_ref) == 1;
 	if (killme)
 		/*
@@ -924,8 +924,8 @@ M0_INTERNAL void m0_layout_put(struct m0_layout *l)
 		layout_tlist_del(l);
 	else
 		m0_ref_put(&l->l_ref);
-	m0_mutex_unlock(&l->l_lock);
 	m0_mutex_unlock(&l->l_dom->ld_lock);
+	m0_mutex_unlock(&l->l_lock);
 
 	/* Finalise outside of the domain lock to improve concurrency. */
 	if (killme)

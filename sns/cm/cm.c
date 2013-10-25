@@ -803,15 +803,11 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 	uint64_t      group;
 	uint64_t      nr_cp_bufs;
 	uint64_t      cp_data_seg_nr;
-	uint64_t      nr_local_units;
 	uint64_t      nr_incoming;
-	uint32_t      max_in_units;
 
-	max_in_units = m0_sns_cm_ag_max_incoming_units(scm, id, pl);
+	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl);
         agid2fid(id, &gfid);
         group = agid2group(id);
-	nr_local_units = m0_sns_cm_ag_nr_local_units(scm, &gfid, pl, group);
-	nr_incoming = max_in_units - nr_local_units;
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 
@@ -827,9 +823,12 @@ M0_INTERNAL void m0_sns_cm_normalize_reservation(struct m0_sns_cm *scm,
 	uint64_t nr_cp_bufs;
 	uint64_t cp_data_seg_nr;
 
+	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
-	if (nr_res_bufs >= (ag->cag_freed_cp_nr * nr_cp_bufs))
+	if (nr_res_bufs >= (nr_cp_bufs * (ag->cag_freed_cp_nr -
+					  ag->cag_cp_local_nr)))
 		extra_bufs = nr_res_bufs - (nr_cp_bufs * (ag->cag_freed_cp_nr -
 							  ag->cag_cp_local_nr));
 	if (extra_bufs > 0)
@@ -852,6 +851,7 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 	bool result = false;
 
 	M0_PRE(scm != NULL && pl != NULL);
+	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
 	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
 	if (nr_bufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
@@ -860,8 +860,8 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 	result = true;
 out:
 	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
-	M0_LOG(M0_DEBUG, "free buffers in: [%u] out: [%u] \
-	       sc_ibp_reserved_nr: [%lu]", scm->sc_ibp.sb_bp.nbp_free,
+	M0_LOG(M0_DEBUG, "nr_bufs: [%lu] free buffers in: [%u] out: [%u] \
+	       sc_ibp_reserved_nr: [%lu]", nr_bufs, scm->sc_ibp.sb_bp.nbp_free,
 	       scm->sc_obp.sb_bp.nbp_free, scm->sc_ibp_reserved_nr);
 
 	return result;

@@ -82,7 +82,7 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 	M0_LEAVE();
 }
 
-static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag)
+static bool rebalance_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag           *sag = ag2snsag(ag);
 	struct m0_sns_cm_rebalance_ag *rag = sag2rebalanceag(sag);

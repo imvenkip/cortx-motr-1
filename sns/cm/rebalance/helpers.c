@@ -115,8 +115,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 
 	cm = sag->sag_base.cag_cm;
 	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
-		rc = m0_sns_cm_ag_tgt_unit2cob(sag, scp->sc_base.c_ag_cp_idx,
-					       pl, &cobfid);
+	rc = m0_sns_cm_ag_tgt_unit2cob(sag, scp->sc_base.c_ag_cp_idx,
+				       pl, &cobfid);
 	if (rc == 0) {
 		offset = m0_sns_cm_ag_unit2cobindex(sag,
 						    scp->sc_base.c_ag_cp_idx,
@@ -170,10 +170,8 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 			rc = m0_sns_cm_cob_locate(it->si_cob_dom,
 						  &cobfid);
-			if (rc != 0) {
-				M0_LOG(M0_DEBUG, "true: %lu", group);
+			if (rc != 0)
 				result = true;
-			}
 		}
 
 	}

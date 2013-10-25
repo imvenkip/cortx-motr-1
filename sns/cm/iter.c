@@ -376,9 +376,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 						     sfc->sfc_pi, group, NULL);
 		if (group_fnr > 0){
 			sfc->sfc_sa.sa_group = group;
-			sfc->sfc_sa.sa_unit =
-				m0_sns_cm_ag_unit_start(scm,
-							sfc->sfc_pdlayout);
+			sfc->sfc_sa.sa_unit = 0;
 			iter_phase_set(it, ITPH_COB_NEXT);
 			goto out;
 		}
@@ -450,6 +448,26 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 	return rc;
 }
 
+static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
+{
+	struct m0_sns_cm_file_context *sfc = &scm->sc_it.si_fc;
+	struct m0_pdclust_layout      *pl = scm->sc_it.si_fc.sfc_pdlayout;
+	enum m0_sns_cm_op              op = scm->sc_op;
+
+	switch(op) {
+	case SNS_REPAIR:
+		return !sfc->sfc_cob_is_spare_unit;
+	case SNS_REBALANCE:
+		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE)
+			return !sfc->sfc_cob_is_spare_unit;
+		break;
+	default:
+		M0_IMPOSSIBLE("Bad operation");
+	}
+
+	return false;
+}
+
 /**
  * Configures the given copy packet with aggregation group and stob details.
  */
@@ -465,6 +483,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_fid                    fid;
 	uint64_t                         group_number;
 	bool                             has_incoming = false;
+	bool                             has_data;
 	uint64_t                         stob_offset;
 	uint64_t                         cp_data_seg_nr;
 	uint64_t                         ag_cp_idx;
@@ -475,6 +494,9 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	pl = sfc->sfc_pdlayout;
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
 	has_incoming = __has_incoming(scm, pl, &agid);
+	has_data = unit_has_data(scm, sfc->sfc_sa.sa_unit - 1);
+	if (!has_data && !has_incoming)
+		goto out;
 	ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
 	agid2fid(&agid, &fid);
 	group_number = agid2group(&agid);
@@ -510,61 +532,43 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		}
 	}
 
-	stob_offset = sfc->sfc_ta.ta_frame *
-		      m0_pdclust_unit_size(sfc->sfc_pdlayout);
-	scp = it->si_cp;
-	scp->sc_base.c_ag = ag;
-	scp->sc_is_local = true;
-	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
-	/*
-	 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
-	 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
-	 * see iter_cob_next().
-	 */
-	ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
-	/*
-	 * If the aggregation group unit to be read is a spare unit
-	 * (i.e. contains data) then map the spare unit to its corresponding
-	 * failed data/parity unit in the aggregation group @ag.
-	 * This is required to mark the appropriate data/parity unit of
-	 * which this spare contains data.
-	 */
-	if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
-		rc = m0_sns_repair_data_map(cm->cm_pm, &fid, pl,
-				group_number, ag_cp_idx, &ag_cp_idx);
-		if (rc != 0)
+	if (has_data) {
+		stob_offset = sfc->sfc_ta.ta_frame *
+			      m0_pdclust_unit_size(sfc->sfc_pdlayout);
+		scp = it->si_cp;
+		scp->sc_base.c_ag = ag;
+		scp->sc_is_local = true;
+		cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
+		/*
+		 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
+		 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
+		 * see iter_cob_next().
+		 */
+		ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
+		/*
+		 * If the aggregation group unit to be read is a spare unit
+		 * (i.e. contains data) then map the spare unit to its corresponding
+		 * failed data/parity unit in the aggregation group @ag.
+		 * This is required to mark the appropriate data/parity unit of
+		 * which this spare contains data.
+		 */
+		if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
+			rc = m0_sns_repair_data_map(cm->cm_pm, &fid, pl,
+					group_number, ag_cp_idx, &ag_cp_idx);
+			if (rc != 0)
+				M0_RETURN(rc);
+		}
+		rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
+					cp_data_seg_nr, ~0, ag_cp_idx);
+		if (rc < 0)
 			M0_RETURN(rc);
-	}
-	rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
-				cp_data_seg_nr, ~0, ag_cp_idx);
-	if (rc < 0)
-		M0_RETURN(rc);
 
-	rc = M0_FSO_AGAIN;
+		rc = M0_FSO_AGAIN;
+	}
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
 
 	M0_RETURN(rc);
-}
-
-static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
-{
-	struct m0_sns_cm_file_context *sfc = &scm->sc_it.si_fc;
-	struct m0_pdclust_layout      *pl = scm->sc_it.si_fc.sfc_pdlayout;
-	enum m0_sns_cm_op              op = scm->sc_op;
-
-	switch(op) {
-	case SNS_REPAIR:
-		return !sfc->sfc_cob_is_spare_unit;
-	case SNS_REBALANCE:
-		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE)
-			return !sfc->sfc_cob_is_spare_unit;
-		break;
-	default:
-		M0_IMPOSSIBLE("Bad operation");
-	}
-
-	return false;
 }
 
 /**
@@ -580,11 +584,9 @@ static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
  */
 static int iter_cob_next(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_fid                   *cob_fid;
 	struct m0_pdclust_src_addr      *sa;
-	bool                             has_data;
 	uint32_t                         upg;
 	int                              rc = 0;
 	M0_ENTRY("it = %p", it);
@@ -607,12 +609,10 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(sfc, cob_fid);
-		has_data = unit_has_data(scm, sa->sa_unit);
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
-		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid) ||
-		 !has_data);
+		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid));
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);
