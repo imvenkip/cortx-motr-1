@@ -40,27 +40,28 @@ MERO_SNSREBALANCESERVICE_NAME=sns_rebalance
 MERO_RMSERVICE_NAME=rmservice
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
-PREPARE_STORAGE="-p"
-POOL_WIDTH=3
-NR_DATA=1
-NR_PARITY=1
-#MAX_NR_FILES=250
-MAX_NR_FILES=2 # XXX temporary workaround for performance issues
-TM_MIN_RECV_QUEUE_LEN=16
-# Maximum value needed to run current ST is 160k.
-MAX_RPC_MSG_SIZE=163840
-XPT=lnet
-
 # list of server end points
 EP=(
     12345:33:101   # MDS  EP
     12345:33:102   # IOS1 EP
     12345:33:103   # IOS2 EP
     12345:33:104   # IOS3 EP
-#    12345:33:105   # IOS4 EP
+    12345:33:105   # IOS4 EP
 )
 
 SNS_CLI_EP="12345:33:301"
+
+PREPARE_STORAGE="-p"
+POOL_WIDTH=$(expr ${#EP[*]} - 1)
+NR_PARITY=1
+NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)
+
+#MAX_NR_FILES=250
+MAX_NR_FILES=2 # XXX temporary workaround for performance issues
+TM_MIN_RECV_QUEUE_LEN=16
+# Maximum value needed to run current ST is 160k.
+MAX_RPC_MSG_SIZE=163840
+XPT=lnet
 
 unload_kernel_module()
 {
