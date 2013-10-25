@@ -226,7 +226,7 @@ m0loop_st_run()
 	cmd="insmod `dirname $0`/../../../mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 1024 $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Create m0t1fs file..."
 	m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/file.img

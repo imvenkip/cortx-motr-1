@@ -134,7 +134,9 @@ mero_service()
 
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
 			losetup -d /dev/loop$((i * 2))
-			losetup -d /dev/loop$((i * 2 + 1))
+			if ((i > 0)); then
+				losetup -d /dev/loop$((i * 2 + 1))
+			fi
 		done
 
 		unprepare
