@@ -1753,7 +1753,7 @@ static void stob_write_credit(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
-	if (fom_obj->fcrw_ivec.iv_vec.v_nr == 0)
+	if (M0_FI_ENABLED("no_write_credit"))
 		return;
 
 	rwfop = io_rw_get(fom->fo_fop);

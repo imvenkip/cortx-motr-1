@@ -1666,6 +1666,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	wfop->f_type->ft_ops = &io_fop_rwv_ops;
         wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
+	m0_fi_enable_once("stob_write_credit", "no_write_credit");
 	rc = m0_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,
 				NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
@@ -1680,6 +1681,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	rfop->f_type->ft_ops = &io_fop_rwv_ops;
         rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
+	m0_fi_enable_once("stob_write_credit", "no_write_credit");
 	rc = m0_rpc_client_call(rfop, &bp->bp_cctx->rcx_session,
 				NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
