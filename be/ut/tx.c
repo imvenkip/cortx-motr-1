@@ -496,4 +496,58 @@ void m0_be_ut_tx_concurrent(void)
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+enum {
+	BE_UT_TX_CAPTURING_SEG_SIZE = 0x10000,
+	BE_UT_TX_CAPTURING_TX_NR    = 0x10,
+	BE_UT_TX_CAPTURING_NR	    = 0x100,
+	BE_UT_TX_CAPTURING_RANGE    = 0x20,
+};
+
+M0_BASSERT(BE_UT_TX_CAPTURING_RANGE >= sizeof(uint64_t));
+
+void m0_be_ut_tx_capturing(void)
+{
+	struct m0_be_ut_backend  ut_be;
+	struct m0_be_tx_credit	 cred = M0_BE_TX_CREDIT_TYPE(uint64_t);
+	struct m0_be_ut_txc	 tc = {};
+	struct m0_be_ut_seg	 ut_seg;
+	struct m0_be_seg	*seg = &ut_seg.bus_seg;
+	struct m0_be_tx		 tx;
+	unsigned int		 seed = 0;
+	uint64_t		*ptr;
+	int			 i;
+	int			 j;
+	int			 rc;
+
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
+	m0_be_ut_txc_init(&tc);
+
+	m0_be_tx_credit_mul(&cred, BE_UT_TX_CAPTURING_NR);
+	for (i = 0; i < BE_UT_TX_CAPTURING_TX_NR; ++i) {
+		m0_be_ut_tx_init(&tx, &ut_be);
+		m0_be_tx_prep(&tx, &cred);
+		rc = m0_be_tx_open_sync(&tx);
+		M0_UT_ASSERT(rc == 0);
+
+		m0_be_ut_txc_start(&tc, &tx, seg);
+		for (j = 0; j < BE_UT_TX_CAPTURING_NR; ++j) {
+			ptr = seg->bs_addr + m0_be_seg_reserved(seg) +
+			      rand_r(&seed) %
+			      (BE_UT_TX_CAPTURING_RANGE - sizeof(*ptr));
+			*ptr = rand_r(&seed);
+			m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, ptr));
+
+			m0_be_ut_txc_check(&tc, &tx);
+		}
+
+		m0_be_tx_close_sync(&tx);
+		m0_be_tx_fini(&tx);
+	}
+
+	m0_be_ut_txc_fini(&tc);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+}
+
 #undef M0_TRACE_SUBSYSTEM
