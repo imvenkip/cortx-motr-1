@@ -224,7 +224,8 @@ static void unit_to_cobfid(struct m0_sns_cm_file_context *sfc,
 	sa = &sfc->sfc_sa;
 	ta = &sfc->sfc_ta;
 	sfc->sfc_cob_is_spare_unit = m0_sns_cm_unit_is_spare(scm, pl, fid,
-			sa->sa_group, sa->sa_unit);
+							     sa->sa_group,
+							     sa->sa_unit);
 	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
 }
 
@@ -324,17 +325,14 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	struct m0_pdclust_instance *pi = it->si_fc.sfc_pi;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
-        enum                        m0_pool_nd_state state_out = 0;
 	int                         i;
 
 	for (i = 0; i < it->si_fc.sfc_upg; ++i) {
 		sa.sa_unit = i;
 		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
-		m0_poolmach_device_state(scm->sc_base.cm_pm,
-				cobfid.f_container, &state_out);
 		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-		    state_out != M0_PNDS_SNS_REPAIRED &&
+		    !m0_sns_cm_is_cob_repaired(scm, &cobfid) &&
 		    !m0_sns_cm_unit_is_spare(scm, pl, fid, group, sa.sa_unit))
 			return false;
 	}

@@ -99,6 +99,9 @@ M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid);
 
+M0_INTERNAL bool m0_sns_cm_is_cob_repaired(const struct m0_sns_cm *scm,
+					   const struct m0_fid *cob_fid);
+
 /**
  * Returns index of spare unit in the parity group, given the failure index
  * in the group.

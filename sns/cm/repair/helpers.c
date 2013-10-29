@@ -103,6 +103,8 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
+		if (m0_sns_cm_is_cob_repaired(scm, &cobfid))
+			continue;
 		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
 				group, j, &tgt_unit);
 		if (rc != 0)

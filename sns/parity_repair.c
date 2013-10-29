@@ -111,8 +111,8 @@ static bool frame_eq(struct m0_pdclust_instance *pi, uint64_t group_number,
         return sa.sa_group == group_number;
 }
 
-static uint64_t frame_get(struct m0_pdclust_instance *pi, uint64_t group_number,
-                          uint32_t device_index)
+static uint64_t frame_get(struct m0_pdclust_instance *pi, uint64_t spare_frame,
+			  uint64_t group_number, uint32_t device_index)
 {
         uint64_t                   frame;
         bool                       frame_found;
@@ -120,19 +120,19 @@ static uint64_t frame_get(struct m0_pdclust_instance *pi, uint64_t group_number,
         M0_PRE(pi != NULL);
 
         /* Start with the (group_number - 1), to match the frame. */
-        if (group_number != 0) {
-                frame = group_number - 1;
+        if (spare_frame != 0) {
+                frame = spare_frame - 1;
                 frame_found = frame_eq(pi, group_number, frame, device_index);
                 if (frame_found)
                         goto out;
         }
 
-        frame = group_number;
+        frame = spare_frame;
         frame_found = frame_eq(pi, group_number, frame, device_index);
         if (frame_found)
                 goto out;
 
-        frame = group_number + 1;
+        frame = spare_frame + 1;
         frame_found = frame_eq(pi, group_number, frame, device_index);
 
 out:
@@ -184,11 +184,16 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 			goto out;
 		}
 
+		M0_SET0(&sa);
+		M0_SET0(&ta);
+		sa.sa_group = group_number;
+		sa.sa_unit  = spare_in;
+		m0_pdclust_instance_map(pi, &sa, &ta);
 		/*
 		 * Find the data/parity unit frame for the @group_number on the
 		 * given device represented by @device_index.
 		 */
-		frame = frame_get(pi, group_number, device_index);
+		frame = frame_get(pi, ta.ta_frame, group_number, device_index);
 		if (frame == -ENOENT) {
 			rc = -ENOENT;
 			goto out;

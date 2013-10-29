@@ -233,6 +233,15 @@ M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 				 M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING));
 }
 
+M0_INTERNAL bool m0_sns_cm_is_cob_repaired(const struct m0_sns_cm *scm,
+					   const struct m0_fid *cob_fid)
+{
+	enum m0_pool_nd_state state_out = 0;
+	m0_poolmach_device_state(scm->sc_base.cm_pm, cob_fid->f_container,
+				 &state_out);
+	return state_out == M0_PNDS_SNS_REPAIRED;
+}
+
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 					 struct m0_pdclust_layout *pl,
 					 const struct m0_fid *fid,
@@ -590,14 +599,10 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                 /* Firstly check if this group has any failed units. */
                 group_failures = m0_sns_cm_ag_failures_nr(scm, &fid, pl,
                                                          pi, group, NULL);
-                if (group_failures > 0 ) {
-			M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
-			       id->ai_hi.u_hi, id->ai_hi.u_lo,
-			       id->ai_lo.u_hi, id->ai_lo.u_lo);
+                if (group_failures > 0 )
 			result = scm->sc_helpers->sch_ag_is_relevant(scm, &fid,
 								     group, pl,
 								     pi);
-                }
                 m0_layout_instance_fini(&pi->pi_base);
         }
 
