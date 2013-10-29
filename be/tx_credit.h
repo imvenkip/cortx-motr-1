@@ -56,7 +56,7 @@
  * latter quantity is usually impossible to know beforehand anyway), but the
  * transaction must never capture more than it prepared.
  *
- * @see M0_BE_TX_CREDIT(), M0_BE_TX_CREDIT_INIT(), M0_BE_TX_CREDIT_OBJ()
+ * @see M0_BE_TX_CREDIT(), M0_BE_TX_CREDIT_TYPE().
  */
 struct m0_be_tx_credit {
 	/**
