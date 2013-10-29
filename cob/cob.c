@@ -1237,7 +1237,7 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		*it->ci_key = *(struct m0_cob_nskey*)key.b_addr;
+		memcpy(it->ci_key, key.b_addr, m0_cob_nskey_size(key.b_addr));
 		if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
 			rc = -ENOENT;
 	}
@@ -1247,14 +1247,14 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
+	struct m0_buf key;
 	int rc;
-	struct m0_buf		  key;
 
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		*it->ci_key = *(struct m0_cob_nskey*)key.b_addr;
+		memcpy(it->ci_key, key.b_addr, m0_cob_nskey_size(key.b_addr));
 		if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
 			rc = -ENOENT;
 	}
@@ -1297,7 +1297,7 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		*it->ci_key = *(struct m0_cob_eakey*)key.b_addr;
+		memcpy(it->ci_key, key.b_addr, m0_cob_eakey_size(key.b_addr));
 		if (!m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
 			rc = -ENOENT;
 	}
@@ -1312,7 +1312,7 @@ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		*it->ci_key = *(struct m0_cob_eakey*)key.b_addr;
+		memcpy(it->ci_key, key.b_addr, m0_cob_eakey_size(key.b_addr));
 		if (!m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
 			rc = -ENOENT;
 	}
