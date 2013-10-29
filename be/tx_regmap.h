@@ -39,16 +39,16 @@ struct m0_be_io;
  * Region in a transaction-private memory buffer.
  *
  * When a memory region is captured in a transaction, the contents of this
- * region, i.e., new values placed in the memory by the user, are copied in
+ * region, i.e., new values placed in the memory by the user, are copied into
  * a transaction-private memory buffer.
  */
 struct m0_be_reg_d {
 	/**
-	 * The region in a segment, which the captured data is copied from.
+	 * The region in a segment where the captured data is copied from.
 	 */
 	struct m0_be_reg rd_reg;
 	/**
-	 * The address within transaction-private memory buffer, which the
+	 * The address within transaction-private memory buffer where the
 	 * data is copied to.
 	 */
 	void            *rd_buf;
