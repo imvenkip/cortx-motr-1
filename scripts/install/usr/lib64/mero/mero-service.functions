@@ -1,0 +1,96 @@
+# Print message on console (STDERR) and write it into system log
+#   @param  $1  msg
+m0_log()
+{
+    logger -p daemon.info -s -t mero -- "$*"
+}
+
+# Report error and exit.
+#   @param  $1  error msg
+#   @param  $2  exit code
+m0_exit()
+{
+    m0_log "$1"
+    exit ${2:-1}
+}
+
+# path to binaries inside working directory
+declare -rA _path_inside_workdir=(
+    [m0mero.ko]='mero/m0mero.ko'
+    [m0ctl.ko]='mero/m0ctl.ko'
+    [galois.ko]='extra-libs/galois/src/linux_kernel/galois.ko'
+    [m0d]='mero/m0d'
+    [m0traced]='utils/trace/m0traced'
+)
+
+# Return a path to Mero executables.
+#   @param  $1  name of an executable
+m0_path_to()
+{
+    local binary=$1; shift
+
+    if [[ -n $MERO_DEVEL_WORKDIR_PATH ]] ; then
+        echo "$MERO_DEVEL_WORKDIR_PATH/${_path_inside_workdir[$binary]}"
+    else
+        echo "$binary"
+    fi
+}
+
+# Load Mero modules.
+m0_load_modules()
+{
+    local m0mero_params
+
+    if [[ -n $MERO_KMOD_PARAMS ]] ; then
+        m0mero_params="$MERO_KMOD_PARAMS $MERO_KMOD_EXTRA_PARAMS"
+    else
+        m0mero_params="node_uuid=$MERO_KMOD_NODE_UUID $MERO_KMOD_EXTRA_PARAMS"
+    fi
+
+    if [[ -n $MERO_DEVEL_WORKDIR_PATH ]] ; then
+        # TODO: use `service lnet start` when all upgrade devvm to C-NEO1.3
+        lsmod | grep -q lnet || ( modprobe lnet || m0_exit "Failed to load lnet module" )
+
+        insmod $(m0_path_to galois.ko) || m0_exit "Failed to load galois module"
+        insmod $(m0_path_to m0mero.ko) $m0mero_params\
+            || m0_exit "Failed to load m0mero module"
+        insmod $(m0_path_to m0ctl.ko) || m0_exit "Failed to load m0ctl module"
+    else
+        modprobe m0mero $m0mero_params
+        modprobe m0ctl
+    fi
+}
+
+# Unload Mero modules.
+m0_unload_modules()
+{
+    lsmod | grep -q m0ctl && ( rmmod m0ctl || m0_exit "Failed to unload m0ctl module" )
+
+    if [[ -n $MERO_DEVEL_WORKDIR_PATH ]] ; then
+        rmmod m0mero || m0_exit "Failed to unload m0mero module"
+        rmmod galois || m0_exit "Failed to unload galois module"
+        # TODO: use `service lnet stop` when all upgrade devvm to C-NEO1.3
+        #modprobe -r ksocklnd || m0_exit "Failed to unload lnet modules"
+    else
+        modprobe -r m0mero
+    fi
+}
+
+# Return path to a working directory of particular m0d instance
+#   @param  $1  m0d service name
+m0_get_m0d_data_dir_for()
+{
+    local service=$1; shift
+
+    local data_dir
+
+    if [ -n "$MERO_M0D_DATA_DIR" ] ; then
+        data_dir=$MERO_M0D_DATA_DIR
+    else
+        data_dir=$(nodeattr -f $genders_config -v m0_var)
+    fi
+
+    echo "$data_dir/$service"
+}
+
+# vim: tabstop=4 shiftwidth=4 expandtab filetype=sh

@@ -654,7 +654,6 @@ AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh;
 			        (cd utils/ && ${LN_S} ut.sh ub.sh)])
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
-AC_CONFIG_FILES([mero/mero], [chmod +x mero/mero])
 
 AC_CONFIG_SUBDIRS([extra-libs/galois])
 

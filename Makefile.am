@@ -654,8 +654,32 @@ include $(top_srcdir)/stats/util/Makefile.sub
 #                        Init scripts and config files
 ################################################################################
 
-initddir = $(sysconfdir)/rc.d/init.d
-initd_SCRIPTS = mero/mero
+etc_initdir    = $(sysconfdir)/init
+etc_init_DATA  = scripts/install/etc/init/mero.conf \
+                 scripts/install/etc/init/mero-kernel.conf \
+                 scripts/install/etc/init/mero-server.conf \
+                 scripts/install/etc/init/mero-trace.conf
+EXTRA_DIST    += $(etc_init_DATA)
+
+etc_sysconfigdir    = $(sysconfdir)/sysconfig
+etc_sysconfig_DATA  = scripts/install/etc/sysconfig/mero
+EXTRA_DIST         += $(etc_sysconfig_DATA)
+
+etc_merodir    = $(sysconfdir)/mero
+etc_mero_DATA  = scripts/install/etc/mero/genders \
+                 scripts/install/etc/mero/disks-ios.conf \
+                 scripts/install/etc/mero/disks-mds.conf \
+                 scripts/install/etc/mero/disks-all.conf
+EXTRA_DIST    += $(etc_mero_DATA)
+
+
+################################################################################
+#                             Auxiliary data files
+################################################################################
+
+lib_merodir    = $(libdir)/mero
+lib_mero_DATA  = scripts/install/usr/lib64/mero/mero-service.functions
+EXTRA_DIST    += $(lib_mero_DATA)
 
 
 ################################################################################

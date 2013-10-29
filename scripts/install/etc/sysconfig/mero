@@ -1,0 +1,58 @@
+# Site local configuration of Mero services, allows to override global
+# configuration found under /etc/mero directory.
+#
+# This file is included by mero upstart services, located in /etc/init
+# directory.
+
+# Location of Mero logs and trace files, by default it's /var/log/mero.
+#MERO_LOG_DIR=/var/log/mero
+
+# Which Mero services to start on current node.
+#MERO_SERVICES='mds ios01 ios02 ios03 ios04'
+
+# MD service endpoint (for example when it's running on a different node)
+#MERO_MDS_EP=
+
+# Comma-separated list of IO services endpoints (for example when they're
+# running on different nodes)
+#MERO_IOS_EP_LIST=
+
+# Local node uuid for m0merko.ko module.
+#MERO_KMOD_NODE_UUID=00000000-0000-0000-0000-000000000000
+
+# Override default parameters of m0mero.ko module.
+#MERO_KMOD_PARAMS=
+
+# Additional parameters for m0mero.ko module (will be appended to the default param list).
+#MERO_KMOD_EXTRA_PARAMS=
+
+# Where m0d stores it's data, by default it's /var/mero.
+#MERO_M0D_DATA_DIR=/var/mero
+
+# Override default options of m0d.
+#MERO_M0D_OPTS=
+
+# Additional m0d options (will be appended to the default option list).
+#MERO_M0D_EXTRA_OPTS=
+
+# Automatically attach debugger to a crashed m0d process.
+#MERO_M0D_DEBUGGER=gdb
+
+# Lnet network ID, it can either 'auto' (default) for auto-detection or a
+# specific IP address with Lnet network type ('o2ib' or 'tcp').
+#MERO_M0D_LNET_NID=172.18.50.40@o2ib
+
+# Use m0traced daemon to collect trace logs of m0mero.ko module.
+#MERO_TRACED_KMOD=yes
+
+# Use m0traced daemon to collect trace logs of m0d processes.
+#MERO_TRACED_M0D=yes
+
+# Additional m0traced options (will be appended to the default option list).
+#MERO_TRACED_EXTRA_OPTS=
+
+# If set, then Mero services will be started using binaries from provided
+# working directory path, instead of system-wide binaries. This can be useful
+# for developers to quickly test their local changes w/o creating and installing
+# an rpm package each time.
+#MERO_DEVEL_WORKDIR_PATH=/home/devvm/mero

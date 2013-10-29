@@ -1,0 +1,180 @@
+#!/bin/bash
+
+# This script symlinks Mero init scripts to appropriate directories under /etc
+# so Mero services can be started from development source tree directory, using
+# the same interface as when Mero rpm is installed system-wide.
+
+
+#
+# Global vars
+#
+
+# constants
+readonly PROG_NAME=$(basename $0)
+
+# variables
+dry_run=false
+link_files=false
+action='install'
+
+
+#
+# Usage
+#
+
+help()
+{
+    [[ $1 == stdout ]] && usage || usage >&2
+    exit 1
+}
+
+usage()
+{
+    cat <<USAGE_END
+
+Usage: $PROG_NAME [-h|--help] [-n|--dry-run]
+
+    -n|--dry-run        Don't perform any action, just show what would be
+                        installed/uninstalled.
+
+    -l|--link           Symlink files instead of copying them.
+
+    -u|--uninstall      Remove files and directories which were installed by
+                        this script.
+
+    -h|--help           Print this help screen.
+USAGE_END
+}
+
+
+#
+# Parse CLI options
+#
+
+parse_cli_options()
+{
+    # Note that we use `"$@"' to let each command-line parameter expand to a
+    # separate word. The quotes around `$@' are essential!
+    # We need TEMP as the `eval set --' would nuke the return value of getopt.
+    TEMP=$( getopt -o hnlu --long help,dry-run,link,uninstall -n "$PROG_NAME" -- "$@" )
+
+    [[ $? != 0 ]] && help
+
+    # Note the quotes around `$TEMP': they are essential!
+    eval set -- "$TEMP"
+
+    while true ; do
+        case "$1" in
+            -h|--help)          help stdout ;;
+            -n|--dry-run)       dry_run=true; shift ;;
+            -l|--link)          link_files=true; shift ;;
+            -u|--uninstall)     action=uninstall; shift ;;
+            --)                 shift; break ;;
+            *)                  echo 'getopt: internal error...'; exit 1 ;;
+        esac
+    done
+}
+
+
+#
+# Utility functions
+#
+
+die()
+{
+    echo "$@" >&2
+    exit 1
+}
+
+run()
+{
+    local cmd="$*"
+
+    $dry_run && echo $cmd
+    $dry_run || $cmd
+}
+
+install_files()
+{
+
+    local cmd='cp -vf'
+    $link_files && cmd='ln -sfv'
+
+    local dir='/etc/sysconfig'
+    local file='scripts/install/etc/sysconfig/mero'
+
+    run "$cmd $(pwd)/$file $dir"
+
+    dir='/etc/init'
+    for file in 'scripts/install/etc/init/mero.conf' \
+                'scripts/install/etc/init/mero-kernel.conf' \
+                'scripts/install/etc/init/mero-server.conf' \
+                'scripts/install/etc/init/mero-trace.conf' ;
+    do
+        run "$cmd $(pwd)/$file $dir"
+    done
+
+    dir='/etc/mero'
+    [[ ! -d $dir ]] && run "mkdir -vp $dir"
+    for file in 'scripts/install/etc/mero/disks-ios.conf' \
+                'scripts/install/etc/mero/disks-mds.conf' \
+                'scripts/install/etc/mero/disks-all.conf' \
+                'scripts/install/etc/mero/genders' ;
+    do
+        run "$cmd $(pwd)/$file $dir"
+    done
+
+    dir='/usr/lib64/mero'
+    [[ ! -d $dir ]] && run "mkdir -vp $dir"
+    for file in 'scripts/install/usr/lib64/mero/mero-service.functions' ;
+    do
+        run "$cmd $(pwd)/$file $dir"
+    done
+
+    $dry_run || initctl reload-configuration
+}
+
+uninstall_files()
+{
+    for file in '/etc/sysconfig/mero' \
+                '/etc/init/mero.conf' \
+                '/etc/init/mero-kernel.conf' \
+                '/etc/init/mero-server.conf' \
+                '/etc/init/mero-trace.conf' \
+                '/etc/mero/disks-ios.conf' \
+                '/etc/mero/disks-mds.conf' \
+                '/etc/mero/disks-all.conf' \
+                '/etc/mero/genders' \
+                '/usr/lib64/mero/mero-service.functions' ;
+    do
+        [[ -s $file ]] && run "rm -v $file"
+    done
+
+    for dir in '/etc/mero' \
+               '/usr/lib64/mero' ;
+    do
+        [[ -d $dir && -z $(ls $dir) ]] && run "rmdir -v $dir"
+    done
+
+    $dry_run || initctl reload-configuration
+}
+
+#
+# Main
+#
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+parse_cli_options $@
+
+if ! $dry_run && [[ $UID -ne 0 ]]; then
+    die 'Error: Please, run this script with "root" privileges or use' \
+        '-n|--dry-run option.'
+fi
+
+case $action in
+    install)    install_files ;;
+    uninstall)  uninstall_files ;;
+    *)          die "Error: unknown action '$action'." ;;
+esac

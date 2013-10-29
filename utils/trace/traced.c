@@ -65,6 +65,7 @@ static const char *output_file_name = DEFAULT_OUT_FILE_NAME;
 static const char *output_kore_file_name = M0MERO_KO_CORE_OUT_FILE_NAME;
 
 static bool     daemon_mode = false;
+static bool     use_syslog = false;
 static bool     save_kore = false;
 static int      log_level = LOG_INFO;
 static uint32_t log_rotation_dealy = 5; /* in seconds */
@@ -100,7 +101,6 @@ static void plog(int level, const char *format, ...)
 		__attribute__(( format(printf, 2, 3) ));
 
 #define log_err(fmt, ...)    plog(LOG_ERR, fmt, ## __VA_ARGS__)
-#define log_err(fmt, ...)    plog(LOG_ERR, fmt, ## __VA_ARGS__)
 #define log_warn(fmt, ...)   plog(LOG_WARNING, fmt, ## __VA_ARGS__)
 #define log_info(fmt, ...)   plog(LOG_INFO, fmt, ## __VA_ARGS__)
 #define log_debug(fmt, ...)  plog(LOG_DEBUG, fmt, ## __VA_ARGS__)
@@ -116,7 +116,7 @@ static void plog(int level, const char *format, ...)
 
 	va_start(args, format);
 
-	if (daemon_mode) {
+	if (use_syslog) {
 		vsyslog(level, format, args);
 	} else {
 		snprintf(buf, sizeof buf, "%s: %s", progname, format);
@@ -722,7 +722,8 @@ int main(int argc, char *argv[])
 		})
 	  ),
 	  M0_FLAGARG('d',
-		  "daemon mode (run in the background, log errors into syslog)",
+		  "daemon mode - run in the background, implies -L (log errors"
+		  " into syslog)",
 		  &daemon_mode
 	  ),
 	  M0_FLAGARG('K',
@@ -733,6 +734,11 @@ int main(int argc, char *argv[])
 		LAMBDA(void, (int64_t lvl) {
 			log_level = lvl;
 		})
+	  ),
+	  M0_FLAGARG('L',
+		  "log information into syslog instead of STDOUT (by default"
+		  " is off)",
+		  &use_syslog
 	  ),
 	  M0_NUMBERARG('s',
 		"output trace file size in MB, when it's reached, log rotation"
@@ -756,6 +762,7 @@ int main(int argc, char *argv[])
 	if (daemon_mode) {
 		/* configure syslog(3) */
 		openlog(progname, LOG_NOWAIT | LOG_CONS, LOG_DAEMON);
+		use_syslog = true;
 		/*
 		 * become a daemon (fork background process,
 		 * close STD{IN,OUT}, etc.)
