@@ -40,6 +40,9 @@ void			  *di_data;
 struct m0_io_indexvec_seq  io_info;
 struct m0_io_indexvec	   io_vec;
 struct m0_ioseg		   io_seg[SEGS_NR];
+uint32_t		   blk_size;
+uint32_t		   bit_set_nr;
+uint32_t		   pos = 0;
 
 void file_di_init(void)
 {
@@ -70,10 +73,34 @@ void file_di_init(void)
 	m0_fid_set(&fid, 1, 0);
 	m0_file_init(&file, &fid, &res_dom, M0_DI_CRC32_4K);
 
+	blk_size   = M0_BITS(file_di_sw_in_shift(&file));
+	bit_set_nr = m0_no_of_bits_set(file_di_sw_mask(&file));
+
 	size = file_di_sw_out_shift(&file) * io_info.cis_nr *
 		io_info.cis_ivecs->ci_nr * M0_DI_ELEMENT_SIZE;
 	di_data = m0_alloc(size);
 	M0_UT_ASSERT(di_data != NULL);
+}
+
+void file_checksum_test(void)
+{
+	struct m0_bufvec cksum_data = M0_BUFVEC_INIT_BUF(&di_data, &size);
+
+	file_checksum(&m0_crc32, &data, blk_size, M0_DI_CRC32_LEN, bit_set_nr,
+		      pos, &cksum_data);
+	M0_UT_ASSERT(file_checksum_check(&m0_crc32, &data, blk_size,
+			M0_DI_CRC32_LEN, bit_set_nr, pos, &cksum_data));
+}
+
+void file_ref_tag_test(void)
+{
+	struct m0_bufvec cksum_data = M0_BUFVEC_INIT_BUF(&di_data, &size);
+
+	t10_ref_tag_compute(&io_info, blk_size, bit_set_nr,
+			    pos += M0_DI_CRC32_LEN, &cksum_data);
+	pos = 0;
+	M0_UT_ASSERT(t10_ref_tag_check(&io_info, blk_size, bit_set_nr,
+				 pos += M0_DI_CRC32_LEN, &cksum_data));
 }
 
 void file_di_test(void)
@@ -82,7 +109,8 @@ void file_di_test(void)
 
 	file.fi_di_ops->do_sum(&file, &io_info, &data, &cksum_data);
 
-	M0_UT_ASSERT(file.fi_di_ops->do_check(&file, &io_info, &data, &cksum_data));
+	M0_UT_ASSERT(file.fi_di_ops->do_check(&file, &io_info, &data,
+		     &cksum_data));
 }
 
 void file_di_fini(void)
@@ -98,6 +126,8 @@ const struct m0_test_suite di_ut = {
 	.ts_name = "di-ut",
 	.ts_tests = {
 		{ "di-init", file_di_init},
+		{ "di-cksum-test", file_checksum_test},
+		{ "di-ref-tag-test", file_ref_tag_test},
 		{ "di-test", file_di_test},
 		{ "di-fini", file_di_fini},
 		{ NULL, NULL },

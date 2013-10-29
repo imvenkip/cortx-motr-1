@@ -164,9 +164,11 @@ static void file_checksum(void (*checksum)(const void *data,
 		checksum(blk_data, bsize, di, cksum_len);
 		for (i = 0; i < cksum_len; ++i) {
 			cksum[i] = di[i];
-			M0_LOG(M0_DEBUG,"crc is:%lu \n", (unsigned long int)cksum[i]);
+			M0_LOG(M0_DEBUG,"crc is:%lu \n",
+				(unsigned long int)cksum[i]);
 		}
-		m0_bufvec_cursor_move(&cksum_cur, bit_set_nr * M0_DI_ELEMENT_SIZE);
+		m0_bufvec_cursor_move(&cksum_cur,
+				      bit_set_nr * M0_DI_ELEMENT_SIZE);
 	} while (!m0_bufvec_cursor_move(&data_cur, bsize));
 }
 
@@ -244,7 +246,8 @@ static bool file_checksum_check(void (*checksum)(const void *data,
 			if (cksum[i] != di[i])
 				return false;
 		}
-		m0_bufvec_cursor_move(&cksum_cur, bit_set_nr * M0_DI_ELEMENT_SIZE);
+		m0_bufvec_cursor_move(&cksum_cur,
+				      bit_set_nr * M0_DI_ELEMENT_SIZE);
 	} while (!m0_bufvec_cursor_move(&data_cur, bsize));
 	return true;
 }
@@ -276,7 +279,8 @@ static void t10_ref_tag_compute(const struct m0_io_indexvec_seq *io_info,
 			j = 0;
 		}
 		j++;
-		m0_bufvec_cursor_move(&cksum_cur, bit_set_nr * M0_DI_ELEMENT_SIZE);
+		m0_bufvec_cursor_move(&cksum_cur,
+				      bit_set_nr * M0_DI_ELEMENT_SIZE);
 	} while (i < io_info->cis_nr);
 }
 
@@ -292,7 +296,6 @@ static bool t10_ref_tag_check(const struct m0_io_indexvec_seq *io_info,
         m0_bufvec_cursor_init(&cksum_cur, di_data);
 
 	m0_bufvec_cursor_move(&cksum_cur, pos * M0_DI_ELEMENT_SIZE);
-	M0_LOG(M0_DEBUG,"pos is:%d \n", pos);
 	do {
 		struct m0_io_indexvec *io_vec = io_info->cis_ivecs;
 
@@ -308,7 +311,8 @@ static bool t10_ref_tag_check(const struct m0_io_indexvec_seq *io_info,
 		}
 		j++;
 
-		m0_bufvec_cursor_move(&cksum_cur, bit_set_nr * M0_DI_ELEMENT_SIZE);
+		m0_bufvec_cursor_move(&cksum_cur,
+				      bit_set_nr * M0_DI_ELEMENT_SIZE);
 	} while (i < io_info->cis_nr);
 	return true;
 }

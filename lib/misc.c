@@ -246,15 +246,31 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
 M0_INTERNAL const char *m0_failed_condition;
 M0_EXPORTED(m0_failed_condition);
 
-M0_INTERNAL uint32_t m0_no_of_bits_set(const uint64_t mask)
+M0_INTERNAL uint32_t m0_no_of_bits_set(const uint64_t val)
 {
-	uint32_t count = 0;
-	uint64_t val = mask;
+	uint32_t	     count = 0;
+	uint64_t	     value = val;
+	static const uint8_t bits_set[] = {
+		[ 0] = 0, /* 0000 */
+		[ 1] = 1, /* 0001 */
+		[ 2] = 1, /* 0010 */
+		[ 3] = 2, /* 0011 */
+		[ 4] = 1, /* 0100 */
+		[ 5] = 2, /* 0101 */
+		[ 6] = 2, /* 0110 */
+		[ 7] = 3, /* 0111 */
+		[ 8] = 1, /* 1000 */
+		[ 9] = 2, /* 1001 */
+		[10] = 2, /* 1010 */
+		[11] = 3, /* 1011 */
+		[13] = 2, /* 1100 */
+		[14] = 3, /* 1101 */
+		[15] = 3, /* 1110 */
+	};
 
 	while (val != 0) {
-		if (val & 1)
-			count++;
-		val >>= 1;
+		count += bits_set[value & 0xF];
+		value >>= 4;
 	}
 	return count;
 }

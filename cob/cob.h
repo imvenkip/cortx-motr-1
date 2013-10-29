@@ -509,10 +509,7 @@ struct m0_cob {
 	struct m0_stob        *co_stob;     /**< underlying storage object */
 	struct m0_ref          co_ref;      /**< refcounter for caching cobs */
 	uint64_t               co_flags;    /**< @see enum m0_cob_valid_flags */
-	struct m0_file	       co_file;     /**< contains object fid,
-						 ref to nsrec fid */
-	/** @todo Replace co_fid with co_file::fi_fid */
-	struct m0_fid         *co_fid;      /**< object fid, ref to nsrec fid */
+	struct m0_file	       co_file;     /**< object fid, ref to nsrec fid */
 	struct m0_cob_nskey   *co_nskey;    /**< cob statdata nskey */
 	struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */

@@ -93,7 +93,7 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore        *md,
 	statfs->sf_ffree = 1024000;
 	statfs->sf_namelen = M0_MD_MAX_NAME_LEN;
 	if (md->md_root)
-		statfs->sf_root = *md->md_root->co_fid;
+		statfs->sf_root = md->md_root->co_file.fi_fid;
 	return 0;
 }
 
@@ -338,7 +338,7 @@ out:
 }
 
 /**
- * Checks that cob->co_fid directory is empty.
+ * Checks that cob->co_file.fi_fid directory is empty.
  *
  * @retval 0           Directory is empty.
  * @retval -ENOTEMPTY  Directory isn not empty.
@@ -446,7 +446,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				 * Find another name (new stat data) in object index to
 				 * move old statdata to it.
 				 */
-				m0_cob_oikey_make(&oikey, cob->co_fid,
+				m0_cob_oikey_make(&oikey, &cob->co_file.fi_fid,
 						  cob->co_nsrec.cnr_linkno + 1);
 
 				rc = m0_cob_locate(&md->md_dom, &oikey, 0, &ncob);
@@ -585,7 +585,8 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 	unlink = (tncob != NULL &&
 	    m0_cob_nskey_cmp(tncob->co_nskey, cob_tgt->co_nskey) != 0);
 
-	if (!m0_fid_eq(cob_tgt->co_fid, cob_src->co_fid) || unlink) {
+	if (!m0_fid_eq(&cob_tgt->co_file.fi_fid, &cob_src->co_file.fi_fid) ||
+		       unlink) {
 		rc = m0_mdstore_unlink(md, pfid_tgt, cob_tgt, tname, tx);
 		if (rc != 0) {
 			if (tncob)
@@ -770,7 +771,8 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 
 	M0_LOG(M0_DEBUG,
 	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
-	       cob->co_fid->f_container, cob->co_fid->f_key, s_len, s_buf);
+	       cob->co_file.fi_fid.f_container, cob->co_file.fi_fid.f_key,
+	       s_len, s_buf);
 
 	ent = rdpg->r_buf.b_addr;
 	nob = rdpg->r_buf.b_nob;
@@ -940,13 +942,15 @@ restart:
 		if (rc != 0)
 			goto out;
 
-		if (!m0_fid_eq(cob->co_fid, md->md_root->co_fid)) {
+		if (!m0_fid_eq(&cob->co_file.fi_fid,
+			       &md->md_root->co_file.fi_fid)) {
 			strncat(name,
 				m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
 				m0_bitstring_len_get(&cob->co_nskey->cnk_name));
 		}
-		if (!m0_fid_eq(cob->co_fid, fid) ||
-		    m0_fid_eq(cob->co_fid, md->md_root->co_fid))
+		if (!m0_fid_eq(&cob->co_file.fi_fid, fid) ||
+		    m0_fid_eq(&cob->co_file.fi_fid,
+			      &md->md_root->co_file.fi_fid))
 			strcat(name, "/");
 		memmove(*path + strlen(name), *path, strlen(*path));
 		memcpy(*path, name, strlen(name));
