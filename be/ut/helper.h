@@ -23,6 +23,7 @@
 #define __MERO_BE_UT_HELPER_H__
 
 #include "lib/types.h"		/* bool */
+#include "lib/buf.h"		/* m0_buf */
 #include "sm/sm.h"		/* m0_sm */
 #include "stob/stob.h"		/* m0_stob */
 
@@ -79,6 +80,69 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
+
+/*
+ * tx capturing checker for UT.
+ *
+ * Use case example:
+ *
+ * @code
+ * struct m0_be_ut_txc tc;
+ * struct m0_be_tx     tx;
+ * struct m0_be_seg   *seg;
+ * ...
+ * // it can be initialized at any time before using
+ * m0_be_ut_txc_init(&tc);
+ * ...
+ * // tx is successfully open
+ * // seg is open
+ * // note: m0_be_tx_capture() may be called before m0_be_ut_txc_start() - in
+ * // this case m0_be_ut_txc_start() will check if captured regions weren't
+ * // changed after capturing
+ * m0_be_ut_txc_start(&tc, &tx, seg);
+ * ...
+ * // call m0_be_tx_capture(&tx, ...)
+ * ...
+ * // perform capturing checks
+ * m0_be_ut_txc_check(&tc, &tx);
+ * ...
+ * // be sure to finalize m0_be_ut_txc
+ * m0_be_ut_txc_fini(&tc);
+ * @endcode
+ */
+struct m0_be_ut_txc {
+	struct m0_buf butc_seg_copy;
+};
+
+M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc);
+M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc);
+
+/*
+ * Start capturing checking.
+ *
+ * @param tc capturing checker object
+ * @param tx transaction to check
+ * @param seg tx should capture only this segment data
+ *
+ * - can be called at any time between m0_be_tx_open() and m0_be_tx_close();
+ * - will create copy of the segment;
+ * - will perform all m0_be_ut_txc_check() checks.
+ */
+M0_INTERNAL void m0_be_ut_txc_start(struct m0_be_ut_txc *tc,
+				    struct m0_be_tx *tx,
+				    const struct m0_be_seg *seg);
+/*
+ * Check capturing correctness.
+ *
+ * This function will check if
+ * - transaction reg_area have the same data for capturing regions as segment;
+ * - all segment modifications from previous call to m0_be_ut_txc_start() were
+ *   captured.
+ *
+ * @note This function may have problems with volatile-only regions.
+ */
+M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
+				    struct m0_be_tx *tx);
 
 /* m0_be_allocator_{init,create,open} */
 void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
