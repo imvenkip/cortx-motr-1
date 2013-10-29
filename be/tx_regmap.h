@@ -80,14 +80,6 @@ struct m0_be_regmap {
 	void                          *br_ops_data;
 };
 
-/**
- * @todo TODO XXX remove it.
- * Regions tree node for tsearch().
- */
-struct m0_be_regdtree_node {
-	struct m0_be_reg_d *bn_reg_d;
-};
-
 M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd);
 M0_INTERNAL bool m0_be_reg_d_is_in(const struct m0_be_reg_d *rd, void *ptr);
 
