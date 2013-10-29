@@ -90,6 +90,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 {
 	struct m0_be_tx_credit	credit = {};
 	enum m0_be_allocator_op optype;
+	struct m0_be_ut_txc	tc = {};
 	struct m0_be_op		op;
 	struct m0_be_tx		tx_;
 	struct m0_be_tx	       *tx = ut_be == NULL ? NULL : &tx_;
@@ -109,6 +110,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 
 		rc = m0_be_tx_open_sync(tx);
 		M0_UT_ASSERT(rc == 0);
+		m0_be_ut_txc_init(&tc);
+		m0_be_ut_txc_start(&tc, tx, a->ba_seg);
 	}
 
 	m0_be_op_init(&op);
@@ -126,6 +129,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator *a,
 	m0_be_op_fini(&op);
 
 	if (ut_be != NULL) {
+		m0_be_ut_txc_check(&tc, tx);
+		m0_be_ut_txc_fini(&tc);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	}
