@@ -353,12 +353,12 @@ CLEANFILES += $(MERO_ALTOGETHER_USER_C)
 #XXX_BE_DB balloc_ut_mperf_LDADD             = $(top_builddir)/mero/libmero.la \
 #XXX_BE_DB                                     $(top_builddir)/ut/libmero-ut.la
 #XXX_BE_DB
-#XXX_BE_DB #
-#XXX_BE_DB # m0t1fs/linux_kernel/ut
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
-#XXX_BE_DB
+#
+# m0t1fs/linux_kernel/ut
+#
+
+include $(top_srcdir)/m0t1fs/linux_kernel/ut/Makefile.sub
+
 #XXX_BE_DB #
 #XXX_BE_DB # db/ut
 #XXX_BE_DB #
@@ -602,15 +602,15 @@ mero_m0d_altogether_CPPFLAGS = -DM0_TARGET='m0d-altogether' $(AM_CPPFLAGS)
 mero_m0d_altogether_SOURCES  = $(mero_m0d_SOURCES)
 mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
 
-#XXX_BE_DB #
-#XXX_BE_DB # console/bin/m0console
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB sbin_PROGRAMS                  += console/bin/m0console
-#XXX_BE_DB console_bin_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
-#XXX_BE_DB console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/console/bin/Makefile.sub
+#
+# console/bin/m0console
+#
+
+sbin_PROGRAMS                  += console/bin/m0console
+console_bin_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
+console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/console/bin/Makefile.sub
 
 #
 # pool
