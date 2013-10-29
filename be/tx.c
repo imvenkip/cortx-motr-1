@@ -237,6 +237,7 @@ M0_INTERNAL void
 m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+	M0_PRE(m0_be_reg__invariant(reg));
 
 	m0_be_reg_area_capture(&tx->t_reg_area, &M0_BE_REG_D(*reg, NULL));
 }
@@ -245,6 +246,7 @@ M0_INTERNAL void
 m0_be_tx_uncapture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+	M0_PRE(m0_be_reg__invariant(reg));
 
 	m0_be_reg_area_uncapture(&tx->t_reg_area, &M0_BE_REG_D(*reg, NULL));
 }
