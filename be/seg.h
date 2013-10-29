@@ -114,6 +114,9 @@ M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg);
 M0_INTERNAL bool m0_be_reg_eq(const struct m0_be_reg *r1,
 			      const struct m0_be_reg *r2);
 
+/** XXX @todo make m0_be_reg_copy_to(reg, dst_addr) and
+ * m0_be_reg_copy_from(reg, src_addr) */
+
 /*
  * `reg' parameter is not const, because stob IO will update
  * m0_be_reg::br_addr when a region is loaded/stored.
