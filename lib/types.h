@@ -37,6 +37,10 @@ struct m0_uint128 {
 
 #define M0_UINT128(hi, lo) (struct m0_uint128) { .u_hi = (hi), .u_lo = (lo) }
 
+#define U128X_F "%lx:%lx"
+#define U128D_F "%lu:%lu"
+#define U128_P(x) (unsigned long)(x)->u_hi, (unsigned long)(x)->u_lo
+
 M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
 			       const struct m0_uint128 *u1);
 M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
