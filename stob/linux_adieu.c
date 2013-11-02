@@ -412,33 +412,39 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 			 long res, long res2)
 {
-	struct m0_stob_io    *io;
-	struct linux_stob_io *lio;
+	struct m0_stob_io    *io   = qev->iq_io;
+	struct linux_stob_io *lio  = io->si_stob_private;
+	struct iocb          *iocb = &qev->iq_iocb;
 	bool done;
 
 	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
-	M0_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
-
-	io  = qev->iq_io;
-	lio = io->si_stob_private;
-
+	M0_ASSERT(io->si_obj->so_domain == &ldom->sdl_base);
 	M0_ASSERT(io->si_state == SIS_BUSY);
 
 	m0_mutex_lock(&lio->si_endlock);
 	M0_ASSERT(lio->si_done < lio->si_nr);
+	/* short read. */
+	if (io->si_opcode == SIO_READ && res >= 0 && res < iocb->u.c.nbytes) {
+		/* fill the rest of the user buffer with zeroes. */
+		memset(iocb->u.c.buf + res, 0, iocb->u.c.nbytes - res);
+		res = iocb->u.c.nbytes;
+	}
+
 	if (res > 0) {
 		if ((res & LINUX_DOM_BMASK(ldom)) != 0) {
 			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
 			res = -EIO;
 		} else
-			qev->iq_io->si_count += res >> LINUX_DOM_BSHIFT(ldom);
+			io->si_count += res >> LINUX_DOM_BSHIFT(ldom);
 	}
 
-	if (res < 0 && qev->iq_io->si_rc == 0)
-		qev->iq_io->si_rc = res;
+	if (res < 0 && io->si_rc == 0)
+		io->si_rc = res;
 	++lio->si_done;
-	M0_LOG(M0_DEBUG, "done=%d res=%d si_rc=%d", (int)lio->si_done, (int)res,
-	       (int)qev->iq_io->si_rc);
+	M0_LOG(M0_DEBUG, "["U128X_F"] done=%d res=%d si_rc=%d",
+	       U128_P(&io->si_obj->so_id.si_bits),
+	       (int)lio->si_done, (int)res,
+	       (int)io->si_rc);
 	done = lio->si_done == lio->si_nr;
 	m0_mutex_unlock(&lio->si_endlock);
 
