@@ -116,7 +116,7 @@ prepare_testdir()
 	rm -rf $MERO_M0T1FS_TEST_DIR	 &> /dev/null
 
 	echo "Creating test directory ..."
-	mkdir $MERO_M0T1FS_TEST_DIR &> /dev/null
+	mkdir -p $MERO_M0T1FS_TEST_DIR &> /dev/null
 
 	if [ $? -ne "0" ]
 	then
