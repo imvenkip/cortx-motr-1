@@ -27,6 +27,7 @@
 #include <linux/kernel.h>         /* pr_emerg */
 #include <linux/string.h>         /* strcmp */
 #include <linux/delay.h>          /* mdelay */
+#include <linux/kgdb.h>           /* kgdb_breakpoint() */
 
 #include "lib/assert.h"           /* m0_failed_condition */
 #include "mero/version.h"         /* m0_build_info */
@@ -56,6 +57,13 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 	 */
 	mdelay(m0_panic_delay_msec);
 	BUG();
+}
+
+M0_INTERNAL void m0_debugger_invoke(void)
+{
+#ifdef CONFIG_KGDB
+	kgdb_breakpoint();
+#endif
 }
 
 /** @} end of assert group */

@@ -118,7 +118,13 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 	fflush(stderr);
 
 	m0_arch_backtrace();
+	m0_debugger_invoke();
 
+	abort();
+}
+
+M0_INTERNAL void m0_debugger_invoke(void)
+{
 	if (m0_debugger_args[0] != NULL) {
 		int rc;
 
@@ -135,8 +141,6 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 			rc = execvp(m0_debugger_args[0], m0_debugger_args);
 		}
 	}
-
-	abort();
 }
 
 /** @} end of assert group */

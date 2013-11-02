@@ -256,6 +256,18 @@ bool foo_invariant(const struct foo *f)
 	__exp;					\
 })
 
+/**
+ * Invokes a debugger, if possible.
+ *
+ * This can be used for debugging purposes. Note that this function can return.
+ *
+ * In user space, this function invokes the debugger specified in MERO_DEBUGGER
+ * environment variable.
+ *
+ * In Linux kernel this breaks in kgdb, if configured.
+ */
+M0_INTERNAL void m0_debugger_invoke(void);
+
 /** @} end of assert group */
 
 /* __MERO_LIB_ASSERT_H__ */
