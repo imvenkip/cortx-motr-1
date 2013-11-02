@@ -428,10 +428,9 @@ M0_INTERNAL void history_print_header(const struct m0_dtm_history *history,
 	struct m0_uint128 *rid = history->h_rem != NULL ?
 		&history->h_rem->re_id : &null_id;
 
-	sprintf(buf, "%s@%p[%lx:%lx]->[%lx:%lx]",
+	sprintf(buf, "%s@%p["U128X_F"]->["U128X_F"]",
 		history->h_ops->hio_type->hit_name, history,
-		(unsigned long)hid.u_hi, (unsigned long)hid.u_lo,
-		(unsigned long)rid->u_hi, (unsigned long)rid->u_lo);
+		U128_P(&hid), U128_P(rid));
 }
 
 M0_INTERNAL void history_print(const struct m0_dtm_history *history)

@@ -136,14 +136,11 @@ M0_INTERNAL void m0_cm_proxy_del(struct m0_cm *cm, struct m0_cm_proxy *pxy)
 M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp)
 {
-	M0_ENTRY("proxy: %p cp: %p", pxy, cp);
+	M0_ENTRY("proxy: %p cp: %p ep: %s", pxy, cp, pxy->px_endpoint);
 	m0_mutex_lock(&pxy->px_mutex);
 	M0_PRE(!proxy_cp_tlink_is_in(cp));
 	proxy_cp_tlist_add_tail(&pxy->px_pending_cps, cp);
-	M0_LOG(M0_DEBUG, "proxy: [%s] ag_id: [%lu] [%lu] [%lu] [%lu]",
-	       pxy->px_endpoint,
-	       cp->c_ag->cag_id.ai_hi.u_hi, cp->c_ag->cag_id.ai_hi.u_lo,
-               cp->c_ag->cag_id.ai_lo.u_hi, cp->c_ag->cag_id.ai_lo.u_lo);
+	ID_LOG("proxy ag_id", &cp->c_ag->cag_id);
 	M0_POST(proxy_cp_tlink_is_in(cp));
 	m0_mutex_unlock(&pxy->px_mutex);
 	M0_LEAVE();
@@ -189,20 +186,15 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi)
 {
-	M0_ENTRY("proxy: %p lo: %p hi: %p", pxy, lo, hi);
+	M0_ENTRY("proxy: %p lo: %p hi: %p ep: %s", pxy, lo, hi,
+		 pxy->px_endpoint);
 	M0_PRE(pxy != NULL && lo != NULL && hi != NULL);
 
 	m0_mutex_lock(&pxy->px_mutex);
 	pxy->px_sw.sw_lo = *lo;
 	pxy->px_sw.sw_hi = *hi;
-        M0_LOG(M0_DEBUG, "proxy [%s] lo [%lu] [%lu] [%lu] [%lu]",
-	       pxy->px_endpoint,
-               pxy->px_sw.sw_lo.ai_hi.u_hi, pxy->px_sw.sw_lo.ai_hi.u_lo,
-               pxy->px_sw.sw_lo.ai_lo.u_hi, pxy->px_sw.sw_lo.ai_lo.u_lo);
-        M0_LOG(M0_DEBUG, "proxy [%s] hi [%lu] [%lu] [%lu] [%lu]",
-	       pxy->px_endpoint,
-               pxy->px_sw.sw_hi.ai_hi.u_hi, pxy->px_sw.sw_hi.ai_hi.u_lo,
-               pxy->px_sw.sw_hi.ai_lo.u_hi, pxy->px_sw.sw_hi.ai_lo.u_lo);
+        ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
+        ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
 	__wake_up_pending_cps(pxy);
 	M0_ASSERT(cm_proxy_invariant(pxy));
 	m0_mutex_unlock(&pxy->px_mutex);
@@ -233,12 +225,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		id_hi = cm->cm_last_saved_sw_hi;
 	}
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
-	M0_LOG(M0_DEBUG, "%s proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
-	       proxy->px_endpoint,
-	       proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_hi,
-	       proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_lo,
-	       proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_hi,
-	       proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_lo);
+	M0_LOG(M0_DEBUG, "proxy ep: %s", proxy->px_endpoint);
+	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	has_data = m0_cm_has_more_data(cm);
 	/*
@@ -323,14 +311,14 @@ static void proxy_sw_onwire_release(struct m0_ref *ref)
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 					  struct m0_cm_sw *sw)
 {
-	struct m0_cm                     *cm;
-        struct m0_rpc_machine            *rmach;
-        struct m0_rpc_conn               *conn;
+	struct m0_cm                 *cm;
+        struct m0_rpc_machine        *rmach;
+        struct m0_rpc_conn           *conn;
 	struct m0_cm_proxy_sw_onwire *sw_fop;
-	struct m0_fop                    *fop;
-        m0_time_t                         deadline;
-        const char                       *ep;
-	int                               rc;
+	struct m0_fop                *fop;
+        m0_time_t                     deadline;
+        const char                   *ep;
+	int                           rc;
 
 	M0_ENTRY("proxy: %p sw: %p", proxy, sw);
 	M0_PRE(proxy != NULL);
@@ -353,11 +341,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	}
 	sw_fop->pso_proxy = proxy;
         deadline = m0_time_from_now(1, 0);
-	M0_LOG(M0_DEBUG, "proxy last updated  hi: [%lu] [%lu] [%lu] [%lu]",
-		proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_hi,
-		proxy->px_last_sw_onwire_sent.sw_hi.ai_hi.u_lo,
-		proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_hi,
-		proxy->px_last_sw_onwire_sent.sw_hi.ai_lo.u_lo);
+	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
         rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline);
         m0_sm_group_lock(&rmach->rm_sm_grp);
@@ -365,9 +349,8 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
         m0_sm_group_unlock(&rmach->rm_sm_grp);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
 	M0_CNT_INC(proxy->px_nr_updates_sent);
-	M0_LOG(M0_DEBUG, "Sending to %s hi: [%lu] [%lu] [%lu] [%lu] \
-	       nr_updates: %lu", proxy->px_endpoint, sw->sw_hi.ai_hi.u_hi,
-	       sw->sw_hi.ai_hi.u_lo, sw->sw_hi.ai_lo.u_hi, sw->sw_hi.ai_lo.u_lo,
+	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"] nr_updates: %lu",
+	       proxy->px_endpoint, M0_AG_P(&sw->sw_hi),
 	       proxy->px_nr_updates_sent);
 
 	M0_LEAVE("%d", rc);

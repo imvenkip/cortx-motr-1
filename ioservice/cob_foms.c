@@ -419,8 +419,8 @@ static int cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 	reqh = m0_fom_reqh(fom);
 	sdom = m0_cs_stob_domain_find(reqh, &cc->fco_stobid);
 	if (sdom == NULL) {
-		M0_LOG(M0_DEBUG, "can't find domain for stob_id=%lu",
-		                 (unsigned long)cc->fco_stobid.si_bits.u_hi);
+		M0_LOG(M0_DEBUG, "can't find domain for stob_id=["U128D_F"]",
+		       U128_P(&cc->fco_stobid.si_bits));
 		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_CRED,
 					&m0_ios_addb_ctx);
 		return -EINVAL;
@@ -444,8 +444,8 @@ static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	reqh = m0_fom_reqh(fom);
 	sdom = m0_cs_stob_domain_find(reqh, &cc->fco_stobid);
 	if (sdom == NULL) {
-		M0_LOG(M0_DEBUG, "can't find domain for stob_id=%lu",
-		                 (unsigned long)cc->fco_stobid.si_bits.u_hi);
+		M0_LOG(M0_DEBUG, "can't find domain for stob_id=["U128D_F"]",
+		       U128_P(&cc->fco_stobid.si_bits));
 		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_CREATE_1, &m0_ios_addb_ctx);
 		return -EINVAL;
 	}

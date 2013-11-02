@@ -55,9 +55,8 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 	pl   = m0_layout_to_pdl(pi->pi_base.li_l);
 	pl_N = pl->pl_attr.pa_N;
 	pl_K = pl->pl_attr.pa_K;
-	sim_log(s, SLL_TRACE, "thread [%i:%i]: seed: [%16lx:%16lx]\n",
-		cl->cc_id, cth->cth_id, pl->pl_attr.pa_seed.u_hi,
-		pl->pl_attr.pa_seed.u_lo);
+	sim_log(s, SLL_TRACE, "thread [%i:%i]: seed: ["U128X_F"]\n",
+		cl->cc_id, cth->cth_id, U128_P(&pl->pl_attr.pa_seed));
 
 	nob  = conf->ct_total;
 	unit = conf->ct_unitsize;
@@ -92,11 +91,10 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			fid_to_stob_id(&fid, &stob_id);
 
 			sim_log(s, SLL_TRACE,
-				"%c [%3i:%3i] -> %4u@%3u [%4lu:%4lu] %6lu\n",
+				"%c [%3i:%3i] -> %4u@%3u ["U128X_F"] %6lu\n",
 				"DPS"[m0_pdclust_unit_classify(pl, idx)],
 				cl->cc_id, cth->cth_id, obj, srv,
-				stob_id.si_bits.u_hi, stob_id.si_bits.u_lo,
-				tgt.ta_frame);
+				U128_P(&stob_id.si_bits), tgt.ta_frame);
 
 			/* wait until rpc can be send to the server. */
 			while (conn->cs_inflight >= conf->ct_inflight_max)

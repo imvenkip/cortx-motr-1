@@ -70,8 +70,7 @@
 /*
 static void key_print(const struct m0_emap_key *k)
 {
-	printf("%08lx.%08lx:%08lx", k->ek_prefix.u_hi, k->ek_prefix.u_lo,
-	       k->ek_offset);
+	printf(U128X_F":%08lx", U128_P(&k->ek_prefix), k->ek_offset);
 }
 */
 

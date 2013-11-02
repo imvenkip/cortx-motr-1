@@ -153,7 +153,7 @@ static void test_print(void)
 	M0_UT_ASSERT(result == 0);
 
 #if 0
-	printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
+	printf(U128X_F":\n", U128_P(&prefix));
 #endif
 	for (i = 0; ; ++i) {
 #if 0

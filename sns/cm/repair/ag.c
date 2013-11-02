@@ -198,9 +198,8 @@ static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 	struct m0_cm_ag_id         *id = &rag->rag_base.sag_base.cag_id;
 
-        M0_LOG(M0_DEBUG, "id [%lu] [%lu] [%lu] [%lu] [%u] [%u]",
-               id->ai_hi.u_hi, id->ai_hi.u_lo, id->ai_lo.u_hi, id->ai_lo.u_lo,
-	       rag->rag_acc_freed, rag->rag_acc_inuse_nr);
+        M0_LOG(M0_DEBUG, "id ["M0_AG_F"] [%u] [%u]",
+               M0_AG_P(id), rag->rag_acc_freed, rag->rag_acc_inuse_nr);
 	return rag->rag_acc_freed == rag->rag_acc_inuse_nr;
 }
 
