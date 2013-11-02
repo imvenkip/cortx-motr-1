@@ -881,7 +881,6 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	struct m0_buf              val;
 	struct m0_ext		  *ex;
 	int			   rc = 0;
-	int			   size;
 	m0_bcount_t		   count;
 
 	M0_ENTRY("grp=%d frags=%d", (int)grp->bgi_groupno,
@@ -893,8 +892,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		M0_RETURN(0);
 	}
 
-	size = (grp->bgi_fragments + 1) * sizeof (struct m0_ext);
-	grp->bgi_extents = m0_alloc(size);
+	M0_ALLOC_ARR(grp->bgi_extents, grp->bgi_fragments + 1);
 	if (grp->bgi_extents == NULL)
 		M0_RETURN(-ENOMEM);
 
