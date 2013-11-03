@@ -218,7 +218,7 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 		item->ri_deadline = 0;
 		break;
 	case NEVER:
-		item->ri_deadline = ~0;
+		item->ri_deadline = M0_TIME_NEVER;
 		break;
 	case WAITING:
 		item->ri_deadline = m0_time_from_now(0, timeout);
@@ -274,12 +274,27 @@ static void frm_test1(void)
 		flags_reset();
 		m0_rpc_frm_enq_item(frm, item);
 		if (deadline == WAITING) {
+			int result;
+
 			M0_UT_ASSERT(!packet_ready_called &&
 				     !item_bind_called);
 			check_frm(FRM_BUSY, 1, 0);
 			/* Allow RPC worker to process timeout AST */
 			m0_rpc_machine_unlock(&rmachine);
-			m0_nanosleep(m0_time(0, 2 * timeout), NULL);
+			/*
+			 * The original code slept for 2*timeout here. This is
+			 * unreliable and led to spurious assertion failures
+			 * below. Explicitly wait until the item enters an
+			 * appropriate state.
+			 */
+			result = m0_rpc_item_timedwait(item,
+				    M0_BITS(M0_RPC_ITEM_URGENT,
+					    M0_RPC_ITEM_SENDING,
+					    M0_RPC_ITEM_SENT,
+					    M0_RPC_ITEM_WAITING_FOR_REPLY,
+					    M0_RPC_ITEM_REPLIED),
+				    M0_TIME_NEVER);
+			M0_UT_ASSERT(result == 0);
 			m0_rpc_machine_lock(&rmachine);
 		}
 		M0_UT_ASSERT(packet_ready_called &&
