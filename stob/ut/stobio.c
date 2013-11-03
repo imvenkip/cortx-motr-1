@@ -88,31 +88,25 @@ static const char test_blkdev[] = "/dev/loop0";
 /* sync object for init/fini */
 static struct m0_mutex lock;
 static struct m0_thread thread[TEST_NR];
-struct stobio_test test[TEST_NR] = {
+
+#define ST_ID(hi, lo) .st_id = { .si_bits = { .u_hi = (hi), .u_lo = (lo) } }
+struct stobio_test tests[TEST_NR] = {
 	/* buffered IO tests */
-	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } },
-		.st_directio = false },
-	[1] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } },
-		.st_directio = false },
-	[2] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } },
-		.st_directio = false },
-	[3] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } },
-		.st_directio = false },
-	[4] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } },
-		.st_directio = false },
+	[0] = { ST_ID(1, 2), .st_directio = false },
+	[1] = { ST_ID(3, 4), .st_directio = false },
+	[2] = { ST_ID(5, 6), .st_directio = false },
+	[3] = { ST_ID(7, 8), .st_directio = false },
+	[4] = { ST_ID(9, 0), .st_directio = false },
 
 	/* direct IO tests */
-	[5] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } },
-		.st_directio = true },
-	[6] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } },
-		.st_directio = true },
-	[7] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } },
-		.st_directio = true },
-	[8] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } },
-		.st_directio = true },
-	[9] = { .st_id = { .si_bits = { .u_hi = 10, .u_lo = 0 } },
-		.st_directio = true, .st_dev_path="/dev/loop0"  },
+	[5] = { ST_ID(1, 2), .st_directio = true },
+	[6] = { ST_ID(3, 4), .st_directio = true },
+	[7] = { ST_ID(5, 6), .st_directio = true },
+	[8] = { ST_ID(7, 8), .st_directio = true },
+	[9] = { ST_ID(10, 0), .st_directio = true, .st_dev_path="/dev/loop0" },
 };
+
+#undef ST_ID
 
 /*
  * Assumes that we are dealing with loop-back device /dev/loop0
@@ -129,7 +123,7 @@ static void stob_dev_init(const struct stobio_test *test)
 	result = stat(test->st_dev_path, &statbuf);
 	M0_UT_ASSERT(result == 0);
 
-	if(strcmp(test->st_dev_path, test_blkdev))
+	if (strcmp(test->st_dev_path, test_blkdev))
 		return;
 
 	/* Device size in KB */
@@ -405,12 +399,12 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 
 	/* check WR data */
 	for (i = 0; i < RW_BUFF_NR/2; ++i) {
-		for (j = 0; j < RW_BUFF_NR; ++j)
+		for (j = 0; j < test->st_rw_buf_size; ++j)
 			M0_UT_ASSERT(test->st_rdbuf[i][j] == (('A' + 2 * i) | 1));
 	}
 
 	for (; i < RW_BUFF_NR; ++i) {
-		for (j = 0; j < RW_BUFF_NR; ++j)
+		for (j = 0; j < test->st_rw_buf_size; ++j)
 			M0_UT_ASSERT(test->st_rdbuf[i][j] == (('a' + i) | 1));
 	}
 
@@ -431,7 +425,7 @@ void test_stobio(void)
 		result = M0_THREAD_INIT
 			(&thread[i], int, NULL,
 			 LAMBDA(void, (int x)
-				{ overlapped_rw_test(&test[x], x*100); } ), i,
+				{ overlapped_rw_test(&tests[x], x*100); } ), i,
 			 "overlap_test%d", i);
 		M0_UT_ASSERT(result == 0);
 	}
@@ -446,12 +440,48 @@ void test_stobio(void)
 	m0_mutex_fini(&lock);
 }
 
+void test_short_read(void)
+{
+	int                 i;
+	int                 j;
+	int                 result;
+	struct stobio_test *test = &tests[0];
+
+	m0_mutex_init(&lock);
+
+	result = stobio_storage_init();
+	M0_UT_ASSERT(result == 0);
+
+	WITH_LOCK(&lock, stobio_init, test);
+
+	stobio_rwsegs_prepare(test, 0);
+	stobio_write(test);
+
+	stobio_rwsegs_prepare(test, 0);
+	for (i = 0; i < RW_BUFF_NR; ++i)
+		test->st_rdvec[i]++;
+	stobio_read(test);
+
+	for (i = 0; i < RW_BUFF_NR; ++i) {
+		char expected = ('a' + i) | 1;
+		for (j = 0; j < test->st_rw_buf_size - test->st_block_size; ++j)
+			M0_UT_ASSERT(test->st_rdbuf[i][j] == expected);
+		for (; j < test->st_rw_buf_size; ++j)
+			M0_UT_ASSERT(test->st_rdbuf[i][j] == 0);
+	}
+
+	WITH_LOCK(&lock, stobio_fini, test);
+	stobio_storage_fini();
+	m0_mutex_fini(&lock);
+}
+
 const struct m0_test_suite stobio_ut = {
 	.ts_name = "stobio-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "stobio", test_stobio },
+		{ "stobio",     test_stobio },
+		{ "short-read", test_short_read },
 		{ NULL, NULL }
 	}
 };
