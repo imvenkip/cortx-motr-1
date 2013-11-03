@@ -1981,9 +1981,8 @@ static void test_sync_body(struct ut_data *td)
 		nb2->nb_length = len;
 		nb2->nb_ep = ep2;
 		zUT(m0_net_buffer_add(nb2, TM2), done);
-		M0_UT_ASSERT(nb2->nb_flags & M0_NET_BUF_QUEUED);
-
 		ut_chan_timedwait(&td->tmwait2, 10);
+		M0_UT_ASSERT(!(nb2->nb_flags & M0_NET_BUF_QUEUED));
 		M0_UT_ASSERT(cb_called2 == i);
 		M0_UT_ASSERT(cb_status2 == 0);
 		M0_UT_ASSERT(cb_nb2 == nb2);
