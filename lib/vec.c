@@ -308,38 +308,49 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
 }
 M0_EXPORTED(m0_bufvec_free_aligned);
 
-static uint32_t vec_pack(struct m0_vec *vec, m0_bindex_t *idx)
+static uint32_t vec_pack(uint32_t nr, m0_bcount_t *cnt, m0_bindex_t *idx)
 {
 	uint32_t i = 0;
 	uint32_t j;
 
-	if (vec->v_nr == 0)
+	if (nr == 0)
 		return 0;
 
-	for (j = i + 1; j < vec->v_nr; ++j) {
-		if (idx[i] + vec->v_count[i] == idx[j]) {
-			vec->v_count[i] += vec->v_count[j];
+	for (j = i + 1; j < nr; ++j) {
+		if (idx[i] + cnt[i] == idx[j]) {
+			cnt[i] += cnt[j];
 		} else {
 			++i;
 			if (i != j) {
 				idx[i] = idx[j];
-				vec->v_count[i] = vec->v_count[j];
+				cnt[i] = cnt[j];
 			}
 		}
 	}
-	vec->v_nr = i + 1;
 
-	return j - vec->v_nr;
+	return i + 1;
 }
 
 M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bv)
 {
-	return vec_pack(&bv->ov_vec, (m0_bindex_t*)bv->ov_buf);
+	uint32_t new_nr = vec_pack(bv->ov_vec.v_nr, bv->ov_vec.v_count,
+					(m0_bindex_t*)bv->ov_buf);
+	uint32_t diff = bv->ov_vec.v_nr - new_nr;
+
+	bv->ov_vec.v_nr = new_nr;
+
+	return diff;
 }
 
 M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *iv)
 {
-	return vec_pack(&iv->iv_vec, iv->iv_index);
+	uint32_t new_nr = vec_pack(iv->iv_vec.v_nr, iv->iv_vec.v_count,
+						    iv->iv_index);
+	uint32_t diff = iv->iv_vec.v_nr - new_nr;
+
+	iv->iv_vec.v_nr = new_nr;
+
+	return diff;
 }
 
 M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
