@@ -2,8 +2,6 @@ mkloopdevs()
 {
 	local i=$1
 	local dir=$2
-	local ldev1="/dev/loop$((i * 2))"
-	local ldev2="/dev/loop$((i * 2 + 1))"
 	local adisk=addb-disk.img
 	local ddisk=data-disk.img
 
@@ -14,21 +12,16 @@ mkloopdevs()
 		dd if=/dev/zero of=$ddisk bs=1M seek=1M count=1 ||
 			return 1
 	fi
-	losetup -d $ldev1 $ldev2 >& /dev/null
-	losetup $ldev1 $adisk || return 1
-	if ((i > 0)); then
-		  losetup $ldev2 $ddisk || return 1
-	fi
 
 	cat > disks.conf << EOF
 Device:
    - id: 0
-     filename: $ldev1
+     filename: $adisk
 EOF
 	if ((i > 0)); then
 		cat >> disks.conf << EOF
    - id: $i
-     filename: $ldev2
+     filename: $ddisk
 EOF
 	fi
 
@@ -131,13 +124,6 @@ mero_service()
 		then
 			collect_addb_from_all_services
 		fi
-
-		for ((i=0; i < ${#EP[*]}; i++)) ; do
-			losetup -d /dev/loop$((i * 2))
-			if ((i > 0)); then
-				losetup -d /dev/loop$((i * 2 + 1))
-			fi
-		done
 
 		unprepare
 	}
