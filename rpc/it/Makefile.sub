@@ -13,4 +13,5 @@ EXTRA_DIST += rpc/it/linux_kernel/rpc_ping.h \
               rpc/it/linux_kernel/load.sh \
               rpc/it/linux_kernel/unload.sh \
               rpc/it/linux_kernel/m0mero.symvers \
-              rpc/it/st
+              rpc/it/st \
+              rpc/it/st.sh
