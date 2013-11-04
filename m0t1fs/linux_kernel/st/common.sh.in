@@ -13,6 +13,9 @@ NULL_UUID="00000000-0000-0000-0000-000000000000"
 MODPARAMS[m0mero.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
 MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
 
+# to make command output parsing predictable
+export LC_MESSAGES=C
+
 abort()
 {
 	msg="$1"
