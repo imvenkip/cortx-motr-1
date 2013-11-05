@@ -29,7 +29,7 @@
 #include <linux/limits.h>	/* PATH_MAX */
 #include <stdio.h>		/* fprintf */
 #include <stdlib.h>		/* abort */
-#include <unistd.h>		/* fork */
+#include <unistd.h>		/* fork, sleep */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/misc.h"		/* ARRAY_SIZE */
@@ -125,7 +125,16 @@ M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *c, va_list ap)
 
 M0_INTERNAL void m0_debugger_invoke(void)
 {
-	if (m0_debugger_args[0] != NULL) {
+	const char *debugger = m0_debugger_args[0];
+
+	if (debugger == NULL) {
+		; /* nothing */
+	} else if (!strcmp(debugger, "wait")) {
+		fprintf(stderr, "Mero pid %u waits for debugger.\n", getpid());
+		fflush(stderr);
+		while (1)
+			sleep(1);
+	} else {
 		int rc;
 
 		rc = fork();
