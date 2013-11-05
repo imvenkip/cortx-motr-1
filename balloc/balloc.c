@@ -755,7 +755,7 @@ static int balloc_init_ac(struct m0_balloc_allocation_context *bac,
 	bac->bac_criteria = 0;
 
 	if (req->bar_goal == 0)
-		req->bar_goal = mero->cb_last.e_end;
+		req->bar_goal = mero->cb_last;
 
 	bac->bac_orig.e_start	= req->bar_goal;
 	bac->bac_orig.e_end	= req->bar_goal + req->bar_len;
@@ -1714,10 +1714,11 @@ balloc_regular_allocator(struct m0_balloc_allocation_context *bac)
 	int		cr;
 	int		rc = 0;
 
-	M0_ENTRY();
-
 	ngroups = bac->bac_ctxt->cb_sb.bsb_groupcount;
 	len = m0_ext_length(&bac->bac_goal);
+
+	M0_ENTRY("goal=0x%lx len=%d",
+		(unsigned long)bac->bac_goal.e_start, (int)len);
 
 	/* first, try the goal */
 	rc = balloc_find_by_goal(bac);
@@ -1763,12 +1764,14 @@ repeat:
 
 			rc = m0_balloc_trylock_group(grp);
 			if (rc != 0) {
+				M0_LOG(M0_DEBUG, "grp=%d is busy", (int)group);
 				/* This group is under processing by others. */
 				continue;
 			}
 
 			/* quick check to skip empty groups */
 			if (grp->bgi_freeblocks == 0) {
+				M0_LOG(M0_DEBUG, "grp=%d is empty", (int)group);
 				m0_balloc_unlock_group(grp);
 				continue;
 			}
@@ -2042,7 +2045,9 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	struct m0_balloc_allocate_req	 req;
 	int				 rc;
 
-	M0_LOG(M0_DEBUG, "count=%lu", (unsigned long)count);
+	M0_ENTRY("goal=0x%lx count=%lu",
+			(unsigned long)out->e_start,
+			(unsigned long)count);
 	M0_ASSERT(count > 0);
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
@@ -2059,7 +2064,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 		} else {
 			out->e_start = req.bar_result.e_start;
 			out->e_end   = req.bar_result.e_end;
-			mero->cb_last = *out;
+			mero->cb_last = out->e_end;
 		}
 	}
 	m0_mutex_unlock(&mero->cb_sb_mutex);
@@ -2082,6 +2087,10 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	req.bfr_len	 = m0_ext_length(ext);
 
 	rc = balloc_free_internal(mero, &tx->tx_betx, &req);
+
+	if (rc == 0)
+		mero->cb_last = ext->e_start;
+
 	return rc;
 }
 

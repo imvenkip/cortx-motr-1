@@ -140,7 +140,7 @@ struct m0_balloc {
 	/** array of group info */
 	struct m0_balloc_group_info *cb_group_info;
 
-	struct m0_ext                cb_last;
+	m0_bindex_t                  cb_last;
 
 	struct m0_ad_balloc          cb_ballroom;
 };
