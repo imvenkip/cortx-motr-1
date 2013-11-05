@@ -214,6 +214,22 @@ my %cli_option = (
 );
 #my %default_option = %cli_option;
 
+my %level = (
+    'call'    => qr/ ^ CALL $ /xms,
+    'debug'   => qr/ ^ DEBUG $ /xms,
+    'info'    => qr/ ^ INFO $ /xms,
+    'notice'  => qr/ ^ NOTICE $ /xms,
+    'warn'    => qr/ ^ WARN $ /xms,
+    'error'   => qr/ ^ ERROR $ /xms,
+    'fatal'   => qr/ ^ FATAL $ /xms,
+    'call+'   => qr/ ^ CALL   | DEBUG  | INFO   | NOTICE | WARN  | ERROR | FATAL $ /xms,
+    'debug+'  => qr/ ^ DEBUG  | INFO   | NOTICE | WARN   | ERROR | FATAL $ /xms,
+    'info+'   => qr/ ^ INFO   | NOTICE | WARN   | ERROR  | FATAL $ /xms,
+    'notice+' => qr/ ^ NOTICE | WARN   | ERROR  | FATAL $ /xms,
+    'warn+'   => qr/ ^ WARN   | ERROR  | FATAL $ /xms,
+    'error+'  => qr/ ^ ERROR  | FATAL $ /xms,
+    'fatal+'  => qr/ ^ FATAL $ /xms,
+);
 
 sub validate_trace_record
 {
@@ -263,7 +279,7 @@ sub validate_subsys
         addb       balloc     cm      cob   conf  fop
         formation  ioservice  layout  lnet  m0d   m0t1fs
         memory     mgmt       net     pool  rm    rpc
-        sns        snscm      stob
+        sns        snscm      stob    adstob      extmap
         all
     );
     my $subsys_token = join '|', @allowed_subsys;
@@ -279,23 +295,6 @@ sub match_level
 {
     my $tr = shift;
 
-    my %level = (
-        'call'    => qr/ ^ CALL $ /xms,
-        'debug'   => qr/ ^ DEBUG $ /xms,
-        'info'    => qr/ ^ INFO $ /xms,
-        'notice'  => qr/ ^ NOTICE $ /xms,
-        'warn'    => qr/ ^ WARN $ /xms,
-        'error'   => qr/ ^ ERROR $ /xms,
-        'fatal'   => qr/ ^ FATAL $ /xms,
-        'call+'   => qr/ ^ CALL   | DEBUG  | INFO   | NOTICE | WARN  | ERROR | FATAL $ /xms,
-        'debug+'  => qr/ ^ DEBUG  | INFO   | NOTICE | WARN   | ERROR | FATAL $ /xms,
-        'info+'   => qr/ ^ INFO   | NOTICE | WARN   | ERROR  | FATAL $ /xms,
-        'notice+' => qr/ ^ NOTICE | WARN   | ERROR  | FATAL $ /xms,
-        'warn+'   => qr/ ^ WARN   | ERROR  | FATAL $ /xms,
-        'error+'  => qr/ ^ ERROR  | FATAL $ /xms,
-        'fatal+'  => qr/ ^ FATAL $ /xms,
-    );
-
     if ( !exists $level{ lc $tr->{level} } ) {
         warn "Invalid trace record level '$tr->{level}', record skipped\n";
         return 0;
@@ -303,6 +302,14 @@ sub match_level
 
     return any { $tr->{level} =~ / $level{$_} /ixms }
                split( /,/, $cli_option{level} );
+}
+
+sub is_error_level
+{
+    my $tr = shift;
+    my $err_lvl = shift;
+
+    return $tr->{level} =~ / $level{$err_lvl} /ixms;
 }
 
 sub match_subsys
@@ -696,8 +703,9 @@ sub main
 
     for my $tr (@trace_records) {
         validate_trace_record($tr);
-        if (match_level($tr) and match_subsys($tr) and match_file($tr)
-            and match_func($tr) and match_msg($tr))
+        if ((match_level($tr) and match_subsys($tr) and match_file($tr)
+             and match_func($tr) and match_msg($tr))
+	    or is_error_level($tr, 'warn+'))
         {
             print_trace_record($output_file, $tr);
         }
