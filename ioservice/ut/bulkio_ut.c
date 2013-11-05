@@ -1241,8 +1241,10 @@ static void io_single_fop_submit(enum M0_RPC_OPCODES op)
 	struct m0_fop  *fop;
 
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
-	fop = op == M0_IOSERVICE_WRITEV_OPCODE ? &bp->bp_wfops[0]->if_fop :
-						 &bp->bp_rfops[0]->if_fop;
+	if (op == M0_IOSERVICE_WRITEV_OPCODE)
+		fop = &bp->bp_wfops[0]->if_fop;
+	else
+		fop = &bp->bp_rfops[0]->if_fop;
 	/*
 	 * Here we replace the original ->ft_ops and ->ft_fom_type as they were
 	 * changed during bulkio_stob_create test.

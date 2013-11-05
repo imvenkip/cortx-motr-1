@@ -227,10 +227,9 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	/* Adds io buffers to m0_rpc_bulk_buf structure. */
 	for (i = 0; i < segs_nr; ++i) {
 		rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-				bp->bp_iobuf[index]->nb_buffer.ov_buf[i],
-				bp->bp_iobuf[index]->nb_buffer.ov_vec.
-				v_count[i],
-				bp->bp_offsets[off_index], &bp->bp_cnetdom);
+			bp->bp_iobuf[index]->nb_buffer.ov_buf[i],
+			bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i],
+			bp->bp_offsets[off_index], &bp->bp_cnetdom);
 		M0_ASSERT(rc == 0);
 
 		bp->bp_offsets[off_index] +=
@@ -318,6 +317,7 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	struct m0_rpc_item    *item;
 	struct m0_rpc_bulk    *rbulk;
 	struct m0_io_fop     **io_fops;
+	struct m0_fop_cob_rw_reply *rw_reply;
 	struct bulkio_params  *bp;
 
 	i = t->ta_index;
@@ -333,12 +333,13 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 
 	rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
 	M0_ASSERT(rc == 0);
+	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(item->ri_reply));
+	M0_ASSERT(rw_reply->rwr_rc == 0);
 	if (m0_is_read_fop(&io_fops[i]->if_fop)) {
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],
 				    bp->bp_readbuf,
-				    bp->bp_iobuf[i]->nb_buffer.ov_vec.
-				    	v_count[j]);
+				    bp->bp_iobuf[i]->nb_buffer.ov_vec.v_count[j]);
 			M0_ASSERT(rc == 0);
 			memset(bp->bp_iobuf[i]->nb_buffer.ov_buf[j], 'a',
 			       M0_0VEC_ALIGN);

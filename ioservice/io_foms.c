@@ -1725,6 +1725,7 @@ static int io_finish(struct m0_fom *fom)
 		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 	rc = fom_obj->fcrw_rc ?: rc;
         if (rc != 0) {
+		M0_LOG(M0_ERROR, "rc=%d", rc);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
                 IOS_ADDB_FUNCFAIL(rc, IO_FINISH, &fom->fo_addb_ctx);
 	        return M0_FSO_AGAIN;
