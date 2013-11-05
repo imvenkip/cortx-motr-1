@@ -198,7 +198,9 @@ struct m0_io_fom_cob_rw {
         struct m0_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */
         struct m0_tl                     fcrw_stio_list;
-        /** rpc bulk load data*/
+	/** Completed stob IOs, used for as holders for fol records. */
+        struct m0_tl                     fcrw_done_list;
+        /** rpc bulk load data. */
         struct m0_rpc_bulk               fcrw_bulk;
         /** Start time for FOM. */
         m0_time_t                        fcrw_fom_start_time;
