@@ -136,7 +136,7 @@ loop_used=-1
 setup_local_server_config=0
 wait_after_mount=1
 
-M0_TRACE_IMMEDIATE_MASK=fop,cob,m0d
+M0_TRACE_IMMEDIATE_MASK=fop,cob,m0d,adstob,ioservice,stob
 M0_TRACE_LEVEL=notice+
 M0_TRACE_PRINT_CONTEXT=func
 
@@ -439,6 +439,7 @@ function start_server () {
 		SNAME="-s mdservice -s rmservice $SNAME"
 	fi
 
+	$RUN "echo rotated > ${SLOG}$I.log"
 	$RUN "cd $DDIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
@@ -446,7 +447,7 @@ M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $BROOT/mero/m0d -r -p \
 $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
 -w $POOL_WIDTH -G $XPT:$MDS_EP
--e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log 2>&1 &
+-e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" 2>&1 >> ${SLOG}$I.log | tee -a ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
