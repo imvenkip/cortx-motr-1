@@ -118,6 +118,11 @@ struct ad_domain {
    There is very little of the state besides m0_stob_cacheable.
  */
 struct ad_stob {
+	/**
+	    Overwrite mode.
+	    Undo is not working on stobs with this mode enabled.
+	 */
+	bool                     as_overwrite;
 	struct m0_stob_cacheable as_stob;
 };
 
@@ -212,6 +217,11 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
 
 		if (rc == 0) {
 			m0_be_op_init(&it.ec_op);
+			M0_LOG(M0_DEBUG, "%3d: ext=[0x%llx, 0x%llx) val=0x%llx",
+				i,
+				(unsigned long long)old_data[i].ee_ext.e_start,
+				(unsigned long long)old_data[i].ee_ext.e_end,
+				(unsigned long long)old_data[i].ee_val);
 			m0_be_emap_extent_update(&it, tx, &old_data[i]);
 			m0_be_op_wait(&it.ec_op);
 			M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
@@ -450,6 +460,7 @@ static int ad_incache_init(struct m0_stob_domain *dom,
 		*out = incache = &astob->as_stob;
 		incache->ca_stob.so_op = &ad_stob_op;
 		m0_stob_cacheable_init(incache, id, dom);
+		astob->as_overwrite = false;
 		return 0;
 	} else {
 		M0_STOB_OOM(AD_INCACHE_INIT);
@@ -891,6 +902,11 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	seg  = m0_be_emap_seg_get(it);
 	back = &aio->ai_back;
 
+	M0_LOG(M0_DEBUG, "ext=[0x%llx, 0x%llx) val=0x%llx",
+		(unsigned long long)seg->ee_ext.e_start,
+		(unsigned long long)seg->ee_ext.e_end,
+		(unsigned long long)seg->ee_val);
+
 	frags = frags_not_empty = 0;
 	do {
 		off = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
@@ -924,11 +940,6 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		}
 		M0_ASSERT(!eomap);
 		M0_ASSERT(m0_ext_is_in(&seg->ee_ext, off));
-
-		M0_LOG(M0_DEBUG, "ext=[0x%llx, 0x%llx) val=0x%llx",
-			(unsigned long long)seg->ee_ext.e_start,
-			(unsigned long long)seg->ee_ext.e_end,
-			(unsigned long long)seg->ee_val);
 
 		frag_size = min3(m0_vec_cursor_step(src),
 				 m0_vec_cursor_step(dst),
@@ -1231,13 +1242,21 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_op_init(&it.ec_op);
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
-			 /* handle extent deletion. */
-			 rc = rc ?: seg_free(io, adom, seg,
-					     &seg->ee_ext, seg->ee_val);
+			/* handle extent deletion. */
+			if (!stob2ad(io->si_obj)->as_overwrite)
+				return;
+			M0_LOG(M0_DEBUG, "del: val=0x%llx",
+				(unsigned long long)seg->ee_val);
+			M0_ASSERT_INFO(seg->ee_val != ext->e_start,
+				"Delete of the same just allocated block");
+			rc = rc ?: seg_free(io, adom, seg,
+					    &seg->ee_ext, seg->ee_val);
 		 }),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
 			/* cut left */
+			if (!stob2ad(io->si_obj)->as_overwrite)
+				return;
 			M0_ASSERT(ext->e_start > seg->ee_ext.e_start);
 
 			seg->ee_val = val;
@@ -1246,6 +1265,8 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
 			/* cut right */
+			if (!stob2ad(io->si_obj)->as_overwrite)
+				return;
 			M0_ASSERT(seg->ee_ext.e_end > ext->e_end);
 			if (val < AET_MIN) {
 				seg->ee_val = val +
@@ -1417,7 +1438,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	M0_PRE(io->si_opcode == SIO_WRITE);
 
 	todo = m0_vec_count(&io->si_user.ov_vec);
-	M0_LOG(M0_DEBUG, "op=%d sz=%lu", io->si_opcode, (unsigned long)todo);
+	M0_ENTRY("op=%d sz=%lu", io->si_opcode, (unsigned long)todo);
 	back = &aio->ai_back;
         M0_SET0(&head);
 	wext = &head;
@@ -1466,7 +1487,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		}
 	}
 	ad_wext_fini(&head);
-	return result;
+	M0_RETURN(result);
 }
 
 static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
@@ -1542,9 +1563,11 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	/* only read-write at the moment */
 	M0_ASSERT(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
 
+	M0_ENTRY("op=%d", io->si_opcode);
+
 	result = ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
 	if (result != 0)
-		return result;
+		M0_RETURN(result);
 
 	back->si_opcode	      = io->si_opcode;
 	back->si_flags	      = io->si_flags;
@@ -1584,7 +1607,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	}
 	if (!wentout)
 		ad_stob_io_release(aio);
-	return result;
+	M0_RETURN(result);
 }
 
 /**
