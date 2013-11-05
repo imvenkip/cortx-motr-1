@@ -1635,6 +1635,7 @@ static int io_launch(struct m0_fom *fom)
                 rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
 				       &fom->fo_tx, NULL);
                 if (rc != 0) {
+			M0_LOG(M0_ERROR, "stob_io_launch failed: rc=%d", rc);
                         m0_mutex_lock(&stio->si_mutex);
                         m0_fom_callback_cancel(&stio_desc->siod_fcb);
                         m0_mutex_unlock(&stio->si_mutex);

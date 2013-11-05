@@ -289,7 +289,8 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
 {
 	struct m0_poolmach *pm;
 
-	M0_LOG(M0_DEBUG, "key get for reqh=%p, key=%d", reqh, poolmach_key);
+	/* XXX: it floods the log:
+	M0_LOG(M0_DEBUG, "key get for reqh=%p, key=%d", reqh, poolmach_key);*/
 	M0_PRE(reqh != NULL);
 	M0_PRE(!m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
