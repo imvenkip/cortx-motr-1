@@ -704,7 +704,8 @@ m0_trace_record_print(const struct m0_trace_rec_header *trh, const void *buf)
 	}
 
 	if (m0_trace_print_context == M0_TRACE_PCTX_SHORT)
-		m0_console_printf("mero: %6s : [%s:%i:%s] ",
+		m0_console_printf("mero: %5x %6s : [%s:%i:%s] ",
+				  (unsigned) (trh->trh_sp & 0xfffff),
 				  m0_trace_level_name(td->td_level),
 				  m0_short_file_name(td->td_file),
 				  td->td_line, td->td_func);
