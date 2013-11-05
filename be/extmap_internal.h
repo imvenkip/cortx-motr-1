@@ -86,6 +86,7 @@ struct m0_be_emap_rec {
    @see m0_be_emap_obj_insert()
  */
 struct m0_be_emap {
+	struct m0_rwlock      em_lock;
 	struct m0_be_btree    em_mapping;
 	struct m0_buf         em_key_buf;
 	struct m0_buf         em_val_buf;
