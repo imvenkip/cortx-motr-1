@@ -76,11 +76,17 @@ mero_service()
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
 			 $ios_eps \
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN"
+			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
 			echo $cmd
 			(eval "$cmd") &
 
-			sleep 5
+			# wait till the server start completes
+			local m0d_log=$MERO_M0T1FS_TEST_DIR/d$i/m0d.log
+			touch $m0d_log
+			while ! grep CTRL $m0d_log > /dev/null; do
+				sleep 2
+			done
+
 			status $prog_exec
 			if [ $? -eq 0 ]; then
 				SNAME=$(echo $SNAME | sed 's/-s //g')
@@ -88,7 +94,7 @@ mero_service()
 			else
 				echo "Mero service failed to start."
 				return 1
-			fi
+		fi
 		done
 	}
 
