@@ -551,9 +551,16 @@ sub locate_m0tracedump
         $m0tracedump = which('m0tracedump');
     }
 
+    if ( $cli_option{use_usrbin_tracedump} ) {
+        $m0tracedump = '/usr/bin/m0tracedump';
+    }
+
     die "Failed to find m0tracedump utility in PATH or in the development"
         . " tree next to ourselves\n"
         if !defined $m0tracedump;
+
+    die "Can't use $m0tracedump: no such file or it's not an executable\n"
+        if ! -x $m0tracedump;
 
     return $m0tracedump;
 }
@@ -637,6 +644,7 @@ sub process_cli_options
         'color=s'        =>  \$cli_option{color},
         'c'              =>  sub { $cli_option{color} = 'always' },
         'C'              =>  sub { $cli_option{color} = 'never' },
+        'd'              =>  \$cli_option{use_usrbin_tracedump},
         'f|format=s'     =>  \$cli_option{format},
         'L|level=s'      =>  \$cli_option{level},
         'S|subsys=s'     =>  \$cli_option{subsys},
@@ -729,7 +737,7 @@ m0trace - display Mero trace logs in human friendly form
 =head1 SYNOPSIS
 
 m0trace [-i|--input <ifile>] [-o|--output <ofile>] [-s|--stream-mode]
-[--no-pager] [-c|-C|--color=MODE] [-f|--format=FMT] [-L|--level=LVL]
+[--no-pager] [-c|-C|--color=MODE] [-d] [-f|--format=FMT] [-L|--level=LVL]
 [-S|--subsys=SBS] [-F|--file=FL] [-U|--func=FUN] [-M|--msg=MSG] [-h|--help]
 [--usage] [--man]
 
@@ -796,6 +804,11 @@ I<always> - always use colors no matter what is the type of output file;
 I<never> - never use colors.
 
 =back
+
+=item B<-d>
+
+Use hard-coded '/usr/bin' path for m0tracedump (it can be handy when there are
+two versions of m0tracedump in the PATH - one from rpm and one from workdir).
 
 =item B<-f|--format=I<FMT>>
 
