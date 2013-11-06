@@ -349,7 +349,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	const struct m0_ext    ext0     = *ext;
 	struct m0_ext          clip;
 	m0_bcount_t            length[3];
-	m0_bindex_t            bstart[3] = { 0 };
+	typeof(val)            bstart[3] = {};
 	m0_bcount_t            consumed;
 	uint64_t               val_orig;
 	struct m0_indexvec     vec = {
@@ -404,7 +404,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		if (length[2] > 0) {
 			if (cut_right)
 				cut_right(seg, &clip, val_orig);
-			bstart[2] = seg->ee_val + length[0] + length[1];
+			bstart[2] = seg->ee_val;
 		}
 		if (length[0] == 0 && length[2] == 0 && del)
 			del(seg);
