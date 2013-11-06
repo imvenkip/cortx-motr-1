@@ -94,7 +94,7 @@ mero_service()
 			else
 				echo "Mero service failed to start."
 				return 1
-		fi
+			fi
 		done
 	}
 

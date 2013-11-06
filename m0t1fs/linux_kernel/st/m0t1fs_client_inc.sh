@@ -281,6 +281,7 @@ m0loop_st()
 	status=$?
 	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>&1
 	[ $status -eq 0 ] || {
+		echo " FAILED!"
 		unmount_and_clean
 		return 1
 	}
