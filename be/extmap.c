@@ -404,7 +404,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		if (length[2] > 0) {
 			if (cut_right)
 				cut_right(seg, &clip, val_orig);
-			bstart[2] = seg->ee_val;
+			bstart[2] = seg->ee_val + length[0] + length[1];
 		}
 		if (length[0] == 0 && length[2] == 0 && del)
 			del(seg);
@@ -437,7 +437,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 
-	/* emap_dump(it); */
+	emap_dump(it);
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
 

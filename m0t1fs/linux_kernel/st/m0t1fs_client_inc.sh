@@ -275,6 +275,7 @@ m0loop_st_run()
 m0loop_st()
 {
 	echo -n "Running m0loop system tests" | tee -a $MERO_TEST_LOGFILE
+	echo >> $MERO_TEST_LOGFILE
 	while true; do echo -n .; sleep 1; done &
 	pid=$!
 	m0loop_st_run &>> $MERO_TEST_LOGFILE
