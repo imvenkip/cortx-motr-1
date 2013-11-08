@@ -58,6 +58,7 @@
 
 usage()
 {
+	setup_params
 	cat <<.
 Usage:
 
@@ -107,14 +108,11 @@ Where:
 
 OPTIONS_STRING="aln:d:k:p:u:qhLs"
 
-# This example puts ioservices on 3 nodes
+# This example puts 3 ioservices on 3 nodes
 SERVICES=(
 	sjt02-c1 172.18.50.40@o2ib:12345:41:101
-	sjt02-c1 172.18.50.40@o2ib:12345:41:102
 	sjt02-c2 172.18.50.45@o2ib:12345:41:101
-	sjt02-c2 172.18.50.45@o2ib:12345:41:102
 	sjt00-c1 172.18.50.161@o2ib:12345:41:101
-	sjt00-c1 172.18.50.161@o2ib:12345:41:102
 )
 
 declare -A NODE_UUID
@@ -378,6 +376,8 @@ EOF
 		echo ERROR: Failed to get disks list on $H
 		return 1
 	fi
+
+	MAX_DISK_ID=`$RUN grep "id:" $WORK_ARENA/disks.conf | tail -1 | awk '{print $3}'`
 }
 
 function start_server () {
@@ -474,6 +474,7 @@ function start_servers () {
 	done
 
 	SLOG=$WORK_ARENA/server
+	rm -f ${SLOG}*.log
 	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
 		H=${SERVICES[$i]}
 		SEP=${SERVICES[((i+1))]}	# server EP
@@ -490,6 +491,12 @@ function start_servers () {
 		fi
 		devs_conf_cnt=`expr $devs_conf_cnt + 1`
 	done
+
+	echo "Found total $MAX_DISK_ID discs"
+	if [ $MAX_DISK_ID -lt $POOL_WIDTH ]; then
+		echo "ERROR: Non enough disks found (only $MAX_DISK_ID of $POOL_WIDTH required)!"
+		return 1
+	fi
 
 	echo "Wait for the services to start up..."
 	while true; do
@@ -573,7 +580,7 @@ EOF
 ######
 # main
 
-main()
+setup_params()
 {
 	if [ $setup_local_server_config -eq 1 ]; then
 		setup_local_params
@@ -587,16 +594,21 @@ main()
 		exit 1
 	fi
 
-	if [ $setup_loops_p -ne 0 ]; then
-		setup_loops
-	fi
+	# number of disks to split by for each service in ad-stob mode
+	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1) # +1 for ADDB stob
 
 	NR_PARITY=${NR_PARITY:-1}
 	# spare_nr == parity_nr, that's why we multiply on 2
 	NR_DATA=${NR_DATA:-$(expr $POOL_WIDTH - $NR_PARITY \* 2)}
+}
 
-	# number of disks to split by for each service in ad-stob mode
-	DISKS_SH_NR=$(expr $POOL_WIDTH / $SERVICES_NR + 1) # +1 for ADDB stob
+main()
+{
+	setup_params
+
+	if [ $setup_loops_p -ne 0 ]; then
+		setup_loops
+	fi
 
 	if [ ! $BROOT -ef $PWD ]; then
 		echo ERROR: Run this script in the top of the Mero source directory
@@ -693,10 +705,6 @@ while getopts "$OPTIONS_STRING" OPTION; do
         L)
             setup_local_server_config=1
             ;;
-        h)
-            usage
-            exit 0
-            ;;
         n)
             SERVICES_NR="$OPTARG"
             ;;
@@ -714,6 +722,10 @@ while getopts "$OPTIONS_STRING" OPTION; do
             ;;
         q)
             wait_after_mount=0
+            ;;
+        h)
+            usage
+            exit 0
             ;;
         *)
             usage
