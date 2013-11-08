@@ -278,7 +278,8 @@ enum fom_state_transition_tests {
 static int                    i = 0;
 static struct m0_net_buffer  *nb_list[64];
 static struct m0_net_buffer_pool *buf_pool;
-static int next_test = TEST00;
+static int next_write_test = TEST00;
+static int next_read_test = TEST00;
 
 static void empty_buffers_pool(uint32_t colour)
 {
@@ -384,11 +385,11 @@ static int check_write_fom_tick(struct m0_fom *fom)
                  * No need to test generic phases.
                  */
                 rc = m0_io_fom_cob_rw_tick(fom);
-		next_test = m0_fom_phase(fom);
-        } else if (next_test == TEST00) {
+		next_write_test = m0_fom_phase(fom);
+        } else if (next_write_test == TEST00) {
                 rc = m0_io_fom_cob_rw_tick(fom);
-		next_test = TEST01;
-        } else if (next_test == TEST01) {
+		next_write_test = TEST01;
+        } else if (next_write_test == TEST01) {
                 /* Acquire all buffer pool buffer test some of cases. */
                 if (fom_obj->fcrw_bp == NULL)
                         buf_pool = ut_get_buffer_pool(fom);
@@ -413,8 +414,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 fom->fo_sm_phase.sm_rc = 0;
 
                 release_one_buffer(colour);
-		next_test = TEST02;
-        } else if (next_test == TEST02) {
+		next_write_test = TEST02;
+        } else if (next_write_test == TEST02) {
                 /*
                  * Case 02: No network buffer is available with the buffer pool.
                  *         Even after getting buffer pool not-empty event,
@@ -435,8 +436,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 rc = M0_FSO_WAIT;
 
                 release_one_buffer(colour);
-		next_test = TEST03;
-        } else if (next_test == TEST03) {
+		next_write_test = TEST03;
+        } else if (next_write_test == TEST03) {
                 int cdi = fom_obj->fcrw_curr_desc_index;
                 /*
                  * Case 03 : Network buffer is available with the buffer pool.
@@ -529,8 +530,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
                              rc == M0_FSO_WAIT &&
                              m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
-		next_test = TEST07;
-        } else if (next_test == TEST07) {
+		next_write_test = TEST07;
+        } else if (next_write_test == TEST07) {
                 /*
                  * Case 07 : Zero-copy failure
                  *         Input phase          : M0_FOPH_IO_ZERO_COPY_WAIT
@@ -597,8 +598,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 M0_UT_ASSERT(m0_fom_rc(fom) == 0 && rc == M0_FSO_WAIT  &&
                              m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
 
-		next_test = TEST11;
-        } else if (next_test == TEST11) {
+		next_write_test = TEST11;
+        } else if (next_write_test == TEST11) {
                 /*
                  * Case 11 : STOB I/O failure from wait state.
                  *         Input phase          : M0_FOPH_IO_STOB_WAIT
@@ -734,11 +735,11 @@ static int check_read_fom_tick(struct m0_fom *fom)
                  * No need to test generic phases.
                  */
                 rc = m0_io_fom_cob_rw_tick(fom);
-		next_test = m0_fom_phase(fom);
-        } else if (next_test == TEST00) {
+		next_read_test = m0_fom_phase(fom);
+        } else if (next_read_test == TEST00) {
                 rc = m0_io_fom_cob_rw_tick(fom);
-		next_test = TEST01;
-        } else if (next_test == TEST01) {
+		next_read_test = TEST01;
+        } else if (next_read_test == TEST01) {
                 /* Acquire all buffer pool buffer test some of cases. */
                 if (fom_obj->fcrw_bp == NULL)
                         buf_pool = ut_get_buffer_pool(fom);
@@ -764,8 +765,8 @@ static int check_read_fom_tick(struct m0_fom *fom)
                 rc = M0_FSO_WAIT;
 
                 release_one_buffer(colour);
-                next_test = TEST02;
-        } else if (next_test == TEST02) {
+                next_read_test = TEST02;
+        } else if (next_read_test == TEST02) {
                 /*
                  * Case 02 : No network buffer is available with buffer pool.
                  *         Even after getting buffer pool not-empty event,
@@ -786,8 +787,8 @@ static int check_read_fom_tick(struct m0_fom *fom)
                 rc = M0_FSO_WAIT;
 
                 release_one_buffer(colour);
-		next_test = TEST03;
-        } else if (next_test == TEST03) {
+		next_read_test = TEST03;
+        } else if (next_read_test == TEST03) {
                 /*
                  * Case 03 : Network buffer is available with the buffer pool.
                  *         Input phase          : M0_FOPH_IO_FOM_BUFFER_ACQUIRE
@@ -875,9 +876,8 @@ static int check_read_fom_tick(struct m0_fom *fom)
                 M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
                              rc == M0_FSO_WAIT &&
                              m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
-		next_test = TEST07;
-        } else if (next_test == TEST07) {
-
+		next_read_test = TEST07;
+        } else if (next_read_test == TEST07) {
                 int cdi = fom_obj->fcrw_curr_desc_index;
                 /*
                  * Case 07 : STOB I/O failure
@@ -975,8 +975,8 @@ static int check_read_fom_tick(struct m0_fom *fom)
                 M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
                              rc == M0_FSO_WAIT &&
                              m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
-		next_test = TEST11;
-        } else if (next_test == TEST11) {
+		next_read_test = TEST11;
+        } else if (next_read_test == TEST11) {
                 /*
                  * Case 11 : Zero-copy failure
                  *         Input phase          : M0_FOPH_IO_ZERO_COPY_WAIT
