@@ -98,9 +98,11 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	N = m0_pdclust_N(pl);
 	K = m0_pdclust_K(pl);
 	sa.sa_group = group;
-	for (j = 0; j < N + K; ++j) {
+	for (j = 0; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
+		if (m0_sns_cm_unit_is_spare(scm, pl, gfid, group, j))
+			continue;
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
 		if (m0_sns_cm_is_cob_repaired(scm, &cobfid))

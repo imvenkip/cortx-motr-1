@@ -224,6 +224,9 @@ struct m0_cm {
 
 	uint64_t                         cm_aggr_grps_out_nr;
 
+	struct m0_chan                   cm_ready_wait;
+	struct m0_chan                   cm_complete_wait;
+	struct m0_mutex                  cm_wait_mutex;
 	/**
 	 * Counter to track number of ready fops received from other replicas.
 	 * Once the m0_cm::cm_ready_fops_recvd ==
@@ -242,6 +245,8 @@ struct m0_cm {
 
 	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
+
+	struct m0_cm_sw_update           cm_sw_update;
 };
 
 /** Operations supported by a copy machine. */
@@ -302,8 +307,6 @@ struct m0_cm_ops {
 				       void (*fop_release)(struct m0_ref *),
 				       const char *local_ep,
 				       const struct m0_cm_sw *sw);
-
-	void (*cmo_complete) (struct m0_cm *cm);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);
@@ -467,6 +470,9 @@ M0_INTERNAL struct m0_cm *m0_cmsvc2cm(struct m0_reqh_service *cmsvc);
 M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm);
 
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh);
+
+M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_complete(struct m0_cm *cm);
 
 /** @} endgroup CM */
 

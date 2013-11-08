@@ -129,7 +129,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 			/* This check is for the READY phase completion only. */
 			if (cm->cm_ready_fops_recvd == cm->cm_proxy_nr) {
 				M0_LOG(M0_DEBUG, "Ready done");
-				cm->cm_ops->cmo_complete(cm);
+				m0_cm_ready_done(cm);
 			}
 			m0_cm_unlock(cm);
 		}

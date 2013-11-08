@@ -155,6 +155,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	struct m0_cm_ag_id        id;
 	struct m0_cm_aggr_group  *hi;
 	struct m0_cm_aggr_group  *lo;
+	//struct m0_cm_sw           sw;
 	bool                      has_data;
 
 	M0_ENTRY("ag: %p", ag);
@@ -171,12 +172,17 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 		ID_LOG("lo", &lo->cag_id);
 		ID_LOG("hi", &hi->cag_id);
 	}
-	m0_cm_sw_local_update(cm);
+	m0_cm_sw_update_continue(cm);
 	m0_cm_aggr_group_fini(ag);
+	//M0_SET0(&sw);
+	//hi = m0_cm_ag_hi(cm);
+	//lo = m0_cm_ag_lo(cm);
+	//m0_cm_sw_set(&sw, &lo->cag_id, &hi->cag_id);
+	//m0_cm_sw_store_update(cm, &sw);
 	has_data = m0_cm_has_more_data(cm);
 	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
 	    cm->cm_aggr_grps_out_nr == 0)
-		cm->cm_ops->cmo_complete(cm);
+		m0_cm_complete(cm);
 
 	M0_LOG(M0_DEBUG, "in: [%lu] %p out: [%lu] %p",
 	       cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
@@ -348,8 +354,8 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 		}
 	} while (rc == 0);
 
-	if (rc == -ENOSPC || rc == -ENOENT)
-		rc = 0;
+	//if (rc == -ENOSPC || rc == -ENOENT)
+	//	rc = 0;
 
 	return rc;
 }

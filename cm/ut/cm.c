@@ -223,6 +223,7 @@ static void cm_ag_ut(void)
 	cm_ut_service_cleanup();
 }
 
+/*
 static void cm_sw_persistence_ut(void)
 {
 	struct m0_cm      *cm = &cm_ut[0].ut_cm;
@@ -234,8 +235,9 @@ static void cm_sw_persistence_ut(void)
 	int                rc;
 
 	cm_ut_service_alloc_init();
-
+*/
 	/* Internally calls m0_cm_setup(). */
+/*
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
@@ -245,12 +247,15 @@ static void cm_sw_persistence_ut(void)
 	m0_cm_lock(cm);
 	m0_cm_state_set(cm, M0_CMS_READY);
 	m0_cm_unlock(cm);
-
+*/
 	/* Check if we have pending operation from last run */
+/*
 	rc = m0_cm_sw_store_load(cm, &out);
 	M0_UT_ASSERT(rc != 0);
 	M0_UT_ASSERT(rc == -ENOENT);
+*/
 	/* Init the sw persistent storage */
+/*
 	rc = m0_cm_sw_store_init(cm);
 	M0_UT_ASSERT(rc == 0);
 	for(i = 0; i < 10; i++) {
@@ -271,9 +276,11 @@ static void cm_sw_persistence_ut(void)
 	}
 	rc = m0_cm_sw_store_complete(cm);
 	M0_UT_ASSERT(rc == 0);
+*/
 	/* successfully completed an operation.*/
 
 	/* start another one */
+/*
 	rc = m0_cm_sw_store_load(cm, &out);
 	M0_UT_ASSERT(rc != 0);
 	M0_UT_ASSERT(rc == -ENOENT);
@@ -296,6 +303,7 @@ static void cm_sw_persistence_ut(void)
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 }
+*/
 
 const struct m0_test_suite cm_generic_ut = {
         .ts_name = "cm-ut",
@@ -306,7 +314,7 @@ const struct m0_test_suite cm_generic_ut = {
 		{ "cm_setup_failure_ut",  cm_setup_failure_ut  },
 		{ "cm_init_failure_ut",   cm_init_failure_ut   },
 		{ "cm_ag_ut",             cm_ag_ut             },
-		{ "cm_sw_persistence_ut", cm_sw_persistence_ut },
+		//{ "cm_sw_persistence_ut", cm_sw_persistence_ut },
 		{ NULL, NULL }
         }
 };

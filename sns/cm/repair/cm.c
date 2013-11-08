@@ -154,7 +154,6 @@ const struct m0_cm_ops sns_repair_ops = {
 	.cmo_ag_next             = m0_sns_cm_ag_next,
 	.cmo_has_space           = repair_cm_has_space,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_repair_sw_onwire_fop_setup,
-	.cmo_complete            = m0_sns_cm_complete,
 	.cmo_stop                = repair_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini
 };

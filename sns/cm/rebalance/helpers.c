@@ -149,6 +149,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    N;
 	uint32_t                    K;
 	uint32_t                    i;
+	uint32_t                    funit;
 	bool                        result = false;
 	int                         rc;
 
@@ -158,22 +159,23 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	for (i = 0; i < N + K; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		rc = m0_sns_cm_cob_locate(it->si_cob_dom,
-					  &cobfid);
-		if (rc == 0 && m0_sns_cm_is_cob_failed(scm, &cobfid)) {
-			rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
-						     group, i, &spare);
-			if (rc != 0)
-				return false;
-			sa.sa_unit = spare;
-			/* Identify the COB hosting the spare unit. */
-			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-			rc = m0_sns_cm_cob_locate(it->si_cob_dom,
-						  &cobfid);
-			if (rc != 0)
-				result = true;
+		if (m0_sns_cm_is_cob_failed(scm, &cobfid)) {
+			rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
+			if (rc == 0) {
+				do {
+					funit = sa.sa_unit;
+					rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
+								     group, funit, &spare);
+					if (rc != 0)
+						return false;
+					sa.sa_unit = spare;
+					m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
+				} while (m0_sns_cm_is_cob_failed(scm, &cobfid));
+				rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
+				if (rc == -ENOENT)
+					result = true;
+			}
 		}
-
 	}
 
 	return result;

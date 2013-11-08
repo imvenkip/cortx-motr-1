@@ -51,6 +51,7 @@
 #include "cm/ag.h"
 #include "cm/cp.h"
 #include "cm/proxy.h"
+#include "cm/sw.h"
 #include "cm/sw_xc.h"
 #include "cm/cp_onwire_xc.h"
 #include "cm/ag_xc.h"
@@ -622,6 +623,11 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 	rc = cm->cm_ops->cmo_setup(cm);
 	if (M0_FI_ENABLED("setup_failure_2"))
 		rc = -EINVAL;
+	if (rc == 0) {
+		m0_mutex_init(&cm->cm_wait_mutex);
+		m0_chan_init(&cm->cm_ready_wait, &cm->cm_wait_mutex);
+		m0_chan_init(&cm->cm_complete_wait, &cm->cm_wait_mutex);
+	}
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_SETUP);
 
 	M0_POST(m0_cm_invariant(cm));
@@ -677,19 +683,14 @@ M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
         return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 }
 
-M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
+static int m0_cm_ready_setup(struct m0_cm *cm)
 {
 	struct m0_rpc_machine  *rmach;
 	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
+	struct m0_cm_sw         sw;
 	int                     rc;
 
-	M0_ENTRY("cm: %p", cm);
-	M0_PRE(cm != NULL);
-	M0_PRE(cm->cm_type != NULL);
-
-	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
-	M0_PRE(m0_cm_invariant(cm));
 
         cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
         if (cm->cm_pm == NULL)
@@ -701,11 +702,36 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	if (rc == 0) {
 		cm->cm_ready_fops_recvd = 0;
 		M0_SET0(&cm->cm_last_saved_sw_hi);
-		rc = m0_cm_sw_local_update(cm);
-		if(rc == 0)
-			rc = m0_cm_sw_remote_update(cm);
+		m0_cm_sw_store_init(cm);
+                rc = m0_cm_sw_store_load(cm, &sw);
+                if (rc == 0)
+                        cm->cm_last_saved_sw_hi = sw.sw_lo;
+		if (rc == -ENOENT)
+			rc = 0;
+		if (rc == 0)
+			m0_cm_sw_update_start(cm);
 	}
-	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
+
+	return rc;
+}
+
+M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
+{
+	int rc;
+
+	M0_ENTRY("cm: %p", cm);
+	M0_PRE(cm != NULL);
+	M0_PRE(cm->cm_type != NULL);
+
+	m0_cm_lock(cm);
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_READY)));
+	M0_PRE(m0_cm_invariant(cm));
+
+	if (m0_cm_state_get(cm) == M0_CMS_IDLE) {
+		rc = m0_cm_ready_setup(cm);
+		cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
+	} else
+		rc = m0_cm_sw_remote_update(cm);
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
@@ -786,6 +812,7 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	if (rc == 0)
 		m0_cm_cp_pump_stop(cm);
 	m0_cm_proxies_fini(cm);
+	m0_cm_sw_update_stop(cm);
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);
 
 	M0_POST(m0_cm_invariant(cm));
@@ -813,6 +840,7 @@ M0_INTERNAL int m0_cm_module_init(void)
 	m0_bob_type_tlist_init(&cmtypes_bob, &cmtypes_tl);
 	m0_mutex_init(&cmtypes_mutex);
 	m0_cm_cp_pump_init();
+	m0_cm_sw_update_init();
 	m0_cm_cp_module_init();
 	cm_xc_init();
 
@@ -900,6 +928,9 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	      cm->cm_id, cm->cm_mach.sm_state);
 	m0_cm_state_set(cm, M0_CMS_FINI);
 	m0_sm_fini(&cm->cm_mach);
+	m0_chan_fini_lock(&cm->cm_ready_wait);
+	m0_chan_fini_lock(&cm->cm_complete_wait);
+	m0_mutex_fini(&cm->cm_wait_mutex);
 	m0_cm_unlock(cm);
 
 	m0_sm_group_fini(&cm->cm_sm_group);
@@ -1003,6 +1034,16 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 	m0_net_buffer_pool_lock(bp);
 	m0_net_buffer_pool_put(bp, buf, colour);
 	m0_net_buffer_pool_unlock(bp);
+}
+
+M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm)
+{
+	m0_chan_signal_lock(&cm->cm_ready_wait);
+}
+
+M0_INTERNAL void m0_cm_complete(struct m0_cm *cm)
+{
+	m0_chan_signal_lock(&cm->cm_complete_wait);
 }
 
 #undef M0_TRACE_SUBSYSTEM

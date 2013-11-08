@@ -158,7 +158,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 				 * failure. So mark the operation as complete.
 				 */
 				if (m0_cm_aggr_group_tlists_are_empty(cm)) {
-					cm->cm_ops->cmo_complete(cm);
+					m0_cm_complete(cm);
 					M0_LOG(M0_DEBUG, "cm %p completed", cm);
 				}
 				pump_move(cp_pump, 0, CPP_COMPLETE);

@@ -316,6 +316,24 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	M0_RETURN(rc);
 }
 
+static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
+			   struct m0_fid *gfid, uint64_t group)
+{
+	struct m0_cm_ag_id agid;
+
+	M0_PRE(scm != NULL && pl != NULL && gfid != NULL);
+
+	if (scm->sc_base.cm_proxy_nr > 0) {
+		m0_sns_cm_ag_agid_setup(gfid, group, &agid);
+		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+		       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
+		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
+		return  m0_sns_cm_ag_is_relevant(scm, pl, &agid);
+	}
+
+	return false;
+}
+
 static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 {
 	struct m0_sns_cm           *scm = it2sns(it);
@@ -340,6 +358,42 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	return true;
 }
 
+static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
+			 uint64_t group, struct m0_pdclust_layout *pl,
+			 bool has_incoming)
+{
+	struct m0_cm             *cm = &scm->sc_base;
+	struct m0_cm_aggr_group  *ag;
+	struct m0_cm_ag_id        agid;
+	int                       rc;
+
+	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
+	/*
+	 * Allocate new aggregation group for the given aggregation
+	 * group identifier.
+	 * Check if the aggregation group has incoming copy packets, if
+	 * yes, check if the aggregation group was already created and
+	 * processed through sliding window.
+	 * Thus if sliding_window_lo < agid < sliding_window_hi then the
+	 * group was already processed and we proceed to next group.
+	 */
+	if (has_incoming) {
+		if (m0_cm_ag_id_cmp(&agid,
+				    &cm->cm_last_saved_sw_hi) <= 0)
+			return -EEXIST;
+	}
+	if (has_incoming && !cm->cm_ops->cmo_has_space(cm, &agid,
+					m0_pdl_to_layout(pl))) {
+		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+		       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
+		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
+		M0_RETURN(-ENOSPC);
+	}
+	rc = m0_cm_aggr_group_alloc(cm, &agid, has_incoming, &ag);
+
+	return rc;
+}
+
 /**
  * Finds parity group having units belonging to the failed container.
  * This iterates through each parity group of the file, and its units.
@@ -352,14 +406,23 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm                *scm = it2sns(it);
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_pdclust_src_addr      *sa;
+	struct m0_fid                   *gfid;
+	struct m0_pdclust_layout        *pl;
 	uint64_t                         group;
+	uint64_t                         nrlu;
+	bool                             has_incoming = false;
+	int                              rc = 0;
+
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
 	sfc->sfc_groups_nr = m0_sns_cm_nr_groups(sfc->sfc_pdlayout,
 						 sfc->sfc_fsize);
 	sa = &sfc->sfc_sa;
+	gfid = &sfc->sfc_gob_fid;
+	pl = sfc->sfc_pdlayout;
 	for (group = sa->sa_group; group < sfc->sfc_groups_nr; ++group) {
+		M0_LOG(M0_FATAL, "group: [%lu]", group);
 		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_progress,
 			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
 			     scm->sc_it.si_total_files, group + 1,
@@ -367,15 +430,29 @@ static int __group_next(struct m0_sns_cm_iter *it)
 
 		if (__group_skip(it, group))
 			continue;
-		sfc->sfc_sa.sa_group = group;
-		sfc->sfc_sa.sa_unit = 0;
-		iter_phase_set(it, ITPH_COB_NEXT);
-		goto out;
+		has_incoming = __has_incoming(scm, pl, gfid, group);
+		nrlu = m0_sns_cm_ag_nr_local_units(scm, gfid, pl, group);
+		if (has_incoming || nrlu > 0) {
+			rc = __group_alloc(scm, gfid, group, pl, has_incoming);
+			if (rc != 0) {
+				if (rc == -ENOBUFS)
+					iter_phase_set(it, ITPH_AG_SETUP);
+				if (rc == -ENOSPC)
+					rc = -ENOBUFS;
+				if (rc == -EEXIST)
+					rc = 0;
+			}
+			sfc->sfc_sa.sa_group = group;
+			sfc->sfc_sa.sa_unit = 0;
+			if (rc == 0)
+				iter_phase_set(it, ITPH_COB_NEXT);
+			goto out;
+		}
 	}
 
 	iter_phase_set(it, ITPH_FID_NEXT);
 out:
-	M0_RETURN(0);
+	M0_RETURN(rc);
 }
 
 static int iter_group_next_wait(struct m0_sns_cm_iter *it)
@@ -424,15 +501,14 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 	bool                             has_incoming = false;
 	int                              rc;
 
+	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &sfc->sfc_gob_fid, sfc->sfc_sa.sa_group);
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
-	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &agid);
-	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid,
-				     has_incoming);
+	ag = m0_cm_aggr_group_locate(&scm->sc_base, &agid, has_incoming);
 	M0_ASSERT(ag != NULL);
 	sag = ag2snsag(ag);
 	rc = scm->sc_helpers->sch_ag_setup(sag, sfc->sfc_pdlayout);
 	if (rc == 0)
-		iter_phase_set(it, ITPH_CP_SETUP);
+		iter_phase_set(it, ITPH_COB_NEXT);
 
 	return rc;
 }
@@ -469,89 +545,59 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	struct m0_cm_aggr_group         *ag;
 	struct m0_sns_cm_file_context   *sfc;
 	struct m0_sns_cm_cp             *scp;
-	struct m0_fid                    fid;
-	uint64_t                         group_number;
+	struct m0_fid                   *gfid;
 	bool                             has_incoming = false;
 	bool                             has_data;
+	uint64_t                         group;
 	uint64_t                         stob_offset;
 	uint64_t                         cp_data_seg_nr;
 	uint64_t                         ag_cp_idx;
 	int                              rc = 0;
+
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
 	pl = sfc->sfc_pdlayout;
-	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
-	has_incoming = __has_incoming(scm, pl, &agid);
+	group = sfc->sfc_sa.sa_group;
+	gfid = &sfc->sfc_gob_fid;
+	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, gfid, group);
 	has_data = unit_has_data(scm, sfc->sfc_sa.sa_unit - 1);
-	if (!has_data && !has_incoming)
+	if (!has_data)
 		goto out;
+	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
 	ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
-	agid2fid(&agid, &fid);
-	group_number = agid2group(&agid);
-	if (ag == NULL) {
-		/*
-		 * Allocate new aggregation group for the given aggregation
-		 * group identifier.
-		 * Check if the aggregation group has incoming copy packets, if
-		 * yes, check if the aggregation group was already created and
-		 * processed through sliding window.
-		 * Thus if sliding_window_lo < agid < sliding_window_hi then the
-		 * group was already processed and we proceed to next group.
-		 */
-		if (has_incoming) {
-			if (m0_cm_ag_id_cmp(&agid,
-					    &cm->cm_last_saved_sw_hi) <= 0)
-				goto out;
-		}
-		if (has_incoming &&
-		    !cm->cm_ops->cmo_has_space(cm, &agid,
-					       m0_pdl_to_layout(pl))) {
-			ID_LOG("agid", &agid);
-			M0_RETURN(-ENOBUFS);
-		}
-		rc = m0_cm_aggr_group_alloc(cm, &agid,
-					    has_incoming, &ag);
-		if (rc != 0) {
-			if (rc == -ENOBUFS)
-				iter_phase_set(it, ITPH_AG_SETUP);
+	M0_ASSERT(ag != NULL);
+	stob_offset = sfc->sfc_ta.ta_frame *
+		      m0_pdclust_unit_size(sfc->sfc_pdlayout);
+	scp = it->si_cp;
+	scp->sc_base.c_ag = ag;
+	scp->sc_is_local = true;
+	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
+	/*
+	 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
+	 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
+	 * see iter_cob_next().
+	 */
+	ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
+	/*
+	 * If the aggregation group unit to be read is a spare unit
+	 * containing data then map the spare unit to its corresponding
+	 * failed data/parity unit in the aggregation group @ag.
+	 * This is required to mark the appropriate data/parity unit of
+	 * which this spare contains data.
+	 */
+	if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
+		rc = m0_sns_repair_data_map(cm->cm_pm, gfid, pl, group,
+					    ag_cp_idx, &ag_cp_idx);
+		if (rc != 0)
 			M0_RETURN(rc);
-		}
 	}
+	rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
+				cp_data_seg_nr, ~0, ag_cp_idx);
+	if (rc < 0)
+		M0_RETURN(rc);
 
-	if (has_data) {
-		stob_offset = sfc->sfc_ta.ta_frame *
-			      m0_pdclust_unit_size(sfc->sfc_pdlayout);
-		scp = it->si_cp;
-		scp->sc_base.c_ag = ag;
-		scp->sc_is_local = true;
-		cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, sfc->sfc_pdlayout);
-		/*
-		 * sfc->sfc_sa.sa_unit has gotten one index ahead. Hence actual
-		 * index of the copy packet is (sfc->sfc_sa.sa_unit - 1).
-		 * see iter_cob_next().
-		 */
-		ag_cp_idx = sfc->sfc_sa.sa_unit - 1;
-		/*
-		 * If the aggregation group unit to be read is a spare unit
-		 * containing data then map the spare unit to its corresponding
-		 * failed data/parity unit in the aggregation group @ag.
-		 * This is required to mark the appropriate data/parity unit of
-		 * which this spare contains data.
-		 */
-		if (m0_pdclust_unit_classify(pl, ag_cp_idx) == M0_PUT_SPARE) {
-			rc = m0_sns_repair_data_map(cm->cm_pm, &fid, pl,
-					group_number, ag_cp_idx, &ag_cp_idx);
-			if (rc != 0)
-				M0_RETURN(rc);
-		}
-		rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
-					cp_data_seg_nr, ~0, ag_cp_idx);
-		if (rc < 0)
-			M0_RETURN(rc);
-
-		rc = M0_FSO_AGAIN;
-	}
+	rc = M0_FSO_AGAIN;
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
 
@@ -671,7 +717,7 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 		.sd_flags   = 0,
 		.sd_name    = "group next",
 		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT_WAIT, ITPH_COB_NEXT,
-				      ITPH_FID_NEXT)
+				      ITPH_AG_SETUP, ITPH_FID_NEXT)
 	},
 	[ITPH_GROUP_NEXT_WAIT] = {
 		.sd_flags   = 0,
@@ -692,12 +738,12 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_CP_SETUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "cp setup",
-		.sd_allowed = M0_BITS(ITPH_AG_SETUP, ITPH_COB_NEXT)
+		.sd_allowed = M0_BITS(ITPH_COB_NEXT)
 	},
 	[ITPH_AG_SETUP] = {
 		.sd_flags   = 0,
 		.sd_name    = "ag setup",
-		.sd_allowed = M0_BITS(ITPH_CP_SETUP)
+		.sd_allowed = M0_BITS(ITPH_COB_NEXT)
 	},
 	[ITPH_FINI] = {
 		.sd_flags = M0_SDF_TERMINAL,

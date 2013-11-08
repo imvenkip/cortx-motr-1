@@ -76,14 +76,14 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
 
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
 {
-        int rc = 0;
+        int             rc = 0;
 
         M0_ENTRY("cm: %p", cm);
         M0_PRE(cm != NULL);
         M0_PRE(m0_cm_is_locked(cm));
 
 	if (cm->cm_proxy_nr > 0) {
-		if (m0_cm_is_active(cm) &&
+		 if (m0_cm_is_active(cm) &&
 		    !m0_cm_ag_id_is_set(&cm->cm_last_saved_sw_hi))
 				return rc;
 		rc = m0_cm_ag_advance(cm);
@@ -195,15 +195,15 @@ M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out)
 }
 
 M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+				      struct m0_be_tx *tx,
 				      const struct m0_cm_sw *last)
 {
-	struct m0_be_seg      *seg    = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_sm_group    *grp    = m0_locality0_get()->lo_grp;
-	struct m0_be_tx_credit cred;
-	struct m0_be_tx        tx     = {};
-	struct m0_cm_sw       *sw;
-	char                   cm_sw_name[80];
-	int                    rc;
+	struct m0_be_seg       *seg    = cm->cm_service.rs_reqh->rh_beseg;
+	struct m0_cm_sw        *sw;
+	char                    cm_sw_name[80];
+	int                     rc;
+
+	M0_PRE(m0_cm_is_locked(cm));
 
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
@@ -211,60 +211,13 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 		return rc;
 
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
-	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
-	cred = M0_BE_TX_CREDIT_TYPE(*sw);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-
 	if (rc == 0) {
 		m0_cm_sw_copy(sw, last);
-		M0_BE_TX_CAPTURE_PTR(seg, &tx, sw);
-		m0_be_tx_close_sync(&tx);
+		M0_BE_TX_CAPTURE_PTR(seg, tx, sw);
 	}
-
-	m0_be_tx_fini(&tx);
-
-	m0_sm_group_unlock(grp);
-	return rc;
-}
-
-M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm)
-{
-	struct m0_be_seg      *seg  = cm->cm_service.rs_reqh->rh_beseg;
-	struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_tx        tx   = {};
-	struct m0_cm_sw       *sw;
-	char                   cm_sw_name[80];
-	int                    rc;
-
-	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
-	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
-	if (rc != 0)
-		return rc;
-
-	M0_LOG(M0_DEBUG, "sw = %p", sw);
-	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
-	M0_BE_FREE_CREDIT_PTR(sw, seg, &cred);
-	m0_be_seg_dict_delete_credit(seg, cm_sw_name, &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-
-	M0_LOG(M0_DEBUG, "tx open rc = %d", rc);
-	if (rc == 0) {
-		M0_BE_FREE_PTR_SYNC(sw, seg, &tx);
-		m0_be_seg_dict_delete(seg, &tx, cm_sw_name);
-		m0_be_tx_close_sync(&tx);
-	}
-
-	m0_be_tx_fini(&tx);
-	m0_sm_group_unlock(grp);
 
 	return rc;
 }
-
 
 #undef M0_TRACE_SUBSYSTEM
 

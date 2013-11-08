@@ -513,8 +513,6 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 		rc = m0_sns_cm_iter_init(&scm->sc_it);
 		if (rc != 0)
 			return rc;
-		m0_mutex_init(&scm->sc_wait_mutex);
-		m0_chan_init(&scm->sc_wait, &scm->sc_wait_mutex);
 		sns_cm_bp_init(&scm->sc_obp);
 		sns_cm_bp_init(&scm->sc_ibp);
 	}
@@ -675,21 +673,10 @@ M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
 	m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
 	m0_net_buffer_pool_fini(&scm->sc_obp.sb_bp);
 
-	m0_chan_fini_lock(&scm->sc_wait);
-	m0_mutex_fini(&scm->sc_wait_mutex);
-
 	sns_cm_bp_fini(&scm->sc_obp);
 	sns_cm_bp_fini(&scm->sc_ibp);
 
 	M0_LEAVE();
-}
-
-M0_INTERNAL void m0_sns_cm_complete(struct m0_cm *cm)
-{
-	struct m0_sns_cm *scm;
-
-	scm = cm2sns(cm);
-	m0_chan_signal_lock(&scm->sc_wait);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,

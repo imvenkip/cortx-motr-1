@@ -182,31 +182,19 @@ struct m0_sns_cm {
 	/** Buffer pool for outgoing copy packets. */
 	struct m0_sns_cm_buf_pool      sc_obp;
 
-	/**
-	 * Channel to wait upon before invoking m0_cm_start()/m0_cm_stop()
-	 * for the caller of m0_cm_ready()/m0_cm_start(). This channel is
-	 * signalled from struct m0_cm_ops::cmo_complete() routine, which is
-	 * invoked after all the ready fops from other replicas are recevied or
-	 * after all the aggregation groups are processed and struct m0_cm::
-	 * cm_aggr_grps_in & m0_cm::cm_aggr_grps_out lists are empty.
-	 */
-	struct m0_chan             sc_wait;
-	struct m0_mutex            sc_wait_mutex;
-
-
 	/** Tracks the number for which repair operation has been executed. */
-	uint32_t		   sc_repair_done;
+	uint32_t		     sc_repair_done;
 
 	/**
 	 * Start time for sns copy machine. This is recorded when the ready fop
 	 * arrives to the sns copy machine replica.
 	 */
-	m0_time_t                  sc_start_time;
+	m0_time_t                    sc_start_time;
 	/**
 	 * Stop time for sns copy machine. This is recorded when repair is
 	 * completed.
 	 */
-	m0_time_t                  sc_stop_time;
+	m0_time_t                    sc_stop_time;
 };
 
 M0_INTERNAL int m0_sns_cm_type_register(void);

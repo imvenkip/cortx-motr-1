@@ -183,7 +183,7 @@ static int cm_ut_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 static void cm_ut_fini(struct m0_cm *cm)
 {
 }
-
+/*
 static void cm_ut_complete(struct m0_cm *cm)
 {
 	struct m0_ut_cm *ut_cm = cm2utcm(cm);
@@ -191,6 +191,7 @@ static void cm_ut_complete(struct m0_cm *cm)
 
 	m0_chan_signal_lock(wait);
 }
+*/
 
 static const struct m0_cm_ops cm_ut_ops = {
 	.cmo_setup     = cm_ut_setup,
@@ -201,7 +202,7 @@ static const struct m0_cm_ops cm_ut_ops = {
 	.cmo_cp_alloc  = cm_ut_cp_alloc,
 	.cmo_data_next = cm_ut_data_next,
 	.cmo_ag_next   = cm_ut_ag_next,
-	.cmo_complete  = cm_ut_complete,
+//	.cmo_complete  = cm_ut_complete,
 	.cmo_fini      = cm_ut_fini
 };
 

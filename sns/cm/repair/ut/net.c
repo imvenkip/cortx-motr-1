@@ -568,9 +568,11 @@ static void sender_cm_fini(struct m0_cm *cm)
 {
 }
 
+/*
 static void sender_cm_complete(struct m0_cm *cm)
 {
 }
+*/
 
 static const struct m0_cm_ops sender_cm_ops = {
         .cmo_setup     = sender_cm_setup,
@@ -578,7 +580,7 @@ static const struct m0_cm_ops sender_cm_ops = {
         .cmo_stop      = sender_cm_stop,
         .cmo_cp_alloc  = sender_cm_cp_alloc,
         .cmo_data_next = sender_cm_data_next,
-        .cmo_complete  = sender_cm_complete,
+        //.cmo_complete  = sender_cm_complete,
         .cmo_fini      = sender_cm_fini
 };
 
