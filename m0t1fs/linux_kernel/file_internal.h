@@ -138,9 +138,9 @@
    @n Po    - Parity for older version of parity group.
 
    Then,
-   @n delta - @f$Parity(D_o, D_n)@f$   (Difference between 2 versions of
+   @n delta - @f$Parity(Do, Dn)@f$    (Difference between 2 versions of
                                         data block)
-   @n    Pn - @f$Parity(delta, P_o)@f$ (Parity for new version of
+   @n    Pn - @f$Parity(delta, Po)@f$ (Parity for new version of
                                         parity group)
 
    <hr>
