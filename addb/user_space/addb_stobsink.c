@@ -687,8 +687,10 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 	/** @todo alert some component if the operation fails */
 	if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
 		m0_sm_group_lock(grp);
+		m0_mutex_unlock(&pb->spb_sink->ss_mutex);
 		m0_dtx_done_sync(&pb->spb_tx);
 		m0_dtx_fini(&pb->spb_tx);
+		m0_mutex_lock(&pb->spb_sink->ss_mutex);
 		m0_sm_group_unlock(grp);
 	}
 	pb->spb_busy = false;
