@@ -64,7 +64,7 @@ mero_service()
 			rm -rf $MERO_M0T1FS_TEST_DIR/d$i
 			mkdir $MERO_M0T1FS_TEST_DIR/d$i
 
-			mkloopdevs $i $MERO_M0T1FS_TEST_DIR/d$i || return 1
+			(mkloopdevs $i $MERO_M0T1FS_TEST_DIR/d$i) || return 1
 
 			ulimit -c unlimited
 			cmd="cd $MERO_M0T1FS_TEST_DIR/d$i && exec \
