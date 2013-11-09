@@ -51,6 +51,9 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
+M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+					   struct m0_be_domain_cfg *cfg);
+
 struct m0_reqh *m0_be_ut_reqh_get(void);
 void m0_be_ut_reqh_put(struct m0_reqh *reqh);
 

@@ -273,13 +273,18 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	};
 }
 
-void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
+M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+					   struct m0_be_domain_cfg *cfg)
 {
 	int rc;
 
 	M0_SET0(ut_be);
 	ut_be->but_sm_groups_unlocked = false;
-	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	if (cfg == NULL) {
+		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+	} else {
+		ut_be->but_dom_cfg = *cfg;
+	}
 	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
 #ifndef REQH_EMU
 	/*
@@ -306,6 +311,11 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
+}
+
+void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
+{
+	m0_be_ut_backend_init_cfg(ut_be, NULL);
 }
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
