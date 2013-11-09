@@ -414,7 +414,7 @@ M0_INTERNAL bool m0_db_buf_impl_invariant(const struct m0_db_buf *buf)
 M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
 			      uint64_t flags)
 {
-	struct m0_be_tx_credit	enough = M0_BE_TX_CREDIT(1 << 20, 1 << 24);
+	struct m0_be_tx_credit	enough = M0_BE_TX_CREDIT(1 << 17, 1 << 22);
 	struct m0_sm_group     *grp;
         struct m0_be_tx        *tx;
         int			rc;
