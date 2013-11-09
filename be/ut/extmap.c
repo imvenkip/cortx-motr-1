@@ -108,13 +108,19 @@ static void test_obj_fini(struct m0_be_tx *tx)
 
 static void test_init(void)
 {
-	struct m0_be_tx_credit cred = {};
-	int		       rc;
+	struct m0_be_domain_cfg cfg;
+	struct m0_be_tx_credit	cred = {};
+	int			rc;
 
 	M0_ENTRY();
 
 	/* Init BE */
-	m0_be_ut_backend_init(&be_ut_emap_backend);
+	/** XXX @todo break UT into small transactions */
+	m0_be_ut_backend_cfg_default(&cfg);
+	cfg.bc_engine.bec_log_size	 = 1 << 27;
+	cfg.bc_engine.bec_tx_size_max	 = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
+	cfg.bc_engine.bec_group_size_max = M0_BE_TX_CREDIT(1 << 22, 1 << 27);
+	m0_be_ut_backend_init_cfg(&be_ut_emap_backend, &cfg);
 	m0_be_ut_seg_init(&be_ut_emap_seg, &be_ut_emap_backend, 1ULL << 26);
 	m0_be_ut_seg_allocator_init(&be_ut_emap_seg, &be_ut_emap_backend);
 	be_seg = &be_ut_emap_seg.bus_seg;
