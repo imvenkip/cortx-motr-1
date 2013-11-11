@@ -93,7 +93,7 @@ static void bulkio_msg_tm_init(struct bulkio_msg_tm *bmt,
 
 static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 {
-	int rc;
+	int             rc;
 	struct m0_clink clink;
 
 	M0_UT_ASSERT(bmt != NULL);

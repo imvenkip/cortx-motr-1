@@ -200,12 +200,12 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 			    uint64_t off_index, struct m0_io_fop **io_fops,
 			    int segs_nr)
 {
-	int			 i;
-	int			 rc;
-	struct m0_io_fop	*iofop;
-	struct m0_rpc_bulk	*rbulk;
-	struct m0_rpc_bulk_buf	*rbuf;
-	struct m0_fop_cob_rw	*rw;
+	int			i;
+	int			rc;
+	struct m0_io_fop       *iofop;
+	struct m0_rpc_bulk     *rbulk;
+	struct m0_rpc_bulk_buf *rbuf;
+	struct m0_fop_cob_rw   *rw;
 
 	M0_ASSERT(bp != NULL);
 	M0_ASSERT(io_fops != NULL);
@@ -311,14 +311,14 @@ void io_fops_destroy(struct bulkio_params *bp)
 
 void io_fops_rpc_submit(struct thrd_arg *t)
 {
-	int		       i;
-	int		       j;
-	int		       rc;
-	struct m0_rpc_item    *item;
-	struct m0_rpc_bulk    *rbulk;
-	struct m0_io_fop     **io_fops;
-	struct m0_fop_cob_rw_reply *rw_reply;
-	struct bulkio_params  *bp;
+	int                          i;
+	int                          j;
+	int                          rc;
+	struct m0_rpc_item          *item;
+	struct m0_rpc_bulk          *rbulk;
+	struct m0_io_fop           **io_fops;
+	struct m0_fop_cob_rw_reply  *rw_reply;
+	struct bulkio_params        *bp;
 
 	i = t->ta_index;
 	bp = t->ta_bp;

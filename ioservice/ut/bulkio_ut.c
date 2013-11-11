@@ -83,8 +83,8 @@ static const struct m0_fom_type_ops ut_io_fom_cob_rw_type_ops = {
 	.fto_create = ut_io_fom_cob_rw_create,
 };
 
-static inline struct m0_net_transfer_mc *fop_tm_get(
-		const struct m0_fop *fop)
+static inline struct m0_net_transfer_mc *
+fop_tm_get(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 
@@ -93,7 +93,7 @@ static inline struct m0_net_transfer_mc *fop_tm_get(
 
 static void bulkio_stob_fom_fini(struct m0_fom *fom)
 {
-	struct m0_io_fom_cob_rw   *fom_obj;
+	struct m0_io_fom_cob_rw *fom_obj;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         m0_stob_put(fom_obj->fcrw_stob);
@@ -103,10 +103,10 @@ static void bulkio_stob_fom_fini(struct m0_fom *fom)
 
 struct m0_net_buffer_pool * ut_get_buffer_pool(struct m0_fom *fom)
 {
-        struct m0_reqh_io_service    *serv_obj;
-        struct m0_rios_buffer_pool   *bpdesc = NULL;
-        struct m0_net_domain         *fop_ndom = NULL;
-        struct m0_fop                *fop = NULL;
+        struct m0_reqh_io_service  *serv_obj;
+        struct m0_rios_buffer_pool *bpdesc   = NULL;
+        struct m0_net_domain       *fop_ndom = NULL;
+        struct m0_fop              *fop      = NULL;
 
         fop = fom->fo_fop;
         serv_obj = container_of(fom->fo_service,
@@ -169,7 +169,7 @@ static int bulkio_server_write_fom_tick(struct m0_fom *fom)
 	return rc;
 }
 
-static void bulkio_server_write_fom_addb_init(struct m0_fom *fom,
+static void bulkio_server_write_fom_addb_init(struct m0_fom     *fom,
 					      struct m0_addb_mc *mc)
 {
 	/**
@@ -223,7 +223,7 @@ static int bulkio_server_read_fom_tick(struct m0_fom *fom)
 	return rc;
 }
 
-static void bulkio_server_read_fom_addb_init(struct m0_fom *fom,
+static void bulkio_server_read_fom_addb_init(struct m0_fom     *fom,
 					     struct m0_addb_mc *mc)
 {
 	/**
@@ -255,7 +255,7 @@ static int ut_io_fom_cob_rw_state(struct m0_fom *fom)
 		check_read_fom_tick(fom) : check_write_fom_tick(fom);
 }
 
-static void ut_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+static void ut_io_fom_cob_rw_addb_init(struct m0_fom     *fom,
 				       struct m0_addb_mc *mc)
 {
 	/**
@@ -275,11 +275,11 @@ enum fom_state_transition_tests {
         TEST11,
 };
 
-static int                    i = 0;
-static struct m0_net_buffer  *nb_list[64];
+static int                        i               = 0;
+static struct m0_net_buffer      *nb_list[64];
 static struct m0_net_buffer_pool *buf_pool;
-static int next_write_test = TEST00;
-static int next_read_test = TEST00;
+static int                        next_write_test = TEST00;
+static int                        next_read_test  = TEST00;
 
 static void empty_buffers_pool(uint32_t colour)
 {
@@ -309,6 +309,7 @@ static void fom_phase_set(struct m0_fom *fom, int phase)
 {
 	if (m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		const struct fom_phase_desc *fpd_phase;
+
 		while (m0_fom_phase(fom) != M0_FOPH_FINISH) {
 			fpd_phase = &fpd_table[m0_fom_phase(fom)];
 			m0_fom_phase_set(fom, fpd_phase->fpd_nextphase);
@@ -344,7 +345,7 @@ static void fom_phase_set(struct m0_fom *fom, int phase)
 }
 
 /*
- * - This function test next phase after every defined phase for Write FOM.
+ * - This function tests next phase after every defined phase for Write FOM.
  * - Validation of next phase is done as per state transition in detail design.
  *   @see DLD-bulk-server-lspec-state
  * - This test covers all positive as well as negative cases.
@@ -356,22 +357,22 @@ static void fom_phase_set(struct m0_fom *fom, int phase)
  */
 static int check_write_fom_tick(struct m0_fom *fom)
 {
-        int                           rc;
-        uint32_t                      colour;
-        int                           acquired_net_bufs;
-        int                           saved_segments_count;
-        int                           saved_ndesc;
-        struct m0_fop_cob_rw         *rwfop;
-        struct m0_net_domain         *netdom;
-        struct m0_fop                *fop;
-        struct m0_io_fom_cob_rw      *fom_obj;
-        struct m0_fid                 saved_fid;
-        struct m0_fid                 invalid_fid;
-        struct m0_stob_io_desc       *saved_stobio_desc;
-        struct m0_stob_domain        *fom_stdom;
-        struct m0_stob_id             stobid;
-        struct m0_net_transfer_mc    *tm;
-	struct m0_reqh               *reqh;
+        int                        rc;
+        uint32_t                   colour;
+        int                        acquired_net_bufs;
+        int                        saved_segments_count;
+        int                        saved_ndesc;
+        struct m0_fop_cob_rw      *rwfop;
+        struct m0_net_domain      *netdom;
+        struct m0_fop             *fop;
+        struct m0_io_fom_cob_rw   *fom_obj;
+        struct m0_fid              saved_fid;
+        struct m0_fid              invalid_fid;
+        struct m0_stob_io_desc    *saved_stobio_desc;
+        struct m0_stob_domain     *fom_stdom;
+        struct m0_stob_id          stobid;
+        struct m0_net_transfer_mc *tm;
+	struct m0_reqh            *reqh;
 
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
@@ -439,6 +440,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 		next_write_test = TEST03;
         } else if (next_write_test == TEST03) {
                 int cdi = fom_obj->fcrw_curr_desc_index;
+
                 /*
                  * Case 03 : Network buffer is available with the buffer pool.
                  *         Input phase          : M0_FOPH_IO_FOM_BUFFER_ACQUIRE
@@ -462,6 +464,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 m0_net_buffer_pool_lock(fom_obj->fcrw_bp);
                 while (acquired_net_bufs > 0) {
                         struct m0_net_buffer *nb;
+
                         nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                         m0_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
                         netbufs_tlink_del_fini(nb);
@@ -706,22 +709,22 @@ static int check_write_fom_tick(struct m0_fom *fom)
  */
 static int check_read_fom_tick(struct m0_fom *fom)
 {
-        int                           rc;
-        uint32_t                      colour;
-        int                           acquired_net_bufs;
-        int                           saved_segments_count;
-        int                           saved_ndesc;
-        struct m0_fop_cob_rw         *rwfop;
-        struct m0_net_domain         *netdom;
-        struct m0_fop                *fop;
-        struct m0_io_fom_cob_rw      *fom_obj;
-        struct m0_fid                 saved_fid;
-        struct m0_fid                 invalid_fid;
-        struct m0_stob_io_desc       *saved_stobio_desc;
-        struct m0_stob_domain        *fom_stdom;
-        struct m0_stob_id             stobid;
-        struct m0_net_transfer_mc    *tm;
-	struct m0_reqh               *reqh;
+        int                        rc;
+        uint32_t                   colour;
+        int                        acquired_net_bufs;
+        int                        saved_segments_count;
+        int                        saved_ndesc;
+        struct m0_fop_cob_rw      *rwfop;
+        struct m0_net_domain      *netdom;
+        struct m0_fop             *fop;
+        struct m0_io_fom_cob_rw   *fom_obj;
+        struct m0_fid              saved_fid;
+        struct m0_fid              invalid_fid;
+        struct m0_stob_io_desc    *saved_stobio_desc;
+        struct m0_stob_domain     *fom_stdom;
+        struct m0_stob_id          stobid;
+        struct m0_net_transfer_mc *tm;
+	struct m0_reqh            *reqh;
 
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
@@ -879,6 +882,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 		next_read_test = TEST07;
         } else if (next_read_test == TEST07) {
                 int cdi = fom_obj->fcrw_curr_desc_index;
+
                 /*
                  * Case 07 : STOB I/O failure
                  *         Input phase          : M0_FOPH_IO_STOB_WAIT
@@ -1051,14 +1055,14 @@ static int check_read_fom_tick(struct m0_fom *fom)
 /* It is used to create the stob specified in the fid of each fop. */
 static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 {
-        struct m0_fop_cob_rw            *rwfop;
-        struct m0_stob_domain           *fom_stdom;
-        struct m0_stob_id                stobid;
-        int				 rc;
-	struct m0_fop_cob_writev_rep	*wrep;
-	struct m0_reqh                  *reqh;
+        struct m0_fop_cob_rw         *rwfop;
+        struct m0_stob_domain        *fom_stdom;
+        struct m0_stob_id             stobid;
+        int			      rc;
+	struct m0_fop_cob_writev_rep *wrep;
+	struct m0_reqh               *reqh;
+        struct m0_io_fom_cob_rw      *fom_obj;
 
-        struct m0_io_fom_cob_rw  *fom_obj;
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
@@ -1084,8 +1088,8 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	return M0_FSO_AGAIN;
 }
 
-static void bulkio_stob_create_fom_addb_init(struct m0_fom *fom,
-					 struct m0_addb_mc *mc)
+static void bulkio_stob_create_fom_addb_init(struct m0_fom     *fom,
+					     struct m0_addb_mc *mc)
 {
 	/**
 	 * @todo: Do the actual impl, need to set MAGIC, so that
@@ -1095,39 +1099,40 @@ static void bulkio_stob_create_fom_addb_init(struct m0_fom *fom,
 }
 
 static const struct m0_fom_ops bulkio_stob_create_fom_ops = {
-	.fo_fini = bulkio_stob_fom_fini,
-	.fo_tick = bulkio_stob_create_fom_tick,
+	.fo_fini          = bulkio_stob_fom_fini,
+	.fo_tick          = bulkio_stob_create_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
-	.fo_addb_init = bulkio_stob_create_fom_addb_init
+	.fo_addb_init     = bulkio_stob_create_fom_addb_init
 };
 
 static const struct m0_fom_ops bulkio_server_write_fom_ops = {
-	.fo_fini = m0_io_fom_cob_rw_fini,
-	.fo_tick = bulkio_server_write_fom_tick,
+	.fo_fini          = m0_io_fom_cob_rw_fini,
+	.fo_tick          = bulkio_server_write_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
-	.fo_addb_init = bulkio_server_write_fom_addb_init
+	.fo_addb_init     = bulkio_server_write_fom_addb_init
 };
 
 static const struct m0_fom_ops ut_io_fom_cob_rw_ops = {
-	.fo_fini = m0_io_fom_cob_rw_fini,
-	.fo_tick = ut_io_fom_cob_rw_state,
+	.fo_fini          = m0_io_fom_cob_rw_fini,
+	.fo_tick          = ut_io_fom_cob_rw_state,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
-	.fo_addb_init = ut_io_fom_cob_rw_addb_init
+	.fo_addb_init     = ut_io_fom_cob_rw_addb_init
 };
 
 static const struct m0_fom_ops bulkio_server_read_fom_ops = {
-	.fo_fini = m0_io_fom_cob_rw_fini,
-	.fo_tick = bulkio_server_read_fom_tick,
+	.fo_fini          = m0_io_fom_cob_rw_fini,
+	.fo_tick          = bulkio_server_read_fom_tick,
 	.fo_home_locality = m0_io_fom_cob_rw_locality_get,
-	.fo_addb_init = bulkio_server_read_fom_addb_init
+	.fo_addb_init     = bulkio_server_read_fom_addb_init
 };
 
 static int io_fop_stob_create_fom_create(struct m0_fop  *fop,
 					 struct m0_fom **m,
 					 struct m0_reqh *reqh)
 {
-	int rc;
+	int            rc;
 	struct m0_fom *fom;
+
 	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
@@ -1140,9 +1145,10 @@ static int io_fop_server_write_fom_create(struct m0_fop  *fop,
 					  struct m0_fom **m,
 					  struct m0_reqh *reqh)
 {
-	int rc;
+	int            rc;
 	struct m0_fom *fom;
-	 rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
+
+	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_server_write_fom_ops;
 	*m = fom;
@@ -1156,8 +1162,9 @@ static int io_fop_server_write_fom_create(struct m0_fop  *fop,
 static int ut_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **m,
 				   struct m0_reqh *reqh)
 {
-	int rc;
+	int            rc;
 	struct m0_fom *fom;
+
         /*
          * Case : This tests the I/O FOM create api.
          *        It use real I/O FOP
@@ -1180,8 +1187,9 @@ static int io_fop_server_read_fom_create(struct m0_fop  *fop,
 					 struct m0_fom **m,
 					 struct m0_reqh *reqh)
 {
-	int rc;
+	int            rc;
 	struct m0_fom *fom;
+
 	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_server_read_fom_ops;
@@ -1192,11 +1200,11 @@ static int io_fop_server_read_fom_create(struct m0_fop  *fop,
 
 static void bulkio_stob_create(void)
 {
-	struct m0_fop_cob_rw	*rw;
-	enum M0_RPC_OPCODES	 op;
-	struct thrd_arg		 targ[IO_FIDS_NR];
-	int			 i;
-	int			 rc;
+	struct m0_fop_cob_rw *rw;
+	enum M0_RPC_OPCODES   op;
+	struct thrd_arg	      targ[IO_FIDS_NR];
+	int		      i;
+	int		      rc;
 
 	op = M0_IOSERVICE_WRITEV_OPCODE;
 	M0_ALLOC_ARR(bp->bp_wfops, IO_FIDS_NR);
@@ -1238,7 +1246,7 @@ static void io_fops_submit(uint32_t index, enum M0_RPC_OPCODES op)
 
 static void io_single_fop_submit(enum M0_RPC_OPCODES op)
 {
-	struct m0_fop  *fop;
+	struct m0_fop *fop;
 
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
 	if (op == M0_IOSERVICE_WRITEV_OPCODE)
@@ -1257,8 +1265,8 @@ static void io_single_fop_submit(enum M0_RPC_OPCODES op)
 
 static void bulkio_server_single_read_write(void)
 {
-	int		    j;
-	struct m0_bufvec   *buf;
+	int		  j;
+	struct m0_bufvec *buf;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1688,7 +1696,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 
 static void bulkio_init(void)
 {
-	int  rc;
+	int         rc;
 	const char *caddr = "0@lo:12345:34:*";
 	const char *saddr = "0@lo:12345:34:1";
 

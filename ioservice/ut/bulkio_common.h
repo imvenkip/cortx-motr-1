@@ -35,33 +35,33 @@
 #include "lib/misc.h"		/* M0_SET_ARR0 */
 
 enum IO_UT_VALUES {
-	IO_FIDS_NR		= 2,
-	IO_SEGS_NR		= 16,
-	IO_SEG_SIZE		= 4096,
-	IO_SEQ_LEN		= 8,
-	IO_FOPS_NR		= 16,
-	IO_FID_SINGLE		= 1,
-	IO_FOP_SINGLE		= 1,
-	IO_XPRT_NR		= 1,
-	IO_CLIENT_SVC_ID	= 2,
-	IO_SERVER_SVC_ID	= 1,
-	IO_ADDR_LEN		= 32,
-	IO_STR_LEN		= 16,
-	IO_SEG_STEP		= 64,
-	IO_RPC_ITEM_TIMEOUT	= 300,
-	IO_SEG_START_OFFSET	= IO_SEG_SIZE,
-	IO_CLIENT_COBDOM_ID	= 21,
-	IO_SERVER_COBDOM_ID	= 29,
-	IO_RPC_SESSION_SLOTS	= 8,
-	IO_RPC_MAX_IN_FLIGHT	= 32,
-	IO_SERVER_ARGC		= 32,
-	IO_SERVER_SERVICE_NR	= 1,
+	IO_FIDS_NR	     = 2,
+	IO_SEGS_NR	     = 16,
+	IO_SEG_SIZE	     = 4096,
+	IO_SEQ_LEN	     = 8,
+	IO_FOPS_NR	     = 16,
+	IO_FID_SINGLE	     = 1,
+	IO_FOP_SINGLE	     = 1,
+	IO_XPRT_NR	     = 1,
+	IO_CLIENT_SVC_ID     = 2,
+	IO_SERVER_SVC_ID     = 1,
+	IO_ADDR_LEN	     = 32,
+	IO_STR_LEN	     = 16,
+	IO_SEG_STEP	     = 64,
+	IO_RPC_ITEM_TIMEOUT  = 300,
+	IO_SEG_START_OFFSET  = IO_SEG_SIZE,
+	IO_CLIENT_COBDOM_ID  = 21,
+	IO_SERVER_COBDOM_ID  = 29,
+	IO_RPC_SESSION_SLOTS = 8,
+	IO_RPC_MAX_IN_FLIGHT = 32,
+	IO_SERVER_ARGC	     = 32,
+	IO_SERVER_SERVICE_NR = 1,
 };
 
-#define IO_CLIENT_DBNAME	"bulk_c_db"
-#define IO_SERVER_DBFILE	"bulkio_st.db"
-#define IO_SERVER_LOGFILE	"bulkio_st.log"
-#define IO_SERVER_STOBFILE	"bulk_st_stob"
+#define IO_CLIENT_DBNAME   "bulk_c_db"
+#define IO_SERVER_DBFILE   "bulkio_st.db"
+#define IO_SERVER_LOGFILE  "bulkio_st.log"
+#define IO_SERVER_STOBFILE "bulk_st_stob"
 
 /* Structure containing data needed for UT. */
 struct bulkio_params {

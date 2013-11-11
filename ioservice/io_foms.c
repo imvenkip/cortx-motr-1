@@ -1237,8 +1237,8 @@ static int net_buffer_acquire(struct m0_fom *fom)
         required_net_bufs = fom_obj->fcrw_ndesc - fom_obj->fcrw_curr_desc_index;
 
         /*
-         * Aquire as many net buffers as to process all discriptors.
-         * If FOM able to acquire more buffers then it change batch size
+         * Acquire as many net buffers as to process all descriptors.
+         * If FOM is able to acquire more buffers then it can change batch size
          * dynamically.
          */
         M0_ASSERT(acquired_net_bufs <= required_net_bufs);
@@ -1250,6 +1250,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
 
             if (nb == NULL && acquired_net_bufs == 0) {
                     struct m0_rios_buffer_pool *bpdesc;
+
                     /*
                      * Network buffer is not available. At least one
                      * buffer is need for zero-copy. Registers FOM clink
