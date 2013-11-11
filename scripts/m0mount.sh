@@ -630,7 +630,9 @@ main()
 		exit 1
 	}
 
-	l_run utils/m0layout $NR_DATA $NR_PARITY $POOL_WIDTH $NR_DATA $NR_DATA
+	local rows=4
+	local groups=$((rows * POOL_WIDTH / (NR_DATA + NR_PARITY*2) + 1))
+	l_run utils/m0layout $NR_DATA $NR_PARITY $POOL_WIDTH $rows $groups
 	if [ $? -ne 0 ]; then
 		echo ERROR: Parity configuration is incorrect
 		exit 1
