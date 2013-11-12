@@ -283,6 +283,9 @@ static void ad_domain_fini(struct m0_stob_domain *self,
 	m0_stob_cache_fini(&adom->ad_cache);
 	m0_stob_domain_fini(self);
 
+	if (seg == NULL)
+		return;
+
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_FREE_CREDIT_PTR(adom, seg, &cred);
@@ -419,6 +422,8 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
 	m0_bcount_t		 blocksize;
 	struct ad_domain	*adom;
 
+	M0_ENTRY();
+
 	adom = domain2ad(dom);
 
 	M0_PRE(dom->sd_ops == &ad_stob_domain_op);
@@ -445,7 +450,7 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
 		m0_stob_get(adom->ad_bstore);
 		m0_be_emap_init(&adom->ad_adata, be_seg);
 	}
-	return result;
+	M0_RETURN(result);
 }
 
 static int ad_incache_init(struct m0_stob_domain *dom,
