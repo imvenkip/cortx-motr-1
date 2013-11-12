@@ -83,7 +83,9 @@ mero_service()
 			# wait till the server start completes
 			local m0d_log=$MERO_M0T1FS_TEST_DIR/d$i/m0d.log
 			touch $m0d_log
-			while ! grep CTRL $m0d_log > /dev/null; do
+			sleep 2
+			while status $prog_exec > /dev/null && \
+			      ! grep CTRL $m0d_log > /dev/null; do
 				sleep 2
 			done
 
