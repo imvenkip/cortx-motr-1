@@ -813,31 +813,32 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		m0_sm_group_lock(grp);
 		rc = m0_ad_stob_domain_locate(ad_dname, db, grp,
 					      &adstob->as_dom, *bstob);
+		if (rc == 0) {
+			cs_ad_stob_bob_init(adstob);
+			astob_tlink_init_at_tail(adstob, &stob->s_adstobs);
+			rc =	m0_balloc_create(cid, db, grp, &cb) ?:
+				m0_ad_stob_setup(adstob->as_dom, db, grp,
+						 *bstob, &cb->cb_ballroom,
+						 BALLOC_DEF_CONTAINER_SIZE,
+						 BALLOC_DEF_BLOCK_SHIFT,
+						 BALLOC_DEF_BLOCKS_PER_GROUP,
+						 BALLOC_DEF_RESERVED_GROUPS);
+			if (rc == 0 && M0_FI_ENABLED("ad_stob_setup_fail"))
+				rc = -EINVAL;
+			if (rc != 0) {
+				struct m0_stob_domain *adom = adstob->as_dom;
+				astob_tlink_del_fini(adstob);
+				cs_ad_stob_bob_fini(adstob);
+				adom->sd_ops->sdo_fini(adom, grp);
+			}
+		}
 		m0_sm_group_unlock(grp);
+		if (rc != 0)
+			m0_stob_put(*bstob);
 	}
 
-	if (rc != 0) {
-		m0_stob_put(*bstob);
+	if (rc != 0)
 		m0_free(adstob);
-		M0_RETURN(rc);
-	}
-
-	cs_ad_stob_bob_init(adstob);
-	astob_tlink_init_at_tail(adstob, &stob->s_adstobs);
-
-	m0_sm_group_lock(grp);
-	rc =	m0_balloc_create(cid, db, grp, &cb) ?:
-		m0_ad_stob_setup(adstob->as_dom, db, grp,
-				 *bstob, &cb->cb_ballroom,
-				 BALLOC_DEF_CONTAINER_SIZE,
-				 BALLOC_DEF_BLOCK_SHIFT,
-				 BALLOC_DEF_BLOCKS_PER_GROUP,
-				 BALLOC_DEF_RESERVED_GROUPS);
-	m0_sm_group_unlock(grp);
-
-	if (rc == 0 && M0_FI_ENABLED("ad_stob_setup_fail"))
-		rc = -EINVAL;
-
 	M0_RETURN(rc);
 }
 
@@ -889,7 +890,6 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 {
 	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
 	       m0_linux_stob_setup(stob->s_ldom, false);
-
 }
 
 static void cs_ad_stob_fini(struct cs_stobs *stob)
