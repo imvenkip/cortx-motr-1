@@ -23,7 +23,7 @@
 
 #include "lib/bob.h"
 #include "lib/misc.h"  /* M0_BITS */
-#include "lib/errno.h" /* ENOBUFS, ENODATA */
+#include "lib/errno.h" /* ENOENT EPERM */
 
 #include "reqh/reqh.h"
 #include "sm/sm.h"
@@ -33,6 +33,13 @@
 
 /**
    @addtogroup CM
+
+   Implementation of sliding window update FOM.
+   Provides mechanism to handle blocking operations like local sliding
+   update and updating the persistent store with new sliding window.
+   Provides interfaces to start, wakeup (if idle) and stop the sliding
+   window update FOM.
+
    @{
 */
 
@@ -85,19 +92,19 @@ static struct m0_sm_conf cm_sw_update_conf = {
 	.scf_state     = cm_sw_update_sd
 };
 
-struct m0_cm *m0_cm_swu2cm(struct m0_cm_sw_update *swu)
+static struct m0_cm *cm_swu2cm(struct m0_cm_sw_update *swu)
 {
 	return container_of(swu, struct m0_cm, cm_sw_update);
 }
 
-struct m0_cm_sw_update *m0_cm_fom2swu(struct m0_fom *fom)
+static struct m0_cm_sw_update *cm_fom2swu(struct m0_fom *fom)
 {
 	return container_of(fom, struct m0_cm_sw_update, swu_fom);
 }
 
 static int swu_update(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm  *cm = m0_cm_swu2cm(swu); 
+	struct m0_cm  *cm = cm_swu2cm(swu);
 	struct m0_fom *fom = &swu->swu_fom;
 	int            rc = M0_FSO_AGAIN;
 
@@ -123,7 +130,7 @@ static int swu_update(struct m0_cm_sw_update *swu)
 
 static int swu_store(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm             *cm = m0_cm_swu2cm(swu);
+	struct m0_cm             *cm = cm_swu2cm(swu);
 	struct m0_fom            *fom = &swu->swu_fom;
 	struct m0_dtx            *tx = &fom->fo_tx;
 	struct m0_be_seg         *seg  = cm->cm_service.rs_reqh->rh_beseg;
@@ -141,6 +148,10 @@ static int swu_store(struct m0_cm_sw_update *swu)
 		M0_SET0(&sw);
 		hi = m0_cm_ag_hi(cm);
 		lo = m0_cm_ag_lo(cm);
+		if (hi == NULL && lo == NULL) {
+			rc = -EINVAL;
+			goto err;
+		}
 		m0_cm_sw_set(&sw, &lo->cag_id, &hi->cag_id);
 		rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);
 		if (rc == 0) {
@@ -151,6 +162,7 @@ static int swu_store(struct m0_cm_sw_update *swu)
 		}
 	}
 
+err:
 	if (rc != 0)
 		m0_fom_phase_move(fom, rc, SWU_FINI);
 
@@ -159,7 +171,7 @@ static int swu_store(struct m0_cm_sw_update *swu)
 
 static int swu_wait(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm   *cm = m0_cm_swu2cm(swu);
+	struct m0_cm   *cm = cm_swu2cm(swu);
 	struct m0_fom  *fom = &swu->swu_fom;
 	struct m0_dtx  *tx = &fom->fo_tx;
 
@@ -185,7 +197,7 @@ out:
 
 static int swu_complete(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm             *cm = m0_cm_swu2cm(swu);
+	struct m0_cm             *cm = cm_swu2cm(swu);
 	struct m0_fom            *fom = &swu->swu_fom;
 	struct m0_dtx            *tx = &fom->fo_tx;
 	struct m0_be_seg         *seg  = cm->cm_service.rs_reqh->rh_beseg;
@@ -239,8 +251,8 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 	int                     phase = m0_fom_phase(fom);
 	int                     rc;
 
-	swu = m0_cm_fom2swu(fom);
-	cm = m0_cm_swu2cm(swu);
+	swu = cm_fom2swu(fom);
+	cm = cm_swu2cm(swu);
 	m0_cm_lock(cm);
 	rc = swu_action[phase](swu);
 	m0_cm_unlock(cm);
@@ -255,10 +267,6 @@ static void cm_swu_fom_fini(struct m0_fom *fom)
 
 static void cm_swu_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 

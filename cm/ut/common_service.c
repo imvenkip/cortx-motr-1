@@ -101,7 +101,7 @@ static int cm_ut_setup(struct m0_cm *cm)
 	return 0;
 }
 
-static int cm_ut_ready(struct m0_cm *cm)
+static int cm_ut_prepare(struct m0_cm *cm)
 {
 	return 0;
 }
@@ -163,7 +163,7 @@ static int cm_ut_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 
 	if (ag_id_cnt[cid] == MAX_CM_NR || !test_ready_fop) {
 		ag_id_cnt[cid] = 0;
-		return -ENOSPC;
+		return -ENOENT;
 	}
 
 	if (test_ready_fop) {
@@ -183,26 +183,16 @@ static int cm_ut_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id id_curr,
 static void cm_ut_fini(struct m0_cm *cm)
 {
 }
-/*
-static void cm_ut_complete(struct m0_cm *cm)
-{
-	struct m0_ut_cm *ut_cm = cm2utcm(cm);
-	struct m0_chan *wait = &ut_cm->ut_cm_wait;
-
-	m0_chan_signal_lock(wait);
-}
-*/
 
 static const struct m0_cm_ops cm_ut_ops = {
 	.cmo_setup     = cm_ut_setup,
-	.cmo_ready     = cm_ut_ready,
+	.cmo_prepare   = cm_ut_prepare,
 	.cmo_start     = cm_ut_start,
 	.cmo_stop      = cm_ut_stop,
 	.cmo_ag_alloc  = cm_ut_ag_alloc,
 	.cmo_cp_alloc  = cm_ut_cp_alloc,
 	.cmo_data_next = cm_ut_data_next,
 	.cmo_ag_next   = cm_ut_ag_next,
-//	.cmo_complete  = cm_ut_complete,
 	.cmo_fini      = cm_ut_fini
 };
 

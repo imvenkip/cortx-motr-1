@@ -134,6 +134,7 @@
     agents" in @ref CMDLD-ref
    - @ref CMDLD-lspec-state
    - @ref CMDLD-lspec-cm-setup
+   - @ref CMDLD-lspec-cm-prepare
    - @ref CMDLD-lspec-cm-ready
    - @ref CMDLD-lspec-cm-start
       - @ref CMDLD-lspec-cm-cp-pump
@@ -150,12 +151,15 @@
        node [shape=record, fontsize=12]
        INIT [label="INTIALISING"]
        IDLE [label="IDLE"]
+       PREPARE [label="PREPARE"]
        READY [label="READY"]
        ACTIVE [label="ACTIVE"]
        FAIL [label="FAIL"]
        STOP [label="STOP"]
        INIT -> IDLE [label="Configuration received from confc"]
-       IDLE -> READY [label="Initialisation complete.Broadcast READY fop"]
+       IDLE -> PREPARE [label="Initialise sliding window"]
+       PREPARE -> READY [label="Initialisation complete.Broadcast READY fop"]
+       PREPARE -> FAIL [label="Sliding window initialisation error"]
        IDLE -> FAIL [label="Timed out or self destruct"]
        READY -> ACTIVE [label="All READY fops received"]
        READY -> FAIL [label="Timed out waiting for READY fops"]
@@ -177,6 +181,10 @@
    service startup, and thus copy machine is finalised during copy machine
    service finalisation.
 
+   @subsection CMDLD-lspec-cm-prepare Copy machine prepare
+   Initialise local sliding window and sliding window persistent store.
+   Persist sliding window after initialisation and proceed to READY phase.
+
    @subsection CMDLD-lspec-cm-ready Copy machine ready
    In case of multiple nodes, every copy machine replica allocates an instance
    of struct m0_cm_proxy representing a particular remote replica and
@@ -184,6 +192,14 @@
    After successfully establishing the rpc connections, copy machine specific
    m0_cm_ops::cmo_ready() operation is invoked to further setup the specific
    copy machine data structures.
+   After creating proxies representing the remote replicas, for each remote
+   replica the READY FOPs are allocated and initialised with the calculated
+   local sliding window. The copy machine then broadcasts these READY FOPs to
+   every remote replica using the rpc connection in the corresponding
+   m0_cm_proxy. A READY FOP is a one-way fop and thus do not have a reply
+   associated with it. Once every replica receives READY FOPs from all the
+   corresponding remote replicas, the copy machine proceeds to the START phase.
+   @see struct m0_cm_ready
 
    @subsection CMDLD-lspec-cm-start Copy machine operation start
    After copy machine service is successfully started, it is ready to perform
@@ -240,8 +256,16 @@
    M0_CMS_READY phase and updated during finalisation of a completed aggregation
    group (i.e. aggregation group for which all the copy packets are processed).
    Periodically, updated sliding window is communicated to remote replica.
-   @see m0_cm_proxy_sw_update_ast_post()
-   @see m0_cm_proxy_remote_update()
+   @ref m0_cm_proxy_sw_update_ast_post() @ref m0_cm_proxy_remote_update()
+
+   Updating the local sliding window and saving it to persistent store is
+   implemented through sliding window update FOM. This helps in perfoming
+   various tasks asynchronously, viz:- updating the local sliding window
+   and saving it to persistent store.
+   @see struct m0_cm_sw_update
+   @see m0_cm_sw_update_start()
+   @see m0_cm_sw_update_continue()
+   @see m0_cm_sw_update_stop()
 
    @subsection CMDLD-lspec-cm-sliding-window-persistence Copy machine sliding \
  window persistence
@@ -266,7 +290,6 @@
    - m0_cm_sw_store_init()            Init data on persistent storage.
    - m0_cm_sw_store_load()            Load data from persistent storage.
    - m0_cm_sw_store_update()          Update data to the last completed AG.
-   - m0_cm_sw_store_complete()        Mark the cm operation as done.
 
    These interfaces will be used in various copy machine operations to manage
    the persistent information. For example, m0_cm_sw_store_load() will be used
@@ -278,15 +301,20 @@
    node failure happens at this time, and then restarts again, it loads from
    storage, and -ENOENT indicates no pending copy machine operation is progress.
 
-   The call sequence of these interfaces is:
+   The call sequence of interface and sliding window update FOM execution is as
+   below:
 
    @verbatim
                                          |
                                          |
                                          V
-                             --------------------------
-                             | m0_cm_sw_store_load()? |
-                             --------------------------
+                             ------------------------------------
+                             | m0_cm_sw_store_load() |
+                             Read sliding window from persistent
+                             store to continue from any previously
+                             pending repair operation.
+                             Also start sliding update FOM.
+                             ------------------------------------
                                    /         \
                                   /           \
                   ret == 0       /             \ ret == -ENOENT
@@ -305,7 +333,7 @@
                               \                    /
                                \                  /
                                 \                /
-                                 V              V
+                                 V  SWU_STORE   V
                             ---------------------------     operation completed
                    -------> | m0_cm_sw_store_update() |----------------------->
                    |        ---------------------------                       |
@@ -314,7 +342,7 @@
                    |                    |                                     |
                    <--------------------V                                     |
                      operation continue                                       |
-                                                                              V
+                                                        SWU_COMPLETE          V
                                                    ----------------------------
                                                    |m0_cm_sw_store_complete():|
                                                    |delete sw info from       |
@@ -440,8 +468,14 @@ static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_READY,
+		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_PREPARE,
 					  M0_CMS_FINI)
+	},
+	[M0_CMS_PREPARE] = {
+		.sd_flags	= 0,
+		.sd_name	= "cm_prepare",
+		.sd_allowed	= M0_BITS(M0_CMS_READY, M0_CMS_FINI,
+					  M0_CMS_FAIL)
 	},
 	[M0_CMS_READY] = {
 		.sd_flags	= 0,
@@ -525,7 +559,9 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 		M0_ADDB_FUNC_FAIL(addb_mc, M0_CM_ADDB_LOC_SETUP_FAIL, rc,
 				  &m0_cm_mod_ctx, &cm->cm_service.rs_addb_ctx);
 		break;
-
+	case M0_CM_ERR_PREPARE:
+		__cm_fail(cm, 0, M0_CMS_IDLE);
+		break;
 	case M0_CM_ERR_READY:
 		__cm_fail(cm, 0, M0_CMS_IDLE);
 		break;
@@ -593,8 +629,8 @@ M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm)
 		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
 		m0_sm_invariant(&cm->cm_mach) &&
 		/* Copy machine state sanity checks. */
-		ergo(M0_IN(state, (M0_CMS_IDLE, M0_CMS_READY, M0_CMS_ACTIVE,
-				   M0_CMS_STOP)),
+		ergo(M0_IN(state, (M0_CMS_IDLE, M0_CMS_PREPARE, M0_CMS_READY,
+				   M0_CMS_ACTIVE, M0_CMS_STOP)),
 		     m0_reqh_service_invariant(&cm->cm_service));
 }
 
@@ -683,55 +719,58 @@ M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
         return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 }
 
-static int m0_cm_ready_setup(struct m0_cm *cm)
+M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 {
-	struct m0_rpc_machine  *rmach;
-	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
-	struct m0_cm_sw         sw;
-	int                     rc;
+	struct m0_cm_sw sw;
+	int             rc;
 
+	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
 
         cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
-        if (cm->cm_pm == NULL)
-                return -EINVAL;
-        rmach = m0_cm_rpc_machine_find(reqh);
-        rc = cm_replicas_connect(cm, rmach, reqh);
-        if (rc == 0 || rc == -ENOENT)
-		rc = cm->cm_ops->cmo_ready(cm);
+        if (cm->cm_pm == NULL) {
+                rc = -EINVAL;
+		goto out;
+	}
+	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc == 0) {
-		cm->cm_ready_fops_recvd = 0;
 		M0_SET0(&cm->cm_last_saved_sw_hi);
 		m0_cm_sw_store_init(cm);
-                rc = m0_cm_sw_store_load(cm, &sw);
-                if (rc == 0)
-                        cm->cm_last_saved_sw_hi = sw.sw_lo;
+		rc = m0_cm_sw_store_load(cm, &sw);
+		if (rc == 0)
+			cm->cm_last_saved_sw_hi = sw.sw_lo;
 		if (rc == -ENOENT)
 			rc = 0;
 		if (rc == 0)
 			m0_cm_sw_update_start(cm);
 	}
+out:
+	cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
+	m0_cm_unlock(cm);
 
 	return rc;
 }
 
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 {
-	int rc;
+	struct m0_rpc_machine  *rmach;
+	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
+	int                     rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(cm != NULL);
 	M0_PRE(cm->cm_type != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_READY)));
+	M0_PRE(m0_cm_state_get(cm) == M0_CMS_PREPARE);
 	M0_PRE(m0_cm_invariant(cm));
 
-	if (m0_cm_state_get(cm) == M0_CMS_IDLE) {
-		rc = m0_cm_ready_setup(cm);
-		cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
-	} else
+	cm->cm_ready_fops_recvd = 0;
+        rmach = m0_cm_rpc_machine_find(reqh);
+        rc = cm_replicas_connect(cm, rmach, reqh);
+        if (rc == 0 || rc == -ENOENT)
 		rc = m0_cm_sw_remote_update(cm);
+	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
@@ -809,8 +848,7 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 	m0_cm_lock(cm);
 	rc = cm->cm_ops->cmo_stop(cm);
-	if (rc == 0)
-		m0_cm_cp_pump_stop(cm);
+	m0_cm_cp_pump_stop(cm);
 	m0_cm_proxies_fini(cm);
 	m0_cm_sw_update_stop(cm);
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);

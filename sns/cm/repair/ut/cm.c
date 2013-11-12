@@ -120,7 +120,7 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	scm = cm2sns(cm);
 	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_FAILED);
 	scm->sc_op = op;
-	rc = cm->cm_ops->cmo_ready(cm);
+	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
@@ -311,8 +311,8 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	int rc;
 
 	m0_cm_lock(cm);
-	ag_destroy();
 	/* Destroy previously created aggregation groups manually. */
+	ag_destroy();
 	rc = cm->cm_ops->cmo_stop(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_unlock(cm);

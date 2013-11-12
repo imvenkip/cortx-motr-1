@@ -323,13 +323,11 @@ static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
 
 	M0_PRE(scm != NULL && pl != NULL && gfid != NULL);
 
-	if (scm->sc_base.cm_proxy_nr > 0) {
-		m0_sns_cm_ag_agid_setup(gfid, group, &agid);
-		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
-		       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
-		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-		return  m0_sns_cm_ag_is_relevant(scm, pl, &agid);
-	}
+	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
+	M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
+	       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
+	       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
+	return  m0_sns_cm_ag_is_relevant(scm, pl, &agid);
 
 	return false;
 }
@@ -422,7 +420,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	gfid = &sfc->sfc_gob_fid;
 	pl = sfc->sfc_pdlayout;
 	for (group = sa->sa_group; group < sfc->sfc_groups_nr; ++group) {
-		M0_LOG(M0_FATAL, "group: [%lu]", group);
 		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_progress,
 			     M0_ADDB_CTX_VEC(&m0_sns_mod_addb_ctx),
 			     scm->sc_it.si_total_files, group + 1,

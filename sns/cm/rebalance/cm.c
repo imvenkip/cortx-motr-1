@@ -62,7 +62,7 @@ static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 	return &scp->sc_base;
 }
 
-static int rebalance_cm_ready(struct m0_cm *cm)
+static int rebalance_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	int                    rc;
@@ -75,7 +75,7 @@ static int rebalance_cm_ready(struct m0_cm *cm)
 	if (rc != 0)
 		return rc;
 	scm->sc_helpers = &rebalance_helpers;
-	return m0_sns_cm_ready(cm);
+	return m0_sns_cm_prepare(cm);
 }
 
 static int rebalance_cm_stop(struct m0_cm *cm)
@@ -119,7 +119,7 @@ static bool rebalance_cm_has_space(struct m0_cm *cm,
 /** Copy machine operations. */
 const struct m0_cm_ops sns_rebalance_ops = {
 	.cmo_setup               = m0_sns_cm_setup,
-	.cmo_ready               = rebalance_cm_ready,
+	.cmo_prepare             = rebalance_cm_prepare,
 	.cmo_start               = m0_sns_cm_start,
 	.cmo_ag_alloc            = m0_sns_cm_rebalance_ag_alloc,
 	.cmo_cp_alloc            = rebalance_cm_cp_alloc,

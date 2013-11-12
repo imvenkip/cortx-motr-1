@@ -81,6 +81,7 @@
    @subsection CMDLD-fspec-sub-opi Operational Interfaces
    Lists the various external interfaces exported by the copy machine.
    - m0_cm_setup()		     Setup a copy machine.
+   - m0_cm_prepare()                 Initialises local sliding window.
    - m0_cm_ready()                   Synchronizes copy machine with remote
 				     replicas.
    - m0_cm_start()                   Starts copy machine operation.
@@ -119,6 +120,7 @@ struct m0_net_buffer_pool;
 enum m0_cm_state {
 	M0_CMS_INIT,
 	M0_CMS_IDLE,
+	M0_CMS_PREPARE,
 	M0_CMS_READY,
 	M0_CMS_ACTIVE,
 	M0_CMS_FAIL,
@@ -135,6 +137,7 @@ enum m0_cm_state {
 enum m0_cm_failure {
 	/** Copy machine setup failure */
 	M0_CM_ERR_SETUP = 1,
+	M0_CM_ERR_PREPARE,
 	/** Copy machine start failure */
 	M0_CM_ERR_READY,
 	M0_CM_ERR_START,
@@ -258,7 +261,7 @@ struct m0_cm_ops {
 	 */
 	int (*cmo_setup)(struct m0_cm *cm);
 
-	int (*cmo_ready)(struct m0_cm *cm);
+	int (*cmo_prepare)(struct m0_cm *cm);
 
 	/**
 	 * Starts copy machine operation. Acquires copy machine specific
@@ -364,6 +367,7 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm);
  */
 M0_INTERNAL int m0_cm_setup(struct m0_cm *cm);
 
+M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm);
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 
 M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm);

@@ -472,7 +472,9 @@ static void receiver_stob_create()
 
 static void cm_ready(struct m0_cm *cm)
 {
+	m0_cm_prepare(cm);
 	m0_cm_lock(cm);
+	//m0_cm_sw_update_start(cm);
 	m0_cm_state_set(cm, M0_CMS_READY);
 	m0_cm_unlock(cm);
 }
@@ -507,11 +509,10 @@ static void receiver_init()
 	//sns_cm_ut_dev_state(ps->pst_devices_array[DEV_ID].pd_state,
 	//                    M0_PNDS_FAILED);
 
-	cm->cm_ops->cmo_ready(cm);
+	//cm->cm_ops->cmo_prepare(cm);
 	m0_cm_unlock(cm);
 	cm_ready(cm);
         M0_UT_ASSERT(m0_cm_start(cm) == 0);
-
         while (m0_fom_domain_is_idle(&s0_reqh->rh_fom_dom) ||
                         !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
                 usleep(200);
@@ -568,19 +569,26 @@ static void sender_cm_fini(struct m0_cm *cm)
 {
 }
 
-/*
-static void sender_cm_complete(struct m0_cm *cm)
+static int sender_cm_prepare(struct m0_cm *cm)
 {
+	return 0;
 }
-*/
+
+static int sender_cm_ag_next(struct m0_cm *cm,
+			     const struct m0_cm_ag_id id_curr,
+			     struct m0_cm_ag_id *id_next)
+{
+	return -ENOENT;
+}
 
 static const struct m0_cm_ops sender_cm_ops = {
         .cmo_setup     = sender_cm_setup,
+	.cmo_prepare   = sender_cm_prepare,
         .cmo_start     = sender_cm_start,
         .cmo_stop      = sender_cm_stop,
         .cmo_cp_alloc  = sender_cm_cp_alloc,
         .cmo_data_next = sender_cm_data_next,
-        //.cmo_complete  = sender_cm_complete,
+	.cmo_ag_next   = sender_cm_ag_next,
         .cmo_fini      = sender_cm_fini
 };
 

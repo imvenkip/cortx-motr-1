@@ -68,15 +68,15 @@ static const struct m0_fom_type_ops trigger_fom_type_ops = {
 };
 
 enum trigger_phases {
-	TPH_READY_SETUP = M0_FOPH_NR + 1,
+	TPH_PREPARE = M0_FOPH_NR + 1,
 	TPH_READY,
 	TPH_START_WAIT,
 	TPH_STOP_WAIT
 };
 
 static struct m0_sm_state_descr trigger_phases[] = {
-	[TPH_READY_SETUP] = {
-		.sd_name      = "Send ready fops",
+	[TPH_PREPARE] = {
+		.sd_name      = "Initialise local sliding window",
 		.sd_allowed   = M0_BITS(TPH_READY)
 	},
 	[TPH_READY] = {
@@ -193,17 +193,18 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		scm = cm2sns(cm);
 		M0_LOG(M0_DEBUG, "start state = %d", m0_fom_phase(fom));
 		switch(m0_fom_phase(fom)) {
-			case TPH_READY_SETUP:
+			case TPH_PREPARE:
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_op             = treq->op;
 				m0_mutex_lock(&cm->cm_wait_mutex);
 				m0_fom_wait_on(fom, &cm->cm_ready_wait,
 					       &fom->fo_cb);
 				m0_mutex_unlock(&cm->cm_wait_mutex);
-				rc = m0_cm_ready(cm);
+				rc = m0_cm_prepare(cm);
 				M0_ASSERT(rc == 0);
 				rc = M0_FSO_WAIT;
 				m0_fom_phase_set(fom, TPH_READY);
+				M0_LOG(M0_DEBUG, "got trigger: prepare done");
 				break;
 			case TPH_READY:
 				m0_mutex_lock(&cm->cm_wait_mutex);

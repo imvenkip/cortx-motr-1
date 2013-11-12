@@ -58,9 +58,8 @@
   - @subpage SNSCMDLD-fspec
   - @ref SNSCMDLD-lspec
      - @ref SNSCMDLD-lspec-cm-setup
-     - @ref SNSCMDLD-lspec-cm-ready
+     - @ref SNSCMDLD-lspec-cm-prepare
      - @ref SNSCMDLD-lspec-cm-start
-        - @ref SNSCMDLD-lspec-cm-start-cp-create
      - @ref SNSCMDLD-lspec-cm-data-next
      - @ref SNSCMDLD-lspec-cm-sliding-window
      - @ref SNSCMDLD-lspec-cm-stop
@@ -160,9 +159,8 @@
   <hr>
   @section SNSCMDLD-lspec Logical specification
   - @ref SNSCMDLD-lspec-cm-setup
-  - @ref SNSCMDLD-lspec-cm-ready
+  - @ref SNSCMDLD-lspec-cm-prepare
   - @ref SNSCMDLD-lspec-cm-start
-     - @ref SNSCMDLD-lspec-cm-start-cp-create
   - @ref SNSCMDLD-lspec-cm-data-next
   - @ref SNSCMDLD-lspec-cm-sliding-window
   - @ref SNSCMDLD-lspec-cm-stop
@@ -193,36 +191,12 @@
   device/s. In re-balance operation the data from the spare units of the repaired
   parity groups is copied to the new device using the layout.
 
-  @subsection SNSCMDLD-lspec-cm-ready Copy machine ready
-  After creating proxies representing the remote replicas, sns copy machine
-  calculates its local sliding window (i.e lo and hi aggregation group
-  identifiers). Then for each remote replica the READY FOPs are allocated and
-  initialised with the calculated sliding window. The sns copy machine then
-  broadcasts these READY FOPs to every remote replica using the rpc connection
-  in the corresponding m0_cm_proxy. A READY FOP is a one-way fop and thus do not
-  have a reply associated with it. Once every replica receives READY FOPs from
-  all the corresponding remote replicas, the sns copy machine is ready to start
-  the repair/re-balance operation.
-  @see struct m0_cm_ready
-  @see cm_ready_post()
+  @subsection SNSCMDLD-lspec-cm-prepare Copy machine ready
+  Allocates buffers for incoming and outgoing sns copy machine buffer pools.
 
   @subsection SNSCMDLD-lspec-cm-start Copy machine startup
-  The SNS specific start routine provisions the buffer pools, viz. m0_sns_cm::
-  sc_ibp m0_sns_cm::sc_obp with SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR
-  number of buffers.
-  @note Buffer provisioning operation can block.
-
-  @subsubsection SNSCMDLD-lspec-cm-start-cp-create Copy packet create
-  Once the buffer pools are provisioned, if resources permit (e.g. if there
-  exist a free buffer in the outgoing buffer pool), Copy machine creates and
-  initialises copy packets. Then by invoking m0_cm_data_next(), a copy packet is
-  assigned an aggregation group and stobid. Once the copy packet is ready, an
-  empty buffer is fetched from the outgoing buffer pool and attached to the copy
-  packet (m0_cm_cp::c_data). Copy packet FOM (m0_cm_cp::c_fom) is then submitted
-  to the request handler for further processing. Copy packets are created during
-  startup and during finalisation of another completed copy packet.
-
-  @see @ref CPDLD "Copy Packet DLD" for more details.
+  Starts and initialises sns copy machine data iterator.
+  @see m0_sns_cm_iter_start()
 
   @subsection SNSCMDLD-lspec-cm-data-next Copy machine data iterator
   SNS copy machine implements an iterator to efficiently select next data to
@@ -596,7 +570,7 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 	return rc;
 }
 
-M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
+M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm      *scm = cm2sns(cm);
 	int                    bufs_nr;

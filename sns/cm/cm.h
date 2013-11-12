@@ -216,7 +216,7 @@ M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm);
 
 M0_INTERNAL struct m0_cm_cp *m0_sns_cm_cp_alloc(struct m0_cm *cm);
 
-M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm);
+M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm);
 
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm);
 

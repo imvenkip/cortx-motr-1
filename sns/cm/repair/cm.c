@@ -59,7 +59,7 @@ static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
 	return cp;
 }
 
-static int repair_cm_ready(struct m0_cm *cm)
+static int repair_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
 	int               rc;
@@ -72,7 +72,7 @@ static int repair_cm_ready(struct m0_cm *cm)
 	if (rc != 0)
 		return rc;
 	scm->sc_helpers = &repair_helpers;
-	return m0_sns_cm_ready(cm);
+	return m0_sns_cm_prepare(cm);
 }
 
 static int repair_cm_stop(struct m0_cm *cm)
@@ -146,7 +146,7 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 /** Copy machine operations. */
 const struct m0_cm_ops sns_repair_ops = {
 	.cmo_setup               = m0_sns_cm_setup,
-	.cmo_ready               = repair_cm_ready,
+	.cmo_prepare             = repair_cm_prepare,
 	.cmo_start               = m0_sns_cm_start,
 	.cmo_ag_alloc            = m0_sns_cm_repair_ag_alloc,
 	.cmo_cp_alloc            = repair_cm_cp_alloc,

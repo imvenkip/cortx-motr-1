@@ -109,7 +109,15 @@ M0_INTERNAL void m0_cm_sw_update_init(void);
  */
 M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm);
 
+/**
+ * Starts sliding window update FOM by submitting the corresponding FOM to
+ * request handler.
+ */
 M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm);
+
+/**
+ * Wakes up the FOM iff it is idle.
+ */
 M0_INTERNAL void m0_cm_sw_update_continue(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_sw_update_stop(struct m0_cm *cm);
 
