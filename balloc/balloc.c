@@ -525,12 +525,11 @@ static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
 		sizeof(struct m0_balloc_group_desc), &cred);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
-	/* XXX error handling is missing here */
-
-	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
-		rc = balloc_group_write(bal, &tx, i);
-
-	m0_be_tx_close_sync(&tx);
+	if (rc == 0) {
+		for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
+			rc = balloc_group_write(bal, &tx, i);
+		m0_be_tx_close_sync(&tx);
+	}
 	m0_be_tx_fini(&tx);
 
 	M0_RETURN(rc);
@@ -2108,8 +2107,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 	rc = balloc_init_internal(mero, db, grp, bshift, container_size,
 				     blocks_per_group, res_groups);
 
-	M0_LEAVE();
-	return rc;
+	M0_RETURN(rc);
 }
 
 static void balloc_fini(struct m0_ad_balloc *ballroom)
