@@ -7,7 +7,7 @@ mount_m0t1fs()
 	fi
 
 	local m0t1fs_mount_dir=$1
-	local stride_size=`expr $2 \* 1024`
+	local unit_size=`expr $2 \* 1024`
 	local N=$3
 	local K=$4
 	local P=$5
@@ -51,7 +51,7 @@ mount_m0t1fs()
 	      [4: "pool_width=$P",
 		  "nr_data_units=$N",
 		  "nr_parity_units=$K",
-		  "unit_size=$stride_size"],
+		  "unit_size=$unit_size"],
 	      [$((${#EP[*]} + 1)): "mds", "dlm", $IOS_NAMES])}),
   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
   ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
@@ -97,10 +97,10 @@ bulkio_test()
 	local_output=$MERO_M0T1FS_TEST_DIR/file2.data
 	m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
 	m0t1fs_file=$m0t1fs_mount_dir/file.data
-	stride_size=$1
+	unit_size=$1
 	io_counts=$2
 
-	mount_m0t1fs $m0t1fs_mount_dir $stride_size $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	mount_m0t1fs $m0t1fs_mount_dir $unit_size $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Creating local input file of I/O size ..."
 	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -187,10 +187,10 @@ io_combinations()
 	# Since current I/O supports full stripe I/O,
 	# I/O sizes are multiple of stripe size
 
-	# stripe unit (stride) size in K
-	for stride_size in 4 8 16 32 64 128 256 512 1024
+	# stripe unit size in K
+	for unit_size in 4 8 16 32 64 128 256 512 1024
 	do
-	    stripe_size=`expr $stride_size '*' $data_units`
+	    stripe_size=`expr $unit_size '*' $data_units`
 
 	    for io_size in 1 2 4 8
 	    do
@@ -198,7 +198,7 @@ io_combinations()
 		io_size=${io_size}K
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 1... "
-		bulkio_test $stride_size 1 &>> $MERO_TEST_LOGFILE
+		bulkio_test $unit_size 1 &>> $MERO_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -208,7 +208,7 @@ io_combinations()
 		# Multiple I/Os
 		echo -n "Test: I/O for stripe = ${stripe_size}K," \
 		     "bs = $io_size, count = 2... "
-		bulkio_test $stride_size 2 &>> $MERO_TEST_LOGFILE
+		bulkio_test $unit_size 2 &>> $MERO_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -335,21 +335,21 @@ file_creation_test()
 
 rmw_test()
 {
-	for stride_size in 4 8 16 32
+	for unit_size in 4 8 16 32
 	do
 		for io in 1 2 3 4 5 15 16 17 32
 		do
 			io_size=${io}K
-			echo -n "IORMW Test: I/O for stride ="\
-			     "${stride_size}K, bs = $io_size, count = 1... "
-			bulkio_test $stride_size 1 &>> $MERO_TEST_LOGFILE ||
+			echo -n "IORMW Test: I/O for unit ="\
+			     "${unit_size}K, bs = $io_size, count = 1... "
+			bulkio_test $unit_size 1 &>> $MERO_TEST_LOGFILE ||
 				return 1
 			show_write_speed
 
 			# Multiple I/O
-			echo -n "IORMW Test: I/O for stride ="\
-			   "${stride_size}K, bs = $io_size, count = 2... "
-			bulkio_test $stride_size 2 &>> \
+			echo -n "IORMW Test: I/O for unit ="\
+			   "${unit_size}K, bs = $io_size, count = 2... "
+			bulkio_test $unit_size 2 &>> \
 			      $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
