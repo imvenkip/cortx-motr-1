@@ -188,7 +188,7 @@ io_combinations()
 	# I/O sizes are multiple of stripe size
 
 	# stripe unit size in K
-	for unit_size in 4 8 16 32 64 128 256 512 1024
+	for unit_size in 4 8 16 32 64 128 256 512 1024 2048 4096 8192
 	do
 	    stripe_size=`expr $unit_size '*' $data_units`
 
