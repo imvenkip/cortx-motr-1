@@ -404,7 +404,7 @@ static int m0_md_rename(struct m0_mdstore   *md,
 	/*
 	 * Update attributes of source and target.
 	 */
-	if (m0_fid_eq(&scob->co_file.fi_fid, &tcob->co_file.fi_fid)) {
+	if (m0_fid_eq(m0_cob_fid(scob), m0_cob_fid(tcob))) {
 		if (tcob->co_nsrec.cnr_nlink > 0)
 			rc = m0_mdstore_setattr(md, tcob, tattr, tx);
 	} else {
@@ -743,7 +743,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "m0_mdstore_lookup() failed with %d", rc);
 		goto out;
 	}
-	tfid = cob->co_file.fi_fid;
+	tfid = *m0_cob_fid(cob);
 	m0_cob_put(cob);
 
 	M0_LOG(M0_DEBUG, "Found object [%lx:%lx] go for getattr",
@@ -764,8 +764,8 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 		m0_md_cob_mem2wire(&rep->l_body, &attr);
 	} else {
 		M0_LOG(M0_DEBUG, "Getattr on object [%lx:%lx] failed with %d",
-		       cob->co_file.fi_fid.f_container,
-		       cob->co_file.fi_fid.f_key, rc);
+		       m0_cob_fid(cob)->f_container, m0_cob_fid(cob)->f_key,
+		       rc);
 	}
 out:
 	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
@@ -895,7 +895,7 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
                 goto out;
         }
 
-        rc = m0_cob_eakey_make(&eakey, &cob->co_file.fi_fid,
+        rc = m0_cob_eakey_make(&eakey, m0_cob_fid(cob),
 			       (char *)req->g_key.s_buf,
                                req->g_key.s_len);
         if (rc != 0) {
@@ -983,7 +983,7 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
                 goto out;
         }
 
-        rc = m0_cob_eakey_make(&eakey, &cob->co_file.fi_fid,
+        rc = m0_cob_eakey_make(&eakey, m0_cob_fid(cob),
 			       (char *)req->s_key.s_buf,
                                req->s_key.s_len);
         if (rc != 0) {
@@ -1060,7 +1060,7 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
                 goto out;
         }
 
-        rc = m0_cob_eakey_make(&eakey, &cob->co_file.fi_fid,
+        rc = m0_cob_eakey_make(&eakey, m0_cob_fid(cob),
 			       (char *)req->d_key.s_buf,
                                req->d_key.s_len);
         if (rc != 0) {

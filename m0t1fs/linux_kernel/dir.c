@@ -160,15 +160,20 @@ static void body_mem2wire(struct m0_fop_cob *body,
 
    XXX temporary.
  */
-static struct m0_fid m0t1fs_fid_alloc(struct m0t1fs_sb *csb)
+struct m0_fid *m0t1fs_fid_alloc(struct m0t1fs_sb *csb)
 {
-	struct m0_fid fid;
+	struct m0_fid *fid;
 
 	M0_PRE(m0t1fs_fs_is_locked(csb));
-	m0_fid_set(&fid, 0, csb->csb_next_key++);
 
-	M0_LOG(M0_INFO, "fid <%llu:%llu>", (unsigned long long)fid.f_container,
-					   (unsigned long long)fid.f_key);
+	M0_ALLOC_PTR(fid);
+	if (fid == NULL)
+		return NULL;
+	m0_fid_set(fid, 0, csb->csb_next_key++);
+
+	M0_LOG(M0_DEBUG, "fid <%llu:%llu>",
+		(unsigned long long)fid->f_container,
+		(unsigned long long)fid->f_key);
 	return fid;
 }
 
@@ -187,7 +192,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
 		    dentry->d_name.len);
 	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
@@ -215,7 +220,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
 		    dentry->d_name.len);
 	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
@@ -257,7 +262,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
 		    dentry->d_name.len);
 	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
@@ -282,20 +287,22 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0t1fs_inode      *ci;
 	struct m0t1fs_mdop        mo;
 	struct inode             *inode;
-	struct m0_fid             fid;
+	struct m0_fid            *fid;
 	int                       rc;
 
 	M0_ENTRY();
 	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu[%llu:%llu]",
 	       dentry->d_name.name, dir->i_ino,
-	       M0T1FS_I(dir)->ci_flock.fi_fid.f_container,
-	       M0T1FS_I(dir)->ci_flock.fi_fid.f_key);
+	       m0t1fs_inode_fid(M0T1FS_I(dir))->f_container,
+	       m0t1fs_inode_fid(M0T1FS_I(dir))->f_key);
 
 	/* new_inode() will call m0t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
-	if (inode == NULL) {
-		M0_LEAVE("rc: %d", -ENOMEM);
-		return -ENOMEM;
+	fid   = m0t1fs_fid_alloc(csb);
+	if (inode == NULL || fid == NULL) {
+		m0_free(fid);
+		m0_free(inode);
+		M0_RETURN(-ENOMEM);
 	}
 
 	m0t1fs_fs_lock(csb);
@@ -320,9 +327,8 @@ static int m0t1fs_create(struct inode     *dir,
 	}
 
 	ci                  = M0T1FS_I(inode);
-	fid                 = m0t1fs_fid_alloc(csb);
 	ci->ci_layout_id    = csb->csb_layout_id; /* layout id for new file */
-	m0t1fs_file_lock_init(ci, csb, &fid);
+	m0t1fs_file_lock_init(ci, csb, fid);
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
@@ -339,8 +345,8 @@ static int m0t1fs_create(struct inode     *dir,
 	mo.mo_attr.ca_mtime     = inode->i_mtime.tv_sec;
 	mo.mo_attr.ca_mode      = inode->i_mode;
 	mo.mo_attr.ca_blocks    = inode->i_blocks;
-	mo.mo_attr.ca_pfid      = M0T1FS_I(dir)->ci_flock.fi_fid;
-	mo.mo_attr.ca_tfid      = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_pfid      = *m0t1fs_inode_fid(M0T1FS_I(dir));
+	mo.mo_attr.ca_tfid      = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_lid       = ci->ci_layout_id;
 	mo.mo_attr.ca_nlink     = inode->i_nlink;
 	mo.mo_attr.ca_valid     = (M0_COB_UID    | M0_COB_GID   | M0_COB_ATIME |
@@ -367,6 +373,7 @@ static int m0t1fs_create(struct inode     *dir,
 	M0_LEAVE("rc: 0");
 	return 0;
 out:
+	m0t1fs_file_lock_fini(ci);
 	inode_dec_link_count(inode);
 	m0t1fs_fs_unlock(csb);
 	iput(inode);
@@ -407,10 +414,9 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_pfid = M0T1FS_I(dir)->ci_flock.fi_fid;
+	mo.mo_attr.ca_pfid = *m0t1fs_inode_fid(M0T1FS_I(dir));
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
 		    dentry->d_name.len);
-
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &rep);
 	if (rc == 0) {
 		mo.mo_attr.ca_tfid = rep->l_body.b_tfid;
@@ -513,7 +519,7 @@ static int m0t1fs_readdir(struct file *f,
 	 */
 	m0_buf_init(&mo.mo_attr.ca_name, m0_bitstring_buf_get(fd->fd_dirpos),
 		    m0_bitstring_len_get(fd->fd_dirpos));
-	mo.mo_attr.ca_tfid = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 
 	m0t1fs_fs_lock(csb);
 
@@ -612,8 +618,8 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 
 	M0_SET0(&mo);
 	now = CURRENT_TIME_SEC;
-	mo.mo_attr.ca_pfid  = M0T1FS_I(dir)->ci_flock.fi_fid;
-	mo.mo_attr.ca_tfid  = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_pfid  = *m0t1fs_inode_fid(M0T1FS_I(dir));
+	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_nlink = inode->i_nlink + 1;
 	mo.mo_attr.ca_ctime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_NLINK);
@@ -662,8 +668,8 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	M0_SET0(&mo);
 	now = CURRENT_TIME_SEC;
-	mo.mo_attr.ca_pfid  = M0T1FS_I(dir)->ci_flock.fi_fid;
-	mo.mo_attr.ca_tfid  = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_pfid  = *m0t1fs_inode_fid(M0T1FS_I(dir));
+	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_nlink = inode->i_nlink - 1;
 	mo.mo_attr.ca_ctime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_NLINK | M0_COB_CTIME);
@@ -690,7 +696,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	/** Update ctime and mtime on parent dir. */
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid  = M0T1FS_I(dir)->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(M0T1FS_I(dir));
 	mo.mo_attr.ca_ctime = now.tv_sec;
 	mo.mo_attr.ca_mtime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_MTIME);
@@ -746,7 +752,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid  = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 
 	/**
 	   TODO: When we have dlm locking working, this will be changed to
@@ -813,7 +819,7 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid   = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = newsize;
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
 
@@ -850,7 +856,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	m0t1fs_fs_lock(csb);
 
 	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid = ci->ci_flock.fi_fid;
+	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 
 	if (attr->ia_valid & ATTR_CTIME) {
 		mo.mo_attr.ca_ctime = attr->ia_ctime.tv_sec;
@@ -918,17 +924,17 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 	struct m0_layout_enum *le;
 	struct m0_fid          fid;
 
-	M0_PRE(ci->ci_flock.fi_fid.f_container == 0);
+	M0_PRE(m0t1fs_inode_fid(ci)->f_container == 0);
 	M0_PRE(ci->ci_layout_instance != NULL);
 	M0_PRE(index >= 0);
 
 	le = m0_layout_instance_to_enum(ci->ci_layout_instance);
 
-	m0_layout_enum_get(le, index, &ci->ci_flock.fi_fid, &fid);
+	m0_layout_enum_get(le, index, m0t1fs_inode_fid(ci), &fid);
 
 	M0_LOG(M0_DEBUG, "gob fid [%llu:%llu] @%d = cob fid [%llu:%llu]",
-	       ci->ci_flock.fi_fid.f_container, ci->ci_flock.fi_fid.f_key, index,
-	       fid.f_container, fid.f_key);
+	       m0t1fs_inode_fid(ci)->f_container, m0t1fs_inode_fid(ci)->f_key,
+	       index, fid.f_container, fid.f_key);
 
 	return fid;
 }
@@ -966,8 +972,8 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 
 	M0_LOG(M0_DEBUG, "Component object %s for [%lu:%lu]",
 		func == m0t1fs_ios_cob_create? "create" : "delete",
-		(unsigned long)ci->ci_flock.fi_fid.f_container,
-		(unsigned long)ci->ci_flock.fi_fid.f_key);
+		(unsigned long)m0t1fs_inode_fid(ci)->f_container,
+		(unsigned long)m0t1fs_inode_fid(ci)->f_key);
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	pool_width = csb->csb_pool_width;
@@ -975,11 +981,11 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 
 	for (i = 0; i < pool_width; ++i) {
 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
-		cob_idx = m0t1fs_ios_cob_idx(ci, &ci->ci_flock.fi_fid,
+		cob_idx = m0t1fs_ios_cob_idx(ci, m0t1fs_inode_fid(ci),
 					     &cob_fid);
 		M0_ASSERT(cob_idx != ~0);
 again:
-		rc = func(csb, &cob_fid, &ci->ci_flock.fi_fid, cob_idx);
+		rc = func(csb, &cob_fid, m0t1fs_inode_fid(ci), cob_idx);
 		if (rc == -EAGAIN) {
 			M0_LOG(M0_NOTICE, "Failure vector updated. Do this"
 					  " operation again");

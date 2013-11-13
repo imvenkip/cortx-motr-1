@@ -506,21 +506,38 @@ static void cob_op_credit(struct m0_fom *fom, enum m0_cob_op opcode,
 
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
+	struct m0_cob_domain *cdom;
+	m0_lsn_t	      lsn;
+	struct m0_be_tx	     *tx;
+
+	M0_PRE(fom != NULL);
+	M0_PRE(cc != NULL);
+
+	cdom = cdom_get(fom);
+	M0_ASSERT(cdom != NULL);
+
+	lsn = m0_fol_lsn_allocate(m0_fom_reqh(fom)->rh_fol);
+	tx = m0_fom_tx(fom);
+
+	return m0_cc_cob_setup(cc, cdom, lsn, tx);
+}
+
+M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
+				struct m0_cob_domain *cdom,
+				m0_lsn_t	      clsn,
+				struct m0_be_tx	     *ctx)
+{
 	int		      rc;
 	struct m0_cob	     *cob;
-	struct m0_cob_domain *cdom;
 	struct m0_cob_nskey  *nskey;
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_fabrec *fabrec;
 	struct m0_cob_omgrec  omgrec;
 
-	M0_PRE(fom != NULL);
 	M0_PRE(cc != NULL);
+	M0_PRE(cdom != NULL);
+
 	M0_SET0(&nsrec);
-
-	cdom = cdom_get(fom);
-	M0_ASSERT(cdom != NULL);
-
         rc = m0_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
@@ -545,8 +562,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 		return rc;
 	}
 
-	fabrec->cfb_version.vn_lsn =
-	             m0_fol_lsn_allocate(m0_fom_reqh(fom)->rh_fol);
+	fabrec->cfb_version.vn_lsn = clsn;
 	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
         omgrec.cor_uid = 0;
@@ -556,8 +572,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec,
-			   m0_fom_tx(fom));
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, ctx);
 	if (rc) {
 	        /*
 	         * Cob does not free nskey and fab rec on errors. We need to do

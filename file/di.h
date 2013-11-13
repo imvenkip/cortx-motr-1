@@ -66,6 +66,7 @@ enum m0_di_checksum_len {
 };
 
 enum m0_di_types {
+	M0_DI_NONE,
 	/** CRC32 checksum for block size data of 4k. */
 	M0_DI_CRC32_4K,
 	/** CRC32 checksum for block size data of 16k. */
@@ -90,7 +91,7 @@ struct m0_di_ops {
 	uint64_t    (*do_in_shift) (const struct m0_file *file);
 	/**
 	 * Shift of output block size, that is, of number of bytes of di
-	 * data (e.g., check-sum) produced by this di type for each input block.
+	 * data (e.g., checksum) produced by this di type for each input block.
 	 */
 	uint64_t    (*do_out_shift)(const struct m0_file *file);
 	/**
@@ -106,7 +107,7 @@ struct m0_di_ops {
 	 *		  tag values.
 	 */
 	void        (*do_sum)      (const struct m0_file *file,
-				    const struct m0_io_indexvec_seq *io_info,
+				    const struct m0_io_indexvec *io_info,
 				    const struct m0_bufvec *in,
 				    struct m0_bufvec *out);
 	/**
@@ -115,7 +116,7 @@ struct m0_di_ops {
 	 *		  tag values and compare with values in di data.
 	 */
 	bool        (*do_check)    (const struct m0_file *file,
-				    const struct m0_io_indexvec_seq *io_info,
+				    const struct m0_io_indexvec *io_info,
 				    const struct m0_bufvec *in,
 				    const struct m0_bufvec *out);
 };
@@ -154,16 +155,25 @@ M0_INTERNAL bool m0_md_di_chk(void *addr, m0_bcount_t nob,
 })
 
 /**
- * Computes crc32 checksum for data of length "len" and stores it in "di"
- * which is of length "nr".
+ * Computes crc32 checksum for data of length "len" and stores it in "cksum".
  *
  * @param data A block of data of size "len".
  * @param len Length of data.
- * @param di checksum to be computed is stored here.
- * @param nr Number of checksum elements or size of di data to be computed.
+ * @param cksum Checksum values to be computed are stored in it.
  */
-M0_INTERNAL void m0_crc32(const void *data, uint64_t len, uint64_t *di,
-			  uint32_t nr);
+M0_INTERNAL void m0_crc32(const void *data, uint64_t len,
+			  uint64_t *cksum);
+
+/**
+ * Compares the crc32 checksum for data of length "len" with checksum values
+ * in "cksum".
+ *
+ * @param data A block of data of size "len".
+ * @param len Length of data.
+ * @param cksum Checksum values to be verified are read from it..
+ */
+M0_INTERNAL bool m0_crc32_chk(const void *data, uint64_t len,
+			      const uint64_t *cksum);
 
 /** @} end of data_integrity */
 #endif /* __MERO_FILE_DI_H__ */

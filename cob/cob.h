@@ -509,7 +509,8 @@ struct m0_cob {
 	struct m0_stob        *co_stob;     /**< underlying storage object */
 	struct m0_ref          co_ref;      /**< refcounter for caching cobs */
 	uint64_t               co_flags;    /**< @see enum m0_cob_valid_flags */
-	struct m0_file	       co_file;     /**< object fid, ref to nsrec fid */
+	struct m0_file	       co_file;     /**< File containig fid which is
+					         reference to the nsrec fid */
 	struct m0_cob_nskey   *co_nskey;    /**< cob statdata nskey */
 	struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
@@ -883,6 +884,8 @@ M0_INTERNAL void m0_cob_ea_iterator_init_credit(struct m0_cob *cob,
 						struct m0_cob_ea_iterator *it,
 						struct m0_bitstring *name,
 						struct m0_be_tx_credit *accum);
+
+M0_INTERNAL const struct m0_fid *m0_cob_fid(const struct m0_cob *cob);
 
 /**
    Module initializer.

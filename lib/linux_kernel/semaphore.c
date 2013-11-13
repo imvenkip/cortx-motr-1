@@ -72,7 +72,6 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 	unsigned long reljiffies;
 	struct timespec ts;
 
-	M0_LOG(M0_DEBUG, "tmo=%lld", (long long)(abs_timeout - nowtime));
 	/* same semantics as user_space semaphore: allow abs_time < now */
 	if (abs_timeout > nowtime)
 		reltime = m0_time_sub(abs_timeout, nowtime);

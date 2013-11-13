@@ -356,10 +356,6 @@ MERO_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid.])
 AC_SUBST([UUID_LIBS])
 
-MERO_SEARCH_LIBS([crc32], [z c], [ZLIBS],
-	[crc32 cannot be found! Try to install libz.])
-AC_SUBST([ZLIBS])
-
 #
 # Checking for required header files
 #
@@ -703,7 +699,6 @@ echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "DB_LIBS      :  \"$DB_LIBS\""
 echo "UUID_LIBS    :  \"$UUID_LIBS\""
-echo "ZLIBS        :  \"$ZLIBS\""
 echo ""
 echo "Linux kernel :  \"$LINUX_OBJ\""
 echo "Lustre       :  \"$LUSTRE\""

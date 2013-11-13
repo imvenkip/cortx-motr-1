@@ -156,7 +156,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
 	if (rc == 0) {
-		M0_ASSERT(m0_fid_eq(cob_fid, &cob->co_file.fi_fid));
+		M0_ASSERT(m0_fid_eq(cob_fid, m0_cob_fid(cob)));
 		m0_cob_put(cob);
 	}
 

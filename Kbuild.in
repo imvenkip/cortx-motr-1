@@ -99,6 +99,7 @@ include $(src)/be/Kbuild.sub
 utils/linux_kernel/m0ut-y = utils/linux_kernel/m0ut_main.o \
                             $(m0ut_objects) \
                             $(filter-out addb/addb.o \
+                                         file/di.o \
                                          m0t1fs/linux_kernel/file.o \
                                          net/bulk_emulation/mem_xprt_xo.o \
                                          net/lnet/lnet_main.o \
@@ -110,6 +111,7 @@ m0ut_objects :=
 
 include $(src)/addb/ut/Kbuild.sub
 include $(src)/fop/ut/Kbuild.sub
+include $(src)/file/ut/Kbuild.sub
 include $(src)/dtm/ut/Kbuild.sub
 include $(src)/ioservice/ut/Kbuild.sub
 include $(src)/layout/ut/Kbuild.sub

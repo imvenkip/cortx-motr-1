@@ -759,6 +759,19 @@ M0_INTERNAL int m0_bufvec_to_data_copy(struct m0_bufvec_cursor *cur, void *data,
 	return 0;
 }
 
+M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info)
+{
+	int	    i;
+	m0_bcount_t count;
+
+	M0_PRE(io_info != NULL);
+
+	for (count = 0, i = 0; i < io_info->ci_nr; ++i)
+		count += io_info->ci_iosegs[i].ci_count;
+
+	return count;
+}
+
 /** @} end of vec group */
 
 /*

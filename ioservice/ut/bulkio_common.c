@@ -25,6 +25,7 @@
 #include "rpc/rpclib.h"     /* m0_rpc_client_start */
 #include "ut/cs_service.h"  /* ds1_service_type */
 #include "net/lnet/lnet.h"
+#include "file/file.h"
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"
@@ -162,11 +163,13 @@ void bulkio_server_stop(struct m0_rpc_server_ctx *sctx)
 static void io_fids_init(struct bulkio_params *bp)
 {
 	int i;
+	struct m0_fid gfid = M0_COB_SLASH_FID;
 
 	M0_ASSERT(bp != NULL);
 	/* Populates fids. */
 	for (i = 0; i < IO_FIDS_NR; ++i)
-	        m0_fid_set(&bp->bp_fids[i], i, i);
+	        m0_fid_set(&bp->bp_fids[i], gfid.f_container + i,
+			gfid.f_key + i);
 }
 
 static void io_buffers_allocate(struct bulkio_params *bp)
@@ -396,6 +399,11 @@ void bulkio_params_init(struct bulkio_params *bp)
 
 	bp->bp_rfops = NULL;
 	bp->bp_wfops = NULL;
+
+	m0_rm_domain_init(&bp->bp_rdom);
+	rc = m0_file_lock_type_register(&bp->bp_rdom);
+	M0_ASSERT(rc == 0);
+
 }
 
 void bulkio_params_fini(struct bulkio_params *bp)
@@ -425,6 +433,10 @@ void bulkio_params_fini(struct bulkio_params *bp)
 
 	m0_free(bp->bp_cdbname);
 	m0_free(bp->bp_slogfile);
+	for (i = 0; i < IO_FIDS_NR; ++i)
+		m0_file_fini(&bp->bp_file[i]);
+	m0_file_lock_type_deregister();
+	m0_rm_domain_fini(&bp->bp_rdom);
 }
 
 int bulkio_client_start(struct bulkio_params *bp, const char *caddr,

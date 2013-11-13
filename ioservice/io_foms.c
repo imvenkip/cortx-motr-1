@@ -850,6 +850,31 @@ M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
         m0_fid_set(out, in->si_bits.u_hi, in->si_bits.u_lo);
 }
 
+static struct m0_file *io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid)
+{
+	int			   rc;
+	struct m0_cob		  *cob;
+	struct m0_cob_oikey	   oikey;
+	struct m0_cob_domain	  *cob_dom;
+	struct m0_reqh_io_service *ios;
+
+	M0_PRE(fom != NULL);
+	M0_PRE(m0_fid_is_set(fid));
+
+	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
+			   rios_gen);
+	cob_dom = ios->rios_cdom;
+	if (cob_dom == NULL)
+		return NULL;
+
+	m0_cob_oikey_make(&oikey, fid, 0);
+	rc = m0_cob_locate(cob_dom, &oikey, M0_CA_NSKEY_FREE, &cob);
+	if (rc < 0 || cob == NULL)
+		return NULL;
+
+	return &cob->co_file;
+}
+
 /**
  * Function to convert the on-wire indexvec to in-memory indexvec format.  Since
  * m0_io_indexvec (on-wire structure) and m0_indexvec (in-memory structures are
@@ -1546,6 +1571,7 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_net_buffer    *nb;
 	struct m0_fop_cob_rw	*rwfop;
+	struct m0_file		*file;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1563,6 +1589,11 @@ static int io_launch(struct m0_fom *fom)
 	rc = stob_object_find(fom);
 	if (rc != 0)
 		goto cleanup;
+
+	file = io_fom_cob2file(fom, &rwfop->crw_fid);
+	if (file == NULL)
+		goto cleanup;
+
 	/*
 	  Since the upper layer IO block size could differ with IO block size
 	  of storage object, the block alignment and mapping is necessary.
@@ -1581,7 +1612,11 @@ static int io_launch(struct m0_fom *fom)
 		struct m0_stob_io      *stio;
 		struct m0_io_indexvec   wire_ivec;
 		m0_bcount_t             ivec_count;
+		uint32_t		index;
+		struct m0_buf	       *di_buf;
+		struct m0_bufvec	cksum_data;
 
+		index = fom_obj->fcrw_curr_ivec_index++;
 		IOS_ALLOC_PTR(stio_desc, &m0_ios_addb_ctx, IO_LAUNCH_2);
 		if (stio_desc == NULL) {
 			rc = -ENOMEM;
@@ -1596,8 +1631,7 @@ static int io_launch(struct m0_fom *fom)
 		stio->si_fol_rec_part = &stio_desc->siod_fol_rec_part;
 
 		mem_ivec = &stio->si_stob;
-		wire_ivec =
-		    rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
+		wire_ivec = rwfop->crw_ivecs.cis_ivecs[index];
 		rc = indexvec_wire2mem(fom, &wire_ivec, mem_ivec,
 				       fom_obj->fcrw_bshift);
                 if (rc != 0) {
@@ -1629,6 +1663,17 @@ static int io_launch(struct m0_fom *fom)
                         break;
                 }
 
+                if (m0_is_write_fop(fop)) {
+			di_buf = &rwfop->crw_di_data.id_buf[index];
+			if (di_buf != NULL) {
+				cksum_data = (struct m0_bufvec)
+					M0_BUFVEC_INIT_BUF(&di_buf->b_addr,
+							   &di_buf->b_nob);
+				M0_ASSERT(file->fi_di_ops->do_check(file,
+					&wire_ivec, &nb->nb_buffer,
+					&cksum_data));
+			}
+		}
                 stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 
                 stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
@@ -1642,6 +1687,7 @@ static int io_launch(struct m0_fom *fom)
 		       fom_obj->fcrw_req_count, fom_obj->fcrw_count,
 		       m0_vec_count(&stio->si_user.ov_vec), ivec_count);
 		fom_obj->fcrw_io_launch_time = m0_time_now();
+
                 rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
 				       &fom->fo_tx, NULL);
                 if (rc != 0) {
@@ -1867,6 +1913,13 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
+		/*
+		 * Not putting di data in the fol record as fol size becomes
+		 * larger with increase in io size.
+		 */
+		m0_free(rwfop->crw_di_data.id_buf);
+		rwfop->crw_di_data.id_nr = 0;
+		rwfop->crw_di_data.id_buf = NULL;
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,

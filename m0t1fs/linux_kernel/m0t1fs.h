@@ -766,6 +766,11 @@ M0_INTERNAL int m0t1fs_removexattr(struct dentry *dentry, const char *name);
 M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer,
 				     size_t size);
 
+M0_INTERNAL const struct m0_fid *
+		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
+
+struct m0_fid *m0t1fs_fid_alloc(struct m0t1fs_sb *csb);
+
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 
 /*

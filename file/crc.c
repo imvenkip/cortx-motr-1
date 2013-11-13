@@ -18,11 +18,6 @@
  * Original creation date: 01/07/2013
  */
 
-#ifndef __KERNEL__
-#include <zlib.h>
-#else
-#include <linux/crc32.h>
-#endif
 #include "lib/misc.h"
 
 /**
@@ -31,16 +26,79 @@
    @{
  */
 
-static uint32_t crc32_cksum(uint32_t crc, const void *data, uint64_t len);
 static uint64_t md_crc32_cksum(void *data, uint64_t len, uint64_t *cksum);
 
-M0_INTERNAL void m0_crc32(const void *data, uint64_t len, uint64_t *di,
-			  uint32_t nr)
-{
-	M0_PRE(di != NULL);
-	M0_PRE(nr > 0);
+/**
+ * Table-driven implementaion of crc32.
+ * CRC table is generated during first crc operation which contains the all
+ * possible crc values for the byte of data. These values are used to
+ * compute CRC for the all the bytes of data in the block of given length.
+ *
+ * This algorithm is implemented based on the guide at follwoing link,
+ * @see http://www.repairfaq.org/filipg/LINK/F_crc_v3.html
+ */
 
-	di[0] = crc32(~0, data, len);
+#define CRC_POLY	0x04C11DB7
+#define CRC_WIDTH	32
+#define CRC_SLICE_SIZE	8
+#define CRC_TABLE_SIZE	256
+
+uint32_t crc_table[CRC_TABLE_SIZE];
+static bool is_table = false;
+
+static void crc_mktable(void)
+{
+	int	 i;
+	int	 j;
+	uint32_t hibit = M0_BITS(CRC_WIDTH - 1);
+	uint32_t crc;
+
+	for (i = 0; i < CRC_TABLE_SIZE; i++) {
+		crc = (uint32_t)i <<  (CRC_WIDTH - CRC_SLICE_SIZE);
+		for(j = 0; j < CRC_SLICE_SIZE; j++) {
+			crc <<= 1;
+			if (crc &  hibit)
+				crc ^= CRC_POLY;
+		}
+		crc_table[i] = crc;
+	}
+}
+
+uint32_t crc32(uint32_t crc, unsigned char const *data, m0_bcount_t len)
+{
+	M0_PRE(data != NULL);
+	M0_PRE(len > 0);
+
+	if (!is_table) {
+		crc_mktable();
+		is_table = true;
+	}
+
+	while (len--)
+		crc = ((crc << CRC_SLICE_SIZE) | *data++) ^
+			crc_table[crc >> (CRC_WIDTH - CRC_SLICE_SIZE) & 0xFF];
+
+	return crc;
+}
+
+M0_INTERNAL void m0_crc32(const void *data, uint64_t len,
+			  uint64_t *cksum)
+{
+	M0_PRE(data != NULL);
+	M0_PRE(len > 0);
+	M0_PRE(cksum != NULL);
+
+	cksum[0] = crc32(~0, data, len);
+}
+
+M0_INTERNAL bool m0_crc32_chk(const void *data, uint64_t len,
+			      const uint64_t *cksum)
+{
+	M0_PRE(data != NULL);
+	M0_PRE(len > 0);
+	M0_PRE(cksum != NULL);
+
+	return cksum[0] == (uint64_t) crc32(~0, data, len);
 }
 
 static void md_crc32_cksum_set(void *data, uint64_t len, uint64_t *cksum)
@@ -54,24 +112,15 @@ static uint64_t md_crc32_cksum(void *data, uint64_t len, uint64_t *cksum)
 	uint64_t old_cksum = *cksum;
 
 	*cksum = 0;
-	crc = crc32_cksum(crc, data, len);
+	crc = crc32(crc, data, len);
 	*cksum = old_cksum;
 
 	return crc;
 }
 
-static uint32_t crc32_cksum(uint32_t crc, const void *data, uint64_t len)
-{
-	return crc32(crc, data, len);
-}
-
 static bool md_crc32_cksum_check(void *data, uint64_t len, uint64_t *cksum)
 {
-	uint64_t new_cksum;
-
-	new_cksum = md_crc32_cksum(data, len, cksum);
-
-	return *cksum == new_cksum;
+	return *cksum == md_crc32_cksum(data, len, cksum);
 }
 
 /** @} end of data_integrity */

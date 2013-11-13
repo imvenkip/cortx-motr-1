@@ -25,6 +25,11 @@
 #include "ioservice/io_fops.h"	/* m0_io_fop */
 #include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
 #include "net/lnet/lnet.h"
+#include "file/file.h"
+
+#ifdef __KERNEL__
+#include "m0t1fs/linux_kernel/m0t1fs.h"
+#endif
 
 enum {
 	IO_SINGLE_BUFFER	= 1,
@@ -143,11 +148,23 @@ static void bulkclient_test(void)
 	enum m0_net_queue_type	 q;
 	struct bulkio_msg_tm    *ctm;
 	struct bulkio_msg_tm    *stm;
+	struct m0_rm_domain     *rm_dom;
+	struct m0_file           file;
 
 	M0_ALLOC_PTR(iofop);
 	M0_ASSERT(iofop != NULL);
 	M0_SET0(iofop);
 	M0_SET0(&nd);
+
+#ifndef __KERNEL__
+	M0_ALLOC_PTR(rm_dom);
+	M0_ASSERT(rm_dom != NULL);
+	m0_rm_domain_init(rm_dom);
+	rc = m0_file_lock_type_register(rm_dom);
+	M0_ASSERT(rc == 0);
+#else
+	rm_dom = m0t1fs_rmsvc_domain_get();
+#endif
 
 	xprt = &m0_net_lnet_xprt;
 	rc = m0_net_domain_init(&nd, xprt, &m0_addb_proc_ctx);
@@ -155,6 +172,9 @@ static void bulkclient_test(void)
 
 	fid.f_container = 1;
 	fid.f_key       = 4;
+	M0_SET0(&file);
+	m0_file_init(&file, &fid, rm_dom, M0_DI_NONE);
+
 	/* Test : m0_io_fop_init() */
 	rc = m0_io_fop_init(iofop, &fid, &m0_fop_cob_writev_fopt, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -390,6 +410,12 @@ static void bulkclient_test(void)
 	m0_io_fop_fini(iofop);
 	m0_free(iofop);
 	m0_net_domain_fini(&nd);
+	m0_file_fini(&file);
+#ifndef __KERNEL__
+	m0_file_lock_type_deregister();
+	m0_rm_domain_fini(rm_dom);
+	m0_free(rm_dom);
+#endif
 }
 
 const struct m0_test_suite bulkio_client_ut = {

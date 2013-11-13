@@ -104,6 +104,9 @@ struct bulkio_params {
 	struct m0_rpc_server_ctx	 *bp_sctx;
 
 	struct m0_net_xprt		 *bp_xprt;
+
+	struct m0_rm_domain		 bp_rdom;
+	struct m0_file			 bp_file[IO_FIDS_NR];
 };
 
 /* A structure used to pass as argument to io threads. */

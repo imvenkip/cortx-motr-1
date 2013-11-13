@@ -183,7 +183,7 @@ struct m0_io_fop {
    @post io_fop_invariant(iofop)
  */
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
-		               struct m0_fid *gfid,
+		               const struct m0_fid *gfid,
 			       struct m0_fop_type *ftype,
 			       void (*fop_release)(struct m0_ref *));
 
@@ -296,6 +296,14 @@ M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop);
 struct m0_io_descs {
 	uint32_t                id_nr;
 	struct m0_net_buf_desc *id_descs;
+} M0_XCA_SEQUENCE;
+
+/**
+ * Contains data-integrity values for the data represented by iofop.
+ */
+struct m0_io_di_data {
+	uint32_t       id_nr;
+	struct m0_buf *id_buf;
 } M0_XCA_SEQUENCE;
 
 /**
@@ -413,7 +421,7 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 
 	/** Checksum and tag values for the input data blocks. */
-	struct m0_buf		  crw_di_data;
+	struct m0_io_di_data	  crw_di_data;
 } M0_XCA_RECORD;
 
 /**

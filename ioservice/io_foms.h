@@ -172,13 +172,13 @@ struct m0_io_fom_cob_rw {
 	/** Generic m0_fom object. */
         struct m0_fom                    fcrw_gen;
         /** Number of desc io_fop desc list*/
-        int                              fcrw_ndesc;
+        uint32_t                         fcrw_ndesc;
         /** index of net buffer descriptor under process*/
-        int                              fcrw_curr_desc_index;
+        uint32_t                         fcrw_curr_desc_index;
         /** index of index vector under process */
-        int                              fcrw_curr_ivec_index;
+        uint32_t                         fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
-        int                              fcrw_batch_size;
+        uint32_t                         fcrw_batch_size;
         /** Number of bytes requested to transfer. */
         m0_bcount_t                      fcrw_req_count;
         /** Number of bytes successfully transferred. */
@@ -193,7 +193,7 @@ struct m0_io_fom_cob_rw {
 	struct m0_indexvec               fcrw_ivec;
 
         /** Number of STOB I/O launched */
-        int                              fcrw_num_stobio_launched;
+        uint32_t                         fcrw_num_stobio_launched;
         /** Pointer to buffer pool refered by FOM */
         struct m0_net_buffer_pool       *fcrw_bp;
 	/** Stob object on which this FOM is acting. */

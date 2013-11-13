@@ -350,8 +350,6 @@ M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
 {
 	M0_ENTRY("res-type: %p resource : %p", rtype, res);
 
-	M0_PRE(!m0_mutex_is_locked(&rtype->rt_lock));
-
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE(resource_type_invariant(rtype));
 	M0_PRE(res->r_ref == 0);

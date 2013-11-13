@@ -552,6 +552,8 @@ struct m0_io_indexvec_seq {
 	struct m0_io_indexvec *cis_ivecs;
 } M0_XCA_SEQUENCE;
 
+M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info);
+
 /** @} end of vec group */
 
 /* __MERO_LIB_VEC_H__ */

@@ -86,12 +86,11 @@ static void fl_rtype_unset(struct rm_ut_data *self)
 static void fl_res_set(struct rm_ut_data *self)
 {
 	struct m0_file *flock;
-	struct m0_fid   fid;
 
 	M0_ALLOC_PTR(flock);
 	M0_UT_ASSERT(flock != NULL);
-	m0_fid_set(&fid, 1, 0);
-	m0_file_init(flock, &fid, &self->rd_dom, 0);
+	m0_fid_set(&self->rd_fid, 1, 0);
+	m0_file_init(flock, &self->rd_fid, &self->rd_dom, 0);
 	self->rd_res = &flock->fi_res;
 }
 

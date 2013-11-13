@@ -103,7 +103,9 @@ struct rm_ut_data {
 	struct m0_rm_incoming	     rd_in;
 	struct m0_rm_credit	     rd_credit;
 	const struct rm_ut_data_ops *rd_ops;
+	struct m0_fid		     rd_fid;
 };
+
 
 /*
  * RM server context. It lives inside a thread in this test.

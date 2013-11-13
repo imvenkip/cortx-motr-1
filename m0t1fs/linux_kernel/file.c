@@ -396,9 +396,9 @@ static inline struct m0t1fs_inode *file_to_m0inode(struct file *file)
 	return M0T1FS_I(file_to_inode(file));
 }
 
-static inline struct m0_fid *file_to_fid(struct file *file)
+static inline const struct m0_fid *file_to_fid(struct file *file)
 {
-	return &file_to_m0inode(file)->ci_flock.fi_fid;
+	return file_to_m0inode(file)->ci_flock.fi_fid;
 }
 
 static inline struct m0t1fs_sb *file_to_sb(struct file *file)
@@ -4874,6 +4874,16 @@ static inline uint32_t io_seg_size(void)
 	return sizeof(struct m0_ioseg);
 }
 
+static inline uint32_t io_di_size(const struct io_request *req)
+{
+	struct m0_file *file;
+
+	file = m0_resource_to_file(file_to_fid(req->ir_file));
+	if (file->fi_di_ops->do_out_shift(file) == 0)
+		return 0;
+	return file->fi_di_ops->do_out_shift(file) * M0_DI_ELEMENT_SIZE;
+}
+
 static int bulk_buffer_add(struct io_req_fop	   *irfop,
 			   struct m0_net_domain	   *dom,
 			   struct m0_rpc_bulk_buf **rbuf,
@@ -5034,7 +5044,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			 */
 			if (pattr[buf] & rw && pattr[buf] & filter) {
 
-				delta += io_seg_size();
+				delta += io_seg_size() + io_di_size(req);
 
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
 						bvec->ov_buf[buf],
@@ -5053,7 +5063,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bbsegs;
 					bbsegs = 0;
 
-					delta -= io_seg_size();
+					delta -= io_seg_size() - io_di_size(req);
 					rc     = bulk_buffer_add(irfop, ndom,
 							&rbuf, &delta, maxsize);
 					if (rc == -ENOSPC)
@@ -5082,11 +5092,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr = bbsegs;
 		rbuf->bb_zerovec.z_bvec.ov_vec.v_nr = bbsegs;
 
+		io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid = ti->ti_fid;
+
 		rc = m0_io_fop_prepare(&irfop->irf_iofop.if_fop);
 		if (rc != 0)
 			goto fini_fop;
-
-                io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid = ti->ti_fid;
 
 		M0_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
 		M0_LOG(M0_INFO, "Number of io fops = %llu",

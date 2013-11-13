@@ -1042,7 +1042,6 @@ struct io_request_ops;
 struct nw_xfer_ops;
 struct pargrp_iomap_ops;
 struct target_ioreq_ops;
-struct m0_file;
 
 enum   page_attr;
 enum   copy_direction;

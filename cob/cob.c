@@ -114,6 +114,13 @@ do {									\
 				  rc, &m0_cob_mod_ctx);			\
 } while (0)
 
+M0_INTERNAL const struct m0_fid *m0_cob_fid(const struct m0_cob *cob)
+{
+	M0_PRE(cob != NULL);
+
+	return cob->co_file.fi_fid;
+}
+
 M0_INTERNAL int m0_cob_mod_init(void)
 {
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_mod);
@@ -939,7 +946,7 @@ static int cob_ns_lookup(struct m0_cob *cob)
 		cob->co_flags |= M0_CA_NSREC;
 		M0_ASSERT(cob->co_nsrec.cnr_linkno > 0 ||
 			  cob->co_nsrec.cnr_nlink > 0);
-		M0_POST(m0_fid_is_set(&cob->co_nsrec.cnr_fid));
+		M0_POST(m0_fid_is_set(m0_cob_fid(cob)));
 	}
 	return op.bo_u.u_btree.t_rc;
 }
@@ -1035,7 +1042,7 @@ static int cob_fab_lookup(struct m0_cob *cob)
 	if (cob->co_flags & M0_CA_FABREC)
 		return 0;
 
-	fabkey.cfb_fid = cob->co_file.fi_fid;
+	fabkey.cfb_fid = *m0_cob_fid(cob);
 	rc = m0_cob_max_fabrec_make(&cob->co_fabrec);
 	if (rc != 0)
 		return rc;
@@ -1140,7 +1147,6 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 		m0_cob_put(cob);
 		return rc;
 	}
-	cob->co_file.fi_fid = cob->co_nsrec.cnr_fid;
 
 	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
@@ -1192,7 +1198,6 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 		m0_cob_put(cob);
 		M0_RETURN(rc);
 	}
-	cob->co_file.fi_fid = cob->co_nsrec.cnr_fid;
 
 	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
@@ -1214,7 +1219,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 	/*
 	 * Prepare entry key using passed started pos.
 	 */
-	rc = m0_cob_max_nskey_make(&it->ci_key, &cob->co_file.fi_fid,
+	rc = m0_cob_max_nskey_make(&it->ci_key, m0_cob_fid(cob),
 				   m0_bitstring_buf_get(name),
 				   m0_bitstring_len_get(name));
 	if (rc != 0)
@@ -1244,7 +1249,8 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 		M0_ASSERT(m0_cob_nskey_size(it->ci_key) <=
 			  m0_cob_nskey_size(key.b_addr));
 		memcpy(it->ci_key, key.b_addr, m0_cob_nskey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+		if (!m0_fid_eq(&it->ci_key->cnk_pfid,
+			       m0_cob_fid(it->ci_cob)))
 			rc = -ENOENT;
 	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
@@ -1263,7 +1269,8 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 		M0_ASSERT(m0_cob_nskey_size(it->ci_key) <=
 			  m0_cob_nskey_size(key.b_addr));
 		memcpy(it->ci_key, key.b_addr, m0_cob_nskey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+		if (!m0_fid_eq(&it->ci_key->cnk_pfid,
+			       m0_cob_fid(it->ci_cob)))
 			rc = -ENOENT;
 	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
@@ -1279,7 +1286,7 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 	/*
 	 * Prepare entry key using passed started pos.
 	 */
-	rc = m0_cob_max_eakey_make(&it->ci_key, &cob->co_file.fi_fid,
+	rc = m0_cob_max_eakey_make(&it->ci_key, m0_cob_fid(cob),
 				   m0_bitstring_buf_get(name),
 				   m0_bitstring_len_get(name));
 	if (rc != 0)
@@ -1308,7 +1315,8 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 		M0_ASSERT(m0_cob_eakey_size(it->ci_key) <=
 			  m0_cob_eakey_size(key.b_addr));
 		memcpy(it->ci_key, key.b_addr, m0_cob_eakey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
+		if (!m0_fid_eq(&it->ci_key->cek_fid,
+			       m0_cob_fid(it->ci_cob)))
 			rc = -ENOENT;
 	}
 	return rc;
@@ -1325,7 +1333,8 @@ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 		M0_ASSERT(m0_cob_eakey_size(it->ci_key) <=
 			  m0_cob_eakey_size(key.b_addr));
 		memcpy(it->ci_key, key.b_addr, m0_cob_eakey_size(key.b_addr));
-		if (!m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
+		if (!m0_fid_eq(&it->ci_key->cek_fid,
+			       m0_cob_fid(it->ci_cob)))
 			rc = -ENOENT;
 	}
 
@@ -1343,7 +1352,7 @@ M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
  */
 static bool m0_cob_is_valid(struct m0_cob *cob)
 {
-	return m0_fid_is_set(&cob->co_file.fi_fid);
+	return m0_fid_is_set(m0_cob_fid(cob));
 }
 
 M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
@@ -1440,7 +1449,6 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	cob->co_nsrec = *nsrec;
 	cob->co_flags |= M0_CA_NSREC;
 	cob->co_nsrec.cnr_cntr = 0;
-	cob->co_file.fi_fid = cob->co_nsrec.cnr_fid;
 
 	/*
 	 * Intialize counter with 1 which is what will be used
@@ -1460,7 +1468,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	/*
 	 * Prepare key for attribute tables.
 	 */
-	fabkey.cfb_fid = cob->co_file.fi_fid;
+	fabkey.cfb_fid = *m0_cob_fid(cob);
 
 	/*
 	 * Now let's update file attributes. Cache the fabrec.
@@ -1516,7 +1524,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 	M0_PRE(m0_cob_is_valid(cob));
 	M0_PRE(cob->co_flags & M0_CA_NSKEY);
 
-	m0_cob_oikey_make(&oikey, &cob->co_file.fi_fid, 0);
+	m0_cob_oikey_make(&oikey, m0_cob_fid(cob), 0);
 	rc = m0_cob_locate(cob->co_dom, &oikey, 0, &sdcob);
 	if (rc != 0)
 		goto out;
@@ -1537,7 +1545,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		/*
 		 * Remove from the fileattr_basic table.
 		 */
-		fabkey.cfb_fid = cob->co_file.fi_fid;
+		fabkey.cfb_fid = *m0_cob_fid(cob);
 		m0_buf_init(&key, &fabkey, sizeof fabkey);
 
 		/*
@@ -1603,7 +1611,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 	}
 
 	if (rc == 0 && fabrec != NULL) {
-		fabkey.cfb_fid = cob->co_file.fi_fid;
+		fabkey.cfb_fid = *m0_cob_fid(cob);
 		if (fabrec != cob->co_fabrec) {
 			if (cob->co_flags & M0_CA_FABREC)
 				m0_free(cob->co_fabrec);
@@ -1706,7 +1714,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	/*
 	 * Let's also kill object index entry.
 	 */
-	m0_cob_oikey_make(&oikey, &cob->co_file.fi_fid, nsrec.cnr_linkno);
+	m0_cob_oikey_make(&oikey, m0_cob_fid(cob), nsrec.cnr_linkno);
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	rc = cob_table_delete(cob->co_dom->cd_object_index, tx, &key);
 

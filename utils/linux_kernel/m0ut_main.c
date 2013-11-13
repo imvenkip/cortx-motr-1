@@ -56,6 +56,7 @@ extern const struct m0_test_suite rm_ut;
 extern const struct m0_test_suite session_ut;
 extern const struct m0_test_suite sm_ut;
 extern const struct m0_test_suite xcode_ut;
+extern const struct m0_test_suite di_ut;
 
 extern const struct m0_test_suite m0_loop_ut; /* m0loop driver */
 
@@ -68,6 +69,7 @@ static void run_kernel_ut(int ignored)
 	/* sort test suites in alphabetic order */
 	m0_ut_add(&m0_klibm0_ut);  /* test lib first */
 	m0_ut_add(&m0_addb_ut);
+	m0_ut_add(&di_ut);
 	m0_ut_add(&file_io_ut);
 	m0_ut_add(&be_ut);
 	m0_ut_add(&buffer_pool_ut);

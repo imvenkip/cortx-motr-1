@@ -24,6 +24,7 @@
 #include "lib/processor.h"
 #include "lib/locality.h"
 #include "lib/finject.h"
+#include "fol/lsn.h"
 #include "ut/ut.h"
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
@@ -1062,19 +1063,40 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	struct m0_fop_cob_writev_rep *wrep;
 	struct m0_reqh               *reqh;
         struct m0_io_fom_cob_rw      *fom_obj;
+	struct m0_fom_cob_op	      cc;
+	struct m0_reqh_io_service    *ios;
+	m0_lsn_t		      lsn;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
-	if (m0_fom_phase(fom) < M0_FOPH_NR)
-		return m0_fom_tick_generic(fom);
-        rwfop = io_rw_get(fom->fo_fop);
+	ios = container_of(fom->fo_service, struct m0_reqh_io_service,
+			   rios_gen);
+
+	rwfop = io_rw_get(fom->fo_fop);
 	M0_UT_ASSERT(rwfop->crw_desc.id_nr == rwfop->crw_ivecs.cis_nr);
         io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 	reqh = m0_fom_reqh(fom);
         fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
 	M0_UT_ASSERT(fom_stdom != NULL);
 
-	m0_stob_create_helper_credit(fom_stdom, &stobid,
-			m0_fom_tx_credit(fom));
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			m0_cob_tx_credit(ios->rios_cdom, M0_COB_OP_CREATE,
+					 m0_fom_tx_credit(fom));
+			m0_stob_create_helper_credit(fom_stdom, &stobid,
+				m0_fom_tx_credit(fom));
+		}
+		return m0_fom_tick_generic(fom);
+	}
+
+	cc.fco_stobid = stobid;
+	cc.fco_gfid   = M0_COB_SLASH_FID;
+	cc.fco_cfid   = rwfop->crw_gfid;
+	cc.fco_cob_idx = (uint32_t) rwfop->crw_gfid.f_key;
+
+	lsn = m0_fol_lsn_allocate(m0_fom_reqh(fom)->rh_fol);
+	rc = m0_cc_cob_setup(&cc, ios->rios_cdom, lsn, m0_fom_tx(fom));
+        M0_UT_ASSERT(rc == 0);
+
 	rc = m0_stob_create_helper(fom_stdom, &fom->fo_tx, &stobid,
 				  &fom_obj->fcrw_stob);
         M0_UT_ASSERT(rc == 0);
@@ -1226,6 +1248,8 @@ static void bulkio_stob_create(void)
 		bp->bp_wfops[i]->if_fop.f_type->ft_ops =
 		&bulkio_stob_create_ops;
 		rw->crw_fid = bp->bp_fids[i];
+		m0_file_init(&bp->bp_file[i], &rw->crw_fid, &bp->bp_rdom,
+			     M0_DI_CRC32_4K);
 		targ[i].ta_index = i;
 		targ[i].ta_op = op;
 		targ[i].ta_bp = bp;
@@ -1294,6 +1318,8 @@ static void bulkio_server_write_fol_rec_verify(void)
 
 	fop = &bp->bp_wfops[0]->if_fop;
 	wfop = (struct m0_fop_cob_writev *)m0_fop_data(fop);
+	wfop->c_rwv.crw_di_data.id_nr = 0;
+	wfop->c_rwv.crw_di_data.id_buf = NULL;
 
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
@@ -1547,6 +1573,7 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	rbulk = &iofop->if_rbulk;
 	rw = io_rw_get(&io_fops[index]->if_fop);
 
+	rw->crw_fid = bp->bp_fids[0];
 	bp->bp_offsets[0] = IO_SEG_START_OFFSET;
 
 	void add_buffer_bulk(int j)
@@ -1642,6 +1669,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_fop_cob_rw_reply *rw_reply;
 	int			    rc;
 	struct m0_db_tx             tx;
+	struct m0_fop_cob_rw	   *rw;
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
@@ -1668,6 +1696,9 @@ static void bulkio_server_read_write_fv_mismatch(void)
 
 	wfop->f_type->ft_ops = &io_fop_rwv_ops;
         wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+	rw = io_rw_get(wfop);
+
+	rw->crw_fid = bp->bp_fids[0];
 
 	m0_fi_enable_once("stob_write_credit", "no_write_credit");
 	rc = m0_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,

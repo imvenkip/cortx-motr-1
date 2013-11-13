@@ -65,8 +65,6 @@ enum {
 
 	/* Data size for parity group = 12K * 3 = 36K. */
 	DATA_SIZE        = UNIT_SIZE * LAY_N,
-
-	FID_CONTAINER    = 0,
 	FID_KEY		 = 3,
 	ATTR_A_CONST	 = 1,
 	ATTR_B_CONST	 = 1,
@@ -104,6 +102,7 @@ static int file_io_ut_init(void)
         csb.csb_active        = true;
 	csb.csb_nr_containers = LAY_P + 1;
 	csb.csb_pool_width    = LAY_P;
+	csb.csb_next_key     = FID_KEY;
         m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
         io_bob_tlists_init();
@@ -138,15 +137,12 @@ static int file_io_ut_init(void)
         M0_SET0(&ci);
         ci.ci_layout_id = csb.csb_layout_id;
 	csb.csb_cl_map.clm_map[csb.csb_nr_containers] = &msc;
-	m0t1fs_file_lock_init(&ci, &csb,
-			      &(struct m0_fid) {
-				      .f_container = FID_CONTAINER,
-				      .f_key       = FID_KEY});
+	m0t1fs_file_lock_init(&ci, &csb, m0t1fs_fid_alloc(&csb));
 
 	lay = m0_pdl_to_layout(pdlay);
 	M0_ASSERT(lay != NULL);
 
-	rc = m0_layout_instance_build(lay, &ci.ci_flock.fi_fid,
+	rc = m0_layout_instance_build(lay, m0t1fs_inode_fid(&ci),
 				      &ci.ci_layout_instance);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(ci.ci_layout_instance != NULL);
@@ -676,6 +672,7 @@ static void nw_xfer_ops_test(void)
 
 static int file_io_ut_fini(void)
 {
+	m0_free((void *)ci.ci_flock.fi_fid);
 	m0t1fs_file_lock_fini(&ci);
 	m0_free(lfile.f_dentry);
 	m0_layout_instance_fini(ci.ci_layout_instance);

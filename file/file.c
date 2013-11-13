@@ -231,7 +231,7 @@ static bool file_lock_equal(const struct m0_rm_resource *resource0,
 	file0 = container_of(resource0, struct m0_file, fi_res);
 	file1 = container_of(resource1, struct m0_file, fi_res);
 
-	return m0_fid_eq(&file0->fi_fid, &file1->fi_fid);
+	return m0_fid_eq(file0->fi_fid, file1->fi_fid);
 }
 
 static m0_bcount_t file_lock_len(const struct m0_rm_resource *resource)
@@ -246,7 +246,7 @@ static m0_bcount_t file_lock_len(const struct m0_rm_resource *resource)
 	if (flock_len == 0) {
 		fl = container_of(resource, struct m0_file, fi_res);
 		fidobj.xo_type = m0_fid_xc;
-		fidobj.xo_ptr  = &fl->fi_fid;
+		fidobj.xo_ptr  = (void *)fl->fi_fid;
 		m0_xcode_ctx_init(&ctx, &fidobj);
 		flock_len = m0_xcode_length(&ctx);
 		M0_ASSERT(flock_len > 0);
@@ -259,11 +259,21 @@ static int file_lock_encdec(struct m0_file          *file,
 			    struct m0_bufvec_cursor *cur,
 			    enum m0_xcode_what what)
 {
+	int		    rc;
+	struct m0_xcode_obj xo = M0_XCODE_OBJ(m0_fid_xc, (void *)file->fi_fid);
+
 	M0_ENTRY();
 	M0_ASSERT(cur != NULL);
 
-	M0_RETURN(m0_xcode_encdec(&M0_XCODE_OBJ(m0_fid_xc, &file->fi_fid),
-				  cur, what));
+	rc = m0_xcode_encdec(&xo, cur, what);
+	if (rc == 0 && file->fi_fid == NULL)
+		file->fi_fid = xo.xo_ptr;
+	/**
+	 * * @todo ->rto_decode() decode for file resource should create an
+	 * entire ambient object: an inode on client and a cob on server.
+	 */
+
+	M0_RETURN(rc);
 }
 
 /** Encode file_lock - ready to send over the wire */
@@ -323,6 +333,7 @@ static void file_lock_resource_free(struct m0_rm_resource *resource)
 	struct m0_file *fl;
 
 	fl = container_of(resource, struct m0_file, fi_res);
+	m0_xcode_free(&M0_XCODE_OBJ(m0_fid_xc, (void *)fl->fi_fid));
 	m0_free(fl);
 }
 
@@ -469,8 +480,13 @@ M0_INTERNAL void m0_file_init(struct m0_file      *file,
 			      struct m0_rm_domain *dom,
 			      enum m0_di_types	   di_type)
 {
+	M0_PRE(file != NULL);
+	M0_PRE(fid != NULL);
+
+	M0_LOG(M0_DEBUG, "fid container id:%d key %d \n",
+			(int)fid->f_container, (int)fid->f_key);
 	file->fi_res.r_ops = &file_lock_ops;
-	m0_fid_set(&file->fi_fid, fid->f_container, fid->f_key);
+	file->fi_fid = fid;
 	if (dom != NULL)
 		m0_rm_resource_add(dom->rd_types[M0_RM_FLOCK_RT],
 				   &file->fi_res);
@@ -480,10 +496,10 @@ M0_EXPORTED(m0_file_init);
 
 M0_INTERNAL void m0_file_fini(struct m0_file *file)
 {
-	m0_fid_set(&file->fi_fid, 0, 0);
 	m0_rm_resource_del(&file->fi_res);
 	file->fi_res.r_ops = NULL;
 	file->fi_di_ops = NULL;
+	file->fi_fid = NULL;
 }
 M0_EXPORTED(m0_file_fini);
 
@@ -548,11 +564,31 @@ M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid)
 
 	M0_PRE(fid != NULL);
 
-	m0_fid_set(&file.fi_fid, fid->f_container, fid->f_key);
+	file.fi_fid = fid;
 	return m0_rm_resource_find(&flock_rt, &file.fi_res) == NULL ?
 		false : true;
 }
-M0_EXPORTED(m0_file_lock_resource_is_added);
+
+M0_INTERNAL struct m0_file *m0_resource_to_file(const struct m0_fid *fid)
+{
+	struct m0_file	      *file = NULL;
+	struct m0_file	       lfile;
+	struct m0_rm_resource *res;
+
+	M0_PRE(fid != NULL);
+	M0_PRE(m0_fid_is_set(fid));
+
+	M0_LOG(M0_DEBUG, "fid container id:%d key %d \n",
+			(int)fid->f_container, (int)fid->f_key);
+
+	lfile.fi_fid = fid;
+	res = m0_rm_resource_find(&flock_rt, &lfile.fi_res);
+	if (res != NULL)
+		file = container_of(res, struct m0_file, fi_res);
+
+	return file;
+}
+M0_EXPORTED(m0_resource_to_file);
 
 /** @} end of FileLock */
 

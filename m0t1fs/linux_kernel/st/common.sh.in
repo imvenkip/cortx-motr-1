@@ -10,8 +10,16 @@ MODLIST="@abs_top_srcdir@/mero/m0mero.ko"
 # modules in MODLIST.
 declare -A MODPARAMS
 NULL_UUID="00000000-0000-0000-0000-000000000000"
+MERO_MODULE_TRACE_MASK='!all'
+MERO_TRACE_PRINT_CONTEXT=short
+MERO_TRACE_LEVEL='call+'
+
 MODPARAMS[m0mero.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
-MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UID}"
+
+MODPARAMS[m0ut.ko]="node_uuid=${NODE_UUID:-$NULL_UID} \
+		    trace_immediate_mask=${MERO_MODULE_TRACE_MASK} \
+		    trace_print_context=${MERO_TRACE_PRINT_CONTEXT} \
+		    trace_level=${MERO_TRACE_LEVEL}"
 
 # to make command output parsing predictable
 export LC_MESSAGES=C

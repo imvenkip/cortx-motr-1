@@ -78,7 +78,7 @@
 /** Distributed file lock */
 struct m0_file {
 	/** Id of the resource (i.e., fid) for which mutex is created */
-	struct m0_fid           fi_fid;
+	const struct m0_fid    *fi_fid;
 
 	/** Embed RM resource */
 	struct m0_rm_resource   fi_res;
@@ -149,6 +149,11 @@ M0_INTERNAL void m0_file_lock_type_deregister(void);
  * registered with file lock domain.
  */
 M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid);
+
+/**
+ * Returns m0_file from the given resource @fid.
+ */
+M0_INTERNAL struct m0_file *m0_resource_to_file(const struct m0_fid *fid);
 
 /** @} end of FileLock */
 

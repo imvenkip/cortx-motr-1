@@ -40,6 +40,7 @@
 #include "ioservice/io_fops_xc.h"
 #include "fop/fom_generic.h"
 #include "ioservice/cob_foms.h"
+#include "file/file.h"
 
 /**
  * This addb ctx would be used only to post for exception records
@@ -733,7 +734,7 @@ static bool io_fop_invariant(struct m0_io_fop *iofop)
 }
 
 M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
-		               struct m0_fid *gfid,
+		               const struct m0_fid *gfid,
 			       struct m0_fop_type *ftype,
 			       void (*fop_release)(struct m0_ref *))
 {
@@ -1221,6 +1222,62 @@ static void io_fop_ivec_prepare(struct m0_fop *res_fop,
 	} m0_tl_endfor;
 }
 
+static int io_fop_di_prepare(struct m0_fop *fop)
+{
+	uint64_t		   size;
+	struct m0_fop_cob_rw	  *rw;
+	struct m0_io_indexvec_seq *io_info;
+	struct m0_bufvec	   cksum_data;
+	struct m0_rpc_bulk	  *rbulk;
+	struct m0_rpc_bulk_buf	  *rbuf;
+	struct m0_file		  *file;
+	uint32_t		   i;
+	m0_bcount_t		   bsize;
+
+	M0_PRE(fop != NULL);
+
+	rbulk = m0_fop_to_rpcbulk(fop);
+	M0_ASSERT(rbulk != NULL);
+	M0_ASSERT(m0_mutex_is_locked(&rbulk->rb_mutex));
+	rw = io_rw_get(fop);
+	io_info = &rw->crw_ivecs;
+	file = m0_resource_to_file(&rw->crw_gfid);
+	if (file->fi_di_ops->do_out_shift(file) == 0)
+		return 0;
+	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
+	rw->crw_di_data.id_nr = rw->crw_desc.id_nr;
+	IOS_ALLOC_ARR(rw->crw_di_data.id_buf, rw->crw_desc.id_nr,
+			  &m0_ios_addb_ctx, IO_FOP_DESC_ALLOC);
+
+	for (i = 0; i < io_info->cis_nr; i++) {
+		size = file->fi_di_ops->do_out_shift(file) *
+			(m0_io_count(&io_info->cis_ivecs[i]) / bsize) *
+			M0_DI_ELEMENT_SIZE;
+		rw->crw_di_data.id_buf[i].b_nob = size;
+		rw->crw_di_data.id_buf[i].b_addr = m0_alloc(size);
+		if (rw->crw_di_data.id_buf[i].b_addr == NULL)
+			goto cleanup;
+	}
+	i = 0;
+	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
+		cksum_data = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(
+				&rw->crw_di_data.id_buf[i].b_addr,
+				&rw->crw_di_data.id_buf[i].b_nob);
+		file->fi_di_ops->do_sum(file, &io_info->cis_ivecs[i],
+					&rbuf->bb_nbuf->nb_buffer,
+				        &cksum_data);
+		i++;
+	} m0_tl_endfor;
+	M0_RETURN(0);
+
+cleanup:
+	while(i != 0) {
+		m0_free(rw->crw_di_data.id_buf[i].b_addr);
+		--i;
+	}
+	return -ENOMEM;
+}
+
 static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)
 {
 	struct m0_rpc_bulk	*sbulk;
@@ -1321,6 +1378,8 @@ M0_INTERNAL int m0_io_fop_prepare(struct m0_fop *fop)
 	q = m0_is_read_fop(fop) ? M0_NET_QT_PASSIVE_BULK_RECV :
 			   M0_NET_QT_PASSIVE_BULK_SEND;
 	m0_rpc_bulk_qtype(rbulk, q);
+	if (rc == 0 && m0_is_write_fop(fop))
+		rc = io_fop_di_prepare(fop);
 err:
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	return rc;
