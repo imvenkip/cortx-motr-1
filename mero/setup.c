@@ -804,15 +804,19 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 			m0_stob_put(*bstob);
 	}
 
-	if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail"))
-		rc = -EINVAL;
-
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
 					    bstob_id->si_bits.u_lo);
 		m0_sm_group_lock(grp);
 		rc = m0_ad_stob_domain_locate(ad_dname, db, grp,
 					      &adstob->as_dom, *bstob);
+
+		if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail")) {
+			struct m0_stob_domain *adom = adstob->as_dom;
+			adom->sd_ops->sdo_fini(adom, grp);
+			rc = -EINVAL;
+		}
+
 		if (rc == 0) {
 			cs_ad_stob_bob_init(adstob);
 			astob_tlink_init_at_tail(adstob, &stob->s_adstobs);
@@ -833,6 +837,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 			}
 		}
 		m0_sm_group_unlock(grp);
+
 		if (rc != 0)
 			m0_stob_put(*bstob);
 	}
