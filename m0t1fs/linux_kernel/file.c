@@ -1132,8 +1132,8 @@ static int user_data_copy(struct pargrp_iomap *map,
 					end - start);
 			pagefault_enable();
 
-			M0_LOG(M0_INFO, "%llu bytes copied from user-space "
-					"from offset %llu", bytes, start);
+			M0_LOG(M0_DEBUG, "%llu bytes copied from user-space "
+					 "from offset %llu", bytes, start);
 
 			map->pi_ioreq->ir_copied_nr += bytes;
 			map->pi_databufs[row][col]->db_flags |=
@@ -1151,8 +1151,8 @@ static int user_data_copy(struct pargrp_iomap *map,
 
 		map->pi_ioreq->ir_copied_nr += end - start - bytes;
 
-		M0_LOG(M0_INFO, "%llu bytes copied to user-space from offset "
-				"%llu", end - start - bytes, start);
+		M0_LOG(M0_DEBUG, "%llu bytes copied to user-space from offset "
+				 "%llu", end - start - bytes, start);
 
 		if (bytes != 0)
 			M0_RETERR(-EFAULT, "Failed to copy_to_user");
@@ -1216,7 +1216,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 		}
 		rc = 0;
 		free_page(zpage);
-		M0_LOG(M0_INFO, "Parity recalculated for %s",
+		M0_LOG(M0_DEBUG, "Parity recalculated for %s",
 		       map->pi_rtype == PIR_READREST ? "read-rest" :
 		       "aligned write");
 
@@ -4018,7 +4018,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			buf = map->pi_databufs[row][col];
 
 			pattr[seg] |= PA_DATA;
-			M0_LOG(M0_INFO, "Data seg added");
+			M0_LOG(M0_DEBUG, "Data seg added");
 		} else {
 			/*
 			 * @todo Need to change this to make it work
@@ -4027,12 +4027,12 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			buf = map->pi_paritybufs[page_id(goff)]
 						[unit % data_col_nr(play)];
 			pattr[seg] |= PA_PARITY;
-			M0_LOG(M0_INFO, "Parity seg added");
+			M0_LOG(M0_DEBUG, "Parity seg added");
 		}
 
 		bvec->ov_buf[seg]  = buf->db_buf.b_addr;
 		pattr[seg] |= buf->db_flags;
-		M0_LOG(M0_INFO, "pageaddr = %p, index = %llu, size = %llu\n",
+		M0_LOG(M0_DEBUG, "pageaddr = %p, index = %llu, size = %llu\n",
 			bvec->ov_buf[seg], INDEX(ivec, seg), COUNT(ivec, seg));
 		M0_LOG(M0_DEBUG, "Seg id %d [%llu, %llu] added to target_ioreq "
 		       "with fid [%llu:%llu] with flags 0x%x: ", seg,
@@ -4608,16 +4608,18 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	req_item   = &irfop->irf_iofop.if_fop.f_item;
 	reply_item = req_item->ri_reply;
 	rc = req_item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "reply error: rc=%d", rc);
 		goto ref_dec;
+	}
 	M0_ASSERT(reply_item != NULL &&
 		  !m0_rpc_item_is_generic_reply_fop(reply_item));
 	reply_fop = m0_rpc_item_to_fop(reply_item);
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
-	M0_LOG(M0_INFO, "reply received = %d, sns state = %d",
-	       rw_reply->rwr_rc, req->ir_sns_state);
+	M0_LOG(M0_INFO, "reply received = %d, sns state = %d", rc,
+			 req->ir_sns_state);
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);
@@ -4982,7 +4984,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		delta  = 0;
 		bbsegs = 0;
 
-		M0_LOG(M0_INFO, "pageattr = %u, filter = %u, rw = %u",
+		M0_LOG(M0_DEBUG, "pageattr = %u, filter = %u, rw = %u",
 			pattr[buf], filter, rw);
 
 		if (!(pattr[buf] & filter) || !(pattr[buf] & rw)) {
