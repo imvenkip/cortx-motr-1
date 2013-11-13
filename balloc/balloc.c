@@ -434,8 +434,8 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 }
 
 static int balloc_group_write(struct m0_balloc            *bal,
-			      struct m0_be_tx             *tx,
-			      m0_bcount_t                  i)
+			      m0_bcount_t                  i,
+			      struct m0_sm_group          *sm_grp)
 {
 	int				 rc;
 	struct m0_balloc_group_info	*grp;
@@ -444,8 +444,25 @@ static int balloc_group_write(struct m0_balloc            *bal,
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
 	struct m0_buf                    key;
 	struct m0_buf                    val;
+	struct m0_be_tx                  tx = {};
+	struct m0_be_tx_credit           cred = {};
 
 	M0_ENTRY();
+
+	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
+		      sm_grp, NULL, NULL, NULL, NULL);
+	m0_be_btree_insert_credit(&bal->cb_db_group_extents, 2,
+		M0_MEMBER_SIZE(struct m0_ext, e_start),
+		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+	m0_be_btree_insert_credit(&bal->cb_db_group_desc, 2,
+		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
+		sizeof(struct m0_balloc_group_desc), &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "transaction open failed: rc=%d", rc);
+		goto out;
+	}
 
 	grp = &bal->cb_group_info[i];
 
@@ -460,11 +477,11 @@ static int balloc_group_write(struct m0_balloc            *bal,
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
-	rc = btree_insert_sync(&bal->cb_db_group_extents, tx, &key, &val);
+	rc = btree_insert_sync(&bal->cb_db_group_extents, &tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed: group=%llu "
 				 "rc=%d", (unsigned long long)i, rc);
-		M0_RETURN(rc);
+		goto out;
 	}
 
 	M0_LOG(M0_DEBUG, "creating group_desc for group %llu",
@@ -488,21 +505,22 @@ static int balloc_group_write(struct m0_balloc            *bal,
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&gd.bgd_groupno);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&gd);
 
-	rc = btree_insert_sync(&bal->cb_db_group_desc, tx, &key, &val);
+	rc = btree_insert_sync(&bal->cb_db_group_desc, &tx, &key, &val);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "insert gd failed: group=%llu rc=%d",
 			(unsigned long long)i, rc);
+	m0_be_tx_close_sync(&tx);
+out:
+	m0_be_tx_fini(&tx);
 
 	M0_RETURN(rc);
 }
 
 static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
 {
-	int				 rc;
+	int				 rc = 0;
 	m0_bcount_t			 i;
 	struct m0_balloc_super_block	*sb = &bal->cb_sb;
-	struct m0_be_tx                  tx = {};
-	struct m0_be_tx_credit           cred = {};
 
 	M0_ENTRY();
 
@@ -513,24 +531,8 @@ static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
 		M0_RETURN(-ENOMEM);
 	}
 
-	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
-		      grp, NULL, NULL, NULL, NULL);
-	m0_be_btree_insert_credit(&bal->cb_db_group_extents,
-		2 * sb->bsb_groupcount,
-		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
-	m0_be_btree_insert_credit(&bal->cb_db_group_desc,
-		2 * sb->bsb_groupcount,
-		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
-		sizeof(struct m0_balloc_group_desc), &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-	if (rc == 0) {
-		for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
-			rc = balloc_group_write(bal, &tx, i);
-		m0_be_tx_close_sync(&tx);
-	}
-	m0_be_tx_fini(&tx);
+	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
+		rc = balloc_group_write(bal, i, grp);
 
 	M0_RETURN(rc);
 }
