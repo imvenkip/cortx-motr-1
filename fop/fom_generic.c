@@ -296,11 +296,12 @@ static int fom_tx_wait(struct m0_fom *fom)
 	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
 	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
-		m0_fom_phase_move(fom, tx->t_sm.sm_rc, M0_FOPH_TXN_OPEN_FAILED);
+		M0_RETURN(tx->t_sm.sm_rc);
 	else
 		m0_dtx_opened(&fom->fo_tx);
 
-	M0_RETURN(M0_FSO_AGAIN);
+	M0_LEAVE();
+	return M0_FSO_AGAIN;
 }
 
 /**
@@ -309,23 +310,23 @@ static int fom_tx_wait(struct m0_fom *fom)
  */
 static void generic_reply_build(struct m0_fom *fom)
 {
-	struct m0_fop               *rfop;
+	struct m0_fop               *rfop = fom->fo_rep_fop;
 	struct m0_fop_generic_reply *out_fop;
 
-	M0_PRE(fom != NULL);
-
-	rfop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
-	if (rfop == NULL)
-		FOP_ADDB_FUNCFAIL(-ENOMEM, GENERIC_REPLY_BUILD,
-				  &fom->fo_addb_ctx);
+	if (rfop == NULL) {
+		rfop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
+		if (rfop == NULL)
+			FOP_ADDB_FUNCFAIL(-ENOMEM, GENERIC_REPLY_BUILD,
+					  &fom->fo_addb_ctx);
+		fom->fo_rep_fop = rfop;
+	}
 	out_fop = m0_fop_data(rfop);
 	out_fop->gr_rc = m0_fom_rc(fom);
-	fom->fo_rep_fop = rfop;
 }
 
 /**
  * Handles fom execution failure, if fom fails in one of
- * the standard phases, then we contruct a generic error
+ * the standard phases, then we construct a generic error
  * reply fop and assign it to m0_fom::fo_rep_fop, else if
  * fom fails in fop specific operation, then fom should
  * already contain a fop specific error reply provided by
@@ -333,7 +334,8 @@ static void generic_reply_build(struct m0_fom *fom)
  */
 static int fom_failure(struct m0_fom *fom)
 {
-	if (m0_fom_rc(fom) != 0 && fom->fo_rep_fop == NULL)
+	M0_LOG(M0_ERROR, "fom_rc=%d", m0_fom_rc(fom));
+	if (m0_fom_rc(fom) != 0)
 		generic_reply_build(fom);
 
 	return M0_FSO_AGAIN;
@@ -509,10 +511,6 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_TYPE_SPECIFIC,
 					     "fom_tx_wait",
 					      1 << M0_FOPH_TXN_WAIT },
-	[M0_FOPH_TXN_OPEN_FAILED] =	   { &fom_failure,
-					      M0_FOPH_QUEUE_REPLY,
-					     "fom_tx_open_failed",
-					      1 << M0_FOPH_TXN_OPEN_FAILED },
 	[M0_FOPH_SUCCESS] =		   { &fom_success,
 					      M0_FOPH_FOL_REC_ADD,
 					     "fom_success",
@@ -621,13 +619,8 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_TXN_WAIT] = {
 		.sd_name      = "fom_tx_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN_FAILED,
+		.sd_allowed   = M0_BITS(M0_FOPH_FAILURE,
 					M0_FOPH_TYPE_SPECIFIC)
-	},
-	[M0_FOPH_TXN_OPEN_FAILED] = {
-		.sd_flags     = M0_SDF_FAILURE,
-		.sd_name      = "fom_tx_open_failure",
-		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
 	},
 	[M0_FOPH_SUCCESS] = {
 		.sd_name      = "fom_success",
