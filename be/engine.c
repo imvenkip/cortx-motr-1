@@ -46,6 +46,8 @@ M0_TL_DESCR_DEFINE(egr, "m0_be_engine::eng_groups[]", static,
 		   M0_BE_TX_MAGIC /* XXX */, M0_BE_TX_ENGINE_MAGIC /* XXX */);
 M0_TL_DEFINE(egr, static, struct m0_be_tx_group);
 
+static void be_engine_got_log_space_cb(struct m0_be_log *log);
+
 M0_INTERNAL int
 m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 {
@@ -83,7 +85,8 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		goto err;
 	}
 
-	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob, NULL /* XXX */);
+	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob,
+		       be_engine_got_log_space_cb);
 	rc = m0_be_log_create(&en->eng_log, en_cfg->bec_log_size);
 	if (rc != 0)
 		goto log_fini;
@@ -283,13 +286,6 @@ static void be_engine_got_tx_done(struct m0_be_engine *en, struct m0_be_tx *tx)
 	tx->t_group = NULL;
 }
 
-static void be_engine_got_log_space(struct m0_be_engine *en)
-{
-	M0_PRE(be_engine_is_locked(en));
-
-	be_engine_got_tx_open(en);
-}
-
 M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en)
 {
 	bool rc_bool;
@@ -407,12 +403,15 @@ M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_engine__log_got_space(struct m0_be_engine *en)
+static void be_engine_got_log_space_cb(struct m0_be_log *log)
 {
+	struct m0_be_engine *en =
+		container_of(log, struct m0_be_engine, eng_log);
+
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
-	be_engine_got_log_space(en);
+	be_engine_got_tx_open(en);
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);

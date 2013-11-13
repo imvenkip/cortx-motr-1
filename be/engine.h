@@ -105,11 +105,6 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 
 M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 					     struct m0_be_tx_group *gr);
-/*
- * This function should be called from m0_be_log implementation.
- * It shouldn't be called under engine lock.
- */
-M0_INTERNAL void m0_be_engine__log_got_space(struct m0_be_engine *en);
 
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */
