@@ -334,9 +334,12 @@ static void generic_reply_build(struct m0_fom *fom)
  */
 static int fom_failure(struct m0_fom *fom)
 {
-	M0_LOG(M0_ERROR, "fom_rc=%d", m0_fom_rc(fom));
-	if (m0_fom_rc(fom) != 0)
+	int rc = m0_fom_rc(fom);
+
+	if (rc != 0) {
+		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
 		generic_reply_build(fom);
+	}
 
 	return M0_FSO_AGAIN;
 }
