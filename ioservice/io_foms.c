@@ -1027,7 +1027,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 {
 	int                      rc = 0;
 	int                      i;
-	uint32_t                 frags_nr = 0;
+	uint32_t                 max_frags_nr = 0;
 	struct m0_fom           *fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
@@ -1042,15 +1042,16 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	rwfop = io_rw_get(fop);
 
 	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++)
-		frags_nr += rwfop->crw_ivecs.cis_ivecs[i].ci_nr;
-	M0_LOG(M0_DEBUG, "frags_nr=%d", (int)frags_nr);
+		if (max_frags_nr < rwfop->crw_ivecs.cis_ivecs[i].ci_nr)
+			max_frags_nr = rwfop->crw_ivecs.cis_ivecs[i].ci_nr;
+	M0_LOG(M0_DEBUG, "max_frags_nr=%d", (int)max_frags_nr);
 
 	IOS_ALLOC_PTR(fom_obj, &m0_ios_addb_ctx, FOM_COB_RW_CREATE);
 	if (fom_obj == NULL)
 		M0_RETURN(-ENOMEM);
 
-	if (m0_is_write_fop(fop) && frags_nr > 0) {
-		rc = m0_indexvec_alloc(&fom_obj->fcrw_ivec, frags_nr,
+	if (m0_is_write_fop(fop) && max_frags_nr > 0) {
+		rc = m0_indexvec_alloc(&fom_obj->fcrw_ivec, max_frags_nr,
 			&m0_ios_addb_ctx, M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC);
 		if (rc != 0) {
 			m0_free(fom_obj);
@@ -1795,17 +1796,18 @@ static void stob_write_credit(struct m0_fom *fom)
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
-	offs = fom_obj->fcrw_ivec.iv_index;
-	cnts = fom_obj->fcrw_ivec.iv_vec.v_count;
 	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
 		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
+		offs = fom_obj->fcrw_ivec.iv_index;
+		cnts = fom_obj->fcrw_ivec.iv_vec.v_count;
+		fom_obj->fcrw_ivec.iv_vec.v_nr = wire_ivec.ci_nr;
 		for (j = 0; j < wire_ivec.ci_nr; j++) {
 			*(offs++) = wire_ivec.ci_iosegs[j].ci_index >> bshift;
 			*(cnts++) = wire_ivec.ci_iosegs[j].ci_count >> bshift;
 		}
+		m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
+					m0_fom_tx_credit(fom));
 	}
-	m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
-				m0_fom_tx_credit(fom));
 	m0_indexvec_free(&fom_obj->fcrw_ivec);
 	m0_stob_put(fom_obj->fcrw_stob);
 }
