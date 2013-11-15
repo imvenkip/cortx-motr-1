@@ -939,6 +939,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	M0_RETURN(rc);
 }
 
+#if 0
 /* called under group lock */
 static int balloc_find_extent_exact(struct m0_balloc_allocation_context *bac,
 				    struct m0_balloc_group_info *grp,
@@ -966,6 +967,7 @@ static int balloc_find_extent_exact(struct m0_balloc_allocation_context *bac,
 
 	return found;
 }
+#endif
 
 /* called under group lock */
 static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
@@ -977,14 +979,16 @@ static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
 	m0_bcount_t			 i;
 	m0_bcount_t			 found = 0;
 	m0_bindex_t			 start;
+	m0_bindex_t			 end;
 	struct m0_ext			*fragment;
-	struct m0_ext			min = {
+	struct m0_ext			 min = {
 						.e_start = 0,
 						.e_end = 0xffffffff };
 
 	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
 
 	start = grp->bgi_groupno << sb->bsb_gsbits;
+	end   = (grp->bgi_groupno + 1) << sb->bsb_gsbits;
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		fragment = &grp->bgi_extents[i];
@@ -1010,7 +1014,7 @@ repeat:
 			do {
 				start += len;
 			} while (fragment->e_start > start);
-			if (start >= ((grp->bgi_groupno + 1) << sb->bsb_gsbits))
+			if (start >= end)
 				break;
 			/* we changed the 'start'. let's restart seaching. */
 			goto repeat;
@@ -1358,6 +1362,7 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 	M0_RETURN(rc);
 }
 
+#if 0
 static int balloc_find_by_goal(struct m0_balloc_allocation_context *bac)
 {
 	m0_bindex_t group = balloc_bn2gn(bac->bac_goal.e_start,
@@ -1422,10 +1427,11 @@ out_unlock:
 out:
 	M0_RETURN(ret);
 }
+#endif
 
 /* group is locked */
-static int balloc_good_group(struct m0_balloc_allocation_context *bac,
-			     struct m0_balloc_group_info *gi)
+static int balloc_is_good_group(struct m0_balloc_allocation_context *bac,
+				struct m0_balloc_group_info *gi)
 {
 	m0_bcount_t	free	  = gi->bgi_freeblocks;
 	m0_bcount_t	fragments = gi->bgi_fragments;
@@ -1721,6 +1727,7 @@ balloc_regular_allocator(struct m0_balloc_allocation_context *bac)
 	M0_ENTRY("goal=0x%lx len=%d",
 		(unsigned long)bac->bac_goal.e_start, (int)len);
 
+#if 0
 	/* first, try the goal */
 	rc = balloc_find_by_goal(bac);
 	if (rc != 0 || bac->bac_status == M0_BALLOC_AC_FOUND ||
@@ -1728,6 +1735,7 @@ balloc_regular_allocator(struct m0_balloc_allocation_context *bac)
 		M0_LEAVE();
 		return rc;
 	}
+#endif
 
 	bac->bac_order2 = 0;
 	/*
@@ -1783,7 +1791,7 @@ repeat:
 				goto out;
 			}
 
-			if (!balloc_good_group(bac, grp)) {
+			if (!balloc_is_good_group(bac, grp)) {
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 				continue;
@@ -1791,10 +1799,9 @@ repeat:
 			bac->bac_scanned++;
 
 			m0_balloc_debug_dump_group_extent("AAA", grp);
-			if (cr == 0)
-				rc = balloc_simple_scan_group(bac, grp);
-			else if (cr == 1 &&
-				len == bac->bac_ctxt->cb_sb.bsb_stripe_size)
+			if (cr == 0 ||
+			    (cr == 1 &&
+			     len == bac->bac_ctxt->cb_sb.bsb_stripe_size))
 				rc = balloc_simple_scan_group(bac, grp);
 			else
 				rc = balloc_wild_scan_group(bac, grp);
@@ -1808,7 +1815,6 @@ repeat:
 							 bac->bac_tx, grp,
 							 &bac->bac_final);
 			}
-
 
 			m0_balloc_release_extents(grp);
 			m0_balloc_unlock_group(grp);
