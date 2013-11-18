@@ -134,15 +134,14 @@ loop_used=-1
 setup_local_server_config=0
 wait_after_mount=1
 
-M0_TRACE_IMMEDIATE_MASK=fop,cob,m0d,adstob,ioservice,stob
-M0_TRACE_LEVEL=notice+
-M0_TRACE_PRINT_CONTEXT=func
+M0_TRACE_IMMEDIATE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap
+M0_TRACE_LEVEL=warn+
+M0_TRACE_PRINT_CONTEXT=short
 
 # kernel space tracing parameters
-#MERO_MODULE_TRACE_MASK=fop,m0t1fs
-MERO_MODULE_TRACE_MASK=!all
-MERO_TRACE_PRINT_CONTEXT=func
-MERO_TRACE_LEVEL='notice+'
+MERO_MODULE_TRACE_MASK=fop,m0t1fs
+MERO_TRACE_PRINT_CONTEXT=short
+MERO_TRACE_LEVEL=notice+
 
 # Local mount data
 MP=/mnt/m0

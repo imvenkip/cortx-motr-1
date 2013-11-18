@@ -23,12 +23,12 @@ MERO_MODULE=m0mero
 # kernel space tracing parameters
 MERO_MODULE_TRACE_MASK='!all'
 MERO_TRACE_PRINT_CONTEXT=short
-MERO_TRACE_LEVEL='call+'
+MERO_TRACE_LEVEL=call+
 
 #user-space tracing parameters
-export M0_TRACE_IMMEDIATE_MASK='!all' # put your subsystem here
-export M0_TRACE_LEVEL=debug+
-export M0_TRACE_PRINT_CONTEXT=full
+export M0_TRACE_IMMEDIATE_MASK=all
+export M0_TRACE_LEVEL=warn+
+export M0_TRACE_PRINT_CONTEXT=short
 
 MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 
