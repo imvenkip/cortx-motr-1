@@ -21,6 +21,8 @@
 #include <stdio.h>     /* fprintf */
 #include <unistd.h>    /* pause */
 #include <signal.h>    /* sigaction */
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -78,6 +80,7 @@ M0_INTERNAL int main(int argc, char **argv)
 {
 	int            rc;
 	struct m0_mero mero_ctx;
+	struct rlimit rlim = {10240, 10240};
 
 	if (argc > 1 &&
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
@@ -85,6 +88,11 @@ M0_INTERNAL int main(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 
+	rc = setrlimit(RLIMIT_NOFILE, &rlim);
+	if (rc != 0) {
+		fprintf(stderr, "\n Failed to setrlimit\n");
+		goto out;
+	}
 	errno = 0;
 	M0_SET0(&mero_ctx);
 	rc = m0_init();
