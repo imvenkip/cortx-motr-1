@@ -12,7 +12,7 @@ sns_repair_test()
 {
 	local rc=0
 	local fail_device=1
-	local stride=4
+	local stride=20
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
@@ -20,21 +20,21 @@ sns_repair_test()
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
-	dd if=/dev/urandom bs=$unit_size count=9 \
+	dd if=/dev/urandom bs=$unit_size count=50 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
 
-	dd if=/dev/urandom bs=$unit_size count=9 \
+	dd if=/dev/urandom bs=$unit_size count=50 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return 1
 	}
 
-	dd if=/dev/urandom bs=$unit_size count=9 \
+	dd if=/dev/urandom bs=$unit_size count=50 \
 	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
 		echo "Failed: dd failed.."
 		unmount_and_clean &>> $MERO_TEST_LOGFILE

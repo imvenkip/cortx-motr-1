@@ -30,6 +30,7 @@
 #include "reqh/reqh_service.h" /* struct m0_reqh_service_type */
 #include "sm/sm.h"	       /* struct m0_sm */
 #include "fop/fom.h"           /* struct m0_fom */
+#include "fop/fom_simple.h"
 
 #include "cm/sw.h"
 #include "cm/ag.h"
@@ -230,6 +231,11 @@ struct m0_cm {
 	struct m0_chan                   cm_ready_wait;
 	struct m0_chan                   cm_complete_wait;
 	struct m0_mutex                  cm_wait_mutex;
+
+	struct m0_fom_simple             cm_ast_run_fom;
+	struct m0_chan                   cm_ast_run_fom_wait;
+	struct m0_mutex                  cm_ast_run_fom_wait_mutex;
+
 	/**
 	 * Counter to track number of ready fops received from other replicas.
 	 * Once the m0_cm::cm_ready_fops_recvd ==
@@ -475,6 +481,7 @@ M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm);
 
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh);
 
+M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_complete(struct m0_cm *cm);
 

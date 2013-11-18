@@ -169,28 +169,27 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		goto out;
 
 	stob = sns_cp->sc_stob;
-	m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
-		    &cp_fom->fo_loc->fl_group);
-	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
-	if (rc != 0)
-		goto out;
-
 	rc = m0_stob_locate(stob);
 	if (rc != 0) {
 		m0_stob_put(stob);
 		goto out;
 	}
-
 	m0_stob_io_init(stio);
 	stio->si_flags = 0;
 	stio->si_opcode = op;
 	stio->si_fol_rec_part = &sns_cp->sc_fol_rec_part;
-
 	bshift = stob->so_op->sop_block_shift(stob);
 	rc = cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
 			addb_ctx, bshift);
 	if (rc != 0)
 		goto err_stio;
+	m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
+		    &cp_fom->fo_loc->fl_group);
+	if (op == SIO_WRITE)
+		m0_stob_write_credit(dom, &stio->si_stob, m0_fom_tx_credit(cp_fom));
+	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
+	if (rc != 0)
+		goto out;
 
 	m0_mutex_lock(&stio->si_mutex);
 	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);

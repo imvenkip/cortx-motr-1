@@ -458,6 +458,7 @@ struct m0_addb_ctx m0_cm_mod_ctx;
 
 static void cm_move(struct m0_cm *cm, int rc, enum m0_cm_state state,
 		    enum m0_cm_failure failure);
+static void cm_ast_run_fom_init(struct m0_cm *cm);
 
 static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_INIT] = {
@@ -661,8 +662,10 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 		rc = -EINVAL;
 	if (rc == 0) {
 		m0_mutex_init(&cm->cm_wait_mutex);
+		m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
 		m0_chan_init(&cm->cm_ready_wait, &cm->cm_wait_mutex);
 		m0_chan_init(&cm->cm_complete_wait, &cm->cm_wait_mutex);
+		m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
 	}
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_SETUP);
 
@@ -768,8 +771,10 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	cm->cm_ready_fops_recvd = 0;
         rmach = m0_cm_rpc_machine_find(reqh);
         rc = cm_replicas_connect(cm, rmach, reqh);
-        if (rc == 0 || rc == -ENOENT)
+        if (rc == 0 || rc == -ENOENT) {
+		cm_ast_run_fom_init(cm);
 		rc = m0_cm_sw_remote_update(cm);
+	}
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
 
@@ -850,6 +855,7 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	rc = cm->cm_ops->cmo_stop(cm);
 	m0_cm_cp_pump_stop(cm);
 	m0_cm_proxies_fini(cm);
+	m0_cm_ast_run_fom_wakeup(cm);
 	m0_cm_sw_update_stop(cm);
 	cm_move(cm, rc, M0_CMS_IDLE, M0_CM_ERR_STOP);
 
@@ -968,7 +974,9 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	m0_sm_fini(&cm->cm_mach);
 	m0_chan_fini_lock(&cm->cm_ready_wait);
 	m0_chan_fini_lock(&cm->cm_complete_wait);
+	m0_chan_fini_lock(&cm->cm_ast_run_fom_wait);
 	m0_mutex_fini(&cm->cm_wait_mutex);
+	m0_mutex_fini(&cm->cm_ast_run_fom_wait_mutex);
 	m0_cm_unlock(cm);
 
 	m0_sm_group_fini(&cm->cm_sm_group);
@@ -1074,8 +1082,44 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 	m0_net_buffer_pool_unlock(bp);
 }
 
+static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
+{
+	int  result = M0_FSO_WAIT;
+	bool shutdown = false;
+
+	if (m0_mutex_trylock(&cm->cm_sm_group.s_lock) == 0) {
+		m0_cm_invariant(cm);
+		if (m0_cm_state_get(cm) == M0_CMS_STOP && cm->cm_proxy_nr == 0 &&
+		    cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0)
+			shutdown = true;
+		m0_cm_unlock(cm);
+	}
+	if (shutdown)
+		result = -ESHUTDOWN;
+	else {
+		m0_mutex_lock(&cm->cm_ast_run_fom_wait_mutex);
+		m0_fom_wait_on(fom, &cm->cm_ast_run_fom_wait, &fom->fo_cb);
+		m0_mutex_unlock(&cm->cm_ast_run_fom_wait_mutex);
+	}
+
+	return result;
+}
+
+static void cm_ast_run_fom_init(struct m0_cm *cm)
+{
+	M0_FOM_SIMPLE_POST(&cm->cm_ast_run_fom, cm->cm_service.rs_reqh, NULL,
+			   cm_ast_run_fom_tick, cm, 0);
+}
+
+M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)
+{
+	m0_chan_signal_lock(&cm->cm_ast_run_fom_wait);
+}
+
 M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm)
 {
+	M0_PRE(m0_cm_is_locked(cm));
+
 	m0_chan_signal_lock(&cm->cm_ready_wait);
 }
 

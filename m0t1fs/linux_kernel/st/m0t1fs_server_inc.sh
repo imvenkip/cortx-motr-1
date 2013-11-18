@@ -1,29 +1,37 @@
 mkloopdevs()
 {
-	local i=$1
-	local dir=$2
+	local ios=$1
+	local nr_devs=$2
+	local dir=$3
 	local adisk=addb-disk.img
 	local ddisk=data-disk.img
+	local dev_start=1
+	local dev_end=0
 
 	cd $dir || return 1
 
 	dd if=/dev/zero of=$adisk bs=1M seek=1M count=1 || return 1
-	if ((i > 0)); then
-		dd if=/dev/zero of=$ddisk bs=1M seek=1M count=1 ||
+	for ((j=1; j < $nr_devs; j++)) ; do
+		dd if=/dev/zero of=$j$ddisk bs=1M seek=1M count=1 ||
 			return 1
-	fi
+	done
 
 	cat > disks.conf << EOF
 Device:
    - id: 0
      filename: $adisk
 EOF
-	if ((i > 0)); then
-		cat >> disks.conf << EOF
-   - id: $i
-     filename: $ddisk
-EOF
+	if (($ios > 0))
+	then
+		dev_start=$(($nr_devs * $ios))
+		dev_end=$(($dev_start - $nr_devs))
 	fi
+	for ((j=$dev_start; j > $dev_end; j--)) ; do
+		cat >> disks.conf << EOF
+   - id: $j
+     filename: $j$ddisk
+EOF
+	done
 
 	return $?
 }
@@ -51,6 +59,12 @@ mero_service()
 			ios_eps="$ios_eps -i $XPT:${lnet_nid}:${EP[$i]} "
 		done
 
+		local nr_ios=$((${#EP[*]} - 1))
+		local nr_dev_per_ios=$(($P / $nr_ios))
+		if (($P % $nr_ios > 0))
+		then
+			nr_dev_per_ios=$(($nr_dev_per_ios + 1))
+		fi
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
 			SNAME="-s $MERO_ADDBSERVICE_NAME"
@@ -64,7 +78,7 @@ mero_service()
 			rm -rf $MERO_M0T1FS_TEST_DIR/d$i
 			mkdir $MERO_M0T1FS_TEST_DIR/d$i
 
-			(mkloopdevs $i $MERO_M0T1FS_TEST_DIR/d$i) || return 1
+			(mkloopdevs $i $nr_dev_per_ios $MERO_M0T1FS_TEST_DIR/d$i) || return 1
 
 			ulimit -c unlimited
 			cmd="cd $MERO_M0T1FS_TEST_DIR/d$i && exec \

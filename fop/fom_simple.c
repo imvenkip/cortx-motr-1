@@ -42,12 +42,14 @@ static struct m0_reqh_service_type fom_simple_rstype;
 static const struct m0_fom_ops fom_simple_ops;
 struct m0_addb_ctx m0_fom_simple_addb_ctx;
 static struct m0_sm_conf fom_simple_conf;
+
 enum {
-	M0_ADDB_CTXID_FOM_SIMPLE  = 8000
+	M0_ADDB_CTXID_FOM_SIMPLE  = 8000,
+	M0_ADDB_FOM_SIMPLE_HI     = 8001,
+	M0_ADDB_FOM_SIMPLE_LOW    = 8002
 };
 
-M0_ADDB_CT(m0_addb_ct_fom_simple, M0_ADDB_CTXID_FOM_SIMPLE);
-
+M0_ADDB_CT(m0_addb_ct_fom_simple, M0_ADDB_CTXID_FOM_SIMPLE, "hi", "low");
 
 M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 				    struct m0_reqh *reqh,
@@ -95,7 +97,8 @@ M0_INTERNAL int m0_fom_simples_init(void)
 {
 	m0_addb_ctx_type_register(&m0_addb_ct_fom_simple);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fom_simple_addb_ctx,
-			 &m0_addb_ct_fom_simple, &m0_addb_proc_ctx);
+			 &m0_addb_ct_fom_simple, &m0_addb_proc_ctx,
+			 M0_ADDB_FOM_SIMPLE_HI, M0_ADDB_FOM_SIMPLE_LOW);
 	return m0_reqh_service_type_register(&fom_simple_rstype);
 }
 
@@ -139,8 +142,7 @@ static size_t fom_simple_locality_get(const struct m0_fom *fom)
 
 static void fom_simple_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
-	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_fom_simple,
-			 &m0_fom_simple_addb_ctx);
+	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
 }
 
 static void fom_simple_fini(struct m0_fom *fom)

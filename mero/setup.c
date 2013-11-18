@@ -1114,6 +1114,8 @@ static int cs_services_init(struct m0_mero *cctx)
 		m0_reqh_start(&rctx->rc_reqh);
 		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
 				     NULL) ?:
+		     cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
+				     NULL) ?:
 			reqh_services_init(rctx);
 		m0_mgmt_reqh_services_start_wait(&rctx->rc_reqh);
 		/* return failure if any service has failed */
@@ -1126,6 +1128,8 @@ static int cs_services_init(struct m0_mero *cctx)
 #else
 		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
 			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
+					NULL) ?:
+			cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
 					NULL) ?:
 			reqh_services_init(rctx);
 		if (rc != 0)

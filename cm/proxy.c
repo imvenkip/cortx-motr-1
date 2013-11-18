@@ -26,6 +26,7 @@
 #include "lib/trace.h"
 #include "lib/time.h"
 #include "lib/misc.h"
+#include "lib/locality.h"
 
 #include "rpc/rpc.h"
 #include "rpc/session.h"
@@ -215,7 +216,6 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	int                      rc;
 
 	M0_ASSERT(cm_proxy_invariant(proxy));
-	M0_PRE(m0_cm_is_locked(cm));
 
 	M0_SET0(&id_lo);
 	M0_SET0(&id_hi);
@@ -238,15 +238,15 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		M0_ASSERT(rc == 0);
 	}
 
-	M0_CNT_INC(proxy->px_nr_asts);
-	M0_LOG(M0_DEBUG, "nr_asts: %lu", proxy->px_nr_asts);
+	if (proxy->px_nr_asts > 0)
+		M0_CNT_DEC(proxy->px_nr_asts);
 	/*
 	 * If all the call backs corresponding to all the updates are complete,
 	 * then signal the proxy shut down channel to proceed with proxy
 	 * finalisation.
 	 */
 	if (!has_data && cm->cm_aggr_grps_in_nr == 0 &&
-	    (proxy->px_nr_updates_sent == proxy->px_nr_asts))
+		proxy->px_shutdown && proxy->px_nr_asts == 0)
 		m0_chan_signal_lock(&proxy->px_signal);
 }
 
@@ -257,6 +257,7 @@ static void proxy_sw_onwire_ast_post(struct m0_cm_proxy *proxy)
 
 	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
 	m0_sm_ast_post(proxy->px_cm->cm_mach.sm_grp, &proxy->px_sw_onwire_ast);
+	m0_cm_ast_run_fom_wakeup(proxy->px_cm);
 	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
 	M0_LEAVE();
 }
@@ -348,10 +349,9 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
         m0_fop_put(fop);
         m0_sm_group_unlock(&rmach->rm_sm_grp);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
-	M0_CNT_INC(proxy->px_nr_updates_sent);
-	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"] nr_updates: %lu",
-	       proxy->px_endpoint, M0_AG_P(&sw->sw_hi),
-	       proxy->px_nr_updates_sent);
+	M0_CNT_INC(proxy->px_nr_asts);
+	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
+	       proxy->px_endpoint, M0_AG_P(&sw->sw_hi));
 
 	M0_LEAVE("%d", rc);
 	return rc;
@@ -381,12 +381,14 @@ M0_INTERNAL void m0_cm_proxy_fini_wait(struct m0_cm_proxy *proxy)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&proxy->px_signal, &clink);
 
-	while (proxy->px_nr_updates_sent != proxy->px_nr_asts) {
-		/* Give chance to run asts. */
+	proxy->px_shutdown = true;
+	while (proxy->px_nr_asts > 0) {
 		m0_cm_unlock(cm);
-		m0_cm_lock(cm);
 		m0_chan_timedwait(&clink, m0_time_from_now(PROXY_WAIT, 0));
+		m0_cm_lock(cm);
 	}
+	/* Signal proxy ast posting simple fom, so that it terminates itself. */
+	m0_chan_signal_lock(&proxy->px_signal);
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 	M0_POST(m0_cm_is_locked(cm));

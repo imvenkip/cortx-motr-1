@@ -467,19 +467,6 @@ static int iter_group_next(struct m0_sns_cm_iter *it)
 	return __group_next(it);
 }
 
-static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
-			   struct m0_cm_ag_id *id)
-{
-	M0_PRE(scm != NULL && pl != NULL && id != NULL);
-
-	if (scm->sc_base.cm_proxy_nr > 0) {
-		ID_LOG("agid", id);
-		return  m0_sns_cm_ag_is_relevant(scm, pl, id);
-	}
-
-	return false;
-}
-
 /**
  * Configures aggregation group, acquires buffers for accumulator copy packet
  * in the aggregation group failure contexts.

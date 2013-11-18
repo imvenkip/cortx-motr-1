@@ -26,6 +26,7 @@
 
 #include "lib/chan.h"
 
+#include "fop/fom_simple.h"
 #include "rpc/conn.h"
 #include "rpc/session.h"
 #include "sm/sm.h"
@@ -60,9 +61,6 @@ struct m0_cm_proxy {
 	/** Total number of call backs executed for each remote update sent. */
 	uint64_t               px_nr_asts;
 
-	/** Total sliding window updates sent to this replica. */
-	uint64_t               px_nr_updates_sent;
-
 	/**
 	 * Channel to wait on before finalising this proxy to make sure all the
 	 * call backs are processed corresponding to all remote the updates sent.
@@ -71,6 +69,7 @@ struct m0_cm_proxy {
 	struct m0_chan         px_signal;
 	struct m0_mutex        px_signal_mutex;
 
+	bool                   px_shutdown;
 	/** Back reference to local copy machine. */
 	struct m0_cm          *px_cm;
 
