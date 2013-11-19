@@ -172,7 +172,7 @@ include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/cfg/Makefile.sub
+include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
@@ -648,12 +648,15 @@ bin_PROGRAMS               += stats/util/m0stats
 stats_util_m0stats_LDADD    = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/stats/util/Makefile.sub
+
+
 ################################################################################
 #                        Init scripts and config files
 ################################################################################
 
 initddir = $(sysconfdir)/rc.d/init.d
 initd_SCRIPTS = mero/mero
+
 
 ################################################################################
 #                                     Misc
@@ -1130,6 +1133,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               sm/Kbuild.sub \
               sm/ut/Kbuild.sub \
               sns/Kbuild.sub \
+              stats/Kbuild.sub \
               stob/Kbuild.sub \
               ut/Kbuild.sub \
               utils/Kbuild.sub \
