@@ -277,11 +277,9 @@ static int fom_tx_open(struct m0_fom *fom)
 			return rc;
 	}
 
-	m0_fom_wait_on(fom, &dtx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
 	m0_dtx_open(dtx);
-	m0_fom_phase_set(fom, M0_FOPH_TXN_WAIT);
 
-	return M0_FSO_WAIT;
+	return M0_FSO_AGAIN;
 }
 
 /**
@@ -293,11 +291,16 @@ static int fom_tx_wait(struct m0_fom *fom)
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
 	M0_ENTRY("fom=%p", fom);
-	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_ACTIVE, M0_BTS_FAILED)));
+	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING,
+					  M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
 	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
 		M0_RETURN(tx->t_sm.sm_rc);
-	else
+	else if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
+		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+		M0_LEAVE();
+		return M0_FSO_WAIT;
+	} else
 		m0_dtx_opened(&fom->fo_tx);
 
 	M0_LEAVE();
@@ -372,7 +375,7 @@ static int fom_fol_rec_add(struct m0_fom *fom)
  * Commits local fom transactional context if fom
  * execution is successful.
  */
-static int fom_txn_commit(struct m0_fom *fom)
+static int fom_tx_commit(struct m0_fom *fom)
 {
 	struct m0_dtx   *dtx = &fom->fo_tx;
 	struct m0_be_tx *tx  = m0_fom_tx(fom);
@@ -393,7 +396,7 @@ static int fom_txn_commit(struct m0_fom *fom)
  * Resumes fom execution after completing a blocking operation
  * in M0_FOPH_TXN_COMMIT phase.
  */
-static int fom_txn_commit_wait(struct m0_fom *fom)
+static int fom_tx_commit_wait(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
@@ -522,9 +525,9 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_TXN_COMMIT,
 					     "fom_fol_rec_add",
 					      1 << M0_FOPH_FOL_REC_ADD },
-	[M0_FOPH_TXN_COMMIT] =		   { &fom_txn_commit,
+	[M0_FOPH_TXN_COMMIT] =		   { &fom_tx_commit,
 					      M0_FOPH_QUEUE_REPLY,
-					     "fom_txn_commit",
+					     "fom_tx_commit",
 					      1 << M0_FOPH_TXN_COMMIT },
 	[M0_FOPH_QUEUE_REPLY] =		   { &fom_queue_reply,
 					      M0_FOPH_QUEUE_REPLY_WAIT,
@@ -534,9 +537,9 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_TXN_COMMIT_WAIT,
 					     "fom_queue_reply_wait",
 					      1 << M0_FOPH_QUEUE_REPLY_WAIT },
-	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_txn_commit_wait,
+	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_tx_commit_wait,
 					      M0_FOPH_FINISH,
-					     "fom_txn_commit_wait",
+					     "fom_tx_commit_wait",
 					      1 << M0_FOPH_TXN_COMMIT_WAIT },
 	[M0_FOPH_TIMEOUT] =		   { &fom_timeout,
 					      M0_FOPH_FAILURE,
@@ -634,7 +637,7 @@ static struct m0_sm_state_descr generic_phases[] = {
 		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT)
 	},
 	[M0_FOPH_TXN_COMMIT] = {
-		.sd_name      = "fom_txn_commit",
+		.sd_name      = "fom_tx_commit",
 		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
 	},
 	[M0_FOPH_QUEUE_REPLY] = {
@@ -648,7 +651,7 @@ static struct m0_sm_state_descr generic_phases[] = {
 					M0_FOPH_FINISH)
 	},
 	[M0_FOPH_TXN_COMMIT_WAIT] = {
-		.sd_name      = "fom_txn_commit_wait",
+		.sd_name      = "fom_tx_commit_wait",
 		.sd_allowed   = M0_BITS(M0_FOPH_FINISH)
 	},
 	[M0_FOPH_TIMEOUT] = {
