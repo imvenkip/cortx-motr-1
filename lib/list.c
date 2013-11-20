@@ -91,13 +91,13 @@ static inline void __m0_list_add(struct m0_list_link *prev,
 			         struct m0_list_link *new)
 {
 	M0_ASSERT(prev->ll_next == next && next->ll_prev == prev);
-	M0_ASSERT(m0_list_link_invariant(next));
+	M0_ASSERT_EX(m0_list_link_invariant(next));
 	new->ll_next = next;
 	new->ll_prev = prev;
 
 	next->ll_prev = new;
 	prev->ll_next = new;
-	M0_ASSERT(m0_list_link_invariant(next));
+	M0_ASSERT_EX(m0_list_link_invariant(next));
 }
 
 M0_INTERNAL void m0_list_add(struct m0_list *head, struct m0_list_link *new)
@@ -129,7 +129,7 @@ M0_EXPORTED(m0_list_add_before);
 
 static void __m0_list_del(struct m0_list_link *old)
 {
-	M0_ASSERT(m0_list_link_invariant(old));
+	M0_ASSERT_EX(m0_list_link_invariant(old));
 	old->ll_prev->ll_next = old->ll_next;
 	old->ll_next->ll_prev = old->ll_prev;
 }
