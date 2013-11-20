@@ -186,7 +186,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
 		    &cp_fom->fo_loc->fl_group);
 	if (op == SIO_WRITE)
-		m0_stob_write_credit(dom, &stio->si_stob, m0_fom_tx_credit(cp_fom));
+		m0_stob_write_credit(dom, &stio->si_stob,
+				m0_fom_tx_credit(cp_fom));
 	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
 	if (rc != 0)
 		goto out;

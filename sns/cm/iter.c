@@ -89,11 +89,14 @@ enum cm_data_iter_phase {
 	 * needs repair.
 	 */
 	ITPH_FID_NEXT,
-	/**
-	 * Iterator waits in this phase after performing a blocking operation in
-	 * ITPH_FID_NEXT (i.e. fetch file layout) for completion event.
-	 */
-	ITPH_FID_NEXT_WAIT,
+	/** Iterator fetches GOB attributes in this phase. */
+	ITPH_FID_ATTR_FETCH,
+	/** Iterator waits till GOB attributes are fetched asynchronously. */
+	ITPH_FID_ATTR_FETCH_WAIT,
+	/** Iterator fetches GOB layout in this phase. */
+	ITPH_FID_LAYOUT_FETCH,
+	/** Iterator waits till GOB layout is fetched asynchronously. */
+	ITPH_FID_LAYOUT_FETCH_WAIT,
 	/**
 	 * Once next local data unit of parity group needing repair is calculated
 	 * along with its corresponding COB fid, the pre allocated copy packet
@@ -115,10 +118,6 @@ enum cm_data_iter_phase {
 	 */
 	ITPH_FINI,
 	ITPH_NR
-};
-
-enum {
-	IT_WAIT = M0_FSO_WAIT
 };
 
 M0_INTERNAL struct m0_sns_cm *it2sns(struct m0_sns_cm_iter *it)
@@ -173,31 +172,31 @@ static bool iter_invariant(const struct m0_sns_cm_iter *it)
  */
 static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm         *scm = it2sns(it);
-	struct m0_fid            *gfid;
-	struct m0_pdclust_layout *pl = NULL;
-	int                       rc;
-	M0_ENTRY("it = %p", it);
+        struct m0_sns_cm         *scm = it2sns(it);
+        struct m0_fid            *gfid;
+        struct m0_pdclust_layout *pl = NULL;
+        int                       rc;
+        M0_ENTRY("it = %p", it);
 
-	M0_PRE(it != NULL);
+        M0_PRE(it != NULL);
 
-	gfid = &it->si_fc.sfc_gob_fid;
-	rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, gfid,
-					      &it->si_fc.sfc_pdlayout,
-					      &it->si_fc.sfc_fsize);
-	if (rc == 0) {
-		pl = it->si_fc.sfc_pdlayout;
-		/*
-		 * We need only the number of parity units equivalent
-		 * to the number of failures.
-		 */
-		it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-		it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-		it->si_total_fsize += it->si_fc.sfc_fsize;
-		M0_CNT_INC(it->si_total_files);
-	}
+        gfid = &it->si_fc.sfc_gob_fid;
+        rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, gfid,
+                                              &it->si_fc.sfc_pdlayout,
+                                              &it->si_fc.sfc_fsize);
+        if (rc == 0) {
+                pl = it->si_fc.sfc_pdlayout;
+                /*
+                 * We need only the number of parity units equivalent
+                 * to the number of failures.
+                 */
+                it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+                it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+                it->si_total_fsize += it->si_fc.sfc_fsize;
+                M0_CNT_INC(it->si_total_files);
+        }
 
-	M0_RETURN(rc);
+        M0_RETURN(rc);
 }
 
 /**
@@ -229,23 +228,6 @@ static void unit_to_cobfid(struct m0_sns_cm_file_context *sfc,
 	m0_sns_cm_unit2cobfid(pl, pi, sa, ta, fid, cob_fid_out);
 }
 
-static int iter_fid_next_wait(struct m0_sns_cm_iter *it)
-{
-	struct m0_sns_cm_file_context *sfc = &it->si_fc;
-	struct m0_pdclust_layout      *pl  = sfc->sfc_pdlayout;
-	struct m0_fid                 *fid = &sfc->sfc_gob_fid;
-	int                            rc;
-
-	rc = m0_sns_cm_fid_layout_instance(pl, &sfc->sfc_pi, fid);
-	if (rc == 0) {
-		sfc->sfc_sa.sa_group = 0;
-		sfc->sfc_sa.sa_unit = 0;
-		iter_phase_set(it, ITPH_GROUP_NEXT);
-	}
-
-	return rc;
-}
-
 /* Uses name space iterator. */
 M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 {
@@ -258,11 +240,145 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 	M0_RETURN(rc);
 }
 
-/**
- * Fetches next GOB fid.
- * @note Presently uses a hard coded GOB fid for single file repair.
- * @todo Use name space iterator to fetch next GOB fid.
- */
+static void get_attr_callback(void *arg, int rc)
+{
+	struct m0_sns_cm      *scm;
+	struct m0_cm          *cm;
+	struct m0_sns_cm_iter *it = arg;
+
+	M0_PRE(it != NULL);
+
+	it->si_fc.sfc_fsize = it->si_fc.sfc_cob_attr.ca_size;
+	scm = it2sns(it);
+        cm = &scm->sc_base;
+	m0_cm_cp_pump_wakeup(cm);
+}
+
+static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
+{
+	M0_PRE(it != NULL);
+
+	if (it->si_fc.sfc_cob_attr.ca_size == 0)
+		M0_RETURN(M0_FSO_WAIT);
+	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH);
+	M0_RETURN(0);
+}
+
+/** Fetches the attributes of GOB. */
+static int iter_fid_attr_fetch(struct m0_sns_cm_iter *it)
+{
+	struct m0_sns_cm   *scm;
+	struct m0_cm       *cm;
+        struct m0_reqh     *reqh;
+        int                 rc;
+
+	M0_ENTRY("it = %p", it);
+	M0_PRE(it != NULL);
+
+	scm = it2sns(it);
+	cm = &scm->sc_base;
+        M0_PRE(m0_cm_is_locked(cm));
+
+	reqh = cm->cm_service.rs_reqh;
+	M0_SET0(&it->si_fc.sfc_cob_attr);
+        rc = m0_ios_mds_getattr_async(reqh, &it->si_fc.sfc_gob_fid,
+				      &it->si_fc.sfc_cob_attr,
+				      &get_attr_callback, it);
+	if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
+		M0_RETURN(-ENODATA);
+
+	iter_phase_set(it, ITPH_FID_ATTR_FETCH_WAIT);
+	if (rc != 0)
+		M0_RETURN(rc);
+	M0_RETURN(M0_FSO_WAIT);
+}
+
+static void get_layout_callback(void *arg, int rc)
+{
+	struct m0_sns_cm      *scm;
+	struct m0_cm          *cm;
+	struct m0_sns_cm_iter *it = arg;
+
+	M0_PRE(it != NULL);
+
+	it->si_fc.sfc_pdlayout = m0_layout_to_pdl(it->si_fc.sfc_layout);
+	scm = it2sns(it);
+        cm = &scm->sc_base;
+	m0_cm_cp_pump_wakeup(cm);
+}
+
+static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
+{
+	struct m0_pdclust_layout *pl;
+	int                       rc;
+
+	M0_PRE(it != NULL);
+
+	pl = it->si_fc.sfc_pdlayout;
+
+	if (pl == NULL)
+		M0_RETURN(M0_FSO_WAIT);
+
+	/*
+	 * We need only the number of parity units equivalent
+	 * to the number of failures.
+	 */
+	it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	it->si_total_fsize += it->si_fc.sfc_fsize;
+	M0_CNT_INC(it->si_total_files);
+
+        rc = m0_sns_cm_fid_layout_instance(pl, &it->si_fc.sfc_pi,
+					   &it->si_fc.sfc_gob_fid);
+        if (rc == 0) {
+                it->si_fc.sfc_sa.sa_group = 0;
+                it->si_fc.sfc_sa.sa_unit = 0;
+                iter_phase_set(it, ITPH_GROUP_NEXT);
+        }
+	M0_RETURN(rc);
+}
+
+/** Fetches the layout for GOB. */
+static int iter_fid_layout_fetch(struct m0_sns_cm_iter *it)
+{
+	struct m0_sns_cm         *scm;
+	struct m0_cm             *cm;
+        struct m0_reqh           *reqh;
+        struct m0_layout_domain  *ldom;
+	struct m0_layout         *l;
+	uint64_t                  lid;
+        int                       rc;
+
+	scm = it2sns(it);
+	cm = &scm->sc_base;
+	reqh = cm->cm_service.rs_reqh;
+	ldom = &reqh->rh_ldom;
+	lid = it->si_fc.sfc_cob_attr.ca_lid;
+
+	it->si_fc.sfc_pdlayout = NULL;
+	it->si_fc.sfc_layout = NULL;
+
+	l = m0_layout_find(ldom, lid);
+	if (l != NULL) {
+		it->si_fc.sfc_layout = l;
+		it->si_fc.sfc_pdlayout = m0_layout_to_pdl(l);
+		iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
+		M0_RETURN(0);
+	}
+
+        rc = m0_ios_mds_layout_get_async(reqh, ldom, lid, &it->si_fc.sfc_layout,
+                                         &get_layout_callback, it);
+
+	if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
+		M0_RETURN(-ENODATA);
+
+	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
+	if (rc != 0)
+		M0_RETURN(rc);
+	M0_RETURN(M0_FSO_WAIT);
+}
+
+/** Fetches next GOB fid. */
 static int iter_fid_next(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm_file_context   *sfc = &it->si_fc;
@@ -293,26 +409,21 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 			m0_layout_put(m0_pdl_to_layout(pl));
 			sfc->sfc_pdlayout = NULL;
 		}
+	}
 
+	if (M0_FI_ENABLED("ut_layout_fsize_fetch")) {
 		rc = file_size_and_layout_fetch(it);
-		if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
-			M0_RETURN(-ENODATA);
-		if (rc < 0)
-			M0_RETURN(rc);
-
-		if (rc == IT_WAIT) {
-			iter_phase_set(it, ITPH_FID_NEXT_WAIT);
-			M0_RETURN(rc);
-		}
-		pl = sfc->sfc_pdlayout;
-		rc = m0_sns_cm_fid_layout_instance(pl, &sfc->sfc_pi, fid);
 		if (rc == 0) {
-			sfc->sfc_sa.sa_group = 0;
-			sfc->sfc_sa.sa_unit = 0;
-			iter_phase_set(it, ITPH_GROUP_NEXT);
+			rc = m0_sns_cm_fid_layout_instance(sfc->sfc_pdlayout,
+					&sfc->sfc_pi, fid);
+			if (rc == 0) {
+				iter_phase_set(it, ITPH_GROUP_NEXT);
+				M0_RETURN(rc);
+			}
 		}
 	}
 
+	iter_phase_set(it, ITPH_FID_ATTR_FETCH);
 	M0_RETURN(rc);
 }
 
@@ -649,14 +760,17 @@ M0_INTERNAL int iter_idle(struct m0_sns_cm_iter *it)
 }
 
 static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
-	[ITPH_IDLE]            = iter_idle,
-	[ITPH_COB_NEXT]        = iter_cob_next,
-	[ITPH_GROUP_NEXT]      = iter_group_next,
-	[ITPH_GROUP_NEXT_WAIT] = iter_group_next_wait,
-	[ITPH_FID_NEXT]        = iter_fid_next,
-	[ITPH_FID_NEXT_WAIT]   = iter_fid_next_wait,
-	[ITPH_CP_SETUP]        = iter_cp_setup,
-	[ITPH_AG_SETUP]        = iter_ag_setup,
+	[ITPH_IDLE]                  = iter_idle,
+	[ITPH_COB_NEXT]              = iter_cob_next,
+	[ITPH_GROUP_NEXT]            = iter_group_next,
+	[ITPH_GROUP_NEXT_WAIT]       = iter_group_next_wait,
+	[ITPH_FID_NEXT]              = iter_fid_next,
+	[ITPH_FID_ATTR_FETCH]        = iter_fid_attr_fetch,
+	[ITPH_FID_ATTR_FETCH_WAIT]   = iter_fid_attr_fetch_wait,
+	[ITPH_FID_LAYOUT_FETCH]      = iter_fid_layout_fetch,
+	[ITPH_FID_LAYOUT_FETCH_WAIT] = iter_fid_layout_fetch_wait,
+	[ITPH_CP_SETUP]              = iter_cp_setup,
+	[ITPH_AG_SETUP]              = iter_ag_setup,
 };
 
 /**
@@ -711,10 +825,25 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_FID_NEXT] = {
 		.sd_flags   = 0,
 		.sd_name    = "FID next",
-		.sd_allowed = M0_BITS(ITPH_FID_NEXT_WAIT, ITPH_GROUP_NEXT,
+		.sd_allowed = M0_BITS(ITPH_FID_ATTR_FETCH, ITPH_GROUP_NEXT,
 				      ITPH_IDLE)
 	},
-	[ITPH_FID_NEXT_WAIT] = {
+	[ITPH_FID_ATTR_FETCH] = {
+		.sd_flags   = 0,
+		.sd_name    = "FID next wait",
+		.sd_allowed = M0_BITS(ITPH_FID_ATTR_FETCH_WAIT)
+	},
+	[ITPH_FID_ATTR_FETCH_WAIT] = {
+		.sd_flags   = 0,
+		.sd_name    = "FID next wait",
+		.sd_allowed = M0_BITS(ITPH_FID_LAYOUT_FETCH)
+	},
+	[ITPH_FID_LAYOUT_FETCH] = {
+		.sd_flags   = 0,
+		.sd_name    = "FID next wait",
+		.sd_allowed = M0_BITS(ITPH_FID_LAYOUT_FETCH_WAIT)
+	},
+	[ITPH_FID_LAYOUT_FETCH_WAIT] = {
 		.sd_flags   = 0,
 		.sd_name    = "FID next wait",
 		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT)

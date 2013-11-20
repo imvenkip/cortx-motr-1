@@ -284,6 +284,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 	int                  rc;
 
 	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_enable("iter_fid_next", "ut_layout_fsize_fetch");
 	cobs_create(nr_files, pool_width);
 	m0_cm_lock(cm);
 	do {
@@ -302,6 +303,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
 	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_disable("iter_fid_next", "ut_layout_fsize_fetch");
 
 	return rc;
 }

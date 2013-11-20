@@ -72,6 +72,8 @@ struct m0_cm_cp_pump {
 	 * race.
 	 */
 	bool             p_is_idle;
+        struct m0_chan   p_signal;
+        struct m0_mutex  p_signal_mutex;
 };
 
 M0_INTERNAL void m0_cm_cp_pump_init(void);

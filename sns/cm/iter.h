@@ -50,6 +50,13 @@ struct m0_sns_cm_file_context {
 
 	size_t                        sfc_fsize;
 
+	/**
+	 * Layout for the file.
+	 * @note This should be moved to some fid cache structure, once it is
+	 * implemented.
+	 */
+	struct m0_layout             *sfc_layout;
+
 	/** GOB layout. */
 	struct m0_pdclust_layout     *sfc_pdlayout;
 
@@ -86,6 +93,13 @@ struct m0_sns_cm_file_context {
 
 	/** COB fid corresponding to m0_sns_cm_file_context::sfc_ta. */
 	struct m0_fid                 sfc_cob_fid;
+
+	/**
+	 * Attributes of the current fid.
+	 * @note This should be moved to some fid cache structure, once it is
+	 * implemented.
+	 */
+	struct m0_cob_attr            sfc_cob_attr;
 
 	bool                          sfc_cob_is_spare_unit;
 };

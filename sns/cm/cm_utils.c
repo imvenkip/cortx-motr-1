@@ -61,7 +61,7 @@ static int sns_cm_ut_file_size_layout_fetch(struct m0_cm *cm,
 	struct m0_dbenv                     *dbenv;
 	struct m0_reqh                      *reqh;
 	uint64_t                             lid;
-	int                                  rc;
+	int                                  rc = 0;
 
 	reqh = cm->cm_service.rs_reqh;
 	dbenv = reqh->rh_dbenv;
