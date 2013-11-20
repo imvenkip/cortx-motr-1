@@ -437,7 +437,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
 
-	emap_dump(it);
+	/* emap_dump(it); */
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
 
