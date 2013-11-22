@@ -377,8 +377,6 @@ struct stobsink_poolbuf {
 	bool                      spb_busy;
 	struct m0_bufvec          spb_buf;
 	struct m0_stob_io         spb_io;
-	/** The transaction object for spb_io */
-	struct m0_dtx             spb_tx;
 
 	/* following fields are used as size[1] arrays of spb_buf and spb_io */
 	m0_bcount_t               spb_buf_v_count;
@@ -669,7 +667,6 @@ static void stobsink_offset_search(struct stobsink *sink, uint64_t first_seq_nr)
  */
 static bool stobsink_chan_cb(struct m0_clink *link)
 {
-	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
 	struct stobsink_poolbuf *pb =
 	    container_of(link, struct stobsink_poolbuf, spb_wait);
 	bool sync;
@@ -685,14 +682,6 @@ static bool stobsink_chan_cb(struct m0_clink *link)
 		       pb->spb_sink->ss_bshift,
 		       pb->spb_io.si_rc);
 	/** @todo alert some component if the operation fails */
-	if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
-		m0_sm_group_lock(grp);
-		m0_mutex_unlock(&pb->spb_sink->ss_mutex);
-		m0_dtx_done_sync(&pb->spb_tx);
-		m0_dtx_fini(&pb->spb_tx);
-		m0_mutex_lock(&pb->spb_sink->ss_mutex);
-		m0_sm_group_unlock(grp);
-	}
 	pb->spb_busy = false;
 	m0_mutex_unlock(&pb->spb_sink->ss_mutex);
 
@@ -780,7 +769,6 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 			     m0_bindex_t              offset,
 			     uint32_t                 record_nr)
 {
-	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
 	struct stobsink           *sink;
 	struct m0_stob_domain     *dom;
 	struct m0_bufvec_cursor    cur;
@@ -827,32 +815,9 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
 	m0_mutex_unlock(&sink->ss_mutex);
-	if (dom->sd_bedom != NULL) {
-		m0_sm_group_lock(grp);
-		m0_dtx_init(&pb->spb_tx, dom->sd_bedom, grp);
-		dom->sd_ops->sdo_write_credit(dom,
-				&pb->spb_io.si_stob,
-				&pb->spb_tx.tx_betx_cred);
-		rc = dom->sd_ops->sdo_tx_make(dom, &pb->spb_tx);
-		if (rc != 0) {
-			m0_dtx_fini(&pb->spb_tx);
-			m0_sm_group_unlock(grp);
-			m0_mutex_lock(&sink->ss_mutex);
-			pb->spb_busy = false;
-			M0_LOG(M0_ERROR, "%s: tx_make for offset=%ld "
-					 "and size=%ld failed: rc=%d",
-				dom->sd_name,
-				(long)offset,
-				(long)m0_vec_count(&pb->spb_io.si_user.ov_vec), rc);
-			/** @todo alert some component that the db/tx has failed */
-			return;
-		}
-	}
-
+	M0_ASSERT(dom->sd_bedom == NULL); /* Linux stob */
 	M0_LOG(M0_DEBUG, "pb=%p: launching stob io...", pb);
-	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, &pb->spb_tx, NULL);
-	if (dom->sd_bedom != NULL)
-		m0_sm_group_unlock(grp);
+	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, NULL, NULL);
 	m0_mutex_lock(&sink->ss_mutex);
 
 	if (rc != 0) {
@@ -860,12 +825,6 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 		M0_LOG(M0_ERROR, "segment persist at offset %ld failed %d",
 		       (unsigned long) offset, rc);
 		/** @todo alert some component that the stob has failed */
-		if (pb->spb_tx.tx_state == M0_DTX_OPEN) {
-			m0_sm_group_lock(grp);
-			m0_dtx_done_sync(&pb->spb_tx);
-			m0_dtx_fini(&pb->spb_tx);
-			m0_sm_group_unlock(grp);
-		}
 	}
 	M0_POST(stobsink_invariant(sink));
 }

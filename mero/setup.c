@@ -1294,43 +1294,22 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
 static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 {
 	int                    rc;
-	struct m0_dtx          tx = {};
-	struct cs_ad_stob     *ad_stob;
 	struct m0_stob_domain *sdom;
 	struct cs_addb_stob   *addb_stob = &rctx->rc_addb_stob;
-	struct m0_sm_group    *grp = m0_locality0_get()->lo_grp;
+	const char            *stype = m0_cs_stypes[M0_LINUX_STOB];
 
 	M0_ENTRY();
 
 	/** @todo allow different stob type for data stobs & ADDB stobs? */
-	rc = cs_storage_init(rctx->rc_stype, rctx->rc_addb_stpath,
+	rc = cs_storage_init(stype, rctx->rc_addb_stpath,
 			     &addb_stob->cas_stobs, rctx->rc_beseg);
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	if (strcasecmp(rctx->rc_stype, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
-		sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
-	} else {
-		M0_ASSERT(!m0_tlist_is_empty(&astob_tl,
-					     &addb_stob->cas_stobs.s_adstobs));
-		ad_stob = astob_tlist_head(&addb_stob->cas_stobs.s_adstobs);
-		M0_ASSERT(ad_stob != NULL);
+	sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
 
-		sdom = ad_stob->as_dom;
-	}
-
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, rctx->rc_beseg->bs_domain, grp);
-	m0_stob_create_helper_credit(sdom, &m0_addb_stob_id, &tx.tx_betx_cred);
-	rc = m0_dtx_open_sync(&tx);
-	if (rc == 0) {
-		rc = m0_stob_create_helper(sdom, &tx, &m0_addb_stob_id,
-					   &addb_stob->cas_stob);
-		m0_dtx_done_sync(&tx);
-	}
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-
+	rc = m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
+				   &addb_stob->cas_stob);
 	M0_RETURN(rc);
 }
 

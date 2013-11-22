@@ -23,7 +23,7 @@
    Periodic posting of statistics is done by means of a dedicated @ref fom "FOM"
    represented by the ::addb_post_fom structure.
    The FOM is created by the addb_pfom_start() subroutine invoked by the
-   addb_service_start() service operation.
+   addb_svc_rso_start() service operation.
 
    The FOM transitions through the following phases:
    @dot
@@ -345,7 +345,7 @@ static void addb_pfom_stop_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
         struct addb_post_fom *pfom = bob_of(ast, struct addb_post_fom,
 					    pf_ast, &addb_pfom_bob);
 
-	M0_LOG(M0_DEBUG, "pfom_stop_cb: %d\n", (int)pfom->pf_running);
+	M0_LOG(M0_DEBUG, "%d", (int)pfom->pf_running);
 	if (pfom->pf_running) {
 		if (pfom->pf_timeout.to_cb.fc_fom != NULL)
 			m0_fom_timeout_cancel(&pfom->pf_timeout);
@@ -384,6 +384,8 @@ static void addb_pfom_stop(struct addb_svc *svc)
 			m0_cond_wait(&svc->as_cond);
 	}
 	m0_mutex_unlock(&rsvc->rs_mutex);
+
+	M0_LEAVE();
 }
 
 /**
