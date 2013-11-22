@@ -481,7 +481,7 @@ static struct be_alloc_chunk *be_alloc_chunk_next(struct m0_be_allocator *a,
 	struct be_alloc_chunk *r;
 
 	r = chunks_all_tlist_next(&a->ba_h->bah_chunks.bl_list, c);
-	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, r)));
+	M0_ASSERT_EX(ergo(r != NULL, be_alloc_chunk_invariant(a, r)));
 	return r;
 }
 
