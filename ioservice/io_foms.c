@@ -1269,7 +1269,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
                     m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
                     m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
-                    return  M0_FSO_WAIT;
+                    return M0_FSO_WAIT;
             } else if (nb == NULL) {
                     m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
                     /*

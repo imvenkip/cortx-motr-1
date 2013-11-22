@@ -62,7 +62,7 @@ M0_INTERNAL void m0_queue_fini(struct m0_queue *q)
 
 M0_INTERNAL bool m0_queue_is_empty(const struct m0_queue *q)
 {
-	M0_ASSERT(m0_queue_invariant(q));
+	M0_ASSERT_EX(m0_queue_invariant(q));
 	return q->q_head == EOQ;
 }
 
@@ -100,7 +100,7 @@ M0_INTERNAL size_t m0_queue_length(const struct m0_queue *q)
 	size_t length;
 	struct m0_queue_link *scan;
 
-	M0_ASSERT(m0_queue_invariant(q));
+	M0_ASSERT_EX(m0_queue_invariant(q));
 
 	for (length = 0, scan = q->q_head; scan != EOQ; scan = scan->ql_next)
 		++length;
@@ -121,7 +121,7 @@ M0_INTERNAL struct m0_queue_link *m0_queue_get(struct m0_queue *q)
 			q->q_tail = EOQ;
 		head->ql_next = NULL;
 	}
-	M0_ASSERT(m0_queue_invariant(q));
+	M0_ASSERT_EX(m0_queue_invariant(q));
 	return head;
 
 }
@@ -135,7 +135,7 @@ M0_INTERNAL void m0_queue_put(struct m0_queue *q, struct m0_queue_link *ql)
 		q->q_tail->ql_next = ql;
 	q->q_tail = ql;
 	ql->ql_next = EOQ;
-	M0_ASSERT(m0_queue_invariant(q));
+	M0_ASSERT_EX(m0_queue_invariant(q));
 }
 
 M0_INTERNAL bool m0_queue_invariant(const struct m0_queue *q)
