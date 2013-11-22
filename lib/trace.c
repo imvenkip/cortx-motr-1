@@ -742,7 +742,7 @@ static int escape_yaml_str(char *str, size_t max_size)
 {
 	size_t   str_len    = strlen(str);
 	ssize_t  free_space = max_size - str_len;
-	char    *p          = str;;
+	char    *p          = str;
 
 	if (free_space < 0)
 		return -EINVAL;
@@ -751,7 +751,7 @@ static int escape_yaml_str(char *str, size_t max_size)
 	{
 		if (--free_space < 0)
 			return -ENOMEM;
-		memmove(p + 1, p, str_len - (p - str) + 1);
+		memmove(p + 1, p, strlen(p) + 1);
 		*p = '\'';
 		p += 2;
 	}
