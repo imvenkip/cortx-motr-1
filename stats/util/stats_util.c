@@ -284,7 +284,6 @@ int main(int argc, char *argv[])
 			M0_VOIDARG('h', "Detailed usage help",
 				LAMBDA(void, (void)
 				{
-					m0stats_help();
 					rc = 1;
 				})));
 	rc = rc != 0 ? : r2;
