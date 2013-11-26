@@ -2999,7 +2999,8 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	M0_PRE_EX(io_request_invariant(req));
 
 	rc = device_check(req);
-	if (req->ir_nwxfer.nxr_rc == 0)
+	if (req->ir_nwxfer.nxr_rc !=
+	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
 		M0_RETURN(req->ir_nwxfer.nxr_rc);
 	else if (rc < 0)
 		M0_RETURN(rc);
