@@ -1541,7 +1541,6 @@ static void stio_desc_fini(struct m0_stob_io_desc *stio_desc)
 static int io_launch(struct m0_fom *fom)
 {
 	int			 rc;
-	uint32_t		 bshift;
 	struct m0_fop		*fop;
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_net_buffer    *nb;
@@ -1563,12 +1562,12 @@ static int io_launch(struct m0_fom *fom)
 	rc = stob_object_find(fom);
 	if (rc != 0)
 		goto cleanup;
-
 	/*
-	   Since the upper layer IO block size could differ with IO block size
-	   of storage object, the block alignment and mapping is necessary.
+	  Since the upper layer IO block size could differ with IO block size
+	  of storage object, the block alignment and mapping is necessary.
 	 */
-	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
+	fom_obj->fcrw_bshift  = fom_obj->fcrw_stob->so_op->
+				sop_block_shift(fom_obj->fcrw_stob);
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
 					   &fom_obj->fcrw_netbuf_list));
@@ -1598,7 +1597,8 @@ static int io_launch(struct m0_fom *fom)
 		mem_ivec = &stio->si_stob;
 		wire_ivec =
 		    rwfop->crw_ivecs.cis_ivecs[fom_obj->fcrw_curr_ivec_index++];
-		rc = indexvec_wire2mem(fom, &wire_ivec, mem_ivec, bshift);
+		rc = indexvec_wire2mem(fom, &wire_ivec, mem_ivec,
+				       fom_obj->fcrw_bshift);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
@@ -1616,7 +1616,7 @@ static int io_launch(struct m0_fom *fom)
                  */
                 ivec_count = m0_vec_count(&mem_ivec->iv_vec);
                 rc = align_bufvec(fom, &stio->si_user, &nb->nb_buffer,
-				  ivec_count, bshift);
+				  ivec_count, fom_obj->fcrw_bshift);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
@@ -1865,7 +1865,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwfop = io_rw_get(fom->fo_fop);
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
-		rwrep->rwr_count = fom_obj->fcrw_count;
+		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,

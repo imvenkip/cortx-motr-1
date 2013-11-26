@@ -183,6 +183,8 @@ struct m0_io_fom_cob_rw {
         m0_bcount_t                      fcrw_req_count;
         /** Number of bytes successfully transferred. */
         m0_bcount_t                      fcrw_count;
+	/** Stob block shift */
+	uint32_t                         fcrw_bshift;
 
 	/**
 	 * Summary index vector representing the extent information
