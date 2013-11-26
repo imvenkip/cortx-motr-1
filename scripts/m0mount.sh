@@ -146,6 +146,9 @@ MERO_TRACE_LEVEL=notice+
 # Local mount data
 MP=/mnt/m0
 
+LOCAL_NID=`lctl list_nids | head -1`
+LOCAL_EP=$LOCAL_NID:12345:41:10
+
 # The file system TMID
 FSTMID=1
 
@@ -182,8 +185,6 @@ setup_local_params()
 {
 	modprobe lnet
 	lctl network up &>> /dev/null
-	LOCAL_NID=`lctl list_nids | head -1`
-	LOCAL_EP_PREFIX=12345:41:10
 	NODE_UUID[$THIS_HOST]=02e94b88-19ab-4166-b26b-91b51f22ad91
 
 	SERVICES_NR=${SERVICES_NR:-4}
@@ -197,7 +198,7 @@ setup_local_params()
 	# Update hostname and end point addresses
 	for ((i = 0; i < $SERVICES_NR; i++)); do
 		SERVICES[((i*2))]=$THIS_HOST
-		SERVICES[((i*2 +1))]="${LOCAL_NID}:${LOCAL_EP_PREFIX}"$((i+1))
+		SERVICES[((i*2 +1))]="${LOCAL_EP}"$((i+1))
 	done
 
 	if [ $use_loop_device -eq 1 ]; then
@@ -283,6 +284,10 @@ function setup_hosts () {
 			SETUP[$H]=$H
 		fi
 	done
+	if [ X${SETUP[$THIS_HOST]} = X ]; then
+		setup_host $THIS_HOST $LOCAL_EP || return 1
+		SETUP[$THIS_HOST]=$THIS_HOST
+	fi
 	return 0
 }
 
