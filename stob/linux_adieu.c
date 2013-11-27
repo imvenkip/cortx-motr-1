@@ -333,7 +333,7 @@ static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
 
 	head = m0_queue_get(&ldom->ioq_queue);
 	ldom->ioq_queued--;
-	M0_ASSERT(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
+	M0_ASSERT_EX(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
 	return container_of(head, struct ioq_qev, iq_linkage);
 }
 
@@ -349,7 +349,7 @@ static void ioq_queue_put(struct linux_domain *ldom,
 
 	m0_queue_put(&ldom->ioq_queue, &qev->iq_linkage);
 	ldom->ioq_queued++;
-	M0_ASSERT(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
+	M0_ASSERT_EX(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
 }
 
 static void ioq_queue_lock(struct linux_domain *ldom)
