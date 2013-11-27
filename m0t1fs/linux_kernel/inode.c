@@ -46,7 +46,8 @@ M0_BOB_DEFINE(M0_INTERNAL, &m0t1fs_inode_bob, m0t1fs_inode);
 M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode)
 {
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
-	return m0_fid_eq(&ci->ci_fid, &M0T1FS_SB(inode->i_sb)->csb_root_fid);
+	return m0_fid_eq(&ci->ci_flock.fi_fid,
+			 &M0T1FS_SB(inode->i_sb)->csb_root_fid);
 }
 
 static void init_once(void *foo)
@@ -55,7 +56,7 @@ static void init_once(void *foo)
 
 	M0_ENTRY();
 
-	m0_fid_set(&ci->ci_fid, 0, 0);
+	m0_fid_set(&ci->ci_flock.fi_fid, 0, 0);
 	inode_init_once(&ci->ci_inode);
 
 	M0_LEAVE();
@@ -103,13 +104,14 @@ static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
 }
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
-				       const struct m0t1fs_sb *csb)
+				       const struct m0t1fs_sb *csb,
+				       const struct m0_fid    *fid)
 {
 	struct m0_rm_domain *rdom;
 
 	rdom = m0t1fs_rmsvc_domain_get();
 	M0_ASSERT(rdom != NULL);
-	m0_file_init(&ci->ci_flock, &ci->ci_fid, rdom);
+	m0_file_init(&ci->ci_flock, fid, rdom);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_no_group,
 			   &ci->ci_flock, NULL);
@@ -135,7 +137,6 @@ M0_INTERNAL void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 {
 	M0_ENTRY("ci: %p", ci);
 
-	M0_SET0(&ci->ci_fid);
 	M0_SET0(&ci->ci_flock);
 	M0_SET0(&ci->ci_creditor);
 	M0_SET0(&ci->ci_fowner);
@@ -194,8 +195,9 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 
 	ci = M0T1FS_I(inode);
 
-	M0_LOG(M0_DEBUG, "fid [%lu:%lu]", (unsigned long)ci->ci_fid.f_container,
-	       (unsigned long)ci->ci_fid.f_key);
+	M0_LOG(M0_DEBUG, "fid [%lu:%lu]",
+	       (unsigned long)ci->ci_flock.fi_fid.f_container,
+	       (unsigned long)ci->ci_flock.fi_fid.f_key);
 
 	m0t1fs_inode_fini(ci);
 	kmem_cache_free(m0t1fs_inode_cachep, ci);
@@ -249,12 +251,12 @@ static int m0t1fs_inode_test(struct inode *inode, void *opaque)
 	ci = M0T1FS_I(inode);
 
 	M0_LOG(M0_DEBUG, "inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
-				(unsigned long)ci->ci_fid.f_container,
-				(unsigned long)ci->ci_fid.f_key,
+				(unsigned long)ci->ci_flock.fi_fid.f_container,
+				(unsigned long)ci->ci_flock.fi_fid.f_key,
 				(unsigned long)fid->f_container,
 				(unsigned long)fid->f_key);
 
-	rc = m0_fid_eq(&ci->ci_fid, fid);
+	rc = m0_fid_eq(&ci->ci_flock.fi_fid, fid);
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;
@@ -262,16 +264,19 @@ static int m0t1fs_inode_test(struct inode *inode, void *opaque)
 
 static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 {
-	struct m0t1fs_inode *ci;
+	struct m0t1fs_inode *ci  = M0T1FS_I(inode);
 	struct m0_fid       *fid = opaque;
+	struct m0t1fs_sb    *csb = M0T1FS_SB(inode->i_sb);
 
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "inode(%p) [%lu:%lu]", inode,
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
-	ci           = M0T1FS_I(inode);
-	ci->ci_fid   = *fid;
+	if (m0_fid_eq(fid, &csb->csb_root_fid))
+		ci->ci_flock.fi_fid = *fid;
+	else
+		m0t1fs_file_lock_init(ci, csb, fid);
 	inode->i_ino = fid->f_key;
 
 	M0_LEAVE("rc: 0");
@@ -281,9 +286,7 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 M0_INTERNAL int m0t1fs_inode_update(struct inode      *inode,
 				    struct m0_fop_cob *body)
 {
-	int                  rc  = 0;
-	struct m0t1fs_inode *ci  = M0T1FS_I(inode);
-	struct m0t1fs_sb    *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	int rc  = 0;
 
 	M0_ENTRY();
 
@@ -305,10 +308,6 @@ M0_INTERNAL int m0t1fs_inode_update(struct inode      *inode,
 		inode->i_nlink = body->b_nlink;
 	if (body->b_valid & M0_COB_MODE)
 		inode->i_mode = body->b_mode;
-
-	if (!m0t1fs_inode_is_root(inode) &&
-	    !m0_file_lock_resource_is_added(&ci->ci_fid))
-		m0t1fs_file_lock_init(ci, csb);
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;
@@ -440,14 +439,14 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 
 	M0_ENTRY();
 	M0_LOG(M0_DEBUG, "fid[%lu:%lu]:",
-			(unsigned long)ci->ci_fid.f_container,
-			(unsigned long)ci->ci_fid.f_key);
+			(unsigned long)ci->ci_flock.fi_fid.f_container,
+			(unsigned long)ci->ci_flock.fi_fid.f_key);
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 
 	M0_ASSERT(ci->ci_layout_id != 0);
 	rc = m0t1fs_build_layout_instance(csb, ci->ci_layout_id,
-					  &ci->ci_fid, &linst);
+					  &ci->ci_flock.fi_fid, &linst);
 	if (rc == 0)
 		ci->ci_layout_instance = linst;
 

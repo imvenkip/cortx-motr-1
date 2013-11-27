@@ -497,10 +497,12 @@ function start_servers () {
 		devs_conf_cnt=`expr $devs_conf_cnt + 1`
 	done
 
-	echo "Found total $MAX_DISK_ID discs"
-	if [ $MAX_DISK_ID -lt $POOL_WIDTH ]; then
-		echo "ERROR: Non enough disks found (only $MAX_DISK_ID of $POOL_WIDTH required)!"
-		return 1
+	if [ $STOB == "ad" -o $STOB == "-td" ]; then
+		echo "Found total $MAX_DISK_ID discs"
+		if [ $MAX_DISK_ID -lt $POOL_WIDTH ]; then
+			echo "ERROR: Not enough disks found (only $MAX_DISK_ID of $POOL_WIDTH required)!"
+			return 1
+		fi
 	fi
 
 	echo "Wait for the services to start up..."

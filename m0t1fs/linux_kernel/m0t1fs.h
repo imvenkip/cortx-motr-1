@@ -582,13 +582,13 @@ struct m0t1fs_inode {
 	/** vfs inode */
 	struct inode               ci_inode;
 
-	/** fid of gob */
-	struct m0_fid              ci_fid;
-
 	/** layout and related information for the file's data */
 	struct m0_layout_instance *ci_layout_instance;
 
-	/** Locking mechanism provided by resource manager */
+	/**
+	 * Locking mechanism provided by resource manager
+	 * ci_flock::fi_fid contains fid of gob
+	 */
 	struct m0_file             ci_flock;
 
 	/** An owner for maintaining file locks */
@@ -668,7 +668,8 @@ m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci, int index);
 M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void);
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
-				       const struct m0t1fs_sb *csb);
+				       const struct m0t1fs_sb *csb,
+				       const struct m0_fid    *fid);
 
 M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci);
 

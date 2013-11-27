@@ -398,7 +398,7 @@ static inline struct m0t1fs_inode *file_to_m0inode(struct file *file)
 
 static inline struct m0_fid *file_to_fid(struct file *file)
 {
-	return &file_to_m0inode(file)->ci_fid;
+	return &file_to_m0inode(file)->ci_flock.fi_fid;
 }
 
 static inline struct m0t1fs_sb *file_to_sb(struct file *file)
@@ -3237,8 +3237,8 @@ static int ioreq_file_lock(struct io_request *req)
 	struct m0t1fs_inode *mi;
 
 	M0_PRE(req != NULL);
-
 	M0_ENTRY();
+
 	mi = file_to_m0inode(req->ir_file);
 	m0_file_lock(&mi->ci_fowner, &req->ir_in);
 	m0_rm_owner_lock(&mi->ci_fowner);

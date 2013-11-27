@@ -136,18 +136,18 @@ static int file_io_ut_init(void)
 
         /* Initializes the m0t1fs inode and build layout instance. */
         M0_SET0(&ci);
-        ci.ci_fid = (struct m0_fid) {
-                .f_container = FID_CONTAINER,
-                .f_key       = FID_KEY,
-        };
         ci.ci_layout_id = csb.csb_layout_id;
 	csb.csb_cl_map.clm_map[csb.csb_nr_containers] = &msc;
-	m0t1fs_file_lock_init(&ci, &csb);
+	m0t1fs_file_lock_init(&ci, &csb,
+			      &(struct m0_fid) {
+				      .f_container = FID_CONTAINER,
+				      .f_key       = FID_KEY});
 
 	lay = m0_pdl_to_layout(pdlay);
 	M0_ASSERT(lay != NULL);
 
-	rc = m0_layout_instance_build(lay, &ci.ci_fid, &ci.ci_layout_instance);
+	rc = m0_layout_instance_build(lay, &ci.ci_flock.fi_fid,
+				      &ci.ci_layout_instance);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(ci.ci_layout_instance != NULL);
 
