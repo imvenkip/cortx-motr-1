@@ -71,12 +71,12 @@ Where:
 -a: Use AD stobs
     configure the services to run on ad stobs.
     it automatically detects and make configuration files
-    for the Titan discs.
-    Before using ad option make sure the discs are online:
+    for the Titan disks.
+    Before using ad option make sure the disks are online:
     $ sudo ~root/gem.sh dumpdrives
     Turn them on if needed:
     $ sudo ~root/gem.sh powerondrive all
-    If 'local' option is set also - /dev/loopX discs
+    If 'local' option is set also - /dev/loopX disks
     should be prepeared for ad stobs beforehand.
 
 -l: Use loop device for ad stob configuration
@@ -498,7 +498,7 @@ function start_servers () {
 	done
 
 	if [ $STOB == "ad" -o $STOB == "-td" ]; then
-		echo "Found total $MAX_DISK_ID discs"
+		echo "Found total $MAX_DISK_ID disks"
 		if [ $MAX_DISK_ID -lt $POOL_WIDTH ]; then
 			echo "ERROR: Not enough disks found (only $MAX_DISK_ID of $POOL_WIDTH required)!"
 			return 1
