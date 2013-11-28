@@ -36,6 +36,7 @@
 #include "lib/queue.h"
 #include "lib/tlist.h"
 #include "lib/thread.h"
+#include "lib/atomic.h"
 #include "stob/stob.h"
 #include "stob/cache.h"
 
@@ -90,7 +91,7 @@ struct linux_domain {
 	    buffer. */
 	io_context_t     ioq_ctx;
 	/** Free slots in the ring buffer. */
-	int              ioq_avail;
+	struct m0_atomic64 ioq_avail;
 	/** Used slots in the ring buffer. */
 	int              ioq_queued;
 	/** Worker threads. */
