@@ -110,9 +110,9 @@ OPTIONS_STRING="aln:d:k:p:u:qhLs"
 
 # This example puts 3 ioservices on 3 nodes
 SERVICES=(
-	sjt02-c1 172.18.50.40@o2ib:12345:41:101
+	#sjt02-c1 172.18.50.40@o2ib:12345:41:101
 	sjt02-c2 172.18.50.45@o2ib:12345:41:101
-	sjt00-c1 172.18.50.161@o2ib:12345:41:101
+	#sjt00-c1 172.18.50.161@o2ib:12345:41:101
 )
 
 declare -A NODE_UUID
@@ -146,6 +146,13 @@ MERO_TRACE_LEVEL=notice+
 # Local mount data
 MP=/mnt/m0
 
+function l_run () {
+	echo "# $*" >/dev/tty
+	eval $*
+}
+
+l_run modprobe lnet
+l_run lctl network up &>> /dev/null
 LOCAL_NID=`lctl list_nids | head -1`
 LOCAL_EP=$LOCAL_NID:12345:41:10
 
@@ -183,8 +190,6 @@ LSUM=
 
 setup_local_params()
 {
-	modprobe lnet
-	lctl network up &>> /dev/null
 	NODE_UUID[$THIS_HOST]=02e94b88-19ab-4166-b26b-91b51f22ad91
 
 	SERVICES_NR=${SERVICES_NR:-4}
@@ -204,11 +209,6 @@ setup_local_params()
 	if [ $use_loop_device -eq 1 ]; then
 		DISKS_PATTERN="/dev/loop*"
 	fi
-}
-
-function l_run () {
-	echo "# $*" >/dev/tty
-	eval $*
 }
 
 function r_run () {
@@ -630,7 +630,6 @@ main()
 		echo ERROR: Failed to load galois module
 		exit 1
 	}
-	l_run modprobe lnet
 	l_run insmod $BROOT/mero/m0mero.ko || {
 		echo ERROR: Failed to load m0mero module
 		rmmod galois
