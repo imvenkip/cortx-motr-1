@@ -1565,7 +1565,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	M0_PRE(adom->ad_setup);
 	M0_PRE(io->si_obj->so_domain->sd_type == &m0_ad_stob_type);
 	M0_PRE(io->si_stob.iv_vec.v_nr > 0);
-	M0_PRE(m0_vec_count(&io->si_user.ov_vec) > 0);
+	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
 
 	/* prefix fragments execution mode is not yet supported */
 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);

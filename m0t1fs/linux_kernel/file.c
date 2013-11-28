@@ -1368,7 +1368,7 @@ static void indexvec_sort(struct m0_indexvec *ivec)
 	uint32_t j;
 
 	M0_ENTRY("indexvec = %p", ivec);
-	M0_PRE(ivec != NULL && m0_vec_count(&ivec->iv_vec) > 0);
+	M0_PRE(ivec != NULL && !m0_vec_is_empty(&ivec->iv_vec));
 
 	/*
 	 * TODO Should be replaced by an efficient sorting algorithm,
