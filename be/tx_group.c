@@ -201,14 +201,23 @@ M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 M0_INTERNAL int
 m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 {
-	struct m0_be_tx_credit group_used = gr->tg_used;
-	struct m0_be_tx_credit tx_used;
-	int		       rc;
+	struct m0_be_tx_credit	group_used = gr->tg_used;
+	struct m0_be_tx_credit	tx_used;
+	struct m0_be_tx_credit	tx_prepared;
+	struct m0_be_tx_credit	tx_captured;
+	struct m0_be_reg_area  *ra = m0_be_tx__reg_area(tx);
+	int			rc;
 
 	M0_ENTRY();
 
-	m0_be_reg_area_used(m0_be_tx__reg_area(tx), &tx_used);
+	m0_be_reg_area_used(ra, &tx_used);
 	m0_be_tx_credit_add(&group_used, &tx_used);
+
+	m0_be_reg_area_prepared(ra, &tx_prepared);
+	m0_be_reg_area_captured(ra, &tx_captured);
+	M0_LOG(M0_DEBUG, "tx = %p, prepared = "BETXCR_F", captured = "BETXCR_F
+	       ", used = "BETXCR_F, tx, BETXCR_P(&tx_prepared),
+	       BETXCR_P(&tx_captured), BETXCR_P(&tx_used));
 
 	if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
 	    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {

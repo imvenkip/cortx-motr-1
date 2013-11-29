@@ -479,6 +479,14 @@ M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area *ra,
 	*prepared = ra->bra_prepared;
 }
 
+M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area *ra,
+					 struct m0_be_tx_credit *captured)
+{
+	M0_PRE(m0_be_reg_area__invariant(ra));
+
+	*captured = ra->bra_captured;
+}
+
 static void be_reg_d_cpy(void *dst, const struct m0_be_reg_d *rd)
 {
 	memcpy(dst, rd->rd_reg.br_addr, rd->rd_reg.br_size);

@@ -193,6 +193,8 @@ M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
 				     struct m0_be_tx_credit *used);
 M0_INTERNAL void m0_be_reg_area_prepared(struct m0_be_reg_area *ra,
 					 struct m0_be_tx_credit *prepared);
+M0_INTERNAL void m0_be_reg_area_captured(struct m0_be_reg_area *ra,
+					 struct m0_be_tx_credit *captured);
 
 M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
 					const struct m0_be_reg_d *rd);
