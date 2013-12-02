@@ -314,8 +314,12 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 	       tx, m0_be_tx_state_name(tx_state), m0_be_tx_state_name(state));
 
 	if (tx_state < M0_BTS_CLOSED || state == tx_state + 1) {
+		/*
+		 * If we have state transition to M0_BTS_FAILED here
+		 * then transaction exceeds engine tx size limit.
+		 */
 		be_tx_state_move(tx, state,
-				 state == M0_BTS_FAILED ? -ENOMEM : 0);
+				 state == M0_BTS_FAILED ? -E2BIG : 0);
 	} else {
 		while (tx_state < state)
 			be_tx_state_move(tx, ++tx_state, 0);
