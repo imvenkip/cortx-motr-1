@@ -18,6 +18,9 @@
  * Original creation date: 29-May-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 #include "be/alloc.h"
 #include "be/alloc_internal.h"
 #include "be/seg_internal.h"    /* m0_be_seg_hdr */
@@ -906,6 +909,11 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	M0_POST_EX(m0_be_allocator__invariant(a));
 	M0_POST(equi(op->bo_u.u_allocator.a_ptr != NULL,
 		     op->bo_u.u_allocator.a_rc == 0));
+
+	if (op->bo_u.u_allocator.a_rc != 0) {
+		M0_LOG(M0_INFO, "allocator %p: allocation failed for size = %lu",
+		       a, (unsigned long)size);
+	}
 
 	/* set op state after post-conditions because they are using op */
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
