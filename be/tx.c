@@ -227,6 +227,13 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 				&m0_be_tx_credit_invalid) ? -EINVAL : 0;
 	rc = rc ?: m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
 
+	if (rc == -EINVAL) {
+		M0_LOG(M0_DEBUG, "tx = %p: tx credit is invalid", tx);
+	} else if (rc == -ENOMEM) {
+		M0_LOG(M0_DEBUG, "tx = %p: there is not enough memory "
+		       "to allocate using prepared credit "BETXCR_F,
+		       tx, BETXCR_P(&tx->t_prepared));
+	}
 	be_tx_state_move(tx, rc == 0 ? M0_BTS_OPENING : M0_BTS_FAILED, rc);
 
 	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_OPENING, M0_BTS_FAILED)));

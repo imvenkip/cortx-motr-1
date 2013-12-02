@@ -207,6 +207,10 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 	while ((tx = be_engine_tx_peek(en, M0_BTS_OPENING)) != NULL) {
 		if (!m0_be_tx_credit_le(&tx->t_prepared,
 					&en->eng_cfg->bec_tx_size_max)) {
+			M0_LOG(M0_DEBUG, "tx %p, engine %p: size of prepared "
+			       "credit "BETXCR_F" exceeded maximum tx size "
+			       BETXCR_F, tx, en, BETXCR_P(&tx->t_prepared),
+			       BETXCR_P(&en->eng_cfg->bec_tx_size_max));
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
 			rc = m0_be_log_reserve_tx(&en->eng_log,
