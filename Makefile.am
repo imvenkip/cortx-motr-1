@@ -620,16 +620,16 @@ bin_PROGRAMS             += pool/m0poolmach
 pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
 pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
 
-#XXX_BE_DB #
-#XXX_BE_DB # addb/dump
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB sbin_PROGRAMS                 += addb/dump/m0addbdump
-#XXX_BE_DB addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
-#XXX_BE_DB addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/addb/dump/Makefile.sub
-#XXX_BE_DB
+#
+# addb/dump
+#
+
+sbin_PROGRAMS                 += addb/dump/m0addbdump
+addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
+addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/addb/dump/Makefile.sub
+
 #XXX_BE_DB #
 #XXX_BE_DB # mgmt/ctl/m0ctl
 #XXX_BE_DB # (This is unrelated to utils/linux_kernel/ctl.c).

@@ -18,30 +18,18 @@
  * Original creation date: 12/18/2012
  */
 
+#include <stdio.h>
+
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
 #include "lib/memory.h"
-#include "lib/misc.h" /* M0_SET0 */
+#include "lib/locality.h"
+#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/thread.h" /* LAMBDA */
-#include "balloc/balloc.h"
-#include "dtm/dtm.h"
-#include "mero/init.h"
-#include "mero/setup.h"
-#include "stob/ad.h"
 #include "stob/linux.h"
-
-/*
- * Tracks related information pertinent to AD stob.
- */
-struct dump_ad_stob {
-	/* Allocation data storage domain.*/
-	struct m0_stob_domain *as_dom;
-	/* Back end storage object id, i.e. ad */
-	struct m0_stob_id      as_id_back;
-	/* Back end storage object. */
-	struct m0_stob        *as_stob_back;
-};
+#include "mero/setup.h" /* m0_addb_stob_id */
+#include "mero/init.h"  /* m0_init */
 
 /*
  * Encapsulates stob, stob type and
@@ -52,7 +40,6 @@ struct dump_stob {
 	int                    s_stype_nr;
 	/* Linux storage domain. */
 	struct m0_stob_domain *s_ldom;
-	struct dump_ad_stob   *s_adom;
 	/* The ADDB stob */
 	struct m0_stob        *s_stob;
 };
@@ -78,8 +65,6 @@ struct addb_dump_ops {
 struct addb_dump_ctl {
 	/* ADDB Storage path */
 	const char                  *adc_stpath;
-	/* Database environment path. */
-	const char                  *adc_dbpath;
 	/* Binary data input file path */
 	const char                  *adc_infile;
 	/* Flags for record cursor */
@@ -91,27 +76,11 @@ struct addb_dump_ctl {
 
 	/* a string to display with error message */
 	const char                  *adc_errstr;
-	int                          adc_stype_nr;
-	struct m0_dbenv              adc_db;
 	struct dump_stob             adc_stob;
 	struct m0_addb_segment_iter *adc_iter;
 	FILE                        *adc_out;
 	const struct addb_dump_ops  *adc_ops;
 };
-
-/* Returns valid stob type ID, or M0_STOB_TYPE_NR */
-static int stype_parse(const char *stype)
-{
-	int i;
-
-	if (stype == NULL)
-		return M0_STOB_TYPE_NR;
-	for (i = 0; i < ARRAY_SIZE(m0_cs_stypes); ++i) {
-		if (strcasecmp(stype, m0_cs_stypes[i]) == 0)
-			break;
-	}
-	return i;
-}
 
 static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
 {
@@ -121,7 +90,6 @@ static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
 }
 
 static int dump_stob_locate(struct m0_stob_domain *dom,
-			    struct m0_dtx *dtx,
 			    const struct m0_stob_id *stob_id,
 			    struct m0_stob **out)
 {
@@ -137,7 +105,7 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
 		 * point.
 		 */
 		if (stob->so_state == CSS_UNKNOWN)
-			rc = m0_stob_locate(stob, dtx);
+			rc = m0_stob_locate(stob);
 		/* do not attempt to create, this is a dump utility! */
 		if (rc != 0) {
 			m0_stob_put(stob);
@@ -149,79 +117,12 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
 	return rc;
 }
 
-static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
-			     struct m0_dtx *tx, struct m0_dbenv *db)
-{
-
-	char                 ad_dname[MAXPATHLEN];
-	struct dump_ad_stob *adstob;
-	struct m0_stob_id   *bstob_id;
-	struct m0_stob     **bstob;
-	struct m0_balloc    *cb;
-	int                  rc;
-
-        M0_PRE(stob != NULL && db != NULL);
-	M0_ALLOC_PTR(adstob);
-	if (adstob == NULL)
-		return -ENOMEM;
-
-	m0_dtx_open(tx, db);
-	bstob = &adstob->as_stob_back;
-	bstob_id = &adstob->as_id_back;
-	bstob_id->si_bits.u_hi = cid;
-	bstob_id->si_bits.u_lo = M0_AD_STOB_ID_LO;
-	rc = dump_stob_locate(stob->s_ldom, tx, bstob_id, bstob);
-	if (rc == 0) {
-		sprintf(ad_dname, "%lx%lx",
-			bstob_id->si_bits.u_hi, bstob_id->si_bits.u_lo);
-		rc = m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom,
-					      *bstob);
-	}
-	if (rc != 0) {
-		if (*bstob != NULL) {
-			m0_stob_put(*bstob);
-			*bstob = NULL;
-		}
-		m0_free(adstob);
-	} else {
-		M0_ASSERT(stob->s_adom == NULL);
-		stob->s_adom = adstob;
-		rc = m0_balloc_allocate(cid, &cb) ?:
-		    m0_ad_stob_setup(adstob->as_dom, db,
-				     *bstob, &cb->cb_ballroom,
-				     BALLOC_DEF_CONTAINER_SIZE,
-				     BALLOC_DEF_BLOCK_SHIFT,
-				     BALLOC_DEF_BLOCKS_PER_GROUP,
-				     BALLOC_DEF_RESERVED_GROUPS);
-	}
-	return rc;
-}
-
 static void dump_linux_stob_fini(struct dump_stob *stob)
 {
 	M0_PRE(stob != NULL);
 	if (stob->s_ldom != NULL)
-                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
-}
-
-static void dump_ad_stob_fini(struct dump_stob *stob)
-{
-	struct m0_stob        *bstob;
-	struct dump_ad_stob   *adstob;
-	struct m0_stob_domain *adom;
-
-	M0_PRE(stob != NULL);
-
-	if (stob->s_adom != NULL) {
-		adstob = stob->s_adom;
-		bstob = adstob->as_stob_back;
-		adom = adstob->as_dom;
-		if (bstob != NULL)
-			m0_stob_put(bstob);
-		adom->sd_ops->sdo_fini(adom);
-		stob->s_adom = NULL;
-		m0_free(adstob);
-	}
+		/* NULL group is safe for linux stob domain. */
+                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom, NULL);
 }
 
 static void dump_storage_fini(struct dump_stob *stob)
@@ -230,8 +131,6 @@ static void dump_storage_fini(struct dump_stob *stob)
 
 	if (stob->s_stob != NULL)
 		m0_stob_put(stob->s_stob);
-	if (stob->s_stype_nr == M0_AD_STOB)
-		dump_ad_stob_fini(stob);
         dump_linux_stob_fini(stob);
 }
 
@@ -240,50 +139,31 @@ static void cleanup(struct addb_dump_ctl *ctl)
 	if (ctl->adc_iter != NULL)
 		m0_addb_segment_iter_free(ctl->adc_iter);
 	dump_storage_fini(&ctl->adc_stob);
-	if (ctl->adc_dbpath != NULL)
-		m0_dbenv_fini(&ctl->adc_db);
 }
 
 static int setup(struct addb_dump_ctl *ctl)
 {
-	struct m0_dtx tx;
-	int           rc;
+	int rc;
 
-	if (ctl->adc_dbpath != NULL) {
-		rc = m0_dbenv_init(&ctl->adc_db, ctl->adc_dbpath, 0);
-		if (rc != 0) {
-			ctl->adc_errstr = ctl->adc_dbpath;
-			return rc;
-		}
-	} else if (ctl->adc_infile != NULL) {
+	if (ctl->adc_infile != NULL) {
 		rc = m0_addb_file_iter_alloc(&ctl->adc_iter, ctl->adc_infile);
 		if (rc != 0)
 			ctl->adc_errstr = ctl->adc_infile;
 		return rc;
 	}
 
-	ctl->adc_stob.s_stype_nr = ctl->adc_stype_nr;
-	m0_dtx_init(&tx);
 	rc = dump_linux_stob_init(ctl);
-	if (rc == 0 && ctl->adc_stype_nr == M0_AD_STOB)
-		rc = dump_ad_stob_init(&ctl->adc_stob, M0_ADDB_STOB_ID_HI,
-				       &tx, &ctl->adc_db);
-
 	if (rc == 0) {
-		rc = dump_stob_locate(ctl->adc_stype_nr == M0_LINUX_STOB ?
-				      ctl->adc_stob.s_ldom :
-				      ctl->adc_stob.s_adom->as_dom,
-				      &tx, &m0_addb_stob_id,
-				      &ctl->adc_stob.s_stob);
+		rc = dump_stob_locate(ctl->adc_stob.s_ldom,
+				      &m0_addb_stob_id, &ctl->adc_stob.s_stob);
+		if (rc == 0)
+			rc = m0_addb_stob_iter_alloc(&ctl->adc_iter,
+						     ctl->adc_stob.s_stob);
 	}
-	m0_dtx_done(&tx);
-	if (rc != 0 && ctl->adc_dbpath != NULL)
+	if (rc != 0) {
 		dump_storage_fini(&ctl->adc_stob);
-	if (rc != 0)
 		ctl->adc_errstr = ctl->adc_stpath;
-	else
-		rc = m0_addb_stob_iter_alloc(&ctl->adc_iter,
-					     ctl->adc_stob.s_stob);
+	}
 	return rc;
 }
 
@@ -798,18 +678,13 @@ static int dump(struct addb_dump_ctl *ctl)
 
 static void addbdump_help(FILE *out)
 {
-	int i;
-
 	M0_PRE(out != NULL);
 	fprintf(out,
 		"Usage: m0addbdump [-h]\n"
-		"   or  m0addbdump -T StobType [-D DBPath] [-c][-e][-u][-y]"
-		" -A ADDBStobPath\n"
-		"                  [-s segID] [-o path]\n"
+		"   or  m0addbdump [-c][-e][-u][-y] [-s segID] [-o path]\n"
 		"   or  m0addbdump -f path [-c][-e][-u][-y]"
 		" [-s segID] [-o path]\n"
-		"   or  m0addbdump -b -T StobType [-D DBPath] -A ADDBStobPath\n"
-		"                  [-s segID] [-o path]\n");
+		"   or  m0addbdump -b [-s segID] [-o path]\n");
 	fprintf(out,
 		"  -b       Dump binary data.  All valid segments are dumped.\n"
 		"           The output can be inspected later using -f.\n"
@@ -822,15 +697,6 @@ static void addbdump_help(FILE *out)
 		" `segID' or greater.\n"
 		"  -u       Output timestamps in UTC.\n"
 		"  -y       Dump YAML output.\n");
-	fprintf(out, "\nSupported stob types:");
-	for (i = 0; i < ARRAY_SIZE(m0_cs_stypes); ++i)
-		fprintf(out, " %s", m0_cs_stypes[i]);
-	fprintf(out, "\n");
-	fprintf(out,
-		"\nThe DBPath and ADDBStobPath should be the same as those\n"
-		"specified for the matching options of the m0d\n"
-		"request handler that generated the ADDB repository.\n"
-		"The DBPath is not required for Linux stob.\n");
 	fprintf(out, "\n"
 		"Each dumped record includes a sequence identifier, the event\n"
 		"type, its timestamp, its fields and its context(s).\n");
@@ -841,7 +707,6 @@ int main(int argc, char *argv[])
 	static const char   *m0addbdump = "m0addbdump";
 	struct addb_dump_ctl ctl;
 	const char          *outfilepath = NULL;
-	const char          *stype = NULL;
 	bool                 dump_binary = false;
 	bool                 dump_ctx = false;
 	bool                 dump_event = false;
@@ -858,30 +723,6 @@ int main(int argc, char *argv[])
 	M0_SET0(&ctl);
 
 	r2 = M0_GETOPTS(m0addbdump, argc, argv,
-			M0_STRINGARG('T', "Storage domain type",
-				LAMBDA(void, (const char *str)
-				{
-					if (stype != NULL)
-						rc = -EINVAL;
-					else
-						stype = str;
-				})),
-			M0_STRINGARG('A', "ADDB Storage domain name",
-				LAMBDA(void, (const char *str)
-				{
-					if (ctl.adc_stpath != NULL)
-						rc = -EINVAL;
-					else
-						ctl.adc_stpath = str;
-				})),
-			M0_STRINGARG('D', "Database environment path",
-				LAMBDA(void, (const char *str)
-				{
-					if (ctl.adc_dbpath != NULL)
-						rc = -EINVAL;
-					else
-						ctl.adc_dbpath = str;
-				})),
 			M0_FLAGARG('b', "Dump binary data", &dump_binary),
 			M0_FLAGARG('c', "Dump context records", &dump_ctx),
 			M0_FLAGARG('e', "Dump event records", &dump_event),
@@ -921,21 +762,16 @@ int main(int argc, char *argv[])
 			addbdump_help(stderr);
 			goto done;
 		} else if (ctl.adc_infile != NULL) {
-			if (stype != NULL || dump_binary ||
-			    ctl.adc_stpath != NULL || ctl.adc_dbpath != NULL) {
+			if (dump_binary) {
 				rc = EINVAL;
 				addbdump_help(stderr);
 				goto done;
 			}
 		} else {
-			ctl.adc_stype_nr = stype_parse(stype);
-			if (ctl.adc_stype_nr == M0_STOB_TYPE_NR ||
-			    ctl.adc_stpath == NULL ||
-			    (ctl.adc_dbpath == NULL &&
-			     ctl.adc_stype_nr == M0_AD_STOB)) {
-				rc = EINVAL;
+			if (ctl.adc_stpath == NULL) {
+ 				rc = EINVAL;
 				addbdump_help(stderr);
-				goto done;
+ 				goto done;
 			}
 		}
 	}
