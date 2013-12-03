@@ -34,24 +34,38 @@ extern struct m0_fop_type m0_fop_poolmach_set_rep_fopt;
 M0_INTERNAL void m0_poolmach_fop_fini(void);
 M0_INTERNAL int m0_poolmach_fop_init(void);
 
-struct m0_fop_poolmach_query_rep {
-	uint32_t  fpq_rc;
-	uint32_t  fpq_state;
-} M0_XCA_RECORD;
-
-struct m0_fop_poolmach_query {
-	uint32_t  fpq_type;
-	uint32_t  fpq_index;
-} M0_XCA_RECORD;
-
 struct m0_fop_poolmach_set_rep {
 	uint32_t  fps_rc;
 } M0_XCA_RECORD;
 
+struct m0_fop_poolmach_dev_info {
+	uint32_t                    fpi_nr;
+	struct m0_fop_poolmach_dev *fpi_dev;
+} M0_XCA_SEQUENCE;
+
+struct m0_fop_poolmach_dev {
+	uint32_t  fpd_index;
+	uint32_t  fpd_state;
+} M0_XCA_RECORD;
+
 struct m0_fop_poolmach_set {
-	uint32_t  fps_type;
-	uint32_t  fps_index;
-	uint32_t  fps_state;
+	uint32_t                        fps_type;
+	struct m0_fop_poolmach_dev_info fps_dev_info;
+} M0_XCA_RECORD;
+
+struct m0_fop_poolmach_query_rep {
+	uint32_t                        fqr_rc;
+	struct m0_fop_poolmach_dev_info fqr_dev_info;
+} M0_XCA_RECORD;
+
+struct m0_fop_poolmach_dev_idx {
+	uint32_t   fpx_nr;
+	uint32_t  *fpx_idx;
+} M0_XCA_SEQUENCE;
+
+struct m0_fop_poolmach_query {
+	uint32_t                       fpq_type;
+	struct m0_fop_poolmach_dev_idx fpq_dev_idx;
 } M0_XCA_RECORD;
 
 #endif /* __MERO_POOL_POOL_FOPS_H__ */

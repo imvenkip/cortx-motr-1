@@ -91,40 +91,52 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 	case M0_POOLMACHINE_QUERY_OPCODE: {
 		struct m0_fop_poolmach_query     *query_fop;
 		struct m0_fop_poolmach_query_rep *query_fop_rep;
+		int                               i;
 
 		query_fop = m0_fop_data(req_fop);
 		query_fop_rep = m0_fop_data(rep_fop);
-		M0_LOG(M0_DEBUG, "Query type=%lu, index=%lu",
-				 (unsigned long)query_fop->fpq_type,
-				 (unsigned long)query_fop->fpq_index);
 
-		query_fop_rep->fpq_rc = query_fop->fpq_type == M0_POOL_NODE?
-			m0_poolmach_node_state(poolmach,
-					       query_fop->fpq_index,
-					       &query_fop_rep->fpq_state):
-			m0_poolmach_device_state(poolmach,
-						 query_fop->fpq_index,
-						 &query_fop_rep->fpq_state);
+		M0_ALLOC_ARR(query_fop_rep->fqr_dev_info.fpi_dev,
+				query_fop->fpq_dev_idx.fpx_nr);
+		query_fop_rep->fqr_dev_info.fpi_nr =
+			query_fop->fpq_dev_idx.fpx_nr;
+		for (i = 0; i < query_fop->fpq_dev_idx.fpx_nr; ++i) {
+			if (query_fop->fpq_type == M0_POOL_NODE)
+				m0_poolmach_node_state(poolmach,
+					query_fop->fpq_dev_idx.fpx_idx[i],
+                                        &query_fop_rep->fqr_dev_info.fpi_dev[i].
+                                        fpd_state);
+			else
+				m0_poolmach_device_state(poolmach,
+					query_fop->fpq_dev_idx.fpx_idx[i],
+					&query_fop_rep->fqr_dev_info.fpi_dev[i].
+					fpd_state);
+			query_fop_rep->fqr_dev_info.fpi_dev[i].fpd_index =
+				query_fop->fpq_dev_idx.fpx_idx[i];
+		}
 		break;
 	}
 	case M0_POOLMACHINE_SET_OPCODE: {
 		struct m0_fop_poolmach_set     *set_fop;
 		struct m0_fop_poolmach_set_rep *set_fop_rep;
 		struct m0_pool_event            pme;
+		int                             rc = 0;
+		int                             i;
 
 		set_fop = m0_fop_data(req_fop);
 		set_fop_rep = m0_fop_data(rep_fop);
-		M0_LOG(M0_DEBUG, "Set type=%lu, index=%lu, state=%lu",
-				 (unsigned long)set_fop->fps_type,
-				 (unsigned long)set_fop->fps_index,
-				 (unsigned long)set_fop->fps_state);
 
-		M0_SET0(&pme);
-		pme.pe_type  = set_fop->fps_type;
-		pme.pe_index = set_fop->fps_index;
-		pme.pe_state = set_fop->fps_state;
-		set_fop_rep->fps_rc = m0_poolmach_state_transit(poolmach, &pme,
-							&fom->fo_tx.tx_dbtx);
+		for (i = 0; i < set_fop->fps_dev_info.fpi_nr; ++i) {
+		     M0_SET0(&pme);
+		     pme.pe_type  = set_fop->fps_type;
+		     pme.pe_index = set_fop->fps_dev_info.fpi_dev[i].fpd_index;
+		     pme.pe_state = set_fop->fps_dev_info.fpi_dev[i].fpd_state;
+		     rc = m0_poolmach_state_transit(poolmach, &pme,
+				     &fom->fo_tx.tx_dbtx);
+		     if (rc != 0)
+			     break;
+		}
+		set_fop_rep->fps_rc = rc;
 		break;
 	}
 	default:

@@ -51,7 +51,8 @@ sns_repair_test()
 	done
 
 ####### Set Failure device
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I $fail_device1 -s 1
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 \
+		 -I $fail_device1 -s 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $poolmach
 
@@ -61,7 +62,8 @@ sns_repair_test()
 		return 1
 	fi
 
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I $fail_device2 -s 1
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 \
+		 -I $fail_device2 -s 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $poolmach
 
@@ -80,7 +82,8 @@ sns_repair_test()
 	fi
 
 ####### Query device state
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device1
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 \
+		 -I $fail_device1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $poolmach
 
@@ -90,7 +93,8 @@ sns_repair_test()
 		return 1
 	fi
 
-	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device2
+	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 \
+		  -I $fail_device2
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $poolmach
 
@@ -109,7 +113,8 @@ sns_repair_test()
                 return 1
         fi
 
-        poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device1
+        poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device  -N 1 \
+		 -I $fail_device1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
         echo $poolmach
         if ! $poolmach ; then
@@ -118,7 +123,8 @@ sns_repair_test()
                 return 1
         fi
 
-        poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I $fail_device2
+        poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 \
+		 -I $fail_device2
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
         echo $poolmach
         if ! $poolmach ; then

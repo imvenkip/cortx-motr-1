@@ -46,7 +46,7 @@ struct m0_rpc_client_ctx cl_ctx;
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
 	MAX_RPC_SLOTS_NR   = 10,
-	MAX_FILES_NR       = 10,
+	MAX_DEV_NR         = 100,
 	MAX_SERVERS        = 1024
 };
 
@@ -61,6 +61,11 @@ const char *poolmach_state_name[] = {
 
 const char *cl_ep_addr;
 const char *srv_ep_addr[MAX_SERVERS];
+int64_t     device_index_arr[MAX_DEV_NR];
+int64_t     device_state_arr[MAX_DEV_NR];
+static int  di;
+static int  ds;
+uint32_t    dev_nr;
 
 struct rpc_ctx {
 	struct m0_rpc_conn    ctx_conn;
@@ -167,10 +172,16 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 
 		if (rep_fop->f_type == &m0_fop_poolmach_query_rep_fopt) {
 			struct m0_fop_poolmach_query_rep *query_fop_rep;
+			int                               i;
 			query_fop_rep = m0_fop_data(rep_fop);
-			fprintf(stderr, "Query: rc = %d, state=%d\n",
-					(int)query_fop_rep->fpq_rc,
-					(int)query_fop_rep->fpq_state);
+			for (i = 0; i < dev_nr; ++i) {
+				fprintf(stderr, "Query: index = %d state=%d rc = %d\n",
+					(int)query_fop_rep->fqr_dev_info.
+					fpi_dev[i].fpd_index,
+					(int)query_fop_rep->fqr_dev_info.
+					fpi_dev[i].fpd_state,
+					(int)query_fop_rep->fqr_rc);
+			}
 		} else {
 			struct m0_fop_poolmach_set_rep *set_fop_rep;
 			set_fop_rep = m0_fop_data(rep_fop);
@@ -212,13 +223,12 @@ int main(int argc, char *argv[])
 	struct m0_clink        poolmach_clink;
 	const char            *op = NULL;
 	const char            *type = NULL;
-	uint32_t               device_index = -1;
-	uint32_t               device_state = -1;
 	m0_time_t              start;
 	m0_time_t              delta;
 	int                    rc;
 	int                    rc2 = 0;
 	int                    i;
+	int                    j;
 
 	rc = M0_GETOPTS("poolmach", argc, argv,
 			M0_STRINGARG('O',
@@ -245,8 +255,25 @@ int main(int argc, char *argv[])
 					}
 				     )
 				    ),
-			M0_FORMATARG('I', "device index", "%u", &device_index),
-			M0_FORMATARG('s', "device state", "%u", &device_state),
+			M0_FORMATARG('N', "Number of devices", "%u", &dev_nr),
+			M0_NUMBERARG('I', "device index",
+                                     LAMBDA(void, (int64_t device_index)
+                                            {
+					         device_index_arr[di] =
+								device_index;
+                                                    M0_CNT_INC(di);
+                                            }
+					   )
+				    ),
+			M0_NUMBERARG('s', "device state",
+                                     LAMBDA(void, (int64_t device_state)
+                                            {
+					         device_state_arr[ds] =
+								device_state;
+                                                    M0_CNT_INC(ds);
+                                            }
+					   )
+				    ),
 			M0_STRINGARG('C', "Client endpoint",
 				     LAMBDA(void, (const char *str) {
 						cl_ep_addr = str;
@@ -268,12 +295,16 @@ int main(int argc, char *argv[])
 		return rc;
 	}
 
-	if (op == NULL         || type == NULL       || device_index == -1 ||
-	    cl_ep_addr == NULL || srv_cnt == 0       ||
-	    ((op[0] == 'S' || op[0] == 's') &&
-	     (device_state < 0 || device_state > 2))  ) {
+	if (op == NULL         || type == NULL ||
+	    dev_nr == 0 || dev_nr > MAX_DEV_NR || cl_ep_addr == NULL ||
+	    srv_cnt == 0) {
 		print_help();
 		return -EINVAL;
+	}
+
+	for (i = 0; i < dev_nr; ++i) {
+		if (device_state_arr[i] < 0 || device_state_arr[i] > 2)
+			return -EINVAL;
 	}
 
 	rc = m0_init();
@@ -324,7 +355,11 @@ int main(int argc, char *argv[])
 				query_fop->fpq_type  = M0_POOL_NODE;
 			else
 				query_fop->fpq_type  = M0_POOL_DEVICE;
-			query_fop->fpq_index = device_index;
+			M0_ALLOC_ARR(query_fop->fpq_dev_idx.fpx_idx, dev_nr);
+			query_fop->fpq_dev_idx.fpx_nr = dev_nr;
+			for (j = 0; j < dev_nr; ++j)
+				query_fop->fpq_dev_idx.fpx_idx[j] =
+					device_index_arr[j];
 		} else {
 			struct m0_fop_poolmach_set   *set_fop;
 			req = m0_fop_alloc(&m0_fop_poolmach_set_fopt, NULL);
@@ -335,8 +370,14 @@ int main(int argc, char *argv[])
 				set_fop->fps_type  = M0_POOL_NODE;
 			else
 				set_fop->fps_type  = M0_POOL_DEVICE;
-			set_fop->fps_index = device_index;
-			set_fop->fps_state = device_state;
+			M0_ALLOC_ARR(set_fop->fps_dev_info.fpi_dev, dev_nr);
+			set_fop->fps_dev_info.fpi_nr = dev_nr;
+			for (j = 0; j < dev_nr; ++j) {
+				set_fop->fps_dev_info.fpi_dev[j].fpd_index =
+					device_index_arr[j];
+				set_fop->fps_dev_info.fpi_dev[j].fpd_state =
+					device_state_arr[j];
+			}
 		}
 
 		fprintf(stderr, "sending/posting to %s\n", srv_ep_addr[i]);
@@ -356,19 +397,23 @@ int main(int argc, char *argv[])
 			struct m0_fop *rep;
 			const char    *name;
 			uint32_t       state;
+			int            i;
+
 			rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
 			query_fop_rep = m0_fop_data(rep);
-			state = query_fop_rep->fpq_state;
-			name = (state >= 0 &&
-				state < ARRAY_SIZE(poolmach_state_name))?
-					poolmach_state_name[state]:
-					"N/A";
-
-			fprintf(stderr, "Query got reply: rc = %d, "
-					"state = %d (%s)\n",
-					(int)query_fop_rep->fpq_rc,
-					(int)state,
-					name);
+			for (i = 0; i < dev_nr; ++i) {
+				state = query_fop_rep->fqr_dev_info.
+					fpi_dev[i].fpd_state;
+				name = (state >= 0 &&
+				       state < ARRAY_SIZE(poolmach_state_name))?
+				       poolmach_state_name[state]: "N/A";
+                                fprintf(stderr, "Query: index = %d state= %d rc = %d\n",
+                                        (int)query_fop_rep->fqr_dev_info.
+                                        fpi_dev[i].fpd_index,
+                                        (int)query_fop_rep->fqr_dev_info.
+                                        fpi_dev[i].fpd_state,
+                                        (int)query_fop_rep->fqr_rc);
+                        }
 		} else {
 			struct m0_fop_poolmach_set_rep *set_fop_rep;
 			struct m0_fop *rep;
