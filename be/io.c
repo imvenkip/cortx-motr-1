@@ -20,7 +20,7 @@
 
 #include "be/io.h"
 
-#include <unistd.h>		 /* fsync */
+#include <unistd.h>		 /* fdatasync */
 
 #include "lib/memory.h"		 /* m0_alloc */
 #include "lib/errno.h"		 /* ENOMEM */
