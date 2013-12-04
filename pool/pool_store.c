@@ -79,7 +79,11 @@ static const struct m0_table_ops m0_poolmach_store_ops = {
 			.max_size = sizeof (uint64_t)
 			},
 		[TO_REC] = {
-			.max_size = ~0
+			 /* XXX: Hack!!! For big values of pool width.
+			    Will be removed by pool/ conversion.
+			  */
+			.max_size = 4096
+			/* .max_size = ~0 */
 			}
 	},
 	.key_cmp = NULL
