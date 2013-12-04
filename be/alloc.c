@@ -290,7 +290,8 @@ static void chunks_free_tlist_del_c(struct m0_be_allocator *a,
 	be_alloc_head_capture(a, tx);
 }
 
-static void chunks_free_tlist_add_tail_c(struct m0_be_allocator *a,
+// static
+M0_INTERNAL void chunks_free_tlist_add_tail_c(struct m0_be_allocator *a,
 					 struct m0_be_tx *tx,
 					 struct be_alloc_chunk *c)
 {
@@ -298,7 +299,8 @@ static void chunks_free_tlist_add_tail_c(struct m0_be_allocator *a,
 	chunks_free_tlist_capture_around(a, tx, c);
 }
 
-static void chunks_free_tlist_add_before_c(struct m0_be_allocator *a,
+// static
+M0_INTERNAL void chunks_free_tlist_add_before_c(struct m0_be_allocator *a,
 					   struct m0_be_tx *tx,
 					   struct be_alloc_chunk *next,
 					   struct be_alloc_chunk *c)
@@ -392,8 +394,14 @@ static bool be_alloc_is_chunk_in_allocator(struct m0_be_allocator *a,
 static bool be_alloc_chunk_is_not_overlapping(const struct be_alloc_chunk *a,
 					      const struct be_alloc_chunk *b)
 {
+#if 0
 	return a == NULL || b == NULL ||
 	       (a < b && &a->bac_mem[a->bac_size] <= (char *) b);
+#else
+	return a == NULL || b == NULL ||
+	       (a < b && &a->bac_mem[a->bac_size] <= (char *) b) ||
+	       (b < a && &b->bac_mem[b->bac_size] <= (char *) a);
+#endif
 }
 
 static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
@@ -492,10 +500,12 @@ static void be_alloc_chunk_mark_free(struct m0_be_allocator *a,
 				     struct m0_be_tx *tx,
 				     struct be_alloc_chunk *c)
 {
-	struct be_alloc_chunk *next;
+	// struct be_alloc_chunk *next;
 
 	M0_PRE(be_alloc_chunk_invariant(a, c));
 	M0_PRE(!c->bac_free);
+	/* don't maintain order of chunks in the free chunks list */
+#if 0
 	/* scan forward until free chunk found */
 	for (next = c; next != NULL; next = be_alloc_chunk_next(a, next)) {
 		if (next->bac_free)
@@ -506,6 +516,10 @@ static void be_alloc_chunk_mark_free(struct m0_be_allocator *a,
 		chunks_free_tlist_add_tail_c(a, tx, c);
 	else
 		chunks_free_tlist_add_before_c(a, tx, next, c);
+#else
+	c->bac_free = true;
+	chunks_free_tlist_add_c(a, tx, c);
+#endif
 	M0_POST(c->bac_free);
 	M0_POST(be_alloc_chunk_invariant(a, c));
 }
