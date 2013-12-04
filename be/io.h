@@ -49,6 +49,7 @@ struct m0_be_io {
 	 * this group is completed
 	 */
 	struct m0_be_op	       *bio_op;
+	bool			bio_sync;
 };
 
 M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio,
@@ -63,6 +64,9 @@ M0_INTERNAL void m0_be_io_add(struct m0_be_io *bio,
 			      m0_bindex_t offset_stob,
 			      m0_bcount_t size);
 
+/** call fdatasync() for linux stob after IO completion */
+M0_INTERNAL void m0_be_io_sync_enable(struct m0_be_io *bio);
+
 M0_INTERNAL void m0_be_io_configure(struct m0_be_io *bio,
 				    enum m0_stob_io_opcode opcode);
 
@@ -70,11 +74,11 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op);
 
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio);
 
-M0_INTERNAL int m0_be_io_sync(struct m0_stob *stob,
-			      enum m0_stob_io_opcode opcode,
-			      void *ptr_user,
-			      m0_bindex_t offset_stob,
-			      m0_bcount_t size);
+M0_INTERNAL int m0_be_io_single(struct m0_stob *stob,
+				enum m0_stob_io_opcode opcode,
+				void *ptr_user,
+				m0_bindex_t offset_stob,
+				m0_bcount_t size);
 
 /** @} end of be group */
 

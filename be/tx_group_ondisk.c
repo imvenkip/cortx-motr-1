@@ -240,6 +240,9 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	m0_be_io_configure(&go->go_io_log, SIO_WRITE);
 	m0_be_io_configure(&go->go_io_log_cblock, SIO_WRITE);
 	m0_be_io_configure(&go->go_io_seg, SIO_WRITE);
+
+	/* m0_be_io_sync_enable(&go->go_io_log_cblock); */
+	/* m0_be_io_sync_enable(&go->go_io_seg); */
 }
 
 static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,

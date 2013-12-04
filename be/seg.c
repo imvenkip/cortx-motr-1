@@ -53,8 +53,8 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 		.bh_addr = addr,
 		.bh_size = size,
 	};
-	return m0_be_io_sync(seg->bs_stob, SIO_WRITE,
-			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+	return m0_be_io_single(seg->bs_stob, SIO_WRITE,
+			       &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -107,8 +107,8 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	int                   rc;
 
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
-	rc = m0_be_io_sync(seg->bs_stob, SIO_READ,
-			   &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
+			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
 	if (rc != 0)
 		return rc;
 	/* XXX check for magic */
@@ -118,7 +118,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	if (p != hdr.bh_addr)
 		return -errno;
 
-	rc = m0_be_io_sync(seg->bs_stob, SIO_READ, hdr.bh_addr, 0, hdr.bh_size);
+	rc = m0_be_io_single(seg->bs_stob, SIO_READ, hdr.bh_addr, 0, hdr.bh_size);
 	if (rc == 0) {
 		seg->bs_size  = hdr.bh_size;
 		seg->bs_addr  = hdr.bh_addr;
@@ -196,8 +196,8 @@ M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
 static int
 be_seg_io(struct m0_be_reg *reg, void *ptr, enum m0_stob_io_opcode opcode)
 {
-	return m0_be_io_sync(reg->br_seg->bs_stob, opcode,
-			     ptr, m0_be_reg_offset(reg), reg->br_size);
+	return m0_be_io_single(reg->br_seg->bs_stob, opcode,
+			       ptr, m0_be_reg_offset(reg), reg->br_size);
 }
 
 M0_INTERNAL int m0_be_seg__read(struct m0_be_reg *reg, void *dst)

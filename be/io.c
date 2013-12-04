@@ -20,10 +20,13 @@
 
 #include "be/io.h"
 
-#include "lib/memory.h"		/* m0_alloc */
-#include "lib/errno.h"		/* ENOMEM */
+#include <unistd.h>		 /* fsync */
 
-#include "be/be.h"		/* m0_be_op_state_set */
+#include "lib/memory.h"		 /* m0_alloc */
+#include "lib/errno.h"		 /* ENOMEM */
+#include "stob/linux_internal.h" /* stob2linux */
+
+#include "be/be.h"		 /* m0_be_op_state_set */
 
 /**
  * @addtogroup be
@@ -55,6 +58,7 @@ M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio,
 		.bio_stob = stob,
 		.bio_bshift = stob->so_op->sop_block_shift(stob),
 		.bio_credit = *size_max,
+		.bio_sync = false,
 	};
 	m0_stob_io_init(io);
 
@@ -140,19 +144,27 @@ static bool be_io_cb(struct m0_clink *link)
 	struct m0_be_io	  *bio = container_of(link, struct m0_be_io, bio_clink);
 	struct m0_be_op	  *op = bio->bio_op;
 	struct m0_stob_io *io = &bio->bio_io;
+	int		   rc;
 
 	m0_clink_del(&bio->bio_clink);
 	M0_ASSERT_INFO(io->si_rc == 0, "stob I/O operation failed: "
 		       "bio = %p, op = %p, io = %p, io->si_rc = %d",
 		       bio, op, io, io->si_rc);
-	op->bo_sm.sm_rc = io->si_rc;
-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
-	/* XXX add fsync() to linux stob fd
-	 * stob2linux
-	 * fd
-	 * fsync()
+	rc = io->si_rc;
+
+	/* XXX temporary hack:
+	 * - sync() should be implemented on stob level or at least
+	 * - sync() shoudn't be called from linux stob worker thread as it is
+	 *   now.
 	 */
-	return io->si_rc == 0;
+	if (rc == 0 && bio->bio_sync) {
+		rc = fdatasync(stob2linux(bio->bio_stob)->sl_fd);
+		M0_ASSERT_INFO(rc == 0, "fsync() failed: %d", rc);
+	}
+
+	op->bo_sm.sm_rc = rc;
+	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+	return rc == 0;
 }
 
 M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
@@ -176,10 +188,16 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 	}
 }
 
+M0_INTERNAL void m0_be_io_sync_enable(struct m0_be_io *bio)
+{
+	bio->bio_sync = true;
+}
+
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio)
 {
 	struct m0_stob_io *io = &bio->bio_io;
 
+	bio->bio_sync = false;
 	io->si_user.ov_vec.v_nr = 0;
 	io->si_stob.iv_vec.v_nr = 0;
 	/* XXX hack. proper reset should:
@@ -191,11 +209,11 @@ M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio)
 	io->si_obj = NULL;
 }
 
-M0_INTERNAL int m0_be_io_sync(struct m0_stob *stob,
-			      enum m0_stob_io_opcode opcode,
-			      void *ptr_user,
-			      m0_bindex_t offset_stob,
-			      m0_bcount_t size)
+M0_INTERNAL int m0_be_io_single(struct m0_stob *stob,
+				enum m0_stob_io_opcode opcode,
+				void *ptr_user,
+				m0_bindex_t offset_stob,
+				m0_bcount_t size)
 {
 	struct m0_be_io bio;
 	int             rc;
