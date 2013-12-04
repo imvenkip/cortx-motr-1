@@ -256,7 +256,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 				 .xt        = m0_fop_cob_readv_rep_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
 		M0_FOP_TYPE_INIT(&m0_fop_cob_writev_rep_fopt,
-				 .name      = "Write request",
+				 .name      = "Write reply",
 				 .opcode    = M0_IOSERVICE_WRITEV_REP_OPCODE,
 				 .xt        = m0_fop_cob_writev_rep_xc,
 				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
