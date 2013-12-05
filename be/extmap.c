@@ -386,12 +386,16 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	m0_rwlock_write_lock(&it->ec_map->em_lock);
 	while (!m0_ext_is_empty(ext)) {
 		m0_ext_intersection(ext, chunk, &clip);
+		M0_LOG(M0_DEBUG, "ext="EXT_F" chunk="EXT_F" clip="EXT_F,
+			EXT_P(ext), EXT_P(chunk), EXT_P(&clip));
 		consumed = m0_ext_length(&clip);
 		M0_ASSERT(consumed > 0);
 
 		length[0] = clip.e_start - chunk->e_start;
 		length[1] = clip.e_end == ext->e_end ? m0_ext_length(&ext0) : 0;
 		length[2] = chunk->e_end - clip.e_end;
+		M0_LOG(M0_DEBUG, "len123=%lx:%lx:%lx", (unsigned long)length[0],
+			(unsigned long)length[1], (unsigned long)length[2]);
 
 		bstart[1] = val;
 		val_orig  = seg->ee_val;
@@ -427,7 +431,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		 * the current extent and puts iterator to the next
 		 * position automatically.
 		 */
-		if (m0_vec_count(&vec.iv_vec) != 0) {
+		if (!m0_vec_is_empty(&vec.iv_vec)) {
 			M0_ASSERT(!m0_be_emap_ext_is_last(&seg->ee_ext));
 			if (be_emap_next(it) != 0)
 				break;
@@ -900,41 +904,58 @@ emap_extent_update(struct m0_be_emap_cursor *it,
 	return emap_it_pack(it, m0_be_btree_update, tx);
 }
 
+static void delete_wrapper(struct m0_be_btree *btree, struct m0_be_tx *tx,
+			   struct m0_be_op *op, const struct m0_buf *key,
+			   const struct m0_buf *val)
+{
+	m0_be_btree_delete(btree, tx, op, key);
+}
+
 static int
 be_emap_split(struct m0_be_emap_cursor *it,
 	      struct m0_be_tx          *tx,
 	      struct m0_indexvec       *vec,
 	      m0_bindex_t               scan)
 {
-	int rc;
+	int rc = 0;
+	m0_bcount_t count;
+	m0_bindex_t seg_end = it->ec_seg.ee_ext.e_end;
+	uint32_t    i;
 
-	rc = M0_BE_OP_SYNC_RET(
-		op,
-		m0_be_btree_delete(&it->ec_map->em_mapping, tx, &op,
-				   &it->ec_keybuf),
-		bo_u.u_btree.t_rc);
-
-	if (rc == 0) {
-		m0_bcount_t count;
-		uint32_t    i;
-
-		for (i = 0; i < vec->iv_vec.v_nr; ++i) {
-			count = vec->iv_vec.v_count[i];
-			if (count == 0)
-				continue;
-			it->ec_seg.ee_ext.e_start = scan;
-			it->ec_seg.ee_ext.e_end   = scan + count;
-			it->ec_seg.ee_val         = vec->iv_index[i];
+	for (i = 0; i < vec->iv_vec.v_nr; ++i) {
+		count = vec->iv_vec.v_count[i];
+		if (count == 0)
+			continue;
+		it->ec_seg.ee_ext.e_start = scan;
+		it->ec_seg.ee_ext.e_end   = scan + count;
+		it->ec_seg.ee_val         = vec->iv_index[i];
+		if (it->ec_seg.ee_ext.e_end == seg_end)
+			/* The end of original segment is reached:
+			 * just update it instead of deleting and
+			 * inserting again - it is cheaper.
+			 * Note: the segment key in underlying btree
+			 *       is the end offset of its extent. */
+			rc = emap_it_pack(it, m0_be_btree_update, tx);
+		else
 			rc = emap_it_pack(it, m0_be_btree_insert, tx);
-			if (rc != 0)
-				break;
-			scan += count;
-		}
-
-		if (rc == 0)
-			/* Re-initialize cursor position. */
-			rc = emap_it_get(it);
+		if (rc != 0)
+			break;
+		scan += count;
 	}
+
+	/* If the vector is empty or the segment end was not reached:
+	 * just delete the segment - that is used by m0_be_emap_paste(). */
+	if (rc == 0 && (m0_vec_is_empty(&vec->iv_vec) ||
+			it->ec_seg.ee_ext.e_end != seg_end)) {
+		m0_bindex_t last_end = it->ec_seg.ee_ext.e_end;
+		it->ec_seg.ee_ext.e_end = seg_end;
+		rc = emap_it_pack(it, delete_wrapper, tx);
+		it->ec_key.ek_offset = last_end;
+	}
+
+	if (rc == 0)
+		/* Re-initialize cursor position. */
+		rc = emap_it_get(it);
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
 	return rc;
