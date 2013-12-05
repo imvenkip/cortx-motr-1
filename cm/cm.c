@@ -1085,16 +1085,14 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 {
 	int  result = M0_FSO_WAIT;
-	bool shutdown = false;
 
 	if (m0_mutex_trylock(&cm->cm_sm_group.s_lock) == 0) {
 		m0_cm_invariant(cm);
-		if (m0_cm_state_get(cm) == M0_CMS_STOP && cm->cm_proxy_nr == 0 &&
-		    cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0)
-			shutdown = true;
 		m0_cm_unlock(cm);
 	}
-	if (shutdown)
+
+	if (cm->cm_proxy_nr == 0 && cm->cm_aggr_grps_out_nr == 0 &&
+	    cm->cm_aggr_grps_in_nr == 0)
 		result = -ESHUTDOWN;
 	else {
 		m0_mutex_lock(&cm->cm_ast_run_fom_wait_mutex);

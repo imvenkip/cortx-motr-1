@@ -148,6 +148,7 @@ static void fom_simple_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 static void fom_simple_fini(struct m0_fom *fom)
 {
 	m0_fom_fini(fom);
+	fom->fo_addb_ctx.ac_magic = 0;
 }
 
 static const struct m0_fom_ops fom_simple_ops = {

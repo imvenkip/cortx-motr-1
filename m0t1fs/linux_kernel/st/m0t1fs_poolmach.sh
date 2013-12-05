@@ -17,7 +17,7 @@ pool_mach_test()
 	done
 
 ####### Query
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I 1
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
@@ -30,7 +30,7 @@ pool_mach_test()
 	fi
 
 ####### Set
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I 1 -s 1
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
@@ -43,7 +43,7 @@ pool_mach_test()
 	fi
 
 ####### Query again
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I 1
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
@@ -56,7 +56,7 @@ pool_mach_test()
 	fi
 
 ####### Set again. This set request should get error
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I 1 -s 0
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 0
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
@@ -69,7 +69,7 @@ pool_mach_test()
 	fi
 
 ####### Set again. This set request should get error
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I 1 -s 1
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
@@ -82,7 +82,7 @@ pool_mach_test()
 	fi
 
 ####### Set again. This set request should get error
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -I 1 -s 2
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
@@ -95,7 +95,7 @@ pool_mach_test()
 	fi
 
 ####### Query again
-	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -I 1
+	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
 	echo $trigger
 
