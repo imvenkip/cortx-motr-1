@@ -159,7 +159,7 @@ static bool be_io_cb(struct m0_clink *link)
 	 */
 	if (rc == 0 && bio->bio_sync) {
 		rc = fdatasync(stob2linux(bio->bio_stob)->sl_fd);
-		M0_ASSERT_INFO(rc == 0, "fsync() failed: %d", rc);
+		M0_ASSERT_INFO(rc == 0, "fdatasync() failed: %d", rc);
 	}
 
 	op->bo_sm.sm_rc = rc;
