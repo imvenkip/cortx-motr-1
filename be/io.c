@@ -108,28 +108,46 @@ M0_INTERNAL bool m0_be_io__invariant(struct m0_be_io *bio)
 	/* XXX m0_vec_count(&io->si_user.ov_vec) is called two times here. */
 }
 
+static m0_bindex_t be_io_stob_offset_pack(m0_bindex_t offset, uint32_t bshift)
+{
+	return (m0_bindex_t)m0_stob_addr_pack((void *)offset, bshift);
+}
+
 M0_INTERNAL void m0_be_io_add(struct m0_be_io *bio,
 			      void *ptr_user,
 			      m0_bindex_t offset_stob,
 			      m0_bcount_t size)
 {
 	struct m0_stob_io *io	  = &bio->bio_io;
-	m0_bcount_t	   v_size = m0_vec_count(&io->si_user.ov_vec);
-	uint32_t	   nr	  = io->si_user.ov_vec.v_nr;
 	uint32_t	   bshift = bio->bio_bshift;
+	void		 **u_buf  = io->si_user.ov_buf;
+	struct m0_vec	  *u_vec  = &io->si_user.ov_vec;
+	m0_bindex_t	  *s_offs = io->si_stob.iv_index;
+	struct m0_vec	  *s_vec  = &io->si_stob.iv_vec;
+	m0_bcount_t	   v_size = m0_vec_count(u_vec);
+	uint32_t	   nr	  = u_vec->v_nr;
 
 	M0_PRE(m0_be_io__invariant(bio));
+	M0_PRE(u_vec->v_nr == s_vec->v_nr);
 	M0_PRE(v_size + size <= bio->bio_credit.tc_reg_size);
 	M0_PRE(nr + 1	     <= bio->bio_credit.tc_reg_nr);
 
-	io->si_user.ov_buf[nr] = m0_stob_addr_pack(ptr_user, bshift);
-	io->si_user.ov_vec.v_count[nr] = size;
-	io->si_stob.iv_index[nr] =
-		(m0_bindex_t) m0_stob_addr_pack((void *) offset_stob, bshift);
-	io->si_stob.iv_vec.v_count[nr] = size;
+	if (nr > 0 &&
+	    u_buf[nr - 1]  + u_vec->v_count[nr - 1] == ptr_user &&
+	    s_offs[nr - 1] + s_vec->v_count[nr - 1] == offset_stob) {
+		/* optimization for sequential regions */
+		u_vec->v_count[nr - 1] += size;
+		s_vec->v_count[nr - 1] += size;
+	} else {
+		u_buf[nr]	   = m0_stob_addr_pack(ptr_user, bshift);
+		u_vec->v_count[nr] = size;
+		s_offs[nr]	   = be_io_stob_offset_pack(offset_stob,
+							    bshift);
+		s_vec->v_count[nr] = size;
 
-	++io->si_user.ov_vec.v_nr;
-	++io->si_stob.iv_vec.v_nr;
+		++u_vec->v_nr;
+		++s_vec->v_nr;
+	}
 
 	M0_POST(m0_be_io__invariant(bio));
 }
