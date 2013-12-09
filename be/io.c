@@ -182,10 +182,10 @@ M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op)
 
 	m0_clink_add_lock(&io->si_wait, &bio->bio_clink);
 
-	M0_LOG(M0_DEBUG, "io = %p, io->si_user count = %"PRIu32", size = %lu",
+	M0_LOG(M0_DEBUG, "io = %p, io->si_user count = %"PRIu32" size = %lu",
 	       io, io->si_user.ov_vec.v_nr,
 	       (unsigned long) m0_vec_count(&io->si_user.ov_vec));
-	M0_LOG(M0_DEBUG, "io = %p, io->si_stob count = %"PRIu32", "
+	M0_LOG(M0_DEBUG, "io = %p, io->si_stob count = %"PRIu32" "
 	       "size = %lu", io, io->si_stob.iv_vec.v_nr,
 	       (unsigned long) m0_vec_count(&io->si_stob.iv_vec));
 
