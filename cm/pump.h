@@ -91,7 +91,13 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm);
 
 /**
- * Wakes up pump FOM, to create more copy packets iff m0_cm_cp_pump::p_is_idle.
+ * Moves the pump fom into the wait queue. The fom will be woken up when
+ * signalled on m0_cm_cp_pump::p_signal channel.
+ */
+M0_INTERNAL void m0_cm_cp_pump_wait(struct m0_cm *cm);
+
+/**
+ * Wakes up pump FOM  to create more copy packets iff m0_cm_cp_pump::p_is_idle.
  * Resets m0_cm_cp_pump::p_is_idle to false.
  */
 M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm);

@@ -218,11 +218,13 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 	 */
 	m0_tl_for (rev_conn, &svc->rps_rev_conns, revc) {
 		rev_conn_tlink_del_fini(revc);
-		rc = m0_rpc_session_destroy(revc->rcf_sess, M0_TIME_NEVER);
+		rc = m0_rpc_session_destroy(revc->rcf_sess,
+			m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
 
-		rc = m0_rpc_conn_destroy(revc->rcf_conn, M0_TIME_NEVER);
+		rc = m0_rpc_conn_destroy(revc->rcf_conn,
+			m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "Failed to terminate "
 			       "connection %d", rc);

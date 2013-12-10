@@ -528,9 +528,6 @@ M0_INTERNAL int m0_rm_fop_init(void)
 	m0_xc_fom_generic_init();
 	m0_xc_rm_fops_init();
 
-	m0_sm_conf_extend(m0_generic_conf.scf_state, rm_req_phases,
-			  m0_generic_conf.scf_nr_states);
-
 	M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_fopt,
 			 .name      = "Credit Borrow",
 			 .opcode    = M0_RM_FOP_BORROW,

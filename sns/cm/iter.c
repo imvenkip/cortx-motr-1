@@ -89,6 +89,10 @@ enum cm_data_iter_phase {
 	 * needs repair.
 	 */
 	ITPH_FID_NEXT,
+	/** Iterator tries to acquire the async rm file lock in this phase. */
+	ITPH_FID_LOCK,
+	/** Iterator waits for the rm file lock to be acquired in this phase. */
+	ITPH_FID_LOCK_WAIT,
 	/** Iterator fetches GOB attributes in this phase. */
 	ITPH_FID_ATTR_FETCH,
 	/** Iterator waits till GOB attributes are fetched asynchronously. */
@@ -256,10 +260,20 @@ static void get_attr_callback(void *arg, int rc)
 
 static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
 {
-	M0_PRE(it != NULL);
+	struct m0_sns_cm   *scm;
+	struct m0_cm       *cm;
 
-	if (it->si_fc.sfc_cob_attr.ca_size == 0)
+	M0_PRE(it != NULL);
+	M0_ENTRY("it = %p", it);
+
+	scm = it2sns(it);
+	cm = &scm->sc_base;
+
+	if (it->si_fc.sfc_cob_attr.ca_size == 0) {
+		m0_cm_cp_pump_wait(cm);
 		return M0_RC(M0_FSO_WAIT);
+	}
+
 	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH);
 	return M0_RC(0);
 }
@@ -290,6 +304,7 @@ static int iter_fid_attr_fetch(struct m0_sns_cm_iter *it)
 	iter_phase_set(it, ITPH_FID_ATTR_FETCH_WAIT);
 	if (rc != 0)
 		return M0_RC(rc);
+	m0_cm_cp_pump_wait(cm);
 	return M0_RC(M0_FSO_WAIT);
 }
 
@@ -375,7 +390,91 @@ static int iter_fid_layout_fetch(struct m0_sns_cm_iter *it)
 	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
 	if (rc != 0)
 		return M0_RC(rc);
+	m0_cm_cp_pump_wait(cm);
 	return M0_RC(M0_FSO_WAIT);
+}
+
+static int iter_fid_lock(struct m0_sns_cm_iter *it)
+{
+	struct m0_sns_cm          *scm;
+	int		           rc=0;
+	struct m0_fid             *fid;
+	struct m0_fom             *fom;
+	struct m0_chan	          *rm_chan;
+	struct m0_sns_cm_file_ctx *fctx;
+
+	M0_ENTRY();
+	M0_PRE(it != NULL);
+
+	scm = it2sns(it);
+	fid = &it->si_fc.sfc_gob_fid;
+	fom = &scm->sc_base.cm_cp_pump.p_fom;
+	m0_mutex_lock(&scm->sc_file_ctx_mutex);
+	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid);
+	if (fctx != NULL) {
+		if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED) {
+			rc = 0;
+			M0_LOG(M0_DEBUG, "fid: <%lx, %lx>", FID_P(fid));
+			m0_ref_get(&fctx->sf_ref);
+			iter_phase_set(it, ITPH_FID_ATTR_FETCH);
+			goto end;
+		}
+		if (fctx->sf_flock_status == M0_SCM_FILE_LOCK_WAIT){
+			iter_phase_set(it, ITPH_FID_LOCK_WAIT);
+			goto end;
+		}
+	}
+	rc = m0_sns_cm_fctx_init(scm, fid, &fctx);
+	if (rc != 0)
+		goto end;
+
+	rc = m0_sns_cm_file_lock(fctx);
+	if (rc != M0_FSO_WAIT)
+		goto end;
+
+	rm_chan = &fctx->sf_rin.rin_sm.sm_chan;
+	m0_rm_owner_lock(&fctx->sf_owner);
+	m0_fom_wait_on(fom, rm_chan, &fom->fo_cb);
+	m0_rm_owner_unlock(&fctx->sf_owner);
+	iter_phase_set(it, ITPH_FID_LOCK_WAIT);
+		goto end;
+
+end:
+	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	return M0_RC(rc);
+}
+
+static int iter_fid_lock_wait(struct m0_sns_cm_iter *it)
+{
+	struct m0_sns_cm          *scm;
+	int		           rc;
+	struct m0_fid             *fid;
+	struct m0_fom             *fom;
+	struct m0_sns_cm_file_ctx *fctx;
+
+	M0_ENTRY();
+	M0_PRE(it != NULL);
+
+	scm = it2sns(it);
+	fid = &it->si_fc.sfc_gob_fid;
+	fom = &scm->sc_base.cm_cp_pump.p_fom;
+	m0_mutex_lock(&scm->sc_file_ctx_mutex);
+	fctx = m0_sns_cm_fctx_locate(scm, fid);
+	M0_ASSERT(fctx != NULL);
+
+	rc = m0_sns_cm_file_lock_wait(fctx, fom);
+	if (rc == M0_FSO_WAIT)
+		goto end;
+	if (rc == 0 || rc == -EAGAIN) {
+		rc = 0;
+		m0_ref_get(&fctx->sf_ref);
+		iter_phase_set(it, ITPH_FID_ATTR_FETCH);
+		M0_ASSERT(fctx->sf_flock_status == M0_SCM_FILE_LOCKED);
+	}
+
+end:
+	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	return M0_RC(rc);
 }
 
 /** Fetches next GOB fid. */
@@ -421,8 +520,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 			}
 		}
 	}
-
-	iter_phase_set(it, ITPH_FID_ATTR_FETCH);
+	iter_phase_set(it, ITPH_FID_LOCK);
 	return M0_RC(rc);
 }
 
@@ -764,6 +862,8 @@ static int (*iter_action[])(struct m0_sns_cm_iter *it) = {
 	[ITPH_GROUP_NEXT]            = iter_group_next,
 	[ITPH_GROUP_NEXT_WAIT]       = iter_group_next_wait,
 	[ITPH_FID_NEXT]              = iter_fid_next,
+	[ITPH_FID_LOCK]              = iter_fid_lock,
+	[ITPH_FID_LOCK_WAIT]         = iter_fid_lock_wait,
 	[ITPH_FID_ATTR_FETCH]        = iter_fid_attr_fetch,
 	[ITPH_FID_ATTR_FETCH_WAIT]   = iter_fid_attr_fetch_wait,
 	[ITPH_FID_LAYOUT_FETCH]      = iter_fid_layout_fetch,
@@ -825,7 +925,17 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 		.sd_flags   = 0,
 		.sd_name    = "FID next",
 		.sd_allowed = M0_BITS(ITPH_FID_ATTR_FETCH, ITPH_GROUP_NEXT,
-				      ITPH_IDLE)
+				      ITPH_FID_LOCK, ITPH_IDLE)
+	},
+	[ITPH_FID_LOCK] = {
+		.sd_flags   = 0,
+		.sd_name    = "File lock wait",
+		.sd_allowed = M0_BITS(ITPH_FID_ATTR_FETCH, ITPH_FID_LOCK_WAIT)
+	},
+	[ITPH_FID_LOCK_WAIT] = {
+		.sd_flags   = 0,
+		.sd_name    = "File lock wait",
+		.sd_allowed = M0_BITS(ITPH_FID_ATTR_FETCH)
 	},
 	[ITPH_FID_ATTR_FETCH] = {
 		.sd_flags   = 0,

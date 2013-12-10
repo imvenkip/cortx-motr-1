@@ -518,8 +518,13 @@ M0_INTERNAL void m0_file_lock(struct m0_rm_owner    *owner,
 			      struct m0_rm_incoming *req)
 {
 	M0_ENTRY();
+/*
+ * @todo This API should be called before m0_file_lock is invoked to ensure that
+ * the rm incoming chan is initialised. The calling fom will listen on this chan
+ * for the file lock events.
+ */
 	m0_rm_incoming_init(req, owner, M0_RIT_LOCAL, RIP_NONE,
-			    RIF_LOCAL_WAIT | RIF_MAY_BORROW | RIF_MAY_REVOKE);
+		RIF_LOCAL_WAIT | RIF_MAY_BORROW | RIF_MAY_REVOKE);
 	req->rin_want.cr_datum = RM_FILE_LOCK;
 	req->rin_ops = &file_lock_incoming_ops;
 	m0_rm_credit_get(req);

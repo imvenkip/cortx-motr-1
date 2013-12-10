@@ -206,7 +206,6 @@ static void fom_create_test(enum m0_rm_incoming_type fomtype,
 	fom_create(fomtype, err_test, fop, &fom);
 	if (!err_test) {
 		M0_UT_ASSERT(fom != NULL);
-		m0_ut_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		fom_fini(fom, fomtype);
 	} else
 		fop_dealloc(fop);
@@ -278,7 +277,7 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	m0_rm_owner_lock(rm_test_data.rd_owner);
 	switch (test) {
 	case RM_UT_FULL_CREDITS_TEST:
-		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
 				&rm_test_data.rd_owner->ro_sublet));
@@ -288,7 +287,7 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				&rm_test_data.rd_owner->ro_owned[OWOS_HELD]));
 		break;
 	case RM_UT_PARTIAL_CREDITS_TEST:
-		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
 				&rm_test_data.rd_owner->ro_sublet));
@@ -299,7 +298,6 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
 		break;
 	case RM_UT_INVALID_CREDITS_TEST:
 	case RM_UT_MEMFAIL_TEST:
-		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		break;
 	}
@@ -335,15 +333,13 @@ static void brw_fom_state_test(enum test_type test)
 	M0_UT_ASSERT(fom != NULL);
 	brw_fop_populate(fom, test);
 
-	m0_ut_fom_phase_set(fom, FOPH_RM_REQ_START);
-
 	/*
 	 * Call the first phase of FOM.
 	 */
 	if (test == RM_UT_MEMFAIL_TEST)
 		m0_fi_enable_once("rings_credit_copy", "fail_copy");
 	rc = borrow_fom_tick(fom);
-	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
+	M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_WAIT);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 
 	/*
@@ -490,7 +486,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 	m0_rm_owner_lock(rm_test_data.rd_owner);
 	switch (test) {
 	case RM_UT_FULL_CREDITS_TEST:
-		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(
 				&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
@@ -498,7 +494,7 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 				&rm_test_data.rd_owner->ro_borrowed));
 		break;
 	case RM_UT_PARTIAL_CREDITS_TEST:
-		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+		M0_UT_ASSERT(m0_fom_phase(fom) == FOPH_RM_REQ_FINISH);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
@@ -509,7 +505,6 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
 		break;
 	case RM_UT_INVALID_CREDITS_TEST:
 	case RM_UT_MEMFAIL_TEST:
-		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 		M0_UT_ASSERT(
 			!m0_rm_ur_tlist_is_empty(
@@ -548,7 +543,6 @@ static void rvk_fom_state_test(enum test_type test)
 
 	rvk_fop_populate(fom);
 
-	m0_ut_fom_phase_set(fom, FOPH_RM_REQ_START);
 	/*
 	 * Call the first FOM phase.
 	 */

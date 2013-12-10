@@ -7,7 +7,6 @@
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
 
-
 sns_repair_test()
 {
 	local rc=0

@@ -1316,7 +1316,9 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	if (rc == 0) {
 		rc = m0_rm_loan_alloc(&loan, &in->rin_want, debtor) ?:
 			pi_tlist_is_empty(&in->rin_pins) ? 0 :
-				cached_credits_remove(in);
+			cached_credits_remove(in);
+		/* @todo */
+		loan->rl_credit.cr_group_id = rem_in->ri_group_id;
 		if (rc != 0 && loan != NULL) {
 			m0_rm_loan_fini(loan);
 			m0_free(loan);
@@ -1446,7 +1448,7 @@ M0_EXPORTED(m0_rm_revoke_commit);
  */
 /** @{ */
 
-static bool same_group(struct m0_rm_owner    *o,
+bool same_group(struct m0_rm_owner    *o,
 				 struct m0_rm_incoming *in)
 {
 	return !m0_uint128_eq(&o->ro_group_id, &m0_rm_no_group) &&
@@ -1499,12 +1501,9 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
 	 * while owner is in ACTIVE state. This will take care
 	 * of races between owner state transition and credit requests.
 	 */
-	if (owner_state(owner) == ROS_ACTIVE) {
-		if (same_group(owner, in))
-			incoming_failure_set(in, -EINVAL);
-		else
-			incoming_queue(owner, in);
-	} else {
+	if (owner_state(owner) == ROS_ACTIVE)
+		incoming_queue(owner, in);
+	else {
 		M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%d -> %d]",
 				 in, in->rin_sm.sm_state, RI_FAILURE);
 		incoming_failure_set(in, -ENODEV);
@@ -1842,8 +1841,9 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 					wait++;
 				} else if (in->rin_flags & RIF_LOCAL_TRY)
 					return -EBUSY;
-			} else if (wait == 0)
+			} else if (wait == 0) {
 				rc = pin_add(in, r, M0_RPF_PROTECT);
+			}
 			rc = rc ?: credit_diff(rest, r);
 			if (rc != 0)
 				return M0_RC(rc);
@@ -2087,6 +2087,7 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 
 	M0_ENTRY("incoming: %p credit: %llu", in,
 		 (long long unsigned) credit->cr_datum);
+	//M0_LOG(M0_FATAL, "Sending borrow");
 	M0_PRE(other != NULL);
 
 	/*
@@ -2217,6 +2218,8 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
 		rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
 			loan_check(owner, &owner->ro_sublet, cached);
 		if (rc == 0 && !credit_is_empty(cached)) {
+			/* @todo */
+			cached->cr_group_id = m0_rm_no_group;
 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   cached);
 			M0_LOG(M0_INFO, "credit cached\n");

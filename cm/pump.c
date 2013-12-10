@@ -145,13 +145,18 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 
 	/* This operation might block. */
 	rc = m0_cm_data_next(cm, cp);
-
-	if (rc == -ENOBUFS || rc == M0_FSO_WAIT) {
+	if (rc == M0_FSO_WAIT) {
 		pump_move(cp_pump, 0, CPP_WAIT);
 		goto wait;
 	}
 
 	if (rc < 0) {
+		if (rc == -ENOBUFS) {
+			pump_move(cp_pump, 0, CPP_WAIT);
+			m0_cm_cp_pump_wait(cm);
+			goto wait;
+		}
+
 		if (rc == -ENODATA) {
 			/*
 			 * No more data available. Free the already
@@ -169,6 +174,7 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 			}
 			pump_move(cp_pump, 0, CPP_COMPLETE);
 			M0_LOG(M0_DEBUG, "pump moves to COMPLETE");
+			m0_cm_cp_pump_wait(cm);
 			goto wait;
 		}
 		goto fail;
@@ -184,14 +190,12 @@ fail:
 	pump_move(cp_pump, rc, CPP_FAIL);
 	rc = M0_FSO_AGAIN;
 	goto out;
+
 wait:
 	cp_pump->p_is_idle = true;
-        m0_mutex_lock(&cp_pump->p_signal_mutex);
-        m0_fom_wait_on(&cp_pump->p_fom, &cp_pump->p_signal,
-		       &cp_pump->p_fom.fo_cb);
-        m0_mutex_unlock(&cp_pump->p_signal_mutex);
 	rc = M0_FSO_WAIT;
 	M0_LOG(M0_DEBUG, "Now pump is idle. WAIT");
+
 out:
 	m0_cm_unlock(cm);
 	return M0_RC(rc);
@@ -351,6 +355,18 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 		    cm->cm_service.rs_type);
 	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_cm_cp_pump_wait(struct m0_cm *cm)
+{
+        struct m0_cm_cp_pump *cp_pump;
+	M0_ENTRY("cm = %p", cm);
+
+	cp_pump = &cm->cm_cp_pump;
+	m0_mutex_lock(&cp_pump->p_signal_mutex);
+        m0_fom_wait_on(&cp_pump->p_fom, &cp_pump->p_signal,
+		       &cp_pump->p_fom.fo_cb);
+        m0_mutex_unlock(&cp_pump->p_signal_mutex);
 }
 
 M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm)

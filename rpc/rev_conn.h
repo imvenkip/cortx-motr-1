@@ -42,7 +42,7 @@ enum m0_rev_connection_fom_type {
 };
 
 enum {
-	M0_REV_CONN_TIMEOUT   = 10,
+	M0_REV_CONN_TIMEOUT   = 5,
 };
 
 struct m0_reverse_connection {

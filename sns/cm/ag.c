@@ -112,6 +112,14 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
                      ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo);
         cm = ag->cag_cm;
         M0_ASSERT(cm != NULL);
+	scm = cm2sns(cm);
+	/*
+	 * Check if all the aggregation groups belonging to the fid
+	 * have been processed. If they are, then release the lock
+	 * over the file.
+	 */
+	m0_sns_cm_fctx_ag_dec(scm, &ag->cag_id);
+
 	m0_cm_aggr_group_fini_and_progress(ag);
 	if (ag->cag_layout != NULL) {
 		m0_layout_put(ag->cag_layout);
@@ -193,6 +201,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
+	m0_sns_cm_fctx_ag_incr(scm, id);
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
 		     id->ai_hi.u_hi, id->ai_hi.u_lo,

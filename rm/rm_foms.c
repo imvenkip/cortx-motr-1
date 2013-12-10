@@ -28,6 +28,7 @@
 #include "lib/finject.h"
 #include "fop/fom_generic.h"
 #include "rpc/service.h"
+#include "rpc/rpc.h"
 
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
@@ -132,19 +133,20 @@ const struct m0_fom_type_ops rm_cancel_fom_type_ops = {
 
 struct m0_sm_state_descr rm_req_phases[] = {
 	[FOPH_RM_REQ_START] = {
-		.sd_name      = "RM Request Begin",
-		.sd_allowed   = M0_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH,
-					M0_FOPH_FAILURE)
+		.sd_flags   = M0_SDF_INITIAL,
+		.sd_name    = "RM Request Begin",
+		.sd_allowed = M0_BITS(FOPH_RM_REQ_WAIT, FOPH_RM_REQ_FINISH)
 	},
 	[FOPH_RM_REQ_WAIT] = {
-		.sd_name      = "RM Request Wait",
-		.sd_allowed   = M0_BITS(FOPH_RM_REQ_FINISH, M0_FOPH_SUCCESS,
-					M0_FOPH_FAILURE)
+		.sd_name    = "RM Request Wait",
+		.sd_allowed = M0_BITS(FOPH_RM_REQ_FINISH)
 	},
 	[FOPH_RM_REQ_FINISH] = {
-		.sd_name      = "RM Request Completion",
-		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
+		.sd_flags   = M0_SDF_FINAL,
+		.sd_name    = "RM Request Completion",
+		.sd_allowed = 0
 	},
+
 };
 
 struct m0_sm_conf borrow_sm_conf = {
@@ -359,7 +361,6 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 		break;
 	}
 	reply_fop->gr_rc = rc;
-	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	M0_LEAVE();
 }
 
@@ -508,12 +509,7 @@ static int request_pre_process(struct m0_fom *fom,
 	in = &rfom->rf_in.ri_incoming;
 	m0_rm_credit_get(in);
 
-	/*
-	 * If m0_rm_incoming goes in WAIT state, then put the fom in wait
-	 * queue otherwise proceed with the next (finish) phase.
-	 */
-	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
-			 FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
+	m0_fom_phase_set(fom, FOPH_RM_REQ_WAIT);
 	return M0_RC(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT
 			: M0_FSO_AGAIN);
 }
@@ -541,8 +537,10 @@ static int request_post_process(struct m0_fom *fom)
 
 	reply_err_set(in->rin_type, fom, rc);
 	m0_rm_incoming_fini(in);
+	m0_rpc_reply_post(&fom->fo_fop->f_item,
+			  m0_fop_to_rpc_item(fom->fo_rep_fop));
 
-	return M0_RC(M0_FSO_AGAIN);
+	return M0_RC(M0_FSO_WAIT);
 }
 
 static int request_fom_tick(struct m0_fom           *fom,
@@ -552,27 +550,20 @@ static int request_fom_tick(struct m0_fom           *fom,
 
 	M0_ENTRY("running fom: %p for request: %d", fom, type);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR)
-		rc = m0_fom_tick_generic(fom);
-	else {
-		switch (m0_fom_phase(fom)) {
-		case FOPH_RM_REQ_START:
-			if (type == FRT_CANCEL)
-				rc = cancel_process(fom);
-			else
-				rc = request_pre_process(fom, type);
-			break;
-		case FOPH_RM_REQ_WAIT:
-			m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
-			rc = M0_FSO_AGAIN;
-			break;
-		case FOPH_RM_REQ_FINISH:
-			rc = request_post_process(fom);
-			break;
-		default:
-			M0_IMPOSSIBLE("Unrecognized RM FOM phase");
-			break;
-		}
+	switch (m0_fom_phase(fom)) {
+	case FOPH_RM_REQ_START:
+		if (type == FRT_CANCEL)
+			rc = cancel_process(fom);
+		else
+			rc = request_pre_process(fom, type);
+		break;
+	case FOPH_RM_REQ_WAIT:
+		rc = request_post_process(fom);
+		m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
+		break;
+	default:
+		M0_IMPOSSIBLE("Unrecognized RM FOM phase");
+		break;
 	}
 	return M0_RC(rc);
 }
@@ -630,9 +621,10 @@ static int cancel_process(struct m0_fom *fom)
 
 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
 	reply_err_set(FRT_CANCEL, fom, rc);
-	rc = M0_FSO_AGAIN;
+	m0_rpc_reply_post(&fom->fo_fop->f_item,
+			  m0_fop_to_rpc_item(fom->fo_rep_fop));
 
-	return M0_RC(rc);
+	return M0_RC(M0_FSO_WAIT);
 }
 
 static int cancel_fom_tick(struct m0_fom *fom)

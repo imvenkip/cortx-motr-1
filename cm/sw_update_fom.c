@@ -44,10 +44,10 @@
 */
 
 enum cm_sw_update_fom_phase {
-	SWU_UPDATE = M0_FOM_PHASE_INIT,
-	SWU_FINI   = M0_FOM_PHASE_FINISH,
+	SWU_UPDATE	= M0_FOM_PHASE_INIT,
+	SWU_FINI	= M0_FOM_PHASE_FINISH,
 	SWU_STORE,
-	SWU_WAIT,
+	SWU_STORE_WAIT,
 	SWU_COMPLETE,
 	SWU_NR
 };
@@ -62,14 +62,15 @@ static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
 	[SWU_UPDATE] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "Sliding window update",
-		.sd_allowed = M0_BITS(SWU_STORE, SWU_COMPLETE, SWU_FINI)
+		.sd_allowed = M0_BITS(SWU_STORE, SWU_UPDATE, SWU_COMPLETE,
+                                     SWU_FINI)
 	},
-	[SWU_STORE] = {
+        [SWU_STORE] = {
 		.sd_flags   = 0,
 		.sd_name    = "sliding window persistent store",
-		.sd_allowed = M0_BITS(SWU_WAIT, SWU_FINI)
+		.sd_allowed = M0_BITS(SWU_STORE_WAIT, SWU_FINI)
 	},
-	[SWU_WAIT] = {
+	[SWU_STORE_WAIT] = {
 		.sd_flags   = 0,
 		.sd_name    = "sliding window update fom wait",
 		.sd_allowed = M0_BITS(SWU_UPDATE, SWU_FINI)
@@ -77,7 +78,7 @@ static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
 	[SWU_COMPLETE] = {
 		.sd_flags   = 0,
 		.sd_name    = "sliding window update complete",
-		.sd_allowed = M0_BITS(SWU_WAIT, SWU_FINI)
+		.sd_allowed = M0_BITS(SWU_STORE_WAIT, SWU_FINI)
 	},
 	[SWU_FINI] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -110,6 +111,8 @@ static int swu_update(struct m0_cm_sw_update *swu)
 
 	M0_PRE(m0_cm_is_locked(cm));
 	rc = m0_cm_sw_local_update(cm);
+	if (rc == M0_FSO_WAIT)
+		return rc;
 	if (rc == 0 || rc == -ENOSPC) {
 		m0_cm_ready_done(cm);
 		m0_fom_phase_move(fom, 0, SWU_STORE);
@@ -119,12 +122,11 @@ static int swu_update(struct m0_cm_sw_update *swu)
 			m0_cm_ready_done(cm);
 			m0_fom_phase_move(fom, 0, SWU_COMPLETE);
 			rc = M0_FSO_AGAIN;
-		} else {
+		}  else {
 			m0_fom_phase_move(fom, rc, SWU_FINI);
 			rc = M0_FSO_WAIT;
 		}
 	}
-
 	return rc;
 }
 
@@ -168,7 +170,7 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	if (rc == 0) {
 		m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
 		m0_dtx_done(tx);
-		m0_fom_phase_move(fom, rc, SWU_WAIT);
+		m0_fom_phase_move(fom, rc, SWU_STORE_WAIT);
 	}
 
 err:
@@ -178,7 +180,7 @@ err:
 	return M0_FSO_WAIT;
 }
 
-static int swu_wait(struct m0_cm_sw_update *swu)
+static int swu_store_wait(struct m0_cm_sw_update *swu)
 {
 	struct m0_cm   *cm = cm_swu2cm(swu);
 	struct m0_fom  *fom = &swu->swu_fom;
@@ -247,16 +249,15 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
 	swu->swu_is_complete = true;
 	m0_dtx_done(tx);
-	m0_fom_phase_move(fom, rc, SWU_WAIT);
-
+	m0_fom_phase_move(fom, rc, SWU_STORE_WAIT);
 	return M0_FSO_WAIT;
 }
 
 static int (*swu_action[]) (struct m0_cm_sw_update *swu) = {
-	[SWU_UPDATE]   = swu_update,
-	[SWU_STORE]    = swu_store,
-	[SWU_WAIT]     = swu_wait,
-	[SWU_COMPLETE] = swu_complete,
+	[SWU_UPDATE]      = swu_update,
+	[SWU_STORE]       = swu_store,
+	[SWU_STORE_WAIT]  = swu_store_wait,
+	[SWU_COMPLETE]    = swu_complete,
 };
 
 static uint64_t cm_swu_fom_locality(const struct m0_fom *fom)

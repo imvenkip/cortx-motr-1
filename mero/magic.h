@@ -749,6 +749,13 @@ enum m0_magic_satchel {
 	/* rmach_watch_tl::td_head_magic "COCOAA CALLED" */
 	M0_RPC_MACHINE_WATCH_HEAD_MAGIC = 0x33C0C0AACA11ED77,
 
+/* SNS repair */
+	/** m0_sns_cm_file_ctx::sf_magic (labelled babe) */
+	M0_SNS_CM_FILE_CTX_MAGIC = 0x331ABE11EDBABE77,
+
+	/** m0_sns_cm::sc_magic (salesalesale) */
+	M0_SNS_CM_MAGIC = 0x335A1E5A1E5A1E77,
+
 /* stob */
 	/* m0_stob_cacheable::ca_magix (bilobed flood) */
 	M0_STOB_CACHEABLE_MAGIX = 0x33b110bedf100d77,

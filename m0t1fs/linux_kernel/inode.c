@@ -43,6 +43,8 @@ static const struct m0_bob_type m0t1fs_inode_bob = {
 
 M0_BOB_DEFINE(M0_INTERNAL, &m0t1fs_inode_bob, m0t1fs_inode);
 
+const struct m0_uint128 m0_rm_m0t1fs_group = M0_UINT128(0, 1);
+
 M0_INTERNAL const struct m0_fid *m0t1fs_inode_fid(const struct m0t1fs_inode *ci)
 {
 	M0_PRE(ci != NULL);
@@ -140,7 +142,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 	 */
 	m0_file_init(&ci->ci_flock, fid, rdom, M0_DI_DEFAULT_TYPE);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
-	m0_file_owner_init(&ci->ci_fowner, &m0_rm_no_group,
+	m0_file_owner_init(&ci->ci_fowner, &m0_rm_m0t1fs_group,
 			   &ci->ci_flock, NULL);
 	ci->ci_fowner.ro_creditor = &ci->ci_creditor;
 	ci->ci_creditor.rem_session =

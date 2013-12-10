@@ -3306,6 +3306,8 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	return M0_RC(rc);
 }
 
+extern const struct m0_uint128 m0_rm_m0t1fs_group;
+
 static int ioreq_file_lock(struct io_request *req)
 {
 	int                  rc;
@@ -3315,6 +3317,7 @@ static int ioreq_file_lock(struct io_request *req)
 	M0_ENTRY();
 
 	mi = file_to_m0inode(req->ir_file);
+	req->ir_in.rin_want.cr_group_id = m0_rm_m0t1fs_group;
 	m0_file_lock(&mi->ci_fowner, &req->ir_in);
 	m0_rm_owner_lock(&mi->ci_fowner);
 	rc = m0_sm_timedwait(&req->ir_in.rin_sm,
