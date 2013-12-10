@@ -1,1 +1,7 @@
-m0mero_objects += be/btree.o be/linux_kernel/stubs.o
+m0mero_objects += \
+                  be/btree.o \
+                  be/extmap.o \
+                  be/list.o \
+                  be/seg_dict.o \
+                  be/linux_kernel/stubs.o \
+
