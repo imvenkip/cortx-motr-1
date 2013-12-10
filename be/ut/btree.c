@@ -27,7 +27,9 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "be/ut/helper.h"
 #include "ut/ut.h"
-#include <stdlib.h>	   /* atoi */
+#ifndef __KERNEL__
+#include <stdio.h>	   /* sscanf */
+#endif
 
 static struct m0_be_ut_backend ut_be;
 static struct m0_be_ut_seg     ut_seg;
@@ -58,7 +60,7 @@ enum {
 
 static void check(struct m0_be_btree *tree);
 
-static struct m0_be_btree *create_tree();
+static struct m0_be_btree *create_tree(void);
 
 static void destroy_tree(struct m0_be_btree *tree);
 
@@ -248,7 +250,7 @@ static void btree_delete_test(struct m0_be_btree *tree, struct m0_be_tx *tx)
 	}
 }
 
-static struct m0_be_btree * create_tree()
+static struct m0_be_btree *create_tree(void)
 {
 	struct m0_be_tx_credit	cred = {};
 	struct m0_be_btree     *tree;
@@ -257,6 +259,7 @@ static struct m0_be_btree * create_tree()
 	struct m0_buf           val;
 	char                    k[INSERT_SIZE];
 	char                    v[INSERT_SIZE];
+	struct m0_be_op         op;
 	int                     rc;
 	int                     i;
 
@@ -280,7 +283,7 @@ static struct m0_be_btree * create_tree()
 	M0_BE_ALLOC_PTR_SYNC(tree, seg, tx);
 	m0_be_btree_init(tree, seg, &kv_ops);
 
-	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
+	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_create(tree, tx, &op));
 	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
@@ -324,7 +327,7 @@ static struct m0_be_btree * create_tree()
 
 	sprintf(k, "%03d", INSERT_COUNT - 1);
 	sprintf(v, "XYZ");
-	M0_BE_OP_SYNC(op, m0_be_btree_update(tree, tx, &op, &key, &val));
+	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_update(tree, tx, &op, &key, &val));
 
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
@@ -389,7 +392,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 
 	for (i = 0; i < INSERT_COUNT/4; ++i) {
-		v = atoi(key.b_addr);
+		sscanf(key.b_addr, "%03d", &v);
 		M0_LOG(M0_DEBUG, "i=%i k=%d", i, v);
 		M0_UT_ASSERT(v == i + INSERT_COUNT*3/4);
 
@@ -415,7 +418,7 @@ static void cursor_test(struct m0_be_btree *tree)
 	m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 
 	for (i = INSERT_COUNT/4 - 1; i >= 0; --i) {
-		v = atoi(key.b_addr);
+		sscanf(key.b_addr, "%03d", &v);
 		M0_LOG(M0_DEBUG, "i=%i k=%d", i, v);
 		M0_UT_ASSERT(v == i);
 
