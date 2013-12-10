@@ -53,19 +53,20 @@ M0_UNUSED static void print(struct m0_be_list *list);
 M0_INTERNAL void m0_be_ut_list_api(void)
 {
 	enum { SHIFT = 0 };
-	struct m0_be_tx_credit tcred = {}; /* credits for structs "test" */
-	struct m0_be_tx_credit ccred = {}; /* credits for list creation */
-	struct m0_be_tx_credit icred = {}; /* credits for list insertions */
-	struct m0_be_tx_credit dcred = {}; /* credits for list deletions */
-	struct m0_be_tx_credit cred = {};  /* total credits */
-	struct m0_be_allocator *a;
-	struct m0_be_list      *list;
-	struct m0_be_ut_backend ut_be;
-	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg;
-	struct m0_be_op         op;
-	struct m0_be_tx         tx;
-	struct test            *elem[10];
+	/* Following variables are static to reduce kernel stack consumption. */
+	static struct m0_be_tx_credit tcred = {}; /* credits for "test" */
+	static struct m0_be_tx_credit ccred = {}; /* credits for creation */
+	static struct m0_be_tx_credit icred = {}; /* credits for insertions */
+	static struct m0_be_tx_credit dcred = {}; /* credits for deletions */
+	static struct m0_be_tx_credit cred = {};  /* total credits */
+	static struct m0_be_allocator *a;
+	static struct m0_be_list      *list;
+	static struct m0_be_ut_backend ut_be;
+	static struct m0_be_ut_seg     ut_seg;
+	static struct m0_be_seg       *seg;
+	static struct m0_be_op         op;
+	static struct m0_be_tx         tx;
+	static struct test            *elem[10];
 	int                     rc;
 	int                     i;
 
