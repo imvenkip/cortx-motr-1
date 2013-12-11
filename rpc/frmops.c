@@ -427,11 +427,12 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 		rc = 0;
 		item->ri_error = 0;
 	}
-	if (rc == 0)
-		item_sent(item);
+
 	item->ri_error = item->ri_error ?: rc;
 	if (item->ri_error != 0)
 		m0_rpc_item_failed(item, item->ri_error);
+	else
+		item_sent(item);
 
 	M0_LEAVE();
 }
@@ -443,7 +444,8 @@ static void item_sent(struct m0_rpc_item *item)
 
 	M0_ENTRY("item: %p", item);
 
-	M0_PRE(M0_IN(item->ri_error, (0, -ETIMEDOUT)) &&
+	M0_PRE(ergo(m0_rpc_item_is_request(item),
+	            M0_IN(item->ri_error, (0, -ETIMEDOUT))) &&
 	       item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
 
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);

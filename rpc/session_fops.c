@@ -211,7 +211,7 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .name      = "No-op",
 			 .opcode    = M0_RPC_NOOP_OPCODE,
 			 .xt        = m0_rpc_fop_noop_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fop_ops   = &m0_rpc_fop_noop_ops,
 			 .svc_type  = &m0_rpc_service_type);
 }

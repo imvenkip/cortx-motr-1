@@ -113,12 +113,12 @@ M0_INTERNAL bool m0_rpc_slot_invariant(const struct m0_rpc_slot *slot)
 		 * the version number of slot is advanced
 		 */
 		ok = m0_rpc_item_is_update(item1) ?
-			_0C(v1->vn_vc + 1 == v2->vn_vc) :
-			_0C(v1->vn_vc == v2->vn_vc);
+			_0C(v1->vn_vc < v2->vn_vc) :
+			_0C(v1->vn_vc <= v2->vn_vc);
 		if (!ok)
 			return false;
 
-		ok = _0C(item_xid(item1, 0) + 1 == item_xid(item2, 0));
+		ok = _0C(item_xid(item1, 0) < item_xid(item2, 0));
 		if (!ok)
 			return false;
 
@@ -454,9 +454,11 @@ static void misordered_item_received(struct m0_rpc_slot *slot,
 	if (fop != NULL) {
 		reply = &fop->f_item;
 		reply->ri_session = item->ri_session;
+		reply->ri_rmachine = item->ri_rmachine;
 		reply->ri_error   = -EBADR;
 		reply->ri_slot_refs[0] = item->ri_slot_refs[0];
 		slot_item_tlink_init(reply);
+		m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
 
 		slot->sl_ops->so_reply_consume(item, reply);
 	}
@@ -472,6 +474,9 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 	M0_ASSERT(item != NULL);
 	M0_ASSERT(m0_rpc_slot_invariant(slot));
 	M0_PRE(m0_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
+
+	if (M0_FI_ENABLED("misorder_item"))
+		item->ri_slot_refs[0].sr_ow.osr_xid += 5;
 
 	if (item_xid(item, 0) == slot->sl_xid) {
 		/* valid in sequence */
@@ -494,7 +499,7 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 	struct m0_rpc_item *req;
 
 	M0_ENTRY("slot: %p item: %p", slot, item);
-	/* item is a duplicate request. Find originial. */
+	/* item is a duplicate request. Find original. */
 	req = item_find(slot, item_xid(item, 0));
 	if (req == NULL) {
 		misordered_item_received(slot, item);

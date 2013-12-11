@@ -30,6 +30,8 @@
 #include "rpc/ut/rpc_test_fops.h"
 #include "rpc/rpc_internal.h"
 
+enum { MILLISEC = 1000 * 1000 };
+
 static int __test(void);
 static void __test_timeout(m0_time_t deadline,
 			   m0_time_t timeout);
@@ -95,7 +97,6 @@ static void test_simple_transitions(void)
 static void test_timeout(void)
 {
 	int rc;
-	enum { MILLISEC = 1000 * 1000 };
 
 	/* Test2.1: Request item times out before reply reaches to sender.
 		    Delayed reply is then dropped.
@@ -250,8 +251,25 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_nr_sent == 3);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	m0_fop_put(fop);
 	M0_LOG(M0_DEBUG, "TEST:3.4:END");
+
+	M0_LOG(M0_DEBUG, "TEST:3.4.1:START");
+	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
+	/* Emulate misordered item.
+	 */
+	m0_fi_enable_once("m0_rpc_slot_item_apply", "misorder_item");
+	item->ri_nr_sent_max = 1;
+	item->ri_resend_interval = m0_time(0, 100 * MILLISEC);
+	item->ri_deadline = m0_time_from_now(1, 0);
+	m0_rpc_machine_lock(item->ri_rmachine);
+	m0_rpc_item_send(item);
+	m0_rpc_machine_unlock(item->ri_rmachine);
+	rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == -ETIMEDOUT);
+	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
+	m0_fop_put(fop);
+	M0_LOG(M0_DEBUG, "TEST:3.4.1:END");
 
 	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
 		 fails to start item timer.
@@ -487,7 +505,7 @@ static void test_bound_items(void)
 	   delivered in order.
 
 	   The test posts 100 request items on slot0 of session. Each fop
-	   carries its sequence number. Reciever simply copies the sequence
+	   carries its sequence number. Receiver simply copies the sequence
 	   number in reply fop. RPC is instructed to invoke
 	   bound_item_replied_cb() upon receiving reply to any of the request
 	   items. The callback ensures that the sequence number in
