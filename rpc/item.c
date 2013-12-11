@@ -424,6 +424,7 @@ M0_EXPORTED(m0_rpc_item_init);
 void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
 	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
+	struct m0_rpc_slot *slot = sref->sr_slot;
 
 	M0_ENTRY("item: %p", item);
 
@@ -436,8 +437,13 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 		m0_rpc_item_put(item->ri_reply);
 		item->ri_reply = NULL;
 	}
-	if (slot_item_tlink_is_in(item))
+	if (slot_item_tlink_is_in(item)) {
+		if (item == slot->sl_last_sent) {
+			slot->sl_last_sent =
+				slot_item_tlist_prev(&slot->sl_item_list, item);
+		}
 		slot_item_tlist_del(item);
+	}
 	if (itemq_tlink_is_in(item))
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 	sref->sr_ow = invalid_slot_ref;
