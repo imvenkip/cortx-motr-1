@@ -45,6 +45,7 @@ extern void m0_ut_time_test(void);
 extern void test_timer(void);
 extern void test_tlist(void);
 extern void test_trace(void);
+extern void test_varr(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_locality(void);
@@ -84,6 +85,7 @@ const struct m0_test_suite libm0_ut = {
 		{ "tlist",            test_tlist         },
 		{ "trace",            test_trace,        "Dima, Andriy" },
 		{ "uuid",             m0_test_lib_uuid   },
+		{ "varr",             test_varr          },
 		{ "vec",              test_vec           },
 		{ "zerovec",          test_zerovec       },
 		{ NULL,               NULL               }

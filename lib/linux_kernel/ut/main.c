@@ -41,6 +41,7 @@ M0_INTERNAL void test_rw(void);
 M0_INTERNAL void test_thread(void);
 M0_INTERNAL void m0_ut_time_test(void);
 M0_INTERNAL void test_trace(void);
+M0_INTERNAL void test_varr(void);
 M0_INTERNAL void test_vec(void);
 M0_INTERNAL void test_zerovec(void);
 M0_INTERNAL void test_memory(void);
@@ -77,6 +78,7 @@ const struct m0_test_suite m0_klibm0_ut = {
 		{ "time",          m0_ut_time_test    },
 		{ "trace",         test_trace         },
 		{ "uuid",          m0_test_lib_uuid   },
+		{ "varr",          test_varr	      },
 		{ "vec",           test_vec           },
 		{ "zerovec",       test_zerovec       },
 		{ NULL,            NULL               }

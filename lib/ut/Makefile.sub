@@ -23,6 +23,7 @@ ut_libmero_ut_la_SOURCES += lib/ut/main.c \
                                lib/ut/tlist.c \
                                lib/ut/trace.c \
                                lib/ut/uuid.c \
+                               lib/ut/varr.c \
                                lib/ut/vec.c \
                                lib/ut/zerovec.c \
 			       lib/ut/hash.c

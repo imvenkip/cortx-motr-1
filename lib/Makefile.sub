@@ -40,6 +40,8 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/types_xc.h \
                                lib/ub.h \
                                lib/uuid.h \
+			       lib/varr.h \
+			       lib/varr_private.h \
                                lib/vec.h \
                                lib/vec_xc.h \
 			       lib/hash.h \
@@ -91,6 +93,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/types_xc.c \
                            lib/ub.c \
                            lib/uuid.c \
+			   lib/varr.c \
                            lib/vec.c \
                            lib/vec_xc.c \
                            lib/user_space/finject_init.c \
@@ -104,7 +107,8 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/user_space/umisc.c \
                            lib/user_space/uthread.c \
                            lib/user_space/utime.c \
-                           lib/user_space/utrace.c
+                           lib/user_space/utrace.c \
+                           lib/user_space/varr.c
 
 XC_FILES += lib/buf_xc.h \
             lib/cookie_xc.h \
@@ -138,5 +142,6 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/timer.h \
               lib/linux_kernel/trace.h \
               lib/linux_kernel/types.h \
+              lib/linux_kernel/varr.c \
               lib/linux_kernel/vec.h \
               lib/linux_kernel/ut/main.c

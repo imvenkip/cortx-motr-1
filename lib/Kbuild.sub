@@ -29,6 +29,7 @@ m0mero_objects += lib/assert.o \
                   lib/trace.o \
                   lib/types_xc.o \
                   lib/uuid.o \
+		  lib/varr.o \
                   lib/vec.o \
                   lib/vec.o \
                   lib/vec_xc.o
@@ -45,4 +46,5 @@ m0mero_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/processor.o \
                   lib/linux_kernel/rwlock.o \
                   lib/linux_kernel/semaphore.o \
-                  lib/linux_kernel/timer.o
+                  lib/linux_kernel/timer.o \
+		  lib/linux_kernel/varr.o

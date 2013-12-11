@@ -42,6 +42,7 @@ extern struct m0_ub_set m0_thread_ub;
 extern struct m0_ub_set m0_time_ub;
 extern struct m0_ub_set m0_tlist_ub;
 extern struct m0_ub_set m0_trace_ub;
+extern struct m0_ub_set m0_varr_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
@@ -95,6 +96,7 @@ static void ub_add(const struct ub_args *args)
 	 * These benchmarks are executed in reverse order from the way
 	 * they are listed here.
 	 */
+	m0_ub_set_add(&m0_varr_ub);
 	m0_ub_set_add(&m0_trace_ub);
 	m0_ub_set_add(&m0_tlist_ub);
 	m0_ub_set_add(&m0_time_ub);
