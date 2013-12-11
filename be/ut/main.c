@@ -23,7 +23,7 @@
 
 /*
  * TODO
- * - XXX s/rand_r/m0_rnd/g
+ * - XXX s/rand_r/m0_rnd/g in all BE UT.
  */
 
 extern void m0_be_ut_reg_d_tree(void);
@@ -75,6 +75,7 @@ const struct m0_test_suite be_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
+#ifndef __KERNEL__
 		{ "reg_d_tree",          m0_be_ut_reg_d_tree           },
 		{ "regmap-simple",       m0_be_ut_regmap_simple        },
 		{ "regmap-random",       m0_be_ut_regmap_random        },
@@ -105,6 +106,7 @@ const struct m0_test_suite be_ut = {
 		{ "alloc-multiple",      m0_be_ut_alloc_multiple       },
 		{ "alloc-concurrent",    m0_be_ut_alloc_concurrent     },
 		{ "alloc-transactional", m0_be_ut_alloc_transactional  },
+#endif
 		{ "list",                m0_be_ut_list_api             },
 		{ "btree",               m0_be_ut_btree_simple         },
 		{ "seg_dict",            m0_be_ut_seg_dict             },

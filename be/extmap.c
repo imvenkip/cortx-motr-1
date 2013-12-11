@@ -25,9 +25,6 @@
 #include "lib/errno.h"
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/misc.h"
-#include <stdio.h>       /* asprintf */
-#include <stdlib.h>
-#include <string.h>
 
 /**
    @addtogroup extmap
@@ -133,11 +130,13 @@ M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
 	rc = be_emap_lookup(it->ec_map, prefix, 0, &scan);
 	M0_ASSERT(rc == 0);
 
-	M0_LOG(M0_DEBUG, "%010lx:%010lx:", prefix->u_hi, prefix->u_lo);
+	M0_LOG(M0_DEBUG, U128X_F":", U128_P(prefix));
 	for (i = 0; ; ++i) {
 		M0_LOG(M0_DEBUG, "\t%5.5i %16lx .. %16lx: %16lx %10lx", i,
-		       seg->ee_ext.e_start, seg->ee_ext.e_end,
-		       m0_ext_length(&seg->ee_ext), seg->ee_val);
+		       (unsigned long)seg->ee_ext.e_start,
+		       (unsigned long)seg->ee_ext.e_end,
+		       (unsigned long)m0_ext_length(&seg->ee_ext),
+		       (unsigned long)seg->ee_val);
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
 		rc = be_emap_next(&scan);

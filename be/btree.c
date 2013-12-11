@@ -64,14 +64,18 @@ struct node_pos {
 	unsigned int	    p_index;
 };
 
+static struct m0_be_allocator *tree_allocator(const struct m0_be_btree *btree)
+{
+	return m0_be_seg_allocator(btree->bb_seg);
+}
+
 static struct bt_key_val *btree_search(struct m0_be_btree *btree, void *key);
 
 static inline void mem_free(const struct m0_be_btree *btree,
 			    struct m0_be_tx *tx, void *ptr, m0_bcount_t size)
 {
 	M0_BE_OP_SYNC(op,
-		      m0_be_free_aligned(m0_be_seg_allocator(btree->bb_seg),
-					 tx, &op, ptr));
+		      m0_be_free_aligned(tree_allocator(btree), tx, &op, ptr));
 }
 
 /* XXX: check if region structure itself needed outside m0_be_tx_capture() */
@@ -87,7 +91,7 @@ static inline void *mem_alloc(const struct m0_be_btree *btree,
 	void *p;
 
 	M0_BE_OP_SYNC(op,
-		      m0_be_alloc_aligned(m0_be_seg_allocator(btree->bb_seg),
+		      m0_be_alloc_aligned(tree_allocator(btree),
 					  tx, &op, &p, size, BTREE_ALLOC_SHIFT));
 	mem_update(btree, tx, p, size);
 	return p;
@@ -97,7 +101,7 @@ static void btree_mem_alloc_credit(const struct m0_be_btree *btree,
 				   m0_bcount_t size,
 				   struct m0_be_tx_credit *accum)
 {
-	m0_be_allocator_credit(m0_be_seg_allocator(btree->bb_seg),
+	m0_be_allocator_credit(tree_allocator(btree),
 			       M0_BAO_ALLOC_ALIGNED, size,
 			       BTREE_ALLOC_SHIFT, accum);
 }
@@ -106,7 +110,7 @@ static void btree_mem_free_credit(const struct m0_be_btree *btree,
 				  m0_bcount_t size,
 				  struct m0_be_tx_credit *accum)
 {
-	m0_be_allocator_credit(m0_be_seg_allocator(btree->bb_seg),
+	m0_be_allocator_credit(tree_allocator(btree),
 			       M0_BAO_FREE_ALIGNED, 0, 0, accum);
 }
 

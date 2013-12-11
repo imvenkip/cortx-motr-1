@@ -20,9 +20,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_EXTMAP
 #include "lib/trace.h"
-
-#include <stdio.h>        /* printf */
-
 #include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
 #include "lib/vec.h"
 #include "lib/types.h"
@@ -267,11 +264,13 @@ static void test_print(void)
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_LOG(M0_DEBUG, "%010lx:%010lx:", prefix.u_hi, prefix.u_lo);
+	M0_LOG(M0_DEBUG, U128X_F":", U128_P(&prefix));
 	for (i = 0; ; ++i) {
 		M0_LOG(M0_DEBUG, "\t%5.5i %16lx .. %16lx: %16lx %10lx", i,
-		       seg->ee_ext.e_start, seg->ee_ext.e_end,
-		       m0_ext_length(&seg->ee_ext), seg->ee_val);
+		       (unsigned long)seg->ee_ext.e_start,
+		       (unsigned long)seg->ee_ext.e_end,
+		       (unsigned long)m0_ext_length(&seg->ee_ext),
+		       (unsigned long)seg->ee_val);
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
 		m0_be_op_init(it_op);

@@ -133,17 +133,28 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
  *         M0_BE_OP_SYNC(op, rc = m0_fol_init(fol, seg, tx, &op));
  * @endcode
  */
-#define M0_BE_OP_SYNC(op_obj, action)          \
-	do {                                   \
-		struct m0_be_op op_obj;        \
-		int __rc;                      \
-					       \
-		m0_be_op_init(&op_obj);        \
-		action;                        \
-		__rc = m0_be_op_wait(&op_obj); \
-		M0_ASSERT(__rc == 0);          \
-		m0_be_op_fini(&op_obj);        \
+#define M0_BE_OP_SYNC(op_obj, action)			\
+	do {						\
+		struct m0_be_op op_obj;			\
+		M0_BE_OP_SYNC_WITH(&op_obj, action);	\
 	} while (0)
+
+/**
+ * Similar to #M0_BE_OP_SYNC, but works with a caller-supplied operation
+ * structure.
+ */
+#define M0_BE_OP_SYNC_WITH(op, action)		\
+	do {					\
+		struct m0_be_op *__opp = (op);	\
+		int              __rc;		\
+						\
+		m0_be_op_init(__opp);		\
+		action;				\
+		__rc = m0_be_op_wait(__opp);	\
+		M0_ASSERT(__rc == 0);		\
+		m0_be_op_fini(__opp);		\
+	} while (0)
+
 
 /**
  * Performs the action, waits for its completion, and returns
