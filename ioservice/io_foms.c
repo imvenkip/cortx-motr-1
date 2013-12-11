@@ -1073,6 +1073,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		    &ops, fop, rep_fop, reqh,
 		    fop->f_type->ft_fom_type.ft_rstype);
 	m0_fop_put(rep_fop);
+	m0_fop_put(fop);
 
 	fom_obj->fcrw_fom_start_time = m0_time_now();
 	fom_obj->fcrw_stob = NULL;
