@@ -93,7 +93,7 @@
    - Read request fop has IO buffers associated with it. These buffers are
      actually empty, they contain no user data. These buffers are replaced
      by m0_net_buf_desc and packed with rpc.
-   - And read reply fop consists of number of bytes read.
+   - Read reply fop consists of number of bytes read.
    - Underlying transport supports zero-copy.
 
    @msc
@@ -318,9 +318,9 @@ M0_INTERNAL void m0_rpc_bulk_qtype(struct m0_rpc_bulk *rbulk,
     rbuf->bb_nbuf.nb_qtype == M0_NET_QT_PASSIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk *rbulk,
-				  const struct m0_rpc_conn *conn,
-				  struct m0_net_buf_desc *to_desc);
+M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk          *rbulk,
+				  const struct m0_rpc_conn    *conn,
+				  struct m0_net_buf_desc_data *to_desc);
 
 /**
    Loads the m0_net_buf_desc/s pointing to net buffer/s contained by
@@ -339,9 +339,9 @@ M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk *rbulk,
     rbuf->bb_nbuf.nb_qtype == M0_NET_QT_ACTIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk *rbulk,
-				 const struct m0_rpc_conn *conn,
-				 struct m0_net_buf_desc *from_desc);
+M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk          *rbulk,
+				 const struct m0_rpc_conn    *conn,
+				 struct m0_net_buf_desc_data *from_desc);
 
 /*
  * Does exactly opposite of what m0_rpc_bulk_store() does.

@@ -293,10 +293,13 @@ M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop);
  * As a result of io coalescing, there could be multiple network
  * buffers associated with an io fop. Hence a SEQUENCE of m0_net_buf_desc
  * is needed.
+ * With each descriptor, size of network buffer is also sent to
+ * keep track of how much a network buffer is filled. This is to support
+ * case of partially filled network buffers.
  */
 struct m0_io_descs {
-	uint32_t                id_nr;
-	struct m0_net_buf_desc *id_descs;
+	uint32_t                     id_nr;
+	struct m0_net_buf_desc_data *id_descs;
 } M0_XCA_SEQUENCE;
 
 /**
@@ -410,7 +413,7 @@ struct m0_fop_cob_rw {
 	 * Index vectors representing the extent information for the
 	 * IO request.
 	 */
-	struct m0_io_indexvec_seq crw_ivecs;
+	struct m0_io_indexvec     crw_ivec;
 
 	/**
 	 * ADDB context identifier of the operation

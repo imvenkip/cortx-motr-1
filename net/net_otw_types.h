@@ -37,6 +37,11 @@ struct m0_net_buf_desc {
 	uint8_t  *nbd_data;
 } M0_XCA_SEQUENCE;
 
+struct m0_net_buf_desc_data {
+	struct m0_net_buf_desc bdd_desc;
+	uint64_t               bdd_used;
+} M0_XCA_RECORD;
+
 #endif /* __MERO_NET_NET_OTW_TYPES_H__ */
 
 /** @} end of net group */

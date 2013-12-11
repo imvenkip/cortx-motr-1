@@ -265,7 +265,7 @@ struct m0_fop_type_ops {
 	int (*fto_io_coalesce)(struct m0_fop *fop, uint64_t rpc_size);
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct m0_fop *fop,
-			        struct m0_net_buf_desc **desc);
+			        struct m0_net_buf_desc_data **desc);
 	int (*fto_undo)(struct m0_fop_fol_rec_part *fpart, struct m0_fol *fol);
 	int (*fto_redo)(struct m0_fop_fol_rec_part *fpart, struct m0_fol *fol);
 };

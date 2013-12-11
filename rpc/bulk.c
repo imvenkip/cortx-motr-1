@@ -349,10 +349,10 @@ M0_INTERNAL void m0_rpc_bulk_qtype(struct m0_rpc_bulk *rbulk,
 	M0_LEAVE();
 }
 
-static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
-		       const struct m0_rpc_conn *conn,
-		       struct m0_net_buf_desc *descs,
-		       enum m0_rpc_bulk_op_type op)
+static int rpc_bulk_op(struct m0_rpc_bulk          *rbulk,
+		       const struct m0_rpc_conn    *conn,
+		       struct m0_net_buf_desc_data *descs,
+		       enum m0_rpc_bulk_op_type     op)
 {
 	int				 rc = 0;
 	int				 cnt = 0;
@@ -398,7 +398,8 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 		}
 
 		if (op == M0_RPC_BULK_LOAD) {
-			rc = m0_net_desc_copy(&descs[cnt], &nb->nb_desc);
+			rc = m0_net_desc_copy(&descs[cnt].bdd_desc,
+					      &nb->nb_desc);
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -409,15 +410,17 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 			goto cleanup;
 
 		if (op == M0_RPC_BULK_STORE) {
-			rc = m0_net_desc_copy(&nb->nb_desc, &descs[cnt]);
+			rc = m0_net_desc_copy(&nb->nb_desc,
+					      &descs[cnt].bdd_desc);
                         if (rc != 0) {
                                 m0_net_buffer_del(nb, tm);
                                 goto cleanup;
                         }
+			descs[cnt].bdd_used = nb->nb_length;
 		}
 
-		++cnt;
 		rbulk->rb_bytes += nb->nb_length;
+		++cnt;
 	} m0_tl_endfor;
 	M0_POST(rpc_bulk_invariant(rbulk));
 	m0_mutex_unlock(&rbulk->rb_mutex);
@@ -435,17 +438,17 @@ cleanup:
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk *rbulk,
-				  const struct m0_rpc_conn *conn,
-				  struct m0_net_buf_desc *to_desc)
+M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk          *rbulk,
+				  const struct m0_rpc_conn    *conn,
+				  struct m0_net_buf_desc_data *to_desc)
 {
 	return rpc_bulk_op(rbulk, conn, to_desc, M0_RPC_BULK_STORE);
 }
 M0_EXPORTED(m0_rpc_bulk_store);
 
-M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk *rbulk,
-				 const struct m0_rpc_conn *conn,
-				 struct m0_net_buf_desc *from_desc)
+M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk          *rbulk,
+				 const struct m0_rpc_conn    *conn,
+				 struct m0_net_buf_desc_data *from_desc)
 {
 	return rpc_bulk_op(rbulk, conn, from_desc, M0_RPC_BULK_LOAD);
 }

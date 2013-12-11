@@ -361,16 +361,16 @@ static int check_write_fom_tick(struct m0_fom *fom)
         int                        rc;
         uint32_t                   colour;
         int                        acquired_net_bufs;
-        int                        saved_segments_count;
         int                        saved_ndesc;
         struct m0_fop_cob_rw      *rwfop;
-        struct m0_net_domain      *netdom;
         struct m0_fop             *fop;
         struct m0_io_fom_cob_rw   *fom_obj;
         struct m0_fid              saved_fid;
         struct m0_fid              invalid_fid;
         struct m0_stob_io_desc    *saved_stobio_desc;
-        struct m0_stob_domain     *fom_stdom;
+	int                        saved_count;
+	struct m0_net_domain      *netdom;
+	struct m0_stob_domain     *fom_stdom;
         struct m0_stob_id          stobid;
         struct m0_net_transfer_mc *tm;
 	struct m0_reqh            *reqh;
@@ -440,7 +440,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 release_one_buffer(colour);
 		next_write_test = TEST03;
         } else if (next_write_test == TEST03) {
-                int cdi = fom_obj->fcrw_curr_desc_index;
+		int cdi = fom_obj->fcrw_curr_desc_index;
 
                 /*
                  * Case 03 : Network buffer is available with the buffer pool.
@@ -486,38 +486,36 @@ static int check_write_fom_tick(struct m0_fom *fom)
                 M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
                              rc == M0_FSO_AGAIN &&
                              m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_INIT);
+		/*
+		 * No need to cleanup here, since FOM will be  transitioned to
+		 * expected phase.
+		 */
 
-                /*
-                 * No need to cleanup here, since FOM will be  transitioned to
-                 * expected phase.
-                 */
+		/*
+		 * Case 05 : Zero-copy failure
+		 *         Input phase          : M0_FOPH_IO_ZERO_COPY_INIT
+		 *         Expected Output phase: M0_FOPH_FAILURE
+		 */
 
-                /*
-                 * Case 05 : Zero-copy failure
-                 *         Input phase          : M0_FOPH_IO_ZERO_COPY_INIT
-                 *         Expected Output phase: M0_FOPH_FAILURE
-                 */
+		/*
+		 * Modify net buffer used count in fop (value greater than
+		 * net domain max), so that zero-copy initialisation fails.
+		 */
+		saved_count = rwfop->crw_desc.id_descs[cdi].bdd_used;
+		netdom = fop_tm_get(fop)->ntm_dom;
+		rwfop->crw_desc.id_descs[cdi].bdd_used =
+			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
-                /*
-                 * Modify segments count in fop (value greater than net domain
-                 * max), so that zero-copy initialisation fails.
-                 */
-                saved_segments_count = rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr;
-                netdom = fop_tm_get(fop)->ntm_dom;
-                rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
-                        m0_net_domain_get_max_buffer_segments(netdom) + 1;
+		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
 
-                fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
+		rc = m0_io_fom_cob_rw_tick(fom);
+		M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
+			     rc == M0_FSO_AGAIN &&
+			     m0_fom_phase(fom) == M0_FOPH_FAILURE);
 
-                rc = m0_io_fom_cob_rw_tick(fom);
-                M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
-                             rc == M0_FSO_AGAIN &&
-                             m0_fom_phase(fom) == M0_FOPH_FAILURE);
-
-                /* Cleanup & restore FOM for next test. */
-                rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
-                saved_segments_count;
-                rc = M0_FSO_WAIT;
+		/* Cleanup & restore FOM for next test. */
+		rwfop->crw_desc.id_descs[cdi].bdd_used = saved_count;
+		rc = M0_FSO_WAIT;
 
                 /*
                  * Case 06 : Zero-copy success
@@ -713,10 +711,10 @@ static int check_read_fom_tick(struct m0_fom *fom)
         int                        rc;
         uint32_t                   colour;
         int                        acquired_net_bufs;
-        int                        saved_segments_count;
+	int                        saved_count;
         int                        saved_ndesc;
         struct m0_fop_cob_rw      *rwfop;
-        struct m0_net_domain      *netdom;
+	struct m0_net_domain      *netdom;
         struct m0_fop             *fop;
         struct m0_io_fom_cob_rw   *fom_obj;
         struct m0_fid              saved_fid;
@@ -882,7 +880,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
                              m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
 		next_read_test = TEST07;
         } else if (next_read_test == TEST07) {
-                int cdi = fom_obj->fcrw_curr_desc_index;
+		int cdi = fom_obj->fcrw_curr_desc_index;
 
                 /*
                  * Case 07 : STOB I/O failure
@@ -937,33 +935,32 @@ static int check_read_fom_tick(struct m0_fom *fom)
                 M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
                              rc == M0_FSO_AGAIN &&
                              m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_INIT);
+		/*
+		 * Case 09 : Zero-copy failure
+		 *         Input phase          : M0_FOPH_IO_ZERO_COPY_INIT
+		 *         Expected Output phase: M0_FOPH_FAILURE
+		 */
 
-                /*
-                 * Case 09 : Zero-copy failure
-                 *         Input phase          : M0_FOPH_IO_ZERO_COPY_INIT
-                 *         Expected Output phase: M0_FOPH_FAILURE
-                 */
+		/*
+		 * Modify net buffer used count in fop (value greater than
+		 * net domain max), so that zero-copy initialisation fails.
+		 */
+		saved_count = rwfop->crw_desc.id_descs[cdi].bdd_used;
+		netdom = fop_tm_get(fop)->ntm_dom;
+		rwfop->crw_desc.id_descs[cdi].bdd_used =
+			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
-                /*
-                 * Modify segments count in fop (value greater than net domain
-                 * max), so that zero-copy initialisation fails.
-                 */
-                saved_segments_count = rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr;
-                netdom = fop_tm_get(fop)->ntm_dom;
-                rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
-                        m0_net_domain_get_max_buffer_segments(netdom) + 1;
+		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
 
-                fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
+		rc = m0_io_fom_cob_rw_tick(fom);
+		M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
+			     rc == M0_FSO_AGAIN &&
+			     m0_fom_phase(fom) == M0_FOPH_FAILURE);
 
-                rc = m0_io_fom_cob_rw_tick(fom);
-                M0_UT_ASSERT(m0_fom_rc(fom) != 0 &&
-                             rc == M0_FSO_AGAIN &&
-                             m0_fom_phase(fom) == M0_FOPH_FAILURE);
-
-                /* Cleanup & make clean FOM for next test. */
-                rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr = saved_segments_count;
-                rc = M0_FSO_WAIT;
-                fom_phase_set(fom, TEST10);
+		/* Cleanup & make clean FOM for next test. */
+		rwfop->crw_desc.id_descs[cdi].bdd_used = saved_count;
+		rc = M0_FSO_WAIT;
+		fom_phase_set(fom, TEST10);
 
                 /*
                  * Case 10 : Zero-copy success
@@ -1105,7 +1102,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
-	wrep->c_rep.rwr_count = rwfop->crw_ivecs.cis_nr;
+	wrep->c_rep.rwr_count = rwfop->crw_ivec.ci_nr;
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	return M0_FSO_AGAIN;
 }
@@ -1242,12 +1239,12 @@ static void bulkio_stob_create(void)
 		 * regular io_fops. This is reset later.
 		 */
                 bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_ops =
-		&bulkio_stob_create_fomt_ops;
+			&bulkio_stob_create_fomt_ops;
                 bp->bp_wfops[i]->if_fop.f_type->ft_fom_type.ft_conf =
-		&m0_generic_conf;
+			&m0_generic_conf;
 		rw = io_rw_get(&bp->bp_wfops[i]->if_fop);
 		bp->bp_wfops[i]->if_fop.f_type->ft_ops =
-		&bulkio_stob_create_ops;
+			&bulkio_stob_create_ops;
 		rw->crw_fid = bp->bp_fids[i];
 		m0_file_init(&bp->bp_file[i], &rw->crw_fid, &bp->bp_rdom,
 			     M0_DI_CRC32_4K);

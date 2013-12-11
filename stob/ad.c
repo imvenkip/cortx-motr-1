@@ -1443,7 +1443,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	struct ad_write_ext  *wext;
 	struct ad_write_ext  *next;
 	struct m0_stob_io    *back;
-	struct ad_stob_io    *aio       = io->si_stob_private;
+	struct ad_stob_io    *aio = io->si_stob_private;
 	struct ad_wext_cursor wc;
 
 	M0_PRE(io->si_opcode == SIO_WRITE);
@@ -1520,7 +1520,8 @@ static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
 	M0_LOG(M0_DEBUG, "after emap_cred: cred=[%d:%d]",
 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 
-#if 0 /* Depends on as_overwrite flag which is always false now. */
+#if 0
+	/* Depends on as_overwrite flag which is always false now. */
 	/* for each emap_paste() seg_free() could be called 3 times */
 	if (dom->ad_ballroom->ab_ops->bo_free_credit != NULL)
 		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom,

@@ -174,9 +174,11 @@ struct m0_io_fom_cob_rw {
         /** Number of desc io_fop desc list*/
         uint32_t                         fcrw_ndesc;
         /** index of net buffer descriptor under process*/
-        uint32_t                         fcrw_curr_desc_index;
-        /** index of index vector under process */
-        uint32_t                         fcrw_curr_ivec_index;
+        int                              fcrw_curr_desc_index;
+	/** Total IO requested from m0_io_indexvec */
+	m0_bcount_t                      fcrw_total_ioivec_cnt;
+        /** Current position in bytes */
+        int                              fcrw_curr_size;
         /** no. of descriptor going to process */
         uint32_t                         fcrw_batch_size;
         /** Number of bytes requested to transfer. */

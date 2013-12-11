@@ -838,8 +838,6 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 		_0C(io->fcrw_ndesc == rwfop->crw_desc.id_nr) &&
 		_0C(io->fcrw_curr_desc_index >= 0) &&
 		_0C(io->fcrw_curr_desc_index <= rwfop->crw_desc.id_nr) &&
-		_0C(io->fcrw_curr_ivec_index >= 0) &&
-		_0C(io->fcrw_curr_ivec_index <= rwfop->crw_ivecs.cis_nr) &&
 		_0C(M0_CHECK_EX(m0_tlist_invariant(&netbufs_tl,
 						   &io->fcrw_netbuf_list))) &&
 		_0C(io->fcrw_batch_size ==
@@ -847,6 +845,7 @@ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
 		_0C(io->fcrw_req_count >= io->fcrw_req_count) &&
 		_0C(ergo(io->fcrw_req_count > io->fcrw_req_count,
 			 io->fcrw_num_stobio_launched > 0)) &&
+		_0C(io->fcrw_curr_size <= io->fcrw_total_ioivec_cnt) &&
 		_0C(io->fcrw_num_stobio_launched <=
 		    stobio_tlist_length(&io->fcrw_stio_list)) &&
 		_0C(ergo(io->fcrw_num_stobio_launched <
@@ -884,7 +883,8 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 
         M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
 	M0_ADDB_POST(fom_to_addb_mc(fom), &m0_addb_rt_ios_desc_io_finish,
-		     M0_FOM_ADDB_CTX_VEC(fom), fom_obj->fcrw_curr_ivec_index,
+		     M0_FOM_ADDB_CTX_VEC(fom),
+		     stio_desc->siod_stob_io.si_stob.iv_index[0],
 		     fom_obj->fcrw_req_count,
 		     m0_time_sub(m0_time_now(), fom_obj->fcrw_io_launch_time));
         if (fom_obj->fcrw_num_stobio_launched == 0)
@@ -948,6 +948,55 @@ static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 	return rc;
 }
 
+static uint32_t ivec_ioseg_nr(struct m0_indexvec *ivec,
+			      m0_bcount_t         offset,
+			      m0_bcount_t         req)
+{
+	struct m0_ivec_cursor cursor;
+	m0_bcount_t           step;
+	m0_bcount_t           accum = 0;
+	uint32_t              nr    = 1;
+
+	m0_ivec_cursor_init(&cursor, ivec);
+	m0_ivec_cursor_move(&cursor, offset);
+
+	do {
+		step = m0_ivec_cursor_step(&cursor);
+		accum += step;
+		if (accum < req)
+			++nr;
+		else
+			break;
+	} while (!m0_ivec_cursor_move(&cursor, step));
+
+	return nr;
+}
+
+static void ivec_ioseg_prepare(struct m0_indexvec *in,
+			       m0_bcount_t         offset,
+			       m0_bcount_t         req,
+			       uint32_t            bshift,
+			       struct m0_indexvec *out)
+{
+	struct m0_ivec_cursor cursor;
+	m0_bcount_t           cnt;
+	int                   i = 0;
+
+	m0_ivec_cursor_init(&cursor, in);
+	m0_ivec_cursor_move(&cursor, offset);
+
+	do {
+		cnt = min_check(m0_ivec_cursor_step(&cursor), req);
+		out->iv_index[i] = m0_ivec_cursor_index(&cursor) >> bshift;
+		out->iv_vec.v_count[i] = cnt >> bshift;
+		req -= cnt;
+		if (req > 0)
+			++i;
+		else
+			break;
+	} while (!m0_ivec_cursor_move(&cursor, cnt));
+}
+
 /**
  * Function to convert the on-wire indexvec to in-memory indexvec format.  Since
  * m0_io_indexvec (on-wire structure) and m0_indexvec (in-memory structures are
@@ -961,31 +1010,30 @@ static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
  * @pre in != NULL
  * @pre out != NULL
  */
-static int indexvec_wire2mem(struct m0_fom	   *fom,
-			     struct m0_io_indexvec *in,
-			     struct m0_indexvec    *out,
-			     uint32_t		    bshift)
+static int indexvec_wire2mem(struct m0_fom	*fom,
+			     struct m0_indexvec *in,
+			     m0_bcount_t         curr_pos,
+			     m0_bcount_t         nb_len,
+			     uint32_t            bshift,
+			     struct m0_indexvec *out)
 {
-	int i;
-
+	uint32_t nr;
         /*
          * This memory will be freed after its container stob
          * completes and before destructing container stob object.
          */
-	IOS_ALLOC_ARR(out->iv_vec.v_count, in->ci_nr, &fom->fo_addb_ctx,
+	nr = ivec_ioseg_nr(in, curr_pos, nb_len);
+	IOS_ALLOC_ARR(out->iv_vec.v_count, nr, &fom->fo_addb_ctx,
 		      INDEXVEC_WIRE2MEM_1);
-        IOS_ALLOC_ARR(out->iv_index, in->ci_nr, &fom->fo_addb_ctx,
+        IOS_ALLOC_ARR(out->iv_index, nr, &fom->fo_addb_ctx,
 		      INDEXVEC_WIRE2MEM_2);
         if (out->iv_vec.v_count == NULL || out->iv_index == NULL) {
                 m0_free(out->iv_index);
                 m0_free(out->iv_vec.v_count);
                 return -ENOMEM;
 	}
-        out->iv_vec.v_nr = in->ci_nr;
-        for (i = 0; i < in->ci_nr; i++) {
-                out->iv_index[i]       = in->ci_iosegs[i].ci_index >> bshift;
-                out->iv_vec.v_count[i] = in->ci_iosegs[i].ci_count >> bshift;
-        }
+        out->iv_vec.v_nr = nr;
+	ivec_ioseg_prepare(in, curr_pos, nb_len, bshift, out);
 
         return 0;
 }
@@ -1087,26 +1135,17 @@ static int stob_object_find(struct m0_fom *fom)
 	return result;
 }
 
-static int ioseg_nr(struct m0_net_domain        *dom,
-		    const struct m0_io_indexvec *ioivec,
-		    uint32_t                    *segs_nr)
+M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info)
 {
+	int         i;
 	m0_bcount_t count;
-	uint32_t    i;
-	m0_bcount_t max_seg_size;
 
-	M0_PRE(ioivec != NULL);
-	M0_LOG(M0_DEBUG, "ioivec->ci_nr %d", (int) ioivec->ci_nr);
-	max_seg_size = m0_net_domain_get_max_buffer_segment_size(dom);
-	if (ioivec->ci_nr > m0_net_domain_get_max_buffer_segments(dom))
-		return -EFBIG;
-	for (count = 0, i = 0; i < ioivec->ci_nr; ++i) {
-		/* overflow check */
-		M0_ASSERT(count + ioivec->ci_iosegs[i].ci_count >= count);
-		count += ioivec->ci_iosegs[i].ci_count;
-	}
-	*segs_nr = count / max_seg_size;
-	return 0;
+	M0_PRE(io_info != NULL);
+
+	for (count = 0, i = 0; i < io_info->ci_nr; ++i)
+		count += io_info->ci_iosegs[i].ci_count;
+
+	return count;
 }
 
 /**
@@ -1124,8 +1163,11 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 				   struct m0_reqh *reqh)
 {
 	int                      rc = 0;
-	int                      i;
 	uint32_t                 max_frags_nr = 0;
+	struct m0_io_indexvec    wire_ivec;
+	m0_bcount_t		*cnts;
+	m0_bindex_t		*offs;
+	int			 i;
 	struct m0_fom           *fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
@@ -1138,25 +1180,30 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_ENTRY("fop=%p", fop);
 
 	rwfop = io_rw_get(fop);
-
-	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++)
-		if (max_frags_nr < rwfop->crw_ivecs.cis_ivecs[i].ci_nr)
-			max_frags_nr = rwfop->crw_ivecs.cis_ivecs[i].ci_nr;
-	M0_LOG(M0_DEBUG, "max_frags_nr=%d", (int)max_frags_nr);
+	max_frags_nr = rwfop->crw_ivec.ci_nr;
+	M0_LOG(M0_DEBUG, "max_frags_nr=%d", max_frags_nr);
 
 	IOS_ALLOC_PTR(fom_obj, &m0_ios_addb_ctx, FOM_COB_RW_CREATE);
 	if (fom_obj == NULL)
 		return M0_RC(-ENOMEM);
 
-	if (m0_is_write_fop(fop) && max_frags_nr > 0) {
+	if (max_frags_nr > 0) {
 		rc = m0_indexvec_alloc(&fom_obj->fcrw_ivec, max_frags_nr,
-			&m0_ios_addb_ctx, M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC);
+				       &m0_ios_addb_ctx,
+				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC);
 		if (rc != 0) {
 			m0_free(fom_obj);
 			return M0_RC(rc);
 		}
+		wire_ivec = rwfop->crw_ivec;
+		offs = fom_obj->fcrw_ivec.iv_index;
+		cnts = fom_obj->fcrw_ivec.iv_vec.v_count;
+		fom_obj->fcrw_ivec.iv_vec.v_nr = wire_ivec.ci_nr;
+		for (i = 0; i < wire_ivec.ci_nr; ++i) {
+			*(offs++) = wire_ivec.ci_iosegs[i].ci_index;
+			*(cnts++) = wire_ivec.ci_iosegs[i].ci_count;
+		}
 	}
-
 	rep_fop = m0_is_read_fop(fop) ?
 		    m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL) :
 		    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
@@ -1172,14 +1219,14 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		    fop->f_type->ft_fom_type.ft_rstype);
 	m0_fop_put(rep_fop);
 
-	fom_obj->fcrw_fom_start_time = m0_time_now();
-	fom_obj->fcrw_stob = NULL;
-
+	fom_obj->fcrw_fom_start_time      = m0_time_now();
+	fom_obj->fcrw_stob                = NULL;
 	fom_obj->fcrw_ndesc               = rwfop->crw_desc.id_nr;
 	fom_obj->fcrw_curr_desc_index     = 0;
-	fom_obj->fcrw_curr_ivec_index     = 0;
+	fom_obj->fcrw_curr_size           = 0;
 	fom_obj->fcrw_batch_size          = 0;
 	fom_obj->fcrw_req_count           = 0;
+	fom_obj->fcrw_total_ioivec_cnt    = m0_io_count(&rwfop->crw_ivec);
 	fom_obj->fcrw_count               = 0;
 	fom_obj->fcrw_num_stobio_launched = 0;
 	fom_obj->fcrw_bp                  = NULL;
@@ -1479,15 +1526,16 @@ static int net_buffer_release(struct m0_fom *fom)
  */
 static int zero_copy_initiate(struct m0_fom *fom)
 {
-        int                      rc = 0;
-        struct m0_fop            *fop;
-        struct m0_io_fom_cob_rw  *fom_obj;
-        struct m0_fop_cob_rw     *rwfop;
-        struct m0_rpc_bulk       *rbulk;
-        struct m0_net_buffer     *nb;
-        struct m0_net_buf_desc   *net_desc;
-        struct m0_net_domain     *dom;
-        uint32_t                  buffers_added = 0;
+        int                          rc;
+        struct m0_fop               *fop;
+        struct m0_io_fom_cob_rw     *fom_obj;
+        struct m0_fop_cob_rw        *rwfop;
+        struct m0_rpc_bulk          *rbulk;
+        struct m0_net_buffer        *nb;
+        struct m0_net_buf_desc_data *nbd_data;
+        struct m0_net_domain        *dom;
+        uint32_t                     buffers_added = 0;
+	m0_bcount_t                  max_seg_size;
 
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1507,20 +1555,20 @@ static int zero_copy_initiate(struct m0_fom *fom)
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
 					   &fom_obj->fcrw_netbuf_list));
-	dom      = io_fop_tm_get(fop)->ntm_dom;
-        net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
+	dom          = io_fop_tm_get(fop)->ntm_dom;
+	max_seg_size = m0_net_domain_get_max_buffer_segment_size(dom);
+	nbd_data     = &rwfop->crw_desc.id_descs[fom_obj->
+						 fcrw_curr_desc_index];
 
         /* Create rpc bulk bufs list using available net buffers */
         m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
-                int                     cur_index;
                 uint32_t                segs_nr = 0;
                 struct m0_rpc_bulk_buf *rb_buf;
+		m0_bcount_t             used_size;
 
-	        cur_index = fom_obj->fcrw_curr_desc_index;
-
-		rc = ioseg_nr(dom, &rwfop->crw_ivecs.
-			      cis_ivecs[cur_index], &segs_nr);
-
+		used_size = rwfop->crw_desc.id_descs[fom_obj->
+						fcrw_curr_desc_index].bdd_used;
+		segs_nr = used_size / max_seg_size;
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
                 /*
@@ -1530,8 +1578,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
                  *         count to original since buffers are reused by other
                  *         I/O requests.
                  */
-		rc = rc ?: m0_rpc_bulk_buf_add(rbulk, segs_nr, dom,
-					       nb, &rb_buf);
+		rc = m0_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {
                         m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
                         IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_1,
@@ -1558,7 +1605,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
          * This function deletes m0_rpc_bulk_buf object one
          * by one as zero copy completes on respective buffer.
          */
-        rc = m0_rpc_bulk_load(rbulk, fop->f_item.ri_session->s_conn, net_desc);
+        rc = m0_rpc_bulk_load(rbulk, fop->f_item.ri_session->s_conn, nbd_data);
         if (rc != 0) {
                 m0_mutex_lock(&rbulk->rb_mutex);
                 m0_fom_callback_cancel(&fom->fo_cb);
@@ -1659,6 +1706,8 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_net_buffer    *nb;
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_file		*file;
+	struct m0_net_domain    *dom;
+	uint32_t                 index;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1669,11 +1718,13 @@ static int io_launch(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 	M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
+	M0_ASSERT(fom_obj->fcrw_ivec.iv_vec.v_nr > 0);
 
 	fom_obj->fcrw_phase_start_time = m0_time_now();
 
-	fop = fom->fo_fop;
+	fop   = fom->fo_fop;
 	rwfop = io_rw_get(fop);
+	dom   = io_fop_tm_get(fop)->ntm_dom;
 
 	rc = stob_object_find(fom);
 	if (rc != 0)
@@ -1687,7 +1738,7 @@ static int io_launch(struct m0_fom *fom)
 	  Since the upper layer IO block size could differ with IO block size
 	  of storage object, the block alignment and mapping is necessary.
 	 */
-	fom_obj->fcrw_bshift  = fom_obj->fcrw_stob->so_op->
+	fom_obj->fcrw_bshift = fom_obj->fcrw_stob->so_op->
 				sop_block_shift(fom_obj->fcrw_stob);
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
@@ -1695,15 +1746,26 @@ static int io_launch(struct m0_fom *fom)
 	M0_INVARIANT_EX(m0_tlist_invariant(&stobio_tl,
 					   &fom_obj->fcrw_stio_list));
 
+	index = fom_obj->fcrw_curr_desc_index;
+	/*
+	 * During the case of write, zero copy is performed before stob I/O
+	 * is launched. For zero copy processing fcrw_curr_desc_index is
+	 * incremented for each processed net buffer. Whereas for read, first
+	 * stob I/O is launched and then zero copy is performed. So index is
+	 * decremented by value of number of net buffers to process in case of
+	 * write operation.
+	 */
+	index -= m0_is_write_fop(fop) ?
+		netbufs_tlist_length(&fom_obj->fcrw_netbuf_list) : 0;
+
 	m0_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
 		struct m0_stob_io      *stio;
-		struct m0_io_indexvec   wire_ivec;
 		m0_bcount_t             ivec_count;
-		uint32_t		index;
 		struct m0_buf	       *di_buf;
 		struct m0_bufvec	cksum_data;
+		m0_bcount_t             todo;
 
 		index = fom_obj->fcrw_curr_ivec_index++;
 		IOS_ALLOC_PTR(stio_desc, &m0_ios_addb_ctx, IO_LAUNCH_2);
@@ -1719,10 +1781,11 @@ static int io_launch(struct m0_fom *fom)
 		m0_stob_io_init(stio);
 		stio->si_fol_rec_part = &stio_desc->siod_fol_rec_part;
 
-		mem_ivec = &stio->si_stob;
-		wire_ivec = rwfop->crw_ivecs.cis_ivecs[index];
-		rc = indexvec_wire2mem(fom, &wire_ivec, mem_ivec,
-				       fom_obj->fcrw_bshift);
+		mem_ivec  = &stio->si_stob;
+		todo = rwfop->crw_desc.id_descs[index++].bdd_used;
+		rc = indexvec_wire2mem(fom, &fom_obj->fcrw_ivec,
+				       fom_obj->fcrw_curr_size, todo,
+				       fom_obj->fcrw_bshift, mem_ivec);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
@@ -1739,6 +1802,7 @@ static int io_launch(struct m0_fom *fom)
                  * Also trim network buffer as per I/O size.
                  */
                 ivec_count = m0_vec_count(&mem_ivec->iv_vec);
+		fom_obj->fcrw_curr_size += ivec_count;
                 rc = align_bufvec(fom, &stio->si_user, &nb->nb_buffer,
 				  ivec_count, fom_obj->fcrw_bshift);
                 if (rc != 0) {
@@ -1908,15 +1972,8 @@ static int io_finish(struct m0_fom *fom)
 static void stob_write_credit(struct m0_fom *fom)
 {
 	int			 rc;
-	uint32_t		 bshift;
 	struct m0_io_fom_cob_rw	*fom_obj;
-	struct m0_fop_cob_rw	*rwfop;
-	struct m0_io_indexvec    wire_ivec;
 	struct m0_stob_domain	*fom_stdom;
-	m0_bcount_t		*cnts;
-	m0_bindex_t		*offs;
-	int			 i;
-	int			 j;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1927,32 +1984,14 @@ static void stob_write_credit(struct m0_fom *fom)
 	if (M0_FI_ENABLED("no_write_credit"))
 		return;
 
-	rwfop = io_rw_get(fom->fo_fop);
-
 	rc = stob_object_find(fom);
 	M0_ASSERT(rc == 0);
 	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom),
-			&fom_obj->fcrw_stob->so_id);
+					   &fom_obj->fcrw_stob->so_id);
 	M0_ASSERT(fom_stdom != NULL);
-	/*
-	   Since the upper layer IO block size could differ with IO block size
-	   of storage object, the block alignment and mapping is necessary.
-	 */
-	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 
-	for (i = 0; i < rwfop->crw_ivecs.cis_nr; i++) {
-		wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
-		offs = fom_obj->fcrw_ivec.iv_index;
-		cnts = fom_obj->fcrw_ivec.iv_vec.v_count;
-		fom_obj->fcrw_ivec.iv_vec.v_nr = wire_ivec.ci_nr;
-		for (j = 0; j < wire_ivec.ci_nr; j++) {
-			*(offs++) = wire_ivec.ci_iosegs[j].ci_index >> bshift;
-			*(cnts++) = wire_ivec.ci_iosegs[j].ci_count >> bshift;
-		}
-		m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
-					m0_fom_tx_credit(fom));
-	}
-	m0_indexvec_free(&fom_obj->fcrw_ivec);
+	m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
+			     m0_fom_tx_credit(fom));
 	m0_stob_put(fom_obj->fcrw_stob);
 }
 
@@ -2081,6 +2120,9 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 	m0_tl_teardown(stobio, &fom_obj->fcrw_done_list, stio_desc)
 		stio_desc_fini(stio_desc);
+
+	if (fom_obj->fcrw_ivec.iv_vec.v_nr > 0)
+		m0_indexvec_free(&fom_obj->fcrw_ivec);
 
 	stobio_tlist_fini(&fom_obj->fcrw_done_list);
 	stobio_tlist_fini(&fom_obj->fcrw_stio_list);

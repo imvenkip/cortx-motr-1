@@ -145,7 +145,6 @@ static void bulkclient_test(void)
 	struct m0_rpc_bulk_buf	*rbuf2;
 	const char              *caddr = "0@lo:12345:34:*";
 	const char		*saddr = "0@lo:12345:34:8";
-	struct m0_io_indexvec	*ivec;
 	enum m0_net_queue_type	 q;
 	struct bulkio_msg_tm    *ctm;
 	struct bulkio_msg_tm    *stm;
@@ -294,7 +293,7 @@ static void bulkclient_test(void)
 		M0_UT_ASSERT(rbuf->bb_nbuf->nb_flags & M0_NET_BUF_REGISTERED);
 		M0_UT_ASSERT(rbuf->bb_nbuf->nb_flags & M0_NET_BUF_QUEUED);
 		rc = memcmp(rbuf->bb_nbuf->nb_desc.nbd_data,
-			    rw->crw_desc.id_descs[i].nbd_data,
+			    rw->crw_desc.id_descs[i].bdd_desc.nbd_data,
 			    rbuf->bb_nbuf->nb_desc.nbd_len);
 		M0_UT_ASSERT(rc == 0);
 		++i;
@@ -326,17 +325,15 @@ static void bulkclient_test(void)
 	M0_ALLOC_ARR(nbufs, rw->crw_desc.id_nr);
 	M0_UT_ASSERT(nbufs != NULL);
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		ivec = &rw->crw_ivecs.cis_ivecs[i];
 		M0_ALLOC_PTR(nbufs[i]);
 		M0_UT_ASSERT(nbufs[i] != NULL);
-		rc = m0_bufvec_alloc_aligned(&nbufs[i]->nb_buffer, ivec->ci_nr,
+		rc = m0_bufvec_alloc_aligned(&nbufs[i]->nb_buffer, 1,
 					     M0_0VEC_ALIGN, M0_0VEC_SHIFT);
 		M0_UT_ASSERT(rc == 0);
 	}
 
 	for (i = 0; i < rw->crw_desc.id_nr; ++i) {
-		ivec = &rw->crw_ivecs.cis_ivecs[i];
-		rc = m0_rpc_bulk_buf_add(sbulk, ivec->ci_nr, &nd, nbufs[i],
+		rc = m0_rpc_bulk_buf_add(sbulk, 1, &nd, nbufs[i],
 					 &rbuf2);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(rbuf2 != NULL);
@@ -398,10 +395,10 @@ static void bulkclient_test(void)
 	m0_free(sbulk);
 
 	m0_io_fop_destroy(&iofop->if_fop);
-	M0_UT_ASSERT(rw->crw_desc.id_descs   == NULL);
-	M0_UT_ASSERT(rw->crw_desc.id_nr      == 0);
-	M0_UT_ASSERT(rw->crw_ivecs.cis_ivecs == NULL);
-	M0_UT_ASSERT(rw->crw_ivecs.cis_nr    == 0);
+	M0_UT_ASSERT(rw->crw_desc.id_descs  == NULL);
+	M0_UT_ASSERT(rw->crw_desc.id_nr     == 0);
+	M0_UT_ASSERT(rw->crw_ivec.ci_iosegs == NULL);
+	M0_UT_ASSERT(rw->crw_ivec.ci_nr     == 0);
 
 	m0_rpc_bulk_buflist_empty(rbulk);
 	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &rbulk->rb_buflist));

@@ -67,7 +67,8 @@ static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size);
 static void io_item_replied (struct m0_rpc_item *item);
 static void io_fop_replied  (struct m0_fop *fop, struct m0_fop *bkpfop);
-static void io_fop_desc_get (struct m0_fop *fop, struct m0_net_buf_desc **desc);
+static void io_fop_desc_get (struct m0_fop *fop,
+			     struct m0_net_buf_desc_data **desc);
 static int  io_fop_coalesce (struct m0_fop *res_fop, uint64_t size);
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size);
@@ -1102,20 +1103,17 @@ cleanup:
 /* Deallocates memory claimed by index vector/s from io fop wire format. */
 M0_INTERNAL void io_fop_ivec_dealloc(struct m0_fop *fop)
 {
-	int			 i;
-	struct m0_fop_cob_rw	*rw;
-	struct m0_io_indexvec	*ivec;
+	struct m0_fop_cob_rw  *rw;
+	struct m0_io_indexvec *ivec;
 
 	M0_PRE(fop != NULL);
 
-	rw = io_rw_get(fop);
-	ivec = rw->crw_ivecs.cis_ivecs;
+	rw   = io_rw_get(fop);
+	ivec = &rw->crw_ivec;
 
-	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
-		m0_free0(&ivec[i].ci_iosegs);
-	m0_free(ivec);
-	rw->crw_ivecs.cis_ivecs = NULL;
-	rw->crw_ivecs.cis_nr = 0;
+	m0_free(ivec->ci_iosegs);
+	ivec->ci_nr     = 0;
+	ivec->ci_iosegs = NULL;
 }
 
 #define ZNR(zvec)       zvec->z_bvec.ov_vec.v_nr
@@ -1126,111 +1124,86 @@ M0_INTERNAL void io_fop_ivec_dealloc(struct m0_fop *fop)
 #define IINDEX(ivec, i) ivec->ci_iosegs[i].ci_index
 #define ICOUNT(ivec, i) ivec->ci_iosegs[i].ci_count
 
-static uint32_t io_fop_ivec_nr(const struct m0_0vec *zvec)
+static uint32_t iosegs_nr(struct m0_rpc_bulk *rbulk)
 {
-	uint32_t    i;
-	uint32_t    nr = 0;
-	m0_bindex_t prev_index;
-	m0_bcount_t prev_count;
+	struct m0_rpc_bulk_buf *buf;
+	uint32_t                cnt   = 0;
+	m0_bindex_t             index = 0;
+	m0_bcount_t             count = 0;
 
-	if (ZNR(zvec) == 1)
-		return 1;
-	prev_index = ZINDEX(zvec, 0);
-	prev_count = ZCOUNT(zvec, 0);
-	for (i = 1; i < ZNR(zvec); ++i) {
-		if (prev_index + prev_count == ZINDEX(zvec, i))
-			++nr;
-		prev_index = ZINDEX(zvec, i);
-		prev_count = ZCOUNT(zvec, i);
-	}
-	return ZNR(zvec) - nr;
-}
+	m0_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
+		uint32_t        i  = 0;
+		uint32_t        nr = 0;
+		struct m0_0vec *zvec = &buf->bb_zerovec;
 
-static void io_fop_ivec_squeeze(const struct m0_0vec  *zvec,
-				struct m0_io_indexvec *ivec)
-{
-	int i = 0;
-	int j;
-
-	IINDEX(ivec, 0) = ZINDEX(zvec, 0);
-	ICOUNT(ivec, 0) = ZCOUNT(zvec, 0);
-	for (j = i + 1; j < ZNR(zvec); ++j) {
-		if (IINDEX(ivec, i) + ICOUNT(ivec, i) ==
-		    ZINDEX(zvec, j)) {
-			ICOUNT(ivec, i) += ZCOUNT(zvec, i);
-		} else {
-			++i;
-			IINDEX(ivec, i) = ZINDEX(zvec, j);
-			ICOUNT(ivec, i) = ZCOUNT(zvec, j);
+		if (index == 0) {
+			index = ZINDEX(zvec, 0);
+			count = ZCOUNT(zvec, 0);
+			i     = 1;
 		}
-	}
-	M0_ASSERT(INR(ivec) == i + 1);
-}
-
-/* Allocates memory for index vector/s from io fop wire format. */
-static int io_fop_ivec_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
-{
-	int			 cnt = 0;
-	uint32_t                 nr;
-	struct m0_fop_cob_rw	*rw;
-	struct m0_io_indexvec	*ivec;
-	struct m0_rpc_bulk_buf	*rbuf;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(rbulk != NULL);
-	M0_PRE(m0_mutex_is_locked(&rbulk->rb_mutex));
-
-	rbulk = m0_fop_to_rpcbulk(fop);
-	rw = io_rw_get(fop);
-	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
-	IOS_ALLOC_ARR(rw->crw_ivecs.cis_ivecs, rw->crw_ivecs.cis_nr,
-		      &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_1);
-	if (rw->crw_ivecs.cis_ivecs == NULL)
-		return -ENOMEM;
-
-	ivec = rw->crw_ivecs.cis_ivecs;
-	m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-		nr = io_fop_ivec_nr(&rbuf->bb_zerovec);
-		IOS_ALLOC_ARR(ivec[cnt].ci_iosegs,
-			      nr, &m0_ios_addb_ctx, IO_FOP_IVEC_ALLOC_2);
-		if (ivec[cnt].ci_iosegs == NULL)
-			goto cleanup;
-		ivec[cnt].ci_nr = nr;
-		M0_LOG(M0_DEBUG, "Squeezed nr from %d->%d",
-		       rbuf->bb_zerovec.z_bvec.ov_vec.v_nr, nr);
-		++cnt;
+		for (; i < ZNR(zvec); ++i) {
+			if (index + count == ZINDEX(zvec, i))
+				++nr;
+			index = ZINDEX(zvec, i);
+			count = ZCOUNT(zvec, i);
+		}
+		cnt += ZNR(zvec) - nr;
 	} m0_tl_endfor;
 
-	return 0;
-cleanup:
-	io_fop_ivec_dealloc(fop);
-	return -ENOMEM;
+	return cnt;
+}
+
+static void iosegs_squeeze(struct m0_rpc_bulk    *rbulk,
+			   struct m0_io_indexvec *ivec)
+{
+	m0_bindex_t             index = 0;
+	struct m0_rpc_bulk_buf *buf;
+
+	m0_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
+		uint32_t        j    = 0;
+		struct m0_0vec *zvec = &buf->bb_zerovec;
+
+		if (IINDEX(ivec, 0) == 0 && ICOUNT(ivec, 0) == 0) {
+			IINDEX(ivec, 0) = ZINDEX(zvec, 0);
+			ICOUNT(ivec, 0) = ZCOUNT(zvec, 0);
+			j = 1;
+		}
+		for (; j < ZNR(zvec); ++j) {
+			if (IINDEX(ivec, index) + ICOUNT(ivec, index) ==
+			    ZINDEX(zvec, j)) {
+				ICOUNT(ivec, index) += ZCOUNT(zvec, j);
+			} else {
+				++index;
+				IINDEX(ivec, index) = ZINDEX(zvec, j);
+				ICOUNT(ivec, index) = ZCOUNT(zvec, j);
+			}
+		}
+	} m0_tl_endfor;
 }
 
 /* Populates index vector/s from io fop wire format. */
-static void io_fop_ivec_prepare(struct m0_fop *res_fop,
-				struct m0_rpc_bulk *rbulk)
+static int io_fop_ivec_prepare(struct m0_fop      *res_fop,
+			       struct m0_rpc_bulk *rbulk)
 {
-	int			 cnt = 0;
-	struct m0_fop_cob_rw	*rw;
-	struct m0_io_indexvec	*ivec;
-	struct m0_rpc_bulk_buf	*buf;
+	struct m0_fop_cob_rw  *rw;
+	struct m0_io_indexvec *ivec;
 
 	M0_PRE(res_fop != NULL);
 	M0_PRE(rbulk != NULL);
 	M0_PRE(m0_mutex_is_locked(&rbulk->rb_mutex));
 
-	rw = io_rw_get(res_fop);
-	rw->crw_ivecs.cis_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
-	ivec = rw->crw_ivecs.cis_ivecs;
+	rw          = io_rw_get(res_fop);
+	ivec        = &rw->crw_ivec;
+	ivec->ci_nr = iosegs_nr(rbulk);
 
-	/*
-	 * Adds same number of index vector in io fop as there are buffers in
-	 * m0_rpc_bulk::rb_buflist.
-	 */
-	m0_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
-		io_fop_ivec_squeeze(&buf->bb_zerovec, &ivec[cnt++]);
-	} m0_tl_endfor;
+	IOS_ALLOC_ARR(ivec->ci_iosegs, ivec->ci_nr, &m0_ios_addb_ctx,
+		      IO_FOP_IVEC_ALLOC_1);
+	if (ivec->ci_iosegs == NULL)
+		return -ENOMEM;
+
+	iosegs_squeeze(rbulk, ivec);
+
+	return 0;
 }
 
 static int io_fop_di_prepare(struct m0_fop *fop)
@@ -1323,7 +1296,7 @@ static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)
 	srw = io_rw_get(src);
 	drw = io_rw_get(dest);
 	drw->crw_desc = srw->crw_desc;
-	drw->crw_ivecs = srw->crw_ivecs;
+	drw->crw_ivec = srw->crw_ivec;
 }
 
 static int io_fop_desc_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
@@ -1338,7 +1311,7 @@ static int io_fop_desc_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 	rw = io_rw_get(fop);
 	rw->crw_desc.id_nr = rpcbulk_tlist_length(&rbulk->rb_buflist);
 	IOS_ALLOC_ARR(rw->crw_desc.id_descs, rw->crw_desc.id_nr,
-			  &m0_ios_addb_ctx, IO_FOP_DESC_ALLOC);
+		      &m0_ios_addb_ctx, IO_FOP_DESC_ALLOC);
 
 	return rw->crw_desc.id_descs == NULL ? -ENOMEM : 0;
 }
@@ -1360,7 +1333,7 @@ static void io_fop_desc_dealloc(struct m0_fop *fop)
 	 * with io details.
 	 */
 	for (i = 0; i < rw->crw_desc.id_nr; ++i)
-		m0_net_desc_free(&rw->crw_desc.id_descs[i]);
+		m0_net_desc_free(&rw->crw_desc.id_descs[i].bdd_desc);
 
 	m0_free0(&rw->crw_desc.id_descs);
 	rw->crw_desc.id_nr = 0;
@@ -1388,14 +1361,13 @@ M0_INTERNAL int m0_io_fop_prepare(struct m0_fop *fop)
 		goto err;
 	}
 
-	rc = io_fop_ivec_alloc(fop, rbulk);
+	rc = io_fop_ivec_prepare(fop, rbulk);
 	if (rc != 0) {
 		io_fop_desc_dealloc(fop);
 		rc = -ENOMEM;
 		goto err;
 	}
 
-	io_fop_ivec_prepare(fop, rbulk);
 	q = m0_is_read_fop(fop) ? M0_NET_QT_PASSIVE_BULK_RECV :
 			   M0_NET_QT_PASSIVE_BULK_SEND;
 	m0_rpc_bulk_qtype(rbulk, q);
@@ -1608,7 +1580,6 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	m0_mutex_unlock(&bbulk->rb_mutex);
 
-	M0_POST(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
 	M0_LOG(M0_DEBUG, "io fops coalesced successfully.");
 	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
 	return rc;
@@ -1656,13 +1627,14 @@ static void io_fop_replied(struct m0_fop *fop, struct m0_fop *bkpfop)
 	srw = io_rw_get(bkpfop);
 	drw = io_rw_get(fop);
 	drw->crw_desc = srw->crw_desc;
-	drw->crw_ivecs = srw->crw_ivecs;
+	drw->crw_ivec = srw->crw_ivec;
 	cfop = container_of(bkpfop, struct m0_io_fop, if_fop);
 	m0_io_fop_fini(cfop);
 	m0_free(cfop);
 }
 
-static void io_fop_desc_get(struct m0_fop *fop, struct m0_net_buf_desc **desc)
+static void io_fop_desc_get(struct m0_fop *fop,
+			    struct m0_net_buf_desc_data **desc)
 {
 	struct m0_fop_cob_rw *rw;
 
