@@ -17,6 +17,9 @@
  * Original creation date: 05/21/2010
  */
 
+#include <limits.h>
+#include <sys/uio.h>
+
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -97,6 +100,7 @@
  */
 struct ioq_qev {
 	struct iocb           iq_iocb;
+	m0_bcount_t           iq_nbytes;
 	/** Linkage to a per-domain admission queue
 	    (linux_domain::ioq_queue). */
 	struct m0_queue_link  iq_linkage;
@@ -178,6 +182,8 @@ M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 
 static void linux_stob_io_release(struct linux_stob_io *lio)
 {
+	if (lio->si_qev != NULL)
+		m0_free(lio->si_qev->iq_iocb.u.c.buf);
 	m0_free(lio->si_qev);
 	lio->si_qev = NULL;
 }
@@ -204,11 +210,13 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	struct linux_stob    *lstob  = stob2linux(io->si_obj);
 	struct linux_domain  *ldom   = domain2linux(io->si_obj->so_domain);
 	struct linux_stob_io *lio    = io->si_stob_private;
+	struct ioq_qev       *qev;
+	struct iovec         *iov;
 	struct m0_vec_cursor  src;
 	struct m0_vec_cursor  dst;
 	uint32_t              frags = 0;
+	uint32_t              chunks; /* contiguous stob chunks */
 	m0_bcount_t           frag_size;
-	m0_bcount_t           total_size = 0;
 	int                   result = 0;
 	int                   i;
 	bool                  eosrc;
@@ -219,6 +227,8 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	/* prefix fragments execution mode is not yet supported */
 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
 	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
+
+	chunks = io->si_stob.iv_vec.v_nr;
 
 	m0_vec_cursor_init(&src, &io->si_user.ov_vec);
 	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
@@ -236,16 +246,57 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	m0_vec_cursor_init(&src, &io->si_user.ov_vec);
 	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
-	lio->si_nr = frags;
+	lio->si_nr = max_check(frags / IOV_MAX + 1, chunks);
+	M0_LOG(M0_DEBUG, "chunks=%d frags=%d si_nr=%d", chunks, frags, lio->si_nr);
 	m0_atomic64_set(&lio->si_done, 0);
 	m0_atomic64_set(&lio->si_bdone, 0);
-	M0_ALLOC_ARR(lio->si_qev, frags);
+	M0_ALLOC_ARR(lio->si_qev, lio->si_nr);
+	M0_ALLOC_ARR(iov, frags);
+	qev = lio->si_qev;
+	if (qev == NULL || iov == NULL) {
+		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
+		result = -ENOMEM;
+	}
 
-	if (lio->si_qev != NULL) {
-		for (i = 0; i < frags; ++i) {
+	while (result == 0) {
+		struct iocb *iocb = &qev->iq_iocb;
+		m0_bindex_t  off = io->si_stob.iv_index[dst.vc_seg] +
+				   dst.vc_offset;
+		m0_bindex_t  prev_off = ~0;
+		m0_bcount_t  chunk_size = 0;
+
+		qev->iq_io = io;
+		m0_queue_link_init(&qev->iq_linkage);
+
+		iocb->u.v.vec = iov;
+		iocb->aio_fildes = lstob->sl_fd;
+		iocb->u.v.nr = min32u(frags, IOV_MAX);
+		iocb->u.v.offset = off << LINUX_DOM_BSHIFT(ldom);
+
+		switch (io->si_opcode) {
+		case SIO_READ:
+			iocb->aio_lio_opcode = IO_CMD_PREADV;
+			break;
+		case SIO_WRITE:
+			iocb->aio_lio_opcode = IO_CMD_PWRITEV;
+			break;
+		default:
+			M0_ASSERT(0);
+		}
+
+		for (i = 0; i < iocb->u.v.nr; ++i) {
 			void        *buf;
 			m0_bindex_t  off;
-			struct iocb *iocb;
+
+			buf = io->si_user.ov_buf[src.vc_seg] + src.vc_offset;
+			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
+
+			M0_LOG(M0_DEBUG, "p_off=%lx off=%lx sz=%lx",
+				(unsigned long)prev_off, (unsigned long)off,
+				(unsigned long)frag_size);
+			if (prev_off != ~0 && prev_off + frag_size != off)
+				break;
+			prev_off = off;
 
 			frag_size = min_check(m0_vec_cursor_step(&src),
 					      m0_vec_cursor_step(&dst));
@@ -256,51 +307,42 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 				break;
 			}
 
-			buf = io->si_user.ov_buf[src.vc_seg] + src.vc_offset;
-			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
-
-			iocb = &lio->si_qev[i].iq_iocb;
-			M0_SET0(iocb);
-
-			iocb->aio_fildes = lstob->sl_fd;
-			iocb->u.c.buf    = m0_stob_addr_open(buf,
+			iov->iov_base = m0_stob_addr_open(buf,
 						LINUX_DOM_BSHIFT(ldom));
-			iocb->u.c.nbytes = frag_size << LINUX_DOM_BSHIFT(ldom);
-			iocb->u.c.offset = off       << LINUX_DOM_BSHIFT(ldom);
-			total_size += frag_size;
-
-			switch (io->si_opcode) {
-			case SIO_READ:
-				iocb->aio_lio_opcode = IO_CMD_PREAD;
-				break;
-			case SIO_WRITE:
-				iocb->aio_lio_opcode = IO_CMD_PWRITE;
-				break;
-			default:
-				M0_ASSERT(0);
-			}
+			iov->iov_len  = frag_size << LINUX_DOM_BSHIFT(ldom);
+			chunk_size += frag_size;
 
 			m0_vec_cursor_move(&src, frag_size);
 			m0_vec_cursor_move(&dst, frag_size);
-			lio->si_qev[i].iq_io = io;
-			m0_queue_link_init(&lio->si_qev[i].iq_linkage);
+			++iov;
 		}
-		M0_LOG(M0_DEBUG, "frags=%d op=%d sz=%lu",
-		       i, io->si_opcode, (unsigned long)total_size);
+		M0_LOG(M0_DEBUG, "["U128X_F"] %2d: frags=%d op=%d off=%lx sz=%lx",
+		       U128_P(&io->si_obj->so_id.si_bits),
+		       (int)(qev - lio->si_qev), i, io->si_opcode,
+		       (unsigned long)off, (unsigned long)chunk_size);
 		if (result == 0) {
+			iocb->u.v.nr = i;
+			qev->iq_nbytes = chunk_size << LINUX_DOM_BSHIFT(ldom);
+
 			ioq_queue_lock(ldom);
-			for (i = 0; i < frags; ++i)
-				ioq_queue_put(ldom, &lio->si_qev[i]);
+			ioq_queue_put(ldom, qev);
 			ioq_queue_unlock(ldom);
-			ioq_queue_submit(ldom);
+
+			frags -= i;
+			if (frags == 0)
+				break;
+
+			++qev;
+			M0_ASSERT(qev - lio->si_qev < lio->si_nr);
 		}
-	} else {
-		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
-		result = -ENOMEM;
 	}
+	lio->si_nr = ++qev - lio->si_qev;
 
 	if (result != 0)
 		linux_stob_io_release(lio);
+	else
+		ioq_queue_submit(ldom);
+
 	return result;
 }
 
@@ -429,10 +471,25 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	M0_ASSERT(done < lio->si_nr);
 
 	/* short read. */
-	if (io->si_opcode == SIO_READ && res >= 0 && res < iocb->u.c.nbytes) {
+	M0_LOG(M0_DEBUG, "res=%lx nbytes=%lx", (unsigned long)res,
+					(unsigned long)qev->iq_nbytes);
+	if (io->si_opcode == SIO_READ && res >= 0 && res < qev->iq_nbytes) {
 		/* fill the rest of the user buffer with zeroes. */
-		memset(iocb->u.c.buf + res, 0, iocb->u.c.nbytes - res);
-		res = iocb->u.c.nbytes;
+		const struct iovec *iov = iocb->u.v.vec;
+		int i;
+
+		for (i = 0; i < iocb->u.v.nr; ++i) {
+			if (iov->iov_len < res)
+				res -= iov->iov_len;
+			else if (res == 0)
+				memset(iov->iov_base, 0, iov->iov_len);
+			else {
+				memset(iov->iov_base + res, 0,
+							iov->iov_len - res);
+				res = 0;
+			}
+		}
+		res = qev->iq_nbytes;
 	}
 
 	if (res > 0) {
@@ -456,7 +513,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	if (done == lio->si_nr) {
 		m0_bcount_t bdone = m0_atomic64_get(&lio->si_bdone);
 
-		M0_LOG(M0_DEBUG, "["U128X_F"] nr=%d bytes=%lu si_rc=%d",
+		M0_LOG(M0_DEBUG, "["U128X_F"] nr=%d sz=%lx si_rc=%d",
 		       U128_P(&io->si_obj->so_id.si_bits),
 		       done, (unsigned long)bdone, (int)io->si_rc);
 		M0_ASSERT(m0_forall(i, lio->si_nr,
@@ -492,6 +549,7 @@ static void ioq_thread(struct linux_domain *ldom)
 		ioq_timeout = ioq_timeout_default;
 		got = raw_io_getevents(ldom->ioq_ctx, 1, ARRAY_SIZE(evout),
 				       evout, &ioq_timeout);
+		M0_LOG(M0_DEBUG, "got=%d", got);
 		if (got > 0) {
 			avail = m0_atomic64_add_return(&ldom->ioq_avail, got);
 			M0_ASSERT(avail <= IOQ_RING_SIZE);

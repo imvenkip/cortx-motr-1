@@ -41,7 +41,7 @@ struct m0_uint128 {
 #define U128D_F "%lu:%lu"
 #define U128_P(x) (unsigned long)(x)->u_hi, (unsigned long)(x)->u_lo
 
-#define EXT_F "[%lx, %lx)"
+#define EXT_F "[%lx,%lx)"
 #define EXT_P(x) (unsigned long)(x)->e_start, (unsigned long)(x)->e_end
 
 M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,

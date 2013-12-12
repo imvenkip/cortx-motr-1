@@ -1004,13 +1004,11 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 				 m0_vec_cursor_step(dst),
 				 m0_be_emap_caret_step(car));
 
-		M0_LOG(M0_DEBUG, "%2d: sz=0x%llx buf=%p off=0x%llx "
-			"ext=[0x%llx, 0x%llx) val=0x%llx",
-			idx, (unsigned long long)frag_size, buf,
-			(unsigned long long)off,
-			(unsigned long long)seg->ee_ext.e_start,
-			(unsigned long long)seg->ee_ext.e_end,
-			(unsigned long long)seg->ee_val);
+		M0_LOG(M0_DEBUG, "%2d: sz=%lx buf=%p off=%lx "
+			"ext="EXT_F" val=%lx",
+			idx, (unsigned long)frag_size, buf,
+			(unsigned long)off, EXT_P(&seg->ee_ext),
+			(unsigned long)seg->ee_val);
 		if (seg->ee_val == AET_NONE || seg->ee_val == AET_HOLE) {
 			/*
 			 * Read of a hole or unallocated space (beyond
