@@ -273,8 +273,18 @@ M0_INTERNAL void m0_fi_enable_generic(const char *fp_func, const char *fp_tag,
  */
 static inline void m0_fi_enable(const char *func, const char *tag)
 {
+/*
+ * Our headers are processed by gccxml, which is essentially a C++
+ * compiler, and it doesn't support C99 compound literals and designated
+ * initializers. So we want to hide this fancy code from gccxml to protect it
+ * from brain damage :D It's safe, because we are interested only in type
+ * definition information, produced by gccxml, and not a function
+ * implementation.
+ */
+#if !defined(__cplusplus)
 	m0_fi_enable_generic(func, tag, &(const struct m0_fi_fpoint_data){
 						.fpd_type = M0_FI_ALWAYS });
+#endif
 }
 
 /**
@@ -288,8 +298,11 @@ static inline void m0_fi_enable(const char *func, const char *tag)
  */
 static inline void m0_fi_enable_once(const char *func, const char *tag)
 {
+/* See the comment inside m0_fi_enable() about purpose of this C++ guard */
+#if !defined(__cplusplus)
 	m0_fi_enable_generic(func, tag, &(const struct m0_fi_fpoint_data){
 						.fpd_type = M0_FI_ONESHOT });
+#endif
 }
 
 /**
@@ -306,9 +319,12 @@ static inline void m0_fi_enable_once(const char *func, const char *tag)
 static inline void m0_fi_enable_random(const char *func, const char *tag,
 				       uint32_t p)
 {
+/* See the comment inside m0_fi_enable() about purpose of this C++ guard */
+#if !defined(__cplusplus)
 	m0_fi_enable_generic(func, tag, &(const struct m0_fi_fpoint_data){
 						.fpd_type = M0_FI_RANDOM,
 						.u = { .fpd_p = p } });
+#endif
 }
 
 /**
@@ -328,10 +344,13 @@ static inline void m0_fi_enable_random(const char *func, const char *tag,
 static inline void m0_fi_enable_off_n_on_m(const char *func, const char *tag,
 					   uint32_t n, uint32_t m)
 {
+/* See the comment inside m0_fi_enable() about purpose of this C++ guard */
+#if !defined(__cplusplus)
 	m0_fi_enable_generic(func, tag,
 			&(const struct m0_fi_fpoint_data){
 				.fpd_type = M0_FI_OFF_N_ON_M,
 				.u = { .s1 = { .fpd_n = n, .fpd_m = m } } });
+#endif
 }
 
 /**
@@ -367,6 +386,8 @@ static inline void m0_fi_enable_func(const char *func, const char *tag,
 				     m0_fi_fpoint_state_func_t trigger_func,
 				     void *data)
 {
+/* See the comment inside m0_fi_enable() about purpose of this C++ guard */
+#if !defined(__cplusplus)
 	m0_fi_enable_generic(func, tag,
 			&(const struct m0_fi_fpoint_data){
 				.fpd_type = M0_FI_FUNC,
@@ -375,6 +396,7 @@ static inline void m0_fi_enable_func(const char *func, const char *tag,
 					  .fpd_private = data
 				       }
 				 } });
+#endif
 }
 
 /**
