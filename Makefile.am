@@ -1092,6 +1092,7 @@ help:
 EXTRA_DIST += addb/Kbuild.sub \
               addb/ut/Kbuild.sub \
               be/Kbuild.sub \
+              be/ut/Kbuild.sub \
               cob/Kbuild.sub \
               conf/Kbuild.sub \
               db/Kbuild.sub \
