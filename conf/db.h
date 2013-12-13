@@ -21,8 +21,16 @@
 #ifndef __MERO_CONF_DB_H__
 #define __MERO_CONF_DB_H__
 
+#include "be/tx_credit.h"
+#include "be/seg.h"
+
+
 struct m0_confx;
 struct m0_confx_obj;
+
+M0_INTERNAL void m0_confdb_create_credit(struct m0_be_seg *seg,
+                                         const struct m0_confx *conf,
+                                         struct m0_be_tx_credit *accum);
 
 /**
  * Creates configuration database, populating it with provided
@@ -30,8 +38,8 @@ struct m0_confx_obj;
  *
  * @pre  conf->cx_nr > 0
  */
-M0_INTERNAL int m0_confdb_create(const char *dbpath,
-				 const struct m0_confx *conf);
+M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+                                 const struct m0_confx *conf);
 
 /**
  * Creates m0_confx and populates it with data read from a
@@ -40,6 +48,7 @@ M0_INTERNAL int m0_confdb_create(const char *dbpath,
  * If the call succeeds, the user is responsible for freeing allocated
  * memory with m0_confx_free(*out).
  */
-M0_INTERNAL int m0_confdb_read(const char *dbpath, struct m0_confx **out);
+M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_be_tx *tx,
+                               struct m0_confx **out);
 
 #endif /* __MERO_CONF_DB_H__ */
