@@ -346,20 +346,23 @@ echo "Device:" > disks.conf
 
 devs=\`ls $DISKS_PATTERN | grep -v part\`
 
-fdisk -l \$devs 2>&1 1>/dev/null | \
-sed -n 's;^Disk \\(/dev/.*\\) doesn.*;\1;p' | \
-while read dev; do
-	if [ \$j -eq 0 ]; then
-		echo "Device:" > disks\$f.conf
-		echo "   - id: 0" >> disks\$f.conf
-		echo "     filename: \$dev" >> disks\$f.conf
-	else
-		echo "   - id: \$i" | tee -a disks.conf >> disks\$f.conf
-		echo "     filename: \$dev" | tee -a disks.conf >> disks\$f.conf
-		i=\`expr \$i + 1\`
+for dev in \$devs; do
+	partitions=\$(partprobe -ds \$dev)
+	# if \$dev is a valid block device (zero exit code of partprobe)
+	# and it doesn't contain any partition table (output of partprobe is empy)
+	if [[ \$? -eq 0 && -z \$partitions ]]; then
+		if [ \$j -eq 0 ]; then
+			echo "Device:" > disks\$f.conf
+			echo "   - id: 0" >> disks\$f.conf
+			echo "     filename: \$dev" >> disks\$f.conf
+		else
+			echo "   - id: \$i" | tee -a disks.conf >> disks\$f.conf
+			echo "     filename: \$dev" | tee -a disks.conf >> disks\$f.conf
+			i=\`expr \$i + 1\`
+		fi
+		j=\`expr \$j + 1\`
+		[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
 	fi
-	j=\`expr \$j + 1\`
-	[ \$j -eq \$DISKS_SH_NR ] && j=0 && f=\`expr \$f + 1\`
 done
 
 exit 0
