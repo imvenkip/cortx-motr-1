@@ -145,7 +145,6 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 /** Deletes the transaction from m0_be_tx_group::tg_txs. */
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx *tx);
-M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr);
 
 /**

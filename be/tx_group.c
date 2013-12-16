@@ -238,15 +238,6 @@ m0_be_tx_group_tx_del(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 	grp_tlink_del_fini(tx);
 }
 
-M0_INTERNAL void m0_be_tx_group_tx_del_all(struct m0_be_tx_group *gr)
-{
-	struct m0_be_tx *tx;
-
-	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
-		m0_be_tx_group_tx_del(gr, tx);
-	} M0_BE_TX_GROUP_TX_ENDFOR;
-}
-
 M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr)
 {
 	return grp_tlist_length(&gr->tg_txs);
