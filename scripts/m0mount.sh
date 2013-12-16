@@ -347,7 +347,7 @@ echo "Device:" > disks.conf
 devs=\`ls $DISKS_PATTERN | grep -v part\`
 
 for dev in \$devs; do
-	partitions=\$(partprobe -ds \$dev)
+	partitions=\$(partprobe -ds \$dev 2>/dev/null)
 	# if \$dev is a valid block device (zero exit code of partprobe)
 	# and it doesn't contain any partition table (output of partprobe is empy)
 	if [[ \$? -eq 0 && -z \$partitions ]]; then
