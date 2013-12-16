@@ -11,7 +11,7 @@
 
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
-Release:        1_%{kernel_ver}.git679347c%{?dist}
+Release:        1_%{kernel_ver}@GIT_REV_ID_RPM@%{?dist}
 Summary:        Mero filesystem and development libraries
 Group:          System Environment/Base
 License:        Xyratex
