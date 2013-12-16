@@ -49,7 +49,10 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 
 %post
 /sbin/depmod -a
+/sbin/initctl reload-configuration
+/bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
+/bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
 %postun
 /sbin/depmod -a
-
+/sbin/initctl reload-configuration

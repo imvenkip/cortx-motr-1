@@ -1,2 +1,2 @@
-devsl  m0_var=/var/mero
-devsl  m0_uuid=00000000-0000-0000-0000-000000000000
+<host>  m0_var=/var/mero
+<host>  m0_uuid=00000000-0000-0000-0000-000000000000
