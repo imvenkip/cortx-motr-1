@@ -62,10 +62,7 @@ usage()
 	cat <<.
 Usage:
 
-The script should be run from mero directory:
-
-$ cd ~/path/to/mero
-$ sudo ~/path/to/m0mount.sh [-L] [-a] [-l] [-s] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
+$ sudo m0mount [-L] [-a] [-l] [-s] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
 
 Where:
 -a: Use AD stobs

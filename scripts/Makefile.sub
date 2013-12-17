@@ -8,7 +8,7 @@ EXTRA_DIST += scripts/bloatmeter \
               scripts/gdb/gdb-extensions \
               scripts/gdb/gdb-extensions.py \
               scripts/m0 \
-              scripts/m0mount.sh \
+              scripts/m0mount \
               scripts/mero_build_test.sh \
               scripts/modload \
               scripts/print-elf-sizes \

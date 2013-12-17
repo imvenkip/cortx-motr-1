@@ -4,7 +4,7 @@
 # Uses various combination of values for N, K, P and unit size parameters of
 # pdclust layout used by sns repair.
 # Working:
-# 1) Start mero service using mero/scripts/m0mount.sh
+# 1) Start mero service using m0mount
 #    - This also mount m0t1fs
 # 2) Write data to mounted m0t1fs
 # 3) Once i/o is done, start repair.
@@ -38,7 +38,7 @@ cleanup()
 main()
 {
 	for ((i = 0; i < ${#P[*]}; i++)); do
-		cmd="$BROOT/scripts/m0mount.sh -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -q"
+		cmd="$BROOT/scripts/m0mount -a -L -n 1 -d ${N[$i]} -p ${P[$i]} -u ${U[$i]} -q"
 		if ! $cmd
 		then
 			echo "Cannot start mero service"
