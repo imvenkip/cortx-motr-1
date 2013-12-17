@@ -918,7 +918,7 @@ static void session_idle_x_busy(struct m0_rpc_session *session)
 		session_state_set(session, M0_RPC_SESSION_IDLE);
 	}
 
-	M0_ASSERT(m0_rpc_session_invariant(session));
+	M0_ASSERT_EX(m0_rpc_session_invariant(session));
 	M0_POST(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
 					       M0_RPC_SESSION_BUSY)));
 }

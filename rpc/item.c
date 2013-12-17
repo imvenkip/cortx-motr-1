@@ -539,7 +539,7 @@ M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 	bool                   was_active;
 	struct m0_rpc_session *session = item->ri_session;
 
-	M0_PRE(m0_rpc_session_invariant(session));
+	M0_PRE_EX(m0_rpc_session_invariant(session));
 
 	was_active = item_is_active(item);
 	M0_ASSERT(ergo(was_active && m0_rpc_item_is_bound(item),
@@ -550,7 +550,7 @@ M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
 		m0_rpc_session_mod_nr_active_items(session,
 					   item_is_active(item) - was_active);
 
-	M0_POST(m0_rpc_session_invariant(session));
+	M0_POST_EX(m0_rpc_session_invariant(session));
 }
 
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
