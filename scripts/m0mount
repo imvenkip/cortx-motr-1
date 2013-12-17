@@ -173,8 +173,6 @@ XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 KTRACE_FLAGS="trace_immediate_mask=$MERO_MODULE_TRACE_MASK \
 trace_print_context=$MERO_TRACE_PRINT_CONTEXT trace_level=$MERO_TRACE_LEVEL"
 
-BROOT=$PWD   # globally visible build root
-
 # track hosts that have been initialized in an associative array
 declare -A SETUP
 
@@ -182,11 +180,25 @@ declare -A SETUP
 declare -A STARTED
 
 # A file whose sum we can check
-SUMFILE=$BROOT/mero/.libs/m0d
 LSUM=
 
 ###########
 # functions
+
+if [ $0 = "/usr/bin/m0mount" ]; then
+	M0D=/usr/bin/m0d
+	M0LAYOUT="/usr/bin/m0layout"
+	SUMFILE=$M0D
+	MERO_KO_LOAD_CMD="modprobe m0mero"
+	GALOIS_KO_LOAD_CMD="modprobe galois"
+else
+	BROOT=$PWD   # globally visible build root
+	M0D=$BROOT/mero/m0d
+	M0LAYOUT="$BROOT/utils/m0layout"
+	SUMFILE=$BROOT/mero/.libs/m0d
+	MERO_KO_LOAD_CMD="insmod $BROOT/mero/m0mero.ko"
+	GALOIS_KO_LOAD_CMD="insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko"
+fi
 
 setup_local_params()
 {
@@ -261,12 +273,12 @@ function setup_host () {
 		return 1
 	fi
 	$RUN rmmod m0mero galois 2>/dev/null
-	$RUN insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko
+	$RUN $GALOIS_KO_LOAD_CMD
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load galois module on $H
 		return 1
 	fi
-	$RUN insmod $BROOT/mero/m0mero.ko local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
+	$RUN $MERO_KO_LOAD_CMD local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0mero module on $H
 		$RUN rmmod galois
@@ -451,8 +463,7 @@ function start_server () {
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$BROOT/mero/m0d -r -p \
-$STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
+$M0D -r -p $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
 -w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
 -e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
@@ -620,20 +631,16 @@ main()
 		setup_loops
 	fi
 
-	if [ ! $BROOT -ef $PWD ]; then
-		echo ERROR: Run this script in the top of the Mero source directory
-		exit 1
-	fi
 	LSUM=$(sum $SUMFILE)
 
 	rmmod m0loop m0mero galois &> /dev/null
 
 	# ldemo now needs kernel module loaded for some reason...
-	l_run insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko || {
+	l_run $GALOIS_KO_LOAD_CMD || {
 		echo ERROR: Failed to load galois module
 		exit 1
 	}
-	l_run insmod $BROOT/mero/m0mero.ko || {
+	l_run $MERO_KO_LOAD_CMD || {
 		echo ERROR: Failed to load m0mero module
 		rmmod galois
 		exit 1
@@ -641,7 +648,7 @@ main()
 
 	local rows=4
 	local groups=$((rows * POOL_WIDTH / (NR_DATA + NR_PARITY*2) + 1))
-	l_run utils/m0layout $NR_DATA $NR_PARITY $POOL_WIDTH $rows $groups
+	l_run $M0LAYOUT $NR_DATA $NR_PARITY $POOL_WIDTH $rows $groups
 	if [ $? -ne 0 ]; then
 		echo ERROR: Parity configuration is incorrect
 		exit 1
