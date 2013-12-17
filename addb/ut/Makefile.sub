@@ -11,4 +11,5 @@ EXTRA_DIST += \
 	   addb/ut/addb_ut_stobsink.c \
 	   addb/ut/addb_ut_rpcsink.c \
 	   addb/ut/addb_ut_svc.c \
+	   addb/ut/addb_ut_mon_infra.c \
 	   addb/ut/addb_ut_ts.c

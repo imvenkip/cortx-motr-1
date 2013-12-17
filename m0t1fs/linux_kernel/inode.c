@@ -121,7 +121,10 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 	M0_LOG(M0_INFO, "fid [%llu:%llu] \n", fid->f_container, fid->f_key);
 	rdom = m0t1fs_rmsvc_domain_get();
 	M0_ASSERT(rdom != NULL);
-	/* @todo Get di type from configuration. */
+	/**
+	 * @todo Get di type from configuration.
+	 * To disable data-integrity use M0_DI_NONE here.
+	 */
 	m0_file_init(&ci->ci_flock, fid, rdom, M0_DI_CRC32_4K);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_no_group,
@@ -278,8 +281,8 @@ static int m0t1fs_inode_test(struct inode *inode, void *opaque)
 
 static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 {
-	struct m0t1fs_inode *ci  = M0T1FS_I(inode);
-	struct m0_fid       *fid = opaque;
+	struct m0t1fs_inode *ci = M0T1FS_I(inode);
+	struct m0_fid       *fid;
 	struct m0t1fs_sb    *csb = M0T1FS_SB(inode->i_sb);
 
 	M0_ENTRY();
@@ -289,9 +292,10 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 		M0_RETURN(-ENOMEM);
 	memcpy(fid, opaque, sizeof(struct m0_fid));
 
-	if (m0_fid_eq(fid, &csb->csb_root_fid))
+	if (m0_fid_eq(fid, &csb->csb_root_fid)) {
 		ci->ci_flock.fi_fid = fid;
-	else
+		csb->csb_next_key--;
+	} else
 		m0t1fs_file_lock_init(ci, csb, fid);
 	inode->i_ino = fid->f_key;
 

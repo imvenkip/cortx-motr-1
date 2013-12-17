@@ -858,7 +858,10 @@ static void cob_free_cb(struct m0_ref *ref);
 static void cob_init(struct m0_cob_domain *dom, struct m0_cob *cob)
 {
 	m0_ref_init(&cob->co_ref, 1, cob_free_cb);
-	/* @todo Get di type from configuration. */
+	/**
+	 * @todo Get di type from configuration.
+	 * To disable data-integrity use M0_DI_NONE here.
+	 */
 	m0_file_init(&cob->co_file, &cob->co_nsrec.cnr_fid, NULL,
 		     M0_DI_CRC32_4K);
 	cob->co_nskey = NULL;
