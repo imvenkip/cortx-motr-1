@@ -27,6 +27,10 @@
 #include <linux/fs.h>
 #include <linux/pagemap.h>
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"     /* ENABLE_DATA_INTEGRITY */
+#endif
+
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"              /* m0_net_domain */

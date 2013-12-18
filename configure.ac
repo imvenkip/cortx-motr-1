@@ -119,6 +119,7 @@ AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
+AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
@@ -156,6 +157,14 @@ AC_ARG_ENABLE([profiler],
                        [enable gperftools profiling information])],
         [], [enable_profiler=no]
 )
+
+AC_ARG_ENABLE([data_integrity],
+        [AS_HELP_STRING([--enable-data-integrity],
+                       [enable data integrity])],
+        [], [enable_data_intgrity=no]
+)
+AS_IF([test x$enable_data_integrity = xyes],
+      AC_DEFINE([ENABLE_DATA_INTEGRITY]))
 
 AC_ARG_ENABLE([frame_pointers],
         AS_HELP_STRING([--disable-frame-pointers],[disable frame pointers]),
