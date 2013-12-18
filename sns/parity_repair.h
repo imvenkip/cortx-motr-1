@@ -34,6 +34,8 @@
  * @param group_number Parity group number for a given file.
  * @param unit_number Unit number in the parity group.
  * @param spare_slot_out the output spare slot.
+ * @param spare_slot_out_prev the previous spare slot (in case of cascaded
+ *        failures. Contains unit number in case of single failure.
  */
 M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 					const struct m0_fid *fid,
@@ -41,7 +43,8 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 					struct m0_pdclust_instance *pi,
 					uint64_t group_number,
 					uint64_t unit_number,
-					uint32_t *spare_slot_out);
+					uint32_t *spare_slot_out,
+					uint32_t *spare_slot_out_prev);
 
 /**
  * Map the {spare slot, data/parity unit id} pair after repair.

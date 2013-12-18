@@ -219,6 +219,7 @@ static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
         struct m0_pdclust_instance *pi;
         uint64_t                    group;
         uint32_t                    tgt_unit;
+        uint32_t                    tgt_unit_prev;
         int                         rc;
 
         agid2fid(&sag->sag_base.cag_id, &gfid);
@@ -231,7 +232,7 @@ static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
         group = agid2group(&sag->sag_base.cag_id);
 
         rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi,
-			group, funit, &tgt_unit);
+			group, funit, &tgt_unit, &tgt_unit_prev);
         if (rc != 0)
                 tgt_unit = ~0;
 

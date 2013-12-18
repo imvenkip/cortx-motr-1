@@ -89,6 +89,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               cobfid;
 	uint32_t                    tgt_unit;
+	uint32_t                    tgt_unit_prev;
 	uint32_t                    N;
 	uint32_t                    K;
 	uint32_t                    j;
@@ -108,7 +109,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		if (m0_sns_cm_is_cob_repaired(scm, &cobfid))
 			continue;
 		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
-				group, j, &tgt_unit);
+				group, j, &tgt_unit, &tgt_unit_prev);
 		if (rc != 0)
 			return rc;
 		sa.sa_unit = tgt_unit;

@@ -45,6 +45,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
         struct m0_pdclust_tgt_addr  ta;
         int32_t                     incoming_nr = 0;
         uint32_t                    tgt_unit;
+        uint32_t                    tgt_unit_prev;
         uint64_t                    unit;
 	uint64_t                    upg;
         int                         rc;
@@ -72,7 +73,8 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
                 if (rc != 0)
                         continue;
                 rc = m0_sns_repair_spare_map(pm, &gfid, pl,
-                                             pi, sa.sa_group, unit, &tgt_unit);
+                                             pi, sa.sa_group, unit, &tgt_unit,
+					     &tgt_unit_prev);
                 if (rc != 0)
                         goto err;
                 sa.sa_unit = tgt_unit;
@@ -143,6 +145,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	struct m0_sns_cm_iter      *it = &scm->sc_it;
 	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	uint32_t                    spare;
+	uint32_t                    spare_prev;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_fid               cobfid;
@@ -164,8 +167,9 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 			if (rc == 0) {
 				do {
 					funit = sa.sa_unit;
-					rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
-								     group, funit, &spare);
+					rc = m0_sns_repair_spare_map(pm, gfid,
+							pl, pi, group, funit,
+							&spare, &spare_prev);
 					if (rc != 0)
 						return false;
 					sa.sa_unit = spare;
