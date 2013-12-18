@@ -243,7 +243,8 @@ struct m0_balloc_discard_req {
  * which equals group size in ext4
  */
 enum {
-	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL /* * 1024 */ * 1024 * 1000,
+	/** @todo should equal to size of HDD */
+	BALLOC_DEF_CONTAINER_SIZE	= 4096ULL * 32 * 1024 * 1000,
 	BALLOC_DEF_BLOCK_SHIFT		= 12,// 4K Blocks
 	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 	BALLOC_DEF_RESERVED_GROUPS	= 2
@@ -262,12 +263,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t           cid,
 				 struct m0_be_seg  *seg,
 				 struct m0_sm_group *grp,
 				 struct m0_balloc **out);
-
-/**
-   Destroys struct m0_balloc instance @bal.
- */
-M0_INTERNAL int m0_balloc_destroy(struct m0_balloc *bal,
-				  struct m0_sm_group *grp);
 
 /* Interfaces for UT */
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,

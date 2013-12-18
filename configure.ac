@@ -121,6 +121,7 @@ AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
+AH_TEMPLATE([M0_BE_DB_SEGMENT_SIZE],  [BE segment size in MiB.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -269,6 +270,18 @@ package or provide the path to a directory with built Lustre sources, \
 using --with-lustre option.])]
 )
 AC_SUBST([LUSTRE])
+
+AC_ARG_WITH([segment-size],
+        [AS_HELP_STRING([--with-segment-size=number],
+                        [set BE segment size in MiB, default is 128MiB])],
+        [SEG_SIZE=$with_segment_size],
+        [SEG_SIZE=128]
+)
+# TODO: check whether $SEG_SIZE is a correct number
+AS_IF([test -z "$SEG_SIZE" || test "x$SEG_SIZE" = xyes || test "x$SEG_SIZE" = xno],
+      [AC_MSG_ERROR([Segment size must be set with --with-segment-size option.])]
+)
+AC_DEFINE_UNQUOTED([M0_BE_DB_SEGMENT_SIZE], [($SEG_SIZE * 1024 * 1024)])
 
 #
 # Checking for required programs

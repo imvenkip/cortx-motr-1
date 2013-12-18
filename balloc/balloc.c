@@ -2171,31 +2171,6 @@ static int balloc_trees_create(struct m0_balloc *bal,
 	return rc;
 }
 
-static int balloc_trees_destroy(struct m0_balloc *bal,
-			        struct m0_be_tx  *tx)
-{
-	int		rc;
-	struct m0_be_op	op;
-
-	m0_be_op_init(&op);
-	m0_be_btree_destroy(&bal->cb_db_group_extents, tx, &op);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-	if (rc != 0)
-		return rc;
-
-	m0_be_op_init(&op);
-	m0_be_btree_destroy(&bal->cb_db_group_desc, tx, &op);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_btree.t_rc;
-	m0_be_op_fini(&op);
-
-	return rc;
-}
-
 M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 				 struct m0_be_seg   *seg,
 				 struct m0_sm_group *grp,
@@ -2262,36 +2237,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	m0_be_tx_fini(&tx);
 
 	return rc;
-}
-
-M0_INTERNAL int m0_balloc_destroy(struct m0_balloc   *bal,
-				  struct m0_sm_group *grp)
-{
-	struct m0_be_seg       *seg = bal->cb_be_seg;
-	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = {};
-	int                     rc;
-
-	M0_ENTRY();
-
-	m0_be_tx_init(&tx, 0, seg->bs_domain,
-		      grp, NULL, NULL, NULL, NULL);
-	M0_BE_FREE_CREDIT_PTR(bal, seg, &cred);
-	m0_be_btree_destroy_credit(&bal->cb_db_group_extents, 1, &cred);
-	m0_be_btree_destroy_credit(&bal->cb_db_group_desc, 1, &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-
-	if (rc == 0) {
-		rc = balloc_trees_destroy(bal, &tx);
-		if (rc == 0)
-			M0_BE_FREE_PTR_SYNC(bal, seg, &tx);
-		m0_be_tx_close_sync(&tx);
-	}
-
-	m0_be_tx_fini(&tx);
-
-	M0_RETURN(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

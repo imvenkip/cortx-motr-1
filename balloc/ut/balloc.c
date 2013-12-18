@@ -261,9 +261,6 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			}
 		}
 
-		result = m0_balloc_destroy(mero_balloc, grp);
-		M0_UT_ASSERT(result == 0);
-
 		mero_balloc->cb_ballroom.ab_ops->bo_fini(
 			    &mero_balloc->cb_ballroom);
 	}
@@ -297,7 +294,6 @@ void test_balloc()
 
 	rc = m0_be_ut__seg_dict_destroy(seg, grp);
 	M0_ASSERT(rc == 0);
-	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }

@@ -55,6 +55,7 @@
 #include "be/btree.h"
 #include "be/seg.h"
 #include "be/tx.h"
+
 /**
    @addtogroup db
    @{
@@ -72,7 +73,7 @@ struct m0_stob;
 
 enum {
 	SEG_MAP_SIZE_MAX = 0x1000,
-	SEG_SIZE	 = 1UL << 26,
+	SEG_SIZE	 = M0_BE_DB_SEGMENT_SIZE,
 };
 
 struct seg_map_item {
