@@ -170,7 +170,7 @@ AS_IF([test x$enable_data_integrity = xyes],
 AC_ARG_ENABLE([frame_pointers],
         AS_HELP_STRING([--disable-frame-pointers],[disable frame pointers]),
         [],
-        [enable_frame_pointers=$enable_dev_mode]
+        [enable_frame_pointers=yes]
 )
 AS_IF([test x$enable_frame_pointers = xyes],
       AC_DEFINE([ENABLE_FRAME_POINTERS]))
