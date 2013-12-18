@@ -114,6 +114,7 @@ AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
 AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info and disable optimizations.])
 AH_TEMPLATE([ENABLE_PROFILER],        [Enable profile samples gathering.])
+AH_TEMPLATE([ENABLE_FRAME_POINTERS],  [Enable frame pointers (for better stack traces).])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
@@ -155,6 +156,14 @@ AC_ARG_ENABLE([profiler],
                        [enable gperftools profiling information])],
         [], [enable_profiler=no]
 )
+
+AC_ARG_ENABLE([frame_pointers],
+        AS_HELP_STRING([--disable-frame-pointers],[disable frame pointers]),
+        [],
+        [enable_frame_pointers=$enable_dev_mode]
+)
+AS_IF([test x$enable_frame_pointers = xyes],
+      AC_DEFINE([ENABLE_FRAME_POINTERS]))
 
 AC_ARG_ENABLE([coverage],
         [AS_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -554,6 +563,13 @@ AS_IF([test x$enable_debug = xyes],
       ],[
        M0_CFLAGS="-g -O2 $M0_CFLAGS"
        M0_KCFLAGS="-g -O2 $M0_KCFLAGS"
+      ]
+)
+
+AS_IF([test x$enable_frame_pointers = xyes],
+      [
+        M0_CFLAGS="-fno-omit-frame-pointer $M0_CFLAGS"
+        M0_KCFLAGS="-fno-omit-frame-pointer $M0_KCFLAGS"
       ]
 )
 
