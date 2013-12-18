@@ -106,11 +106,11 @@
 
    The "start" directive performs the following steps:
    - It uses @c nodeattr to determine the configuration of the current node.
-   If the node is not configured (m0_uuid, m0_var specified, etc), nothing
+   If the node is not configured (m0_uuid, m0_datadir specified, etc), nothing
    is started.
    - It loads the Lustre lnet module if not already loaded.
    - It loads the m0mero module.
-   - It changes to the directory specified in the m0_var attribute.
+   - It changes to the directory specified in the m0_datadir attribute.
    - It starts the a m0d process, specifying that m0d should use the
    /etc/mero/genders file to bootstrap its configuration.
      - Functions in the /etc/rc.d/init.d/functions are used for this, with

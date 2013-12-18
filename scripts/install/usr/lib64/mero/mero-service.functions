@@ -6,12 +6,11 @@ m0_log()
 }
 
 # Report error and exit.
-#   @param  $1  error msg
-#   @param  $2  exit code
+#   @param  $*  error msg
 m0_exit()
 {
-    m0_log "$1"
-    exit ${2:-1}
+    m0_log "$*"
+    exit 1
 }
 
 # path to binaries inside working directory
@@ -27,12 +26,48 @@ declare -rA _path_inside_workdir=(
 #   @param  $1  name of an executable
 m0_path_to()
 {
-    local binary=$1; shift
+    local binary=$1
 
-    if [[ -n $MERO_DEVEL_WORKDIR_PATH ]] ; then
+    if [ -n "$MERO_DEVEL_WORKDIR_PATH" ] ; then
         echo "$MERO_DEVEL_WORKDIR_PATH/${_path_inside_workdir[$binary]}"
     else
         echo "$binary"
+    fi
+}
+
+# Return value of particular variable, stored in genders "database"
+#   @param  $1  name of a variable
+#   @param  $2  optional name of a node, for which the query is performed, if
+#               ommited, then value is returned for current node
+m0_genders_value_of()
+{
+    local var_name=$1
+    local node=$2
+
+    nodeattr -f $MERO_GENDERS_CONF -v $node $var_name
+}
+
+# Start LNET service
+m0_start_lnet()
+{
+    if chkconfig --list | grep -q lnet ; then
+        service lnet start
+    else
+        if ! lsmod | grep -q lnet ; then
+            modprobe lnet || m0_exit "Failed to load lnet module"
+            lctl network up
+        fi
+    fi
+}
+
+# Stop LNET service
+m0_stop_lnet()
+{
+    if chkconfig --list | grep -q lnet ; then
+        service lnet stop
+    else
+        lctl network down
+        modprobe -r ksocklnd || m0_exit "Failed to unload lnet modules"
     fi
 }
 
@@ -41,16 +76,24 @@ m0_load_modules()
 {
     local m0mero_params
 
-    if [[ -n $MERO_KMOD_PARAMS ]] ; then
+    m0_start_lnet
+
+    if [ -n "$MERO_KMOD_PARAMS" ] ; then
         m0mero_params="$MERO_KMOD_PARAMS $MERO_KMOD_EXTRA_PARAMS"
     else
-        m0mero_params="node_uuid=$MERO_KMOD_NODE_UUID $MERO_KMOD_EXTRA_PARAMS"
+        local uuid=${MERO_KMOD_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
+        local msg_size=$(m0_genders_value_of m0_max_rpc_msg_size)
+        local qlen=$(m0_genders_value_of m0_min_rpc_recvq_len)
+        local ep=$(m0_get_kmod_ep)
+
+        m0mero_params="$m0mero_params node_uuid=$uuid"
+        m0mero_params="$m0mero_params local_addr=$ep"
+        m0mero_params="$m0mero_params max_rpc_msg_size=$msg_size"
+        m0mero_params="$m0mero_params tm_recv_queue_min_len=$qlen"
+        m0mero_params="$m0mero_params $MERO_KMOD_EXTRA_PARAMS"
     fi
 
-    if [[ -n $MERO_DEVEL_WORKDIR_PATH ]] ; then
-        # TODO: use `service lnet start` when all upgrade devvm to C-NEO1.3
-        lsmod | grep -q lnet || ( modprobe lnet || m0_exit "Failed to load lnet module" )
-
+    if [ -n "$MERO_DEVEL_WORKDIR_PATH" ] ; then
         insmod $(m0_path_to galois.ko) || m0_exit "Failed to load galois module"
         insmod $(m0_path_to m0mero.ko) $m0mero_params\
             || m0_exit "Failed to load m0mero module"
@@ -66,31 +109,219 @@ m0_unload_modules()
 {
     lsmod | grep -q m0ctl && ( rmmod m0ctl || m0_exit "Failed to unload m0ctl module" )
 
-    if [[ -n $MERO_DEVEL_WORKDIR_PATH ]] ; then
+    if [ -n "$MERO_DEVEL_WORKDIR_PATH" ] ; then
         rmmod m0mero || m0_exit "Failed to unload m0mero module"
         rmmod galois || m0_exit "Failed to unload galois module"
-        # TODO: use `service lnet stop` when all upgrade devvm to C-NEO1.3
-        #modprobe -r ksocklnd || m0_exit "Failed to unload lnet modules"
     else
         modprobe -r m0mero
     fi
+
+    m0_stop_lnet
 }
 
 # Return path to a working directory of particular m0d instance
 #   @param  $1  m0d service name
 m0_get_m0d_data_dir_for()
 {
-    local service=$1; shift
+    local service=$1
 
-    local data_dir
+    echo "${MERO_M0D_DATA_DIR:-$(m0_genders_value_of m0_datadir)}/$service"
+}
 
-    if [ -n "$MERO_M0D_DATA_DIR" ] ; then
-        data_dir=$MERO_M0D_DATA_DIR
+# Return space-separated list of all nodes in the cluster from genders file
+m0_get_nodes()
+{
+    nodeattr -f $MERO_GENDERS_CONF -A | tr ',' ' '
+}
+
+# Return lnet NID of a node
+#   @param  $1  optional name of a node, for which the query is performed, if
+#               ommited, then value is returned for current node
+m0_get_lnet_nid()
+{
+    local node=$1
+
+    local lnid
+    # if $node is empty, then query is for current node
+    if [ -z "$node" -o "$node" = "$(hostname -s)" ] ; then
+        lnid=${MERO_LNET_NID:=$(m0_genders_value_of m0_lnet_nid)}
+        if [ "$lnid" = 'auto' ] ; then
+            lnid=$(lctl list_nids | head -n1)
+            [ -z "$lnid" ] && \
+                m0_exit 'Failed to auto-detect Lnet NID, please check that' \
+                        ' lnet service is running'
+        fi
     else
-        data_dir=$(nodeattr -f $genders_config -v m0_var)
+        lnid=$(m0_genders_value_of m0_lnet_nid $node)
     fi
 
-    echo "$data_dir/$service"
+    echo $lnid
+}
+
+# Return space-separated list of all services for particular node
+#   @param  $1  optional name of a node, for which the query is performed, if
+#               ommited, then value is returned for current node
+m0_get_services()
+{
+    local node=$1
+    local services
+
+    # if $node is empty, then query is for current node
+    if [ -z "$node" -o "$node" = "$(hostname -s)" ] ; then
+        services=${SERVICES:-$MERO_SERVICES}
+    fi
+
+    echo ${services:-$(m0_genders_value_of m0_services $node | tr ';' ' ')}
+}
+
+# Return space-separated list of all services in the cluster
+m0_get_global_services()
+{
+    local services
+
+    for node in $(m0_get_nodes); do
+        services="$services $(m0_get_services $node)"
+    done
+
+    echo $services
+}
+
+# Return space-separated list of all services in the cluster
+m0_get_global_ios_services()
+{
+    echo $(m0_get_global_services) | grep -E -o 'ios[[:digit:]]+'
+}
+
+# Return m0mero.ko endpoint
+m0_get_kmod_ep()
+{
+    echo "$(m0_get_lnet_nid):12345:41:301"
+}
+
+# Return MDS endpoint
+m0_get_mds_ep()
+{
+    local node
+    local service
+
+    for node in $(m0_get_nodes); do
+        for service in $(m0_get_services $node); do
+            if [ "$service" = "mds" -o "$service" = "singlenode" ]; then
+                echo "lnet:$(m0_get_lnet_nid $node):12345:41:101"
+                return
+            fi
+        done
+    done
+}
+
+# Return space-separated list of IOS endpoints of a node
+#   @param  $1  optional name of a node, for which the query is performed, if
+#               ommited, then value is returned for current node
+m0_get_ios_eps()
+{
+    local node=$1
+
+    local ios_eps
+    local lnid=$(m0_get_lnet_nid $node)
+    local ios_tid=201
+    local service
+
+    for service in $(m0_get_services $node); do
+        if echo $service | grep -q -E '^ios[[:digit:]]+$'; then
+            ios_eps="$ios_eps lnet:$lnid:12345:41:$((ios_tid++))"
+        elif echo $service | grep -q -E '^singlenode$'; then
+            ios_eps=$(m0_get_mds_ep)
+        fi
+    done
+
+    echo $ios_eps
+}
+
+# Return space-separated list of all IOS endpoints in the cluster
+m0_get_global_ios_eps()
+{
+    local global_ios_eps
+
+    for node in $(m0_get_nodes); do
+        global_ios_eps="$global_ios_eps $(m0_get_ios_eps $node)"
+    done
+
+    echo $global_ios_eps
+}
+
+# Return space-separated list of all IOS endpoints in the cluster, from genders
+# file
+m0_get_global_ios_eps()
+{
+    local global_ios_eps
+    local node
+
+    for node in $(m0_get_nodes); do
+        global_ios_eps="$global_ios_eps $(m0_get_ios_eps $node)"
+    done
+
+    echo $global_ios_eps
+}
+
+# Return space-separated list of running Mero servers on a current node
+m0_get_running_servers()
+{
+    initctl list \
+    | grep mero-server \
+    | sed -n -r -e 's#.*mero-server \((.*)\) start/running.*#\1#p' \
+    | xargs echo
+}
+
+# Return PID of running m0d daemon for particular Mero service
+#   @param  $1  name of a service, e.g. 'mds', 'ios1'
+m0_get_server_pid_for()
+{
+    local service=$1
+
+    initctl list \
+    | sed -n -r -e \
+        "s/mero-server \\($service\\) start\\/running, process ([[:digit:]]+)/\\1/p"
+
+}
+
+# Construct local_conf mount option from genders file
+m0_build_local_conf()
+{
+    local local_conf
+    local mds_ep=$(m0_get_mds_ep | sed -e 's/^lnet://')
+    local rms_ep=$mds_ep # RM service is running on the same node as MDS
+    local stats_ep=$mds_ep # STATS service is running on the same node as MDS
+    local pool_width=$(m0_genders_value_of m0_pool_width)
+    local data_units=$(m0_genders_value_of m0_data_units)
+    local parity_units=$(m0_genders_value_of m0_parity_units)
+    local unit_size=$(m0_genders_value_of m0_unit_size)
+    local ios_idx=1
+    local ios_ep
+
+    for ios_ep in $(m0_get_global_ios_eps | sed -e 's/lnet://g'); do
+        local ios_name="\"ios$((ios_idx++))\""
+        ios_names="$ios_names${ios_names:+, }$ios_name"
+        ios_objs="$ios_objs${ios_objs:+, }($ios_name, {3| (2, [1: \"$ios_ep\"], \"_\")})"
+    done
+
+    local ios_num=$(echo $ios_names | wc -w)
+    local_conf=$(cat <<CONF_END
+[$((ios_num + 5)):
+  ("prof", {1| ("fs")}),
+  ("fs", {2| ((11, 22),
+              [4: "pool_width=$pool_width",
+                  "nr_data_units=$data_units",
+                  "nr_parity_units=$parity_units",
+                  "unit_size=$unit_size"],
+              [$((ios_num + 3)): "mds", "dlm", "stats", $ios_names])}),
+  ("mds", {3| (1, [1: "$mds_ep"], "_")}),
+  ("dlm", {3| (4, [1: "$rms_ep"], "_")}),
+  ("stats", {3| (5, [1: "$stats_ep"], "_")}),
+  $ios_objs]
+CONF_END
+)
+
+    echo $local_conf
 }
 
 # vim: tabstop=4 shiftwidth=4 expandtab filetype=sh

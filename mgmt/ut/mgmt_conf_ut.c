@@ -47,7 +47,7 @@ static char *genders_proto[] = {
 	"h10          m0_lnet_host=192.168.1.12\n",
 	"%s           m0_lnet_if=tcp,m0_lnet_pid=12121\n",
 	"%s           m0_lnet_host=localhost\n",
-	"h[00-10],%s  m0_var=var_mero\n",
+	"h[00-10],%s  m0_datadir=var_mero\n",
 	"h[00-10],%s  m0_max_rpc_msg=163840\n",
 	"h[00-10],%s  m0_min_recv_q=2\n",
 	"h00          m0_s_confd=-c;/var/mero/confd/confdb.txt\n",

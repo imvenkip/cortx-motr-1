@@ -658,7 +658,9 @@ include $(top_srcdir)/stats/util/Makefile.sub
 
 etc_initdir    = $(sysconfdir)/init
 etc_init_DATA  = scripts/install/etc/init/mero.conf \
+                 scripts/install/etc/init/mero-client.conf \
                  scripts/install/etc/init/mero-kernel.conf \
+                 scripts/install/etc/init/mero-singlenode.conf \
                  scripts/install/etc/init/mero-server.conf \
                  scripts/install/etc/init/mero-trace.conf
 EXTRA_DIST    += $(etc_init_DATA)
@@ -669,9 +671,7 @@ EXTRA_DIST         += $(etc_sysconfig_DATA)
 
 etc_merodir    = $(sysconfdir)/mero
 etc_mero_DATA  = scripts/install/etc/mero/genders \
-                 scripts/install/etc/mero/disks-ios.conf \
-                 scripts/install/etc/mero/disks-mds.conf \
-                 scripts/install/etc/mero/disks-all.conf
+                 scripts/install/etc/mero/disks-singlenode.conf
 EXTRA_DIST    += $(etc_mero_DATA)
 
 

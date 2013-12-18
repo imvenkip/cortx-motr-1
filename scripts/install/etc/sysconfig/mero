@@ -7,15 +7,18 @@
 # Location of Mero logs and trace files, by default it's /var/log/mero.
 #MERO_LOG_DIR=/var/log/mero
 
+# Override default value for m0t1fs mount point
+#MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
+
 # Which Mero services to start on current node.
-#MERO_SERVICES='mds ios01 ios02 ios03 ios04'
+#MERO_SERVICES='mds ios1 ios2 ios3 ios4'
 
 # MD service endpoint (for example when it's running on a different node)
 #MERO_MDS_EP=
 
 # Comma-separated list of IO services endpoints (for example when they're
 # running on different nodes)
-#MERO_IOS_EP_LIST=
+#MERO_IOS_EPS=
 
 # Local node uuid for m0merko.ko module.
 #MERO_KMOD_NODE_UUID=00000000-0000-0000-0000-000000000000
@@ -40,7 +43,7 @@
 
 # Lnet network ID, it can either 'auto' (default) for auto-detection or a
 # specific IP address with Lnet network type ('o2ib' or 'tcp').
-#MERO_M0D_LNET_NID=172.18.50.40@o2ib
+#MERO_LNET_NID=172.18.50.40@o2ib
 
 # Use m0traced daemon to collect trace logs of m0mero.ko module.
 #MERO_TRACED_KMOD=yes

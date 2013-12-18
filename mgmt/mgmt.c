@@ -262,7 +262,7 @@ h[00-10]  m0_lnet_kernel_portal=34          # portal for the kernel
 h[00-10]  m0_lnet_m0d_portal=35             # portal for m0d
 h[00-10]  m0_lnet_client_portal=36          # portal for clients (dynamic TMID)
 h[00-10]  m0_lnet_host=l%n                  # mapping of node to LNet hostname
-h[00-10]  m0_var=/var/mero                  # Mero variable data directory
+h[00-10]  m0_datadir=/var/mero                  # Mero variable data directory
 h[00-10]  m0_max_rpc_msg=163840             # max rpc message size
 h[00-10]  m0_min_recv_q=2                   # minimum receive queue length
 h00,h01   m0_s_confd=-c;/var/mero/confd/confdb.txt # confd hosts, db file
@@ -296,7 +296,7 @@ h03       m0_u_ioservice=f595564a-20ca-4b12-8f4b-0d2f82726d61
    - @a m0_lnet_host This attribute provides a mapping from a node name to the
    symbolic host name associated with the IP address to use for LNet on that
    node.
-   - @a m0_var is the location of the variable data directory where run time
+   - @a m0_datadir is the location of the variable data directory where run time
    Mero data is stored.  This directory will be used as the "current" directory
    of the m0d process.
 
@@ -312,7 +312,7 @@ m0_lnet_pid=12345
 m0_lnet_kernel_portal=34
 m0_lnet_m0d_portal=35
 m0_lnet_host=lh03
-m0_var=/var/mero
+m0_datadir=/var/mero
 m0_max_rpc_msg=163840
 m0_min_recv_q=2
 m0_s_addb=-A;/etc/mero/stobs

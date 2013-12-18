@@ -107,7 +107,9 @@ install_files()
 
     dir='/etc/init'
     for file in 'scripts/install/etc/init/mero.conf' \
+                'scripts/install/etc/init/mero-client.conf' \
                 'scripts/install/etc/init/mero-kernel.conf' \
+                'scripts/install/etc/init/mero-singlenode.conf' \
                 'scripts/install/etc/init/mero-server.conf' \
                 'scripts/install/etc/init/mero-trace.conf' ;
     do
@@ -116,9 +118,7 @@ install_files()
 
     dir='/etc/mero'
     [[ ! -d $dir ]] && run "mkdir -vp $dir"
-    for file in 'scripts/install/etc/mero/disks-ios.conf' \
-                'scripts/install/etc/mero/disks-mds.conf' \
-                'scripts/install/etc/mero/disks-all.conf' \
+    for file in 'scripts/install/etc/mero/disks-singlenode.conf' \
                 'scripts/install/etc/mero/genders' ;
     do
         run "$cmd $(pwd)/$file $dir"
@@ -138,12 +138,12 @@ uninstall_files()
 {
     for file in '/etc/sysconfig/mero' \
                 '/etc/init/mero.conf' \
+                '/etc/init/mero-client.conf' \
                 '/etc/init/mero-kernel.conf' \
+                '/etc/init/mero-singlenode.conf' \
                 '/etc/init/mero-server.conf' \
                 '/etc/init/mero-trace.conf' \
-                '/etc/mero/disks-ios.conf' \
-                '/etc/mero/disks-mds.conf' \
-                '/etc/mero/disks-all.conf' \
+                '/etc/mero/disks-singlenode.conf' \
                 '/etc/mero/genders' \
                 '/usr/lib64/mero/mero-service.functions' ;
     do
