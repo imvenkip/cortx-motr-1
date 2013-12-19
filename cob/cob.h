@@ -25,10 +25,6 @@
 #ifndef __MERO_COB_COB_H__
 #define __MERO_COB_COB_H__
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"     /* ENABLE_DATA_INTEGRITY */
-#endif
-
 #include "file/file.h"
 #include "lib/atomic.h"
 #include "lib/rwlock.h"
