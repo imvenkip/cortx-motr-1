@@ -109,16 +109,16 @@ enum xcode_op {
 	XO_NR
 };
 
-static bool at_array(const struct m0_xcode_cursor       *it,
-		     const struct m0_xcode_cursor_frame *prev,
-		     const struct m0_xcode_obj          *par)
+M0_INTERNAL bool m0_xcode_at_array(const struct m0_xcode_cursor       *it,
+			           const struct m0_xcode_cursor_frame *prev,
+			           const struct m0_xcode_obj          *par)
 {
 	return it->xcu_depth > 0 && par->xo_type->xct_aggr == M0_XA_SEQUENCE &&
 	       prev->s_fieldno == 1 && prev->s_elno == 0 &&
 	       m0_xcode_tag(par) > 0;
 }
 
-static void **allocp(struct m0_xcode_cursor *it, size_t *out)
+M0_INTERNAL void **m0_xcode_allocp(struct m0_xcode_cursor *it, size_t *out)
 {
 	const struct m0_xcode_cursor_frame *prev;
 	const struct m0_xcode_obj          *par;
@@ -166,7 +166,7 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
 		nob = size;
 		slot = &obj->xo_ptr;
 	} else {
-		if (at_array(it, prev, par))
+		if (m0_xcode_at_array(it, prev, par))
 			/* allocate array */
 			nob = m0_xcode_tag(par) * size;
 		else if (pt->xct_child[prev->s_fieldno].xf_type == &M0_XT_OPAQUE)
@@ -198,7 +198,7 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
 
 	obj = &m0_xcode_cursor_top(it)->s_obj;  /* an object being decoded */
 
-	slot = allocp(it, &nob);
+	slot = m0_xcode_allocp(it, &nob);
 	if (nob != 0 && *slot == NULL) {
 		M0_ASSERT(obj->xo_ptr == NULL);
 
@@ -268,7 +268,7 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
 		} else if (xt->xct_aggr == M0_XA_ATOM) {
 			struct m0_xcode_cursor_frame *prev = top - 1;
 			struct m0_xcode_obj          *par  = &prev->s_obj;
-			bool array = at_array(it, prev, par) &&
+			bool array = m0_xcode_at_array(it, prev, par) &&
 				m0_xcode_is_byte_array(par->xo_type);
 
 			size = xt->xct_sizeof;
@@ -384,13 +384,13 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 			struct m0_xcode_cursor_frame *prev =  top -1;
 			struct m0_xcode_obj          *par  = &prev->s_obj;
 
-			slot = allocp(&it, &nob);
+			slot = m0_xcode_allocp(&it, &nob);
 			if (top->s_datum != 0) {
 				m0_free((void *) top->s_datum);
 				top->s_datum = 0;
 			}
 
-			if (at_array(&it, prev, par))
+			if (m0_xcode_at_array(&it, prev, par))
 				prev->s_datum = (uint64_t)*slot;
 			else if (nob != 0)
 				m0_free(*slot);

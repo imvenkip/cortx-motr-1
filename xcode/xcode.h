@@ -565,11 +565,15 @@ M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *ctx,
 				   const struct m0_xcode_obj *obj);
 
 M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob);
+M0_INTERNAL void **m0_xcode_allocp(struct m0_xcode_cursor *it, size_t *out);
 
 /**
    True iff "xt" is an array of bytes.
  */
 M0_INTERNAL bool m0_xcode_is_byte_array(const struct m0_xcode_type *xt);
+M0_INTERNAL bool m0_xcode_at_array(const struct m0_xcode_cursor       *it,
+                                   const struct m0_xcode_cursor_frame *prev,
+                                   const struct m0_xcode_obj          *par);
 
 /**
    Handles memory allocation during decoding.
@@ -637,6 +641,8 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
 M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
 M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj);
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
+			     const struct m0_xcode_obj *o1);
+M0_INTERNAL int m0_xcode_cpy(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1);
 
 /**

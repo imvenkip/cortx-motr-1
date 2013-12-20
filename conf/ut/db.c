@@ -25,9 +25,14 @@
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/ut/file_helpers.h"
 #include "ut/ut.h"
+#include "be/ut/helper.h"
 
 #define _CONFDB_PATH "_conf.db"
 #define _BUF(str) M0_BUF_INITS(str)
+
+static struct m0_be_ut_backend ut_be;
+static struct m0_be_ut_seg     ut_seg;
+static struct m0_be_seg       *seg;
 
 /* ----------------------------------------------------------------
  * Source of configuration data: conf/ut/conf_xc.txt
@@ -163,12 +168,35 @@ static void cleanup(void)
 	M0_UT_ASSERT(rc == 0);
 }
 
+static void conf_ut_db_init()
+{
+	struct m0_sm_group     *grp;
+	int                     rc;
+
+        m0_be_ut_backend_init(&ut_be);
+        m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+        seg = &ut_seg.bus_seg;
+        rc = m0_be_ut__seg_dict_create(seg, grp);
+        M0_UT_ASSERT(rc == 0);
+}
+
+static void conf_ut_db_fini()
+{
+        m0_be_ut_seg_fini(&ut_seg);
+        m0_be_ut_backend_fini(&ut_be);
+}
+
 void test_confdb(void)
 {
-	struct m0_confx *enc;
-	int              i;
-	int              rc;
-	char             buf[1024] = {0};
+	struct m0_confx        *enc;
+	struct m0_confx        *dec;
+	struct m0_be_tx_credit  accum;
+	struct m0_be_tx         tx;
+	int                     i;
+	int                     rc;
+	char                    buf[1024] = {0};
 	struct {
 		enum m0_conf_objtype type;
 		void               (*check)(const struct m0_confx_obj *xobj);
@@ -185,6 +213,8 @@ void test_confdb(void)
 
 	cleanup();
 
+	M0_SET0(&accum);
+	M0_SET0(&tx);
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
 
@@ -197,16 +227,28 @@ void test_confdb(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(enc->cx_nr == 8);
 
-	rc = m0_confdb_create(_CONFDB_PATH, enc);
-	M0_UT_ASSERT(rc == 0);
-	m0_confx_free(enc);
+	conf_ut_db_init();
 
-	rc = m0_confdb_read(_CONFDB_PATH, &enc);
+	m0_confdb_create_credit(seg, enc, &accum);
+        m0_be_ut_tx_init(&tx, &ut_be);
+        m0_be_tx_prep(&tx, &accum);
+        rc = m0_be_tx_open_sync(&tx);
+        M0_UT_ASSERT(rc == 0);
+
+	rc = m0_confdb_create(seg, &tx, enc);
+	M0_UT_ASSERT(rc == 0);
+        m0_be_tx_close_sync(&tx);
+        m0_be_tx_fini(&tx);
+
+	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(enc->cx_nr == ARRAY_SIZE(tests));
 	for (i = 0; i < ARRAY_SIZE(tests); ++i)
-		tests[i].check(&enc->cx_objs[i]);
+		tests[i].check(&dec->cx_objs[i]);
 	m0_confx_free(enc);
+
+	m0_confdb_fini(seg);
+	conf_ut_db_fini();
 
 	cleanup();
 }
