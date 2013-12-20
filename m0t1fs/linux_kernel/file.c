@@ -4522,10 +4522,6 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
 			ir_nwxfer, &ioreq_bobtype);
 
-	M0_LOG(M0_INFO, "io_req_fop %p, target_ioreq %p io_request %p",
-			reqfop, reqfop->irf_tioreq, ioreq);
-	m0_sm_ast_post(ioreq->ir_sm.sm_grp, &reqfop->irf_ast);
-
 	/*
 	 * Acquires a reference on IO reply fop since its contents
 	 * are needed for policy decisions in io_bottom_half().
@@ -4533,6 +4529,10 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	 */
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
 	rep_fop = m0_fop_get(rep_fop);
+
+	M0_LOG(M0_INFO, "io_req_fop %p, target_ioreq %p io_request %p",
+			reqfop, reqfop->irf_tioreq, ioreq);
+	m0_sm_ast_post(ioreq->ir_sm.sm_grp, &reqfop->irf_ast);
 	M0_LEAVE();
 }
 
