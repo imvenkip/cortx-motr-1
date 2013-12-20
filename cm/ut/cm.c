@@ -77,9 +77,11 @@ static void cm_setup_ut(void)
 	rc = m0_ios_poolmach_init(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_cm_prepare(cm);
 	m0_cm_lock(cm);
-	//m0_cm_sw_update_start(cm);
+	rc = cm->cm_ops->cmo_prepare(cm);
+	M0_UT_ASSERT(rc == 0);
+	m0_cm_state_set(cm, M0_CMS_PREPARE);
+	m0_cm_sw_update_start(cm);
 	/*
 	 * Start sliding window update FOM to avoid failure during
 	 * m0_cm_stop().
@@ -94,6 +96,7 @@ static void cm_setup_ut(void)
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 
+	cm->cm_sw_update.swu_is_complete = true;
 	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);

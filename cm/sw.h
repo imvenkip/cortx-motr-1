@@ -62,9 +62,10 @@ struct m0_cm_sw_onwire {
 }M0_XCA_RECORD;
 
 struct m0_cm_sw_update {
-	struct m0_fom swu_fom;
-	bool          swu_is_complete;
-	bool          swu_is_idle;
+	struct m0_fom    swu_fom;
+	bool             swu_is_complete;
+	bool             swu_is_idle;
+	struct m0_be_tx  swu_tx;
 };
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
@@ -84,11 +85,19 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
 
 /**
  * Initializes sliding window persistent store for this copy machine.
+ * Opens the transaction asynchronously.
+ * @param grp This group is used for sliding window BE transactions.
  */
-M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp);
 
 /**
- * Load sliding window data from persistent storage.
+ * Prepares sliding window persistent store for this copy machine.
+ * Commits and closes the transaction asynchronously.
+ */
+M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm);
+
+/**
+ * Loads sliding window data from persistent storage.
  *
  * -ENOENT is returned if no sliding window data is found on storage.
  * The caller should call m0_cm_sw_store_init() to initialize the storage.
@@ -96,7 +105,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm);
 M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out);
 
 /**
- * Update sliding window data to the last completed aggregation group.
+ * Updates sliding window data to the last completed aggregation group.
  */
 M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 				      struct m0_be_tx *tx,
@@ -105,9 +114,12 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 M0_INTERNAL void m0_cm_sw_update_init(void);
 
 /**
- * Mark the cm operation as done by deleting sliding window data from storage.
+ * Marks the cm operation as done by deleting sliding window data from storage.
  */
 M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm);
+
+/** Finalises the transaction used for sw store. */
+M0_INTERNAL void m0_cm_sw_store_fini(struct m0_cm *cm);
 
 /**
  * Starts sliding window update FOM by submitting the corresponding FOM to

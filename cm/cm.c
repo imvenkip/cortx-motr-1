@@ -722,10 +722,9 @@ M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
         return m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 }
 
-M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
+M0_INTERNAL int m0_cm_prepare_init(struct m0_cm *cm)
 {
-	struct m0_cm_sw sw;
-	int             rc;
+	int rc;
 
 	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
@@ -736,18 +735,49 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 		goto out;
 	}
 	rc = cm->cm_ops->cmo_prepare(cm);
-	if (rc == 0) {
-		M0_SET0(&cm->cm_last_saved_sw_hi);
-		m0_cm_sw_store_init(cm);
-		rc = m0_cm_sw_store_load(cm, &sw);
-		if (rc == 0)
-			cm->cm_last_saved_sw_hi = sw.sw_lo;
-		if (rc == -ENOENT)
-			rc = 0;
-		if (rc == 0)
-			m0_cm_sw_update_start(cm);
-	}
 out:
+	m0_cm_unlock(cm);
+	return rc;
+}
+
+M0_INTERNAL int m0_cm_prepare_sw_store_init(struct m0_cm *cm,
+					    struct m0_sm_group *grp)
+{
+	int rc;
+
+	m0_cm_lock(cm);
+	M0_SET0(&cm->cm_last_saved_sw_hi);
+	rc = m0_cm_sw_store_init(cm, grp);
+	m0_cm_unlock(cm);
+	return rc;
+}
+
+M0_INTERNAL int m0_cm_prepare_sw_store_commit(struct m0_cm *cm)
+{
+	int rc;
+
+	m0_cm_lock(cm);
+	rc = m0_cm_sw_store_commit(cm);
+	m0_cm_unlock(cm);
+
+	return rc;
+}
+
+M0_INTERNAL int m0_cm_prepare_done(struct m0_cm *cm)
+{
+	int             rc;
+	struct m0_cm_sw sw;
+
+	m0_cm_lock(cm);
+	m0_cm_sw_store_fini(cm);
+	rc = m0_cm_sw_store_load(cm, &sw);
+	if (rc == 0)
+		cm->cm_last_saved_sw_hi = sw.sw_lo;
+	if (rc == -ENOENT)
+		rc = 0;
+	if (rc == 0)
+		m0_cm_sw_update_start(cm);
+
 	cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
 	m0_cm_unlock(cm);
 

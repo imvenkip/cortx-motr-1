@@ -373,7 +373,11 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm);
  */
 M0_INTERNAL int m0_cm_setup(struct m0_cm *cm);
 
-M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_prepare_init(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_prepare_done(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_prepare_sw_store_init(struct m0_cm *cm,
+					    struct m0_sm_group *grp);
+M0_INTERNAL int m0_cm_prepare_sw_store_commit(struct m0_cm *cm);
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm);
 
 M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm);

@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"           /* M0_IN() */
+#include  "lib/locality.h"
 
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -31,6 +32,7 @@
 #include "fop/fop_item_type.h"
 
 #include "cm/proxy.h"
+#include "cm/cm.h"
 
 #include "sns/cm/trigger_fop.h"
 #include "sns/cm/cm.h"
@@ -68,24 +70,35 @@ static const struct m0_fom_type_ops trigger_fom_type_ops = {
 };
 
 enum trigger_phases {
-	TPH_PREPARE = M0_FOPH_NR + 1,
+	TPH_PREPARE_INIT = M0_FOPH_NR + 1,
+	TPH_PREPARE_WAIT,
+	TPH_PREPARE_DONE,
 	TPH_READY,
 	TPH_START_WAIT,
-	TPH_STOP_WAIT
+	TPH_STOP_WAIT,
+	TPH_FINI = M0_FOM_PHASE_FINISH
 };
 
 static struct m0_sm_state_descr trigger_phases[] = {
-	[TPH_PREPARE] = {
-		.sd_name      = "Initialise local sliding window",
-		.sd_allowed   = M0_BITS(TPH_READY)
+	[TPH_PREPARE_INIT] = {
+		.sd_name      = "Initialise local sw store",
+		.sd_allowed   = M0_BITS(TPH_PREPARE_WAIT, TPH_FINI)
+	},
+	[TPH_PREPARE_WAIT] = {
+		.sd_name      = "Wait till sw store is initialised",
+		.sd_allowed   = M0_BITS(TPH_PREPARE_DONE, TPH_FINI)
+	},
+	[TPH_PREPARE_DONE] = {
+		.sd_name      = "Wait till sw store is populated",
+		.sd_allowed   = M0_BITS(TPH_READY, TPH_FINI)
 	},
 	[TPH_READY] = {
 		.sd_name      = "Send ready fops",
-		.sd_allowed   = M0_BITS(TPH_START_WAIT)
+		.sd_allowed   = M0_BITS(TPH_START_WAIT, TPH_FINI)
 	},
 	[TPH_START_WAIT] = {
 		.sd_name      = "Start sns repair",
-		.sd_allowed   = M0_BITS(TPH_STOP_WAIT)
+		.sd_allowed   = M0_BITS(TPH_STOP_WAIT, TPH_FINI)
 	},
 	[TPH_STOP_WAIT] = {
 		.sd_name      = "Stop sns repair",
@@ -177,13 +190,15 @@ static size_t trigger_fom_home_locality(const struct m0_fom *fom)
 
 static int trigger_fom_tick(struct m0_fom *fom)
 {
-	struct m0_reqh              *reqh;
-	struct m0_cm                *cm;
-	struct m0_sns_cm            *scm;
-	struct m0_fop               *rfop;
-	struct trigger_fop          *treq;
-	struct trigger_rep_fop      *trep;
-	int                          rc;
+	struct m0_reqh          *reqh;
+	struct m0_cm            *cm;
+	struct m0_sns_cm        *scm;
+	struct m0_fop           *rfop;
+	struct trigger_fop      *treq;
+	struct trigger_rep_fop  *trep;
+	struct m0_be_tx         *tx;
+	struct m0_sm_group      *grp  = &fom->fo_loc->fl_group;
+	int                      rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		rc = m0_fom_tick_generic(fom);
@@ -193,18 +208,59 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		scm = cm2sns(cm);
 		M0_LOG(M0_DEBUG, "start state = %d", m0_fom_phase(fom));
 		switch(m0_fom_phase(fom)) {
-			case TPH_PREPARE:
+			case TPH_PREPARE_INIT:
 				treq = m0_fop_data(fom->fo_fop);
-				scm->sc_op             = treq->op;
-				m0_mutex_lock(&cm->cm_wait_mutex);
-				m0_fom_wait_on(fom, &cm->cm_ready_wait,
+				scm->sc_op = treq->op;
+				rc = m0_cm_prepare_init(cm);
+				if (rc != 0)
+					goto fail;
+				rc = m0_cm_prepare_sw_store_init(cm, grp);
+				if (rc != 0)
+					goto fail;
+				m0_fom_phase_set(fom, TPH_PREPARE_WAIT);
+				rc = M0_FSO_AGAIN;
+				M0_LOG(M0_DEBUG, "got trigger: prepare init");
+				break;
+			case TPH_PREPARE_WAIT:
+				tx = &cm->cm_sw_update.swu_tx;
+				if (m0_be_tx_state(tx) == M0_BTS_FAILED) {
+					rc = tx->t_sm.sm_rc;
+					goto fail;
+				}
+				else if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
+					m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
+							&fom->fo_cb);
+					rc = M0_FSO_WAIT;
+					break;
+				} else {
+					rc = m0_cm_prepare_sw_store_commit(cm);
+					if (rc != 0)
+						goto fail;
+				}
+				m0_fom_phase_set(fom, TPH_PREPARE_DONE);
+				rc = M0_FSO_AGAIN;
+				M0_LOG(M0_DEBUG, "trigger: prepare init wait");
+				break;
+			case TPH_PREPARE_DONE:
+				tx = &cm->cm_sw_update.swu_tx;
+				if (m0_be_tx_state(tx) == M0_BTS_DONE) {
+					rc = m0_cm_prepare_done(cm);
+					if (rc != 0)
+						goto fail;
+					m0_mutex_lock(&cm->cm_wait_mutex);
+					m0_fom_wait_on(fom, &cm->cm_ready_wait,
+							&fom->fo_cb);
+					m0_mutex_unlock(&cm->cm_wait_mutex);
+					m0_fom_phase_set(fom, TPH_READY);
+					rc = M0_FSO_WAIT;
+					break;
+				}
+
+				m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
 					       &fom->fo_cb);
-				m0_mutex_unlock(&cm->cm_wait_mutex);
-				rc = m0_cm_prepare(cm);
-				M0_ASSERT(rc == 0);
+
 				rc = M0_FSO_WAIT;
-				m0_fom_phase_set(fom, TPH_READY);
-				M0_LOG(M0_DEBUG, "got trigger: prepare done");
+				M0_LOG(M0_DEBUG, "trigger: prepare done");
 				break;
 			case TPH_READY:
 				m0_mutex_lock(&cm->cm_wait_mutex);
@@ -212,7 +268,8 @@ static int trigger_fom_tick(struct m0_fom *fom)
 					       &fom->fo_cb);
 				m0_mutex_unlock(&cm->cm_wait_mutex);
 				rc = m0_cm_ready(cm);
-				M0_ASSERT(rc == 0);
+				if (rc != 0)
+					goto fail;
 				m0_fom_phase_set(fom, TPH_START_WAIT);
 				if (cm->cm_proxy_nr > 1)
 					rc = M0_FSO_WAIT;
@@ -222,7 +279,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 					m0_mutex_unlock(&cm->cm_wait_mutex);
 					rc = M0_FSO_AGAIN;
 				}
-				M0_LOG(M0_DEBUG, "got trigger: ready done");
+				M0_LOG(M0_DEBUG, "trigger: ready done");
 				break;
 			case TPH_START_WAIT:
 				m0_mutex_lock(&cm->cm_wait_mutex);
@@ -230,10 +287,11 @@ static int trigger_fom_tick(struct m0_fom *fom)
 					       &fom->fo_cb);
 				m0_mutex_unlock(&cm->cm_wait_mutex);
 				rc = m0_cm_start(cm);
-				M0_ASSERT(rc == 0);
+				if (rc != 0)
+					goto fail;
 				m0_fom_phase_set(fom, TPH_STOP_WAIT);
 				rc = M0_FSO_WAIT;
-				M0_LOG(M0_DEBUG, "got trigger: start done");
+				M0_LOG(M0_DEBUG, "trigger: start done");
 				break;
 			case TPH_STOP_WAIT:
 				m0_fom_block_enter(fom);
@@ -245,7 +303,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				m0_fom_block_leave(fom);
 				m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 				rc = M0_FSO_AGAIN;
-				M0_LOG(M0_DEBUG, "got trigger: wait done");
+				M0_LOG(M0_DEBUG, "trigger: wait done");
 				break;
 			default:
 				M0_IMPOSSIBLE("Invalid fop");
@@ -255,6 +313,9 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	}
 
 	return rc;
+fail:
+	m0_fom_phase_move(fom, rc, TPH_FINI);
+	return M0_FSO_WAIT;
 }
 
 static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

@@ -472,9 +472,7 @@ static void receiver_stob_create()
 
 static void cm_ready(struct m0_cm *cm)
 {
-	m0_cm_prepare(cm);
 	m0_cm_lock(cm);
-	//m0_cm_sw_update_start(cm);
 	m0_cm_state_set(cm, M0_CMS_READY);
 	m0_cm_unlock(cm);
 }
@@ -506,10 +504,12 @@ static void receiver_init()
 	ps->pst_spare_usage_array[DEV_ID].psu_device_state  =
 	M0_PNDS_SNS_REPAIRING;
 	ps->pst_spare_usage_array[DEV_ID].psu_device_index = DEV_ID;
-	//sns_cm_ut_dev_state(ps->pst_devices_array[DEV_ID].pd_state,
-	//                    M0_PNDS_FAILED);
 
-	//cm->cm_ops->cmo_prepare(cm);
+	M0_UT_ASSERT(cm->cm_ops->cmo_prepare(cm) == 0);
+	m0_cm_state_set(cm, M0_CMS_PREPARE);
+
+	m0_cm_sw_update_start(cm);
+
 	m0_cm_unlock(cm);
 	cm_ready(cm);
         M0_UT_ASSERT(m0_cm_start(cm) == 0);
@@ -680,6 +680,13 @@ static void sender_init()
         M0_UT_ASSERT(rc == 0);
         rc = m0_ios_poolmach_init(sender_cm_service);
         M0_UT_ASSERT(rc == 0);
+	m0_cm_lock(&sender_cm);
+        M0_UT_ASSERT(sender_cm.cm_ops->cmo_prepare(&sender_cm) == 0);
+        m0_cm_state_set(&sender_cm, M0_CMS_PREPARE);
+
+        m0_cm_sw_update_start(&sender_cm);
+	m0_cm_unlock(&sender_cm);
+
 	cm_ready(&sender_cm);
         rc = m0_cm_start(&sender_cm);
         M0_UT_ASSERT(rc == 0);
@@ -707,12 +714,28 @@ static void sender_init()
         m0_cm_unlock(&sender_cm);
 }
 
+/* Stripped version of m0_cm_stop. */
+static void cm_stop(struct m0_cm *cm)
+{
+        M0_PRE(cm != NULL);
+        m0_cm_lock(cm);
+        M0_PRE(m0_cm_state_get(cm) == M0_CMS_ACTIVE);
+        M0_PRE(m0_cm_invariant(cm));
+        m0_cm_state_set(cm, M0_CMS_STOP);
+        M0_UT_ASSERT(cm->cm_ops->cmo_stop(cm) == 0);
+        m0_cm_cp_pump_stop(cm);
+        m0_cm_proxies_fini(cm);
+        m0_cm_ast_run_fom_wakeup(cm);
+	m0_cm_state_set(cm, M0_CMS_IDLE);
+        m0_cm_unlock(cm);
+}
+
 static void receiver_fini()
 {
         m0_cm_lock(cm);
         m0_cm_proxy_del(cm, &recv_cm_proxy);
         m0_cm_unlock(cm);
-        m0_cm_stop(cm);
+        cm_stop(cm);
 	m0_free(r_rag.rag_fc);
         cs_fini(&sctx);
 }
@@ -727,8 +750,7 @@ static void sender_fini()
         m0_cm_unlock(&sender_cm);
 	m0_cm_proxy_rpc_conn_close(&sender_cm_proxy);
         /* Fini the sender side. */
-        rc = m0_cm_stop(&sender_cm);
-        M0_UT_ASSERT(rc == 0);
+        cm_stop(&sender_cm);
         rc = m0_rpc_client_stop(&cctx);
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);

@@ -209,8 +209,10 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
-	if (rc != 0)
-		return rc;
+	if (rc != 0) {
+		m0_fom_phase_move(fom, 0, SWU_FINI);
+		return M0_FSO_WAIT;
+	}
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
 	m0_dtx_init(tx, seg->bs_domain, &fom->fo_loc->fl_group);
 	M0_BE_FREE_CREDIT_PTR(sw, seg, &tx->tx_betx_cred);
