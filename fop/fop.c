@@ -155,7 +155,7 @@ void m0_fop_put(struct m0_fop *fop)
 
 	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, fop_name(fop),
 		 (unsigned long long)count, (unsigned long long)count - 1);
-	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
+	M0_PRE(count > 0);
 
 	m0_ref_put(&fop->f_ref);
 
