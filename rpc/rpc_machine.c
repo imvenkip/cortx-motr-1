@@ -787,7 +787,7 @@ static void net_buf_received(struct m0_net_buffer    *nb,
 				    &m0_addb_proc_ctx, &machine->rm_addb_ctx);
 
 	/* There might be items in packet p, which were successfully decoded
-	   before an error occured. */
+	   before an error occurred. */
 	packet_received(&p, machine, from_ep);
 	m0_rpc_packet_fini(&p);
 	M0_LEAVE();
