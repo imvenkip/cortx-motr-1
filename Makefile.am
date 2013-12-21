@@ -994,6 +994,7 @@ install-exec-local:
 # archive with `make dist` command
 .PHONY: rpms
 rpms:
+	$(MAKE) generate-files
 	$(MAKE) dist
 	rpmbuild --define "_sourcedir $$(pwd)" -bb mero.spec
 
