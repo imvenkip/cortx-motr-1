@@ -748,9 +748,7 @@ struct m0_stob_io_op {
 	   @note This method releases lock before successful returning.
 
 	   @pre io->si_state == SIS_BUSY
-	   @pre stob->so_op.sop_io_is_locked(stob)
 	   @post ergo(result != 0, io->si_state == SIS_IDLE)
-	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
 	int  (*sio_launch)(struct m0_stob_io *io);
 };
