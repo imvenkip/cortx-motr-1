@@ -42,18 +42,17 @@ static bool field_invariant(const struct m0_xcode_type *xt,
                             const struct m0_xcode_field *field)
 {
         return
-                field->xf_name != NULL && field->xf_type != NULL &&
-                ergo(xt == &M0_XT_OPAQUE, field->xf_opaque != NULL) &&
-                field->xf_offset +
-                (is_pointer(xt, field) ?
-                 sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
+                _0C(field->xf_name != NULL) && _0C(field->xf_type != NULL) &&
+                _0C(ergo(xt == &M0_XT_OPAQUE, field->xf_opaque != NULL)) &&
+                _0C(field->xf_offset +
+                (is_pointer(xt, field) ? sizeof(void *) :
+		 field->xf_type->xct_sizeof) <= xt->xct_sizeof);
 }
 
 M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 {
-	size_t   i;
-	size_t   prev;
-	uint32_t offset;
+	size_t   prev   = 0;
+	uint32_t offset = 0;
 
 	static const size_t min[M0_XA_NR] = {
 		[M0_XA_RECORD]   = 0,
@@ -73,54 +72,32 @@ M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 		[M0_XA_ATOM]     = 0
 	};
 
-	if (!(0 <= xt->xct_aggr && xt->xct_aggr < M0_XA_NR))
-		return false;
+	return
+		_0C(0 <= xt->xct_aggr) &&
+		_0C(xt->xct_aggr < M0_XA_NR) &&
+		_0C(xt->xct_nr >= min[xt->xct_aggr]) &&
+		_0C(xt->xct_nr <= max[xt->xct_aggr]) &&
+		m0_forall(i, xt->xct_nr, ({
+			const struct m0_xcode_field *f = &xt->xct_child[i];
 
-	if (xt->xct_nr < min[xt->xct_aggr] || xt->xct_nr > max[xt->xct_aggr])
-		return false;
-
-	for (i = 0, offset = 0, prev = 0; i < xt->xct_nr; ++i) {
-		const struct m0_xcode_field *f;
-
-		f = &xt->xct_child[i];
-		if (!field_invariant(xt, f))
-			return false;
-
-		/* field doesn't overlap with the previous one */
-		if (i > 0 && offset +
-		    xt->xct_child[prev].xf_type->xct_sizeof > f->xf_offset)
-			return false;
-
-		/* update the previous field offset: for UNION all branches
-		   follow the first field. */
-		if (i == 0 || xt->xct_aggr != M0_XA_UNION) {
-			offset = f->xf_offset;
-			prev   = i;
-		}
-	}
-	switch (xt->xct_aggr) {
-	case M0_XA_RECORD:
-	case M0_XA_TYPEDEF:
-		break;
-	case M0_XA_UNION:
-	case M0_XA_SEQUENCE:
-		if (xt->xct_child[0].xf_type->xct_aggr != M0_XA_ATOM)
-			return false;
-		break;
-	case M0_XA_OPAQUE:
-		if (xt != &M0_XT_OPAQUE)
-			return false;
-		if (xt->xct_sizeof != sizeof (void *))
-			return false;
-		break;
-	case M0_XA_ATOM:
-		if (!(0 <= xt->xct_atype && xt->xct_atype < M0_XAT_NR))
-			return false;
-		break;
-	default:
-		return false;
-	}
-	return true;
+			field_invariant(xt, f) &&
+			/* field doesn't overlap with the previous one */
+			_0C(i == 0 || offset +
+			    xt->xct_child[prev].xf_type->xct_sizeof <=
+			    f->xf_offset) &&
+			/* update the previous field offset: for UNION all
+			   branches follow the first field. */
+			_0C(ergo(i == 0 || xt->xct_aggr != M0_XA_UNION,
+				 ({ offset = f->xf_offset;
+				    prev = i;
+				    true; }) )); }) ) &&
+		_0C(ergo(M0_IN(xt->xct_aggr, (M0_XA_UNION, M0_XA_SEQUENCE)),
+			 xt->xct_child[0].xf_type->xct_aggr == M0_XA_ATOM)) &&
+		_0C(ergo(xt->xct_aggr == M0_XA_OPAQUE,
+			 xt == &M0_XT_OPAQUE &&
+			 xt->xct_sizeof == sizeof (void *))) &&
+		_0C(ergo(xt->xct_aggr == M0_XA_ATOM,
+			 0 <= xt->xct_atype && xt->xct_atype < M0_XAT_NR));
 }
 
 #include "xcode/cursor.c"
