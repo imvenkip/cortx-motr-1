@@ -122,9 +122,7 @@ static bool ut_net_buffer_authenticate(struct m0_net_buffer *nb,
 				return false;
 		}
 	} while (i < len && !m0_bufvec_cursor_move(&cur, step));
-	if (i != len)
-		return false;
-	return true;
+	return i == len;
 }
 
 static enum m0_net_tm_ev_type ecb_evt;
