@@ -131,7 +131,7 @@ m0_get_m0d_data_dir_for()
 # Return space-separated list of all nodes in the cluster from genders file
 m0_get_nodes()
 {
-    nodeattr -f $MERO_GENDERS_CONF -A | tr ',' ' '
+    nodeattr -f $MERO_GENDERS_CONF -c -A | tr ',' ' '
 }
 
 # Return lnet NID of a node
