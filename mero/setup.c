@@ -28,6 +28,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/finject.h"    /* M0_FI_ENABLED */
+#include "lib/string.h"     /* m0_strdup */
 #include "lib/getopts.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -1866,8 +1867,7 @@ static int service_string_parse(const char *str, char **svc,
 	uuid->u_lo = uuid->u_hi = 0;
 	colon = strchr(str, ':');
 	if (colon == NULL) {
-		/** @todo replace with m0_strdup() when available */
-		*svc = strdup(str);
+		*svc = m0_strdup(str);
 		return *svc ? 0 : -ENOMEM;
 	}
 

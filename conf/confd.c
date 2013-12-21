@@ -29,7 +29,6 @@
 #include "conf/addb.h"     /* m0_addb_ct_conf_serv */
 #include "lib/errno.h"     /* ENOMEM */
 #include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
-#include "lib/string.h"    /* strdup */
 #include "mero/magic.h"    /* M0_CONFD_MAGIC */
 #include "mero/setup.h"
 

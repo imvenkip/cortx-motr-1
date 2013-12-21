@@ -25,6 +25,7 @@
 #include <stdio.h>      /* snprinf */
 
 #include "lib/misc.h"   /* M0_SET0 */
+#include "lib/string.h" /* m0_strdup */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/thread.h"
@@ -159,7 +160,7 @@ M0_INTERNAL int m0_threads_init(void)
 
 	env_ptr = getenv("MERO_DEBUGGER");
 	if (env_ptr != NULL)
-		m0_debugger_args[0] = strdup(env_ptr);
+		m0_debugger_args[0] = m0_strdup(env_ptr);
 	/*
 	 * Note: program_invocation_name requires _GNU_SOURCE.
 	 */

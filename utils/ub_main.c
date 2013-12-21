@@ -18,7 +18,7 @@
  * Original creation date: 19-Jul-2010
  */
 
-#include <string.h>             /* strdup */
+#include "lib/string.h"             /* m0_strdup */
 #include "lib/ub.h"
 #include "lib/memory.h"
 #include "lib/thread.h"         /* LAMBDA */
@@ -78,12 +78,12 @@ static int ub_args_parse(int argc, char *argv[], struct ub_args *out)
 				       })),
 		  M0_STRINGARG('t', "Benchmark to run",
 			       LAMBDA(void, (const char *str) {
-					       out->ua_name = strdup(str);
+					       out->ua_name = m0_strdup(str);
 				       })),
 		  M0_STRINGARG('o', "Optional parameters (ignored by most"
 			       " benchmarks)",
 			       LAMBDA(void, (const char *str) {
-					       out->ua_opts = strdup(str);
+					       out->ua_opts = m0_strdup(str);
 				       }))
 		);
 }

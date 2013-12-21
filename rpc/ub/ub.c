@@ -23,7 +23,7 @@
 
 #include "lib/ub.h"         /* m0_ub_set */
 #include "lib/misc.h"       /* M0_IN, M0_BITS */
-#include "lib/string.h"     /* strlen, strdup */
+#include "lib/string.h"     /* strlen, m0_strdup */
 #include "lib/memory.h"     /* m0_free */
 #include "fop/fop.h"        /* m0_fop_alloc */
 #include "net/net.h"        /* m0_net_xprt_init */
@@ -203,7 +203,7 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 	client->rc_ctx = (struct m0_rpc_client_ctx){
 		.rcx_net_dom               = &client->rc_net_dom,
 		.rcx_nr_slots              = g_args.a_nr_slots,
-		.rcx_local_addr            = strdup(ep),
+		.rcx_local_addr            = m0_strdup(ep),
 		.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
 		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 		.rcx_recv_queue_min_length = MIN_RECV_QUEUE_LEN

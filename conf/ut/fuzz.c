@@ -22,7 +22,7 @@
 #include <ctype.h>         /* isprint */
 #include "conf/preload.h"  /* m0_confstr_parse */
 #include "conf/ut/file_helpers.h"
-#include "lib/string.h"    /* strlen */
+#include "lib/string.h"    /* strlen, m0_strdup */
 #include "lib/memory.h"    /* m0_free */
 #include "ut/ut.h"
 
@@ -69,7 +69,7 @@ static char *strdup_mangled(const char *str, size_t chunk_idx, size_t nr_chunks,
 	M0_PRE(chunk_idx < nr_chunks);
 	M0_PRE(nr_subs > 0);
 
-	result = strdup(str);
+	result = m0_strdup(str);
 	M0_ASSERT(result != NULL);
 
 	chunk_len = len / nr_chunks;

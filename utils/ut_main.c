@@ -28,6 +28,7 @@
 #include "lib/getopts.h"
 #include "lib/finject.h"          /* m0_fi_print_info */
 #include "lib/atomic.h"
+#include "lib/string.h"           /* m0_strdup */
 #include "utils/common.h"
 
 #define UT_SANDBOX "./ut-sandbox"
@@ -217,7 +218,7 @@ int main(int argc, char *argv[])
 			         " comma-separated list of subsystem names"
 				 " (use ! at the beginning to invert)",
 				LAMBDA(void, (const char *str) {
-					trace_mask = strdup(str);
+					trace_mask = m0_strdup(str);
 				})
 				),
 		    M0_VOIDARG('M', "print available trace subsystems",
@@ -266,13 +267,13 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
-					    test_list_str = strdup(str);
+					    test_list_str = m0_strdup(str);
 				      })
 				),
 		    M0_STRINGARG('x', "exclude list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
-					 exclude_list_str = strdup(str);
+					 exclude_list_str = m0_strdup(str);
 				      })
 				),
 		    M0_VOIDARG('A', "don't abort program on CU_ASSERT"
@@ -287,13 +288,13 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('f', "fault point to enable func:tag:type"
 				      "[:integer[:integer]]",
 				      LAMBDA(void, (const char *str) {
-					 fault_point = strdup(str);
+					 fault_point = m0_strdup(str);
 				      })
 				),
 		    M0_STRINGARG('F', "yaml file, which contains a list"
 				      " of fault points to enable",
 				      LAMBDA(void, (const char *str) {
-					 fp_file_name = strdup(str);
+					 fp_file_name = m0_strdup(str);
 				      })
 				),
 		    M0_FLAGARG('s', "report fault injection stats before UT",

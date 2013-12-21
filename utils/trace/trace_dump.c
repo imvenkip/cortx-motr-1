@@ -29,6 +29,7 @@
 #include "addb/user_space/uctx.h"  /* m0_addb_node_uuid_string_set */
 #include "lib/getopts.h"           /* M0_GETOPTS */
 #include "lib/thread.h"            /* LAMBDA */
+#include "lib/string.h"            /* m0_strdup */
 #include "lib/user_space/types.h"  /* bool */
 #include "lib/user_space/trace.h"  /* m0_trace_parse */
 #include "lib/misc.h"              /* ARRAY_SIZE */
@@ -55,14 +56,14 @@ int main(int argc, char *argv[])
 		"input file name, if none is provided, then STDIN is used by"
 		" default",
 		LAMBDA(void, (const char *str) {
-			input_file_name = strdup(str);
+			input_file_name = m0_strdup(str);
 		})
 	  ),
 	  M0_STRINGARG('o',
 		"output file name, if none is provided, then STDOUT is used by"
 		" default",
 		LAMBDA(void, (const char *str) {
-			output_file_name = strdup(str);
+			output_file_name = m0_strdup(str);
 		})
 	  ),
 	  M0_FLAGARG('s',
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
 		" parsing kernel mode trace files), by default it is '"
 		DEFAULT_M0MERO_KO_IMG_PATH "'",
 		LAMBDA(void, (const char *str) {
-			m0mero_ko_path = strdup(str);
+			m0mero_ko_path = m0_strdup(str);
 		})
 	  ),
 	);

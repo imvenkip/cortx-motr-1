@@ -25,7 +25,6 @@
 #include <errno.h>
 #include <err.h>      /* warn */
 #include <stdbool.h>  /* bool */
-#include <string.h>   /* strdup */
 #include <yaml.h>
 
 #include "mero/init.h"
@@ -35,6 +34,7 @@
 #include "ut/ut.h"
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
+#include "lib/string.h"   /* m0_strdup */
 #include "ut/ut.h"
 
 static int reset_sandbox(const char *sandbox)
@@ -285,7 +285,7 @@ static int process_yaml(yaml_document_t *doc)
 			rc = extract_fpoint_data(doc, node, &func, &tag, &data);
 			if (rc != 0)
 				return rc;
-			m0_fi_enable_generic(strdup(func), strdup(tag), &data);
+			m0_fi_enable_generic(strdup(func), m0_strdup(tag), &data);
 		}
 
 	return 0;

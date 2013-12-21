@@ -38,6 +38,7 @@
 #include "mero/init.h"             /* m0_init */
 #include "addb/user_space/uctx.h"  /* m0_addb_node_uuid_string_set */
 #include "lib/misc.h"
+#include "lib/string.h"            /* m0_strdup */
 #include "lib/getopts.h"           /* M0_GETOPTS */
 #include "lib/thread.h"            /* LAMBDA */
 #include "lib/user_space/types.h"  /* bool */
@@ -703,14 +704,14 @@ int main(int argc, char *argv[])
 		"input file name, if none is provided, then "
 		DEFAULT_IN_FILE_NAME " is used by default",
 		LAMBDA(void, (const char *str) {
-			input_file_name = strdup(str);
+			input_file_name = m0_strdup(str);
 		})
 	  ),
 	  M0_STRINGARG('o',
 		"output file name, if none is provided, then "
 		DEFAULT_OUT_FILE_NAME " is used by default",
 		LAMBDA(void, (const char *str) {
-			output_file_name = strdup(str);
+			output_file_name = m0_strdup(str);
 		})
 	  ),
 	  M0_STRINGARG('O',
@@ -718,7 +719,7 @@ int main(int argc, char *argv[])
 		", then " M0MERO_KO_CORE_OUT_FILE_NAME " is used by default;"
 		" it has effect only if -K option is also specified",
 		LAMBDA(void, (const char *str) {
-			output_kore_file_name = strdup(str);
+			output_kore_file_name = m0_strdup(str);
 		})
 	  ),
 	  M0_FLAGARG('d',

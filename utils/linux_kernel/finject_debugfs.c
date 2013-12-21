@@ -32,6 +32,7 @@
 #include "lib/mutex.h"       /* m0_mutex */
 #include "lib/time.h"        /* m0_time_now */
 #include "lib/misc.h"        /* M0_SET_ARR0 */
+#include "lib/string.h"      /* m0_strdup */
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
 #include "utils/linux_kernel/m0ctl_internal.h"
@@ -216,7 +217,7 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 			return -EINVAL;
 		}
 
-		func = kstrdup(argv[1], GFP_KERNEL);
+		func = m0_strdup(argv[1]);
 		if (func == NULL)
 			return -ENOMEM;
 
@@ -226,7 +227,7 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 			return rc;
 		}
 
-		tag = kstrdup(argv[2], GFP_KERNEL);
+		tag = m0_strdup(argv[2]);
 		if (tag == NULL)
 			return -ENOMEM;
 
