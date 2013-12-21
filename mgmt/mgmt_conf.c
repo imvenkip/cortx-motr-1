@@ -363,7 +363,7 @@ static int mgmt_node_query(struct m0_mgmt_node_conf   *node,
 							  val);
 		} else if (strcmp(ptr, "lnet_host") == 0) {
 			rc = mgmt_conf_strarg_dup(&lnet_host, val);
-		} else if (strcmp(ptr, "var") == 0) {
+		} else if (strcmp(ptr, "datadir") == 0) {
 			if (node != NULL)
 				rc = mgmt_conf_strarg_dup(&node->mnc_var, val);
 		} else if (strcmp(ptr, "uuid") == 0) {
