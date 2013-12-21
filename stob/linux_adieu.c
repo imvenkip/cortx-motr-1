@@ -221,9 +221,10 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	int                   i;
 	bool                  eosrc;
 	bool                  eodst;
+	int                   opcode;
 
 	M0_PRE(io->si_obj->so_domain->sd_type == &m0_linux_stob_type);
-
+	M0_PRE(M0_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
 	/* prefix fragments execution mode is not yet supported */
 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
 	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
@@ -247,7 +248,8 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	lio->si_nr = max_check(frags / IOV_MAX + 1, chunks);
-	M0_LOG(M0_DEBUG, "chunks=%d frags=%d si_nr=%d", chunks, frags, lio->si_nr);
+	M0_LOG(M0_DEBUG, "chunks=%d frags=%d si_nr=%d",
+	       chunks, frags, lio->si_nr);
 	m0_atomic64_set(&lio->si_done, 0);
 	m0_atomic64_set(&lio->si_bdone, 0);
 	M0_ALLOC_ARR(lio->si_qev, lio->si_nr);
@@ -257,6 +259,7 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 		M0_STOB_OOM(LAD_STOB_IO_LAUNCH_2);
 		result = -ENOMEM;
 	}
+	opcode = io->si_opcode == SIO_READ ? IO_CMD_PREADV : IO_CMD_PWRITEV;
 
 	while (result == 0) {
 		struct iocb *iocb = &qev->iq_iocb;
@@ -272,17 +275,7 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 		iocb->aio_fildes = lstob->sl_fd;
 		iocb->u.v.nr = min32u(frags, IOV_MAX);
 		iocb->u.v.offset = off << LINUX_DOM_BSHIFT(ldom);
-
-		switch (io->si_opcode) {
-		case SIO_READ:
-			iocb->aio_lio_opcode = IO_CMD_PREADV;
-			break;
-		case SIO_WRITE:
-			iocb->aio_lio_opcode = IO_CMD_PWRITEV;
-			break;
-		default:
-			M0_ASSERT(0);
-		}
+		iocb->aio_lio_opcode = opcode;
 
 		for (i = 0; i < iocb->u.v.nr; ++i) {
 			void        *buf;
