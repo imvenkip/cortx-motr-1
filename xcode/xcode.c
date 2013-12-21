@@ -396,8 +396,7 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 {
 	struct m0_xcode_cursor it;
 
-	M0_SET0(&it);
-	m0_xcode_cursor_top(&it)->s_obj = *obj;
+	m0_xcode_cursor_init(&it, obj);
 
 	while (m0_xcode_next(&it) > 0) {
 		struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(&it);
