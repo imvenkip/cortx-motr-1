@@ -317,16 +317,6 @@ struct m0_rpc_item_ops {
 		See rm/rm_fops.c:reply_process() for example.
 	 */
 	void (*rio_replied)(struct m0_rpc_item *item);
-	/**
-	   This method is called on receiver side when RPC layer processed the
-	   item and wants to deliver it to the upper layer. If this method is
-	   NULL, the default action is to call m0_reqh_fop_handle().
-
-	   @note rpcmach can be different from item_machine(item) for connection
-	   establishing items.
-	*/
-	int (*rio_deliver)(struct m0_rpc_machine *rpcmach,
-			   struct m0_rpc_item *item);
 };
 
 void m0_rpc_item_init(struct m0_rpc_item *item,
@@ -428,6 +418,16 @@ struct m0_rpc_item_type_ops {
 	 */
 	void (*rito_item_put)(struct m0_rpc_item *item);
 
+	/**
+	   This method is called on receiver side when RPC layer processed the
+	   item of this type and wants to deliver it to the upper layer. If this
+	   method is NULL, the default action is to call m0_reqh_fop_handle().
+
+	   @note rpcmach can be different from item_machine(item) for connection
+	   establishing items.
+	*/
+	int (*rito_deliver)(struct m0_rpc_machine *rpcmach,
+			    struct m0_rpc_item *item);
 };
 
 /**

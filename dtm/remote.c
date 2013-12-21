@@ -51,15 +51,13 @@ static const struct m0_dtm_remote_ops rem_local_ops;
 static void rem_rpc_notify(struct m0_dtm_remote *rem,
 			   const struct m0_dtm_history *history,
 			   m0_dtm_ver_t ver, enum rem_rpc_notification opcode);
-static int rem_rpc_item_decode(const struct m0_rpc_item_type *item_type,
-			       struct m0_rpc_item **item_out,
-			       struct m0_bufvec_cursor *cur);
+static int rem_rpc_deliver(struct m0_rpc_machine *mach,
+			   struct m0_rpc_item *item);
 
 static struct m0_fop_type rem_rpc_fopt;
 static const struct m0_fop_type_ops rem_rpc_ftype_ops;
 static struct m0_rpc_item_type_ops rem_rpc_itype_ops;
 static const struct m0_rpc_item_ops rem_rpc_item_sender_ops;
-static const struct m0_rpc_item_ops rem_rpc_item_receiver_ops;
 static const struct m0_rpc_item_ops rem_rpc_item_redo_ops;
 
 M0_INTERNAL void m0_dtm_remote_add(struct m0_dtm_remote *rem,
@@ -196,7 +194,7 @@ M0_INTERNAL int m0_dtm_remote_global_init(void)
 {
 	m0_xc_remote_init();
 	rem_rpc_itype_ops = m0_fop_default_item_type_ops;
-	rem_rpc_itype_ops.rito_decode = rem_rpc_item_decode;
+	rem_rpc_itype_ops.rito_deliver = &rem_rpc_deliver;
 	return M0_FOP_TYPE_INIT(&rem_rpc_fopt,
 				.name      = "dtm notice",
 				.opcode    = M0_DTM_NOTIFICATION_OPCODE,
@@ -210,19 +208,6 @@ M0_INTERNAL void m0_dtm_remote_global_fini(void)
 {
 	m0_fop_type_fini(&rem_rpc_fopt);
 	m0_xc_remote_fini();
-}
-
-static int rem_rpc_item_decode(const struct m0_rpc_item_type *item_type,
-			       struct m0_rpc_item **item_out,
-			       struct m0_bufvec_cursor *cur)
-{
-	int result;
-
-	result = m0_fop_default_item_type_ops.rito_decode(item_type,
-							  item_out, cur);
-	if (result == 0)
-		(*item_out)->ri_ops = &rem_rpc_item_receiver_ops;
-	return result;
 }
 
 static void notice_deliver(struct m0_dtm_notice *notice, struct m0_dtm *dtm)
@@ -271,10 +256,6 @@ static struct m0_rpc_item_type_ops rem_rpc_itype_ops = {
 
 static const struct m0_rpc_item_ops rem_rpc_item_sender_ops = {
 	/* nothing */
-};
-
-static const struct m0_rpc_item_ops rem_rpc_item_receiver_ops = {
-	.rio_deliver = &rem_rpc_deliver
 };
 
 static const struct m0_rpc_item_ops rem_rpc_item_redo_ops = {

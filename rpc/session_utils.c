@@ -113,7 +113,8 @@ M0_INTERNAL uint64_t m0_rpc_id_generate(void)
  */
 M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 {
-	int rc;
+	int                                rc;
+	const struct m0_rpc_item_type_ops *itops = item->ri_type->rit_ops;
 
 	M0_ENTRY("item : %p", item);
 
@@ -121,8 +122,8 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 	if (rc != 0)
 		M0_RETURN(0);
 
-	if (item->ri_ops != NULL && item->ri_ops->rio_deliver != NULL)
-		rc = item->ri_ops->rio_deliver(item->ri_rmachine, item);
+	if (itops != NULL && itops->rito_deliver != NULL)
+		rc = itops->rito_deliver(item->ri_rmachine, item);
 	else
 		/**
 		 * @todo this assumes that the item is a fop.
