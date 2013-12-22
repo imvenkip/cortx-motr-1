@@ -544,22 +544,6 @@ sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
 include $(top_srcdir)/sns/cm/st/Makefile.sub
 
 #
-# utils/ploss
-#
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS               += utils/ploss/m0plossd
-endif
-utils_ploss_m0plossd_CPPFLAGS  = -DM0_TARGET='m0plossd' $(AM_CPPFLAGS)
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS               += utils/ploss/m0ploss
-endif
-utils_ploss_m0ploss_CPPFLAGS   = -DM0_TARGET='m0ploss' $(AM_CPPFLAGS)
-
-include $(top_srcdir)/utils/ploss/Makefile.sub
-
-#
 # utils/trace
 #
 
