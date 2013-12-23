@@ -28,6 +28,9 @@
 struct m0_confx;
 struct m0_confx_obj;
 
+/**
+ * Calculates BE credits required by configuration database tables and @conf.
+ */
 M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 					const struct m0_confx *conf,
 					struct m0_be_tx_credit *accum);
@@ -41,7 +44,17 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
                                  const struct m0_confx *conf);
 
+/**
+ * Finalises in-memory configuration database.
+ */
 M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg);
+/**
+ * Calculates BE credits in-order to destroy configuration database from
+ * persistent store.
+ */
+M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
+					 struct m0_be_tx_credit *accum);
+M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx);
 
 /**
  * Creates m0_confx and populates it with data read from a

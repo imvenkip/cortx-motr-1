@@ -307,6 +307,8 @@ static int confx_obj_dup(struct m0_confx_obj *dest, struct m0_confx_obj *src,
 	struct m0_xcode_ctx     sctx;
 	struct m0_xcode_cursor *dit = &dctx.xcx_it;
 	struct m0_xcode_cursor *sit = &sctx.xcx_it;
+	struct m0_xcode_obj    *src_obj;
+	struct m0_xcode_obj    *dest_obj;
 	int                     result;
 	int                     rc;
 
@@ -357,10 +359,16 @@ static int confx_obj_dup(struct m0_confx_obj *dest, struct m0_confx_obj *src,
 		}
 	}
 
+	dest_obj = &dctx.xcx_it.xcu_stack[0].s_obj;
+	src_obj = &sctx.xcx_it.xcu_stack[0].s_obj;
+
 	if (result >= 0)
 		result = 0;
+	M0_POST(ergo(result == 0, m0_xcode_cmp(dest_obj, src_obj) == 0));
+
 	return result;
 }
+#undef CONF_XCODE_BE_ALLOC_PTR
 
 M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 					const struct m0_confx *conf,
@@ -393,6 +401,50 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 	}
 
 	M0_RETURN(0);
+}
+
+M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
+					 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_btree *btree;
+	int                 i;
+	int                 rc = 0;
+
+	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+		if (table_names[i] == NULL)
+			continue;
+		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+					   (void **)&btree);
+		if (rc != 0)
+			M0_RETURN(rc);
+		m0_be_btree_destroy_credit(btree, 1, accum);
+		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
+	}
+
+	M0_RETURN(rc);
+}
+
+M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
+{
+	struct m0_be_btree     *btree;
+	int                     i;
+	int                     rc = 0;
+
+	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+		if (table_names[i] == NULL)
+			continue;
+		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+					   (void **)&btree);
+		if (rc != 0)
+			M0_RETURN(rc);
+		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
+		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
+		rc = m0_be_seg_dict_delete(seg, tx, table_names[i]);
+		if (rc != 0)
+			M0_RETURN(rc);
+	}
+
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)

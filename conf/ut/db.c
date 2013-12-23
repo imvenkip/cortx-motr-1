@@ -188,6 +188,19 @@ static void conf_ut_db_fini()
         m0_be_ut_backend_fini(&ut_be);
 }
 
+#define CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc) \
+do {                                               \
+        m0_be_ut_tx_init(&(tx), &(ut_be));         \
+        m0_be_tx_prep(&(tx), &(accum));            \
+        rc = m0_be_tx_open_sync(&(tx));            \
+        M0_UT_ASSERT(rc == 0);                     \
+} while (0);
+
+#define CONF_UT_BE_TX_FINI(tx)    \
+do {                              \
+        m0_be_tx_close_sync(&tx); \
+        m0_be_tx_fini(&tx);       \
+} while (0);
 void test_confdb(void)
 {
 	struct m0_confx        *enc;
@@ -229,16 +242,12 @@ void test_confdb(void)
 
 	conf_ut_db_init();
 
-	m0_confdb_create_credit(seg, enc, &accum);
-        m0_be_ut_tx_init(&tx, &ut_be);
-        m0_be_tx_prep(&tx, &accum);
-        rc = m0_be_tx_open_sync(&tx);
-        M0_UT_ASSERT(rc == 0);
-
+	rc = m0_confdb_create_credit(seg, enc, &accum);
+	M0_UT_ASSERT(rc == 0);
+	CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc);
 	rc = m0_confdb_create(seg, &tx, enc);
 	M0_UT_ASSERT(rc == 0);
-        m0_be_tx_close_sync(&tx);
-        m0_be_tx_fini(&tx);
+	CONF_UT_BE_TX_FINI(tx);
 
 	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
@@ -246,8 +255,14 @@ void test_confdb(void)
 	for (i = 0; i < ARRAY_SIZE(tests); ++i)
 		tests[i].check(&dec->cx_objs[i]);
 	m0_confx_free(enc);
-
 	m0_confdb_fini(seg);
+	M0_SET0(&accum);
+	rc = m0_confdb_destroy_credit(seg, &accum);
+	M0_UT_ASSERT(rc == 0);
+	CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc);
+	rc = m0_confdb_destroy(seg, &tx);
+        M0_UT_ASSERT(rc == 0);
+	CONF_UT_BE_TX_FINI(tx);
 	conf_ut_db_fini();
 
 	cleanup();
@@ -255,3 +270,5 @@ void test_confdb(void)
 
 #undef _BUF
 #undef _CONFDB_PATH
+#undef CONF_UT_BE_TX_CREATE
+#undef CONF_UT_BE_TX_FINI
