@@ -1055,6 +1055,9 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 				     struct m0_be_tx *tx,
 				     struct m0_be_op *op)
 {
+	/* XXX TODO The right approach to pursue is to let the user
+	 * destroy only empty trees. So ideally here would be
+	 * M0_PRE(m0_be_btree_is_empty(tree)); */
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
 
@@ -1256,6 +1259,12 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 					    m0_bcount_t             nr,
 					    struct m0_be_tx_credit *accum)
 {
+	/* XXX
+	 * Current implementation of m0_be_btree_destroy_credit() is
+	 * not right. First of all, `tree' parameter must be const.
+	 * Secondly, it is user's responsibility to ensure that the
+	 * tree being deleted is empty.
+	 */
 	struct m0_be_tx_credit cred = {};
 	int		       nodes_nr;
 	int		       items_nr;

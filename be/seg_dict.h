@@ -18,12 +18,10 @@
  * Original creation date: 24-Aug-2013
  */
 
-
 #pragma once
 
 #ifndef __MERO_BE_SEG_DICT_H__
 #define __MERO_BE_SEG_DICT_H__
-
 
 /**
  * @defgroup be
@@ -71,9 +69,7 @@ M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg *seg,
 					   struct m0_sm_group *grp);
 
 /** @} end of be group */
-
 #endif /* __MERO_BE_SEG_DICT_H__ */
-
 
 /*
  *  Local variables:
