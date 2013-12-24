@@ -11,7 +11,7 @@ set -e
 ### --------------------------------------------------------------------
 
 ## CAUTION! This directory will be removed by superuser.
-RUNDIR=${RUNDIR:-$HOME/XXX}
+RUNDIR=${RUNDIR:-/var/mero/ut/$USER/$$}
 
 PROG="${0##*/}"
 SRC="$(readlink -f $0)"
@@ -45,7 +45,7 @@ build() {
 
 run_init() {
     $SUDO rm -rf "$RUNDIR"  # Ouch!
-    mkdir "$RUNDIR"
+    $SUDO mkdir -p "$RUNDIR"
     cd "$RUNDIR"
 }
 
