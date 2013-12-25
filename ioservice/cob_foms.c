@@ -310,12 +310,11 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			return M0_FSO_WAIT;
 		} else if (step == 1) {
 			if (async_attr_rc == 0) {
-				M0_LOG(M0_FATAL, "ATTR: tfid = [%lu:%lu] "
+				M0_LOG(M0_FATAL, "ATTR: tfid = "FID_F" "
 						 "mode = [%o] lid = [%lu]",
-						 async_attr.ca_tfid.f_container,
-						 async_attr.ca_tfid.f_key,
-						 async_attr.ca_mode,
-						 async_attr.ca_lid);
+				       FID_P(&async_attr.ca_tfid),
+				       async_attr.ca_mode,
+				       async_attr.ca_lid);
 
 				/* It's important here to find the layout first.
 				 * m0_ios_mds_layout_get_async() doesn't check
@@ -542,8 +541,8 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
         if (rc)
                 return rc;
 
-        M0_LOG(M0_DEBUG, "Creating cob for [%lx:%lx]/%x",
-               cc->fco_cfid.f_container, cc->fco_cfid.f_key, cc->fco_cob_idx);
+        M0_LOG(M0_DEBUG, "Creating cob for "FID_F"/%x",
+               FID_P(&cc->fco_cfid), cc->fco_cob_idx);
 
 	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
 	if (rc != 0) {
@@ -633,8 +632,8 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
 
-        M0_LOG(M0_DEBUG, "Deleting cob for [%lx:%lx]/%x",
-               cd->fco_cfid.f_container, cd->fco_cfid.f_key, cd->fco_cob_idx);
+        M0_LOG(M0_DEBUG, "Deleting cob for "FID_F"/%x",
+	       FID_P(&cd->fco_cfid), cd->fco_cob_idx);
 
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
         m0_cob_oikey_make(&oikey, &fid, 0);

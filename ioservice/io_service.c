@@ -778,14 +778,9 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	req_fop_cob = &getattr->g_body;
 	req_fop_cob->b_tfid = *gfid;
 
-	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu",
-			 (unsigned long long)gfid->f_container,
-			 (unsigned long long)gfid->f_key);
-
+	M0_LOG(M0_DEBUG, "ios getattr for "FID_F, FID_P(gfid));
 	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
-	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu rc:%d",
-			 (unsigned long long)gfid->f_container,
-			 (unsigned long long)gfid->f_key, rc);
+	M0_LOG(M0_DEBUG, "ios getattr for "FID_F" rc: %d", FID_P(gfid), rc);
 
 	if (rc == 0) {
 		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
@@ -1005,10 +1000,7 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 	req_fop_cob = &getattr->g_body;
 	req_fop_cob->b_tfid = *gfid;
 
-	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu",
-			 (unsigned long long)gfid->f_container,
-			 (unsigned long long)gfid->f_key);
-
+	M0_LOG(M0_DEBUG, "ios getattr for "FID_F, FID_P(gfid));
 	rc = _rpc_post(req, &imc->imc_session);
 	M0_LOG(M0_DEBUG, "ios getattr sent asynchronously: rc = %d", rc);
 

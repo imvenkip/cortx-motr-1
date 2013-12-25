@@ -172,8 +172,7 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 	struct m0_cob_oikey    oikey;
 	int                    rc;
 
-	M0_ENTRY("%+d nlinks for dir[%lx:%lx]", inc, fid->f_container,
-		 fid->f_key);
+	M0_ENTRY("%+d nlinks for dir "FID_F, inc, FID_P(fid));
 	/**
 	 * Directories cannot have hardlinks, so they can always
 	 * be found by oikey(fid, 0):
@@ -181,15 +180,13 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 	m0_cob_oikey_make(&oikey, fid, 0);
 	rc = m0_cob_locate(&md->md_dom, &oikey, 0, &cob);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "cannot locate stat data for dir[%lx:%lx] "
-		       "- %d", fid->f_container, fid->f_key, rc);
+		M0_LOG(M0_DEBUG, "cannot locate stat data for dir "FID_F" - %d",
+		       FID_P(fid), rc);
 		goto out;
 	}
-	M0_LOG(M0_DEBUG, "%u %+d nlinks for [%lx:%lx]<-[%lx:%lx]/%.*s",
+	M0_LOG(M0_DEBUG, "%u %+d nlinks for "FID_F"<-"FID_F"/%.*s",
 	       (unsigned)cob->co_nsrec.cnr_nlink, inc,
-	       fid->f_container, fid->f_key,
-	       cob->co_nskey->cnk_pfid.f_container,
-	       cob->co_nskey->cnk_pfid.f_key,
+	       FID_P(fid), FID_P(&cob->co_nskey->cnk_pfid),
 	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
 	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name));
 	cob->co_nsrec.cnr_nlink += inc;
@@ -359,13 +356,11 @@ M0_INTERNAL int m0_mdstore_dir_empty_check(struct m0_mdstore *md,
 	}
 	rc = m0_cob_iterator_get(&it);
 	if (rc == 0) {
-		M0_LOG(M0_DEBUG, "[%lx:%lx]/%.*s contains [%lx:%lx]/%.*s",
-		       cob->co_nskey->cnk_pfid.f_container,
-		       cob->co_nskey->cnk_pfid.f_key,
+		M0_LOG(M0_DEBUG, FID_F"/%.*s contains "FID_F"/%.*s",
+		       FID_P(&cob->co_nskey->cnk_pfid),
 		       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
 		       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
-		       it.ci_key->cnk_pfid.f_container,
-		       it.ci_key->cnk_pfid.f_key,
+		       FID_P(&it.ci_key->cnk_pfid),
 		       m0_bitstring_len_get(&it.ci_key->cnk_name),
 		       (char *)m0_bitstring_buf_get(&it.ci_key->cnk_name));
 		rc = -ENOTEMPTY;
@@ -398,15 +393,13 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	time_t                 now;
 	int                    rc;
 
-	M0_ENTRY("[%lx:%lx]/%.*s", pfid->f_container, pfid->f_key,
+	M0_ENTRY(FID_F"/%.*s", FID_P(pfid),
 		 (int)name->b_nob, (char *)name->b_addr);
-	M0_LOG(M0_DEBUG, "[%lx:%lx]/%.*s->[%lx:%lx],%d cob",
-	       cob->co_nskey->cnk_pfid.f_container,
-	       cob->co_nskey->cnk_pfid.f_key,
+	M0_LOG(M0_DEBUG, FID_F"/%.*s->"FID_F",%d cob",
+	       FID_P(&cob->co_nskey->cnk_pfid),
 	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
 	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
-	       cob->co_nsrec.cnr_fid.f_container,
-	       cob->co_nsrec.cnr_fid.f_key, cob->co_nsrec.cnr_linkno);
+	       FID_P(&cob->co_nsrec.cnr_fid), cob->co_nsrec.cnr_linkno);
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
 
@@ -726,12 +719,12 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 		attr->ca_size = cob->co_nsrec.cnr_size;
 		attr->ca_lid = cob->co_nsrec.cnr_lid;
 		//attr->ca_version = cob->co_nsrec.cnr_version;
-		M0_LOG(M0_DEBUG, "attrs of [%lx:%lx]/%.*s->[%lx:%lx],%u: "
+		M0_LOG(M0_DEBUG, "attrs of "FID_F"/%.*s->"FID_F",%u: "
 		       "cntr:%u, nlink:%u",
-		       attr->ca_pfid.f_container, attr->ca_pfid.f_key,
+		       FID_P(&attr->ca_pfid),
 		       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
 		       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
-		       attr->ca_tfid.f_container, attr->ca_tfid.f_key,
+		       FID_P(&attr->ca_tfid),
 		       (unsigned)cob->co_nsrec.cnr_linkno,
 		       (unsigned)cob->co_nsrec.cnr_cntr,
 		       (unsigned)attr->ca_nlink);
@@ -768,10 +761,8 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 	s_buf = (char *)m0_bitstring_buf_get(pos);
 	s_len = m0_bitstring_len_get(pos);
 
-	M0_LOG(M0_DEBUG,
-	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
-	       m0_cob_fid(cob)->f_container, m0_cob_fid(cob)->f_key,
-	       s_len, s_buf);
+	M0_LOG(M0_DEBUG, "Readdir on object "FID_F" starting from \"%.*s\"",
+	       FID_P(m0_cob_fid(cob)), s_len, s_buf);
 
 	ent = rdpg->r_buf.b_addr;
 	nob = rdpg->r_buf.b_nob;
@@ -867,7 +858,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 	struct m0_cob_oikey oikey;
 	int                 rc;
 
-	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
+	M0_ENTRY(FID_F, FID_P(fid));
 	m0_cob_oikey_make(&oikey, fid, 0);
 
 	if (flags == M0_MD_LOCATE_STORED) {
@@ -880,11 +871,9 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 		rc = -EOPNOTSUPP;
 	}
 	if (rc == 0) {
-		M0_LEAVE("[%lx:%lx]<-[%lx:%lx]/%.*s",
-			 (*cob)->co_nsrec.cnr_fid.f_container,
-			 (*cob)->co_nsrec.cnr_fid.f_key,
-			 (*cob)->co_nskey->cnk_pfid.f_container,
-			 (*cob)->co_nskey->cnk_pfid.f_key,
+		M0_LEAVE(FID_F"<-"FID_F"/%.*s",
+			 FID_P(&(*cob)->co_nsrec.cnr_fid),
+			 FID_P(&(*cob)->co_nskey->cnk_pfid),
 			 m0_bitstring_len_get(&(*cob)->co_nskey->cnk_name),
 			 (char *)m0_bitstring_buf_get(&(*cob)->co_nskey->cnk_name));
 	} else {
@@ -926,7 +915,7 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 	struct m0_fid    pfid;
 	int              rc;
 
-	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
+	M0_ENTRY(FID_F, FID_P(fid));
 	*path = m0_alloc(MDSTORE_PATH_MAX);
 	if (*path == NULL)
 		return -ENOMEM;

@@ -1153,11 +1153,9 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 	if ((rc != 0) || (device_state != M0_PNDS_ONLINE &&
 			  device_state != M0_PNDS_SNS_REPAIRED)) {
 		if (rc == 0) {
-			M0_LOG(M0_DEBUG, "IO @ %lu:%lu on failed device: "
+			M0_LOG(M0_DEBUG, "IO @"FID_F" on failed device: "
 					 "state = %d",
-					 cob_fid->f_container,
-					 cob_fid->f_key,
-					 device_state);
+			       FID_P(cob_fid), device_state);
 			rc = -EIO;
 		}
 	}
@@ -1179,10 +1177,9 @@ static int io_prepare(struct m0_fom *fom)
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
 
-	M0_LOG(M0_DEBUG, "Preparing %s IO @ %lu:%lu",
+	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"",
 			 m0_is_read_fop(fom->fo_fop)? "Read": "Write",
-			 rwfop->crw_fid.f_container,
-			 rwfop->crw_fid.f_key);
+	       FID_P(&rwfop->crw_fid));
 	/*
 	 * Dumps the state of SNS repair with respect to global fid
 	 * from IO fop.

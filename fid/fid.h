@@ -51,6 +51,9 @@ M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
 M0_INTERNAL int m0_fid_init(void);
 M0_INTERNAL void m0_fid_fini(void);
 
+#define FID_F "<%lx:%lx>"
+#define FID_P(f) (unsigned long)(f)->f_container, (unsigned long)(f)->f_key
+
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */
 
