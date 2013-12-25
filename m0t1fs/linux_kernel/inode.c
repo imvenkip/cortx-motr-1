@@ -47,7 +47,7 @@ M0_INTERNAL const struct m0_fid *m0t1fs_inode_fid(const struct m0t1fs_inode *ci)
 {
 	M0_PRE(ci != NULL);
 
-	return ci->ci_flock.fi_fid;
+	return &ci->ci_fid;
 }
 
 M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode)
