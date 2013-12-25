@@ -581,25 +581,20 @@ struct m0t1fs_mdop {
 struct m0t1fs_inode {
 	/** vfs inode */
 	struct inode               ci_inode;
-
+	struct m0_fid              ci_fid;
 	/** layout and related information for the file's data */
 	struct m0_layout_instance *ci_layout_instance;
-
 	/**
 	 * Locking mechanism provided by resource manager
 	 * ci_flock::fi_fid contains fid of gob
 	 */
 	struct m0_file             ci_flock;
-
 	/** An owner for maintaining file locks */
 	struct m0_rm_owner         ci_fowner;
-
 	/** Remote portal for requesting resource from creditor */
 	struct m0_rm_remote        ci_creditor;
-
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
-
 	uint64_t                   ci_magic;
 };
 
@@ -668,8 +663,7 @@ m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci, int index);
 M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void);
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
-				       const struct m0t1fs_sb *csb,
-				       const struct m0_fid    *fid);
+				       const struct m0t1fs_sb *csb);
 
 M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci);
 
@@ -769,7 +763,7 @@ M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer,
 M0_INTERNAL const struct m0_fid *
 		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
 
-struct m0_fid *m0t1fs_fid_alloc(struct m0t1fs_sb *csb);
+void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

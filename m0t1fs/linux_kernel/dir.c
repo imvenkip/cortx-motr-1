@@ -160,21 +160,15 @@ static void body_mem2wire(struct m0_fop_cob *body,
 
    XXX temporary.
  */
-struct m0_fid *m0t1fs_fid_alloc(struct m0t1fs_sb *csb)
+void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out)
 {
-	struct m0_fid *fid;
-
 	M0_PRE(m0t1fs_fs_is_locked(csb));
 
-	M0_ALLOC_PTR(fid);
-	if (fid == NULL)
-		return NULL;
-	m0_fid_set(fid, 0, csb->csb_next_key++);
+	m0_fid_set(out, 0, csb->csb_next_key++);
 
 	M0_LOG(M0_DEBUG, "fid <%llu:%llu>",
-		(unsigned long long)fid->f_container,
-		(unsigned long long)fid->f_key);
-	return fid;
+	       (unsigned long long)out->f_container,
+	       (unsigned long long)out->f_key);
 }
 
 int m0t1fs_setxattr(struct dentry *dentry, const char *name,
@@ -287,10 +281,10 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0t1fs_inode      *ci;
 	struct m0t1fs_mdop        mo;
 	struct inode             *inode;
-	struct m0_fid            *fid;
 	int                       rc;
 
 	M0_ENTRY();
+
 	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu[%llu:%llu]",
 	       dentry->d_name.name, dir->i_ino,
 	       m0t1fs_inode_fid(M0T1FS_I(dir))->f_container,
@@ -298,14 +292,11 @@ static int m0t1fs_create(struct inode     *dir,
 
 	/* new_inode() will call m0t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
-	fid   = m0t1fs_fid_alloc(csb);
-	if (inode == NULL || fid == NULL) {
-		m0_free(fid);
-		m0_free(inode);
+	if (inode == NULL)
 		M0_RETURN(-ENOMEM);
-	}
-
+	ci = M0T1FS_I(inode);
 	m0t1fs_fs_lock(csb);
+	m0t1fs_fid_alloc(csb, &ci->ci_fid);
 
 	inode->i_mode = mode;
 	inode->i_uid = current_fsuid();
@@ -326,9 +317,8 @@ static int m0t1fs_create(struct inode     *dir,
 		inode->i_fop = &m0t1fs_reg_file_operations;
 	}
 
-	ci                  = M0T1FS_I(inode);
-	ci->ci_layout_id    = csb->csb_layout_id; /* layout id for new file */
-	m0t1fs_file_lock_init(ci, csb, fid);
+	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
+	m0t1fs_file_lock_init(ci, csb);
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);

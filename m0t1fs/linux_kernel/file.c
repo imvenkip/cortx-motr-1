@@ -398,7 +398,7 @@ static inline struct m0t1fs_inode *file_to_m0inode(struct file *file)
 
 static inline const struct m0_fid *file_to_fid(struct file *file)
 {
-	return file_to_m0inode(file)->ci_flock.fi_fid;
+	return m0t1fs_inode_fid(file_to_m0inode(file));
 }
 
 static inline struct m0t1fs_sb *file_to_sb(struct file *file)

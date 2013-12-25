@@ -137,7 +137,8 @@ static int file_io_ut_init(void)
         M0_SET0(&ci);
         ci.ci_layout_id = csb.csb_layout_id;
 	csb.csb_cl_map.clm_map[csb.csb_nr_containers] = &msc;
-	m0t1fs_file_lock_init(&ci, &csb, m0t1fs_fid_alloc(&csb));
+	m0t1fs_fid_alloc(&csb, &ci.ci_fid);
+	m0t1fs_file_lock_init(&ci, &csb);
 
 	lay = m0_pdl_to_layout(pdlay);
 	M0_ASSERT(lay != NULL);
@@ -672,7 +673,6 @@ static void nw_xfer_ops_test(void)
 
 static int file_io_ut_fini(void)
 {
-	m0_free((void *)ci.ci_flock.fi_fid);
 	m0t1fs_file_lock_fini(&ci);
 	m0_free(lfile.f_dentry);
 	m0_layout_instance_fini(ci.ci_layout_instance);

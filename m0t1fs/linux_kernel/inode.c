@@ -111,10 +111,10 @@ static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
 }
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
-				       const struct m0t1fs_sb *csb,
-				       const struct m0_fid    *fid)
+				       const struct m0t1fs_sb *csb)
 {
 	struct m0_rm_domain *rdom;
+	const struct m0_fid *fid = &ci->ci_fid;
 
 	M0_ENTRY();
 
@@ -178,7 +178,6 @@ M0_INTERNAL void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
 		m0_layout_instance_fini(ci->ci_layout_instance);
 		m0t1fs_file_lock_fini(ci);
 	}
-	m0_free((void *)ci->ci_flock.fi_fid);
 	m0t1fs_inode_bob_fini(ci);
 
 	M0_LEAVE();
@@ -291,16 +290,12 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 
 	M0_ENTRY();
 
-	fid = m0t1fs_fid_alloc(csb);
-	if (fid == NULL)
-		M0_RETURN(-ENOMEM);
-	memcpy(fid, opaque, sizeof(struct m0_fid));
+	ci->ci_fid = *(fid = (struct m0_fid *)opaque);
 
-	if (m0_fid_eq(fid, &csb->csb_root_fid)) {
+	if (m0_fid_eq(fid, &csb->csb_root_fid))
 		ci->ci_flock.fi_fid = fid;
-		csb->csb_next_key--;
-	} else
-		m0t1fs_file_lock_init(ci, csb, fid);
+	else
+		m0t1fs_file_lock_init(ci, csb);
 	inode->i_ino = fid->f_key;
 
 	M0_LOG(M0_DEBUG, "inode(%p) [%lu:%lu]", inode,
