@@ -156,13 +156,8 @@ M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
 static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 {
 	M0_ENTRY("ci: %p", ci);
-
-	M0_SET0(&ci->ci_flock);
-	M0_SET0(&ci->ci_creditor);
-	M0_SET0(&ci->ci_fowner);
-	ci->ci_layout_instance = NULL;
+	M0_SET0(ci);
 	m0t1fs_inode_bob_init(ci);
-
 	M0_LEAVE();
 }
 
