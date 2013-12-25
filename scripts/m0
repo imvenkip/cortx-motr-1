@@ -10,6 +10,8 @@ set -e
 ### Type `m0 help' for usage.
 ### --------------------------------------------------------------------
 
+umask 0002
+
 ## CAUTION! This directory will be removed by superuser.
 RUNDIR=${RUNDIR:-/var/mero/ut/$USER}
 
