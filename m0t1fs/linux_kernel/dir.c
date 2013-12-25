@@ -166,9 +166,7 @@ void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out)
 
 	m0_fid_set(out, 0, csb->csb_next_key++);
 
-	M0_LOG(M0_DEBUG, "fid <%llu:%llu>",
-	       (unsigned long long)out->f_container,
-	       (unsigned long long)out->f_key);
+	M0_LOG(M0_DEBUG, "fid "FID_F, FID_P(out));
 }
 
 int m0t1fs_setxattr(struct dentry *dentry, const char *name,
@@ -285,10 +283,9 @@ static int m0t1fs_create(struct inode     *dir,
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu[%llu:%llu]",
+	M0_LOG(M0_INFO, "Creating \"%s\" in pdir %lu "FID_F,
 	       dentry->d_name.name, dir->i_ino,
-	       m0t1fs_inode_fid(M0T1FS_I(dir))->f_container,
-	       m0t1fs_inode_fid(M0T1FS_I(dir))->f_key);
+	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
 	/* new_inode() will call m0t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
@@ -922,9 +919,8 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
 
 	m0_layout_enum_get(le, index, m0t1fs_inode_fid(ci), &fid);
 
-	M0_LOG(M0_DEBUG, "gob fid [%llu:%llu] @%d = cob fid [%llu:%llu]",
-	       m0t1fs_inode_fid(ci)->f_container, m0t1fs_inode_fid(ci)->f_key,
-	       index, fid.f_container, fid.f_key);
+	M0_LOG(M0_DEBUG, "gob fid "FID_F" @%d = cob fid "FID_F,
+	       FID_P(m0t1fs_inode_fid(ci)), index, FID_P(&fid));
 
 	return fid;
 }
@@ -960,10 +956,9 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 
 	M0_ENTRY();
 
-	M0_LOG(M0_DEBUG, "Component object %s for [%lu:%lu]",
-		func == m0t1fs_ios_cob_create? "create" : "delete",
-		(unsigned long)m0t1fs_inode_fid(ci)->f_container,
-		(unsigned long)m0t1fs_inode_fid(ci)->f_key);
+	M0_LOG(M0_DEBUG, "Component object %s for "FID_F,
+	       func == m0t1fs_ios_cob_create? "create" : "delete",
+	       FID_P(m0t1fs_inode_fid(ci)));
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	pool_width = csb->csb_pool_width;
@@ -982,10 +977,9 @@ again:
 			goto again;
 		}
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "Cob %s [%lu:%lu] failed with %d",
-				func == m0t1fs_ios_cob_create ? "create" : "delete",
-				(unsigned long)cob_fid.f_container,
-				(unsigned long)cob_fid.f_key, rc);
+			M0_LOG(M0_ERROR, "Cob %s "FID_F" failed with %d",
+			       func == m0t1fs_ios_cob_create ? "create" : "delete",
+			       FID_P(&cob_fid), rc);
 			goto out;
 		}
 	}
@@ -1503,11 +1497,9 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	if (rc != 0)
 		goto fop_put;
 
-	M0_LOG(M0_DEBUG, "Send %s [%lu:%lu] to session %lu",
-		cobcreate ? "cob_create" : "cob_delete",
-		(unsigned long)cob_fid->f_container,
-		(unsigned long)cob_fid->f_key,
-		(unsigned long)session->s_session_id);
+	M0_LOG(M0_DEBUG, "Send %s "FID_F" to session %lu",
+	       cobcreate ? "cob_create" : "cob_delete",
+	       FID_P(cob_fid), (unsigned long)session->s_session_id);
 
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0)
