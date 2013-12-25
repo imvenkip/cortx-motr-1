@@ -153,7 +153,7 @@ M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
 	m0_rm_remote_fini(&ci->ci_creditor);
 }
 
-M0_INTERNAL void m0t1fs_inode_init(struct m0t1fs_inode *ci)
+static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 {
 	M0_ENTRY("ci: %p", ci);
 
@@ -166,20 +166,14 @@ M0_INTERNAL void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
+static void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
 {
 	M0_ENTRY("ci: %p, is_root %s, layout_instance %p",
 		 ci, m0_bool_to_str(m0t1fs_inode_is_root(&ci->ci_inode)),
 		 ci->ci_layout_instance);
 
 	M0_PRE(m0t1fs_inode_bob_check(ci));
-
-	if (!m0t1fs_inode_is_root(&ci->ci_inode)) {
-		m0_layout_instance_fini(ci->ci_layout_instance);
-		m0t1fs_file_lock_fini(ci);
-	}
 	m0t1fs_inode_bob_fini(ci);
-
 	M0_LEAVE();
 }
 
@@ -209,19 +203,16 @@ M0_INTERNAL struct inode *m0t1fs_alloc_inode(struct super_block *sb)
  */
 M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 {
-	struct m0t1fs_inode *ci;
+	struct m0t1fs_inode *ci  = M0T1FS_I(inode);
+	const struct m0_fid *fid = m0t1fs_inode_fid(ci);
 
-	M0_ENTRY("inode: %p", inode);
-
-	ci = M0T1FS_I(inode);
-
-	M0_LOG(M0_DEBUG, "fid [%lu:%lu]",
-	       (unsigned long)m0t1fs_inode_fid(ci)->f_container,
-	       (unsigned long)m0t1fs_inode_fid(ci)->f_key);
-
+	M0_ENTRY("inode: %p, fid: "FID_F, inode, FID_P(fid));
+	if (m0_fid_is_set(fid) && !m0t1fs_inode_is_root(inode)) {
+		m0_layout_instance_fini(ci->ci_layout_instance);
+		m0t1fs_file_lock_fini(ci);
+	}
 	m0t1fs_inode_fini(ci);
 	kmem_cache_free(m0t1fs_inode_cachep, ci);
-
 	M0_LEAVE();
 }
 
