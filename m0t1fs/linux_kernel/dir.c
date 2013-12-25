@@ -360,7 +360,6 @@ static int m0t1fs_create(struct inode     *dir,
 	M0_LEAVE("rc: 0");
 	return 0;
 out:
-	m0t1fs_file_lock_fini(ci);
 	inode_dec_link_count(inode);
 	m0t1fs_fs_unlock(csb);
 	iput(inode);
