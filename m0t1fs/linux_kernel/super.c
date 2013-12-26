@@ -1064,8 +1064,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	sb->s_magic = rep->f_type;
 	csb->csb_namelen = rep->f_namelen;
 
-	M0_LOG(M0_DEBUG, "Got mdservice root fid [%llx:%llx]",
-	       rep->f_root.f_container, rep->f_root.f_key);
+	M0_LOG(M0_DEBUG, "Got mdservice root "FID_F, FID_P(&rep->f_root));
 
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_root_cob, cv,
 		     rep->f_root.f_container, rep->f_root.f_key);

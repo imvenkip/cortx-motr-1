@@ -483,8 +483,7 @@ M0_INTERNAL void m0_file_init(struct m0_file      *file,
 	M0_PRE(file != NULL);
 	M0_PRE(fid != NULL);
 
-	M0_LOG(M0_DEBUG, "fid container id:%d key %d \n",
-			(int)fid->f_container, (int)fid->f_key);
+	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 	file->fi_res.r_ops = &file_lock_ops;
 	file->fi_fid = fid;
 	if (dom != NULL)
@@ -578,8 +577,7 @@ M0_INTERNAL struct m0_file *m0_resource_to_file(const struct m0_fid *fid)
 	M0_PRE(fid != NULL);
 	M0_PRE(m0_fid_is_set(fid));
 
-	M0_LOG(M0_DEBUG, "fid container id:%d key %d \n",
-			(int)fid->f_container, (int)fid->f_key);
+	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 
 	lfile.fi_fid = fid;
 	res = m0_rm_resource_find(&flock_rt, &lfile.fi_res);

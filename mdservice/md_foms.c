@@ -45,6 +45,9 @@
 #include "mdservice/md_service.h"
 #include "mdstore/mdstore.h"
 
+static int md_locate(struct m0_mdstore *md, struct m0_fid *tfid,
+		     struct m0_cob **cob);
+
 M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 				    const struct m0_fop_cob *body)
 {
@@ -134,8 +137,7 @@ static int m0_md_create(struct m0_mdstore   *md,
 	struct m0_cob *scob = NULL;
 	int            rc;
 
-	rc = m0_mdstore_locate(md, tfid, &scob,
-				M0_MD_LOCATE_STORED);
+	rc = m0_mdstore_locate(md, tfid, &scob, M0_MD_LOCATE_STORED);
 	if (rc == -ENOENT) {
 		/*
 		 * Statdata cob is not found, let's create it. This
@@ -202,9 +204,8 @@ static int m0_md_tick_create(struct m0_fom *fom)
 
 	m0_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
 
-	M0_LOG(M0_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %.*s",
-	       body->b_pfid.f_container, body->b_pfid.f_key,
-	       body->b_tfid.f_container, body->b_tfid.f_key,
+	M0_LOG(M0_DEBUG, "Create "FID_F"/"FID_F" %.*s",
+	       FID_P(&body->b_pfid), FID_P(&body->b_tfid),
 	       (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
 
 	/**
@@ -260,10 +261,9 @@ static int m0_md_tick_link(struct m0_fom *fom)
 	m0_md_cob_wire2mem(&attr, body);
 	m0_buf_init(&attr.ca_name, req->l_name.s_buf, req->l_name.s_len);
 
-	M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] started",
-	       body->b_pfid.f_container, body->b_pfid.f_key,
-	       (int)req->l_name.s_len, (char *)req->l_name.s_buf,
-	       body->b_tfid.f_container, body->b_tfid.f_key);
+	M0_LOG(M0_DEBUG, "Link "FID_F"/%.*s -> "FID_F" started",
+	       FID_P(&body->b_pfid), (int)req->l_name.s_len,
+	       (char *)req->l_name.s_buf, FID_P(&body->b_tfid));
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -277,10 +277,9 @@ static int m0_md_tick_link(struct m0_fom *fom)
 			  &body->b_pfid, &body->b_tfid, &attr,
 			  m0_fom_tx(fom));
 out:
-	M0_LOG(M0_DEBUG, "Link [%lx:%lx]/%.*s -> [%lx:%lx] finished with %d",
-	       body->b_pfid.f_container, body->b_pfid.f_key,
-	       (int)req->l_name.s_len, (char *)req->l_name.s_buf,
-	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	M0_LOG(M0_DEBUG, "Link "FID_F"/%.*s -> "FID_F" finished with %d",
+	       FID_P(&body->b_pfid), (int)req->l_name.s_len,
+	       (char *)req->l_name.s_buf, FID_P(&body->b_tfid), rc);
 	rep->l_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
@@ -332,8 +331,8 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	m0_md_cob_wire2mem(&attr, body);
 	m0_buf_init(&attr.ca_name, req->u_name.s_buf, req->u_name.s_len);
 
-	M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s started",
-	       body->b_pfid.f_container, body->b_pfid.f_key,
+	M0_LOG(M0_DEBUG, "Unlink "FID_F"/%.*s started",
+	       FID_P(&body->b_pfid),
 	       (int)req->u_name.s_len, (char *)req->u_name.s_buf);
 
 	/**
@@ -344,27 +343,22 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	rc = m0_mdstore_locate(md, &body->b_tfid, &scob, M0_MD_LOCATE_STORED);
-	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
-		       body->b_pfid.f_container, body->b_pfid.f_key,
-		       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
-			rc);
+	rc = md_locate(md, &body->b_tfid, &scob);
+	if (rc != 0)
 		goto out;
-	}
 
 	rc = m0_mdstore_unlink(md, &body->b_pfid, scob, &attr.ca_name, tx);
 	m0_cob_put(scob);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s failed with %d",
-		       body->b_pfid.f_container, body->b_pfid.f_key,
+		M0_LOG(M0_DEBUG, "Unlink "FID_F"/%.*s failed with %d",
+		       FID_P(&body->b_pfid),
 		       (int)req->u_name.s_len, (char *)req->u_name.s_buf,
 			rc);
 		goto out;
 	}
 out:
-	M0_LOG(M0_DEBUG, "Unlink [%lx:%lx]/%.*s finished with %d",
-	       body->b_pfid.f_container, body->b_pfid.f_key,
+	M0_LOG(M0_DEBUG, "Unlink "FID_F"/%.*s finished with %d",
+	       FID_P(&body->b_pfid),
 	       (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
 	rep->u_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -466,7 +460,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	m0_md_cob_wire2mem(&sattr, sbody);
 	m0_buf_init(&sattr.ca_name, req->r_sname.s_buf, req->r_sname.s_len);
 
-	rc = m0_mdstore_locate(md, &sbody->b_tfid, &scob, M0_MD_LOCATE_STORED);
+	rc = md_locate(md, &sbody->b_tfid, &scob);
 	if (rc != 0) {
 		goto out;
 	}
@@ -475,8 +469,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 				  &tbody->b_tfid, &sbody->b_tfid, &tattr,
 				  &sattr, scob, scob, tx);
 	} else {
-		rc = m0_mdstore_locate(md, &tbody->b_tfid, &tcob,
-					M0_MD_LOCATE_STORED);
+		rc = md_locate(md, &tbody->b_tfid, &tcob);
 		if (rc != 0) {
 			goto out;
 		}
@@ -608,7 +601,7 @@ static int m0_md_tick_close(struct m0_fom *fom)
 	 * quite implemented and we lookup on main store to make
 	 * ut happy.
 	 */
-	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
+	rc = md_locate(md, &body->b_tfid, &cob);
 	if (rc != 0) {
 		goto out;
 	}
@@ -661,8 +654,7 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	body = &req->s_body;
 	m0_md_cob_wire2mem(&attr, body);
 
-	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] started",
-	       body->b_tfid.f_container, body->b_tfid.f_key);
+	M0_LOG(M0_DEBUG, "Setattr for "FID_F" started", FID_P(&body->b_tfid));
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -677,19 +669,16 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	 * an object in case there is no target yet. This is why
 	 * we return quickly if no object is found.
 	 */
-	rc = m0_mdstore_locate(md,
-			       &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
+	rc = md_locate(md, &body->b_tfid, &cob);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
 		goto out;
 	}
 
 	rc = m0_mdstore_setattr(md, cob, &attr, m0_fom_tx(fom));
 	m0_cob_put(cob);
 out:
-	M0_LOG(M0_DEBUG, "Setattr for [%lx:%lx] finished with %d",
-	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	M0_LOG(M0_DEBUG, "Setattr for "FID_F" finished with %d",
+	       FID_P(&body->b_tfid), rc);
 	rep->s_body.b_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
@@ -726,9 +715,8 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 
 	m0_buf_init(&name, req->l_name.s_buf, req->l_name.s_len);
 
-	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" in object [%lx:%lx]",
-	       (int)name.b_nob, (char *)name.b_addr, body->b_pfid.f_container,
-	       body->b_pfid.f_key);
+	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" in object "FID_F,
+	       (int)name.b_nob, (char *)name.b_addr, FID_P(&body->b_pfid));
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -746,13 +734,10 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 	tfid = *m0_cob_fid(cob);
 	m0_cob_put(cob);
 
-	M0_LOG(M0_DEBUG, "Found object [%lx:%lx] go for getattr",
-	       tfid.f_container, tfid.f_key);
+	M0_LOG(M0_DEBUG, "Found object "FID_F" go for getattr", FID_P(&tfid));
 
-	rc = m0_mdstore_locate(md, &tfid, &cob, M0_MD_LOCATE_STORED);
+	rc = md_locate(md, &tfid, &cob);
 	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-		       tfid.f_container, tfid.f_key, rc);
 		goto out;
 	}
 
@@ -763,9 +748,8 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 		attr.ca_valid = M0_COB_ALL;
 		m0_md_cob_mem2wire(&rep->l_body, &attr);
 	} else {
-		M0_LOG(M0_DEBUG, "Getattr on object [%lx:%lx] failed with %d",
-		       m0_cob_fid(cob)->f_container, m0_cob_fid(cob)->f_key,
-		       rc);
+		M0_LOG(M0_DEBUG, "Getattr on object "FID_F" failed with %d",
+		       FID_P(m0_cob_fid(cob)), rc);
 	}
 out:
 	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
@@ -802,8 +786,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 	M0_ASSERT(fop_rep != NULL);
 	rep = m0_fop_data(fop_rep);
 
-	M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] started",
-	       body->b_tfid.f_container, body->b_tfid.f_key);
+	M0_LOG(M0_DEBUG, "Getattr for "FID_F" started", FID_P(&body->b_pfid));
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -813,12 +796,9 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 	if (rc != 0)
 		goto out;
 
-	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-		       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	rc = md_locate(md, &body->b_tfid, &cob);
+	if (rc != 0)
 		goto out;
-	}
 
 	rc = m0_mdstore_getattr(md, cob, &attr);
 	m0_cob_put(cob);
@@ -827,8 +807,8 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 		m0_md_cob_mem2wire(&rep->g_body, &attr);
 	}
 out:
-	M0_LOG(M0_DEBUG, "Getattr for [%lx:%lx] finished with %d",
-	       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+	M0_LOG(M0_DEBUG, "Getattr for "FID_F" finished with %d",
+	       FID_P(&body->b_pfid), rc);
 	rep->g_body.b_rc = rc;
 	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	return M0_FSO_AGAIN;
@@ -876,9 +856,8 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
         M0_ASSERT(fop_rep != NULL);
         rep = m0_fop_data(fop_rep);
 
-        M0_LOG(M0_DEBUG, "Getxattr %.*s for [%lx:%lx] started",
-	       req->g_key.s_len, (char *)req->g_key.s_buf,
-               body->b_tfid.f_container, body->b_tfid.f_key);
+        M0_LOG(M0_DEBUG, "Getxattr %.*s for "FID_F" started",
+	       req->g_key.s_len, (char *)req->g_key.s_buf, FID_P(&body->b_pfid));
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -888,12 +867,9 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
         if (rc != 0)
                 goto out;
 
-        rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+        rc = md_locate(md, &body->b_tfid, &cob);
+        if (rc != 0)
                 goto out;
-        }
 
         rc = m0_cob_eakey_make(&eakey, m0_cob_fid(cob),
 			       (char *)req->g_key.s_buf,
@@ -924,8 +900,8 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
         m0_free(eakey);
         m0_free(earec);
 out:
-        M0_LOG(M0_DEBUG, "Getxattr for [%lx:%lx] finished with %d",
-               body->b_tfid.f_container, body->b_tfid.f_key, rc);
+        M0_LOG(M0_DEBUG, "Getxattr for "FID_F" finished with %d",
+               FID_P(&body->b_pfid), rc);
         rep->g_body.b_rc = rc;
         m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
         return M0_FSO_AGAIN;
@@ -963,10 +939,10 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         M0_ASSERT(fop_rep != NULL);
         rep = m0_fop_data(fop_rep);
 
-        M0_LOG(M0_DEBUG, "Setxattr %.*s=%.*s for [%lx:%lx] started",
+        M0_LOG(M0_DEBUG, "Setxattr %.*s=%.*s for "FID_F" started",
 	       req->s_key.s_len, (char *)req->s_key.s_buf,
 	       req->s_value.s_len, (char *)req->s_value.s_buf,
-               body->b_tfid.f_container, body->b_tfid.f_key);
+	       FID_P(&body->b_pfid));
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -976,12 +952,9 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         if (rc != 0)
                 goto out;
 
-        rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+        rc = md_locate(md, &body->b_tfid, &cob);
+        if (rc != 0)
                 goto out;
-        }
 
         rc = m0_cob_eakey_make(&eakey, m0_cob_fid(cob),
 			       (char *)req->s_key.s_buf,
@@ -1004,8 +977,8 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         m0_free(eakey);
         m0_free(earec);
 out:
-        M0_LOG(M0_DEBUG, "Setxattr for [%lx:%lx] finished with %d",
-               body->b_tfid.f_container, body->b_tfid.f_key, rc);
+        M0_LOG(M0_DEBUG, "Setxattr for "FID_F" finished with %d",
+               FID_P(&body->b_tfid), rc);
         rep->s_body.b_rc = rc;
         m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
         return M0_FSO_AGAIN;
@@ -1042,8 +1015,7 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
         M0_ASSERT(fop_rep != NULL);
         rep = m0_fop_data(fop_rep);
 
-        M0_LOG(M0_DEBUG, "Delxattr for [%lx:%lx] started",
-               body->b_tfid.f_container, body->b_tfid.f_key);
+        M0_LOG(M0_DEBUG, "Delxattr for "FID_F" started", FID_P(&body->b_tfid));
 
         /**
          * Init some fop fields (full path) that require mdstore and other
@@ -1053,12 +1025,9 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
         if (rc != 0)
                 goto out;
 
-        rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
-        if (rc != 0) {
-                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
-                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
+        rc = md_locate(md, &body->b_tfid, &cob);
+        if (rc != 0)
                 goto out;
-        }
 
         rc = m0_cob_eakey_make(&eakey, m0_cob_fid(cob),
 			       (char *)req->d_key.s_buf,
@@ -1071,8 +1040,8 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
         m0_cob_put(cob);
         m0_free(eakey);
 out:
-        M0_LOG(M0_DEBUG, "Delxattr for [%lx:%lx] finished with %d",
-               body->b_tfid.f_container, body->b_tfid.f_key, rc);
+        M0_LOG(M0_DEBUG, "Delxattr for "FID_F" finished with %d",
+               FID_P(&body->b_tfid), rc);
         rep->d_body.b_rc = rc;
         m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
         return M0_FSO_AGAIN;
@@ -1157,10 +1126,9 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 		goto out;
 
 	body = &req->r_body;
-	rc = m0_mdstore_locate(md, &body->b_tfid, &cob, M0_MD_LOCATE_STORED);
-	if (rc != 0) {
+	rc = md_locate(md, &body->b_tfid, &cob);
+	if (rc != 0)
 		goto out;
-	}
 
 	if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
 		rc = -ENOTDIR;
@@ -1707,6 +1675,18 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
         m0_fop_put(rep_fop);
 	*m = fom;
 	return 0;
+}
+
+static int md_locate(struct m0_mdstore *md, struct m0_fid *tfid,
+		     struct m0_cob **cob)
+{
+	int rc;
+
+	rc = m0_mdstore_locate(md, tfid, cob, M0_MD_LOCATE_STORED);
+	if (rc != 0)
+		M0_LOG(M0_DEBUG, "m0_mdstore_locate() failed for "FID_F" (%d)",
+		       FID_P(tfid), rc);
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

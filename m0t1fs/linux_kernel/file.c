@@ -3130,8 +3130,8 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		if (rc != 0)
 			M0_RETERR(rc, "Failed to retrieve device state");
 
-		M0_LOG(M0_INFO, "device state for fid %llu:%llu is %d",
-		       ti->ti_fid.f_container, ti->ti_fid.f_key, state);
+		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
+		       FID_P(&ti->ti_fid), state);
 		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
 			   M0_PNDS_SNS_REPAIRING)))
 			continue;
@@ -3598,11 +3598,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	m0_pdclust_instance_map(play_instance, src, tgt);
 	tfid = target_fid(req, tgt);
 
-	M0_LOG(M0_DEBUG, "src_id[%llu:%llu] -> dest_id[%llu:%llu]"
-			 "@ tfid [%llu:%llu]",
-			 src->sa_group, src->sa_unit,
-			 tgt->ta_frame, tgt->ta_obj,
-			 tfid.f_container, tfid.f_key);
+	M0_LOG(M0_DEBUG, "src_id[%llu:%llu] -> dest_id[%llu:%llu] @ tfid "FID_F,
+	       src->sa_group, src->sa_unit, tgt->ta_frame, tgt->ta_obj,
+	       FID_P(&tfid));
 
 	csb = file_to_sb(req->ir_file);
 	rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
@@ -3705,10 +3703,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 		m0_pdclust_instance_map(play_instance, &spare, tgt);
 		tfid = target_fid(req, tgt);
 		M0_LOG(M0_DEBUG, "REPAIRED: [%llu:%llu] -> [%llu:%llu] @ tfid "
-				 "[%llu:%llu]",
-				 spare.sa_group, spare.sa_unit,
-				 tgt->ta_frame, tgt->ta_obj,
-				 tfid.f_container, tfid.f_key);
+		       FID_F,
+		       spare.sa_group, spare.sa_unit,
+		       tgt->ta_frame, tgt->ta_obj, FID_P(&tfid));
 	}
 
 	session = target_session(req, tfid);
@@ -3730,8 +3727,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 {
 	int rc;
 
-	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, fid [%llu:%llu]",
-		 ti, xfer, cobfid->f_container, cobfid->f_key);
+	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
+		 ti, xfer, FID_P(cobfid));
 	M0_PRE(ti      != NULL);
 	M0_PRE(xfer    != NULL);
 	M0_PRE(cobfid  != NULL);
@@ -3859,8 +3856,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 	M0_PRE(fid     != NULL);
 	M0_PRE(session != NULL);
 	M0_PRE(out     != NULL);
-	M0_ENTRY("nw_xfer_request %p, fid [%llu:%llu]",
-			xfer, fid->f_container, fid->f_key);
+	M0_ENTRY("nw_xfer_request %p, "FID_F, xfer, FID_P(fid));
 
 	ti = target_ioreq_locate(xfer, fid);
 	if (ti == NULL) {
@@ -3874,9 +3870,8 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 		rc = target_ioreq_init(ti, xfer, fid, session, size);
 		if (rc == 0) {
 			tioreqht_htable_add(&xfer->nxr_tioreqs_hash, ti);
-			M0_LOG(M0_INFO, "New target_ioreq added for fid "
-					"%llu:%llu", fid->f_container,
-					fid->f_key);
+			M0_LOG(M0_INFO, "New target_ioreq added for "FID_F,
+			       FID_P(fid));
 		}
 		else
 			m0_free(ti);
@@ -4036,10 +4031,9 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_LOG(M0_DEBUG, "pageaddr = %p, index = %llu, size = %llu\n",
 			bvec->ov_buf[seg], INDEX(ivec, seg), COUNT(ivec, seg));
 		M0_LOG(M0_DEBUG, "Seg id %d [%llu, %llu] added to target_ioreq "
-		       "with fid [%llu:%llu] with flags 0x%x: ", seg,
+		       "with "FID_F" with flags 0x%x: ", seg,
 		       INDEX(ivec, seg), COUNT(ivec, seg),
-		       ti->ti_fid.f_container, ti->ti_fid.f_key,
-		       pattr[seg]);
+		       FID_P(&ti->ti_fid), pattr[seg]);
 
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
@@ -4624,8 +4618,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		M0_ASSERT(rw_reply != NULL);
-		M0_LOG(M0_INFO, "VERSION_MISMATCH received on fid %llu:%llu\n",
-		       tioreq->ti_fid.f_container, tioreq->ti_fid.f_key);
+		M0_LOG(M0_INFO, "VERSION_MISMATCH received on "FID_F,
+		       FID_P(&tioreq->ti_fid));
 		failure_vector_mismatch(irfop);
 	}
 	irfop->irf_reply_rc = rc;
@@ -4687,9 +4681,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		if (ti->ti_state != M0_PNDS_ONLINE) {
-			M0_LOG(M0_INFO, "Skipped iofops prepare for fid"
-			       "%llu:%llu", ti->ti_fid.f_container,
-			       ti->ti_fid.f_key);
+			M0_LOG(M0_INFO, "Skipped iofops prepare for "FID_F,
+			       FID_P(&ti->ti_fid));
 			continue;
 		}
 		ti->ti_start_time = m0_time_now();
@@ -4706,8 +4699,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 
 		/* Skips the target device if it is not online. */
 		if (ti->ti_state != M0_PNDS_ONLINE) {
-			M0_LOG(M0_INFO, "Skipped device %llu:%llu",
-			       ti->ti_fid.f_container, ti->ti_fid.f_key);
+			M0_LOG(M0_INFO, "Skipped device "FID_F,
+			       FID_P(&ti->ti_fid));
 			continue;
 		}
 
@@ -4811,9 +4804,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 	struct m0_pdclust_layout   *play;
 
 	M0_PRE(irfop != NULL);
-	M0_ENTRY("target fid = %llu:%llu",
-		 irfop->irf_tioreq->ti_fid.f_container,
-		 irfop->irf_tioreq->ti_fid.f_key);
+	M0_ENTRY("target fid = "FID_F, FID_P(&irfop->irf_tioreq->ti_fid));
 
 	req       = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
 		           ir_nwxfer, &ioreq_bobtype);
@@ -4951,14 +4942,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_pool_version_numbers  curr;
 	struct m0_pool_version_numbers *cli;
 
-	M0_ENTRY("prepare io fops for target ioreq %p filter %u, tfid"
-		 "%llu:%llu", ti, filter, ti->ti_fid.f_container,
-		 ti->ti_fid.f_key);
+	M0_ENTRY("prepare io fops for target ioreq %p filter %u, tfid "FID_F,
+		 ti, filter, FID_P(&ti->ti_fid));
 	M0_PRE_EX(target_ioreq_invariant(ti));
 	M0_PRE(M0_IN(filter, (PA_DATA, PA_PARITY)));
 
-	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
-			 &ioreq_bobtype);
+	req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
+		     &ioreq_bobtype);
 	M0_ASSERT(M0_IN(ioreq_sm_state(req),
 		  (IRS_READING, IRS_DEGRADED_READING,
 		   IRS_WRITING, IRS_DEGRADED_WRITING)));

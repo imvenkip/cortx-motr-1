@@ -1004,13 +1004,9 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	nskey = (struct m0_cob_nskey *)val.b_addr;
 	oikey = (struct m0_cob_oikey *)key.b_addr;
 
-	M0_LOG(M0_DEBUG, "found: fid=[%x,%x] lno=%d pfid=[%x,%x] name='%s'",
-		(int)oikey->cok_fid.f_container,
-		(int)oikey->cok_fid.f_key,
-		(int)oikey->cok_linkno,
-		(int)nskey->cnk_pfid.f_container,
-		(int)nskey->cnk_pfid.f_key,
-		(char*)nskey->cnk_name.b_data);
+	M0_LOG(M0_DEBUG, "found: fid="FID_F" lno=%d pfid="FID_F" name='%s'",
+	       FID_P(&oikey->cok_fid), (int)oikey->cok_linkno,
+	       FID_P(&nskey->cnk_pfid), (char*)nskey->cnk_name.b_data);
 
 	/*
 	 * Found position should have same fid.
@@ -1171,10 +1167,8 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 
 	M0_PRE(m0_fid_is_set(&oikey->cok_fid));
 
-	M0_ENTRY("dom=%p oikey=([%x,%x], %d)", dom,
-		(int)oikey->cok_fid.f_container,
-		(int)oikey->cok_fid.f_key,
-		(int)oikey->cok_linkno);
+	M0_ENTRY("dom=%p oikey=("FID_F", %d)", dom,
+		 FID_P(&oikey->cok_fid), (int)oikey->cok_linkno);
 
 	/*
 	 * Zero out "out" just in case that if we fail here, it is
@@ -1463,13 +1457,9 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	M0_PRE(m0_fid_is_set(&nsrec->cnr_fid));
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 
-	M0_ENTRY("nskey=([%x,%x], '%s') nsrec=([%x,%x], %d)",
-		(int)nskey->cnk_pfid.f_container,
-		(int)nskey->cnk_pfid.f_key,
-		(char*)nskey->cnk_name.b_data,
-		(int)nsrec->cnr_fid.f_container,
-		(int)nsrec->cnr_fid.f_key,
-		(int)nsrec->cnr_linkno);
+	M0_ENTRY("nskey=("FID_F", '%s') nsrec=("FID_F", %d)",
+		 FID_P(&nskey->cnk_pfid), (char*)nskey->cnk_name.b_data,
+		 FID_P(&nsrec->cnr_fid), (int)nsrec->cnr_linkno);
 
 	rc = m0_cob_alloc_omgid(cob->co_dom, &nsrec->cnr_omgid);
 	if (rc != 0)

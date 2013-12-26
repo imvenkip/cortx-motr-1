@@ -118,7 +118,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "fid [%llu:%llu] \n", fid->f_container, fid->f_key);
+	M0_LOG(M0_INFO, FID_F, FID_P(fid));
 	rdom = m0t1fs_rmsvc_domain_get();
 	M0_ASSERT(rdom != NULL);
 	/**
@@ -261,11 +261,8 @@ static int m0t1fs_inode_test(struct inode *inode, void *opaque)
 
 	ci = M0T1FS_I(inode);
 
-	M0_LOG(M0_DEBUG, "inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
-				(unsigned long)m0t1fs_inode_fid(ci)->f_container,
-				(unsigned long)m0t1fs_inode_fid(ci)->f_key,
-				(unsigned long)fid->f_container,
-				(unsigned long)fid->f_key);
+	M0_LOG(M0_DEBUG, "inode (%p) "FID_F" opaque "FID_F,
+	       inode, FID_P(m0t1fs_inode_fid(ci)), FID_P(fid));
 
 	rc = m0_fid_eq(m0t1fs_inode_fid(ci), fid);
 
@@ -289,9 +286,7 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 		m0t1fs_file_lock_init(ci, csb);
 	inode->i_ino = fid->f_key;
 
-	M0_LOG(M0_DEBUG, "inode(%p) [%lu:%lu]", inode,
-			(unsigned long)fid->f_container,
-			(unsigned long)fid->f_key);
+	M0_LOG(M0_DEBUG, "inode (%p) "FID_F, inode, FID_P(fid));
 	M0_RETURN(0);
 }
 
@@ -450,9 +445,7 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 	int                        rc;
 
 	M0_ENTRY();
-	M0_LOG(M0_DEBUG, "fid[%lu:%lu]:",
-			(unsigned long)m0t1fs_inode_fid(ci)->f_container,
-			(unsigned long)m0t1fs_inode_fid(ci)->f_key);
+	M0_LOG(M0_DEBUG, FID_F, FID_P(m0t1fs_inode_fid(ci)));
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 

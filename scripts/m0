@@ -47,7 +47,7 @@ build() {
 
 run_init() {
     $SUDO rm -rf "$RUNDIR"  # Ouch!
-    $SUDO mkdir -p "$RUNDIR"
+    $SUDO mkdir -m 0777 -p "$RUNDIR"
     cd "$RUNDIR"
 }
 

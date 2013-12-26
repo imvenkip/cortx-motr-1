@@ -150,8 +150,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 	struct m0_cob_oikey   oikey;
 	int                   rc;
 
-	M0_ENTRY("dom=%p cob=[%x,%x]", cdom,
-		(int)cob_fid->f_container, (int)cob_fid->f_key);
+	M0_ENTRY("dom=%p cob="FID_F, cdom, FID_P(cob_fid));
 
 	m0_cob_oikey_make(&oikey, cob_fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
@@ -394,19 +393,16 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
 
         ldom = &reqh->rh_ldom;
 
-        M0_LOG(M0_DEBUG, "fetch file size and layout for %llu:%llu",
-                         (unsigned long long)gfid->f_container,
-                         (unsigned long long)gfid->f_key);
+        M0_LOG(M0_DEBUG, "fetch file size and layout for "FID_F, FID_P(gfid));
         rc = m0_ios_mds_getattr(reqh, gfid, &attr);
         if (rc == 0) {
                 M0_ASSERT(attr.ca_valid | M0_COB_LID);
                 M0_ASSERT(attr.ca_valid | M0_COB_SIZE);
                 *fsize = attr.ca_size;
-                M0_LOG(M0_DEBUG, "FID = %llu:%llu, size = %llu, lid = %llu",
-                                 (unsigned long long)gfid->f_container,
-                                 (unsigned long long)gfid->f_key,
-                                 (unsigned long long)attr.ca_size,
-                                 (unsigned long long)attr.ca_lid);
+                M0_LOG(M0_DEBUG, "FID = "FID_F", size = %llu, lid = %llu",
+		       FID_P(gfid),
+		       (unsigned long long)attr.ca_size,
+		       (unsigned long long)attr.ca_lid);
                 rc = m0_ios_mds_layout_get(reqh, ldom, attr.ca_lid, &l);
                 if (rc == 0) {
                         pdl = m0_layout_to_pdl(l);
@@ -423,9 +419,8 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
                         M0_LOG(M0_DEBUG, "getlayout for %llu failed rc = %d",
                                          (unsigned long long)attr.ca_lid, rc);
         } else
-                M0_LOG(M0_ERROR, "getattr for %llu:%llu failed rc = %d",
-                                 (unsigned long long)gfid->f_container,
-                                 (unsigned long long)gfid->f_key, rc);
+                M0_LOG(M0_ERROR, "getattr for "FID_F" failed rc = %d",
+		       FID_P(gfid), rc);
         return rc;
 }
 
@@ -536,10 +531,8 @@ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 			nr_cnts += nr_cnt_per_ios;
 			continue;
 		}
-		M0_LOG(M0_DEBUG, "Target endpoint for: %llu:%llu %s",
-				 (unsigned long long)cfid->f_container,
-				 (unsigned long long)cfid->f_key,
-				 ex->ex_endpoint);
+		M0_LOG(M0_DEBUG, "Target endpoint for: "FID_F" %s",
+		       FID_P(cfid), ex->ex_endpoint);
 		return ex->ex_endpoint;
 	} m0_tl_endfor;
 

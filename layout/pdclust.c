@@ -798,10 +798,8 @@ static int pdclust_instance_build(struct m0_layout           *l,
 	M0_PRE(m0_fid_is_valid(fid));
 	M0_PRE(out != NULL);
 
-	M0_ENTRY("lid %llu, gfid container %llu, gfid key %llu",
-		 (unsigned long long)l->l_id,
-		 (unsigned long long)fid->f_container,
-		 (unsigned long long)fid->f_key);
+	M0_ENTRY("lid %llu, gfid "FID_F,
+		 (unsigned long long)l->l_id, FID_P(fid));
 	N  = pl->pl_attr.pa_N;
 	K  = pl->pl_attr.pa_K;
 	P  = pl->pl_attr.pa_P;

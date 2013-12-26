@@ -43,9 +43,8 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 
 	M0_SET0(iter);
 
-	iter->cni_cdom = cdom;
-	iter->cni_last_fid.f_container = gfid->f_container;
-	iter->cni_last_fid.f_key = gfid->f_key;
+	iter->cni_cdom     =  cdom;
+	iter->cni_last_fid = *gfid;
 
 	M0_POST(ns_iter_invariant(iter));
 
@@ -86,8 +85,7 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 		m0_be_btree_cursor_kv_get(&it, &kbuf, NULL);
 		k = (struct m0_cob_nskey *)kbuf.b_addr;
 
-		next_gfid->f_container = k->cnk_pfid.f_container;
-		next_gfid->f_key = k->cnk_pfid.f_key;
+		*next_gfid = k->cnk_pfid;
 	}
 	m0_free(key);
         m0_be_btree_cursor_fini(&it);
@@ -104,10 +102,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
 
-	key_fid.f_container = iter->cni_last_fid.f_container;
-	key_fid.f_key = iter->cni_last_fid.f_key;
-
-
+	key_fid = iter->cni_last_fid;
 	rc = m0_cob_ns_next_of(iter->cni_cdom->cd_namespace, &key_fid, gfid);
 	if (rc == 0) {
 		/* Container (f_container) value remains same, typically 0. */
