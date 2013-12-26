@@ -9,6 +9,8 @@
                       fi
                     )
 
+%define kernel_ver_requires %( echo %{kernel_ver} | sed -e 's/\.x86_64$//' -e 's/_/-/g' )
+
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
 Release:        1_%{kernel_ver}@GIT_REV_ID_RPM@%{?dist}
@@ -18,9 +20,37 @@ License:        Xyratex
 Source:         %{name}-%{version}.tar.gz
 BuildArch:      x86_64
 ExcludeArch:    i686
-# TODO: specify exact lustre-modules version for which we build
-Requires:       lustre-modules libyaml genders sysvinit-tools perl perl-YAML-LibYAML perl-DateTime perl-File-Which perl-List-MoreUtils
-BuildRequires:  automake autoconf libtool make gcc gcc-c++ gccxml glibc-headers kernel-devel asciidoc libyaml-devel libaio-devel perl perl-XML-LibXML perl-List-MoreUtils perl-File-Find-Rule perl-IO-All lustre-source
+
+BuildRequires:  automake
+BuildRequires:  autoconf
+BuildRequires:  libtool
+BuildRequires:  make
+BuildRequires:  gcc
+BuildRequires:  gcc-c++
+BuildRequires:  gccxml
+BuildRequires:  glibc-headers
+BuildRequires:  asciidoc
+BuildRequires:  libyaml-devel
+BuildRequires:  libaio-devel
+BuildRequires:  perl
+BuildRequires:  perl-XML-LibXML
+BuildRequires:  perl-List-MoreUtils
+BuildRequires:  perl-File-Find-Rule
+BuildRequires:  perl-IO-All
+BuildRequires:  kernel-devel = %{kernel_ver_requires}
+# TODO: change to lustre-devel after devvm upgrade to C-NEO1.3
+BuildRequires:  lustre-source
+
+Requires:       kernel = %{kernel_ver_requires}
+Requires:       lustre-modules
+Requires:       libyaml
+Requires:       genders
+Requires:       sysvinit-tools
+Requires:       perl
+Requires:       perl-YAML-LibYAML
+Requires:       perl-DateTime
+Requires:       perl-File-Which
+Requires:       perl-List-MoreUtils
 
 %description
 Mero filesystem runtime environment and servers.
