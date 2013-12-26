@@ -122,6 +122,8 @@
 
 /* import */
 struct m0_bufvec_cursor;
+struct m0_be_seg;
+struct m0_be_tx;
 
 /* export */
 struct m0_xcode;
@@ -642,6 +644,9 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
 M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj);
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1);
+M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
+				struct m0_xcode_obj *src, struct m0_be_seg *seg,
+				struct m0_be_tx *tx);
 
 /**
    Returns the address of a sub-object within an object.

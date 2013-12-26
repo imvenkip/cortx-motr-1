@@ -19,6 +19,7 @@
  */
 
 #include <stdlib.h>        /* system */
+#include "lib/finject.h"
 #include "conf/db.h"       /* m0_confdb_create, m0_confdb_read */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
 #include "conf/obj.h"      /* m0_conf_objtype */
@@ -188,19 +189,21 @@ static void conf_ut_db_fini()
         m0_be_ut_backend_fini(&ut_be);
 }
 
-#define CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc) \
-do {                                               \
-        m0_be_ut_tx_init(&(tx), &(ut_be));         \
-        m0_be_tx_prep(&(tx), &(accum));            \
-        rc = m0_be_tx_open_sync(&(tx));            \
-        M0_UT_ASSERT(rc == 0);                     \
-} while (0);
+static int conf_ut_be_tx_create(struct m0_be_tx *tx,
+				struct m0_be_ut_backend *ut_be,
+				struct m0_be_tx_credit *accum)
+{
+        m0_be_ut_tx_init(tx, ut_be);
+        m0_be_tx_prep(tx, accum);
+        return m0_be_tx_open_sync(tx);
+}
 
-#define CONF_UT_BE_TX_FINI(tx)    \
-do {                              \
-        m0_be_tx_close_sync(&tx); \
-        m0_be_tx_fini(&tx);       \
-} while (0);
+static void conf_ut_be_tx_fini(struct m0_be_tx *tx)
+{
+        m0_be_tx_close_sync(tx);
+        m0_be_tx_fini(tx);
+}
+
 void test_confdb(void)
 {
 	struct m0_confx        *enc;
@@ -244,10 +247,22 @@ void test_confdb(void)
 
 	rc = m0_confdb_create_credit(seg, enc, &accum);
 	M0_UT_ASSERT(rc == 0);
-	CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc);
+	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_fi_enable("confdb_tables_init", "ut_confdb_create_failure");
+	rc = m0_confdb_create(seg, &tx, enc);
+	M0_UT_ASSERT(rc < 0);
+	m0_fi_disable("confdb_tables_init", "ut_confdb_create_failure");
+
+	m0_fi_enable("confx_obj_dup", "ut_confx_obj_dup_failure");
+	rc = m0_confdb_create(seg, &tx, enc);
+	M0_UT_ASSERT(rc < 0);
+	m0_fi_disable("confx_obj_dup", "ut_confx_obj_dup_failure");
+
 	rc = m0_confdb_create(seg, &tx, enc);
 	M0_UT_ASSERT(rc == 0);
-	CONF_UT_BE_TX_FINI(tx);
+	conf_ut_be_tx_fini(&tx);
 
 	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
@@ -259,10 +274,11 @@ void test_confdb(void)
 	M0_SET0(&accum);
 	rc = m0_confdb_destroy_credit(seg, &accum);
 	M0_UT_ASSERT(rc == 0);
-	CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc);
+	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_confdb_destroy(seg, &tx);
         M0_UT_ASSERT(rc == 0);
-	CONF_UT_BE_TX_FINI(tx);
+	conf_ut_be_tx_fini(&tx);
 	conf_ut_db_fini();
 
 	cleanup();
@@ -270,5 +286,3 @@ void test_confdb(void)
 
 #undef _BUF
 #undef _CONFDB_PATH
-#undef CONF_UT_BE_TX_CREATE
-#undef CONF_UT_BE_TX_FINI

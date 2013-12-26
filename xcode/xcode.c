@@ -23,7 +23,8 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-
+#include "be/op.h"
+#include "be/alloc.h"
 #include "xcode/xcode.h"
 
 /**
@@ -398,6 +399,108 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 	}
 }
 
+static int xcode_be_alloc(struct m0_be_seg *seg, struct m0_be_tx *tx,
+			  struct m0_xcode_obj *xobj, struct m0_xcode_cursor *it,
+			  size_t *size)
+{
+	int    rc = 0;
+	void **slot;
+
+	slot = m0_xcode_allocp(it, size);
+	if (*size != 0 && *slot == NULL) {
+		M0_ASSERT(xobj->xo_ptr == NULL);
+		M0_BE_ALLOC_ARR_SYNC(*slot, *size, seg, tx);
+		xobj->xo_ptr = *slot;
+		if (xobj->xo_ptr == NULL)
+			rc = -ENOMEM;
+	}
+
+	return rc;
+}
+
+static bool is_xcode_cursor_at(struct m0_xcode_cursor *it,
+			       enum m0_xcode_cursor_flag flag,
+			       enum m0_xcode_aggr aggr)
+{
+	struct m0_xcode_cursor_frame *f = m0_xcode_cursor_top(it);
+
+	return (f->s_flag == flag &&
+		f->s_obj.xo_type->xct_aggr == aggr);
+}
+
+static void iff_at_array_xcode_cursor_skip(struct m0_xcode_cursor *it)
+{
+	struct m0_xcode_cursor_frame *prev = m0_xcode_cursor_top(it) - 1;
+	struct m0_xcode_obj          *par  = &prev->s_obj;
+	bool array = m0_xcode_at_array(it, prev, par) &&
+		m0_xcode_is_byte_array(par->xo_type);
+
+	if (array) {
+		it->xcu_depth--;
+		m0_xcode_skip(it);
+	}
+}
+
+M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
+				struct m0_xcode_obj *src, struct m0_be_seg *seg,
+				struct m0_be_tx *tx)
+{
+	struct m0_xcode_cursor  dit;
+	struct m0_xcode_cursor  sit;
+	struct m0_xcode_obj    *src_obj;
+	struct m0_xcode_obj    *dest_obj;
+	int                     result;
+	int                     rc;
+
+	M0_PRE(dest->xo_type == src->xo_type);
+
+	m0_xcode_cursor_init(&sit, src);
+	m0_xcode_cursor_init(&dit, dest);
+	while ((result = m0_xcode_next(&sit)) > 0) {
+		struct m0_xcode_cursor_frame *sf;
+		struct m0_xcode_cursor_frame *df;
+		struct m0_xcode_obj          *sobj;
+		struct m0_xcode_obj          *dobj;
+		const struct m0_xcode_type   *xt;
+		size_t                        nob = 0;
+
+		result = m0_xcode_next(&dit);
+		M0_ASSERT(result > 0);
+
+		sf = m0_xcode_cursor_top(&sit);
+		df = m0_xcode_cursor_top(&dit);
+		M0_ASSERT(sf->s_flag == df->s_flag);
+		sobj = &sf->s_obj;
+		dobj = &df->s_obj;
+		xt = sobj->xo_type;
+		M0_ASSERT(xt == dobj->xo_type);
+		if (is_xcode_cursor_at(&sit, M0_XCODE_CURSOR_PRE, M0_XA_ATOM)) {
+			rc = xcode_be_alloc(seg, tx, dobj, &dit, &nob);
+			M0_ASSERT(rc == 0);
+			if (nob == 0)
+				nob = sobj->xo_type->xct_sizeof;
+			memcpy(dobj->xo_ptr, sobj->xo_ptr, nob);
+			iff_at_array_xcode_cursor_skip(&sit);
+			iff_at_array_xcode_cursor_skip(&dit);
+		} else if (is_xcode_cursor_at(&sit, M0_XCODE_CURSOR_PRE,
+					      M0_XA_SEQUENCE) &&
+			   dobj->xo_ptr == NULL) {
+			rc = xcode_be_alloc(seg, tx, dobj, &dit, &nob);
+			M0_ASSERT(rc == 0);
+		}
+	}
+
+	dest_obj = &dit.xcu_stack[0].s_obj;
+	src_obj = &sit.xcu_stack[0].s_obj;
+
+	if (result >= 0)
+		result = 0;
+	M0_POST(ergo(result == 0, m0_xcode_cmp(dest_obj, src_obj) == 0));
+
+	return result;
+
+}
+
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1)
 {
@@ -428,8 +531,7 @@ M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 		xt = s0->xo_type;
 		M0_ASSERT(xt == s1->xo_type);
 
-		if (t0->s_flag == M0_XCODE_CURSOR_PRE &&
-		    xt->xct_aggr == M0_XA_ATOM) {
+		if (is_xcode_cursor_at(&it0, M0_XCODE_CURSOR_PRE, M0_XA_ATOM)) {
 			result = memcmp(s0->xo_ptr, s1->xo_ptr, xt->xct_sizeof);
 			if (result != 0)
 				return result;
