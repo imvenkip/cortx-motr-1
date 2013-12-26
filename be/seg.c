@@ -18,6 +18,9 @@
  * Original creation date: 29-May-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 #include "be/seg.h"
 
 #include "lib/misc.h"         /* M0_IN */
@@ -44,6 +47,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 {
 	struct m0_be_seg_hdr hdr;
 
+	M0_ENTRY("seg=%p", seg);
 	M0_PRE(seg->bs_state == M0_BSS_INIT);
 	M0_PRE(seg->bs_stob->so_domain != NULL);
 	M0_PRE(addr != NULL);
@@ -53,23 +57,25 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 		.bh_addr = addr,
 		.bh_size = size,
 	};
-	return m0_be_io_single(seg->bs_stob, SIO_WRITE,
-			       &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+	M0_RETURN(m0_be_io_single(seg->bs_stob, SIO_WRITE,
+				  &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr));
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 {
+	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 
 	/* XXX TODO: seg destroy ... */
 
-	return 0;
+	M0_RETURN(0);
 }
 
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom)
 {
+	M0_ENTRY("seg=%p", seg);
 	*seg = (struct m0_be_seg) {
 		.bs_reserved = M0_BE_SEG_HEADER_OFFSET +
 			       sizeof(struct m0_be_seg_hdr),
@@ -77,11 +83,14 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
 	};
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 {
+	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
+	M0_LEAVE();
 }
 
 M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg)
@@ -106,19 +115,22 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	void                 *p;
 	int                   rc;
 
+	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
+
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
 	if (rc != 0)
-		return rc;
+		M0_RETURN(rc);
 	/* XXX check for magic */
 
 	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ|PROT_WRITE,
 		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 	if (p != hdr.bh_addr)
-		return -errno;
+		M0_RETURN(-errno);
 
-	rc = m0_be_io_single(seg->bs_stob, SIO_READ, hdr.bh_addr, 0, hdr.bh_size);
+	rc = m0_be_io_single(seg->bs_stob, SIO_READ, hdr.bh_addr, 0,
+			     hdr.bh_size);
 	if (rc == 0) {
 		seg->bs_size  = hdr.bh_size;
 		seg->bs_addr  = hdr.bh_addr;
@@ -126,15 +138,17 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	} else {
 		munmap(hdr.bh_addr, hdr.bh_size);
 	}
-	return rc;
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 {
+	M0_ENTRY("seg=%p", seg);
 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
 
 	munmap(seg->bs_addr, seg->bs_size);
 	seg->bs_state = M0_BSS_CLOSED;
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op)
@@ -221,6 +235,7 @@ M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg)
 }
 
 /** @} end of be group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
