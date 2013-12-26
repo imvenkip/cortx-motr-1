@@ -204,6 +204,8 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 						   as_pfom);
 	struct m0_reqh         *reqh = svc->as_reqhs.rs_reqh;
 	struct m0_reqh_service *rsvc = &svc->as_reqhs;
+	struct m0_rpc_conn     *conn =
+				    reqh->rh_addb_monitoring_ctx.amc_stats_conn;
 	int                     rc = M0_FSO_AGAIN;
 	m0_time_t               now;
 	int                     err = 0;
@@ -250,7 +252,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "post");
 		m0_reqh_stats_post_addb(reqh);
 
-		if (reqh->rh_addb_monitoring_ctx.amc_stats_conn != NULL)
+		if (conn != NULL && conn->c_sm.sm_state == M0_RPC_CONN_ACTIVE)
 			err = m0_addb_monitor_summaries_post(reqh, pfom);
 		/**
 		 * In case of summaries posting failure, just log error.
