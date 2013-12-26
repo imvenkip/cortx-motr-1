@@ -77,11 +77,25 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 /lib/modules/*
 %exclude %{_includedir}
 
+%pre
+if initctl list | grep -q 'mero' ; then
+    status mero-client | grep -q 'start/running' && stop mero-client
+    status mero        | grep -q 'start/running' && stop mero
+    status mero-kernel | grep -q 'start/running' && stop mero-kernel
+fi || true
+
 %post
 /sbin/depmod -a
 /sbin/initctl reload-configuration
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
 /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
+
+%preun
+if initctl list | grep -q 'mero' ; then
+    status mero-client | grep -q 'start/running' && stop mero-client
+    status mero        | grep -q 'start/running' && stop mero
+    status mero-kernel | grep -q 'start/running' && stop mero-kernel
+fi || true
 
 %postun
 /sbin/depmod -a
