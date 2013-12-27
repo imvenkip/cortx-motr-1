@@ -107,7 +107,7 @@ M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void)
 
 static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
 {
-	M0_RETURN(csb->csb_nr_containers);
+	return csb->csb_nr_containers;
 }
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
