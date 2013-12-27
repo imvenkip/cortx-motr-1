@@ -433,8 +433,6 @@ void bulkio_params_fini(struct bulkio_params *bp)
 
 	m0_free(bp->bp_cdbname);
 	m0_free(bp->bp_slogfile);
-	for (i = 0; i < IO_FIDS_NR; ++i)
-		m0_file_fini(&bp->bp_file[i]);
 	m0_file_lock_type_deregister();
 	m0_rm_domain_fini(&bp->bp_rdom);
 }
