@@ -208,8 +208,8 @@ void test_confdb(void)
 {
 	struct m0_confx        *enc;
 	struct m0_confx        *dec;
-	struct m0_be_tx_credit  accum;
-	struct m0_be_tx         tx;
+	struct m0_be_tx_credit  accum = {};
+	struct m0_be_tx         tx = {};
 	int                     i;
 	int                     rc;
 	char                    buf[1024] = {0};
@@ -229,8 +229,6 @@ void test_confdb(void)
 
 	cleanup();
 
-	M0_SET0(&accum);
-	M0_SET0(&tx);
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
 

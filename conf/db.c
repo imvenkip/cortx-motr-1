@@ -63,8 +63,8 @@ static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
 	M0_PRE(xobj != NULL && out != NULL);
 
 	switch(xobj_type(xobj)) {
-#define _CASE(type, abbrev)                                                        \
-	case type:                                                                 \
+#define _CASE(type, abbrev)                                                         \
+	case type:                                                                  \
 		*out =  M0_XCODE_OBJ(m0_confx_ ## abbrev ## _xc,                    \
 				     decode ? NULL : &xobj->o_conf.u.u_ ## abbrev); \
 		break
