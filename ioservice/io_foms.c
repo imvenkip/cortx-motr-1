@@ -1098,7 +1098,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		    &ops, fop, rep_fop, reqh,
 		    fop->f_type->ft_fom_type.ft_rstype);
 	m0_fop_put(rep_fop);
-	m0_fop_put(fop);
 
 	fom_obj->fcrw_fom_start_time = m0_time_now();
 	fom_obj->fcrw_stob = NULL;
@@ -1999,6 +1998,17 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 			       (uint64_t) fom_obj->fcrw_count);
 
 	m0_fom_fini(fom);
+
+	/* drop it completely from rpc slot also */
+	if (!fom->fo_local) {
+		struct m0_rpc_machine *rmachine = fop->f_item.ri_rmachine;
+
+		M0_ASSERT(rmachine != NULL);
+		m0_sm_group_lock(&rmachine->rm_sm_grp);
+		if (m0_ref_read(&fop->f_ref) > 0)
+			m0_fop_put(fop);
+		m0_sm_group_unlock(&rmachine->rm_sm_grp);
+	}
 
 	m0_free(fom_obj);
 }

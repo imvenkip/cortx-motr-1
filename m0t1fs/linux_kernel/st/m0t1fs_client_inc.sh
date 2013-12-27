@@ -73,8 +73,6 @@ unmount_and_clean()
 {
 	m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
 	echo "Unmounting file system ..."
-	# XXX temporary workaround for MERO-89
-	sleep 2
 	umount $m0t1fs_mount_dir &>/dev/null
 
 	sleep 2

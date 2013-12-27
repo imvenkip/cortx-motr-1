@@ -1097,7 +1097,7 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 
 static void fop_fini(struct m0_fop *fop, bool local)
 {
-	struct m0_rpc_machine  *rmachine;
+	struct m0_rpc_machine *rmachine;
 
 	if (fop != NULL) {
 		if (!local) {
