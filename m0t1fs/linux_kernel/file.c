@@ -4515,14 +4515,13 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
 	ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
 			ir_nwxfer, &ioreq_bobtype);
-
 	/*
 	 * Acquires a reference on IO reply fop since its contents
 	 * are needed for policy decisions in io_bottom_half().
 	 * io_bottom_half() takes care of releasing the reference.
 	 */
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	rep_fop = m0_fop_get(rep_fop);
+	m0_fop_get(rep_fop);
 
 	M0_LOG(M0_INFO, "io_req_fop %p, target_ioreq %p io_request %p",
 			reqfop, reqfop->irf_tioreq, ioreq);
@@ -4610,6 +4609,10 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ASSERT(reply_item != NULL &&
 		  !m0_rpc_item_is_generic_reply_fop(reply_item));
 	reply_fop = m0_rpc_item_to_fop(reply_item);
+	if (!m0_is_io_fop_rep(reply_fop)) {
+		M0_LOG(M0_ERROR, "invalid fop reply rcvd: %s",
+			reply_fop->f_type->ft_name);
+	}
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
