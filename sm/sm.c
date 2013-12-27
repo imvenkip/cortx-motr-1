@@ -363,7 +363,9 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 	 */
 	do {
 		sd = sm_state(mach);
-		M0_ASSERT(sd->sd_allowed & M0_BITS(state));
+		M0_ASSERT_INFO(sd->sd_allowed & M0_BITS(state), "%s: %s -> %s",
+			       mach->sm_conf->scf_name, sd->sd_name,
+			       state_get(mach, state)->sd_name);
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 
