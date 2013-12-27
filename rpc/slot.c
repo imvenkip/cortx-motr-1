@@ -195,6 +195,15 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 	M0_RETURN(0);
 }
 
+static void reply_item_put(struct m0_rpc_item *item)
+{
+	struct m0_rpc_item *reply = item->ri_reply;
+
+	if (reply != NULL)
+		m0_rpc_item_put(reply);
+	item->ri_reply = NULL;
+}
+
 /**
   Frees all the items from slot->sl_item_list except dummy_item.
 
@@ -206,9 +215,7 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 static void slot_item_list_prune(struct m0_rpc_slot *slot)
 {
 	struct m0_rpc_item  *item;
-	struct m0_rpc_item  *reply;
 	struct m0_rpc_item  *dummy_item;
-	int                  count = 0;
 	bool                 first_item = true;
 
 	M0_ENTRY("slot: %p", slot);
@@ -226,13 +233,9 @@ static void slot_item_list_prune(struct m0_rpc_slot *slot)
 			first_item = false;
 			continue;
 		}
-		reply = item->ri_reply;
-		if (reply != NULL)
-			m0_rpc_item_put(reply);
-		item->ri_reply = NULL;
 		slot_item_tlist_del(item);
+		reply_item_put(item);
 		m0_rpc_item_put(item);
-		count++;
 	} end_for_each_item_in_slot;
         M0_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
 
