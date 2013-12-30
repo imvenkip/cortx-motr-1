@@ -237,6 +237,7 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/io_fops.h"
 #include "mero/setup.h"
+#include "lib/locality.h"
 
 /**
    @addtogroup io_calls_params_dldDFS
@@ -254,6 +255,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	int                 rc;
 	struct m0_poolmach *poolmach;
 	struct m0_reqh     *reqh = service->rs_reqh;
+	struct m0_sm_group *grp  = m0_locality0_get()->lo_grp;
 
 	M0_PRE(service != NULL);
 	M0_PRE(service->rs_reqh_ctx != NULL);
@@ -268,11 +270,16 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	}
 
 	/* TODO configuration information is needed here. */
-	rc = m0_poolmach_init(poolmach, reqh->rh_dbenv, reqh->rh_dtm,
+
+	/* We are not using reqh->rh_sm_grp here, otherwise deadlock */
+	m0_sm_group_lock(grp);
+	rc = m0_poolmach_init(poolmach, reqh->rh_beseg, grp,
+			      reqh->rh_dtm,
 			      PM_DEFAULT_NR_NODES,
 			      service->rs_reqh_ctx->rc_mero->cc_pool_width,
 			      PM_DEFAULT_MAX_NODE_FAILURES,
 			      PM_DEFAULT_MAX_DEV_FAILURES);
+	m0_sm_group_unlock(grp);
 	if (rc != 0) {
 		m0_free(poolmach);
 		goto out;

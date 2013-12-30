@@ -47,6 +47,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/sw_onwire_fop.h"
+#include "lib/locality.h"
 
 /**
   @page SNSCMDLD SNS copy machine DLD
@@ -515,19 +516,16 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
 	struct m0_pool_spare_usage *spare_array;
 	struct m0_pooldev          *dev_array;
-	struct m0_pool_event        pme;
-	struct m0_dbenv            *dbenv = scm->sc_it.si_dbenv;
-	struct m0_db_tx             tx;
 	uint32_t                    dev_id;
 	bool                        transit;
 	int                         i;
 	int                         rc = 0;
 
-	spare_array = pm->pm_state.pst_spare_usage_array;
+	spare_array = pm->pm_state->pst_spare_usage_array;
 	for (i = 0; spare_array[i].psu_device_index != POOL_PM_SPARE_SLOT_UNUSED; ++i) {
 		transit = false;
 		dev_id = spare_array[i].psu_device_index;
-		dev_array = pm->pm_state.pst_devices_array;
+		dev_array = pm->pm_state->pst_devices_array;
 		switch (state) {
 		case M0_PNDS_SNS_REPAIRING:
 			if (dev_array[dev_id].pd_state == M0_PNDS_FAILED)
@@ -552,16 +550,30 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 			break;
 		}
 		if (transit) {
-			rc = m0_db_tx_init(&tx, dbenv, 0);
-			if (rc != 0)
-				return rc;
+			struct m0_pool_event   pme;
+			struct m0_be_tx_credit cred = {};
+			struct m0_be_tx        tx;
+			struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
+
 			M0_SET0(&pme);
 			pme.pe_type  = et;
 			pme.pe_index = dev_id;
 			pme.pe_state = state;
-			rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme,
-						       &tx);
-			m0_db_tx_commit(&tx);
+
+			m0_sm_group_lock(grp);
+			m0_be_tx_init(&tx, 0, scm->sc_it.si_beseg->bs_domain, grp,
+					      NULL, NULL, NULL, NULL);
+			m0_poolmach_store_credit(scm->sc_base.cm_pm, &cred);
+
+			m0_be_tx_prep(&tx, &cred);
+			rc = m0_be_tx_open_sync(&tx);
+			if (rc == 0) {
+				rc = m0_poolmach_state_transit(scm->sc_base.cm_pm,
+							       &pme, &tx);
+				m0_be_tx_close_sync(&tx);
+			}
+			m0_be_tx_fini(&tx);
+			m0_sm_group_unlock(grp);
 			if (rc != 0)
 				break;
 		}

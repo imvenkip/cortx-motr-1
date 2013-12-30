@@ -272,6 +272,15 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
 				       M0_BAO_FREE, sizeof *(ptr), 0, (accum))
 
+#define M0_BE_ALLOC_CREDIT_ARR(arr, nr, seg, accum)				\
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
+				       M0_BAO_ALLOC, (nr) * sizeof((arr)[0]), 0, (accum))
+
+#define M0_BE_FREE_CREDIT_ARR(arr, nr, seg, accum)				\
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
+				       M0_BAO_FREE, (nr) * sizeof((arr)[0]), 0, (accum))
+
+
 /** @} end of be group */
 #endif /* __MERO_BE_ALLOC_H__ */
 /*

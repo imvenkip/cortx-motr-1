@@ -715,7 +715,7 @@ static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
 	if (m == NULL)
 		return -ENOMEM;
 
-	rc = m0_poolmach_init(m, NULL, NULL, NR_NODES, pool_width,
+	rc = m0_poolmach_init(m, NULL, NULL, NULL, NR_NODES, pool_width,
 			      MAX_NODE_FAILURES, nr_parity_units);
 	if (rc == 0)
 		*out = m;

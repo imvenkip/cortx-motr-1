@@ -375,6 +375,8 @@ M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx *tx,
 /* XXX change to (tx, seg, ptr) */
 #define M0_BE_TX_CAPTURE_PTR(seg, tx, ptr) \
 	m0_be_tx_capture((tx), &M0_BE_REG((seg), sizeof *(ptr), (ptr)))
+#define M0_BE_TX_CAPTURE_ARR(seg, tx, arr, nr) \
+	m0_be_tx_capture((tx), &M0_BE_REG((seg), (nr) * sizeof((arr)[0]), (arr)))
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx);
 

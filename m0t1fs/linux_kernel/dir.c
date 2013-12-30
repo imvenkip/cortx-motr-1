@@ -1522,7 +1522,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 		 * call will be restarted.
 		 */
 		rc = -EAGAIN;
-		cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+		cli = &csb->csb_pool.po_mach->pm_state->pst_version;
 		srv = (struct m0_pool_version_numbers *)&reply->cor_fv_version;
 		*cli = *srv;
 		while (i < reply->cor_fv_updates.fvu_count) {

@@ -38,6 +38,7 @@ struct m0_stob_id;
 struct m0_dtm;
 struct m0_io_req;
 struct m0_dtx;
+struct m0_be_tx_credit;
 
 /* export */
 struct m0_pool;
@@ -291,40 +292,30 @@ struct m0_poolmach_state {
  */
 struct m0_poolmach {
 	/** struct m0_persistent_sm  pm_mach; */
-	struct m0_poolmach_state pm_state;
+	struct m0_poolmach_state *pm_state;
 
-	/**
-	 * the db table to store poolmach state.
-	 */
-	struct m0_table          pm_table;
+	/** the be_seg. if this is NULL, the poolmach is on client. */
+	struct m0_be_seg         *pm_be_seg;
 
-	/**
-	 * events stored here.
-	 */
-	struct m0_table          pm_events_table;
-
-	/** the dbenv. if this is NULL, the poolmach is on client. */
-	struct m0_dbenv         *pm_dbenv;
+	struct m0_sm_group       *pm_sm_grp;
 
 	/** this pool machine initialized or not */
-	bool                     pm_is_initialised;
+	bool                      pm_is_initialised;
 
 	/** read write lock to protect the whole pool machine */
-	struct m0_rwlock         pm_lock;
+	struct m0_rwlock          pm_lock;
 };
 
-M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_pool_version_numbers
-					   *v1,
-					   const struct m0_pool_version_numbers
-					   *v2);
+M0_INTERNAL bool
+m0_poolmach_version_equal(const struct m0_pool_version_numbers *v1,
+			  const struct m0_pool_version_numbers *v2);
 /**
  * Pool Machine version numbers are incremented upon event.
  * v1 before v2 means v2's version number is greater than v1's.
  */
-M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
-					    *v1,
-					    const struct m0_pool_version_numbers
-					    *v2);
+M0_INTERNAL bool
+m0_poolmach_version_before(const struct m0_pool_version_numbers *v1,
+			   const struct m0_pool_version_numbers *v2);
 /**
  * Initialises the pool machine.
  *
@@ -332,17 +323,24 @@ M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
  * call, it will initialise the persistent data.
  */
 M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
-				 struct m0_dbenv *dbenv,
-				 struct m0_dtm *dtm,
-				 uint32_t nr_nodes,
-				 uint32_t nr_devices,
-				 uint32_t max_node_failures,
-				 uint32_t max_device_failures);
+				 struct m0_be_seg   *be_seg,
+				 struct m0_sm_group *sm_grp,
+				 struct m0_dtm      *dtm,
+				 uint32_t            nr_nodes,
+				 uint32_t            nr_devices,
+				 uint32_t            max_node_failures,
+				 uint32_t            max_device_failures);
 
 /**
  * Finalises the pool machine.
  */
 M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
+
+/**
+ * Calculate poolmach credit.
+ */
+M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach        *pm,
+					  struct m0_be_tx_credit *accum);
 
 /**
  * Change the pool machine state according to this event.
@@ -351,9 +349,9 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
  *        will be copied into pool machine state, and it can
  *        be used or released by caller after call.
  */
-M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
-					  struct m0_pool_event *event,
-					  struct m0_db_tx      *tx);
+M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
+					  const struct m0_pool_event *event,
+					  struct m0_be_tx            *tx);
 
 /**
  * Query the state changes between the "from" and "to" version.

@@ -28,6 +28,13 @@
 #include "sns/cm/cp.h"
 #include "cm/ag.h"
 #include "cm/ut/common_service.h"
+#include "lib/locality.h"
+
+/* import from pool/pool_store.c */
+M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+					  struct m0_be_seg   *be_seg,
+					  struct m0_sm_group *sm_grp,
+					  struct m0_dtm      *dtm);
 
 static struct m0_semaphore     sem;
 
@@ -299,6 +306,13 @@ static int cm_cp_init(void)
 /* Finalises the request handler. */
 static int cm_cp_fini(void)
 {
+	struct m0_reqh     *reqh = cm_ut_service->rs_reqh;
+	struct m0_poolmach *pm = m0_ios_poolmach_get(reqh);
+	struct m0_sm_group *grp  = m0_locality0_get()->lo_grp;
+
+	m0_sm_group_lock(grp);
+	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
+	m0_sm_group_unlock(grp);
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);

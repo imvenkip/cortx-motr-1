@@ -176,7 +176,7 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 		 * Fetch the correspinding data/parity unit device index for
 		 * the given spare unit.
 		 */
-		device_index = pm->pm_state.pst_spare_usage_array[spare_id].
+		device_index = pm->pm_state->pst_spare_usage_array[spare_id].
 			psu_device_index;
 
 		if (device_index == POOL_PM_SPARE_SLOT_UNUSED) {

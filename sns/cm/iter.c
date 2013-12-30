@@ -898,7 +898,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	M0_PRE(it != NULL);
 
 	cm = &scm->sc_base;
-	it->si_dbenv = cm->cm_service.rs_reqh->rh_dbenv;
+	it->si_beseg = cm->cm_service.rs_reqh->rh_beseg;
         rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
         if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_CDOM_GET);

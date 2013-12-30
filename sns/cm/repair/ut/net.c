@@ -33,6 +33,12 @@
 #include "ut/ut_rpc_machine.h"
 #include <unistd.h>			/* usleep */
 
+/* import from pool/pool_store.c */
+M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+					  struct m0_be_seg   *be_seg,
+					  struct m0_sm_group *sm_grp,
+					  struct m0_dtm      *dtm);
+
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
 #define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
@@ -499,7 +505,7 @@ static void receiver_init()
 	 * Set the state of the failed device to "M0_PNDS_FAILED" in the pool
 	 * machine explicitly.
 	 */
-	ps = &cm->cm_pm->pm_state;
+	ps = cm->cm_pm->pm_state;
 	ps->pst_devices_array[DEV_ID].pd_state = M0_PNDS_FAILED;
 	ps->pst_spare_usage_array[DEV_ID].psu_device_state  =
 	M0_PNDS_SNS_REPAIRING;
@@ -742,6 +748,9 @@ static void receiver_fini()
 
 static void sender_fini()
 {
+	struct m0_reqh     *reqh;
+	struct m0_poolmach *pm;
+	struct m0_sm_group *grp;
         int rc;
         int i;
 
@@ -755,6 +764,13 @@ static void sender_fini()
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);
 	m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
+	reqh = sender_cm_service->rs_reqh;
+	pm = m0_ios_poolmach_get(reqh);
+	grp  = m0_locality0_get()->lo_grp;
+
+	m0_sm_group_lock(grp);
+	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
+	m0_sm_group_unlock(grp);
         m0_ios_poolmach_fini(sender_cm_service);
         m0_reqh_service_stop(sender_cm_service);
         m0_reqh_service_fini(sender_cm_service);

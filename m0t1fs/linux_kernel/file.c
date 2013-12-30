@@ -4555,7 +4555,7 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	reply_version = &rw_reply->rwr_fv_version;
 	reply_updates = &rw_reply->rwr_fv_updates;
 	srv = (struct m0_pool_version_numbers *)reply_version;
-	cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+	cli = &csb->csb_pool.po_mach->pm_state->pst_version;
 	M0_LOG(M0_DEBUG, ">>>VERSION MISMATCH!");
 	m0_poolmach_version_dump(cli);
 	m0_poolmach_version_dump(srv);

@@ -159,7 +159,7 @@ static int file_io_ut_init(void)
 	M0_SET0(&poolmach);
 	csb.csb_pool.po_mach = &poolmach;
 
-	rc = m0_poolmach_init(csb.csb_pool.po_mach, NULL, NULL,
+	rc = m0_poolmach_init(csb.csb_pool.po_mach, NULL, NULL, NULL,
 			      1, LAY_P, 1, LAY_K);
 	M0_ASSERT(rc == 0);
 

@@ -86,20 +86,31 @@ static void service_start_failure(void)
 static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
 			      enum m0_pool_nd_state state)
 {
-	struct m0_pool_event pme;
-	struct m0_db_tx      tx;
-	int                  rc;
+	struct m0_pool_event   pme;
+	int                    rc;
+	struct m0_be_tx_credit cred = {};
+	struct m0_be_tx        tx;
+	struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
 
 	M0_SET0(&pme);
 	pme.pe_type  = M0_POOL_DEVICE;
 	pme.pe_index = fd;
 	pme.pe_state = state;
-        rc = m0_db_tx_init(&tx, scm->sc_it.si_dbenv, 0);
+
+	m0_sm_group_lock(grp);
+	m0_be_tx_init(&tx, 0, reqh->rh_beseg->bs_domain, grp,
+			      NULL, NULL, NULL, NULL);
+	m0_poolmach_store_credit(pm, &cred);
+
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_poolmach_state_transit(cm->cm_pm, &pme, &tx);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
-				       &tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_db_tx_commit(&tx);
+	m0_sm_group_unlock(grp);
 }
 
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)

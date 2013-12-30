@@ -1668,8 +1668,10 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_fop		   *rfop;
 	struct m0_fop_cob_rw_reply *rw_reply;
 	int			    rc;
-	struct m0_db_tx             tx;
 	struct m0_fop_cob_rw	   *rw;
+	struct m0_be_tx_credit      cred = {};
+	struct m0_be_tx             tx;
+	struct m0_sm_group         *grp  = m0_locality0_get()->lo_grp;
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
@@ -1678,15 +1680,22 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);
 
-	rc = m0_db_tx_init(&tx, reqh->rh_dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
-
 	pm = m0_ios_poolmach_get(reqh);
 	M0_UT_ASSERT(pm != NULL);
 
+	m0_sm_group_lock(grp);
+	m0_be_tx_init(&tx, 0,reqh->rh_beseg->bs_domain, grp,
+			      NULL, NULL, NULL, NULL);
+	m0_poolmach_store_credit(pm, &cred);
+
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	M0_ASSERT(rc == 0);
 	rc = m0_poolmach_state_transit(pm, &event, &tx);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
 	M0_UT_ASSERT(rc == 0);
-	m0_db_tx_commit(&tx);
+	m0_sm_group_unlock(grp);
 
 	/* This is just a test to detect failure vector mismatch on server
 	 * side. No need to prepare a full write request, e.g. buffer.

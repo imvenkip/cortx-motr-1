@@ -132,7 +132,7 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 		     pme.pe_index = set_fop->fps_dev_info.fpi_dev[i].fpd_index;
 		     pme.pe_state = set_fop->fps_dev_info.fpi_dev[i].fpd_state;
 		     rc = m0_poolmach_state_transit(poolmach, &pme,
-				     &fom->fo_tx.tx_dbtx);
+				     &fom->fo_tx.tx_betx);
 		     if (rc != 0)
 			     break;
 		}

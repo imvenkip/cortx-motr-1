@@ -116,7 +116,7 @@ struct m0_sns_cm_iter {
 	/** Iterator state machine. */
 	struct m0_sm                     si_sm;
 
-	struct m0_dbenv                 *si_dbenv;
+	struct m0_be_seg                *si_beseg;
 
 	struct m0_cob_domain            *si_cob_dom;
 

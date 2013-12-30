@@ -186,17 +186,16 @@
 
 /* Import following interfaces which are defined in pool/pool_store.c */
 M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
-				       struct m0_dbenv    *dbenv,
+				       struct m0_be_seg   *be_seg,
+				       struct m0_sm_group *sm_grp,
 				       struct m0_dtm      *dtm,
 				       uint32_t            nr_nodes,
 				       uint32_t            nr_devices,
 				       uint32_t            max_node_failures,
 				       uint32_t            max_device_failures);
-M0_INTERNAL int m0_poolmach_store(struct m0_poolmach *pm,
-				  struct m0_db_tx    *tx);
-M0_INTERNAL int m0_poolmach_event_store(struct m0_poolmach *pm,
-					struct m0_db_tx    *tx,
-					struct m0_pool_event_link *event_link);
+M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
+				  struct m0_be_tx           *tx,
+				  struct m0_pool_event_link *event_link);
 
 M0_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", M0_INTERNAL,
                    struct m0_pool_event_link, pel_linkage, pel_magic,
@@ -264,71 +263,83 @@ M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
 }
 
 M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
-				 struct m0_dbenv *dbenv,
-				 struct m0_dtm *dtm,
-				 uint32_t nr_nodes,
-				 uint32_t nr_devices,
-				 uint32_t max_node_failures,
-				 uint32_t max_device_failures)
+				 struct m0_be_seg   *be_seg,
+				 struct m0_sm_group *sm_grp,
+				 struct m0_dtm      *dtm,
+				 uint32_t            nr_nodes,
+				 uint32_t            nr_devices,
+				 uint32_t            max_node_failures,
+				 uint32_t            max_device_failures)
 {
 	uint32_t i;
 	int      rc = 0;
 	M0_PRE(!pm->pm_is_initialised);
 
 	M0_SET0(pm);
-	pm->pm_state.pst_version.pvn_version[PVE_READ]  = 0;
-	pm->pm_state.pst_version.pvn_version[PVE_WRITE] = 0;
-	pm->pm_state.pst_nr_nodes = nr_nodes;
-	/* nr_devices io devices and 1 md device. md uses container 0 */
-	pm->pm_state.pst_nr_devices = nr_devices + 1;
-	pm->pm_state.pst_max_node_failures = max_node_failures;
-	pm->pm_state.pst_max_device_failures = max_device_failures;
-
-	M0_ALLOC_ARR(pm->pm_state.pst_nodes_array, pm->pm_state.pst_nr_nodes);
-	M0_ALLOC_ARR(pm->pm_state.pst_devices_array,
-		     pm->pm_state.pst_nr_devices);
-	M0_ALLOC_ARR(pm->pm_state.pst_spare_usage_array,
-		     pm->pm_state.pst_max_device_failures);
-	if (pm->pm_state.pst_nodes_array == NULL ||
-	    pm->pm_state.pst_devices_array == NULL ||
-	    pm->pm_state.pst_spare_usage_array == NULL) {
-		/* m0_free(NULL) is valid */
-		m0_free(pm->pm_state.pst_nodes_array);
-		m0_free(pm->pm_state.pst_devices_array);
-		m0_free(pm->pm_state.pst_spare_usage_array);
-		return -ENOMEM;
-	}
-
-	for (i = 0; i < pm->pm_state.pst_nr_nodes; i++) {
-		pm->pm_state.pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
-		/* TODO use real node id */
-		pm->pm_state.pst_nodes_array[i].pn_id    = NULL;
-	}
-
-	for (i = 0; i < pm->pm_state.pst_nr_devices; i++) {
-		pm->pm_state.pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
-		/* TODO use real device id */
-		pm->pm_state.pst_devices_array[i].pd_id    = NULL;
-		pm->pm_state.pst_devices_array[i].pd_node  = NULL;
-	}
-
-	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
-		/* -1 means that this spare slot is not used */
-		pm->pm_state.pst_spare_usage_array[i].psu_device_index =
-						POOL_PM_SPARE_SLOT_UNUSED;
-	}
-	poolmach_events_tlist_init(&pm->pm_state.pst_events_list);
 	m0_rwlock_init(&pm->pm_lock);
-	if (dbenv != NULL) {
-		/* On client, dbenv is NULL */
-		rc = m0_poolmach_store_init(pm, dbenv, dtm, nr_nodes,
+	pm->pm_be_seg = be_seg;
+	pm->pm_sm_grp = sm_grp;
+
+	if (be_seg == NULL) {
+		struct m0_poolmach_state *state;
+		/* This is On client, be_seg is NULL. */
+		M0_ALLOC_PTR(state);
+		if (state == NULL)
+			return -ENOMEM;
+
+		state->pst_version.pvn_version[PVE_READ]  = 0;
+		state->pst_version.pvn_version[PVE_WRITE] = 0;
+		state->pst_nr_nodes            = nr_nodes;
+		/* nr_devices io devices and 1 md device. md uses container 0 */
+		state->pst_nr_devices          = nr_devices + 1;
+		state->pst_max_node_failures   = max_node_failures;
+		state->pst_max_device_failures = max_device_failures;
+
+		M0_ALLOC_ARR(state->pst_nodes_array, state->pst_nr_nodes);
+		M0_ALLOC_ARR(state->pst_devices_array,
+			     state->pst_nr_devices);
+		M0_ALLOC_ARR(state->pst_spare_usage_array,
+			     state->pst_max_device_failures);
+		if (state->pst_nodes_array == NULL ||
+		    state->pst_devices_array == NULL ||
+		    state->pst_spare_usage_array == NULL) {
+			/* m0_free(NULL) is valid */
+			m0_free(state->pst_nodes_array);
+			m0_free(state->pst_devices_array);
+			m0_free(state->pst_spare_usage_array);
+			m0_free(state);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < state->pst_nr_nodes; i++) {
+			state->pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
+			/* TODO use real node id */
+			state->pst_nodes_array[i].pn_id    = NULL;
+		}
+
+		for (i = 0; i < state->pst_nr_devices; i++) {
+			state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
+			/* TODO use real device id */
+			state->pst_devices_array[i].pd_id    = NULL;
+			state->pst_devices_array[i].pd_node  = NULL;
+		}
+
+		for (i = 0; i < state->pst_max_device_failures; i++) {
+			/* -1 means that this spare slot is not used */
+			state->pst_spare_usage_array[i].psu_device_index =
+						POOL_PM_SPARE_SLOT_UNUSED;
+		}
+		poolmach_events_tlist_init(&state->pst_events_list);
+		pm->pm_state = state;
+	} else {
+		/* This is On server,  be_seg must be valid*/
+		rc = m0_poolmach_store_init(pm, be_seg, sm_grp, dtm, nr_nodes,
 					    nr_devices, max_node_failures,
 					    max_device_failures);
 	}
-	if (rc == 0) {
-		pm->pm_dbenv = dbenv;
+	if (rc == 0)
 		pm->pm_is_initialised = true;
-	} else
+	else
 		m0_poolmach_fini(pm);
 	return rc;
 }
@@ -336,27 +347,27 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 {
 	struct m0_pool_event_link *scan;
+	struct m0_poolmach_state  *state = pm->pm_state;
 
 	M0_PRE(pm != NULL);
 
 	m0_rwlock_write_lock(&pm->pm_lock);
-	/* TODO Sync the pool machine state onto persistent storage */
 
-	/* iterate through events and free them */
-	m0_tl_for(poolmach_events, &pm->pm_state.pst_events_list, scan) {
-		poolmach_events_tlink_del_fini(scan);
-		m0_free(scan);
-	} m0_tl_endfor;
+	if (pm->pm_be_seg == NULL) {
+		/* On client: iterate through events and free them */
+		m0_tl_for(poolmach_events, &state->pst_events_list, scan) {
+			poolmach_events_tlink_del_fini(scan);
+			m0_free(scan);
+		} m0_tl_endfor;
 
-	m0_free(pm->pm_state.pst_spare_usage_array);
-	m0_free(pm->pm_state.pst_devices_array);
-	m0_free(pm->pm_state.pst_nodes_array);
+		m0_free(state->pst_spare_usage_array);
+		m0_free(state->pst_devices_array);
+		m0_free(state->pst_nodes_array);
+		m0_free(state);
+		pm->pm_state = NULL;
+	}
 	m0_rwlock_write_unlock(&pm->pm_lock);
 
-	if (pm->pm_dbenv != NULL) {
-		m0_table_fini(&pm->pm_table);
-		m0_table_fini(&pm->pm_events_table);
-	}
 	pm->pm_is_initialised = false;
 	m0_rwlock_fini(&pm->pm_lock);
 }
@@ -378,13 +389,13 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
  *       |                                            v
  *       +------------------<-------------------------+
  */
-M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
-					  struct m0_pool_event *event,
-					  struct m0_db_tx      *tx)
+M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
+					  const struct m0_pool_event *event,
+					  struct m0_be_tx            *tx)
 {
-	struct m0_poolmach_state   *pm_state;
+	struct m0_poolmach_state   *state;
 	struct m0_pool_spare_usage *spare_array;
-	struct m0_pool_event_link  *event_link;
+	struct m0_pool_event_link   event_link;
 	enum m0_pool_nd_state       old_state = M0_PNDS_FAILED;
 	int                         rc = 0;
 	int                         i;
@@ -392,7 +403,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(event != NULL);
 
-	pm_state = &pm->pm_state;
+	state = pm->pm_state;
 
 	if (!M0_IN(event->pe_type, (M0_POOL_NODE, M0_POOL_DEVICE)))
 		return -EINVAL;
@@ -406,16 +417,16 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 		return -EINVAL;
 
 	if ((event->pe_type == M0_POOL_NODE &&
-	     event->pe_index >= pm_state->pst_nr_nodes) ||
+	     event->pe_index >= state->pst_nr_nodes) ||
 	    (event->pe_type == M0_POOL_DEVICE &&
-	     event->pe_index >= pm_state->pst_nr_devices))
+	     event->pe_index >= state->pst_nr_devices))
 		return -EINVAL;
 
 	if (event->pe_type == M0_POOL_NODE) {
-		old_state = pm_state->pst_nodes_array[event->pe_index].pn_state;
+		old_state = state->pst_nodes_array[event->pe_index].pn_state;
 	} else if (event->pe_type == M0_POOL_DEVICE) {
 		old_state =
-			pm_state->pst_devices_array[event->pe_index].pd_state;
+			state->pst_devices_array[event->pe_index].pd_state;
 	}
 
 	switch (old_state) {
@@ -452,39 +463,32 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 	m0_rwlock_write_lock(&pm->pm_lock);
 
 	/* step 2: Update the state according to event */
-	M0_ALLOC_PTR(event_link);
-	if (event_link == NULL) {
-		rc = -ENOMEM;
-		goto out_unlock;
-	}
-	event_link->pel_event = *event;
+	event_link.pel_event = *event;
 	if (event->pe_type == M0_POOL_NODE) {
 		/* TODO if this is a new node join event, the index
 		 * might larger than the current number. Then we need
 		 * to create a new larger array to hold nodes info.
 		 */
-		pm_state->pst_nodes_array[event->pe_index].pn_state =
+		state->pst_nodes_array[event->pe_index].pn_state =
 				event->pe_state;
 	} else if (event->pe_type == M0_POOL_DEVICE) {
-		pm_state->pst_devices_array[event->pe_index].pd_state =
+		state->pst_devices_array[event->pe_index].pd_state =
 				event->pe_state;
 	}
 
 	/* step 3: Increase the version */
-	++ pm_state->pst_version.pvn_version[PVE_READ];
-	++ pm_state->pst_version.pvn_version[PVE_WRITE];
+	++ state->pst_version.pvn_version[PVE_READ];
+	++ state->pst_version.pvn_version[PVE_WRITE];
 
-	/* Step 4: copy new version into event, and link it into list */
-	event_link->pel_new_version = pm_state->pst_version;
-	poolmach_events_tlink_init_at_tail(event_link,
-					   &pm_state->pst_events_list);
+	/* Step 4: copy new version into event */
+	event_link.pel_new_version = state->pst_version;
 
 	/* Step 5: Alloc or free a spare slot if necessary.*/
-	spare_array = pm->pm_state.pst_spare_usage_array;
+	spare_array = state->pst_spare_usage_array;
 	switch (event->pe_state) {
 	case M0_PNDS_ONLINE:
 		/* clear spare slot usage if it is from rebalancing */
-		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+		for (i = 0; i < state->pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index == event->pe_index){
 				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
 					  (M0_PNDS_OFFLINE,
@@ -497,7 +501,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 		break;
 	case M0_PNDS_FAILED:
 		/* alloc a sns repare spare slot */
-		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+		for (i = 0; i < state->pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index ==
 						POOL_PM_SPARE_SLOT_UNUSED) {
 				spare_array[i].psu_device_index =
@@ -507,7 +511,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 				break;
 			}
 		}
-		if (i == pm->pm_state.pst_max_device_failures) {
+		if (i == state->pst_max_device_failures) {
 			/* No free spare space slot is found!!
 			 * The pool is in DUD state!!
 			 */
@@ -518,7 +522,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 	case M0_PNDS_SNS_REPAIRED:
 	case M0_PNDS_SNS_REBALANCING:
 		/* change the repair spare slot usage */
-		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+		for (i = 0; i < state->pst_max_device_failures; i++) {
 			if (spare_array[i].psu_device_index == event->pe_index){
 				spare_array[i].psu_device_state =
 							event->pe_state;
@@ -526,22 +530,28 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach   *pm,
 			}
 		}
 		/* must found */
-		M0_ASSERT(i < pm->pm_state.pst_max_device_failures);
+		M0_ASSERT(i < state->pst_max_device_failures);
 		break;
 	default:
 		/* Do nothing */
 		;
 	}
 
-	if (pm->pm_dbenv != NULL) {
+	if (pm->pm_be_seg != NULL) {
 		/* This poolmach is on server. Update to persistent storage. */
 		M0_ASSERT(tx != NULL);
-		rc = m0_poolmach_store(pm, tx);
-		if (rc == 0)
-			rc = m0_poolmach_event_store(pm, tx, event_link);
+		rc = m0_poolmach_store(pm, tx, &event_link);
+	} else {
+		struct m0_pool_event_link *new_link;
+		M0_ALLOC_PTR(new_link);
+		if (new_link == NULL) {
+			rc = -ENOMEM;
+		} else {
+			*new_link = event_link;
+			poolmach_events_tlink_init_at_tail(new_link,
+						   &state->pst_events_list);
+		}
 	}
-
-out_unlock:
 	/* Finally: unlock the poolmach */
 	m0_rwlock_write_unlock(&pm->pm_lock);
 	return rc;
@@ -553,6 +563,7 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 					const struct m0_pool_version_numbers
 					*to, struct m0_tl *event_list_head)
 {
+	struct m0_poolmach_state      *state;
 	struct m0_pool_version_numbers zero = { {0, 0} };
 	struct m0_pool_event_link     *scan;
 	struct m0_pool_event_link     *event_link;
@@ -561,20 +572,21 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(event_list_head != NULL);
 
+	state = pm->pm_state;
 	m0_rwlock_read_lock(&pm->pm_lock);
 	if (from != NULL && !m0_poolmach_version_equal(&zero, from)) {
-		m0_tl_for(poolmach_events, &pm->pm_state.pst_events_list, scan){
+		m0_tl_for(poolmach_events, &state->pst_events_list, scan){
 			if (m0_poolmach_version_equal(&scan->pel_new_version,
 						     from)) {
 				/* skip the current one and move to next */
 				scan = poolmach_events_tlist_next(
-						&pm->pm_state.pst_events_list,
+						&state->pst_events_list,
 						scan);
 				break;
 			}
 		} m0_tl_endfor;
 	} else {
-		scan = poolmach_events_tlist_head(&pm->pm_state.pst_events_list);
+		scan = poolmach_events_tlist_head(&state->pst_events_list);
 	}
 
 	while (scan != NULL) {
@@ -597,7 +609,7 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 		if (to != NULL &&
 		    m0_poolmach_version_equal(&scan->pel_new_version, to))
 			break;
-		scan = poolmach_events_tlist_next(&pm->pm_state.pst_events_list,
+		scan = poolmach_events_tlist_next(&state->pst_events_list,
 						  scan);
 	}
 
@@ -614,7 +626,7 @@ M0_INTERNAL int m0_poolmach_current_version_get(struct m0_poolmach *pm,
 	M0_PRE(curr != NULL);
 
 	m0_rwlock_read_lock(&pm->pm_lock);
-	*curr = pm->pm_state.pst_version;
+	*curr = pm->pm_state->pst_version;
 	m0_rwlock_read_unlock(&pm->pm_lock);
 	return 0;
 }
@@ -626,11 +638,11 @@ M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(state_out != NULL);
 
-	if (device_index >= pm->pm_state.pst_nr_devices)
+	if (device_index >= pm->pm_state->pst_nr_devices)
 		return -EINVAL;
 
 	m0_rwlock_read_lock(&pm->pm_lock);
-	*state_out = pm->pm_state.pst_devices_array[device_index].pd_state;
+	*state_out = pm->pm_state->pst_devices_array[device_index].pd_state;
 	m0_rwlock_read_unlock(&pm->pm_lock);
 	return 0;
 }
@@ -642,11 +654,11 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(state_out != NULL);
 
-	if (node_index >= pm->pm_state.pst_nr_nodes)
+	if (node_index >= pm->pm_state->pst_nr_nodes)
 		return -EINVAL;
 
 	m0_rwlock_read_lock(&pm->pm_lock);
-	*state_out = pm->pm_state.pst_nodes_array[node_index].pn_state;
+	*state_out = pm->pm_state->pst_nodes_array[node_index].pn_state;
 	m0_rwlock_read_unlock(&pm->pm_lock);
 
 	return 0;
@@ -658,8 +670,8 @@ m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
 {
         int i;
 
-        for (i = 0; i < pm->pm_state.pst_max_device_failures; ++i) {
-                if (pm->pm_state.pst_spare_usage_array[i].psu_device_index ==
+        for (i = 0; i < pm->pm_state->pst_max_device_failures; ++i) {
+                if (pm->pm_state->pst_spare_usage_array[i].psu_device_index ==
                                 device_index) {
                         return true;
                 }
@@ -678,18 +690,18 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(spare_slot_out != NULL);
 
-	if (device_index >= pm->pm_state.pst_nr_devices)
+	if (device_index >= pm->pm_state->pst_nr_devices)
 		return -EINVAL;
 
 	rc = -ENOENT;
 	m0_rwlock_read_lock(&pm->pm_lock);
-	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
+	device_state = pm->pm_state->pst_devices_array[device_index].pd_state;
 	if (!M0_IN(device_state, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
 				  M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)))
 		goto out;
 
-	spare_usage_array = pm->pm_state.pst_spare_usage_array;
-	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+	spare_usage_array = pm->pm_state->pst_spare_usage_array;
+	for (i = 0; i < pm->pm_state->pst_max_device_failures; i++) {
 		if (spare_usage_array[i].psu_device_index == device_index) {
 			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
 						(M0_PNDS_FAILED,
@@ -713,14 +725,14 @@ m0_poolmach_sns_repair_spare_contains_data(struct m0_poolmach *p,
 					   bool check_state)
 {
 	if (!check_state)
-		return p->pm_state.pst_spare_usage_array[spare_slot].
+		return p->pm_state->pst_spare_usage_array[spare_slot].
 		       psu_device_index != POOL_PM_SPARE_SLOT_UNUSED &&
-		       p->pm_state.pst_spare_usage_array[spare_slot].
+		       p->pm_state->pst_spare_usage_array[spare_slot].
 		       psu_device_state != M0_PNDS_SNS_REPAIRING;
 	else
-		return p->pm_state.pst_spare_usage_array[spare_slot].
+		return p->pm_state->pst_spare_usage_array[spare_slot].
 		       psu_device_index != POOL_PM_SPARE_SLOT_UNUSED &&
-		       p->pm_state.pst_spare_usage_array[spare_slot].
+		       p->pm_state->pst_spare_usage_array[spare_slot].
 		       psu_device_state != M0_PNDS_SNS_REPAIRED;
 }
 
@@ -735,17 +747,17 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(spare_slot_out != NULL);
 
-	if (device_index >= pm->pm_state.pst_nr_devices)
+	if (device_index >= pm->pm_state->pst_nr_devices)
 		return -EINVAL;
 
 	rc = -ENOENT;
 	m0_rwlock_read_lock(&pm->pm_lock);
-	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
+	device_state = pm->pm_state->pst_devices_array[device_index].pd_state;
 	if (!M0_IN(device_state, (M0_PNDS_SNS_REBALANCING)))
 		goto out;
 
-	spare_usage_array = pm->pm_state.pst_spare_usage_array;
-	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+	spare_usage_array = pm->pm_state->pst_spare_usage_array;
+	for (i = 0; i < pm->pm_state->pst_max_device_failures; i++) {
 		if (spare_usage_array[i].psu_device_index == device_index) {
 			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
 						(M0_PNDS_SNS_REBALANCING)));
@@ -797,7 +809,7 @@ M0_INTERNAL void m0_poolmach_event_dump(struct m0_pool_event *e)
 
 M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm)
 {
-	struct m0_tl *head = &pm->pm_state.pst_events_list;
+	struct m0_tl *head = &pm->pm_state->pst_events_list;
 	struct m0_pool_event_link *scan;
 
 	M0_LOG(dump_level, ">>>>>");
@@ -814,9 +826,9 @@ M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
 {
 	int i;
 	M0_LOG(dump_level, ">>>>>");
-	for (i = 1; i < pm->pm_state.pst_nr_devices; i++) {
+	for (i = 1; i < pm->pm_state->pst_nr_devices; i++) {
 		M0_LOG(dump_level, "%04d:device[%d] state: %d",
-			lno, i, pm->pm_state.pst_devices_array[i].pd_state);
+			lno, i, pm->pm_state->pst_devices_array[i].pd_state);
 		lno++;
 	}
 	M0_LOG(dump_level, "=====");
