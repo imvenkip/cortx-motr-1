@@ -42,7 +42,6 @@
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
-#include "layout/ut/ldemo_internal.c"    /* layout_demo() */
 
 static struct m0_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
@@ -2427,6 +2426,26 @@ static void test_recsize(void)
 	M0_UT_ASSERT(rc == 0);
 }
 
+static void ldemo(struct m0_pdclust_instance *pi,
+		  const struct m0_pdclust_layout *pl)
+{
+	struct m0_pdclust_src_addr src;
+	struct m0_pdclust_tgt_addr tgt;
+	struct m0_pdclust_src_addr src1;
+	struct m0_pdclust_attr     attr = pl->pl_attr;
+	uint32_t                   W;
+	uint32_t                   unit;
+
+	W = attr.pa_N + 2 * attr.pa_K;
+	src.sa_group = 0;
+	for (unit = 0; unit < W; ++unit) {
+		src.sa_unit = unit;
+		m0_pdclust_instance_map(pi, &src, &tgt);
+		m0_pdclust_instance_inv(pi, &tgt, &src1);
+		M0_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
+	}
+}
+
 /* Tests the APIs supported for m0_pdclust_instance object. */
 static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 				     bool inline_test, bool failure_test)
@@ -2480,7 +2499,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 2);
 		pi = m0_layout_instance_to_pdi(li);
-		layout_demo(pi, pl, 1, 1, false);
+		ldemo(pi, pl);
 
 		/* Verify m0_layout_instance_to_pdi(). */
 		li = &pi->pi_base;

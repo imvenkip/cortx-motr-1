@@ -398,17 +398,6 @@ desim_ut_m0t1fs_test_LDADD     = $(top_builddir)/mero/libmero.la \
                                  $(top_builddir)/ut/libmero-ut.la
 
 #
-# layout/ut
-#
-
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS             += layout/ut/m0layout
-endif
-layout_ut_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
-layout_ut_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
-                               $(top_builddir)/ut/libmero-ut.la
-
-#
 # net/lnet/ut
 #
 
@@ -556,6 +545,16 @@ bin_PROGRAMS                  += utils/trace/m0traced
 utils_trace_m0traced_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/utils/trace/Makefile.sub
+
+#
+# utils/layout
+#
+
+bin_PROGRAMS                    += utils/layout/m0layout
+utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
+utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/utils/layout/Makefile.sub
 
 #
 # m0t1fs/linux_kernel/st
