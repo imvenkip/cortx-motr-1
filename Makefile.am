@@ -554,8 +554,6 @@ bin_PROGRAMS                    += utils/layout/m0layout
 utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
 utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
 
-include $(top_srcdir)/utils/layout/Makefile.sub
-
 #
 # m0t1fs/linux_kernel/st
 #

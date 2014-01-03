@@ -42,8 +42,8 @@
 /*
  * Creates dummy domain, registers pdclust layout type and linear
  * enum type and creates dummy enum object.
- * These objects are called as dummy since they are not used by this ldemo
- * test.
+ * These objects are called as dummy since they are not used by this layout
+ * demo test.
  */
 static int dummy_create(struct m0_layout_domain *domain,
 			struct m0_dbenv *dbenv,
@@ -236,7 +236,7 @@ int main(int argc, char **argv)
 	struct m0_layout_instance  *li;
 	if (argc != 6) {
 		printf(
-"\t\tldemo N K P R I\nwhere\n"
+"\t\tm0layout N K P R I\nwhere\n"
 "\tN: number of data units in a parity group\n"
 "\tK: number of parity units in a parity group\n"
 "\tP: number of target objects to stripe over\n"

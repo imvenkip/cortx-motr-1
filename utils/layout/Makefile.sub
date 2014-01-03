@@ -1,3 +1,0 @@
-utils_layout_m0layout_SOURCES  = utils/layout/ldemo.c
-
-EXTRA_DIST += utils/layout/m0layout
