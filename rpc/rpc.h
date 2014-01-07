@@ -50,7 +50,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/item_source.h"
 
 /* imports */
-struct m0_db_tx;
 
 M0_INTERNAL int m0_rpc_init(void);
 M0_INTERNAL void m0_rpc_fini(void);
