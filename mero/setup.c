@@ -918,7 +918,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 {
 	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
-	       m0_linux_stob_setup(stob->s_ldom, false);
+	       m0_linux_stob_setup(stob->s_ldom, true);
 }
 
 static void cs_ad_stob_fini(struct cs_stobs *stob)
