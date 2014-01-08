@@ -93,7 +93,7 @@ static inline void *mem_alloc(const struct m0_be_btree *btree,
 	M0_BE_OP_SYNC(op,
 		      m0_be_alloc_aligned(tree_allocator(btree),
 					  tx, &op, &p, size, BTREE_ALLOC_SHIFT));
-	mem_update(btree, tx, p, size);
+	M0_ASSERT(p != NULL);
 	return p;
 }
 
