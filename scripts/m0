@@ -69,8 +69,11 @@ run_st() {
     ## conf ST
     $SUDO SANDBOX_DIR=${RUNDIR}/_m0-sandbox "$SRC/m0t1fs/linux_kernel/st/st"
 
-    ## other ST
+    ## IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
+
+    ## Degraded-mode IO ST
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh"
 
     ## Pool machine query/set testing.
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"

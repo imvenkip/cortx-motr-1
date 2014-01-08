@@ -35,7 +35,7 @@
  * @param unit_number Unit number in the parity group.
  * @param spare_slot_out the output spare slot.
  * @param spare_slot_out_prev the previous spare slot (in case of cascaded
- *        failures. Contains unit number in case of single failure.
+ *        failures) Contains unit number in case of single failure.
  */
 M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 					const struct m0_fid *fid,

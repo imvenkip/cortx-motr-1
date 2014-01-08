@@ -93,7 +93,9 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 	 */
         if (rc == 0) {
                 *spare_slot_out += m0_pdclust_N(pl) + m0_pdclust_K(pl);
-		*spare_slot_out_prev += m0_pdclust_N(pl) + m0_pdclust_K(pl);
+		if (*spare_slot_out_prev != unit_number)
+			*spare_slot_out_prev += m0_pdclust_N(pl) +
+				m0_pdclust_K(pl);
 	}
 
         return rc;

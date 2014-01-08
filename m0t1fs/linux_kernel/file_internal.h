@@ -1392,6 +1392,12 @@ struct io_request {
 	 *  - or SNS repair has completed on associated global fid.
 	 */
 	enum sns_repair_state        ir_sns_state;
+
+	/**
+	 * Total number of parity-maps associated with this request that are in
+	 * degraded mode.
+	 */
+	uint32_t		     ir_dgmap_nr;
 };
 
 /**
