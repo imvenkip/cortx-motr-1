@@ -157,24 +157,18 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
 			    NULL, &rpc_worker_thread_fn, machine, "rpc_worker");
 	if (rc != 0)
-		goto out_fini;
+		goto err;
 
 	rc = rpc_tm_setup(&machine->rm_tm, net_dom, ep_addr, receive_pool,
 			  colour, msg_size, queue_len);
-	if (rc != 0)
-		goto out_stop_worker;
+	if (rc == 0)
+		M0_RETURN(0);
 
-	M0_ASSERT(rc == 0);
-	M0_RETURN(0);
-
-out_stop_worker:
 	machine->rm_stopping = true;
 	m0_clink_signal(&machine->rm_sm_grp.s_clink);
 	m0_thread_join(&machine->rm_worker);
-
-out_fini:
+err:
 	__rpc_machine_fini(machine);
-	M0_ASSERT(rc != 0);
 	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rpc_machine_init);
