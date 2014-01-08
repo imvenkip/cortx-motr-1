@@ -62,7 +62,7 @@ usage()
 	cat <<.
 Usage:
 
-$ sudo m0mount [-L] [-a] [-l] [-s] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-q]
+$ sudo m0mount [-Laclsq] [-d NUM] [-p NUM] [-n NUM] [-u NUM]
 
 Where:
 -a: Use AD stobs
@@ -75,6 +75,8 @@ Where:
     $ sudo ~root/gem.sh powerondrive all
     If 'local' option is set also - /dev/loopX disks
     should be prepeared for ad stobs beforehand.
+
+-c: Client only mode, don't start servers.
 
 -l: Use loop device for ad stob configuration
 
@@ -103,7 +105,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="aln:d:k:p:u:qhLs"
+OPTIONS_STRING="acln:d:k:p:u:qhLs"
 
 # This example puts 3 ioservices on 3 nodes
 SERVICES=(
@@ -116,6 +118,8 @@ declare -A NODE_UUID
 NODE_UUID[sjt02-c1]=30ab1a00-8085-40d1-a557-8996e2369a7a
 NODE_UUID[sjt02-c2]=6485c5f9-fbde-4e39-8c6a-bb9d46b3bf8a
 NODE_UUID[sjt00-c1]=54b0a56a-56ba-41a8-9caf-3f3981cfdf69
+NODE_UUID[sjT07-s1]=316c681d-2723-463c-b0f4-8e00dff22edd
+NODE_UUID[sjT07-s2]=46b0b588-c5bb-4ca4-9962-020521ec6f49
 
 # to make command output parsing predictable
 LC_MESSAGES=C
@@ -125,6 +129,7 @@ DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 
 STOB=linux
 UNIT_SIZE=262144
+client_only=0
 use_loop_device=0
 setup_loops_p=0
 loop_used=-1
@@ -275,7 +280,8 @@ function setup_host () {
 		echo ERROR: Failed to load galois module on $H
 		return 1
 	fi
-	$RUN $MERO_KO_LOAD_CMD local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS node_uuid=${NODE_UUID[$H]}
+	$RUN $MERO_KO_LOAD_CMD local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS \
+		node_uuid=${NODE_UUID[$H]} trace_buf_size=$((128 * 1024 * 1024))
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0mero module on $H
 		$RUN rmmod galois
@@ -285,14 +291,16 @@ function setup_host () {
 }
 
 function setup_hosts () {
-	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
-		H=${SERVICES[$i]}
-		EP=${SERVICES[((i+1))]}
-		if [ X${SETUP[$H]} = X ]; then
-			setup_host $H $EP || return 1
-			SETUP[$H]=$H
-		fi
-	done
+	if [ $client_only -eq 0 ]; then
+		for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
+			H=${SERVICES[$i]}
+			EP=${SERVICES[((i+1))]}
+			if [ X${SETUP[$H]} = X ]; then
+				setup_host $H $EP || return 1
+				SETUP[$H]=$H
+			fi
+		done
+	fi
 	if [ X${SETUP[$THIS_HOST]} = X ]; then
 		setup_host $THIS_HOST $LOCAL_EP || return 1
 		SETUP[$THIS_HOST]=$THIS_HOST
@@ -651,9 +659,9 @@ main()
 		exit 1
 	fi
 
-	setup_hosts && start_servers
-	if [ $? -ne 0 ]; then
-		exit 1
+	setup_hosts || exit 1
+	if [ $client_only -eq 0 ]; then
+		start_servers || exit 1
 	fi
 
 	# prepare configuration data
@@ -712,6 +720,9 @@ while getopts "$OPTIONS_STRING" OPTION; do
     case "$OPTION" in
         a)
             STOB="ad"
+            ;;
+        c)
+            client_only=1
             ;;
         l)
             use_loop_device=1
