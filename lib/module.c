@@ -1,0 +1,206 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 8-Jan-2014
+ */
+
+#include "lib/module.h"
+#include "lib/misc.h"    /* m0_forall */
+#include "lib/errno.h"   /* EAGAIN */
+#include "lib/arith.h"   /* M0_CNT_INC */
+
+/**
+ * @addtogroup module
+ *
+ * @{
+ */
+
+static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n);
+
+static bool module_invariant(const struct m0_module *mod)
+{
+	const struct m0_moddep *md;
+	const struct m0_moddep *md1;
+
+	return  _0C(mod->m_cur < mod->m_level_nr) &&
+		_0C(mod->m_dep_nr <= ARRAY_SIZE(mod->m_dep)) &&
+		_0C(mod->m_inv_nr <= ARRAY_SIZE(mod->m_inv)) &&
+		_0C(moddeps_are_unique(mod->m_dep, mod->m_dep_nr)) &&
+		_0C(moddeps_are_unique(mod->m_inv, mod->m_inv_nr)) &&
+		m0_forall(i, mod->m_dep_nr,
+			  (md = &mod->m_dep[i]) &&
+			  _0C(md->md_other != NULL) &&
+			  _0C(md->md_other != mod) &&
+			  _0C(md->md_src < mod->m_level_nr) &&
+			  _0C(md->md_dst < md->md_other->m_level_nr) &&
+			  _0C(md->md_src != 0) && _0C(md->md_dst != 0) &&
+			  /* Check dependencies. */
+			  _0C(ergo(md->md_src <= mod->m_cur,
+				   md->md_dst <= md->md_other->m_cur)) &&
+			  /* Check that there is a matching inverse
+			   * dependency. */
+			  _0C(!m0_forall(j, md->md_other->m_inv_nr,
+					 (md1 = &md->md_other->m_inv[j]) &&
+					 !(md1->md_other == mod &&
+					   md1->md_src == md->md_src &&
+					   md1->md_dst == md->md_dst))));
+}
+
+static int module_up(struct m0 *instance, struct m0_module *mod, unsigned level)
+{
+	int      result = 0;
+	uint64_t gen = instance->m0_dep_gen;
+
+	M0_PRE(level < mod->m_level_nr);
+	M0_PRE(module_invariant(mod));
+
+	M0_ASSERT(M0_IN(mod->m_m0, (NULL, instance)));
+	mod->m_m0 = instance;
+	while (level > mod->m_cur && result == 0) {
+		unsigned next = mod->m_cur + 1;
+		int      i;
+
+		for (i = 0; i < mod->m_dep_nr && result == 0; ++i) {
+			struct m0_moddep *md = &mod->m_dep[i];
+
+			if (md->md_src == next) {
+				result = module_up(instance,
+						   md->md_other, md->md_dst);
+				if (result == 0 && instance->m0_dep_gen != gen)
+					/*
+					 * If generation changed, restart the
+					 * initialisation.
+					 */
+					result = -EAGAIN;
+				/*
+				 * If dependencies failed, don't attempt any
+				 * form of cleanup, because it is impossible:
+				 * the original levels of the modules we
+				 * (transitively) depend on are no longer known.
+				 */
+			}
+		}
+		if (result == 0 && mod->m_level[next].ml_enter != NULL) {
+			result = mod->m_level[next].ml_enter(instance, mod);
+			M0_ASSERT(result != -EAGAIN);
+			if (result == 0)
+				mod->m_cur = next;
+		}
+	}
+	M0_POST(module_invariant(mod));
+	return result;
+}
+
+M0_INTERNAL int
+m0_module_init(struct m0 *instance, struct m0_module *mod, unsigned level)
+{
+	int result;
+	M0_PRE(level != 0);
+
+	/* Repeat initialisation if a new module or dependency were added. */
+	while ((result = module_up(instance, mod, level)) == -EAGAIN)
+		;
+	return result;
+}
+
+M0_INTERNAL void
+m0_module_fini(struct m0 *instance, struct m0_module *mod, unsigned level)
+{
+	M0_PRE(level < mod->m_level_nr);
+	M0_PRE(module_invariant(mod));
+
+	while (level < mod->m_cur) {
+		unsigned          cur = mod->m_cur;
+		int               i;
+		struct m0_moddep *md;
+
+		/*
+		 * Before downgrading the module, check the states of
+		 * the modules depending on this one. If a dependency
+		 * would be broken by downgrade --- return.
+		 */
+		for (i = 0; i < mod->m_inv_nr; ++i) {
+			md = &mod->m_inv[i];
+			if (md->md_dst == cur &&
+			    md->md_other->m_cur >= md->md_src)
+				return;
+		}
+
+		if (mod->m_level[cur].ml_leave != NULL)
+			mod->m_level[cur].ml_leave(instance, mod);
+		/*
+		 * Decrement the level before downgrading dependencies,
+		 * so that their inverse dependency check (above)
+		 * skips this module.
+		 */
+		--mod->m_cur;
+		for (i = mod->m_dep_nr - 1; i >= 0; --i) {
+			md = &mod->m_dep[i];
+			if (md->md_src == cur)
+				m0_module_fini(instance,
+					       md->md_other, md->md_dst - 1);
+		}
+	}
+	M0_POST(module_invariant(mod));
+}
+
+M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
+				   struct m0_module *m1, unsigned l1)
+{
+	M0_PRE(module_invariant(m0));
+	M0_PRE(module_invariant(m1));
+
+	M0_ASSERT(m0->m_dep_nr < ARRAY_SIZE(m0->m_dep));
+	m0->m_dep[m0->m_dep_nr++] = (struct m0_moddep){
+		.md_other = m1, .md_src = l0, .md_dst = l1 };
+	if (m0->m_m0 != NULL)
+		M0_CNT_INC(m0->m_m0->m0_dep_gen);
+
+	M0_ASSERT(m1->m_inv_nr < ARRAY_SIZE(m1->m_inv));
+	m1->m_inv[m1->m_inv_nr++] = (struct m0_moddep){
+		.md_other = m0, .md_src = l0, .md_dst = l1 };
+	if (m1->m_m0 != NULL)
+		M0_CNT_INC(m1->m_m0->m0_dep_gen);
+
+	M0_POST(module_invariant(m0));
+	M0_POST(module_invariant(m1));
+}
+
+/** Returns true if the first `n' entries of `arr' are unique. */
+static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n)
+{
+	M0_PRE(n <= M0_MODDEP_MAX);
+	return m0_forall(i, n,
+			 m0_forall(j, n,
+				   !!memcmp(&arr[i], &arr[j], sizeof *arr) ==
+				   (i != j)));
+}
+
+/** @} end of module group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

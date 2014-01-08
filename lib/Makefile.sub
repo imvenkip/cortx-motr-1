@@ -21,6 +21,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/list.h \
                                lib/locality.h \
                                lib/lockers.h \
+                               lib/module.h \
                                lib/memory.h \
                                lib/misc.h \
                                lib/mutex.h \
@@ -80,6 +81,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/lockers.c \
                            lib/m0lib.c \
                            lib/misc.c \
+                           lib/module.c \
                            lib/mutex.c \
                            lib/queue.c \
                            lib/string_xc.c \
