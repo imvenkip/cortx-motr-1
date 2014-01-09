@@ -74,7 +74,6 @@ M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
 
 enum {
 	FOL_KEY_SIZE = sizeof(m0_lsn_t),
-#if !XXX_USE_DB5
 	/*
 	 * The maximum possible length of fol record.
 	 *
@@ -89,7 +88,6 @@ enum {
 	 * record as a function of rpc opcode.
 	 */
 	FOL_REC_MAXSIZE = 8 * 1024
-#endif
 };
 
 /* ------------------------------------------------------------------
@@ -134,27 +132,6 @@ M0_INTERNAL m0_lsn_t m0_fol_lsn_allocate(struct m0_fol *fol)
 	return lsn;
 }
 
-#if XXX_USE_DB5
-static int lsn_cmp(struct m0_table *table, const void *key0, const void *key1)
-{
-	const m0_lsn_t *lsn0 = key0;
-	const m0_lsn_t *lsn1 = key1;
-
-	return m0_lsn_cmp(*lsn0, *lsn1);
-}
-
-static const struct m0_table_ops fol_db_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = FOL_KEY_SIZE
-		},
-		[TO_REC] = {
-			.max_size = 8192,
-		}
-	},
-	.key_cmp = lsn_cmp
-};
-#else
 static m0_bcount_t fol_ksize(const void *_)
 {
 	return FOL_KEY_SIZE;
@@ -193,57 +170,13 @@ static const struct m0_be_btree_kv_ops fol_kv_ops = {
 	.ko_vsize   = fol_vsize,
 	.ko_compare = lsn_cmp
 };
-#endif
-
+
 /* ------------------------------------------------------------------
  * m0_fol operations
  * ------------------------------------------------------------------ */
 
 static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx);
 
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env)
-{
-	int result;
-
-	M0_CASSERT(M0_LSN_ANCHOR > M0_LSN_RESERVED_NR);
-
-	m0_mutex_init(&fol->f_lock);
-	result = m0_table_init(&fol->f_table, env, "fol", 0, &fol_db_ops);
-	if (result == 0) {
-		struct m0_fol_rec       r;
-		struct m0_fol_rec_desc *d;
-		struct m0_db_tx         tx;
-		int                     rc;
-
-		d = &r.fr_desc;
-		result = m0_db_tx_init(&tx, env, 0);
-		if (result == 0) {
-			result = m0_fol_rec_lookup(fol, &tx, M0_LSN_ANCHOR, &r);
-			if (result == -ENOENT) {
-				m0_fol_rec_init(&r);
-				/* initialise new fol */
-				M0_SET0(d);
-				d->rd_header.rh_refcount = 1;
-				d->rd_lsn = M0_LSN_ANCHOR;
-				fol->f_lsn = M0_LSN_ANCHOR + 1;
-				result = m0_fol_rec_add(fol, &tx, &r);
-				m0_fol_rec_fini(&r);
-			} else if (result == 0) {
-				result = m0_db_cursor_last(&r.fr_ptr,
-							   &r.fr_pair);
-				if (result == 0)
-					fol->f_lsn = lsn_inc(r.fr_desc.rd_lsn);
-				m0_fol_lookup_rec_fini(&r);
-			}
-			rc = m0_db_tx_commit(&tx);
-			result = result ?: rc;
-		}
-	}
-	M0_POST(ergo(result == 0, m0_lsn_is_valid(fol->f_lsn)));
-	return result;
-}
-#else
 M0_INTERNAL void m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg)
 {
 	struct m0_be_btree *tree = &fol->f_store;
@@ -291,29 +224,19 @@ M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol, struct m0_be_tx *tx,
 
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 }
-#endif
 
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol)
 {
-#if XXX_USE_DB5
-	m0_table_fini(&fol->f_table);
-#else
 	m0_be_btree_fini(&fol->f_store);
 	m0_mutex_fini(&fol->f_lock);
-#endif
 }
 
 M0_INTERNAL int m0_fol_force(struct m0_fol *fol, m0_lsn_t upto)
 {
-#if XXX_USE_DB5
-	return m0_dbenv_sync(fol->f_table.t_env);
-#else
 	M0_IMPOSSIBLE("XXX Not implemented");
 	return -1;
-#endif
 }
 
-#if !XXX_USE_DB5
 M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 			       m0_bcount_t nr, struct m0_be_tx_credit *accum)
 {
@@ -399,8 +322,7 @@ static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx)
 	m0_fol_lookup_rec_fini(&rec);
 	return rc;
 }
-#endif
-
+
 /* ------------------------------------------------------------------
  * FOL records and their parts
  * ------------------------------------------------------------------ */
@@ -414,19 +336,6 @@ static int fol_setup(struct m0_fol *fol, struct m0_be_tx *tx)
  *
  * @see m0_fol_rec_fini()
  */
-#if XXX_USE_DB5
-static int rec_init(struct m0_fol_rec *rec, struct m0_db_tx *tx)
-{
-	struct m0_db_pair *pair;
-	M0_PRE(rec->fr_fol != NULL);
-
-	m0_fol_rec_init(rec);
-	pair = &rec->fr_pair;
-	m0_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
-			 FOL_KEY_SIZE, NULL, 0);
-	return m0_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx, 0);
-}
-#else
 static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 {
 	M0_PRE(fol != NULL);
@@ -437,7 +346,6 @@ static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 	M0_SET0(&rec->fr_val);
 	m0_be_btree_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_store);
 }
-#endif
 
 /**
  * Finalizes @rec.
@@ -446,13 +354,8 @@ static void rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
  */
 M0_INTERNAL void m0_fol_lookup_rec_fini(struct m0_fol_rec *rec)
 {
-#if XXX_USE_DB5
-	m0_db_cursor_fini(&rec->fr_ptr);
-	m0_db_pair_fini(&rec->fr_pair);
-#else
 	m0_be_btree_cursor_put(&rec->fr_ptr);
 	m0_be_btree_cursor_fini(&rec->fr_ptr);
-#endif
 	m0_fol_rec_fini(rec);
 }
 
@@ -614,9 +517,7 @@ static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 	} m0_tl_endfor;
 
 	len = m0_align(len, 8);
-#if !XXX_USE_DB5
 	M0_POST(len <= FOL_REC_MAXSIZE);
-#endif
 	return len;
 }
 
@@ -703,15 +604,8 @@ static int fol_record_encode(struct m0_fol_rec *rec, struct m0_buf *out)
 static int fol_record_decode(struct m0_fol_rec *rec)
 {
 	struct m0_fol_rec_desc *desc = &rec->fr_desc;
-#if XXX_USE_DB5
-	struct m0_buf	       *rec_buf = &rec->fr_pair.dp_rec.db_buf;
-	void		       *buf = &rec_buf->b_addr;
-	m0_bcount_t		len = rec_buf->b_nob;
-	struct m0_bufvec	bvec = M0_BUFVEC_INIT_BUF(buf, &len);
-#else
 	struct m0_bufvec        bvec = M0_BUFVEC_INIT_BUF(&rec->fr_val.b_addr,
 							  &rec->fr_val.b_nob);
-#endif
 	struct m0_bufvec_cursor cur;
 	uint32_t                i;
 	int                     rc;
@@ -760,22 +654,6 @@ static int fol_record_decode(struct m0_fol_rec *rec)
  * Adding and searching records
  * ------------------------------------------------------------------ */
 
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
-			       struct m0_db_tx *tx,
-			       struct m0_fol_rec *rec)
-{
-	struct m0_buf buf;
-	int           rc;
-
-	rc = fol_record_encode(rec, &buf);
-	if (rc == 0) {
-		rc = m0_fol_add_buf(fol, tx, &rec->fr_desc, &buf));
-		m0_buf_free(&buf);
-	}
-	return rc;
-}
-#else
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 			       struct m0_fol_rec *rec,
 			       struct m0_be_tx *tx,
@@ -797,7 +675,6 @@ M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	return rc;
 }
-#endif
 
 M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
 				     struct m0_fol_rec_part *part)
@@ -807,19 +684,6 @@ M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
 	m0_rec_part_tlist_add_tail(&rec->fr_parts, part);
 }
 
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_db_tx *tx,
-			       struct m0_fol_rec_desc *drec, struct m0_buf *buf)
-{
-	struct m0_db_pair pair;
-
-	M0_PRE(m0_lsn_is_valid(drec->rd_lsn));
-
-	m0_db_pair_setup(&pair, &fol->f_table, &drec->rd_lsn, FOL_KEY_SIZE,
-			 buf->b_addr, buf->b_nob);
-	return m0_table_insert(tx, &pair);
-}
-#else
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 			       struct m0_buf *buf,
 			       struct m0_be_tx *tx, struct m0_be_op *op)
@@ -838,29 +702,7 @@ M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol, struct m0_fol_rec_desc *drec,
 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
 	return rc;
 }
-#endif
 
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol, struct m0_db_tx *tx,
-				  m0_lsn_t lsn, struct m0_fol_rec *out)
-{
-	int result;
-
-	out->fr_fol = fol;
-	result = rec_init(out, tx);
-	if (result == 0) {
-		out->fr_desc.rd_lsn = lsn;
-		result = m0_db_cursor_get(&out->fr_ptr, &out->fr_pair) ?:
-			 fol_record_decode(out);
-		if (result != 0)
-			m0_fol_lookup_rec_fini(out);
-	}
-	M0_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
-	M0_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
-	M0_POST(ergo(result == 0, m0_fol_rec_invariant(&out->fr_desc)));
-	return result;
-}
-#else
 M0_INTERNAL int
 m0_fol_rec_lookup(struct m0_fol *fol, m0_lsn_t lsn, struct m0_fol_rec *out)
 {
@@ -887,7 +729,6 @@ out:
 		m0_fol_lookup_rec_fini(out);
 	return rc;
 }
-#endif
 
 /** @} end of fol group */
 

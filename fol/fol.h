@@ -87,8 +87,6 @@
    @{
  */
 
-#define XXX_USE_DB5 0
-
 /* export */
 struct m0_fol;
 struct m0_fol_rec_desc;
@@ -101,20 +99,12 @@ struct m0_fol_rec;
 #include "fid/fid.h"
 #include "dtm/dtm_update.h" /* m0_update_id, m0_epoch_id */
 #include "dtm/verno.h"      /* m0_verno */
-#if XXX_USE_DB5
-#  include "db/db.h"        /* m0_table, m0_db_cursor */
-#else
-#  include "be/btree.h"
-#endif
+#include "be/btree.h"
 #include "fol/lsn.h"        /* m0_lsn_t */
 #include "fid/fid_xc.h"
 #include "dtm/verno_xc.h"
 #include "dtm/dtm_update_xc.h"
 
-#if XXX_USE_DB5
-struct m0_dbenv;
-struct m0_db_tx;
-#endif
 struct m0_be_tx;
 struct m0_epoch_id;
 
@@ -131,13 +121,8 @@ struct m0_epoch_id;
    functions against the same fol (except for m0_fol_init() and m0_fol_fini()).
  */
 struct m0_fol {
-#if XXX_USE_DB5
-	/** Table where fol records are stored. */
-	struct m0_table    f_table;
-#else
 	/** KV storage of fol records. */
 	struct m0_be_btree f_store;
-#endif
 	/** Next lsn to use in the fol. */
 	m0_lsn_t           f_lsn;
 	/** Lock, serializing fol access. */
@@ -151,9 +136,6 @@ struct m0_fol {
 
    @post ergo(result == 0, m0_lsn_is_valid(fol->f_lsn))
  */
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_init(struct m0_fol *fol, struct m0_dbenv *env);
-#else
 M0_INTERNAL void m0_fol_init(struct m0_fol *fol, struct m0_be_seg *seg);
 
 M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_tx *tx,
@@ -161,10 +143,8 @@ M0_INTERNAL int m0_fol_create(struct m0_fol *fol, struct m0_be_tx *tx,
 
 M0_INTERNAL void m0_fol_destroy(struct m0_fol *fol, struct m0_be_tx *tx,
 			        struct m0_be_op *op);
-#endif
 M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
 
-#if !XXX_USE_DB5
 /** Fol operations that modify back-end segment. */
 enum m0_fol_op {
 	M0_FO_CREATE,    /**< m0_fol_create() */
@@ -178,7 +158,6 @@ enum m0_fol_op {
  */
 M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
 			       m0_bcount_t nr, struct m0_be_tx_credit *accum);
-#endif
 
 /**
    Adds a record to the fol, in the transaction context.
@@ -192,34 +171,21 @@ M0_INTERNAL void m0_fol_credit(const struct m0_fol *fol, enum m0_fol_op optype,
    @pre m0_lsn_is_valid(drec->rd_lsn);
    @see m0_fol_add_buf()
  */
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
-			       struct m0_db_tx *tx,
-			       struct m0_fol_rec *rec);
-#else
 M0_INTERNAL int m0_fol_rec_add(struct m0_fol *fol,
 			       struct m0_fol_rec *rec,
 			       struct m0_be_tx *tx,
 			       struct m0_be_op *op);
-#endif
 
 /**
    Similar to m0_fol_rec_add(), but with a record already packed into a buffer.
 
    @pre m0_lsn_is_valid(drec->rd_lsn);
  */
-#if XXX_USE_DB5
-M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
-			       struct m0_db_tx *tx,
-			       struct m0_fol_rec_desc *drec,
-			       struct m0_buf *buf);
-#else
 M0_INTERNAL int m0_fol_add_buf(struct m0_fol *fol,
 			       struct m0_fol_rec_desc *drec,
 			       struct m0_buf *buf,
 			       struct m0_be_tx *tx,
 			       struct m0_be_op *op);
-#endif
 
 /**
    Reserves and returns lsn.
@@ -328,14 +294,9 @@ struct m0_fol_rec {
 	struct m0_tl              fr_parts;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
-#if XXX_USE_DB5
-	struct m0_db_cursor       fr_ptr;
-	struct m0_db_pair         fr_pair;
-#else
 	struct m0_be_btree_cursor fr_ptr;
 	struct m0_buf             fr_key;
 	struct m0_buf             fr_val;
-#endif
 };
 
 /** Initializes fol record parts list. */
@@ -354,9 +315,6 @@ M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
    @post ergo(result == 0, m0_fol_rec_invariant(&out->fr_d))
  */
 M0_INTERNAL int m0_fol_rec_lookup(struct m0_fol *fol,
-#if XXX_USE_DB5
-				  struct m0_db_tx *tx,
-#endif
 				  m0_lsn_t lsn, struct m0_fol_rec *out);
 
 /**
@@ -447,17 +405,12 @@ struct m0_fol_rec_part_type_ops {
  */
 struct m0_fol_rec_part_ops {
 	const struct m0_fol_rec_part_type *rpo_type;
-#if XXX_USE_DB5
-	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
-	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_db_tx *tx);
-#else
 	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
 	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
 	void (*rpo_undo_credit)(const struct m0_fol_rec_part *part,
 				struct m0_be_tx_credit *accum);
 	void (*rpo_redo_credit)(const struct m0_fol_rec_part *part,
 				struct m0_be_tx_credit *accum);
-#endif
 };
 
 struct m0_fol_rec_part_header {

@@ -118,20 +118,6 @@ struct fom_phase_desc {
 	uint64_t	   fpd_pre_phase;
 };
 
-#if XXX_USE_DB5
-/**
- * Checks if transaction context is valid.
- * We check if m0_db_tx::dt_env is initialised or not.
- *
- * @retval bool -> return true, if transaction is initialised
- *		return false, if transaction is uninitialised
- */
-static bool is_tx_initialized(const struct m0_db_tx *tx)
-{
-	return tx->dt_env != 0;
-}
-#endif
-
 /**
  * Begins fom execution, transitions fom to its first
  * standard phase.
@@ -244,9 +230,6 @@ static int fom_tx_init(struct m0_fom *fom)
 {
 	struct m0_reqh *reqh;
 
-#if XXX_USE_DB5
-        M0_PRE(!is_tx_initialized(&fom->fo_tx.tx_dbtx));
-#endif
 	reqh = m0_fom_reqh(fom);
 
 	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,

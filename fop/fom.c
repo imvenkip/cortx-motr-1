@@ -1532,9 +1532,7 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
 	struct m0_fol_rec_desc *desc;
 	struct m0_fol          *fol;
-#if !XXX_USE_DB5
 	int                     rc;
-#endif
 
 	fol  = m0_fom_reqh(fom)->rh_fol;
 	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
@@ -1544,13 +1542,9 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	/* @todo an arbitrary number for now */
 	desc->rd_header.rh_refcount = 1;
 
-#if XXX_USE_DB5
-	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
-#else
 	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec,
 					      m0_fom_tx(fom), &op));
 	return rc;
-#endif
 }
 
 /** @} endgroup fom */
