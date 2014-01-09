@@ -88,7 +88,6 @@ static void reqh_emu_loc_handler_thread(struct reqh_emu_fom *re)
 	while (!m0_semaphore_trydown(&re->re_stop_sem)) {
 		m0_chan_wait(&grp->s_clink);
 		m0_sm_group_lock(grp);
-		m0_sm_asts_run(grp);
 
 		/* see fom_exec */
 		if (m0_semaphore_trydown(&re->re_fom_wakeup)) {
@@ -104,7 +103,6 @@ static void reqh_emu_loc_handler_thread(struct reqh_emu_fom *re)
 			}
 		}
 
-		m0_sm_asts_run(grp);
 		m0_sm_group_unlock(grp);
 	}
 }
