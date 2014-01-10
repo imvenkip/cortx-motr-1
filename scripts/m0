@@ -13,7 +13,7 @@ set -e
 umask 0002
 
 ## CAUTION! This directory will be removed by superuser.
-RUNDIR=${RUNDIR:-/var/mero/ut/$USER}
+RUNDIR=${RUNDIR:-/var/mero/$USER}
 
 PROG="${0##*/}"
 SRC="$(readlink -f $0)"
