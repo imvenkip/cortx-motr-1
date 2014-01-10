@@ -1308,7 +1308,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 		M0_RETURN(rc);
 
 	sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
-
+	m0_linux_stob_setup(sdom, false);
 	rc = m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
 				   &addb_stob->cas_stob);
 	M0_RETURN(rc);
