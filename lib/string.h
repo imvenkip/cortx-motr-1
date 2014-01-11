@@ -35,13 +35,16 @@
 # include <stdlib.h>
 # include <string.h>
 
-#define m0_strdup(s)  strdup((s))
+#define m0_strdup(s)   strdup((s))
+#define m0_streq(a, b) (strcmp((a), (b)) == 0)
+
 #else
 # include <linux/ctype.h>
 # include <linux/kernel.h>
 # include <linux/string.h>
 
-#define m0_strdup(s)  kstrdup((s), GFP_KERNEL)
+#define m0_strdup(s)   kstrdup((s), GFP_KERNEL)
+#define m0_streq(a, b) streq((a), (b))
 
 static inline char *strerror(int errnum)
 {
