@@ -39,7 +39,7 @@
  * @{
  */
 
-#define REQH_EMU 1
+#define REQH_EMU 0
 
 #if REQH_EMU
 #if 0

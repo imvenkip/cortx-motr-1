@@ -1059,7 +1059,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
  */
 static int
 cs_service_init(const char *name, struct m0_reqh_context *rctx,
-		struct m0_reqh *reqh, struct m0_uint128 *uuid)
+		struct m0_reqh *reqh, struct m0_uint128 *uuid, bool mgmt)
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
@@ -1079,12 +1079,14 @@ cs_service_init(const char *name, struct m0_reqh_context *rctx,
 	m0_reqh_service_init(service, reqh, uuid);
 
 	/** @todo Remove the USE_MGMT_STARTUP macro later */
-#define USE_MGMT_STARTUP 1
-#if USE_MGMT_STARTUP
-	rc = m0_mgmt_reqh_service_start(service);
-#else
-	rc = m0_reqh_service_start(service);
-#endif
+//#define USE_MGMT_STARTUP 1
+//#if USE_MGMT_STARTUP
+	if (mgmt)
+		rc = m0_mgmt_reqh_service_start(service);
+//#else
+	else
+		rc = m0_reqh_service_start(service);
+//#endif
 	if (rc != 0)
 		m0_reqh_service_fini(service);
 
@@ -1104,7 +1106,7 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
 		name = rctx->rc_services[i];
 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
-				     &rctx->rc_service_uuids[i]);
+				     &rctx->rc_service_uuids[i], true);
 	}
 #if USE_MGMT_STARTUP
 	/* Do not terminate on failure here as services start asynchronously. */
@@ -1137,9 +1139,9 @@ static int cs_services_init(struct m0_mero *cctx)
 			break;
 		m0_reqh_start(&rctx->rc_reqh);
 		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
-				     NULL) ?:
+				     NULL, true) ?:
 		     cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
-				     NULL) ?:
+				     NULL, true) ?:
 			reqh_services_init(rctx);
 		m0_mgmt_reqh_services_start_wait(&rctx->rc_reqh);
 		/* return failure if any service has failed */
@@ -1152,9 +1154,9 @@ static int cs_services_init(struct m0_mero *cctx)
 #else
 		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
 			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
-					NULL) ?:
+					NULL, true) ?:
 			cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
-					NULL) ?:
+					NULL, true) ?:
 			reqh_services_init(rctx);
 		if (rc != 0)
 			break;
@@ -1358,6 +1360,10 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		goto out;
 
+	rc = cs_service_init("be-tx-service", rctx, &rctx->rc_reqh, NULL, false);
+	if (rc != 0)
+		goto reqh_fini;
+	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
 	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_dbenv_init");

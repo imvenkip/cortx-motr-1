@@ -42,7 +42,7 @@
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
-#define REQH_EMU 1
+#define REQH_EMU 0
 
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
@@ -261,6 +261,9 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
 
 void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 {
+	struct m0_reqh *reqh = cfg->bc_engine.bec_group_fom_reqh;
+
+	M0_LOG(M0_FATAL, "reqh: %p", reqh);
 	*cfg = (struct m0_be_domain_cfg) {
 		.bc_engine = {
 			.bec_group_nr	    = 1,
@@ -270,6 +273,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_group_tx_max   = 20,
 			.bec_log_replay	    = false,
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
+			.bec_group_fom_reqh = reqh,
 		},
 	};
 }
@@ -279,8 +283,9 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 {
 	int rc;
 
-	M0_SET0(ut_be);
+	//M0_SET0(ut_be);
 	ut_be->but_sm_groups_unlocked = false;
+	M0_LOG(M0_FATAL, "reqh: %p", ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
 	if (cfg == NULL) {
 		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
 	} else {
@@ -306,6 +311,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	 */
 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 #endif
+	M0_LOG(M0_FATAL, "reqh: %p", ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
@@ -316,6 +322,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
+	M0_LOG(M0_FATAL, "reqh: %p", ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
 	m0_be_ut_backend_init_cfg(ut_be, NULL);
 }
 

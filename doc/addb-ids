@@ -80,6 +80,8 @@ value          enum                    variable  name              file
    1601 M0_ADDB_CTXID_RMS_SERV         m0_addb_ct_rms_serv
 1700-1799							   stats/stats_addb.h
    1700 M0_ADDB_CTXID_STATS_SVC        m0_addb_ct_stats_svc
+1800-1899
+   1800 M0_ADDB_CTXID_BE_TX_SVC        m0_addb_ct_tx_service
 
 ******************************************************************************
 Record Type Identifiers

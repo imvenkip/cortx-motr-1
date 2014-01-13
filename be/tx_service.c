@@ -40,8 +40,9 @@
  * ADDB
  * ------------------------------------------------------------------ */
 
-enum { M0_ADDB_CTXID_TX_SERVICE = 1700 };
+enum { M0_ADDB_CTXID_TX_SERVICE = 1800 };
 
+struct m0_addb_ctx m0_tx_service_mod_addb_ctx;
 M0_ADDB_CT(m0_addb_ct_tx_service, M0_ADDB_CTXID_TX_SERVICE, "hi", "low");
 
 static void _addb_init(void)
@@ -50,11 +51,12 @@ static void _addb_init(void)
 	/* static struct m0_addb_ctx tx_service_mod_ctx; */
 	/* XXX not thread-safe */
 	act = m0_addb_ctx_type_lookup(M0_ADDB_CTXID_TX_SERVICE);
-	if (act == NULL)
-		m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
-	/* M0_ADDB_CTX_INIT(&m0_addb_gmc, &tx_service_mod_ctx, */
-	/* 		 &m0_addb_ct_tx_service, */
-	/* 		 &m0_addb_proc_ctx); */
+	if (act == NULL) {
+		 M0_LOG(M0_FATAL, "addb_init");
+		 m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
+		 //M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_tx_service_mod_addb_ctx,
+		//		 &m0_addb_ct_tx_service, &m0_addb_proc_ctx);
+	}
 }
 
 static void _addb_fini(void)
@@ -92,14 +94,16 @@ M0_INTERNAL void m0_be_txs_unregister(void)
 	m0_reqh_service_type_unregister(&m0_be_txs_stype);
 }
 
+static void txs_prepare_to_stop(struct m0_reqh_service *service);
 static int  txs_start(struct m0_reqh_service *service);
 static void txs_stop(struct m0_reqh_service *service);
 static void txs_fini(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_ops txs_ops = {
-	.rso_start = txs_start,
-	.rso_stop  = txs_stop,
-	.rso_fini  = txs_fini
+	.rso_start           = txs_start,
+	.rso_prepare_to_stop = txs_prepare_to_stop,
+	.rso_stop            = txs_stop,
+	.rso_fini            = txs_fini
 };
 
 /** Allocates and initialises transaction service. */
@@ -107,13 +111,14 @@ static int txs_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
 			struct m0_reqh_context *rctx)
 {
-	struct tx_service *s;
+	struct m0_be_domain *bdom;
+	struct tx_service   *s;
 
 	M0_ENTRY();
 	M0_PRE(stype == &m0_be_txs_stype);
 
-	M0_ALLOC_PTR(s);
-	if (s == NULL)
+	M0_ALLOC_PTR(bdom);
+	if (bdom == NULL)
 		M0_RETURN(-ENOMEM);
 
 	*service = &s->ts_reqh;
@@ -121,6 +126,11 @@ static int txs_allocate(struct m0_reqh_service **service,
 	_addb_init();
 
 	M0_RETURN(0);
+}
+
+static void txs_prepare_to_stop(struct m0_reqh_service *service)
+{
+	//m0_be_domain_fini(&ut_be->but_dom);
 }
 
 /** Finalises and deallocates transaction service. */
@@ -135,6 +145,7 @@ static void txs_fini(struct m0_reqh_service *service)
 static int txs_start(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
+	//_addb_init();
 	M0_RETURN(0);
 }
 

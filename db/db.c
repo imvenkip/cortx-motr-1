@@ -215,6 +215,7 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 {
 	struct m0_dbenv_impl *di = &env->d_i;
 
+	M0_LOG(M0_FATAL, "reqh: %p", di->d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh);
 	di->d_dom = &di->d_ut_be.but_dom;
 	di->d_seg = &di->d_ut_seg.bus_seg;
 	m0_be_ut_backend_init(&di->d_ut_be);

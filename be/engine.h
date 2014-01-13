@@ -65,6 +65,7 @@ struct m0_be_engine {
 	struct m0_be_engine_cfg	  *eng_cfg;
 	/** Protects all fields of this struct. */
 	struct m0_mutex		   eng_lock;
+	struct m0_reqh_service     eng_tx_service;
 	/**
 	 * Per-state lists of transaction. Each non-failed transaction is in one
 	 * of these lists.
