@@ -150,32 +150,41 @@ void rm_ctx_config(enum rm_server id)
 	rm_ctx_init(&rm_ctx[id]);
 }
 
-struct m0_reqh_service *rsvc;
+struct m0_reqh_service *rmservice;
+struct m0_reqh_service *rpcsvc;
+struct m0_reqh_service_type *rmstype = NULL;
+struct m0_reqh_service_type *rpctype = NULL;
 
+static void service_start(const char *svc, struct m0_reqh *reqh,
+			  struct m0_reqh_service_type **stype,
+			  struct m0_reqh_service **service)
+{
+	int rc;
+
+	*stype = m0_reqh_service_type_find(svc);
+	M0_UT_ASSERT(*stype != NULL);
+
+	rc = m0_reqh_service_allocate(service, *stype, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(*service, reqh, NULL);
+	rc = m0_reqh_service_start(*service);
+	M0_UT_ASSERT(rc == 0);
+}
 void rm_ctx_init(struct rm_context *rmctx)
 {
-	int                                 rc;
-	static struct m0_reqh_service_type *stype = NULL;
-
 	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
-
 	m0_mutex_init(&rmctx->rc_mutex);
 
 	if (rmctx->rc_id == 0) {
-		if (stype == NULL) {
-			stype = m0_reqh_service_type_find("rmservice");
-			M0_UT_ASSERT(stype != NULL);
-		}
-
-		rc = m0_reqh_service_allocate(&rsvc, stype, NULL);
-		M0_UT_ASSERT(rc == 0);
-		m0_reqh_service_init(rsvc,
-				     &rmctx->rc_rmach_ctx.rmc_reqh, NULL);
-		rc = m0_reqh_service_start(rsvc);
-		M0_UT_ASSERT(rc == 0);
+		service_start("rpcservice", &rmctx->rc_rmach_ctx.rmc_reqh,
+			      &rpctype, &rpcsvc);
+		service_start("rmservice", &rmctx->rc_rmach_ctx.rmc_reqh,
+			      &rmstype, &rmservice);
 	} else {
 		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
-				    stype->rst_key, rsvc);
+				    rpctype->rst_key, rpcsvc);
+		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
+				    rmstype->rst_key, rmservice);
 	}
 
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
@@ -188,8 +197,10 @@ void rm_ctx_fini(struct rm_context *rmctx)
 	m0_chan_fini_lock(&rmctx->rc_chan);
 	m0_mutex_fini(&rmctx->rc_mutex);
 	if (rmctx->rc_id == 0) {
-		m0_reqh_service_stop(rsvc);
-		m0_reqh_service_fini(rsvc);
+		m0_reqh_service_stop(rmservice);
+		m0_reqh_service_fini(rmservice);
+		m0_reqh_service_stop(rpcsvc);
+		m0_reqh_service_fini(rpcsvc);
 	}
 	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
 }

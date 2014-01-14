@@ -1,5 +1,4 @@
 ut_libmero_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
-                               rpc/ut/service.c \
                                rpc/ut/formation2.c \
                                rpc/ut/conn.c \
                                rpc/ut/rpc_machine.c \

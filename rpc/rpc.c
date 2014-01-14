@@ -32,6 +32,7 @@
 
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
+#include "rpc/service.h"
 
 /**
  * @addtogroup rpc
@@ -42,76 +43,6 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
 				    struct m0_rpc_slot *slot);
 
 struct m0_addb_ctx m0_rpc_addb_ctx;
-
-static int rpc_service_start(struct m0_reqh_service *service)
-{
-	M0_PRE(service != NULL);
-	return 0;
-}
-
-static void rpc_service_stop(struct m0_reqh_service *service)
-{
-	M0_PRE(service != NULL);
-}
-
-static void rpc_service_fini(struct m0_reqh_service *service)
-{
-	M0_PRE(service != NULL);
-	m0_free(service);
-}
-
-static int rpc_service_fop_accept(struct m0_reqh_service *service,
-				  struct m0_fop *fop)
-{
-	return 0;
-}
-static const struct m0_reqh_service_ops rpc_ops = {
-	.rso_start      = rpc_service_start,
-	.rso_stop       = rpc_service_stop,
-	.rso_fini       = rpc_service_fini,
-	.rso_fop_accept = rpc_service_fop_accept
-};
-
-static int rpc_service_allocate(struct m0_reqh_service **service,
-				struct m0_reqh_service_type *stype,
-				struct m0_reqh_context *rctx)
-{
-	struct m0_reqh_service *serv;
-
-	M0_PRE(stype != NULL && service != NULL);
-
-	RPC_ALLOC_PTR(serv, SERVICE_ALLOC, NULL);
-	if (serv == NULL)
-		return -ENOMEM;
-
-	serv->rs_type = stype;
-	serv->rs_ops = &rpc_ops;
-
-	*service = serv;
-
-	return 0;
-}
-
-static const struct m0_reqh_service_type_ops rpc_service_type_ops = {
-	.rsto_service_allocate = rpc_service_allocate
-};
-
-M0_REQH_SERVICE_TYPE_DEFINE(m0_rpc_service_type, &rpc_service_type_ops,
-			    "rpcservice", &m0_addb_ct_rpc_serv);
-M0_EXPORTED(m0_rpc_service_type);
-
-M0_INTERNAL int m0_rpc_service_register(void)
-{
-	int rc;
-	m0_addb_ctx_type_register(&m0_addb_ct_rpc_serv);
-	rc = m0_reqh_service_type_register(&m0_rpc_service_type);
-	return rc;
-}
-
-M0_INTERNAL void m0_rpc_service_unregister(void)
-{
-	m0_reqh_service_type_unregister(&m0_rpc_service_type);
-}
 
 M0_INTERNAL int m0_rpc_init(void)
 {
@@ -131,9 +62,8 @@ M0_INTERNAL int m0_rpc_init(void)
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rpc_addb_ctx,
 			 &m0_addb_ct_rpc_mod, &m0_addb_proc_ctx);
 	rc = m0_rpc_item_module_init() ?:
-	     m0_rpc_service_module_init() ?:
-	     m0_rpc_service_register() ?:
-	     m0_rpc_session_module_init();
+		m0_rpc_service_register() ?:
+		m0_rpc_session_module_init();
 
 	M0_RETURN(rc);
 }
@@ -144,7 +74,6 @@ M0_INTERNAL void m0_rpc_fini(void)
 
 	m0_rpc_session_module_fini();
 	m0_rpc_service_unregister();
-	m0_rpc_service_module_fini();
 	m0_rpc_item_module_fini();
 	m0_addb_ctx_fini(&m0_rpc_addb_ctx);
 

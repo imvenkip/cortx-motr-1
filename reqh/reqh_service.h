@@ -31,7 +31,6 @@
 #include "lib/types.h"
 #include "sm/sm.h"
 #include "addb/addb.h"
-#include "rpc/service.h"
 
 struct m0_fop;
 struct m0_fom;
@@ -252,8 +251,6 @@ struct m0_reqh_service {
 	   ADDB context for this service
 	 */
 	struct m0_addb_ctx                rs_addb_ctx;
-
-	struct m0_rpc_service             rs_rpc_svc;
 
 	/** Channel to wait till reverse session is established */
 	struct m0_chan                    rs_rev_conn_wait;

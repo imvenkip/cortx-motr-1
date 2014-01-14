@@ -18,328 +18,134 @@
  * Original creation date: 02/23/2012
  */
 
-#include <linux/string.h>
 #include <linux/errno.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
-#include "lib/rwlock.h"
 #include "lib/memory.h"   /* m0_alloc() */
-#include "rpc/rpc_internal.h"
+#include "rpc/service.h"
 #include "rpc/rev_conn.h"
+#include "rpc/rpc_internal.h"
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 
 /**
    @addtogroup rpc_service
 
    @{
  */
-static struct m0_bob_type rpc_service_type_bob;
-
-static void m0_rpc_service_type_bob_init(struct m0_rpc_service_type *)
-	__attribute__((unused));
-
-static void m0_rpc_service_type_bob_fini(struct m0_rpc_service_type *)
-	__attribute__((unused));
-
-M0_BOB_DEFINE(static, &rpc_service_type_bob, m0_rpc_service_type);
-
-M0_TL_DESCR_DEFINE(service_type, "rpc_service_type", static,
-		   struct m0_rpc_service_type, svt_tlink, svt_magix,
-		   M0_RPC_SERVICE_TYPE_MAGIC,
-		   M0_RPC_SERVICE_TYPES_HEAD_MAGIC);
-
-M0_TL_DEFINE(service_type, static, struct m0_rpc_service_type);
 
 M0_TL_DESCR_DEFINE(rev_conn, "Reverse Connections", static,
 		   struct m0_reverse_connection, rcf_link, rcf_magic,
 		   M0_RM_REV_CONN_LIST_MAGIC, M0_RM_REV_CONN_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(rev_conn, static, struct m0_reverse_connection);
 
-static struct m0_tl     service_type_tlist;
-static struct m0_rwlock service_type_tlist_lock;
+static const struct m0_bob_type rpc_svc_bob = {
+	.bt_name = "rpc service",
+	.bt_magix_offset = offsetof(struct m0_rpc_service, rps_magix),
+	.bt_magix = M0_RPC_SERVICE_MAGIC,
+	.bt_check = NULL
+};
+M0_BOB_DEFINE(M0_INTERNAL, &rpc_svc_bob, m0_rpc_service);
 
-static struct m0_bob_type rpc_service_bob;
-
-M0_BOB_DEFINE(M0_INTERNAL, &rpc_service_bob, m0_rpc_service);
-
-M0_TL_DESCR_DEFINE(m0_rpc_services, "rpc_service", M0_INTERNAL,
-                   struct m0_rpc_service, svc_tlink, svc_magix,
-                   M0_RPC_SERVICE_MAGIC,
-                   M0_RPC_SERVICES_HEAD_MAGIC);
-
-M0_TL_DEFINE(m0_rpc_services, M0_INTERNAL, struct m0_rpc_service);
-
-M0_INTERNAL int m0_rpc_service_module_init(void)
+static int rpc_service_start(struct m0_reqh_service *service)
 {
-	m0_bob_type_tlist_init(&rpc_service_type_bob, &service_type_tl);
-	m0_bob_type_tlist_init(&rpc_service_bob, &m0_rpc_services_tl);
+	struct m0_rpc_service *svc;
 
-	service_type_tlist_init(&service_type_tlist);
-	m0_rwlock_init(&service_type_tlist_lock);
-	m0_rev_conn_fom_type_init();
+	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
+	rev_conn_tlist_init(&svc->rps_rev_conns);
+
 	return 0;
 }
 
-M0_INTERNAL void m0_rpc_service_module_fini(void)
+static void rpc_service_stop(struct m0_reqh_service *service)
 {
-	m0_rwlock_fini(&service_type_tlist_lock);
-	service_type_tlist_fini(&service_type_tlist);
+	struct m0_rpc_service *svc;
+
+	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
+	m0_rpc_service_reverse_session_put(service);
+	rev_conn_tlist_fini(&svc->rps_rev_conns);
 }
 
-M0_INTERNAL void m0_rpc_service_type_register(struct m0_rpc_service_type
-					      *service_type)
+static void rpc_service_fini(struct m0_reqh_service *service)
 {
-	M0_PRE(service_type != NULL);
-	M0_ASSERT(m0_rpc_service_type_bob_check(service_type));
-	M0_PRE(m0_rpc_service_type_locate(service_type->svt_type_id) == NULL);
+	struct m0_rpc_service *svc;
 
-	m0_rwlock_write_lock(&service_type_tlist_lock);
-
-	service_type_tlink_init_at_tail(service_type, &service_type_tlist);
-
-	m0_rwlock_write_unlock(&service_type_tlist_lock);
-
-	M0_POST(m0_rpc_service_type_locate(service_type->svt_type_id) ==
-		service_type);
+	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
+	m0_rpc_service_bob_fini(svc);
+	m0_free(svc);
 }
 
-M0_INTERNAL void m0_rpc_service_type_unregister(struct m0_rpc_service_type
-						*service_type)
+static int rpc_service_fop_accept(struct m0_reqh_service *service,
+				  struct m0_fop *fop)
 {
-	M0_PRE(service_type != NULL);
-	M0_ASSERT(m0_rpc_service_type_bob_check(service_type));
-	M0_PRE(service_type_tlink_is_in(service_type));
+	return 0;
+}
+static const struct m0_reqh_service_ops rpc_ops = {
+	.rso_start      = rpc_service_start,
+	.rso_stop       = rpc_service_stop,
+	.rso_fini       = rpc_service_fini,
+	.rso_fop_accept = rpc_service_fop_accept
+};
 
-	m0_rwlock_write_lock(&service_type_tlist_lock);
+static int rpc_service_allocate(struct m0_reqh_service **service,
+				struct m0_reqh_service_type *stype,
+				struct m0_reqh_context *rctx)
+{
+	struct m0_rpc_service *svc;
 
-	service_type_tlink_del_fini(service_type);
+	M0_PRE(stype != NULL && service != NULL);
 
-	m0_rwlock_write_unlock(&service_type_tlist_lock);
+	RPC_ALLOC_PTR(svc, SERVICE_ALLOC, NULL);
+	if (svc == NULL)
+		return -ENOMEM;
 
-	M0_POST(!service_type_tlink_is_in(service_type));
-	M0_POST(m0_rpc_service_type_locate(service_type->svt_type_id) ==
-		NULL);
+	m0_rpc_service_bob_init(svc);
+	svc->rps_svc.rs_ops = &rpc_ops;
+	*service = &svc->rps_svc;
+	return 0;
 }
 
-M0_INTERNAL struct m0_rpc_service_type *
-m0_rpc_service_type_locate(uint32_t type_id)
-{
-	struct m0_rpc_service_type *service_type;
+static const struct m0_reqh_service_type_ops rpc_service_type_ops = {
+	.rsto_service_allocate = rpc_service_allocate
+};
 
-	m0_rwlock_read_lock(&service_type_tlist_lock);
-	m0_tl_for(service_type, &service_type_tlist, service_type) {
+M0_REQH_SERVICE_TYPE_DEFINE(m0_rpc_service_type, &rpc_service_type_ops,
+			    "rpcservice", &m0_addb_ct_rpc_serv);
+M0_EXPORTED(m0_rpc_service_type);
 
-		M0_ASSERT(m0_rpc_service_type_bob_check(service_type));
-
-		if (service_type->svt_type_id == type_id)
-			break;
-
-	} m0_tl_endfor;
-
-	m0_rwlock_read_unlock(&service_type_tlist_lock);
-
-	M0_ASSERT(ergo(service_type != NULL,
-		       service_type->svt_type_id == type_id));
-	return service_type;
-}
-
-M0_INTERNAL bool m0_rpc_service_invariant(const struct m0_rpc_service *service)
-{
-	return
-		service != NULL && m0_rpc_service_bob_check(service) &&
-		service->svc_state >= M0_RPC_SERVICE_STATE_INITIALISED &&
-		service->svc_state <  M0_RPC_SERVICE_STATE_NR &&
-
-		service->svc_type != NULL &&
-		service->svc_ep_addr != NULL &&
-		service->svc_ops != NULL &&
-
-		ergo(service->svc_state == M0_RPC_SERVICE_STATE_CONN_ATTACHED,
-		     service->svc_conn != NULL &&
-		     m0_rpc_services_tlink_is_in(service)) &&
-
-		ergo(service->svc_state == M0_RPC_SERVICE_STATE_INITIALISED,
-		     service->svc_conn == NULL &&
-		     !m0_rpc_services_tlink_is_in(service));
-}
-
-M0_INTERNAL int m0_rpc_service_alloc_and_init(struct m0_rpc_service_type
-					      *service_type,
-					      const char *ep_addr,
-					      const struct m0_uint128 *uuid,
-					      struct m0_rpc_service **out)
+M0_INTERNAL int m0_rpc_service_register(void)
 {
 	int rc;
 
-	M0_PRE(service_type != NULL &&
-	       service_type->svt_ops != NULL &&
-	       service_type->svt_ops->rsto_alloc_and_init != NULL &&
-	       out != NULL);
-
-	rc = service_type->svt_ops->rsto_alloc_and_init(service_type,
-							ep_addr, uuid, out);
-
-	M0_POST(ergo(rc == 0, m0_rpc_service_invariant(*out) &&
-		     (*out)->svc_state == M0_RPC_SERVICE_STATE_INITIALISED));
-	M0_POST(ergo(rc != 0, *out == NULL));
-
+	m0_addb_ctx_type_register(&m0_addb_ct_rpc_serv);
+	m0_rev_conn_fom_type_init();
+	rc = m0_reqh_service_type_register(&m0_rpc_service_type);
 	return rc;
 }
 
-M0_INTERNAL void m0_rpc_service_fini_and_free(struct m0_rpc_service *service)
+M0_INTERNAL void m0_rpc_service_unregister(void)
 {
-	M0_PRE(m0_rpc_service_invariant(service));
-	M0_PRE(service->svc_ops != NULL &&
-	       service->svc_ops->rso_fini_and_free != NULL);
-
-	service->svc_ops->rso_fini_and_free(service);
-	/* Do not dereference @service after this point */
-}
-
-M0_INTERNAL int m0_rpc__service_init(struct m0_rpc_service *service,
-				     struct m0_rpc_service_type *service_type,
-				     const char *ep_addr,
-				     const struct m0_uint128 *uuid,
-				     const struct m0_rpc_service_ops *ops)
-{
-	char *copy_of_ep_addr;
-	int   rc;
-
-	M0_PRE(service != NULL && ep_addr != NULL);
-	M0_PRE(service_type != NULL);
-	M0_PRE(uuid != NULL && ops != NULL && ops->rso_fini_and_free != NULL);
-	M0_PRE(service->svc_state == M0_RPC_SERVICE_STATE_UNDEFINED);
-
-	copy_of_ep_addr = m0_alloc(strlen(ep_addr) + 1);
-	if (copy_of_ep_addr == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-	strcpy(copy_of_ep_addr, ep_addr);
-
-	service->svc_type    = service_type;
-	service->svc_ep_addr = copy_of_ep_addr;
-	service->svc_uuid    = *uuid;
-	service->svc_ops     = ops;
-	service->svc_conn    = NULL;
-
-	m0_rpc_services_tlink_init(service);
-	m0_rpc_service_bob_init(service);
-	rev_conn_tlist_init(&service->svc_rev_conn);
-
-	rc = 0;
-
-out:
-        /*
-         * Leave in UNDEFINED state. The caller will set service->svc_state to
-         * INITIALISED when it successfully initalises service-type specific
-         * fields.
-         */
-	M0_POST(service->svc_state == M0_RPC_SERVICE_STATE_UNDEFINED);
-	return rc;
-}
-
-M0_INTERNAL void m0_rpc__service_fini(struct m0_rpc_service *service)
-{
-	M0_PRE(m0_rpc_service_invariant(service) &&
-	       service->svc_state == M0_RPC_SERVICE_STATE_INITIALISED);
-
-	m0_free(service->svc_ep_addr);
-
-	service->svc_type = NULL;
-	rev_conn_tlist_fini(&service->svc_rev_conn);
-	m0_rpc_services_tlink_fini(service);
-	m0_rpc_service_bob_fini(service);
-
-	/* Caller of this routine will move service to UNDEFINED state */
-}
-
-M0_INTERNAL const char *m0_rpc_service_get_ep_addr(const struct m0_rpc_service
-						   *service)
-{
-	M0_PRE(m0_rpc_service_invariant(service));
-
-	return service->svc_ep_addr;
-}
-
-M0_INTERNAL const struct m0_uint128
-m0_rpc_service_get_uuid(const struct m0_rpc_service *service)
-{
-	M0_PRE(m0_rpc_service_invariant(service));
-
-	return service->svc_uuid;
-}
-
-M0_INTERNAL void m0_rpc_service_conn_attach(struct m0_rpc_service *service,
-					    struct m0_rpc_conn *conn)
-{
-	struct m0_rpc_machine *machine;
-
-	M0_PRE(m0_rpc_service_invariant(service) &&
-	       service->svc_state == M0_RPC_SERVICE_STATE_INITIALISED);
-
-	machine = conn->c_rpc_machine;
-
-	m0_rpc_machine_lock(machine);
-
-	/* M0_ASSERT(m0_rpc_conn_invariant(conn)); */
-	M0_PRE(conn_state(conn) == M0_RPC_CONN_ACTIVE);
-	/*
-         * Destination address of conn must match with end-point address of
-         * service.
-	 */
-	M0_PRE(strcmp(service->svc_ep_addr,
-		      conn->c_rpcchan->rc_destep->nep_addr) == 0);
-
-	service->svc_conn = conn;
-	conn->c_service   = service;
-	m0_rpc_services_tlink_init_at_tail(service, &machine->rm_services);
-	service->svc_state = M0_RPC_SERVICE_STATE_CONN_ATTACHED;
-
-	m0_rpc_machine_unlock(machine);
-}
-
-M0_INTERNAL void m0_rpc_service_conn_detach(struct m0_rpc_service *service)
-{
-	struct m0_rpc_conn    *conn;
-	struct m0_rpc_machine *machine;
-
-	M0_PRE(service != NULL &&
-	       service->svc_conn != NULL &&
-	       service->svc_conn->c_rpc_machine != NULL);
-
-	conn    = service->svc_conn;
-	machine = conn->c_rpc_machine;
-
-	m0_rpc_machine_lock(machine);
-
-	M0_ASSERT(m0_rpc_service_invariant(service));
-	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
-	M0_ASSERT(service->svc_state == M0_RPC_SERVICE_STATE_CONN_ATTACHED);
-
-	service->svc_conn = NULL;
-	conn->c_service   = NULL;
-	m0_rpc_services_tlist_del(service);
-	service->svc_state = M0_RPC_SERVICE_STATE_INITIALISED;
-
-	m0_rpc_machine_unlock(machine);
+	m0_reqh_service_type_unregister(&m0_rpc_service_type);
 }
 
 M0_INTERNAL struct m0_rpc_session *
-m0_rpc_service_reverse_session_lookup(struct m0_rpc_service    *svc,
+m0_rpc_service_reverse_session_lookup(struct m0_reqh_service   *service,
 				      const struct m0_rpc_item *item)
 {
+
 	const char                   *rem_ep;
 	struct m0_reverse_connection *revc;
+	struct m0_rpc_service        *svc;
 
-	M0_PRE(svc != NULL && item != NULL);
+	M0_PRE(item != NULL && service->rs_type == &m0_rpc_service_type);
 
+	svc    = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	rem_ep = m0_rpc_item_remote_ep_addr(item);
 
-	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
+	m0_tl_for (rev_conn, &svc->rps_rev_conns, revc) {
 		if (strcmp(rem_ep, revc->rcf_rem_ep) == 0)
 			return revc->rcf_sess;
 	} m0_tl_endfor;
@@ -348,17 +154,18 @@ m0_rpc_service_reverse_session_lookup(struct m0_rpc_service    *svc,
 }
 
 M0_INTERNAL int
-m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
+m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 				   const struct m0_rpc_item *item,
 				   struct m0_rpc_session    *session)
 {
 	int                           rc;
 	const char                   *rem_ep;
 	struct m0_reverse_connection *revc;
-	struct m0_reqh_service       *reqhsvc;
+	struct m0_rpc_service        *svc;
 
-	M0_PRE(svc != NULL && item != NULL);
+	M0_PRE(item != NULL && service->rs_type == &m0_rpc_service_type);
 
+	svc    = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	rem_ep = m0_rpc_item_remote_ep_addr(item);
 
 	M0_ALLOC_PTR(revc);
@@ -366,7 +173,6 @@ m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
 		rc = -ENOMEM;
 		goto err_revc;
 	}
-	reqhsvc = container_of(svc, struct m0_reqh_service, rs_rpc_svc);
 	revc->rcf_rem_ep = m0_alloc(strlen(rem_ep) + 1);
 	if (revc->rcf_rem_ep == NULL) {
 		rc = -ENOMEM;
@@ -378,15 +184,14 @@ m0_rpc_service_reverse_session_get(struct m0_rpc_service    *svc,
 		rc = -ENOMEM;
 		goto err_ep;
 	}
-	revc->rcf_sess = session;
-
+	revc->rcf_sess    = session;
 	revc->rcf_rpcmach = item->ri_rmachine;
-	revc->rcf_ft = M0_REV_CONNECT;
+	revc->rcf_ft      = M0_REV_CONNECT;
 	m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type, &rev_conn_fom_ops,
-		    NULL, NULL, reqhsvc->rs_reqh, reqhsvc->rs_type);
+		    NULL, NULL, service->rs_reqh, service->rs_type);
 
-	m0_fom_queue(&revc->rcf_fom, reqhsvc->rs_reqh);
-	rev_conn_tlink_init_at_tail(revc, &svc->svc_rev_conn);
+	m0_fom_queue(&revc->rcf_fom, service->rs_reqh);
+	rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
 	M0_RETURN(0);
 
 err_ep:
@@ -397,67 +202,43 @@ err_revc:
 }
 
 M0_INTERNAL void
-m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc)
+m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 {
-	int                           i;
-	struct m0_clink              *clinks;
-	size_t                        nr_clinks = 0;
-	size_t                        nr_sessions;
-	struct m0_reqh_service       *reqhsvc;
+	int                           rc;
+	struct m0_rpc_service        *svc;
 	struct m0_reverse_connection *revc;
 
-	M0_PRE(svc != NULL);
+	M0_PRE(service->rs_type == &m0_rpc_service_type);
 
-	reqhsvc = container_of(svc, struct m0_reqh_service, rs_rpc_svc);
+	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 
-	/*
-	 * We create a clink group to wait for completion of reverse
-	 * disconnection fom.
-	 */
-	nr_sessions = rev_conn_tlist_length(&reqhsvc->rs_rpc_svc.svc_rev_conn);
-	M0_ALLOC_ARR(clinks, nr_sessions);
-	M0_ASSERT(clinks != NULL);
 	/*
 	 * It is assumed that following functions log errors internally
 	 * and hence their return value is ignored.
 	 */
-	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
-		revc->rcf_ft = M0_REV_DISCONNECT;
-		M0_SET0(&revc->rcf_fom);
-		m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type,
-			    &rev_conn_fom_ops, NULL, NULL, reqhsvc->rs_reqh,
-			    reqhsvc->rs_type);
-		m0_mutex_init(&revc->rcf_mutex);
-		m0_chan_init(&revc->rcf_chan, &revc->rcf_mutex);
-		if (nr_clinks == 0)
-			m0_clink_init(&clinks[nr_clinks], NULL);
-		else
-			m0_clink_attach(&clinks[nr_clinks], &clinks[0], NULL);
-		m0_clink_add_lock(&revc->rcf_chan, &clinks[nr_clinks]);
-		++nr_clinks;
-		m0_fom_queue(&revc->rcf_fom, reqhsvc->rs_reqh);
-	} m0_tl_endfor;
-
-	while (nr_clinks) {
-		m0_chan_wait(&clinks[0]);
-		--nr_clinks;
-	}
-
-	for (i = nr_sessions - 1; i >= 0; --i) {
-		m0_clink_del_lock(&clinks[i]);
-		m0_clink_fini(&clinks[i]);
-	}
-	m0_free(clinks);
-
-	m0_tl_for (rev_conn, &svc->svc_rev_conn, revc) {
+	m0_tl_for (rev_conn, &svc->rps_rev_conns, revc) {
 		rev_conn_tlink_del_fini(revc);
-		m0_chan_fini_lock(&revc->rcf_chan);
-		m0_mutex_fini(&revc->rcf_mutex);
+		rc = m0_rpc_session_destroy(revc->rcf_sess, M0_TIME_NEVER);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
+
+		rc = m0_rpc_conn_destroy(revc->rcf_conn, M0_TIME_NEVER);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Failed to terminate "
+			       "connection %d", rc);
 		m0_free(revc->rcf_sess);
 		m0_free(revc->rcf_rem_ep);
 		m0_free(revc->rcf_conn);
 		m0_free(revc);
 	} m0_tl_endfor;
+}
+
+M0_INTERNAL struct m0_reqh_service *
+m0_reqh_rpc_service_find(struct m0_reqh *reqh)
+{
+	return
+		m0_reqh_service_find(m0_reqh_service_type_find("rpcservice"),
+				     reqh);
 }
 
 #undef M0_TRACE_SUBSYSTEM

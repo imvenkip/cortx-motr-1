@@ -184,7 +184,6 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	rpc_conn_tlist_init(&machine->rm_incoming_conns);
 	rpc_conn_tlist_init(&machine->rm_outgoing_conns);
 	rmach_watch_tlist_init(&machine->rm_watch);
-	m0_rpc_services_tlist_init(&machine->rm_services);
 
 	addb_mc = REQH_ADDB_MC_CONFIGURED(machine->rm_reqh) ?
 		  &machine->rm_reqh->rh_addb_mc : &m0_addb_gmc;
@@ -229,7 +228,6 @@ static void __rpc_machine_fini(struct m0_rpc_machine *machine)
 	m0_addb_ctx_fini(&machine->rm_addb_ctx);
 
 	rmach_watch_tlist_fini(&machine->rm_watch);
-	m0_rpc_services_tlist_fini(&machine->rm_services);
 	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);
 	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
 	rpc_chan_tlist_fini(&machine->rm_chans);

@@ -292,7 +292,6 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 
 	conn->c_rpc_machine = machine;
 	conn->c_sender_id   = SENDER_ID_INVALID;
-	conn->c_service     = NULL;
 	conn->c_nr_sessions = 0;
 
 	rpc_session_tlist_init(&conn->c_sessions);
@@ -746,7 +745,6 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL);
-	M0_PRE(conn->c_service == NULL);
 	M0_PRE(conn->c_rpc_machine != NULL);
 
 	fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL);

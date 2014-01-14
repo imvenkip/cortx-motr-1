@@ -372,22 +372,21 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 	struct m0_fom          *fom;
 	struct m0_reqh_service *service;
 
-	rfom    = container_of(rem_in, struct rm_request_fom, rf_in);
-	fom     = &rfom->rf_fom;
-	service = fom->fo_service;
-
+	rfom = container_of(rem_in, struct rm_request_fom, rf_in);
+	fom  = &rfom->rf_fom;
 	if (fom->fo_fop->f_item.ri_session != NULL) {
-		remote->rem_session = m0_rpc_service_reverse_session_lookup(
-					&fom->fo_service->rs_rpc_svc,
-					&fom->fo_fop->f_item);
+		service = m0_reqh_rpc_service_find(fom->fo_service->rs_reqh);
+		M0_ASSERT(service != NULL);
+		remote->rem_session =
+			m0_rpc_service_reverse_session_lookup(service,
+						&fom->fo_fop->f_item);
 		if (remote->rem_session == NULL) {
 			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
 				     &m0_rm_addb_ctx);
 			if (remote->rem_session == NULL)
 				M0_RETURN(-ENOMEM);
 			m0_rpc_service_reverse_session_get(
-				&service->rs_rpc_svc,
-				&fom->fo_fop->f_item,
+				service, &fom->fo_fop->f_item,
 				remote->rem_session);
 			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
 			m0_clink_add_lock(&service->rs_rev_conn_wait,

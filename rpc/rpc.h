@@ -43,7 +43,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/session.h"
 #include "rpc/item.h"
 #include "rpc/bulk.h"
-#include "rpc/service.h"
 #include "rpc/rpc_helpers.h"
 #include "net/buffer_pool.h"
 #include "rpc/item.h"        /* m0_rpc_item_onwire_header_size */

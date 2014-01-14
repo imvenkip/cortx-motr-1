@@ -276,8 +276,6 @@ struct m0_rpc_conn {
 	 */
 	struct m0_tl              c_item_sources;
 
-	struct m0_rpc_service    *c_service;
-
 	/** Identifies destination of this connection. */
 	struct m0_rpc_chan       *c_rpcchan;
 

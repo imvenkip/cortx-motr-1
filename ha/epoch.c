@@ -30,6 +30,7 @@
 #include "lib/trace.h"
 #include "mero/magic.h"
 #include "rpc/rpc_machine.h"
+#include "rpc/item.h"
 #include "reqh/reqh.h"
 
 #include "ha/epoch.h"

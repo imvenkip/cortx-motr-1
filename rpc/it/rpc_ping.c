@@ -32,7 +32,6 @@
 #include "fop/fop.h"            /* m0_fop_default_item_ops */
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"         /* m0_rpc_server_start, m0_rpc_client_start */
-#include "rpc/service.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fop_xc.h"
 #include "rpc/it/ping_fom.h"
