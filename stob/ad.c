@@ -269,11 +269,6 @@ static void ad_domain_fini(struct m0_stob_domain *self,
 			   struct m0_sm_group *grp)
 {
 	struct ad_domain       *adom = domain2ad(self);
-	struct m0_be_seg       *seg  = adom->ad_be_seg;
-	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = {};
-	struct m0_be_op         op;
-	int                     rc;
 
 	if (adom->ad_setup) {
 		adom->ad_ballroom->ab_ops->bo_fini(adom->ad_ballroom);
@@ -282,30 +277,6 @@ static void ad_domain_fini(struct m0_stob_domain *self,
 	}
 	m0_stob_cache_fini(&adom->ad_cache);
 	m0_stob_domain_fini(self);
-
-	if (seg == NULL)
-		return;
-
-	m0_be_tx_init(&tx, 0, seg->bs_domain,
-		      grp, NULL, NULL, NULL, NULL);
-	M0_BE_FREE_CREDIT_PTR(adom, seg, &cred);
-	m0_be_emap_credit(&adom->ad_adata, M0_BEO_DESTROY, 1, &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-
-	if (rc == 0) {
-		m0_be_op_init(&op);
-		m0_be_emap_destroy(&adom->ad_adata, &tx, &op);
-		rc = m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-
-		M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
-
-		m0_be_tx_close_sync(&tx);
-	}
-
-	m0_be_tx_fini(&tx);
 }
 
 static const char prefix[] = "ad.";
