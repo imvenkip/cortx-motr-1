@@ -751,28 +751,17 @@ M0_INTERNAL void m0_rpc_slot_persistence(struct m0_rpc_slot *slot,
 	M0_PRE(m0_rpc_slot_invariant(slot));
 	M0_PRE(m0_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
-	/*
-	 * From last persistent item to end of slot->item_list,
-	 *    if item->verno <= @last_persistent
-	 *       Mark item as PAST_COMMITTED
-	 *    else
-	 *       break
-	 */
-	for (item = slot->sl_last_persistent; item != NULL;
+	for (item = slot->sl_last_persistent; item != NULL &&
+	     m0_verno_cmp(item_verno(item, 0), &last_persistent) <= 0;
 	     item = slot_item_tlist_next(&slot->sl_item_list, item)) {
 
-		if (m0_verno_cmp(item_verno(item, 0), &last_persistent) <= 0) {
+		M0_ASSERT(M0_IN(item->ri_stage,
+				(RPC_ITEM_STAGE_PAST_COMMITTED,
+				 RPC_ITEM_STAGE_PAST_VOLATILE)));
 
-			M0_ASSERT(M0_IN(item->ri_stage,
-					(RPC_ITEM_STAGE_PAST_COMMITTED,
-					 RPC_ITEM_STAGE_PAST_VOLATILE)));
-
-			m0_rpc_item_set_stage(item,
-					      RPC_ITEM_STAGE_PAST_COMMITTED);
-			slot->sl_last_persistent = item;
-		} else {
-			break;
-		}
+		m0_rpc_item_set_stage(item,
+				      RPC_ITEM_STAGE_PAST_COMMITTED);
+		slot->sl_last_persistent = item;
 	}
 
 	M0_POST(m0_verno_cmp(item_verno(slot->sl_last_persistent, 0),
