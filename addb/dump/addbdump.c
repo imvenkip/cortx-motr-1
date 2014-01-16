@@ -122,7 +122,7 @@ static void dump_linux_stob_fini(struct dump_stob *stob)
 	M0_PRE(stob != NULL);
 	if (stob->s_ldom != NULL)
 		/* NULL group is safe for linux stob domain. */
-                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom, NULL);
+                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
 }
 
 static void dump_storage_fini(struct dump_stob *stob)

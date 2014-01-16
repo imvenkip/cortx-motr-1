@@ -351,7 +351,7 @@ static int stobio_init(struct stobio_test *test)
 static void stobio_fini(struct stobio_test *test)
 {
 	m0_stob_put(test->st_obj);
-	test->st_dom->sd_ops->sdo_fini(test->st_dom, NULL);
+	test->st_dom->sd_ops->sdo_fini(test->st_dom);
 	stobio_rw_buffs_fini(test);
 	stob_dev_fini(test);
 

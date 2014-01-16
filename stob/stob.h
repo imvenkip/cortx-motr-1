@@ -133,9 +133,14 @@ struct m0_stob_domain {
  */
 struct m0_stob_domain_op {
 	/**
+	   Destroy this domain from BE segment.
+	*/
+	void (*sdo_destroy)(struct m0_stob_domain *self,
+	                    struct m0_sm_group *grp);
+	/**
 	   Cleanup this domain: e.g. delete itself from the domain list in type.
 	*/
-	void (*sdo_fini)(struct m0_stob_domain *self, struct m0_sm_group *grp);
+	void (*sdo_fini)(struct m0_stob_domain *self);
 	/**
 	   Returns an in-memory representation for the storage object with given
 	   identifier in this domain, either by creating a new m0_stob or

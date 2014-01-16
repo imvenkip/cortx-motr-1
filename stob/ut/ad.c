@@ -255,8 +255,9 @@ static int test_ad_fini(void)
 	int i;
 
 	m0_stob_put(obj_fore);
-	dom_fore->sd_ops->sdo_fini(dom_fore, sm_grp);
-	dom_back->sd_ops->sdo_fini(dom_back, NULL);
+	dom_fore->sd_ops->sdo_destroy(dom_fore, sm_grp);
+	dom_fore->sd_ops->sdo_fini(dom_fore);
+	dom_back->sd_ops->sdo_fini(dom_back);
 
 	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);

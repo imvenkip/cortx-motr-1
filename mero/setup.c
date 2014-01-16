@@ -837,7 +837,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 
 		if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail")) {
 			struct m0_stob_domain *adom = adstob->as_dom;
-			adom->sd_ops->sdo_fini(adom, grp);
+			adom->sd_ops->sdo_fini(adom);
 			rc = -EINVAL;
 		}
 
@@ -857,7 +857,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 				struct m0_stob_domain *adom = adstob->as_dom;
 				astob_tlink_del_fini(adstob);
 				cs_ad_stob_bob_fini(adstob);
-				adom->sd_ops->sdo_fini(adom, grp);
+				adom->sd_ops->sdo_fini(adom);
 			}
 		}
 		m0_sm_group_unlock(grp);
@@ -939,7 +939,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 			m0_stob_put(bstob);
 
 		m0_sm_group_lock(grp);
-		adom->sd_ops->sdo_fini(adom, grp);
+		adom->sd_ops->sdo_fini(adom);
 		m0_sm_group_unlock(grp);
 
 		astob_tlink_del_fini(adstob);
@@ -954,7 +954,7 @@ static void cs_linux_stob_fini(struct cs_stobs *stob)
 	M0_PRE(stob != NULL);
 
 	if (stob->s_ldom != NULL)
-		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom, NULL);
+		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
 }
 
 M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,

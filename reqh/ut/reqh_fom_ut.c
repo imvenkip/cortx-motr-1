@@ -312,8 +312,9 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_mdstore_fini(&srv_mdstore);
 
 	M0_UT_ASSERT(sdom != NULL);
-	sdom->sd_ops->sdo_fini(sdom, grp);
-	bdom->sd_ops->sdo_fini(bdom, NULL);
+	sdom->sd_ops->sdo_destroy(sdom, grp);
+	sdom->sd_ops->sdo_fini(sdom);
+	bdom->sd_ops->sdo_fini(bdom);
 
 	m0_reqh_fom_domain_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);

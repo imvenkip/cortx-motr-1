@@ -498,7 +498,7 @@ void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy)
 
 	M0_CNT_DEC(h->buh_storage_ref_cnt);
 	if (h->buh_storage_ref_cnt == 0) {
-		h->buh_stob_dom->sd_ops->sdo_fini(h->buh_stob_dom, NULL);
+		h->buh_stob_dom->sd_ops->sdo_fini(h->buh_stob_dom);
 		h->buh_stob_dom = NULL;
 		if (stob_destroy) {
 #if 0

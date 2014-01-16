@@ -118,8 +118,7 @@ static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
 	return rc;
 }
 
-static void stobsink_mock_domain_fini(struct m0_stob_domain *self,
-				      struct m0_sm_group *grp)
+static void stobsink_mock_domain_fini(struct m0_stob_domain *self)
 {
 	struct stobsink_domain *sdom =
 	    container_of(self, struct stobsink_domain, ssd_dom);
@@ -363,7 +362,7 @@ static void addb_ut_stobsink_search(void)
 	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 1);
 
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom, NULL);
+	dom->sd_ops->sdo_fini(dom);
 	stobsink_mock_stobs_fini();
 }
 
@@ -648,7 +647,7 @@ static void addb_ut_retrieval(void)
 
 	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom, NULL);
+	dom->sd_ops->sdo_fini(dom);
 
 	/* Test: file iter alloc correctly determines segment size */
 	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
@@ -979,7 +978,7 @@ static void addb_ut_stob(void)
 
 	m0_addb_mc_fini(&mc);
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom, NULL);
+	dom->sd_ops->sdo_fini(dom);
 	addb_rt_tlist_del(dp);
 	addb_ct_tlist_del(&m0__addb_ut_ct0);
 

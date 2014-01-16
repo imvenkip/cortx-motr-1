@@ -149,7 +149,7 @@ static int test_adieu_fini(void)
 	int i;
 
 	m0_stob_put(obj);
-	dom->sd_ops->sdo_fini(dom, NULL);
+	dom->sd_ops->sdo_fini(dom);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);

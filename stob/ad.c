@@ -261,12 +261,50 @@ static void ad_stob_type_fini(struct m0_stob_type *stype)
 }
 
 /**
+   Implementation of m0_stob_domain_op::sdo_destroy().
+
+   Destroy all BE-related objects.
+ */
+static void ad_domain_destroy(struct m0_stob_domain *self,
+			      struct m0_sm_group *grp)
+{
+	struct ad_domain       *adom = domain2ad(self);
+	struct m0_be_seg       *seg  = adom->ad_be_seg;
+	struct m0_be_tx         tx = {};
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_op         op;
+	int                     rc;
+
+	M0_PRE(seg != NULL);
+
+	m0_be_tx_init(&tx, 0, seg->bs_domain,
+		      grp, NULL, NULL, NULL, NULL);
+	M0_BE_FREE_CREDIT_PTR(adom, seg, &cred);
+	m0_be_emap_credit(&adom->ad_adata, M0_BEO_DESTROY, 1, &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+
+	if (rc == 0) {
+		m0_be_op_init(&op);
+		m0_be_emap_destroy(&adom->ad_adata, &tx, &op);
+		rc = m0_be_op_wait(&op);
+		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+		m0_be_op_fini(&op);
+
+		M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
+
+		m0_be_tx_close_sync(&tx);
+	}
+
+	m0_be_tx_fini(&tx);
+}
+
+/**
    Implementation of m0_stob_domain_op::sdo_fini().
 
    Finalizes all still existing in-memory objects.
  */
-static void ad_domain_fini(struct m0_stob_domain *self,
-			   struct m0_sm_group *grp)
+static void ad_domain_fini(struct m0_stob_domain *self)
 {
 	struct ad_domain       *adom = domain2ad(self);
 
@@ -1629,6 +1667,7 @@ static const struct m0_stob_type_op ad_stob_type_op = {
 };
 
 static const struct m0_stob_domain_op ad_stob_domain_op = {
+	.sdo_destroy      = ad_domain_destroy,
 	.sdo_fini         = ad_domain_fini,
 	.sdo_stob_find    = ad_domain_stob_find,
 	.sdo_tx_make      = ad_domain_tx_make,

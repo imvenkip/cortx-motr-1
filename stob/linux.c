@@ -100,8 +100,7 @@ static void linux_stob_type_fini(struct m0_stob_type *stype)
 
    Finalizes all still existing in-memory objects.
  */
-static void linux_domain_fini(struct m0_stob_domain *self,
-			      struct m0_sm_group *grp)
+static void linux_domain_fini(struct m0_stob_domain *self)
 {
 	struct linux_domain *ldom;
 
@@ -146,7 +145,7 @@ static int linux_stob_type_domain_locate(struct m0_stob_type *type,
 		if (result == 0)
 			*out = dom;
 		else
-			linux_domain_fini(dom, NULL);
+			linux_domain_fini(dom);
 		ldom->sdl_use_directio = false;
 		dom->sd_name = ldom->sdl_path;
 	} else {
