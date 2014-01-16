@@ -49,7 +49,7 @@ enum {
    @see snd_slot_ops, rcv_slot_ops
  */
 struct m0_rpc_slot_ops {
-	/** Item i is ready to be consumed */
+	/** Item @i is ready to be consumed */
 	int (*so_item_consume)(struct m0_rpc_item *i);
 	/** A @reply for a request item @req is received and is
 	    ready to be consumed */

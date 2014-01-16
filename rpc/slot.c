@@ -478,10 +478,12 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 	M0_ASSERT(m0_rpc_slot_invariant(slot));
 	M0_PRE(m0_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
-	if (M0_FI_ENABLED("misorder_item"))
-		item->ri_slot_refs[0].sr_ow.osr_xid += 5;
-
-	if (item_xid(item, 0) == slot->sl_xid) {
+	M0_LOG(M0_DEBUG, "item_xid=%llx slot_xid=%llx",
+		(long long unsigned)item_xid(item, 0),
+		(long long unsigned)slot->sl_xid);
+	if (M0_FI_ENABLED("misorder_item")) {
+		misordered_item_received(slot, item);
+	} else if (item_xid(item, 0) == slot->sl_xid) {
 		/* valid in sequence */
 		__slot_item_add(slot, item);
 		slot_balance(slot);
@@ -518,6 +520,7 @@ static void duplicate_item_received(struct m0_rpc_slot *slot,
 	M0_ASSERT(m0_verno_cmp(item_verno(req, 0),
 			       item_verno(item, 0)) == 0);
 
+	M0_LOG(M0_DEBUG, "req_stage=%d", req->ri_stage);
 	switch (req->ri_stage) {
 	case RPC_ITEM_STAGE_PAST_VOLATILE:
 	case RPC_ITEM_STAGE_PAST_COMMITTED:
@@ -711,7 +714,8 @@ M0_INTERNAL void m0_rpc_slot_process_reply(struct m0_rpc_item *req,
 	m0_rpc_item_stop_timer(req);
 	if (req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS) {
 		req->ri_reply = reply;
-		if (req->ri_ops != NULL && req->ri_ops->rio_replied != NULL)
+		if (req->ri_ops != NULL && req->ri_ops->rio_replied != NULL &&
+		    reply->ri_type != &m0_rpc_fop_noop_fopt.ft_rpc_item_type)
 			req->ri_ops->rio_replied(req);
 		m0_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
 	} else {

@@ -251,25 +251,8 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_nr_sent == 3);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	M0_LOG(M0_DEBUG, "TEST:3.4:END");
-
-	M0_LOG(M0_DEBUG, "TEST:3.4.1:START");
-	/* CONTINUES TO USE fop/item FROM PREVIOUS TEST-CASE. */
-	/* Emulate misordered item.
-	 */
-	m0_fi_enable_once("m0_rpc_slot_item_apply", "misorder_item");
-	item->ri_nr_sent_max = 1;
-	item->ri_resend_interval = m0_time(0, 100 * MILLISEC);
-	item->ri_deadline = m0_time_from_now(1, 0);
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_rpc_item_send(item);
-	m0_rpc_machine_unlock(item->ri_rmachine);
-	rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == -ETIMEDOUT);
-	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_fop_put(fop);
-	M0_LOG(M0_DEBUG, "TEST:3.4.1:END");
+	M0_LOG(M0_DEBUG, "TEST:3.4:END");
 
 	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
 		 fails to start item timer.
@@ -291,6 +274,36 @@ static void test_resend(void)
 	m0_fi_disable("item_received", "drop_item");
 	m0_fi_disable("m0_rpc_item_start_timer", "failed");
 	M0_LOG(M0_DEBUG, "TEST:3.5.2:END");
+}
+
+static void misordered_item_replied_cb(struct m0_rpc_item *item)
+{
+	M0_UT_ASSERT(false); /* it should never be called */
+}
+
+static const struct m0_rpc_item_ops misordered_item_ops = {
+	.rio_replied = misordered_item_replied_cb,
+};
+
+static void test_misordered(void)
+{
+	struct m0_rpc_item *item;
+	int                 rc;
+
+	M0_LOG(M0_DEBUG, "TEST:3.6:START");
+	m0_fi_enable_once("m0_rpc_slot_item_apply", "misorder_item");
+	fop = fop_alloc();
+	item = &fop->f_item;
+	rc = m0_rpc_client_call(fop, session, &misordered_item_ops, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_nr_sent >= 1);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	M0_UT_ASSERT(item->ri_reply->ri_type ==
+	             &m0_rpc_fop_noop_fopt.ft_rpc_item_type);
+	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	m0_fop_put(fop);
+	M0_LOG(M0_DEBUG, "TEST:3.6:END");
 }
 
 static void __test_resend(struct m0_fop *fop)
@@ -624,6 +637,7 @@ const struct m0_test_suite item_ut = {
 		{ "simple-transitions",     test_simple_transitions     },
 		{ "item-timeout",           test_timeout                },
 		{ "item-resend",            test_resend                 },
+		{ "item-misordered",        test_misordered             },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
 		{ "bound-item",             test_bound_items            },
