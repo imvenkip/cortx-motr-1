@@ -216,6 +216,7 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 			rc = m0_be_log_reserve_tx(&en->eng_log,
 						  &tx->t_prepared);
 			if (rc == 0) {
+				tx->t_log_reserved = true;
 				be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
 			} else {
 				/* Ignore the rest of OPENING transactions.
@@ -329,12 +330,22 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	if (!M0_IN(state, (M0_BTS_DONE, M0_BTS_FAILED)))
 		etx_tlist_add_tail(&en->eng_txs[state], tx);
 
-	if (state == M0_BTS_OPENING) {
+	switch (state) {
+	case M0_BTS_OPENING:
 		be_engine_got_tx_open(en);
-	} else if (state == M0_BTS_CLOSED) {
+		break;
+	case M0_BTS_CLOSED:
 		be_engine_got_tx_close(en);
-	} else if (state == M0_BTS_DONE) {
+		break;
+	case M0_BTS_DONE:
 		be_engine_got_tx_done(en, tx);
+		break;
+	case M0_BTS_FAILED:
+		if (tx->t_log_reserved)
+			m0_be_log_discard(&en->eng_log, &tx->t_prepared);
+		break;
+	default:
+		break;
 	}
 
 	M0_POST(be_engine_invariant(en));

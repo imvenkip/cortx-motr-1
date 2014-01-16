@@ -346,6 +346,8 @@ struct m0_be_tx {
 	struct m0_be_tx_group *t_group;
 	/** Reference counter. */
 	uint32_t	       t_ref;
+	/** Set when space in log is reserved by engine. */
+	bool                   t_log_reserved;
 };
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);

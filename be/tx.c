@@ -218,23 +218,15 @@ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
 
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 {
-	int rc;
-
 	M0_ENTRY();
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_PREPARE)));
 
-	rc = m0_be_tx_credit_eq(&tx->t_prepared,
-				&m0_be_tx_credit_invalid) ? -EINVAL : 0;
-	rc = rc ?: m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
-
-	if (rc == -EINVAL) {
-		M0_LOG(M0_DEBUG, "tx = %p: tx credit is invalid", tx);
-	} else if (rc == -ENOMEM) {
-		M0_LOG(M0_DEBUG, "tx = %p: there is not enough memory "
-		       "to allocate using prepared credit "BETXCR_F,
-		       tx, BETXCR_P(&tx->t_prepared));
+	if (m0_be_tx_credit_eq(&tx->t_prepared, &m0_be_tx_credit_invalid)) {
+		M0_LOG(M0_NOTICE, "tx = %p: tx credit is invalid", tx);
+		be_tx_state_move(tx, M0_BTS_FAILED, -EINVAL);
+	} else {
+		be_tx_state_move(tx, M0_BTS_OPENING, 0);
 	}
-	be_tx_state_move(tx, rc == 0 ? M0_BTS_OPENING : M0_BTS_FAILED, rc);
 
 	M0_POST(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_OPENING, M0_BTS_FAILED)));
 	M0_LEAVE();
@@ -326,6 +318,17 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 	}
 }
 
+static int be_tx_memory_allocate(struct m0_be_tx *tx)
+{
+	int rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
+	if (rc == -ENOMEM) {
+		M0_LOG(M0_DEBUG, "tx = %p: there is not enough memory "
+		       "to allocate using prepared credit "BETXCR_F,
+		       tx, BETXCR_P(&tx->t_prepared));
+	}
+	return rc;
+}
+
 static void be_tx_state_move(struct m0_be_tx *tx,
 			     enum m0_be_tx_state state,
 			     int rc)
@@ -336,6 +339,16 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 
 	M0_PRE(m0_be_tx__invariant(tx));
 	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(ergo(rc != 0, state == M0_BTS_FAILED));
+	M0_PRE(ergo(M0_IN(state, (M0_BTS_PREPARE, M0_BTS_OPENING, M0_BTS_ACTIVE,
+				  M0_BTS_CLOSED, M0_BTS_GROUPED, M0_BTS_LOGGED,
+				  M0_BTS_PLACED, M0_BTS_DONE)), rc == 0));
+
+	if (state == M0_BTS_ACTIVE) {
+		rc = be_tx_memory_allocate(tx);
+		if (rc != 0)
+			state = M0_BTS_FAILED;
+	}
 
 	if (rc != 0)
 		M0_LOG(M0_INFO, "%s -> %s: transaction failure: rc = %d",
