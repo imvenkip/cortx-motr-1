@@ -284,9 +284,6 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 			buf = io->si_user.ov_buf[src.vc_seg] + src.vc_offset;
 			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
 
-			M0_LOG(M0_DEBUG, "p_off=%lx off=%lx sz=%lx",
-				(unsigned long)prev_off, (unsigned long)off,
-				(unsigned long)frag_size);
 			if (prev_off != ~0 && prev_off + frag_size != off)
 				break;
 			prev_off = off;
@@ -411,10 +408,10 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 	struct iocb    *evin[IOQ_BATCH_IN_SIZE];
 
 	do {
-		avail = m0_atomic64_get(&ldom->ioq_avail);
-
 		ioq_queue_lock(ldom);
+		avail = m0_atomic64_get(&ldom->ioq_avail);
 		got = min32(ldom->ioq_queued, min32(avail, ARRAY_SIZE(evin)));
+		m0_atomic64_sub(&ldom->ioq_avail, got);
 		for (i = 0; i < got; ++i) {
 			qev[i] = ioq_queue_get(ldom);
 			evin[i] = &qev[i]->iq_iocb;
@@ -422,8 +419,6 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 		ioq_queue_unlock(ldom);
 
 		if (got > 0) {
-			m0_atomic64_sub(&ldom->ioq_avail, got);
-
 			put = io_submit(ldom->ioq_ctx, got, evin);
 
 			if (put < 0) {
