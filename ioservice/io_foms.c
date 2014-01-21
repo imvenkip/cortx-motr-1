@@ -948,96 +948,6 @@ static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 	return rc;
 }
 
-static uint32_t ivec_ioseg_nr(struct m0_indexvec *ivec,
-			      m0_bcount_t         offset,
-			      m0_bcount_t         req)
-{
-	struct m0_ivec_cursor cursor;
-	m0_bcount_t           step;
-	m0_bcount_t           accum = 0;
-	uint32_t              nr    = 1;
-
-	m0_ivec_cursor_init(&cursor, ivec);
-	m0_ivec_cursor_move(&cursor, offset);
-
-	do {
-		step = m0_ivec_cursor_step(&cursor);
-		accum += step;
-		if (accum < req)
-			++nr;
-		else
-			break;
-	} while (!m0_ivec_cursor_move(&cursor, step));
-
-	return nr;
-}
-
-static void ivec_ioseg_prepare(struct m0_indexvec *in,
-			       m0_bcount_t         offset,
-			       m0_bcount_t         req,
-			       uint32_t            bshift,
-			       struct m0_indexvec *out)
-{
-	struct m0_ivec_cursor cursor;
-	m0_bcount_t           cnt;
-	int                   i = 0;
-
-	m0_ivec_cursor_init(&cursor, in);
-	m0_ivec_cursor_move(&cursor, offset);
-
-	do {
-		cnt = min_check(m0_ivec_cursor_step(&cursor), req);
-		out->iv_index[i] = m0_ivec_cursor_index(&cursor) >> bshift;
-		out->iv_vec.v_count[i] = cnt >> bshift;
-		req -= cnt;
-		if (req > 0)
-			++i;
-		else
-			break;
-	} while (!m0_ivec_cursor_move(&cursor, cnt));
-}
-
-/**
- * Function to convert the on-wire indexvec to in-memory indexvec format.  Since
- * m0_io_indexvec (on-wire structure) and m0_indexvec (in-memory structures are
- * different, conversion is needed.
- *
- * @param fom file operation machine instance.
- * @param in indexvec wire format
- * @param out indexvec memory format
- * @param bshift shift value for current stob to align index vecs.
- *
- * @pre in != NULL
- * @pre out != NULL
- */
-static int indexvec_wire2mem(struct m0_fom	*fom,
-			     struct m0_indexvec *in,
-			     m0_bcount_t         curr_pos,
-			     m0_bcount_t         nb_len,
-			     uint32_t            bshift,
-			     struct m0_indexvec *out)
-{
-	uint32_t nr;
-        /*
-         * This memory will be freed after its container stob
-         * completes and before destructing container stob object.
-         */
-	nr = ivec_ioseg_nr(in, curr_pos, nb_len);
-	IOS_ALLOC_ARR(out->iv_vec.v_count, nr, &fom->fo_addb_ctx,
-		      INDEXVEC_WIRE2MEM_1);
-        IOS_ALLOC_ARR(out->iv_index, nr, &fom->fo_addb_ctx,
-		      INDEXVEC_WIRE2MEM_2);
-        if (out->iv_vec.v_count == NULL || out->iv_index == NULL) {
-                m0_free(out->iv_index);
-                m0_free(out->iv_vec.v_count);
-                return -ENOMEM;
-	}
-        out->iv_vec.v_nr = nr;
-	ivec_ioseg_prepare(in, curr_pos, nb_len, bshift, out);
-
-        return 0;
-}
-
 /**
  * Copy aligned bufvec segments addresses from net buffer to stob bufvec.
  * STOB I/O expects exact same number of bufvec as index vecs for I/O
@@ -1135,19 +1045,6 @@ static int stob_object_find(struct m0_fom *fom)
 	return result;
 }
 
-M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info)
-{
-	int         i;
-	m0_bcount_t count;
-
-	M0_PRE(io_info != NULL);
-
-	for (count = 0, i = 0; i < io_info->ci_nr; ++i)
-		count += io_info->ci_iosegs[i].ci_count;
-
-	return count;
-}
-
 /**
  * Create and initiate I/O FOM and return generic struct m0_fom
  * Find the corresponding fom_type and associate it with m0_fom.
@@ -1164,10 +1061,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 {
 	int                      rc = 0;
 	uint32_t                 max_frags_nr = 0;
-	struct m0_io_indexvec    wire_ivec;
-	m0_bcount_t		*cnts;
-	m0_bindex_t		*offs;
-	int			 i;
 	struct m0_fom           *fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
@@ -1188,26 +1081,21 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		return M0_RC(-ENOMEM);
 
 	if (max_frags_nr > 0) {
-		rc = m0_indexvec_alloc(&fom_obj->fcrw_ivec, max_frags_nr,
-				       &m0_ios_addb_ctx,
-				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC);
+		rc = m0_indexvec_wire2mem(&rwfop->crw_ivec, max_frags_nr,
+					  &m0_ios_addb_ctx,
+					  M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
+					  &fom_obj->fcrw_ivec);
 		if (rc != 0) {
 			m0_free(fom_obj);
 			return M0_RC(rc);
-		}
-		wire_ivec = rwfop->crw_ivec;
-		offs = fom_obj->fcrw_ivec.iv_index;
-		cnts = fom_obj->fcrw_ivec.iv_vec.v_count;
-		fom_obj->fcrw_ivec.iv_vec.v_nr = wire_ivec.ci_nr;
-		for (i = 0; i < wire_ivec.ci_nr; ++i) {
-			*(offs++) = wire_ivec.ci_iosegs[i].ci_index;
-			*(cnts++) = wire_ivec.ci_iosegs[i].ci_count;
 		}
 	}
 	rep_fop = m0_is_read_fop(fop) ?
 		    m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL) :
 		    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
 	if (rep_fop == NULL) {
+		if (fom_obj->fcrw_ivec.iv_vec.v_nr > 0)
+			m0_indexvec_free(&fom_obj->fcrw_ivec);
 		m0_free(fom_obj);
 		return M0_RC(-ENOMEM);
 	}
@@ -1677,8 +1565,7 @@ static void stio_desc_fini(struct m0_stob_io_desc *stio_desc)
 	m0_fom_callback_fini(&stio_desc->siod_fcb);
 	m0_free(stio->si_user.ov_vec.v_count);
 	m0_free(stio->si_user.ov_buf);
-	m0_free(stio->si_stob.iv_vec.v_count);
-	m0_free(stio->si_stob.iv_index);
+	m0_indexvec_free(&stio->si_stob);
 	m0_free(stio_desc);
 }
 
@@ -1748,8 +1635,8 @@ static int io_launch(struct m0_fom *fom)
 
 	index = fom_obj->fcrw_curr_desc_index;
 	/*
-	 * During the case of write, zero copy is performed before stob I/O
-	 * is launched. For zero copy processing fcrw_curr_desc_index is
+	 * During write, zero copy is performed before stob I/O is launched.
+	 * For zero copy processing fcrw_curr_desc_index is
 	 * incremented for each processed net buffer. Whereas for read, first
 	 * stob I/O is launched and then zero copy is performed. So index is
 	 * decremented by value of number of net buffers to process in case of
@@ -1767,7 +1654,6 @@ static int io_launch(struct m0_fom *fom)
 		struct m0_bufvec	cksum_data;
 		m0_bcount_t             todo;
 
-		index = fom_obj->fcrw_curr_ivec_index++;
 		IOS_ALLOC_PTR(stio_desc, &m0_ios_addb_ctx, IO_LAUNCH_2);
 		if (stio_desc == NULL) {
 			rc = -ENOMEM;
@@ -1783,9 +1669,11 @@ static int io_launch(struct m0_fom *fom)
 
 		mem_ivec  = &stio->si_stob;
 		todo = rwfop->crw_desc.id_descs[index++].bdd_used;
-		rc = indexvec_wire2mem(fom, &fom_obj->fcrw_ivec,
+		rc = m0_indexvec_split(&fom_obj->fcrw_ivec,
 				       fom_obj->fcrw_curr_size, todo,
-				       fom_obj->fcrw_bshift, mem_ivec);
+				       fom_obj->fcrw_bshift,  &fom->fo_addb_ctx,
+				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
+				       mem_ivec);
                 if (rc != 0) {
                         /*
                          * Since this stob io not added into list
@@ -1802,7 +1690,6 @@ static int io_launch(struct m0_fom *fom)
                  * Also trim network buffer as per I/O size.
                  */
                 ivec_count = m0_vec_count(&mem_ivec->iv_vec);
-		fom_obj->fcrw_curr_size += ivec_count;
                 rc = align_bufvec(fom, &stio->si_user, &nb->nb_buffer,
 				  ivec_count, fom_obj->fcrw_bshift);
                 if (rc != 0) {
@@ -1817,18 +1704,24 @@ static int io_launch(struct m0_fom *fom)
                 }
 
                 if (m0_is_write_fop(fop)) {
-			di_buf = &rwfop->crw_di_data.id_buf[index];
+			uint32_t di_size = m0_di_size_get(file, ivec_count);
+			uint32_t curr_pos = m0_di_size_get(file,
+						fom_obj->fcrw_curr_size);
+			di_buf = &rwfop->crw_di_data;
 			if (di_buf != NULL) {
+				struct m0_buf buf = M0_BUF_INIT(di_size,
+						di_buf->b_addr + curr_pos);
 				cksum_data = (struct m0_bufvec)
-					M0_BUFVEC_INIT_BUF(&di_buf->b_addr,
-							   &di_buf->b_nob);
+					M0_BUFVEC_INIT_BUF(&buf.b_addr,
+							   &buf.b_nob);
 				M0_ASSERT(file->fi_di_ops->do_check(file,
-					&wire_ivec, &nb->nb_buffer,
-					&cksum_data));
+					  mem_ivec, &nb->nb_buffer,
+					  &cksum_data));
 			}
 		}
-                stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
+		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 
+		fom_obj->fcrw_curr_size += ivec_count;
                 stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
                 m0_mutex_lock(&stio->si_mutex);
                 m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
@@ -2049,13 +1942,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
-		/*
-		 * Not putting di data in the fol record as fol size becomes
-		 * larger with increase in io size.
-		 */
-		m0_free(rwfop->crw_di_data.id_buf);
-		rwfop->crw_di_data.id_nr = 0;
-		rwfop->crw_di_data.id_buf = NULL;
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,

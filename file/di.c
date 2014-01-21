@@ -51,37 +51,37 @@ static uint64_t file_di_crc_mask(const struct m0_file *file);
 static uint64_t file_di_crc_in_shift(const struct m0_file *file);
 static uint64_t file_di_crc_out_shift(const struct m0_file *file);
 static void	file_di_crc_sum(const struct m0_file *file,
-			        const struct m0_io_indexvec *io_info,
+			        const struct m0_indexvec *io_info,
 			        const struct m0_bufvec *in_vec,
 			        struct m0_bufvec *di_vec);
 static bool	file_di_crc_check(const struct m0_file *file,
-				  const struct m0_io_indexvec *io_info,
+				  const struct m0_indexvec *io_info,
 				  const struct m0_bufvec *in_vec,
 				  const struct m0_bufvec *di_vec);
 static void	file_checksum(void (*checksum)(const void *data,
 					       m0_bcount_t bsize,
 					       uint64_t *csum),
 			      const struct m0_bufvec *in_vec,
-			      const struct m0_io_indexvec *io_info,
+			      const struct m0_indexvec *io_info,
 			      struct di_info *di,
 			      struct m0_bufvec *di_vec);
 static bool	file_checksum_check(bool (*checksum)(const void *data,
 						     m0_bcount_t bsize,
 						     const uint64_t *csum),
 				    const struct m0_bufvec *in_vec,
-				    const struct m0_io_indexvec *io_info,
+				    const struct m0_indexvec *io_info,
 				    struct di_info *di,
 				    const struct m0_bufvec *di_vec);
 
-static void t10_ref_tag_compute(const struct m0_io_indexvec *io_info,
+static void t10_ref_tag_compute(const struct m0_indexvec *io_info,
 				struct di_info *di,
 				struct m0_bufvec *di_vec);
-static bool t10_ref_tag_check(const struct m0_io_indexvec *io_info,
+static bool t10_ref_tag_check(const struct m0_indexvec *io_info,
 			      struct di_info *di,
 			      const struct m0_bufvec *di_vec);
 
 static void file_di_info_setup(const struct m0_file *file,
-			       const struct m0_io_indexvec *io_info,
+			       const struct m0_indexvec *io_info,
 			       struct di_info *di);
 
 static struct m0_di_type file_di_crc = {
@@ -93,7 +93,7 @@ static struct m0_di_type file_di_none_type = {
 };
 
 static void file_di_none_sum(const struct m0_file *file,
-			     const struct m0_io_indexvec *io_info,
+			     const struct m0_indexvec *io_info,
 			     const struct m0_bufvec *in_vec,
 			     struct m0_bufvec *di_vec)
 {
@@ -101,7 +101,7 @@ static void file_di_none_sum(const struct m0_file *file,
 }
 
 static bool file_di_none_check(const struct m0_file *file,
-			       const struct m0_io_indexvec *io_info,
+			       const struct m0_indexvec *io_info,
 			       const struct m0_bufvec *in_vec,
 			       const struct m0_bufvec *di_vec)
 {
@@ -159,7 +159,7 @@ static uint64_t file_di_crc_out_shift(const struct m0_file *file)
 }
 
 static void file_di_crc_sum(const struct m0_file *file,
-			    const struct m0_io_indexvec *io_info,
+			    const struct m0_indexvec *io_info,
 			    const struct m0_bufvec *in_vec,
 			    struct m0_bufvec *di_vec)
 {
@@ -178,19 +178,19 @@ static void file_di_crc_sum(const struct m0_file *file,
 }
 
 static void file_di_info_setup(const struct m0_file *file,
-			       const struct m0_io_indexvec *io_info,
+			       const struct m0_indexvec *io_info,
 			       struct di_info *di)
 {
 	di->d_pos = 0;
 	di->d_bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
 	di->d_bit_set_nr = m0_no_of_bits_set(
 				file->fi_di_ops->do_mask(file));
-	di->d_blks_nr = m0_io_count(io_info) / di->d_bsize;
+	di->d_blks_nr = m0_vec_count(&io_info->iv_vec) / di->d_bsize;
 }
 
 static bool file_di_invariant(const struct m0_bufvec *in_vec,
 			      const struct m0_bufvec *di_vec,
-			      const struct m0_io_indexvec *io_info,
+			      const struct m0_indexvec *io_info,
 			      const struct di_info *di)
 {
         struct m0_bufvec_cursor  data_cur;
@@ -208,8 +208,8 @@ static bool file_di_invariant(const struct m0_bufvec *in_vec,
 		_0C(di->d_bit_set_nr > 0) &&
 		_0C(!m0_bufvec_cursor_move(&data_cur,
 			(di->d_blks_nr - 1) * di->d_bsize)) &&
-		_0C(m0_bufvec_cursor_move(&cksum_cur,
-			current_pos(di, di->d_blks_nr) * M0_DI_ELEMENT_SIZE));
+		_0C(!m0_bufvec_cursor_move(&cksum_cur,
+		(current_pos(di, di->d_blks_nr) - 1) * M0_DI_ELEMENT_SIZE));
 }
 
 /*
@@ -225,7 +225,7 @@ static bool file_di_invariant(const struct m0_bufvec *in_vec,
 static void file_checksum(void (*checksum)(const void *data, m0_bcount_t bsize,
 					   uint64_t *csum),
 			  const struct m0_bufvec *in_vec,
-			  const struct m0_io_indexvec *io_info,
+			  const struct m0_indexvec *io_info,
 			  struct di_info *di,
 			  struct m0_bufvec *di_vec)
 {
@@ -251,7 +251,7 @@ static void file_checksum(void (*checksum)(const void *data, m0_bcount_t bsize,
 }
 
 static bool file_di_crc_check(const struct m0_file *file,
-			      const struct m0_io_indexvec *io_info,
+			      const struct m0_indexvec *io_info,
 			      const struct m0_bufvec *in_vec,
 			      const struct m0_bufvec *di_vec)
 {
@@ -289,7 +289,7 @@ static bool file_checksum_check(bool (*checksum)(const void *data,
 						 m0_bcount_t bsize,
 						 const uint64_t *csum),
 				const struct m0_bufvec *in_vec,
-				const struct m0_io_indexvec *io_info,
+				const struct m0_indexvec *io_info,
 				struct di_info *di,
 				const struct m0_bufvec *di_vec)
 {
@@ -316,7 +316,7 @@ static bool file_checksum_check(bool (*checksum)(const void *data,
 	return M0_RC(true);
 }
 
-static void t10_ref_tag_compute(const struct m0_io_indexvec *io_info,
+static void t10_ref_tag_compute(const struct m0_indexvec *io_info,
 				struct di_info *di,
 				struct m0_bufvec *di_vec)
 {
@@ -328,14 +328,13 @@ static void t10_ref_tag_compute(const struct m0_io_indexvec *io_info,
 
 	m0_bufvec_cursor_init(&cksum_cur, di_vec);
 	cksum = m0_bufvec_cursor_addr(&cksum_cur);
-	for (i = 0; i < io_info->ci_nr; i++)
-		cksum[current_pos(di, i)] = io_info->ci_iosegs[i].ci_index +
-				 io_info->ci_iosegs[i].ci_count;
-
+	for (i = 0; i < io_info->iv_vec.v_nr; i++)
+		cksum[current_pos(di, i)] = io_info->iv_index[i] +
+					    io_info->iv_vec.v_count[i];
 	M0_LEAVE();
 }
 
-static bool t10_ref_tag_check(const struct m0_io_indexvec *io_info,
+static bool t10_ref_tag_check(const struct m0_indexvec *io_info,
 			      struct di_info *di,
 			      const struct m0_bufvec *di_vec)
 {
@@ -347,11 +346,11 @@ static bool t10_ref_tag_check(const struct m0_io_indexvec *io_info,
 
         m0_bufvec_cursor_init(&cksum_cur, di_vec);
 	cksum = m0_bufvec_cursor_addr(&cksum_cur);
-	for (i = 0; i < io_info->ci_nr; i++) {
+	for (i = 0; i < io_info->iv_vec.v_nr; i++) {
 		m0_bcount_t cur_pos = current_pos(di,  i);
 
-		if (cksum[cur_pos] != io_info->ci_iosegs[i].ci_index +
-				      io_info->ci_iosegs[i].ci_count) {
+		if (cksum[cur_pos] != io_info->iv_index[i] +
+				      io_info->iv_vec.v_count[i]) {
 			M0_LOG(M0_ERROR,"Segment no: %d TAG value is %d \n", i,
 					(int)cksum[cur_pos]);
 			return M0_RC(false);
@@ -378,6 +377,16 @@ M0_INTERNAL bool m0_md_di_chk(void *addr, m0_bcount_t nob,
 			      uint64_t *cksum_field)
 {
 	return md_crc32_cksum_check(addr, nob, cksum_field);
+}
+
+M0_INTERNAL m0_bcount_t m0_di_size_get(const struct m0_file *file,
+				       const m0_bcount_t size)
+{
+	M0_PRE(file != NULL);
+
+	return file->fi_di_ops->do_out_shift(file) *
+	       (size / M0_BITS(file->fi_di_ops->do_in_shift(file))) *
+	       M0_DI_ELEMENT_SIZE;
 }
 
 #undef M0_TRACE_SUBSYSTEM

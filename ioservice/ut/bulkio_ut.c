@@ -1069,7 +1069,6 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 			   rios_gen);
 
 	rwfop = io_rw_get(fom->fo_fop);
-	M0_UT_ASSERT(rwfop->crw_desc.id_nr == rwfop->crw_ivecs.cis_nr);
         io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
 	reqh = m0_fom_reqh(fom);
         fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
@@ -1316,8 +1315,6 @@ static void bulkio_server_write_fol_rec_verify(void)
 
 	fop = &bp->bp_wfops[0]->if_fop;
 	wfop = (struct m0_fop_cob_writev *)m0_fop_data(fop);
-	wfop->c_rwv.crw_di_data.id_nr = 0;
-	wfop->c_rwv.crw_di_data.id_buf = NULL;
 
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
 	M0_UT_ASSERT(reqh != NULL);

@@ -1521,8 +1521,10 @@ static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
 
 #if 0
-	/* Depends on as_overwrite flag which is always false now. */
-	/* for each emap_paste() seg_free() could be called 3 times */
+	/*
+	 * Depends on as_overwrite flag which is always false now.
+	 * for each emap_paste() seg_free() could be called 3 times
+	 */
 	if (dom->ad_ballroom->ab_ops->bo_free_credit != NULL)
 		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom,
 							 3, acc);

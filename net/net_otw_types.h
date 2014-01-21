@@ -37,6 +37,11 @@ struct m0_net_buf_desc {
 	uint8_t  *nbd_data;
 } M0_XCA_SEQUENCE;
 
+/**
+ * In order to provide support for partially filled network buffers this
+ * structure can be used. bdd_used stores how much data a network buffer
+ * contains. rpc bulk fills this value.
+ */
 struct m0_net_buf_desc_data {
 	struct m0_net_buf_desc bdd_desc;
 	uint64_t               bdd_used;

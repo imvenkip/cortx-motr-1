@@ -112,20 +112,20 @@ struct m0_di_ops {
 	 * they should not be overwritten. For example, the application already
 	 * calculated the t10-dif checksum, Mero only computes Reference and
 	 * Application Tags.
-	 * @param io_info contains offsets and sizes of io data, used to compute
+	 * @param io_info contains offsets and sizes of data, used to compute
 	 *		  tag values.
 	 */
 	void        (*do_sum)      (const struct m0_file *file,
-				    const struct m0_io_indexvec *io_info,
+				    const struct m0_indexvec *io_info,
 				    const struct m0_bufvec *in,
 				    struct m0_bufvec *out);
 	/**
 	 * Check that di data in output bufvec match the input bufvec.
-	 * @param io_info contains offsets and sizes of io data, used to compute
+	 * @param io_info contains offsets and sizes of data, used to compute
 	 *		  tag values and compare with values in di data.
 	 */
 	bool        (*do_check)    (const struct m0_file *file,
-				    const struct m0_io_indexvec *io_info,
+				    const struct m0_indexvec *io_info,
 				    const struct m0_bufvec *in,
 				    const struct m0_bufvec *out);
 };
@@ -183,6 +183,9 @@ M0_INTERNAL void m0_crc32(const void *data, uint64_t len,
  */
 M0_INTERNAL bool m0_crc32_chk(const void *data, uint64_t len,
 			      const uint64_t *cksum);
+
+M0_INTERNAL m0_bcount_t m0_di_size_get(const struct m0_file *file,
+				       const m0_bcount_t size);
 
 /** @} end of data_integrity */
 #endif /* __MERO_FILE_DI_H__ */

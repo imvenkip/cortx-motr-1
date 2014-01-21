@@ -862,6 +862,23 @@ M0_INTERNAL struct m0_fop_cob_common *m0_cobfop_common_get(struct m0_fop *fop)
 	}
 }
 
+M0_INTERNAL uint32_t m0_io_fop_segs_nr(struct m0_fop *fop, uint32_t index)
+{
+        struct m0_fop_cob_rw *rwfop;
+	m0_bcount_t	      used_size;
+	uint32_t	      segs_nr;
+	m0_bcount_t           max_seg_size;
+
+	rwfop = io_rw_get(fop);
+	used_size = rwfop->crw_desc.id_descs[index].bdd_used;
+	max_seg_size = m0_net_domain_get_max_buffer_segment_size(
+				io_fop_tm_get(fop)->ntm_dom);
+	segs_nr = used_size / max_seg_size;
+	M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
+
+	return segs_nr;
+}
+
 M0_INTERNAL struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop)
 {
 	struct m0_fop_cob_readv  *rfop;
@@ -1213,15 +1230,18 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 #else
 	uint64_t		   size;
 	struct m0_fop_cob_rw	  *rw;
-	struct m0_io_indexvec_seq *io_info;
+	struct m0_io_indexvec	  *io_info;
 	struct m0_bufvec	   cksum_data;
 	struct m0_rpc_bulk	  *rbulk;
 	struct m0_rpc_bulk_buf	  *rbuf;
 	struct m0_file		  *file;
-	uint32_t		   i;
 	m0_bcount_t		   bsize;
 	struct m0t1fs_sb          *sb;
 	struct m0_rm_domain       *rdom;
+	uint64_t		   curr_size = 0;
+	uint64_t		   todo = 0;
+	int			   rc;
+	struct m0_indexvec	   io_vec;
 
 	if (M0_FI_ENABLED("skip_di_for_ut"))
 		return 0;
@@ -1230,45 +1250,56 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	rbulk = m0_fop_to_rpcbulk(fop);
 	M0_ASSERT(rbulk != NULL);
 	M0_ASSERT(m0_mutex_is_locked(&rbulk->rb_mutex));
-	rw = io_rw_get(fop);
+	rw      = io_rw_get(fop);
 	io_info = &rw->crw_ivecs;
-	sb = m0_fop_to_sb(fop);
-	rdom = m0t1fs_rmsvc_domain_get(&sb->csb_reqh);
-	file = m0_resource_to_file(&rw->crw_gfid, rdom->rd_types[M0_RM_FLOCK_RT]);
+	sb      = m0_fop_to_sb(fop);
+	rdom    = m0t1fs_rmsvc_domain_get(&sb->csb_reqh);
+	file    = m0_resource_to_file(&rw->crw_gfid,
+				   rdom->rd_types[M0_RM_FLOCK_RT]);
+	io_info = &rw->crw_ivec;
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
-	rw->crw_di_data.id_nr = rw->crw_desc.id_nr;
-	IOS_ALLOC_ARR(rw->crw_di_data.id_buf, rw->crw_desc.id_nr,
-			  &m0_ios_addb_ctx, IO_FOP_DESC_ALLOC);
-
-	for (i = 0; i < io_info->cis_nr; i++) {
-		size = file->fi_di_ops->do_out_shift(file) *
-			(m0_io_count(&io_info->cis_ivecs[i]) / bsize) *
-			M0_DI_ELEMENT_SIZE;
-		rw->crw_di_data.id_buf[i].b_nob = size;
-		rw->crw_di_data.id_buf[i].b_addr = m0_alloc(size);
-		if (rw->crw_di_data.id_buf[i].b_addr == NULL)
-			goto cleanup;
+	rc = m0_indexvec_wire2mem(io_info, io_info->ci_nr,
+				  &m0_ios_addb_ctx,
+			          M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
+			          &io_vec);
+	if (rc != 0)
+		return rc;
+	size = m0_di_size_get(file, m0_io_count(io_info));
+	rw->crw_di_data.b_nob = size;
+	rw->crw_di_data.b_addr = m0_alloc(size);
+	if (rw->crw_di_data.b_addr == NULL) {
+		rc = -ENOMEM;
+		goto cleanup;
 	}
-	i = 0;
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
-		cksum_data = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(
-				&rw->crw_di_data.id_buf[i].b_addr,
-				&rw->crw_di_data.id_buf[i].b_nob);
-		file->fi_di_ops->do_sum(file, &io_info->cis_ivecs[i],
-					&rbuf->bb_nbuf->nb_buffer,
+		struct m0_indexvec ivec;
+		uint32_t	   di_size;
+		struct m0_buf	   buf;
+		uint32_t	   curr_pos;
+
+		curr_pos = m0_di_size_get(file, curr_size);
+		todo = m0_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec);
+		di_size = m0_di_size_get(file, todo);
+		buf = M0_BUF_INIT(di_size, rw->crw_di_data.b_addr + curr_pos);
+		cksum_data = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&buf.b_addr,
+								   &buf.b_nob);
+		rc = m0_indexvec_split(&io_vec, curr_size, todo, 0,
+				       &m0_ios_addb_ctx,
+				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
+				       &ivec);
+		if (rc != 0)
+			goto cleanup;
+		file->fi_di_ops->do_sum(file, &ivec, &rbuf->bb_nbuf->nb_buffer,
 				        &cksum_data);
-		i++;
+		curr_size += todo;
+		m0_indexvec_free(&ivec);
 	} m0_tl_endfor;
-	return M0_RC(0);
 
 cleanup:
-	while(i != 0) {
-		m0_free(rw->crw_di_data.id_buf[i].b_addr);
-		--i;
-	}
-	return -ENOMEM;
+	m0_indexvec_free(&io_vec);
+	return M0_RC(rc);
 #endif
 }
 

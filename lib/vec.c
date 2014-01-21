@@ -765,6 +765,83 @@ M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info)
 	return count;
 }
 
+static uint32_t ivec_nr_or_prepare(struct m0_indexvec *in,
+				   m0_bcount_t         offset,
+				   int                 req,
+				   uint32_t            bshift,
+				   struct m0_indexvec *out)
+{
+	struct m0_ivec_cursor cursor;
+	int                   nr;
+
+	m0_ivec_cursor_init(&cursor, in);
+	for (nr = 0; !m0_ivec_cursor_move(&cursor, offset) && req > 0; ++nr) {
+		offset = m0_ivec_cursor_step(&cursor);
+		if (out != NULL) {
+			m0_bcount_t cnt =
+				min64u(m0_ivec_cursor_step(&cursor), req);
+
+			out->iv_index[nr] =
+				m0_ivec_cursor_index(&cursor) >> bshift;
+			out->iv_vec.v_count[nr] = cnt >> bshift;
+		}
+		req -= offset;
+	}
+	return nr;
+}
+
+M0_INTERNAL int m0_indexvec_split(struct m0_indexvec	*in,
+				  m0_bcount_t            curr_pos,
+				  m0_bcount_t            nb_len,
+				  uint32_t               bshift,
+				  struct m0_addb_ctx    *ctx,
+				  const unsigned	 loc,
+				  struct m0_indexvec    *out)
+{
+	int		    rc;
+	uint32_t	    nr;
+
+	M0_PRE(in != NULL);
+	M0_PRE(out != NULL);
+
+	nr = ivec_nr_or_prepare(in, curr_pos, nb_len, bshift, NULL);
+	rc = m0_indexvec_alloc(out, nr, ctx, loc);
+	if (rc == 0)
+		ivec_nr_or_prepare(in, curr_pos, nb_len, bshift, out);
+
+        return rc;
+}
+
+M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
+				     int		    max_frags_nr,
+				     struct m0_addb_ctx    *ctx,
+				     const unsigned	    loc,
+				     struct m0_indexvec	   *mem_ivec)
+{
+	int	     rc;
+	int	     i;
+	m0_bcount_t *cnts;
+	m0_bindex_t *offs;
+
+	M0_PRE(wire_ivec != NULL);
+	M0_PRE(mem_ivec != NULL);
+
+	rc = m0_indexvec_alloc(mem_ivec, max_frags_nr, ctx, loc);
+	if (rc != 0)
+		return rc;
+
+	offs = mem_ivec->iv_index;
+	cnts = mem_ivec->iv_vec.v_count;
+	mem_ivec->iv_vec.v_nr = wire_ivec->ci_nr;
+
+	for (i = 0; i < wire_ivec->ci_nr; ++i) {
+		*(offs++) = wire_ivec->ci_iosegs[i].ci_index;
+		*(cnts++) = wire_ivec->ci_iosegs[i].ci_count;
+	}
+
+	return 0;
+}
+
 /** @} end of vec group */
 
 /*

@@ -264,6 +264,8 @@ M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop);
 
 M0_INTERNAL void m0_io_fop_release(struct m0_ref *ref);
 
+M0_INTERNAL uint32_t m0_io_fop_segs_nr(struct m0_fop *fop, uint32_t index);
+
 /* Returns the number of bytes to be read/written. */
 M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop);
 
@@ -412,6 +414,11 @@ struct m0_fop_cob_rw {
 	/**
 	 * Index vectors representing the extent information for the
 	 * IO request.
+	 * @todo Perhaps it would be easier to change client to send
+	 * io_index_vec as 2 sequences (of the same length): first indices,
+	 * then counts. Such sequence can be converted to m0_indexvec without
+	 * allocating intermediary structure and it might simplify client code
+	 * too, if it uses indexvecs.
 	 */
 	struct m0_io_indexvec     crw_ivec;
 
@@ -425,7 +432,7 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 
 	/** Checksum and tag values for the input data blocks. */
-	struct m0_io_di_data	  crw_di_data;
+	struct m0_buf		  crw_di_data;
 } M0_XCA_RECORD;
 
 /**

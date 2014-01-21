@@ -37,8 +37,9 @@ struct m0_rm_resource_type res_type;
 m0_bcount_t		   size = BUFFER_SIZE;
 struct m0_bufvec	   data;
 void			  *di_data;
-struct m0_io_indexvec	   io_vec;
-struct m0_ioseg		   io_seg[SEGS_NR];
+struct m0_indexvec	   io_vec;
+m0_bindex_t		   offsets[SEGS_NR];
+m0_bcount_t		   counts[SEGS_NR];
 struct di_info		   di_param;
 struct m0_fid		   fid;
 
@@ -52,12 +53,14 @@ void file_di_init(void)
 	for (i = 0; i < data.ov_vec.v_nr; ++i)
 		memset(data.ov_buf[i], 'a' + i, BUFFER_SIZE);
 
-	io_vec.ci_nr = data.ov_vec.v_nr;
-	io_vec.ci_iosegs = io_seg;
 	for (i = 0; i < data.ov_vec.v_nr; ++i) {
-		io_seg[i].ci_index = i * size;
-		io_seg[i].ci_count = size;
+		offsets[i] = i * size;
+		counts[i] = size;
 	}
+
+	io_vec.iv_vec.v_nr   = data.ov_vec.v_nr;
+	io_vec.iv_index       = offsets;
+	io_vec.iv_vec.v_count = counts;
 
 	res_type.rt_id  = M0_RM_FLOCK_RT;
 	res_type.rt_ops = &file_lock_type_ops;
@@ -70,7 +73,7 @@ void file_di_init(void)
 	file_di_info_setup(&file, &io_vec, &di_param);
 
 	size = file.fi_di_ops->do_out_shift(&file) *
-		io_vec.ci_nr * M0_DI_ELEMENT_SIZE;
+		io_vec.iv_vec.v_nr * M0_DI_ELEMENT_SIZE;
 	di_data = m0_alloc(size);
 	M0_UT_ASSERT(di_data != NULL);
 }

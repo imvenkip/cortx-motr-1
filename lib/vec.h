@@ -554,6 +554,47 @@ struct m0_io_indexvec_seq {
 
 M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info);
 
+/**
+ * Function to split the indexvec from the given offset to the lenth specified.
+ *
+ * @param mem_ivec Indexvec memory format.
+ * @param curr_pos Start position for new indexvec.
+ * @param nb_len Size of the data for new indexvec.
+ * @param bshift Shift value for the data to align index vecs.
+ * @param ctc Addb context.
+ * @param addb_loc Addb location.
+ *
+ * @pre in != NULL
+ * @pre out != NULL
+ */
+M0_INTERNAL int m0_indexvec_split(struct m0_indexvec    *in,
+				  m0_bcount_t            curr_pos,
+				  m0_bcount_t            nb_len,
+				  uint32_t               bshift,
+				  struct m0_addb_ctx    *ctx,
+				  const unsigned	 loc,
+				  struct m0_indexvec    *out);
+
+/**
+ * Function to convert the on-wire indexvec to in-memory indexvec format.  Since
+ * m0_io_indexvec (on-wire structure) and m0_indexvec (in-memory structures are
+ * different, conversion is needed.
+ *
+ * @param wire_ivec Indexvec wire format.
+ * @param mem_ivec Indexvec memory format.
+ * @param max_frags_nr Number of fragments from the wire_ivec.
+ * @param ctc Addb context.
+ * @param addb_loc Addb location.
+ *
+ * @pre wire_ive != NULL
+ * @pre mem_ivec != NULL
+ */
+M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
+				     int		    max_frags_nr,
+				     struct m0_addb_ctx    *ctx,
+				     const unsigned	    addb_loc,
+				     struct m0_indexvec	   *mem_ivec);
+
 /** @} end of vec group */
 
 /* __MERO_LIB_VEC_H__ */

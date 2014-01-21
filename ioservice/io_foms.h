@@ -178,7 +178,7 @@ struct m0_io_fom_cob_rw {
 	/** Total IO requested from m0_io_indexvec */
 	m0_bcount_t                      fcrw_total_ioivec_cnt;
         /** Current position in bytes */
-        int                              fcrw_curr_size;
+        m0_bcount_t                      fcrw_curr_size;
         /** no. of descriptor going to process */
         uint32_t                         fcrw_batch_size;
         /** Number of bytes requested to transfer. */
