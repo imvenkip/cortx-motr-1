@@ -89,6 +89,8 @@ static void reqh_emu_loc_handler_thread(struct reqh_emu_fom *re)
 		m0_chan_wait(&grp->s_clink);
 		m0_sm_group_lock(grp);
 
+		M0_ASSERT(m0_fom_invariant(fom));
+
 		/* see fom_exec */
 		if (m0_semaphore_trydown(&re->re_fom_wakeup)) {
 			do {
@@ -132,6 +134,14 @@ static bool reqh_emu_fom_wakeup_cb(struct m0_clink *clink)
 	return true;
 }
 
+/* XXX copied from fop/fom.c to pass m0_fom_invariant() */
+M0_TL_DESCR_DEFINE(runq_emu, "runq fom", static, struct m0_fom, fo_linkage,
+		   fo_magic, M0_FOM_MAGIC, M0_FOM_RUNQ_MAGIC);
+M0_TL_DEFINE(runq_emu, static, struct m0_fom);
+M0_TL_DESCR_DEFINE(wail_emu, "wail fom", static, struct m0_fom, fo_linkage,
+		   fo_magic, M0_FOM_MAGIC, M0_FOM_WAIL_MAGIC);
+M0_TL_DEFINE(wail_emu, static, struct m0_fom);
+
 void reqh_emu_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
 		 struct m0_fop *reply, struct m0_reqh *reqh,
@@ -142,9 +152,12 @@ void reqh_emu_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 	M0_ALLOC_PTR(re);
 	M0_ASSERT(re != NULL);
 
-	fom->fo_fop = (void *)re;
-	fom->fo_ops = ops;
-	fom->fo_loc = &re->re_fom_loc;
+	*fom = (struct m0_fom){
+		.fo_fop  = (void *)re,
+		.fo_ops  = ops,
+		.fo_loc  = &re->re_fom_loc,
+		.fo_type = fom_type,
+	};
 
 	re->re_gen = fom;
 	re->re_grp = &re->re_fom_loc.fl_group;
@@ -154,6 +167,13 @@ void reqh_emu_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 	m0_semaphore_init(&re->re_fom_wakeup, 0);
 	m0_sm_init(&fom->fo_sm_phase, &tx_group_fom_conf,
 		   M0_FOM_PHASE_INIT, re->re_grp);
+	fom->fo_sm_state.sm_grp = re->re_grp;
+	fom->fo_sm_state.sm_state = M0_FOS_WAITING;
+	fom->fo_cb.fc_state = M0_FCS_DONE;
+	runq_emu_tlink_init(fom);
+	runq_emu_tlist_init(&fom->fo_loc->fl_runq);
+	wail_emu_tlist_init(&fom->fo_loc->fl_wail);
+	wail_emu_tlist_add_tail(&fom->fo_loc->fl_wail, fom);
 }
 
 void reqh_emu_fom_fini(struct m0_fom *fom)
@@ -167,6 +187,11 @@ void reqh_emu_fom_fini(struct m0_fom *fom)
 	rc = m0_thread_join(&re->re_thread);
 	M0_ASSERT(rc == 0);
 	m0_thread_fini(&re->re_thread);
+
+	wail_emu_tlist_del(fom);
+	wail_emu_tlist_fini(&fom->fo_loc->fl_wail);
+	runq_emu_tlist_fini(&fom->fo_loc->fl_runq);
+	runq_emu_tlink_fini(fom);
 
 	m0_sm_group_lock(re->re_grp);
 	m0_sm_fini(&fom->fo_sm_phase);
