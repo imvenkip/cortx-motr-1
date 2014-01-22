@@ -1274,6 +1274,11 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
 	m0_clink_add(chan, &cb->fc_clink);
 }
 
+static bool fom_callback_is_armed(const struct m0_fom_callback *cb)
+{
+	return cb->fc_state == M0_FCS_ARMED;
+}
+
 static void fom_ready_cb(struct m0_fom_callback *cb)
 {
 	m0_fom_ready(cb->fc_fom);
@@ -1374,11 +1379,14 @@ M0_INTERNAL int m0_fom_timeout_arm(struct m0_fom_timeout *to,
 M0_INTERNAL void m0_fom_timeout_cancel(struct m0_fom_timeout *to)
 {
 	struct m0_fom_callback *cb = &to->to_cb;
+	struct m0_sm_timer     *tr = &to->to_timer;
 
-	M0_PRE(m0_fom_invariant(cb->fc_fom));
+	if (m0_sm_timer_is_armed(tr) || fom_callback_is_armed(cb)) {
+		M0_PRE(m0_fom_invariant(cb->fc_fom));
 
-	m0_sm_timer_cancel(&to->to_timer);
-	m0_fom_callback_cancel(cb);
+		m0_sm_timer_cancel(tr);
+		m0_fom_callback_cancel(cb);
+	}
 }
 
 M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type,
