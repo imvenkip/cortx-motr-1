@@ -7,6 +7,7 @@ utils_ub_SOURCES  = utils/ub_main.c \
                     utils/common.h
 
 EXTRA_DIST += utils/ut.sh.in \
+              utils/m0gendisks \
               utils/linux_kernel/ut.sh.in \
               utils/linux_kernel/m0ut_main.c \
               utils/linux_kernel/m0ctl_main.c \

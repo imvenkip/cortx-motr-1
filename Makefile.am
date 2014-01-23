@@ -92,6 +92,7 @@ SUBDIRS = $(GALOIS_DIR)
 bin_PROGRAMS       =
 bin_SCRIPTS        =
 sbin_PROGRAMS      =
+sbin_SCRIPTS       =
 lib_LTLIBRARIES    =
 
 noinst_PROGRAMS    =
@@ -553,6 +554,12 @@ include $(top_srcdir)/utils/trace/Makefile.sub
 bin_PROGRAMS                    += utils/layout/m0layout
 utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
 utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
+
+#
+# utils
+#
+
+sbin_SCRIPTS  += utils/m0gendisks
 
 #
 # m0t1fs/linux_kernel/st
