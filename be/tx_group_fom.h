@@ -46,6 +46,7 @@ struct m0_be_tx_group_fom {
 	/** group to handle */
 	struct m0_be_tx_group *tgf_group;
 	struct m0_fom_timeout  tgf_to;
+	m0_time_t              tgf_close_abs_timeout;
 	/** m0_be_op for I/O operations */
 	struct m0_be_op	       tgf_op;
 	/**
@@ -59,8 +60,10 @@ struct m0_be_tx_group_fom {
 	 */
 	bool                   tgf_stable;
 	bool		       tgf_stopping;
+	struct m0_sm_ast       tgf_ast_handle;
 	struct m0_sm_ast       tgf_ast_stable;
-	struct m0_sm_ast       tgf_ast_move;
+	struct m0_sm_ast       tgf_ast_stop;
+	struct m0_sm_ast       tgf_ast_timeout;
 	struct m0_semaphore    tgf_started;
 	struct m0_semaphore    tgf_stopped;
 };
@@ -74,8 +77,9 @@ M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m);
 M0_INTERNAL void m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf);
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf);
 
-M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *gf,
-					   struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
+					   struct m0_be_tx_group *gr,
+					   m0_time_t abs_timeout);
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf);
 
 /** @} end of be group */

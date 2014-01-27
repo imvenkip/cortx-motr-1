@@ -230,12 +230,21 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 }
 
 static void be_engine_group_close(struct m0_be_engine *en,
-				  struct m0_be_tx_group *gr)
+				  struct m0_be_tx_group *gr,
+				  bool immediately)
 {
+	m0_time_t abs_timeout;
+
 	M0_PRE(be_engine_is_locked(en));
 
-	egr_tlist_move(&en->eng_groups[M0_BEG_CLOSED], gr);
-	m0_be_tx_group_close(gr);
+	if (immediately) {
+		abs_timeout = M0_TIME_IMMEDIATELY;
+		egr_tlist_move(&en->eng_groups[M0_BEG_CLOSED], gr);
+	} else {
+		abs_timeout = m0_time_now() +
+			      en->eng_cfg->bec_group_close_timeout;
+	}
+	m0_be_tx_group_close(gr, abs_timeout);
 }
 
 static struct m0_be_tx_group *be_engine_group_find(struct m0_be_engine *en)
@@ -255,10 +264,13 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 		rc = m0_be_tx_group_tx_add(gr, tx);
 		if (rc == 0) {
 			tx->t_group = gr;
-			/* XXX enable it when timeouts implemented */
-			/* break; */
+			if (m0_be_tx__is_fast(tx))
+				be_engine_group_close(en, gr, true);
+			else if (m0_be_tx_group_size(gr) == 1)
+				be_engine_group_close(en, gr, false);
+			break;
 		}
-		be_engine_group_close(en, gr);
+		be_engine_group_close(en, gr, true);
 	}
 	return rc;
 }
@@ -361,6 +373,22 @@ M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 	/* TODO check if group is in M0_BEG_CLOSED list */
 	egr_tlist_move(&en->eng_groups[M0_BEG_OPEN], gr);
 	be_engine_got_tx_close(en);
+
+	M0_POST(be_engine_invariant(en));
+	be_engine_unlock(en);
+}
+
+M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
+					      struct m0_be_tx_group *gr)
+{
+	be_engine_lock(en);
+	M0_PRE(be_engine_invariant(en));
+
+	/*
+	 * tx_group may be already in the list M0_BEG_CLOSED, move() should
+	 * handle this situation correctly
+	 */
+	egr_tlist_move(&en->eng_groups[M0_BEG_CLOSED], gr);
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);

@@ -55,6 +55,7 @@ struct m0_be_engine_cfg {
 	struct m0_be_tx_credit bec_tx_size_max;
 	struct m0_be_tx_credit bec_group_size_max;
 	size_t		       bec_group_tx_max;
+	m0_time_t	       bec_group_close_timeout;
 	struct m0_reqh	      *bec_group_fom_reqh;
 	bool		       bec_log_replay;
 	struct m0_stob	      *bec_log_stob;
@@ -105,6 +106,8 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 
 M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 					     struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
+					      struct m0_be_tx_group *gr);
 
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */

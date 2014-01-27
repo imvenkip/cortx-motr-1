@@ -95,7 +95,9 @@ bool m0_time_is_in_past(m0_time_t t)
 	return t < m0_time_now();
 }
 
-const m0_time_t M0_TIME_NEVER = ~0ULL;
+const m0_time_t M0_TIME_IMMEDIATELY = 0;
+const m0_time_t M0_TIME_NEVER       = ~0ULL;
+M0_EXPORTED(M0_TIME_IMMEDIATELY);
 M0_EXPORTED(M0_TIME_NEVER);
 
 /** @} end of time group */

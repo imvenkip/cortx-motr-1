@@ -40,6 +40,11 @@ enum {
 	M0_TIME_ONE_MSEC    = M0_TIME_ONE_SECOND / 1000,
 };
 
+/**
+   Special value of abs_timeout indicates that action should be performed
+   immediately
+ */
+extern const m0_time_t M0_TIME_IMMEDIATELY;
 /** The largest time that is never reached in system life. */
 extern const m0_time_t M0_TIME_NEVER;
 

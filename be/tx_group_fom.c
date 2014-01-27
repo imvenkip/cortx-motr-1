@@ -252,47 +252,40 @@ static void be_op_reset(struct m0_be_op *op);
 /**
  * Phases of tx_group fom.
  *
- * XXX UPDATEME
- *
  * @verbatim
- *                 INIT
- *                  |
- *                  v [0]          [0] Send "Add itself to a tx_group" AST
- *   ,------------ OPEN <------.       to all M0_BTS_CLOSED transactions
- *   |              |          |       of the tx_engine.
- *   |              | [1]      |   [1] Gets awoken by tx_group_close().
- *   |              |          |
- *   |              v [2]      |   [2] Initiate 1st log IO (tx_group and,
- *   |            LOGGING      |       when the log is wrapped, log header).
- *   |              | [3]      |   [3] 1st log IO completes.
- *   |              |          |
- *   |              v [4]      |   [4] Initiate 2nd log IO (commit block).
- *   |           COMMITTING    |
- *   |              | [5]      |   [5] 2nd log IO completes. Invoke
- *   |              |          |       m0_be_tx::t_persistent() for each
- *   |              |          |       transaction of the tx_group.
- *   |              v [6]      |   [6] Initiate in-place IO.
- *   |            PLACING      |
- *   |              | [7]      |   [7] In-place IO completes.
- *   |              |          |
- *   |              v    [8]   |   [8] Gets awoken by m0_be_tx_stable().
- *   |      ,---- PLACED ---.  |       The tx_group contains transactions
- *   |      |       | ^     |  |       that are not M0_BTS_DONE.
- *   |      |   [9] | |     |  |   [9] Gets awoken by m0_be_tx_stable().
- *   |      |       | `-----'  |       All transactions of the tx_group
- *   |      |       v          |       are M0_BTS_DONE.
- *   |      |     STABLE ------'
- *   |      |
- *   | [10] |                     [10] XXX TODO: m0_backend_fini()?
- *   |      |
- *   `------`---> FINISH
+ *             INIT
+ *              |
+ *              v [0]          [0] Engine adds tx group to list of opened
+ *   ,-------- OPEN <------.       groups.
+ *   |          |          |
+ *   |          v [1]      |   [1] Gets awoken by tx_group_close() or tx_group
+ *   |        LOGGING      |       timeout is reached.
+ *   |          | [2]      |   [2] Initiate log IO
+ *   |          v [3]      |   [3] Log IO completes.
+ *   |        PLACING      |
+ *   |          | [4]      |   [4] Initiate in-place IO.
+ *   |          v [5]      |   [5] In-place IO completes.
+ *   |        PLACED       |
+ *   |          | [6]      |   [6] Removes all tx from the tx_group.
+ *   |          v          |
+ *   |      STABILIZING    |
+ *   |          | [7]      |   [7] Gets awoken by m0_be_tx_group_stable().
+ *   |          v          |
+ *   |        STABLE ------'
+ *   | [8]                     [8] tgf_stopping flag is set by
+ *   |                             m0_be_tx_group_stop().
+ *   `-----> STOPPING
+ *              |
+ *              v
+ *            FINISH
  *
- * [0], [2], [4] and [6]   -- m0_sm_state_descr::sd_in();
- * [1], [3], [5], [7]-[10] -- external events.
- * XXX s/PLACED/STABILIZING/
+ * [2], [4], [6]      -- internal actions;
+ * [0], [1], [7], [8] -- external engine events;
+ * [3], [5]           -- external IO events.
  * @endverbatim
  *
- * Note the absence of "FAILED" state --- a tx_group is not allowed to fail.
+ * Note the absence of "FAILED" state -- a m0_be_tx_group_fom is not allowed to
+ * fail.
  */
 enum tx_group_fom_state {
 	TGS_INIT   = M0_FOM_PHASE_INIT,
@@ -436,7 +429,37 @@ static struct m0_be_tx_group_fom *fom2tx_group_fom(const struct m0_fom *fom)
 	return container_of(fom, struct m0_be_tx_group_fom, tgf_gen);
 }
 
-static void be_tx_group_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
+static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
+{
+	M0_LOG(M0_DEBUG, "m=%p, tx_nr=%zu", m,
+	       m0_be_tx_group_size(m->tgf_group));
+
+	m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
+	m0_fom_wakeup(&m->tgf_gen);
+}
+
+static void be_tx_group_fom_handle(struct m0_sm_group *gr,
+				   struct m0_sm_ast   *ast)
+{
+	struct m0_be_tx_group_fom *m =
+		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_handle);
+
+	M0_ENTRY("m=%p", m);
+
+	m->tgf_group = (struct m0_be_tx_group *)ast->sa_datum;
+	/*
+	 * There are 2 possible scenarios when this function is called:
+	 *  - tgf_ast_timeout only enqueued
+	 *  - tgf_to is armed; therefore, tgf_ast_timeout isn't enqueued
+	 */
+	m0_fom_timeout_cancel(&m->tgf_to);
+	m0_sm_ast_cancel(gr, &m->tgf_ast_timeout);
+	be_tx_group_fom_log(m);
+
+	M0_LEAVE();
+}
+
+static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
 	struct m0_be_tx_group_fom *m =
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stable);
@@ -445,20 +468,51 @@ static void be_tx_group_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 	m0_fom_wakeup(&m->tgf_gen);
 }
 
-static void be_tx_group_move(struct m0_sm_group *_, struct m0_sm_ast *ast)
+static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 {
 	struct m0_be_tx_group_fom *m =
-		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_move);
-	enum tx_group_fom_state state = (enum tx_group_fom_state)ast->sa_datum;
+		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stop);
 
-	M0_PRE(M0_IN(state, (TGS_LOGGING, TGS_STOPPING)));
-
-	if (state == TGS_STOPPING) {
-		m->tgf_stopping = true;
-	} else {
-		m0_fom_phase_set(&m->tgf_gen, state);
-	}
+	m->tgf_stopping = true;
 	m0_fom_wakeup(&m->tgf_gen);
+}
+
+static void be_tx_group_fom_timeout_cb(struct m0_fom_callback *cb)
+{
+	struct m0_be_tx_group_fom *m  =
+		container_of(cb->fc_fom, struct m0_be_tx_group_fom, tgf_gen);
+	struct m0_be_tx_group     *gr = m->tgf_group;
+
+	M0_ENTRY("m=%p", m);
+
+	m0_be_tx_group_postclose(gr);
+	be_tx_group_fom_log(m);
+
+	m0_sm_ast_cancel(&m->tgf_gen.fo_loc->fl_group, &m->tgf_ast_handle);
+
+	M0_LEAVE();
+}
+
+static void be_tx_group_fom_handle_delayed(struct m0_sm_group *gr,
+					   struct m0_sm_ast   *ast)
+{
+	int                        rc;
+	struct m0_be_tx_group_fom *m =
+		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_timeout);
+
+	M0_ENTRY();
+
+	m->tgf_group = (struct m0_be_tx_group *)ast->sa_datum;
+	rc = m0_fom_timeout_arm(&m->tgf_to, &m->tgf_gen,
+				be_tx_group_fom_timeout_cb,
+				m->tgf_close_abs_timeout);
+	/*
+	 * XXX tx_group_fom shouldn't fail at this point. It would mean that
+	 *     all txs are failed too.
+	 */
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void
@@ -474,9 +528,14 @@ m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 	m->tgf_stopping = false;
 
 	m0_fom_timeout_init(&m->tgf_to);
+	m->tgf_close_abs_timeout = M0_TIME_NEVER;
 
-	m->tgf_ast_stable = (struct m0_sm_ast){ .sa_cb = be_tx_group_stable };
-	m->tgf_ast_move	  = (struct m0_sm_ast){ .sa_cb = be_tx_group_move   };
+#define _AST(handler) (struct m0_sm_ast){ .sa_cb = (handler) }
+	m->tgf_ast_handle  = _AST(be_tx_group_fom_handle);
+	m->tgf_ast_stable  = _AST(be_tx_group_fom_stable);
+	m->tgf_ast_stop    = _AST(be_tx_group_fom_stop);
+	m->tgf_ast_timeout = _AST(be_tx_group_fom_handle_delayed);
+#undef _AST
 
 	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
 			 &m0_be_txs_stype, &tx_group_fom_conf);
@@ -486,19 +545,28 @@ m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m, struct m0_reqh *reqh)
 	/* XXX */
 	m0_be_op_state_set(&m->tgf_op, M0_BOS_ACTIVE);
 	m0_be_op_state_set(&m->tgf_op, M0_BOS_SUCCESS);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 {
+	M0_PRE(m0_fom_phase(&m->tgf_gen) == TGS_FINISH);
+
 	m0_be_op_fini(&m->tgf_op);
 	m0_semaphore_fini(&m->tgf_started);
 	m0_semaphore_fini(&m->tgf_stopped);
+	m0_fom_timeout_fini(&m->tgf_to);
 	m0_fom_fini(&m->tgf_gen);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)
 {
-	m->tgf_stable = false;
+	m->tgf_stable            = false;
+	m->tgf_group             = NULL;
+	m->tgf_close_abs_timeout = M0_TIME_NEVER;
+	m0_fom_timeout_fini(&m->tgf_to);
+	m0_fom_timeout_init(&m->tgf_to);
 }
 
 static void be_tx_group_fom_ast_post(struct m0_be_tx_group_fom *gf,
@@ -515,17 +583,22 @@ M0_INTERNAL void m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
 
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 {
-	gf->tgf_ast_move.sa_datum = (void *) TGS_STOPPING;
-	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_move);
+	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
 	m0_semaphore_down(&gf->tgf_stopped);
 }
 
-M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *gf,
-					   struct m0_be_tx_group *gr)
+M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
+					   struct m0_be_tx_group *gr,
+					   m0_time_t abs_timeout)
 {
-	gf->tgf_group = gr;
-	gf->tgf_ast_move.sa_datum = (void *) TGS_LOGGING;
-	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_move);
+	if (abs_timeout == M0_TIME_IMMEDIATELY) {
+		m->tgf_ast_handle.sa_datum = (void *)gr;
+		be_tx_group_fom_ast_post(m, &m->tgf_ast_handle);
+	} else {
+		m->tgf_ast_timeout.sa_datum = (void *)gr;
+		m->tgf_close_abs_timeout    = abs_timeout;
+		be_tx_group_fom_ast_post(m, &m->tgf_ast_timeout);
+	}
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)

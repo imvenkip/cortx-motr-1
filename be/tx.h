@@ -348,6 +348,11 @@ struct m0_be_tx {
 	uint32_t	       t_ref;
 	/** Set when space in log is reserved by engine. */
 	bool                   t_log_reserved;
+	/**
+	 * Flag indicates that tx_group should be closed immediately
+	 * @todo Remove when m0_be_tx_close_sync() is removed
+	 */
+	bool		       t_fast;
 };
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
@@ -413,6 +418,12 @@ M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx);
  * M0_BTS_DONE state.
  */
 M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx);
+
+/**
+ * Used by engine to check whether tx_group should be closed immediately.
+ * @todo Remove when m0_be_tx_close_sync() is removed.
+ */
+M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

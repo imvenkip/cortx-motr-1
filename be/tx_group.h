@@ -119,7 +119,8 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 				      struct m0_be_tx *tx);
 M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr);
 
-M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr,
+				      m0_time_t abs_timeout);
 
 /**
  * Notifies the group that all of its transactions have reached M0_BTS_DONE
@@ -146,6 +147,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_tx_del(struct m0_be_tx_group *gr,
 				       struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group_postclose(struct m0_be_tx_group *gr);
 
 /**
  * Notifies the log that record of this group can be discarded.

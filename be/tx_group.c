@@ -147,10 +147,11 @@ M0_INTERNAL void m0_be_tx_group_stable(struct m0_be_tx_group *gr)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
+M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr,
+				      m0_time_t abs_timeout)
 {
 	M0_ENTRY();
-	m0_be_tx_group_fom_handle(&gr->tg_fom, gr);
+	m0_be_tx_group_fom_handle(&gr->tg_fom, gr, abs_timeout);
 	M0_LEAVE();
 }
 
@@ -246,6 +247,11 @@ M0_INTERNAL size_t m0_be_tx_group_tx_nr(struct m0_be_tx_group *gr)
 M0_INTERNAL void m0_be_tx_group_open(struct m0_be_tx_group *gr)
 {
 	m0_be_engine__tx_group_open(gr->tg_engine, gr);
+}
+
+M0_INTERNAL void m0_be_tx_group_postclose(struct m0_be_tx_group *gr)
+{
+	m0_be_engine__tx_group_close(gr->tg_engine, gr);
 }
 
 M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)

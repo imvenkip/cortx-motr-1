@@ -439,10 +439,16 @@ M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx)
 {
 	int rc;
 
+	tx->t_fast = true;
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	M0_ASSERT_INFO(rc == 0, "Transaction can't fail after m0_be_tx_open(): "
 		       "rc = %d, tx = %p", rc, tx);
+}
+
+M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx)
+{
+	return tx->t_fast;
 }
 
 #undef BE_TX_LOCKED_AT_STATE
