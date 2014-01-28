@@ -288,14 +288,14 @@ out:
 	return;
 }
 
-int m0_rm_request_out(enum m0_rm_outgoing_type  otype,
-		      struct m0_rm_incoming    *in,
-		      struct m0_rm_loan        *loan,
-		      struct m0_rm_credit      *credit,
-		      struct m0_rm_remote      *other)
+M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
+				  struct m0_rm_incoming   *in,
+				  struct m0_rm_loan       *loan,
+				  struct m0_rm_credit     *credit,
+				  struct m0_rm_remote     *other)
 {
 	struct rm_out *outreq;
-	int            rc = 0;
+	int            rc;
 
 	M0_ENTRY("sending request type: %d for incoming: %p credit value: %llu",
 		 otype, in, (long long unsigned) credit->cr_datum);
