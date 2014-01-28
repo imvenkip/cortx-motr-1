@@ -303,18 +303,14 @@ int main(int argc, char *argv[])
 	if (result != 0)
 		goto out;
 
-	result = m0_trace_set_immediate_mask(trace_mask);
-	if (result != 0)
-		goto out;
-
-	result = m0_trace_set_level(trace_level);
+	result = m0_trace_set_immediate_mask(trace_mask) ?:
+		 m0_trace_set_level(trace_level);
 	if (result != 0)
 		goto out;
 
 	result = m0_trace_set_print_context(trace_print_context);
 	if (result != 0) {
-		fprintf(stderr, "Error: invalid value for -p option,"
-				" allowed are: 0, 1, 2\n");
+		fprintf(stderr, "Error: invalid value for -p option\n");
 		goto out;
 	}
 
