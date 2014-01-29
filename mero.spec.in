@@ -90,6 +90,12 @@ fi || true
 /bin/sed -i -e "s/<host>/$(hostname -s)/" /etc/mero/genders
 /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
 
+disk_cnt=$(/usr/sbin/m0gendisks -c)
+if [ $? -eq 0 ] && [ $disk_cnt -ne 0 ] ; then
+    /usr/sbin/m0gendisks -o /etc/mero/disks-singlenode.conf
+    /bin/sed -i -r -e "s/m0_pool_width=[[:digit:]]+/m0_pool_width=$disk_cnt/" /etc/mero/genders
+fi
+
 %preun
 if initctl list | grep -q 'mero' ; then
     status mero-client | grep -q 'start/running' && stop mero-client
