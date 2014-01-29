@@ -146,3 +146,9 @@ m0_be_ut_stob_get_by_id
 m0_be_ut_stob_put
 m0_be_ut_tx_init
 m0_dbenv_reset
+m0_xc_opaque_init
+m0_xc_u16_init
+m0_xc_u32_init
+m0_xc_u64_init
+m0_xc_u8_init
+m0_xc_void_init

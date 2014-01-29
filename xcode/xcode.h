@@ -770,6 +770,13 @@ M0_INTERNAL void *m0_xcode_ctx_top(const struct m0_xcode_ctx *ctx);
 	.xo_ptr  = ptr,	                                \
 }
 
+void m0_xc_u8_init(void);
+void m0_xc_u16_init(void);
+void m0_xc_u32_init(void);
+void m0_xc_u64_init(void);
+void m0_xc_void_init(void);
+void m0_xc_opaque_init(void);
+
 /** @} end of xcode group */
 
 /* __MERO_XCODE_XCODE_H__ */

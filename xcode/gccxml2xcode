@@ -81,6 +81,7 @@ use English qw( -no_match_vars ); # avoids regex performance penalty
 # external modules (not included into base perl distribution)
 use XML::LibXML;
 use List::MoreUtils qw( none );
+#use Data::Dumper;
 
 
 # ###############################################
@@ -432,10 +433,15 @@ sub gen_xc_h
 
     my $xcode = gen_xc_h_header();
 
-    # generate forward declarations of xcode type pointers for all global
-    # structures
+    # forward declarations of xcode type pointers for all global structures
     for my $item (grep { $_->{'scope'} !~ /static/ } @items) {
-        $xcode .= 'extern struct m0_xcode_type *' . $item->{'name'} . "_xc;\n";
+        $xcode .= "extern struct m0_xcode_type *$item->{name}_xc;\n";
+    }
+    $xcode .= "\n";
+
+    # prototypes of init function for all global structures
+    for my $item (@items) {
+        $xcode .= "M0_INTERNAL void m0_xc_$item->{name}_struct_init(void);\n";
     }
     $xcode .= "\n";
 
@@ -610,34 +616,31 @@ END_BASSERT
     return $xcode . "\n";
 }
 
-# generate xcode init func, which initializes all xcode field structures
-sub gen_xc_c_init_func
+# generate xcode init func for particular data structure
+sub gen_xc_c_init_func_for
 {
-    my @items = @_;
+    my $item = shift;
 
-    my $xcode = "M0_INTERNAL void m0_xc_${xcode_name}_init(void)\n{\n";
+    my $xcode = "M0_INTERNAL void m0_xc_$item->{'name'}_struct_init(void)\n{\n";
+    my $child_idx = 0;
 
-    for my $item (@items) {
+    for my $member (@{$item->{'members'}}) {
 
-        my $child_idx = 0;
+        my $union_field = '';
 
-        for my $member (@{$item->{'members'}}) {
+        my $gen_child_init = sub {
 
-            my $union_field = '';
+            my $child = shift;
 
-            my $gen_child_init = sub {
+            my $xc_tag = 0;
+            my $opaque_func_name = 'NULL';
 
-                my $child = shift;
+            if (defined $child->{'attribute'}) {
+                $xc_tag = $child->{'attribute'}->{'xc_tag'} // 0;
+                $opaque_func_name = $child->{'attribute'}->{'xc_opaque'} // 'NULL';
+            }
 
-                my $xc_tag = 0;
-                my $opaque_func_name = 'NULL';
-
-                if (defined $child->{'attribute'}) {
-                    $xc_tag = $child->{'attribute'}->{'xc_tag'} // 0;
-                    $opaque_func_name = $child->{'attribute'}->{'xc_opaque'} // 'NULL';
-                }
-
-                $xcode .= <<"END_CHILD_INIT"
+            $xcode .= <<"END_CHILD_INIT"
 \t_$item->{'name'}._child[$child_idx] = (struct m0_xcode_field) {
 \t\t.xf_name   = "$child->{'name'}",
 \t\t.xf_type   = $child->{'xc_type'},
@@ -647,24 +650,56 @@ sub gen_xc_c_init_func
 \t};
 END_CHILD_INIT
 ;
-                $child_idx++;
-            };
-
-            if ($member->{'type'} =~ /union/) {
-                # if member type is union, than generate init code for each
-                # field of the union instead of union itself
-                for my $union_member (@{$member->{'members'}}) {
-                    $union_field = '.' . $union_member->{'name'};
-                    &$gen_child_init($union_member);
+            # call XC init function for child's type
+            given($child->{'xc_type'}) {
+                when (/M0_XT_(U\d{1,2}|VOID|OPAQUE)/) {
+                    $xcode .= "\tm0_xc_" . lc($1) . "_init();\n\n";
+                }
+                when (/^(.*)_xc$/) {
+                    $xcode .= "\tm0_xc_${1}_struct_init();\n\n";
+                }
+                default {
+                    croak "Unhandled xc_type in child init function generation for"
+                          . " $item->{'name'}::$child->{'name'}: $child->{'xc_type'}";
                 }
             }
-            else {
-                # if member type is other than union, that generate init code
-                # for the member itself
-                &$gen_child_init($member);
+
+            $child_idx++;
+        };
+
+        if ($member->{'type'} =~ /union/) {
+            # if member type is union, than generate init code for each
+            # field of the union instead of union itself
+            for my $union_member (@{$member->{'members'}}) {
+                $union_field = '.' . $union_member->{'name'};
+                &$gen_child_init($union_member);
             }
         }
-        $xcode .= "\n";
+        else {
+            # if member type is other than union, that generate init code
+            # for the member itself
+            &$gen_child_init($member);
+        }
+    }
+    $xcode .= "}\n\n";
+
+    return $xcode;
+}
+
+# generate xcode init func, which init all data structures
+sub gen_xc_c_init_func
+{
+    my @items = @_;
+
+    my $xcode = '';
+
+    for my $item (@items) {
+        $xcode .= gen_xc_c_init_func_for($item);
+    }
+
+    $xcode .= "M0_INTERNAL void m0_xc_${xcode_name}_init(void)\n{\n";
+    for my $item (@items) {
+        $xcode .= "\tm0_xc_$item->{name}_struct_init();\n";
     }
     $xcode .= "}\n\n";
 

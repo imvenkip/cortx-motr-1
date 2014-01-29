@@ -640,6 +640,30 @@ M0_INTERNAL void *m0_xcode_ctx_top(const struct m0_xcode_ctx *ctx)
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }
 
+void m0_xc_u8_init(void)
+{
+}
+
+void m0_xc_u16_init(void)
+{
+}
+
+void m0_xc_u32_init(void)
+{
+}
+
+void m0_xc_u64_init(void)
+{
+}
+
+void m0_xc_void_init(void)
+{
+}
+
+void m0_xc_opaque_init(void)
+{
+}
+
 const struct m0_xcode_type M0_XT_VOID = {
 	.xct_aggr   = M0_XA_ATOM,
 	.xct_name   = "void",
