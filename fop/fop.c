@@ -178,9 +178,11 @@ M0_EXPORTED(m0_fop_opcode);
 void m0_fop_type_fini(struct m0_fop_type *fopt)
 {
 	m0_mutex_lock(&fop_types_lock);
-	m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
-	ft_tlink_del_fini(fopt);
-	fopt->ft_magix = 0;
+	if (fopt->ft_magix == M0_FOP_TYPE_MAGIC) {
+		m0_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
+		ft_tlink_del_fini(fopt);
+		fopt->ft_magix = 0;
+	}
 	m0_mutex_unlock(&fop_types_lock);
 }
 M0_EXPORTED(m0_fop_type_fini);
