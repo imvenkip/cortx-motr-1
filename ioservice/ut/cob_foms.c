@@ -437,6 +437,8 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	M0_UT_ASSERT(base_fom->fo_service != NULL);
 
 	base_fom->fo_loc = &dummy_loc;
+	base_fom->fo_loc->fl_lockers =
+		reqh->rh_fom_dom.fd_localities->fl_lockers;
 
 	M0_CNT_INC(base_fom->fo_loc->fl_foms);
 	base_fom->fo_type = &ft;

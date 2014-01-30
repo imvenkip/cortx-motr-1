@@ -73,6 +73,7 @@ M0_TL_DESCR_DEFINE(m0_reqh_rpc_mach, "rpc machines", ,
 M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
+M0_LOCKERS_DEFINE(M0_INTERNAL, m0_fom_locality, fl_lockers);
 
 static void __reqh_fini(struct m0_reqh *reqh);
 

@@ -29,6 +29,7 @@
 #include "lib/finject.h" /* M0_FI_ENABLED */
 #include "lib/uuid.h"
 #include "lib/lockers.h"
+#include "fop/fom.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "rpc/rpc_machine.h"
@@ -192,6 +193,8 @@ static void reqh_service_starting_common(struct m0_reqh *reqh,
 	 */
 	M0_ASSERT(m0_reqh_lockers_is_empty(reqh, key));
 	m0_reqh_lockers_set(reqh, key, service);
+	m0_fom_locality_locker_vaults_allocate(&reqh->rh_fom_dom,
+				       service->rs_type->rst_fomcnt_key);
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, key);
 }
 
@@ -201,6 +204,11 @@ static void reqh_service_failed_common(struct m0_reqh *reqh,
 {
 	if (!m0_reqh_lockers_is_empty(reqh, key))
 		m0_reqh_lockers_clear(reqh, key);
+	if (!m0_fom_locality_lockers_is_empty(
+		    reqh->rh_fom_dom.fd_localities,
+		    service->rs_type->rst_fomcnt_key))
+		m0_fom_locality_locker_vaults_free(&reqh->rh_fom_dom,
+					service->rs_type->rst_fomcnt_key);
 	reqh_service_state_set(service, M0_RST_FAILED);
 }
 
@@ -359,6 +367,9 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	service->rs_ops->rso_stop(service);
+	m0_fom_locality_locker_vaults_free(&reqh->rh_fom_dom,
+					   service->rs_type->rst_fomcnt_key);
+
 	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
 	m0_reqh_lockers_clear(reqh, key);
 }
@@ -437,6 +448,7 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 	m0_reqh_service_type_bob_init(rstype);
 	m0_rwlock_write_lock(&rstypes_rwlock);
 	rstype->rst_key = m0_reqh_lockers_allot();
+	rstype->rst_fomcnt_key = m0_fom_locality_lockers_allot();
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	m0_rwlock_write_unlock(&rstypes_rwlock);
 

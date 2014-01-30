@@ -227,7 +227,7 @@ struct m0_fop_rate_monitor;
 /* defined in fom.c */
 struct m0_loc_thread;
 
-M0_LOCKERS_DECLARE(M0_EXTERN, m0_fom_locality, 16);
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_fom_locality, 48);
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -301,13 +301,18 @@ struct m0_fom_locality {
 	 */
 	struct m0_addb_counter         fl_stat_sched_wait_times;
 
+	/** FOP rate counter. It is fop executed per sec. */
+	uint64_t                       fl_fop_rate_count;
+	m0_time_t		       fl_fop_rate_next_update;
+	struct m0_addb_counter         fl_stat_fop_rate;
+
 	/** AST which triggers the posting of statistics */
 	struct m0_sm_ast               fl_post_stats_ast;
 
-	/** locker to store data pointers. */
-	struct m0_fom_locality_lockers fl_locker;
-
 	/** Something for memory, see set_mempolicy(2). */
+
+	/** Lockers to store service specific private data */
+	struct m0_fom_locality_lockers fl_lockers;
 };
 
 /**
@@ -436,6 +441,29 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom);
  * if they are intialised.
  */
 M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom);
+
+/**
+ * This functions allocates a place to store value of number of foms
+ * associated with the given key
+ */
+M0_INTERNAL void
+m0_fom_locality_locker_vaults_allocate(struct m0_fom_domain *dom,
+				       unsigned              key);
+
+M0_INTERNAL void
+m0_fom_locality_locker_vaults_free(struct m0_fom_domain *dom,
+				   unsigned              key);
+
+/**
+ * Increment number of foms with given key running in given fom locality
+ */
+M0_INTERNAL void
+m0_fom_locality_locker_inc_fom_nr(struct m0_fom_locality *loc,
+				  unsigned                key);
+
+M0_INTERNAL void
+m0_fom_locality_locker_dec_fom_nr(struct m0_fom_locality *loc,
+				  unsigned                key);
 
 /**
  * Fom call-back states

@@ -62,7 +62,7 @@ struct m0_net_xprt;
 struct m0_rpc_machine;
 struct m0_local_service_ops;
 
-M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 192);
 
 /** Local reply consumer service (testing or replicator) */
 struct m0_local_service {

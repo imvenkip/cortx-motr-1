@@ -150,10 +150,11 @@ void rm_ctx_config(enum rm_server id)
 	rm_ctx_init(&rm_ctx[id]);
 }
 
-struct m0_reqh_service *rmservice;
-struct m0_reqh_service *rpcsvc;
-struct m0_reqh_service_type *rmstype = NULL;
-struct m0_reqh_service_type *rpctype = NULL;
+struct m0_reqh_service      *rmservice;
+struct m0_reqh_service      *rpcsvc;
+struct m0_reqh_service_type *rmstype;
+struct m0_reqh_service_type *rpctype;
+struct m0_fom_locality      *saved_loc[SERVER_NR];
 
 static void service_start(const char *svc, struct m0_reqh *reqh,
 			  struct m0_reqh_service_type **stype,
@@ -185,6 +186,11 @@ void rm_ctx_init(struct rm_context *rmctx)
 				    rpctype->rst_key, rpcsvc);
 		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
 				    rmstype->rst_key, rmservice);
+		saved_loc[rmctx->rc_id] = rm_ctx[rmctx->rc_id].
+			rc_rmach_ctx.rmc_reqh.rh_fom_dom.fd_localities;
+		rm_ctx[rmctx->rc_id].rc_rmach_ctx.rmc_reqh.
+			rh_fom_dom.fd_localities = rm_ctx[0].rc_rmach_ctx.
+			rmc_reqh.rh_fom_dom.fd_localities;
 	}
 
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
@@ -201,6 +207,9 @@ void rm_ctx_fini(struct rm_context *rmctx)
 		m0_reqh_service_fini(rmservice);
 		m0_reqh_service_stop(rpcsvc);
 		m0_reqh_service_fini(rpcsvc);
+	} else {
+		rm_ctx[rmctx->rc_id].rc_rmach_ctx.rmc_reqh.rh_fom_dom.
+			fd_localities = saved_loc[rmctx->rc_id];
 	}
 	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
 }

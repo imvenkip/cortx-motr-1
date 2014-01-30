@@ -433,7 +433,8 @@ struct m0_reqh_service_type {
 	 * @see m0_reqh::rh_key
 	 */
 	unsigned                               rst_key;
-
+	/** Key for per-locality-per-svc foms */
+	unsigned                               rst_fomcnt_key;
 	/**
 	   Pointer to ADDB context type for this service type
 	 */
