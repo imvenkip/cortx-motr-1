@@ -57,16 +57,17 @@ M0_INTERNAL int m0_addb_service_fop_init(void)
 	 * would be defined, currently make use of default ones.
 	 */
 	m0_fop_addb_rpc_sink_fopt.ft_magix = 0;
-	return M0_FOP_TYPE_INIT(&m0_fop_addb_rpc_sink_fopt,
-				.name      = "ADDB rpcsink fop",
-				.opcode    = M0_ADDB_RPC_SINK_FOP_OPCODE,
-				.xt        = m0_addb_rpc_sink_fop_xc,
+	M0_FOP_TYPE_INIT(&m0_fop_addb_rpc_sink_fopt,
+			 .name      = "ADDB rpcsink fop",
+			 .opcode    = M0_ADDB_RPC_SINK_FOP_OPCODE,
+			 .xt        = m0_addb_rpc_sink_fop_xc,
 #ifndef __KERNEL__
-				.fom_ops   = &addb_fom_type_ops,
-				.svc_type  = &m0_addb_svc_type,
-				.sm        = &addb_fom_sm_conf,
+			 .fom_ops   = &addb_fom_type_ops,
+			 .svc_type  = &m0_addb_svc_type,
+			 .sm        = &addb_fom_sm_conf,
 #endif
-				.rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
+			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
+	return 0;
 }
 
 M0_INTERNAL void m0_addb_service_fop_fini(void)

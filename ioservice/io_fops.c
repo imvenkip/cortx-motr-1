@@ -226,73 +226,74 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
 			  m0_generic_conf.scf_nr_states);
 #endif
-	return  M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
-				 .name      = "Read request",
-				 .opcode    = M0_IOSERVICE_READV_OPCODE,
-				 .xt        = m0_fop_cob_readv_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fop_ops   = &io_fop_rwv_ops,
+	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
+			 .name      = "Read request",
+			 .opcode    = M0_IOSERVICE_READV_OPCODE,
+			 .xt        = m0_fop_cob_readv_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &io_fom_type_ops,
-				 .sm        = &io_conf,
-				 .svc_type  = &m0_ios_type,
+			 .fom_ops   = &io_fom_type_ops,
+			 .sm        = &io_conf,
+			 .svc_type  = &m0_ios_type,
 #endif
-				 .rpc_ops   = &io_item_type_ops) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_cob_writev_fopt,
-				 .name      = "Write request",
-				 .opcode    = M0_IOSERVICE_WRITEV_OPCODE,
-				 .xt        = m0_fop_cob_writev_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO,
-				 .fop_ops   = &io_fop_rwv_ops,
+			 .rpc_ops   = &io_item_type_ops);
+	M0_FOP_TYPE_INIT(&m0_fop_cob_writev_fopt,
+			 .name      = "Write request",
+			 .opcode    = M0_IOSERVICE_WRITEV_OPCODE,
+			 .xt        = m0_fop_cob_writev_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &io_fom_type_ops,
-				 .sm        = &io_conf,
-				 .svc_type  = &m0_ios_type,
+			 .fom_ops   = &io_fom_type_ops,
+			 .sm        = &io_conf,
+			 .svc_type  = &m0_ios_type,
 #endif
-				 .rpc_ops   = &io_item_type_ops) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_cob_readv_rep_fopt,
-				 .name      = "Read reply",
-				 .opcode    = M0_IOSERVICE_READV_REP_OPCODE,
-				 .xt        = m0_fop_cob_readv_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_cob_writev_rep_fopt,
-				 .name      = "Write reply",
-				 .opcode    = M0_IOSERVICE_WRITEV_REP_OPCODE,
-				 .xt        = m0_fop_cob_writev_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_cob_create_fopt,
-				 .name      = "Cob create request",
-				 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
-				 .xt        = m0_fop_cob_create_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fop_ops   = &io_fop_cd_ops,
+			 .rpc_ops   = &io_item_type_ops);
+	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_rep_fopt,
+			 .name      = "Read reply",
+			 .opcode    = M0_IOSERVICE_READV_REP_OPCODE,
+			 .xt        = m0_fop_cob_readv_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_cob_writev_rep_fopt,
+			 .name      = "Write reply",
+			 .opcode    = M0_IOSERVICE_WRITEV_REP_OPCODE,
+			 .xt        = m0_fop_cob_writev_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_cob_create_fopt,
+			 .name      = "Cob create request",
+			 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
+			 .xt        = m0_fop_cob_create_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &cob_fom_type_ops,
-				 .svc_type  = &m0_ios_type,
+			 .fom_ops   = &cob_fom_type_ops,
+			 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = p_cob_ops_conf) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
-				 .name      = "Cob delete request",
-				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
-				 .xt        = m0_fop_cob_delete_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fop_ops   = &io_fop_cd_ops,
+			 .sm        = p_cob_ops_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
+			 .name      = "Cob delete request",
+			 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
+			 .xt        = m0_fop_cob_delete_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &cob_fom_type_ops,
-				 .svc_type  = &m0_ios_type,
+			 .fom_ops   = &cob_fom_type_ops,
+			 .svc_type  = &m0_ios_type,
 #endif
-				 .sm        = p_cob_ops_conf) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
-				 .name      = "Cob create or delete reply",
-				 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,
-				 .xt        = m0_fop_cob_op_reply_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
-				 .name   = "Failure vector update notification",
-				 .opcode = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
-				 .xt        = m0_fop_fv_notification_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
+			 .sm        = p_cob_ops_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
+			 .name      = "Cob create or delete reply",
+			 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,
+			 .xt        = m0_fop_cob_op_reply_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
+			 .name   = "Failure vector update notification",
+			 .opcode = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
+			 .xt        = m0_fop_fv_notification_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
+	return 0;
 }
 
 /**

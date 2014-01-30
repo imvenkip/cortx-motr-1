@@ -146,74 +146,75 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
 M0_INTERNAL int m0_rpc_session_fop_init(void)
 {
 	m0_xc_session_fops_init();
-	return  M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt,
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
 			 .opcode    = M0_RPC_CONN_ESTABLISH_OPCODE,
 			 .xt        = m0_rpc_fop_conn_establish_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 M0_RPC_ITEM_TYPE_MUTABO,
 			 .rpc_ops   = &conn_establish_item_type_ops,
 			 .fom_ops   = &m0_rpc_fom_conn_establish_type_ops,
 			 .sm        = &m0_generic_conf,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_terminate_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_terminate_fopt,
 			 .name      = "Rpc conn terminate",
 			 .opcode    = M0_RPC_CONN_TERMINATE_OPCODE,
 			 .xt        = m0_rpc_fop_conn_terminate_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 M0_RPC_ITEM_TYPE_MUTABO,
 			 .fom_ops   = &m0_rpc_fom_conn_terminate_type_ops,
 			 .sm        = &m0_generic_conf,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_session_establish_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_session_establish_fopt,
 			 .name      = "Rpc session establish",
 			 .opcode    = M0_RPC_SESSION_ESTABLISH_OPCODE,
 			 .xt        = m0_rpc_fop_session_establish_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 M0_RPC_ITEM_TYPE_MUTABO,
 			 .fom_ops   = &m0_rpc_fom_session_establish_type_ops,
 			 .sm        = &m0_generic_conf,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_session_terminate_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_session_terminate_fopt,
 			 .name      = "Rpc session terminate",
 			 .opcode    = M0_RPC_SESSION_TERMINATE_OPCODE,
 			 .xt        = m0_rpc_fop_session_terminate_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-				      M0_RPC_ITEM_TYPE_MUTABO,
+			 M0_RPC_ITEM_TYPE_MUTABO,
 			 .fom_ops   = &m0_rpc_fom_session_terminate_type_ops,
 			 .sm        = &m0_generic_conf,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_rep_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_establish_rep_fopt,
 			 .name      = "Rpc conn establish reply",
 			 .opcode    = M0_RPC_CONN_ESTABLISH_REP_OPCODE,
 			 .xt        = m0_rpc_fop_conn_establish_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_terminate_rep_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_conn_terminate_rep_fopt,
 			 .name      = "Rpc conn terminate reply",
 			 .opcode    = M0_RPC_CONN_TERMINATE_REP_OPCODE,
 			 .xt        = m0_rpc_fop_conn_terminate_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_session_establish_rep_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_session_establish_rep_fopt,
 			 .name      = "Rpc session establish reply",
 			 .opcode    = M0_RPC_SESSION_ESTABLISH_REP_OPCODE,
 			 .xt        = m0_rpc_fop_session_establish_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_session_terminate_rep_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_session_terminate_rep_fopt,
 			 .name      = "Rpc session terminate reply",
 			 .opcode    = M0_RPC_SESSION_TERMINATE_REP_OPCODE,
 			 .xt        = m0_rpc_fop_session_terminate_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_rpc_fop_noop_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_fop_noop_fopt,
 			 .name      = "No-op",
 			 .opcode    = M0_RPC_NOOP_OPCODE,
 			 .xt        = m0_rpc_fop_noop_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fop_ops   = &m0_rpc_fop_noop_ops,
 			 .svc_type  = &m0_rpc_service_type);
+	return 0;
 }
 
 M0_INTERNAL void m0_rpc_fop_conn_establish_ctx_init(struct m0_rpc_item *item,

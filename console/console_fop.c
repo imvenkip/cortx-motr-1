@@ -54,20 +54,20 @@ M0_INTERNAL int m0_console_fop_init(void)
 {
 	m0_xc_console_fop_init();
 
-	return  M0_FOP_TYPE_INIT(&m0_cons_fop_device_fopt,
+	M0_FOP_TYPE_INIT(&m0_cons_fop_device_fopt,
 			 .name      = "Device Failed",
 			 .opcode    = M0_CONS_FOP_DEVICE_OPCODE,
 			 .xt        = m0_cons_fop_device_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .sm        = &m0_generic_conf,
 			 .fom_ops   = &m0_console_fom_type_device_ops,
-			 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_cons_fop_reply_fopt,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_cons_fop_reply_fopt,
 			 .name      = "Console Reply",
 			 .opcode    = M0_CONS_FOP_REPLY_OPCODE,
 			 .xt        = m0_cons_fop_reply_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_cons_fop_test_fopt,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_cons_fop_test_fopt,
 			 .name      = "Console Test",
 			 .opcode    = M0_CONS_TEST,
 			 .xt        = m0_cons_fop_test_xc,
@@ -75,6 +75,7 @@ M0_INTERNAL int m0_console_fop_init(void)
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .fom_ops   = &m0_console_fom_type_test_ops,
 			 .svc_type  = &m0_rpc_service_type);
+	return 0;
 }
 
 /** @} end of console */

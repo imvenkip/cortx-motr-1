@@ -47,41 +47,42 @@ static const struct m0_fom_type_ops confd_fom_ops = {
 
 M0_INTERNAL int m0_conf_fops_init(void)
 {
-        return  M0_FOP_TYPE_INIT(&m0_conf_fetch_fopt,
-				 .name      = "Configuration fetch request",
-				 .opcode    = M0_CONF_FETCH_OPCODE,
-				 .xt        = m0_conf_fetch_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+        M0_FOP_TYPE_INIT(&m0_conf_fetch_fopt,
+			 .name      = "Configuration fetch request",
+			 .opcode    = M0_CONF_FETCH_OPCODE,
+			 .xt        = m0_conf_fetch_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 #ifndef __KERNEL__
-				 .fom_ops   = &confd_fom_ops,
-				 .svc_type  = &m0_confd_stype,
+			 .fom_ops   = &confd_fom_ops,
+			 .svc_type  = &m0_confd_stype,
 #endif
-				 .sm        = &m0_generic_conf) ?:
-		M0_FOP_TYPE_INIT(&m0_conf_fetch_resp_fopt,
-				 .name      = "Configuration fetch response",
-				 .opcode    = M0_CONF_FETCH_RESP_OPCODE,
-				 .xt        = m0_conf_fetch_resp_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		/*
-		 * XXX Argh! Why bother defining update _stubs_?
-		 * Do we win anything? Is it worth the cost of maintenance?
-		 */
-		M0_FOP_TYPE_INIT(&m0_conf_update_fopt,
-				 .name      = "Configuration update request",
-				 .opcode    = M0_CONF_UPDATE_OPCODE,
-				 .xt        = m0_conf_update_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_conf_fetch_resp_fopt,
+			 .name      = "Configuration fetch response",
+			 .opcode    = M0_CONF_FETCH_RESP_OPCODE,
+			 .xt        = m0_conf_fetch_resp_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	/*
+	 * XXX Argh! Why bother defining update _stubs_?  Do we win anything? Is
+	 * it worth the cost of maintenance?
+	 */
+	M0_FOP_TYPE_INIT(&m0_conf_update_fopt,
+			 .name      = "Configuration update request",
+			 .opcode    = M0_CONF_UPDATE_OPCODE,
+			 .xt        = m0_conf_update_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
 #ifndef __KERNEL__
-				 .fom_ops   = &confd_fom_ops,
-				 .svc_type  = &m0_confd_stype,
+			 .fom_ops   = &confd_fom_ops,
+			 .svc_type  = &m0_confd_stype,
 #endif
-				 .sm        = &m0_generic_conf) ?:
-		M0_FOP_TYPE_INIT(&m0_conf_update_resp_fopt,
-				 .name      = "Configuration update response",
-				 .opcode    = M0_CONF_UPDATE_RESP_OPCODE,
-				 .xt        = m0_conf_update_resp_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_conf_update_resp_fopt,
+			 .name      = "Configuration update response",
+			 .opcode    = M0_CONF_UPDATE_RESP_OPCODE,
+			 .xt        = m0_conf_update_resp_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	return 0;
 }
 
 M0_INTERNAL void m0_conf_fops_fini(void)

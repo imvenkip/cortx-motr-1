@@ -276,8 +276,8 @@ struct __m0_fop_type_init_args {
 	const struct m0_reqh_service_type *svc_type;
 };
 
-int m0_fop_type_init(struct m0_fop_type *ft,
-		     const struct __m0_fop_type_init_args *args);
+void m0_fop_type_init(struct m0_fop_type *ft,
+		      const struct __m0_fop_type_init_args *args);
 
 /**
  * Helper macro which can be used to submit fop type initialisation parameters

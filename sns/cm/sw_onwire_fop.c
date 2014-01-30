@@ -41,18 +41,18 @@
 extern const struct m0_fom_type_ops m0_sns_cm_sw_onwire_fom_type_ops;
 extern struct m0_sm_conf m0_sns_cm_sw_onwire_conf;
 
-M0_INTERNAL int m0_sns_cm_sw_onwire_fop_init(struct m0_fop_type *ft,
-					     enum M0_RPC_OPCODES op,
-					     struct m0_cm_type *cmt)
+M0_INTERNAL void m0_sns_cm_sw_onwire_fop_init(struct m0_fop_type *ft,
+					      enum M0_RPC_OPCODES op,
+					      struct m0_cm_type *cmt)
 {
-        return  M0_FOP_TYPE_INIT(ft,
-                        .name      = "sns cm sw update fop",
-                        .opcode    = op,
-                        .xt        = m0_sns_cm_sw_onwire_xc,
-                        .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
-                        .fom_ops   = &m0_sns_cm_sw_onwire_fom_type_ops,
-                        .sm        = &m0_sns_cm_sw_onwire_conf,
-			.svc_type  = &cmt->ct_stype);
+        M0_FOP_TYPE_INIT(ft,
+			 .name      = "sns cm sw update fop",
+			 .opcode    = op,
+			 .xt        = m0_sns_cm_sw_onwire_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
+			 .fom_ops   = &m0_sns_cm_sw_onwire_fom_type_ops,
+			 .sm        = &m0_sns_cm_sw_onwire_conf,
+			 .svc_type  = &cmt->ct_stype);
 }
 
 M0_INTERNAL void m0_sns_cm_sw_onwire_fop_fini(struct m0_fop_type *ft)

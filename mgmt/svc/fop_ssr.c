@@ -120,12 +120,12 @@ static void mgmt_fop_ssr_fill(struct m0_fom *fom,
 
 static int mgmt_fop_ssr_init(void)
 {
-	return
-	   M0_FOP_TYPE_INIT(&m0_fop_mgmt_service_state_res_fopt,
-			    .name      = "Mgmt Service State Response",
-			    .opcode    = M0_MGMT_SERVICE_STATE_REPLY_OPCODE,
-			    .xt        = m0_fop_mgmt_service_state_res_xc,
-			    .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_mgmt_service_state_res_fopt,
+			 .name      = "Mgmt Service State Response",
+			 .opcode    = M0_MGMT_SERVICE_STATE_REPLY_OPCODE,
+			 .xt        = m0_fop_mgmt_service_state_res_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	return 0;
 }
 
 static void mgmt_fop_ssr_fini(void)

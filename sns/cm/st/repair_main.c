@@ -60,10 +60,10 @@ extern const char *srv_ep_addr[MAX_SERVERS];
 extern struct m0_fop_type repair_trigger_fopt;
 extern struct m0_fop_type rebalance_trigger_fopt;
 
-M0_INTERNAL int m0_sns_cm_repair_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
 
-M0_INTERNAL int m0_sns_cm_rebalance_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
 
 static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
@@ -122,10 +122,8 @@ int main(int argc, char *argv[])
 
 	rc = m0_init();
 	M0_ASSERT(rc == 0);
-	rc = m0_sns_cm_repair_trigger_fop_init();
-	M0_ASSERT(rc == 0);
-	rc = m0_sns_cm_rebalance_trigger_fop_init();
-	M0_ASSERT(rc == 0);
+	m0_sns_cm_repair_trigger_fop_init();
+	m0_sns_cm_rebalance_trigger_fop_init();
 	repair_client_init();
 
 	m0_mutex_init(&repair_wait_mutex);

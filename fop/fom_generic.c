@@ -55,11 +55,12 @@ M0_INTERNAL void m0_fom_generic_fini(void)
 M0_INTERNAL int m0_fom_generic_init(void)
 {
 	m0_xc_fom_generic_init();
-	return M0_FOP_TYPE_INIT(&m0_fop_generic_reply_fopt,
-				.name      = "generic-reply",
-				.opcode    = M0_REQH_ERROR_REPLY_OPCODE,
-				.xt        = m0_fop_generic_reply_xc,
-				.rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_generic_reply_fopt,
+			 .name      = "generic-reply",
+			 .opcode    = M0_REQH_ERROR_REPLY_OPCODE,
+			 .xt        = m0_fop_generic_reply_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	return 0;
 }
 
 bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)

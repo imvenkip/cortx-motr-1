@@ -663,9 +663,8 @@ void m0_stob_io_fop_fini(void);
 /**
  * Function to intialise stob io fops.
  */
-int m0_stob_io_fop_init(void)
+void m0_stob_io_fop_init(void)
 {
-	int		    result;
 	int		    i;
 	struct m0_fop_type *fop_type;
 
@@ -674,62 +673,57 @@ int m0_stob_io_fop_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state, stob_write_phases,
 			  m0_generic_conf.scf_nr_states);
 	m0_xc_io_fop_init();
-	result = M0_FOP_TYPE_INIT(&m0_stob_io_create_fopt,
-				  .name      = "Stob create",
-				  .opcode    = M0_STOB_IO_CREATE_REQ_OPCODE,
-				  .xt        = m0_stob_io_create_xc,
-				  .fom_ops   = &stob_create_fom_type_ops,
-				  .sm        = &m0_generic_conf,
-				  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					       M0_RPC_ITEM_TYPE_MUTABO,
-				  .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_stob_io_read_fopt,
-				 .name      = "Stob read",
-				 .opcode    = M0_STOB_IO_READ_REQ_OPCODE,
-				 .xt        = m0_stob_io_read_xc,
-				 .fom_ops   = &stob_read_fom_type_ops,
-				 .sm        = &read_conf,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO,
-				 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_stob_io_write_fopt,
-				 .name      = "Stob write",
-				 .opcode    = M0_STOB_IO_WRITE_REQ_OPCODE,
-				 .xt        = m0_stob_io_write_xc,
-				 .fom_ops   = &stob_write_fom_type_ops,
-				 .sm        = &write_conf,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-					      M0_RPC_ITEM_TYPE_MUTABO,
-				 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_stob_io_create_rep_fopt,
-				 .name      = "Stob create reply",
-				 .opcode    = M0_STOB_IO_CREATE_REPLY_OPCODE,
-				 .xt        = m0_stob_io_create_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_stob_io_read_rep_fopt,
-				 .name      = "Stob read reply",
-				 .opcode    = M0_STOB_IO_READ_REPLY_OPCODE,
-				 .xt        = m0_stob_io_read_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				 .svc_type  = &m0_rpc_service_type) ?:
-		M0_FOP_TYPE_INIT(&m0_stob_io_write_rep_fopt,
-				 .name      = "Stob write reply",
-				 .opcode    = M0_STOB_IO_WRITE_REPLY_OPCODE,
-				 .xt        = m0_stob_io_write_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-				 .svc_type  = &m0_rpc_service_type);
-	if (result == 0) {
-		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
-			fop_type = stob_fops[i];
-			if ((fop_type->ft_rpc_item_type.rit_flags &
-						M0_RPC_ITEM_TYPE_REQUEST) == 0)
-				continue;
-		}
-	} else
-		m0_stob_io_fop_fini();
-
-	return result;
+	M0_FOP_TYPE_INIT(&m0_stob_io_create_fopt,
+			 .name      = "Stob create",
+			 .opcode    = M0_STOB_IO_CREATE_REQ_OPCODE,
+			 .xt        = m0_stob_io_create_xc,
+			 .fom_ops   = &stob_create_fom_type_ops,
+			 .sm        = &m0_generic_conf,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_stob_io_read_fopt,
+			 .name      = "Stob read",
+			 .opcode    = M0_STOB_IO_READ_REQ_OPCODE,
+			 .xt        = m0_stob_io_read_xc,
+			 .fom_ops   = &stob_read_fom_type_ops,
+			 .sm        = &read_conf,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_stob_io_write_fopt,
+			 .name      = "Stob write",
+			 .opcode    = M0_STOB_IO_WRITE_REQ_OPCODE,
+			 .xt        = m0_stob_io_write_xc,
+			 .fom_ops   = &stob_write_fom_type_ops,
+			 .sm        = &write_conf,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_stob_io_create_rep_fopt,
+			 .name      = "Stob create reply",
+			 .opcode    = M0_STOB_IO_CREATE_REPLY_OPCODE,
+			 .xt        = m0_stob_io_create_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_stob_io_read_rep_fopt,
+			 .name      = "Stob read reply",
+			 .opcode    = M0_STOB_IO_READ_REPLY_OPCODE,
+			 .xt        = m0_stob_io_read_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+			 .svc_type  = &m0_rpc_service_type);
+	M0_FOP_TYPE_INIT(&m0_stob_io_write_rep_fopt,
+			 .name      = "Stob write reply",
+			 .opcode    = M0_STOB_IO_WRITE_REPLY_OPCODE,
+			 .xt        = m0_stob_io_write_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
+			 .svc_type  = &m0_rpc_service_type);
+	for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
+		fop_type = stob_fops[i];
+		if ((fop_type->ft_rpc_item_type.rit_flags &
+		     M0_RPC_ITEM_TYPE_REQUEST) == 0)
+			continue;
+	}
 }
 
 /**

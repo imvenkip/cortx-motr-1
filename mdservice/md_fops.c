@@ -82,275 +82,277 @@ struct m0_fop_type m0_fop_layout_rep_fopt;
 
 M0_INTERNAL int m0_mdservice_fopts_init(void)
 {
-        return  M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
-                                 .name      = "Create request",
-                                 .opcode    = M0_MDSERVICE_CREATE_OPCODE,
-                                 .xt        = m0_fop_create_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+        M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
+			 .name      = "Create request",
+			 .opcode    = M0_MDSERVICE_CREATE_OPCODE,
+			 .xt        = m0_fop_create_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_lookup_fopt,
-                                 .name      = "Lookup request",
-                                 .opcode    = M0_MDSERVICE_LOOKUP_OPCODE,
-                                 .xt        = m0_fop_lookup_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_lookup_fopt,
+			 .name      = "Lookup request",
+			 .opcode    = M0_MDSERVICE_LOOKUP_OPCODE,
+			 .xt        = m0_fop_lookup_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_link_fopt,
-                                 .name      = "Hardlink request",
-                                 .opcode    = M0_MDSERVICE_LINK_OPCODE,
-                                 .xt        = m0_fop_link_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_link_fopt,
+			 .name      = "Hardlink request",
+			 .opcode    = M0_MDSERVICE_LINK_OPCODE,
+			 .xt        = m0_fop_link_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_unlink_fopt,
-                                 .name      = "Unlink request",
-                                 .opcode    = M0_MDSERVICE_UNLINK_OPCODE,
-                                 .xt        = m0_fop_unlink_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_unlink_fopt,
+			 .name      = "Unlink request",
+			 .opcode    = M0_MDSERVICE_UNLINK_OPCODE,
+			 .xt        = m0_fop_unlink_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_open_fopt,
-                                 .name      = "Open request",
-                                 .opcode    = M0_MDSERVICE_OPEN_OPCODE,
-                                 .xt        = m0_fop_open_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_open_fopt,
+			 .name      = "Open request",
+			 .opcode    = M0_MDSERVICE_OPEN_OPCODE,
+			 .xt        = m0_fop_open_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_close_fopt,
-                                 .name      = "Close request",
-                                 .opcode    = M0_MDSERVICE_CLOSE_OPCODE,
-                                 .xt        = m0_fop_close_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_close_fopt,
+			 .name      = "Close request",
+			 .opcode    = M0_MDSERVICE_CLOSE_OPCODE,
+			 .xt        = m0_fop_close_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_setattr_fopt,
-                                 .name      = "Setattr request",
-                                 .opcode    = M0_MDSERVICE_SETATTR_OPCODE,
-                                 .xt        = m0_fop_setattr_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_setattr_fopt,
+			 .name      = "Setattr request",
+			 .opcode    = M0_MDSERVICE_SETATTR_OPCODE,
+			 .xt        = m0_fop_setattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_getattr_fopt,
-                                 .name      = "Getattr request",
-                                 .opcode    = M0_MDSERVICE_GETATTR_OPCODE,
-                                 .xt        = m0_fop_getattr_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_getattr_fopt,
+			 .name      = "Getattr request",
+			 .opcode    = M0_MDSERVICE_GETATTR_OPCODE,
+			 .xt        = m0_fop_getattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_setxattr_fopt,
-                                 .name      = "Setxattr request",
-                                 .opcode    = M0_MDSERVICE_SETXATTR_OPCODE,
-                                 .xt        = m0_fop_setxattr_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_setxattr_fopt,
+			 .name      = "Setxattr request",
+			 .opcode    = M0_MDSERVICE_SETXATTR_OPCODE,
+			 .xt        = m0_fop_setxattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_getxattr_fopt,
-                                 .name      = "Getxattr request",
-                                 .opcode    = M0_MDSERVICE_GETXATTR_OPCODE,
-                                 .xt        = m0_fop_getxattr_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_getxattr_fopt,
+			 .name      = "Getxattr request",
+			 .opcode    = M0_MDSERVICE_GETXATTR_OPCODE,
+			 .xt        = m0_fop_getxattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_delxattr_fopt,
-                                 .name      = "Delxattr request",
-                                 .opcode    = M0_MDSERVICE_DELXATTR_OPCODE,
-                                 .xt        = m0_fop_delxattr_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_delxattr_fopt,
+			 .name      = "Delxattr request",
+			 .opcode    = M0_MDSERVICE_DELXATTR_OPCODE,
+			 .xt        = m0_fop_delxattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_listxattr_fopt,
-                                 .name      = "Listxattr request",
-                                 .opcode    = M0_MDSERVICE_LISTXATTR_OPCODE,
-                                 .xt        = m0_fop_listxattr_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_listxattr_fopt,
+			 .name      = "Listxattr request",
+			 .opcode    = M0_MDSERVICE_LISTXATTR_OPCODE,
+			 .xt        = m0_fop_listxattr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_statfs_fopt,
-                                 .name      = "Statfs request",
-                                 .opcode    = M0_MDSERVICE_STATFS_OPCODE,
-                                 .xt        = m0_fop_statfs_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_statfs_fopt,
+			 .name      = "Statfs request",
+			 .opcode    = M0_MDSERVICE_STATFS_OPCODE,
+			 .xt        = m0_fop_statfs_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_rename_fopt,
-                                 .name      = "Rename request",
-                                 .opcode    = M0_MDSERVICE_RENAME_OPCODE,
-                                 .xt        = m0_fop_rename_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
-                                              M0_RPC_ITEM_TYPE_MUTABO,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_rename_fopt,
+			 .name      = "Rename request",
+			 .opcode    = M0_MDSERVICE_RENAME_OPCODE,
+			 .xt        = m0_fop_rename_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
+			 M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_readdir_fopt,
-                                 .name      = "Readdir request",
-                                 .opcode    = M0_MDSERVICE_READDIR_OPCODE,
-                                 .xt        = m0_fop_readdir_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_readdir_fopt,
+			 .name      = "Readdir request",
+			 .opcode    = M0_MDSERVICE_READDIR_OPCODE,
+			 .xt        = m0_fop_readdir_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf) ?:
-                 M0_FOP_TYPE_INIT(&m0_fop_layout_fopt,
-                                 .name      = "Layout request",
-                                 .opcode    = M0_LAYOUT_OPCODE,
-                                 .xt        = m0_fop_layout_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-                                 .fop_ops   = &m0_md_fop_ops,
+			 .sm        = &m0_generic_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_layout_fopt,
+			 .name      = "Layout request",
+			 .opcode    = M0_LAYOUT_OPCODE,
+			 .xt        = m0_fop_layout_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &m0_md_fop_ops,
 #ifndef __KERNEL__
-                                 .fom_ops   = &m0_md_fom_ops,
-                                 .svc_type  = &m0_mds_type,
+			 .fom_ops   = &m0_md_fom_ops,
+			 .svc_type  = &m0_mds_type,
 #endif
-                                 .sm        = &m0_generic_conf);
+			 .sm        = &m0_generic_conf);
+	return 0;
 }
 
 M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
 {
-	return  M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
-                                 .name      = "Create reply",
-                                 .opcode    = M0_MDSERVICE_CREATE_REP_OPCODE,
-                                 .xt        = m0_fop_create_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_lookup_rep_fopt,
-                                 .name      = "Lookup reply",
-                                 .opcode    = M0_MDSERVICE_LOOKUP_REP_OPCODE,
-                                 .xt        = m0_fop_lookup_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_link_rep_fopt,
-                                 .name      = "Hardlink reply",
-                                 .opcode    = M0_MDSERVICE_LINK_REP_OPCODE,
-                                 .xt        = m0_fop_link_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_unlink_rep_fopt,
-                                 .name      = "Unlink reply",
-                                 .opcode    = M0_MDSERVICE_UNLINK_REP_OPCODE,
-                                 .xt        = m0_fop_unlink_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_open_rep_fopt,
-                                 .name      = "Open reply",
-                                 .opcode    = M0_MDSERVICE_OPEN_REP_OPCODE,
-                                 .xt        = m0_fop_open_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_close_rep_fopt,
-                                 .name      = "Close reply",
-                                 .opcode    = M0_MDSERVICE_CLOSE_REP_OPCODE,
-                                 .xt        = m0_fop_close_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_setattr_rep_fopt,
-                                 .name      = "Setattr reply",
-                                 .opcode    = M0_MDSERVICE_SETATTR_REP_OPCODE,
-                                 .xt        = m0_fop_setattr_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_getattr_rep_fopt,
-                                 .name      = "Getattr reply",
-                                 .opcode    = M0_MDSERVICE_GETATTR_REP_OPCODE,
-                                 .xt        = m0_fop_getattr_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_setxattr_rep_fopt,
-                                 .name      = "Setxattr reply",
-                                 .opcode    = M0_MDSERVICE_SETXATTR_REP_OPCODE,
-                                 .xt        = m0_fop_setxattr_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_getxattr_rep_fopt,
-                                 .name      = "Getxattr reply",
-                                 .opcode    = M0_MDSERVICE_GETXATTR_REP_OPCODE,
-                                 .xt        = m0_fop_getxattr_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_delxattr_rep_fopt,
-                                 .name      = "Delxattr reply",
-                                 .opcode    = M0_MDSERVICE_DELXATTR_REP_OPCODE,
-                                 .xt        = m0_fop_delxattr_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_listxattr_rep_fopt,
-                                 .name      = "Listxattr reply",
-                                 .opcode    = M0_MDSERVICE_LISTXATTR_REP_OPCODE,
-                                 .xt        = m0_fop_listxattr_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_statfs_rep_fopt,
-                                 .name      = "Statfs reply",
-                                 .opcode    = M0_MDSERVICE_STATFS_REP_OPCODE,
-                                 .xt        = m0_fop_statfs_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_rename_rep_fopt,
-                                 .name      = "Rename reply",
-                                 .opcode    = M0_MDSERVICE_RENAME_REP_OPCODE,
-                                 .xt        = m0_fop_rename_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_readdir_rep_fopt,
-                                 .name      = "Readdir reply",
-                                 .opcode    = M0_MDSERVICE_READDIR_REP_OPCODE,
-                                 .xt        = m0_fop_readdir_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-                M0_FOP_TYPE_INIT(&m0_fop_layout_rep_fopt,
-                                 .name      = "Layout reply",
-                                 .opcode    = M0_LAYOUT_REP_OPCODE,
-                                 .xt        = m0_fop_layout_rep_xc,
-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
+			 .name      = "Create reply",
+			 .opcode    = M0_MDSERVICE_CREATE_REP_OPCODE,
+			 .xt        = m0_fop_create_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_lookup_rep_fopt,
+			 .name      = "Lookup reply",
+			 .opcode    = M0_MDSERVICE_LOOKUP_REP_OPCODE,
+			 .xt        = m0_fop_lookup_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_link_rep_fopt,
+			 .name      = "Hardlink reply",
+			 .opcode    = M0_MDSERVICE_LINK_REP_OPCODE,
+			 .xt        = m0_fop_link_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_unlink_rep_fopt,
+			 .name      = "Unlink reply",
+			 .opcode    = M0_MDSERVICE_UNLINK_REP_OPCODE,
+			 .xt        = m0_fop_unlink_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_open_rep_fopt,
+			 .name      = "Open reply",
+			 .opcode    = M0_MDSERVICE_OPEN_REP_OPCODE,
+			 .xt        = m0_fop_open_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_close_rep_fopt,
+			 .name      = "Close reply",
+			 .opcode    = M0_MDSERVICE_CLOSE_REP_OPCODE,
+			 .xt        = m0_fop_close_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_setattr_rep_fopt,
+			 .name      = "Setattr reply",
+			 .opcode    = M0_MDSERVICE_SETATTR_REP_OPCODE,
+			 .xt        = m0_fop_setattr_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_getattr_rep_fopt,
+			 .name      = "Getattr reply",
+			 .opcode    = M0_MDSERVICE_GETATTR_REP_OPCODE,
+			 .xt        = m0_fop_getattr_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_setxattr_rep_fopt,
+			 .name      = "Setxattr reply",
+			 .opcode    = M0_MDSERVICE_SETXATTR_REP_OPCODE,
+			 .xt        = m0_fop_setxattr_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_getxattr_rep_fopt,
+			 .name      = "Getxattr reply",
+			 .opcode    = M0_MDSERVICE_GETXATTR_REP_OPCODE,
+			 .xt        = m0_fop_getxattr_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_delxattr_rep_fopt,
+			 .name      = "Delxattr reply",
+			 .opcode    = M0_MDSERVICE_DELXATTR_REP_OPCODE,
+			 .xt        = m0_fop_delxattr_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_listxattr_rep_fopt,
+			 .name      = "Listxattr reply",
+			 .opcode    = M0_MDSERVICE_LISTXATTR_REP_OPCODE,
+			 .xt        = m0_fop_listxattr_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_statfs_rep_fopt,
+			 .name      = "Statfs reply",
+			 .opcode    = M0_MDSERVICE_STATFS_REP_OPCODE,
+			 .xt        = m0_fop_statfs_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_rename_rep_fopt,
+			 .name      = "Rename reply",
+			 .opcode    = M0_MDSERVICE_RENAME_REP_OPCODE,
+			 .xt        = m0_fop_rename_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_readdir_rep_fopt,
+			 .name      = "Readdir reply",
+			 .opcode    = M0_MDSERVICE_READDIR_REP_OPCODE,
+			 .xt        = m0_fop_readdir_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_layout_rep_fopt,
+			 .name      = "Layout reply",
+			 .opcode    = M0_LAYOUT_REP_OPCODE,
+			 .xt        = m0_fop_layout_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	return 0;
 }
 
 M0_INTERNAL int m0_mdservice_fop_init(void)

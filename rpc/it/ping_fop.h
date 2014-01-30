@@ -28,7 +28,7 @@
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 
-M0_INTERNAL int m0_ping_fop_init(void);
+M0_INTERNAL void m0_ping_fop_init(void);
 M0_INTERNAL void m0_ping_fop_fini(void);
 
 /**

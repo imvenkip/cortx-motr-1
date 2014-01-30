@@ -58,35 +58,36 @@ M0_INTERNAL int m0_stats_fops_init(void)
         m0_sm_conf_extend(m0_generic_conf.scf_state, stats_query_phases,
                           m0_generic_conf.scf_nr_states);
 #endif
-        return  M0_FOP_TYPE_INIT(&m0_fop_stats_update_fopt,
-                                 .name      = "Stats update fop",
-				 .opcode    = M0_STATS_UPDATE_FOP_OPCODE,
-				 .xt	    = m0_stats_update_fop_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
-				 .fop_ops   = &stats_update_fop_ops,
+        M0_FOP_TYPE_INIT(&m0_fop_stats_update_fopt,
+			 .name      = "Stats update fop",
+			 .opcode    = M0_STATS_UPDATE_FOP_OPCODE,
+			 .xt	    = m0_stats_update_fop_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
+			 .fop_ops   = &stats_update_fop_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &stats_update_fom_type_ops,
-				 .sm	    = &stats_update_fom_sm_conf,
-				 .svc_type  = &m0_stats_svc_type,
+			 .fom_ops   = &stats_update_fom_type_ops,
+			 .sm	    = &stats_update_fom_sm_conf,
+			 .svc_type  = &m0_stats_svc_type,
 #endif
-				 .rpc_ops   = &stats_update_item_type_ops) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_stats_query_fopt,
-                                 .name      = "Stats query fop",
-				 .opcode    = M0_STATS_QUERY_FOP_OPCODE,
-				 .xt	    = m0_stats_query_fop_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fop_ops   = &stats_query_fop_ops,
+			 .rpc_ops   = &stats_update_item_type_ops);
+	M0_FOP_TYPE_INIT(&m0_fop_stats_query_fopt,
+			 .name      = "Stats query fop",
+			 .opcode    = M0_STATS_QUERY_FOP_OPCODE,
+			 .xt	    = m0_stats_query_fop_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &stats_query_fop_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &stats_query_fom_type_ops,
-				 .sm	    = &stats_query_fom_sm_conf,
-				 .svc_type  = &m0_stats_svc_type,
+			 .fom_ops   = &stats_query_fom_type_ops,
+			 .sm	    = &stats_query_fom_sm_conf,
+			 .svc_type  = &m0_stats_svc_type,
 #endif
-				 .rpc_ops   = &stats_query_item_type_ops) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_stats_query_rep_fopt,
-                                 .name      = "Stats query rep fop",
-				 .opcode    = M0_STATS_QUERY_REP_FOP_OPCODE,
-				 .xt	    = m0_stats_query_rep_fop_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+			 .rpc_ops   = &stats_query_item_type_ops);
+	M0_FOP_TYPE_INIT(&m0_fop_stats_query_rep_fopt,
+			 .name      = "Stats query rep fop",
+			 .opcode    = M0_STATS_QUERY_REP_FOP_OPCODE,
+			 .xt	    = m0_stats_query_rep_fop_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	return 0;
 }
 
 M0_INTERNAL void m0_stats_fops_fini(void)

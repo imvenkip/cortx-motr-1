@@ -416,17 +416,16 @@ static void rpc_fop_fom_init(void)
 	result = m0_reqh_service_type_register(&test_stype);
 	M0_UT_ASSERT(result == 0);
 
-	result = M0_FOP_TYPE_INIT(&test_fopt,
-				  .name      = "dtm test fop",
-				  .opcode    = M0_DTM_UP_OPCODE,
-				  .xt        = m0_dtm_oper_descr_xc,
-				  .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				  .fop_ops   = &test_ftype_ops,
-				  .fom_ops   = &test_fom_type_ops,
-				  .sm        = &test_conf,
-				  .svc_type  = &test_stype,
-				  .rpc_ops   = &m0_fop_default_item_type_ops);
-	M0_UT_ASSERT(result == 0);
+	M0_FOP_TYPE_INIT(&test_fopt,
+			 .name      = "dtm test fop",
+			 .opcode    = M0_DTM_UP_OPCODE,
+			 .xt        = m0_dtm_oper_descr_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &test_ftype_ops,
+			 .fom_ops   = &test_fom_type_ops,
+			 .sm        = &test_conf,
+			 .svc_type  = &test_stype,
+			 .rpc_ops   = &m0_fop_default_item_type_ops);
 
 	result = m0_reqh_service_allocate(&test_svc, &test_stype, NULL);
 	M0_UT_ASSERT(result == 0);

@@ -26,18 +26,19 @@
 
 extern const struct m0_fom_type_ops cp_fom_type_ops;
 
-M0_INTERNAL int m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
-				const char *name, const struct m0_xcode_type *xt,
-				uint64_t rpc_flags, struct m0_cm_type *cmt)
+M0_INTERNAL void m0_sns_cpx_init(struct m0_fop_type *ft, enum M0_RPC_OPCODES op,
+				 const char *name,
+				 const struct m0_xcode_type *xt,
+				 uint64_t rpc_flags, struct m0_cm_type *cmt)
 {
-        return M0_FOP_TYPE_INIT(ft,
-                                .name      = name,
-                                .opcode    = op,
-                                .xt        = xt,
-                                .rpc_flags = rpc_flags,
-                                .fom_ops   = &cp_fom_type_ops,
-                                .sm        = &m0_generic_conf,
-                                .svc_type  = &cmt->ct_stype);
+        M0_FOP_TYPE_INIT(ft,
+			 .name      = name,
+			 .opcode    = op,
+			 .xt        = xt,
+			 .rpc_flags = rpc_flags,
+			 .fom_ops   = &cp_fom_type_ops,
+			 .sm        = &m0_generic_conf,
+			 .svc_type  = &cmt->ct_stype);
 }
 
 M0_INTERNAL void m0_sns_cpx_fini(struct m0_fop_type *ft)

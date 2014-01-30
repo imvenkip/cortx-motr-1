@@ -73,13 +73,13 @@ static const struct m0_reqh_service_ops rebalance_svc_ops = {
 
 extern const struct m0_cm_ops sns_rebalance_ops;
 
-M0_INTERNAL int m0_sns_cm_rebalance_cpx_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_cpx_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_cpx_fini(void);
 
-M0_INTERNAL int m0_sns_cm_rebalance_sw_onwire_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void);
 
-M0_INTERNAL int m0_sns_cm_rebalance_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
 
 /**
@@ -108,11 +108,10 @@ static int rebalance_svc_start(struct m0_reqh_service *service)
 
 	rc = m0_sns_cm_svc_start(service);
 	if (rc == 0) {
-		rc = m0_sns_cm_rebalance_cpx_init() ?:
-		     m0_sns_cm_rebalance_sw_onwire_fop_init() ?:
-		     m0_sns_cm_rebalance_trigger_fop_init();
+		m0_sns_cm_rebalance_cpx_init();
+		m0_sns_cm_rebalance_sw_onwire_fop_init();
+		m0_sns_cm_rebalance_trigger_fop_init();
 	}
-
 	return rc;
 }
 

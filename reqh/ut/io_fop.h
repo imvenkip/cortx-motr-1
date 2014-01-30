@@ -80,7 +80,7 @@ extern struct m0_rpc_item_type m0_stob_create_rep_rpc_item_type;
 extern struct m0_rpc_item_type m0_stob_read_rep_rpc_item_type;
 extern struct m0_rpc_item_type m0_stob_write_rep_rpc_item_type;
 
-int m0_stob_io_fop_init(void);
+void m0_stob_io_fop_init(void);
 void m0_stob_io_fop_fini(void);
 
 #endif /* !__MERO_STOB_IO_FOP_H__ */

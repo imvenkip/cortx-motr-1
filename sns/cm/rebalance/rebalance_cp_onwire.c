@@ -28,19 +28,19 @@ struct m0_fop_type m0_sns_rebalance_cpx_fopt;
 struct m0_fop_type m0_sns_rebalance_cpx_reply_fopt;
 extern struct m0_cm_type sns_rebalance_cmt;
 
-M0_INTERNAL int m0_sns_cm_rebalance_cpx_init(void)
+M0_INTERNAL void m0_sns_cm_rebalance_cpx_init(void)
 {
-        return m0_sns_cpx_init(&m0_sns_rebalance_cpx_fopt,
-			       M0_SNS_CM_REBALANCE_CP_OPCODE,
-			       "SNS Rebalance copy packet", m0_sns_cpx_xc,
-                               M0_RPC_ITEM_TYPE_REQUEST |
-			       M0_RPC_ITEM_TYPE_MUTABO,
-                               &sns_rebalance_cmt) ?:
-               m0_sns_cpx_init(&m0_sns_rebalance_cpx_reply_fopt,
-			       M0_SNS_CM_REBALANCE_CP_REP_OPCODE,
-			       "SNS Rebalance copy packet reply",
-			       m0_sns_cpx_reply_xc, M0_RPC_ITEM_TYPE_REPLY,
-                               &sns_rebalance_cmt);
+        m0_sns_cpx_init(&m0_sns_rebalance_cpx_fopt,
+			M0_SNS_CM_REBALANCE_CP_OPCODE,
+			"SNS Rebalance copy packet", m0_sns_cpx_xc,
+			M0_RPC_ITEM_TYPE_REQUEST |
+			M0_RPC_ITEM_TYPE_MUTABO,
+			&sns_rebalance_cmt);
+	m0_sns_cpx_init(&m0_sns_rebalance_cpx_reply_fopt,
+			M0_SNS_CM_REBALANCE_CP_REP_OPCODE,
+			"SNS Rebalance copy packet reply",
+			m0_sns_cpx_reply_xc, M0_RPC_ITEM_TYPE_REPLY,
+			&sns_rebalance_cmt);
 }
 
 M0_INTERNAL void m0_sns_cm_rebalance_cpx_fini(void)

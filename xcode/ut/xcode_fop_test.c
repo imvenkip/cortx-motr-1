@@ -188,13 +188,12 @@ static void test_fop_encdec(void)
 
 	allocated = m0_allocated();
 
-	rc = M0_FOP_TYPE_INIT(&m0_fop_test_fopt,
-			      .name      = "xcode fop test",
-			      .opcode    = M0_XCODE_UT_OPCODE,
-			      .xt        = m0_fop_test_xc,
-			      .rpc_flags = 0,
-			      .fop_ops   = &test_ops);
-	M0_UT_ASSERT(rc == 0);
+	M0_FOP_TYPE_INIT(&m0_fop_test_fopt,
+			 .name      = "xcode fop test",
+			 .opcode    = M0_XCODE_UT_OPCODE,
+			 .xt        = m0_fop_test_xc,
+			 .rpc_flags = 0,
+			 .fop_ops   = &test_ops);
 
 	/* Allocate a fop and populate its fields with test values. */
 	f1 = m0_fop_alloc(&m0_fop_test_fopt, NULL);

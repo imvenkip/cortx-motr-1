@@ -117,24 +117,21 @@ static size_t ub_req_fom_home_locality(const struct m0_fom *fom)
 
 M0_INTERNAL void m0_rpc_ub_fops_init(void)
 {
-	int rc;
-
 	m0_xc_rpc_ub_fops_init();
 
-	rc = M0_FOP_TYPE_INIT(&m0_rpc_ub_req_fopt,
-			      .name      = "RPC UB request",
-			      .opcode    = M0_RPC_UB_REQ_OPCODE,
-			      .xt        = ub_req_xc,
-			      .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-			      .fom_ops   = &ub_req_fom_type_ops,
-			      .sm        = &m0_generic_conf,
-			      .svc_type  = &ds1_service_type) ?:
-	     M0_FOP_TYPE_INIT(&m0_rpc_ub_resp_fopt,
-			      .name      = "RPC UB response",
-			      .opcode    = M0_RPC_UB_RESP_OPCODE,
-			      .xt        = ub_resp_xc,
-			      .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
-	M0_ASSERT(rc == 0);
+	M0_FOP_TYPE_INIT(&m0_rpc_ub_req_fopt,
+			 .name      = "RPC UB request",
+			 .opcode    = M0_RPC_UB_REQ_OPCODE,
+			 .xt        = ub_req_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = &ub_req_fom_type_ops,
+			 .sm        = &m0_generic_conf,
+			 .svc_type  = &ds1_service_type);
+	M0_FOP_TYPE_INIT(&m0_rpc_ub_resp_fopt,
+			 .name      = "RPC UB response",
+			 .opcode    = M0_RPC_UB_RESP_OPCODE,
+			 .xt        = ub_resp_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 }
 
 M0_INTERNAL void m0_rpc_ub_fops_fini(void)

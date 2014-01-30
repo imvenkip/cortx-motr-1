@@ -35,11 +35,11 @@
 struct m0_fop_type repair_sw_onwire_fopt;
 extern struct m0_cm_type sns_repair_cmt;
 
-M0_INTERNAL int m0_sns_cm_repair_sw_onwire_fop_init(void)
+M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_init(void)
 {
-        return m0_sns_cm_sw_onwire_fop_init(&repair_sw_onwire_fopt,
-					    M0_SNS_CM_REPAIR_SW_FOP_OPCODE,
-					    &sns_repair_cmt);
+        m0_sns_cm_sw_onwire_fop_init(&repair_sw_onwire_fopt,
+				     M0_SNS_CM_REPAIR_SW_FOP_OPCODE,
+				     &sns_repair_cmt);
 }
 
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_fini(void)

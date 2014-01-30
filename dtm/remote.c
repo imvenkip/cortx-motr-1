@@ -195,13 +195,14 @@ M0_INTERNAL int m0_dtm_remote_global_init(void)
 	m0_xc_remote_init();
 	rem_rpc_itype_ops = m0_fop_default_item_type_ops;
 	rem_rpc_itype_ops.rito_deliver = &rem_rpc_deliver;
-	return M0_FOP_TYPE_INIT(&rem_rpc_fopt,
-				.name      = "dtm notice",
-				.opcode    = M0_DTM_NOTIFICATION_OPCODE,
-				.xt        = m0_dtm_notice_xc,
-				.rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
-				.fop_ops   = &rem_rpc_ftype_ops,
-				.rpc_ops   = &rem_rpc_itype_ops);
+	M0_FOP_TYPE_INIT(&rem_rpc_fopt,
+			 .name      = "dtm notice",
+			 .opcode    = M0_DTM_NOTIFICATION_OPCODE,
+			 .xt        = m0_dtm_notice_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
+			 .fop_ops   = &rem_rpc_ftype_ops,
+			 .rpc_ops   = &rem_rpc_itype_ops);
+	return 0;
 }
 
 M0_INTERNAL void m0_dtm_remote_global_fini(void)

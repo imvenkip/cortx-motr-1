@@ -61,10 +61,8 @@ static const struct m0_fom_ops arrow_fom_ops = {
 
 M0_INTERNAL void m0_rpc_test_fops_init(void)
 {
-	int rc;
-
 	m0_xc_rpc_test_fops_init();
-	rc = M0_FOP_TYPE_INIT(&m0_rpc_arrow_fopt,
+	M0_FOP_TYPE_INIT(&m0_rpc_arrow_fopt,
 		.name      = "RPC_arrow",
 		.opcode    = M0_RPC_ARROW_OPCODE,
 		.xt        = arrow_xc,
@@ -72,7 +70,6 @@ M0_INTERNAL void m0_rpc_test_fops_init(void)
 		.fom_ops   = &arrow_fom_type_ops,
 		.sm        = &m0_generic_conf,
 		.svc_type  = &m0_rpc_service_type);
-	M0_ASSERT(rc == 0);
 	m0_semaphore_init(&arrow_hit, 0);
 	m0_semaphore_init(&arrow_destroyed, 0);
 }

@@ -35,11 +35,11 @@
 struct m0_fop_type rebalance_sw_onwire_fopt;
 extern struct m0_cm_type sns_rebalance_cmt;
 
-M0_INTERNAL int m0_sns_cm_rebalance_sw_onwire_fop_init(void)
+M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void)
 {
-        return m0_sns_cm_sw_onwire_fop_init(&rebalance_sw_onwire_fopt,
-					    M0_SNS_CM_REBALANCE_SW_FOP_OPCODE,
-					    &sns_rebalance_cmt);
+        m0_sns_cm_sw_onwire_fop_init(&rebalance_sw_onwire_fopt,
+				     M0_SNS_CM_REBALANCE_SW_FOP_OPCODE,
+				     &sns_rebalance_cmt);
 }
 
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void)

@@ -434,8 +434,7 @@ void test_reqh(void)
 
 	path = "reqh_ut_stob";
 
-	result = m0_stob_io_fop_init();
-	M0_UT_ASSERT(result == 0);
+	m0_stob_io_fop_init();
 
 	M0_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 

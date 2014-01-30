@@ -122,14 +122,15 @@ static void reqhut_fom_fini(struct m0_fom *fom)
 int m0_reqhut_fop_init(void)
 {
 	m0_xc_reqh_service_init();
-	return M0_FOP_TYPE_INIT(&m0_reqhut_dummy_fopt,
-				.name      = "Reqh unit test",
-				.opcode    = M0_REQH_UT_DUMMY_OPCODE,
-				.xt        = m0_reqhut_dummy_xc,
-				.fom_ops   = &reqhut_fom_type_ops,
-				.sm        = &m0_generic_conf,
-				.rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				.svc_type  = &ds1_service_type);
+	M0_FOP_TYPE_INIT(&m0_reqhut_dummy_fopt,
+			 .name      = "Reqh unit test",
+			 .opcode    = M0_REQH_UT_DUMMY_OPCODE,
+			 .xt        = m0_reqhut_dummy_xc,
+			 .fom_ops   = &reqhut_fom_type_ops,
+			 .sm        = &m0_generic_conf,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .svc_type  = &ds1_service_type);
+	return 0;
 }
 
 void m0_reqhut_fop_fini(void)

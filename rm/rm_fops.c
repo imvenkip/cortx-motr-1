@@ -535,42 +535,43 @@ M0_INTERNAL int m0_rm_fop_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state, rm_req_phases,
 			  m0_generic_conf.scf_nr_states);
 
-	return  M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_fopt,
-				 .name      = "Credit Borrow",
-				 .opcode    = M0_RM_FOP_BORROW,
-				 .xt        = m0_rm_fop_borrow_xc,
-				 .sm	    = &borrow_sm_conf,
-				 .fom_ops   = &rm_borrow_fom_type_ops,
-				 .svc_type  = &m0_rms_type,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
-		M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_rep_fopt,
-				 .name      = "Credit Borrow Reply",
-				 .opcode    = M0_RM_FOP_BORROW_REPLY,
-				 .xt        = m0_rm_fop_borrow_rep_xc,
-				 .svc_type  = &m0_rpc_service_type,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_rm_fop_revoke_fopt,
-				 .name      = "Credit Revoke",
-				 .opcode    = M0_RM_FOP_REVOKE,
-				 .xt        = m0_rm_fop_revoke_xc,
-				 .sm	    = &canoke_sm_conf,
-				 .fom_ops   = &rm_revoke_fom_type_ops,
-				 .svc_type  = &m0_rms_type,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
-		M0_FOP_TYPE_INIT(&m0_rm_fop_revoke_rep_fopt,
-				 .name      = "Credit Revoke Reply",
-				 .opcode    = M0_RM_FOP_REVOKE_REPLY,
-				 .xt        = m0_rm_fop_revoke_rep_xc,
-				 .svc_type  = &m0_rpc_service_type,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_rm_fop_cancel_fopt,
-				 .name      = "Credit Return (Cancel)",
-				 .opcode    = M0_RM_FOP_CANCEL,
-				 .xt        = m0_rm_fop_cancel_xc,
-				 .sm	    = &canoke_sm_conf,
-				 .fom_ops   = &rm_cancel_fom_type_ops,
-				 .svc_type  = &m0_rms_type,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+	M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_fopt,
+			 .name      = "Credit Borrow",
+			 .opcode    = M0_RM_FOP_BORROW,
+			 .xt        = m0_rm_fop_borrow_xc,
+			 .sm	    = &borrow_sm_conf,
+			 .fom_ops   = &rm_borrow_fom_type_ops,
+			 .svc_type  = &m0_rms_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+	M0_FOP_TYPE_INIT(&m0_rm_fop_borrow_rep_fopt,
+			 .name      = "Credit Borrow Reply",
+			 .opcode    = M0_RM_FOP_BORROW_REPLY,
+			 .xt        = m0_rm_fop_borrow_rep_xc,
+			 .svc_type  = &m0_rpc_service_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_rm_fop_revoke_fopt,
+			 .name      = "Credit Revoke",
+			 .opcode    = M0_RM_FOP_REVOKE,
+			 .xt        = m0_rm_fop_revoke_xc,
+			 .sm	    = &canoke_sm_conf,
+			 .fom_ops   = &rm_revoke_fom_type_ops,
+			 .svc_type  = &m0_rms_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+	M0_FOP_TYPE_INIT(&m0_rm_fop_revoke_rep_fopt,
+			 .name      = "Credit Revoke Reply",
+			 .opcode    = M0_RM_FOP_REVOKE_REPLY,
+			 .xt        = m0_rm_fop_revoke_rep_xc,
+			 .svc_type  = &m0_rpc_service_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_rm_fop_cancel_fopt,
+			 .name      = "Credit Return (Cancel)",
+			 .opcode    = M0_RM_FOP_CANCEL,
+			 .xt        = m0_rm_fop_cancel_xc,
+			 .sm	    = &canoke_sm_conf,
+			 .fom_ops   = &rm_cancel_fom_type_ops,
+			 .svc_type  = &m0_rms_type,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
+	return 0;
 }
 M0_EXPORTED(m0_rm_fop_init);
 

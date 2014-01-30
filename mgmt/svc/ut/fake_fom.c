@@ -108,15 +108,15 @@ static const struct m0_fom_type_ops mgmt_svc_ut_fake_fop_fom_type_ops = {
 
 static int mgmt_svc_ut_fake_fop_init(void)
 {
-	return M0_FOP_TYPE_INIT(&m0_fop_mgmt_svc_ut_fake_fopt,
-				.name      = "Mgmt Service UT Fake FOP",
-				.opcode    = M0_MGMT_SERVICE_UT_FAKE_FOP_OPCODE,
-				.xt        = m0_mgmt_svc_ut_fake_fop_xc,
-				.rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
-				.sm        = &mgmt_svc_ut_fake_fop_sm,
-				.fom_ops   = &mgmt_svc_ut_fake_fop_fom_type_ops,
-				.svc_type  = &m0_mgmt_svc_ut_svc_type,
-				);
+	M0_FOP_TYPE_INIT(&m0_fop_mgmt_svc_ut_fake_fopt,
+			 .name      = "Mgmt Service UT Fake FOP",
+			 .opcode    = M0_MGMT_SERVICE_UT_FAKE_FOP_OPCODE,
+			 .xt        = m0_mgmt_svc_ut_fake_fop_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
+			 .sm        = &mgmt_svc_ut_fake_fop_sm,
+			 .fom_ops   = &mgmt_svc_ut_fake_fop_fom_type_ops,
+			 .svc_type  = &m0_mgmt_svc_ut_svc_type);
+	return 0;
 }
 
 static void mgmt_svc_ut_fake_fop_fini(void)

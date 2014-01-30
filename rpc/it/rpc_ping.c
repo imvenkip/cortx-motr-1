@@ -340,9 +340,7 @@ static int run_client(void)
 	if (rc != 0)
 		return rc;
 #endif
-	rc = m0_ping_fop_init();
-	if (rc != 0)
-		goto m0_fini;
+	m0_ping_fop_init();
 
 	rc = m0_net_xprt_init(xprt);
 	if (rc != 0)
@@ -393,7 +391,6 @@ xprt_fini:
 	m0_net_xprt_fini(xprt);
 fop_fini:
 	m0_ping_fop_fini();
-m0_fini:
 #ifndef __KERNEL__
 	m0_fini();
 #endif
@@ -456,9 +453,7 @@ static int run_server(void)
 	if (rc != 0)
 		goto m0_fini;
 
-	rc = m0_ping_fop_init();
-	if (rc != 0)
-		goto ut_fini;
+	m0_ping_fop_init();
 
 	/*
 	 * Prepend transport name to the beginning of endpoint,
@@ -498,7 +493,6 @@ static int run_server(void)
 	m0_rpc_server_stop(&sctx);
 fop_fini:
 	m0_ping_fop_fini();
-ut_fini:
 	m0_cs_default_stypes_fini();
 m0_fini:
 	m0_fini();

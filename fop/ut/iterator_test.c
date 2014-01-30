@@ -44,10 +44,11 @@ static void fop_fini(void)
 static int fop_init(void)
 {
 	m0_xc_iterator_test_init();
-	return M0_FOP_TYPE_INIT(&m0_fop_iterator_test_fopt,
-				.name   = "FOP Iterator Test",
-				.opcode = M0_FOP_ITERATOR_TEST_OPCODE,
-				.xt     = m0_fop_iterator_test_xc);
+	M0_FOP_TYPE_INIT(&m0_fop_iterator_test_fopt,
+			 .name   = "FOP Iterator Test",
+			 .opcode = M0_FOP_ITERATOR_TEST_OPCODE,
+			 .xt     = m0_fop_iterator_test_xc);
+	return 0;
 }
 
 /* Just fill fop object fields */

@@ -57,32 +57,33 @@ M0_INTERNAL int m0_poolmach_fop_init(void)
 	m0_xc_pool_fops_init();
 	m0_sm_conf_extend(m0_generic_conf.scf_state, poolmach_phases,
 			  m0_generic_conf.scf_nr_states);
-	return  M0_FOP_TYPE_INIT(&m0_fop_poolmach_query_fopt,
-				 .name      = "Pool Machine query request",
-				 .opcode    = M0_POOLMACHINE_QUERY_OPCODE,
-				 .xt        = m0_fop_poolmach_query_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fom_ops   = &poolmach_fom_type_ops,
-				 .svc_type  = &m0_ios_type,
-				 .sm        = &poolmach_conf) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_poolmach_query_rep_fopt,
-				 .name      = "Pool Machine query reply",
-				 .opcode    = M0_POOLMACHINE_QUERY_REP_OPCODE,
-				 .xt        = m0_fop_poolmach_query_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_poolmach_set_fopt,
-				 .name      = "Pool Machine set request",
-				 .opcode    = M0_POOLMACHINE_SET_OPCODE,
-				 .xt        = m0_fop_poolmach_set_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
-				 .fom_ops   = &poolmach_fom_type_ops,
-				 .sm        = &poolmach_conf,
-				 .svc_type  = &m0_ios_type) ?:
-		M0_FOP_TYPE_INIT(&m0_fop_poolmach_set_rep_fopt,
-				 .name      = "Pool Machine set reply",
-				 .opcode    = M0_POOLMACHINE_SET_REP_OPCODE,
-				 .xt        = m0_fop_poolmach_set_rep_xc,
-				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_poolmach_query_fopt,
+			 .name      = "Pool Machine query request",
+			 .opcode    = M0_POOLMACHINE_QUERY_OPCODE,
+			 .xt        = m0_fop_poolmach_query_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = &poolmach_fom_type_ops,
+			 .svc_type  = &m0_ios_type,
+			 .sm        = &poolmach_conf);
+	M0_FOP_TYPE_INIT(&m0_fop_poolmach_query_rep_fopt,
+			 .name      = "Pool Machine query reply",
+			 .opcode    = M0_POOLMACHINE_QUERY_REP_OPCODE,
+			 .xt        = m0_fop_poolmach_query_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	M0_FOP_TYPE_INIT(&m0_fop_poolmach_set_fopt,
+			 .name      = "Pool Machine set request",
+			 .opcode    = M0_POOLMACHINE_SET_OPCODE,
+			 .xt        = m0_fop_poolmach_set_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = &poolmach_fom_type_ops,
+			 .sm        = &poolmach_conf,
+			 .svc_type  = &m0_ios_type);
+	M0_FOP_TYPE_INIT(&m0_fop_poolmach_set_rep_fopt,
+			 .name      = "Pool Machine set reply",
+			 .opcode    = M0_POOLMACHINE_SET_REP_OPCODE,
+			 .xt        = m0_fop_poolmach_set_rep_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+	return 0;
 }
 
 #undef M0_TRACE_SUBSYSTEM

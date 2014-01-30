@@ -312,18 +312,18 @@ static const struct m0_fom_type_ops mgmt_fop_ss_fom_type_ops = {
 static int mgmt_fop_ss_init(void)
 {
 	m0_addb_ctx_type_register(&m0_addb_ct_mgmt_fom_ss);
-	return
-	   M0_FOP_TYPE_INIT(&m0_fop_mgmt_service_state_req_fopt,
-			    .name      = "Mgmt Service Status Request",
-			    .opcode    = M0_MGMT_SERVICE_STATE_OPCODE,
-			    .xt        = m0_fop_mgmt_service_state_req_xc,
-			    .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+	M0_FOP_TYPE_INIT(&m0_fop_mgmt_service_state_req_fopt,
+			 .name      = "Mgmt Service Status Request",
+			 .opcode    = M0_MGMT_SERVICE_STATE_OPCODE,
+			 .xt        = m0_fop_mgmt_service_state_req_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 #ifdef M0_MGMT_SERVICE_PRESENT
-			    .sm        = &mgmt_fop_ss_sm,
-			    .fom_ops   = &mgmt_fop_ss_fom_type_ops,
-			    .svc_type  = &m0_mgmt_svc_type,
+			 .sm        = &mgmt_fop_ss_sm,
+			 .fom_ops   = &mgmt_fop_ss_fom_type_ops,
+			 .svc_type  = &m0_mgmt_svc_type,
 #endif
-			    );
+			 );
+	return 0;
 
 }
 

@@ -117,23 +117,23 @@ M0_INTERNAL void m0_sns_cm_trigger_fop_fini(struct m0_fop_type *ft)
 	m0_fop_type_fini(ft);
 }
 
-M0_INTERNAL int m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
-					   enum M0_RPC_OPCODES op,
-					   const char *name,
-					   const struct m0_xcode_type *xt,
-					   uint64_t rpc_flags,
-					   struct m0_cm_type *cmt)
+M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,
+					    enum M0_RPC_OPCODES op,
+					    const char *name,
+					    const struct m0_xcode_type *xt,
+					    uint64_t rpc_flags,
+					    struct m0_cm_type *cmt)
 {
 	m0_sm_conf_extend(m0_generic_conf.scf_state, trigger_phases,
 			  m0_generic_conf.scf_nr_states);
-	return  M0_FOP_TYPE_INIT(ft,
-			.name      = name,
-			.opcode    = op,
-			.xt        = xt,
-			.rpc_flags = rpc_flags,
-			.fom_ops   = &trigger_fom_type_ops,
-			.svc_type  = &cmt->ct_stype,
-			.sm        = &trigger_conf);
+	M0_FOP_TYPE_INIT(ft,
+			 .name      = name,
+			 .opcode    = op,
+			 .xt        = xt,
+			 .rpc_flags = rpc_flags,
+			 .fom_ops   = &trigger_fom_type_ops,
+			 .svc_type  = &cmt->ct_stype,
+			 .sm        = &trigger_conf);
 }
 
 static bool is_repair_trigger_fop(const struct m0_fop *fop)
