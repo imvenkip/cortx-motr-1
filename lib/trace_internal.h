@@ -72,7 +72,7 @@ M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void);
 
 M0_INTERNAL void m0_trace_stats_update(uint32_t rec_size);
 
-M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh);
+M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, uint32_t buf_size);
 M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh);
 
 M0_INTERNAL void m0_trace_switch_to_static_logbuf(void);

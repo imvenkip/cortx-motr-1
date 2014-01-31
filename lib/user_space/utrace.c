@@ -104,9 +104,9 @@ static int logbuf_map(uint32_t logbuf_size)
 	} else {
 		m0_logbuf_header = &trace_area->ta_header;
 		m0_logbuf = trace_area->ta_buf;
-		m0_trace_logbuf_size_set(logbuf_size);
 		memset(trace_area, 0, trace_area_size);
-		m0_trace_buf_header_init(&trace_area->ta_header);
+		m0_trace_buf_header_init(&trace_area->ta_header, logbuf_size);
+		m0_trace_logbuf_size_set(logbuf_size);
 	}
 
 	return -errno;

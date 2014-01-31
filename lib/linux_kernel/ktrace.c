@@ -189,7 +189,7 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t default_trace_buf_size)
 		return -ENOMEM;
 	}
 
-	m0_trace_buf_header_init(&trace_area->ta_header);
+	m0_trace_buf_header_init(&trace_area->ta_header, trace_buf_size);
 
 	m0_logbuf_header = &trace_area->ta_header;
 	m0_logbuf = trace_area->ta_buf;

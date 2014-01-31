@@ -866,13 +866,13 @@ M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void)
 M0_EXPORTED(m0_trace_last_record_get);
 
 
-M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh)
+M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, uint32_t buf_size)
 {
 	const struct m0_build_info  *bi = m0_build_info_get();
 
 	tbh->tbh_magic          = M0_TRACE_BUF_HEADER_MAGIC;
 	tbh->tbh_header_size    = M0_TRACE_BUF_HEADER_SIZE;
-	tbh->tbh_buf_size       = m0_logbufsize;
+	tbh->tbh_buf_size       = buf_size;
 	tbh->tbh_magic_sym_addr = &trace_magic_symbol;
 	tbh->tbh_log_time       = m0_time_now();
 
