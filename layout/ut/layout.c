@@ -134,6 +134,7 @@ static void test_domain_init_fini(void)
 
 	M0_ENTRY();
 
+	M0_SET0(&t_dbenv);
 	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	M0_UT_ASSERT(rc == 0);
 
@@ -163,6 +164,7 @@ static void test_domain_init_fini_failure(void)
 	struct m0_dbenv         t_dbenv;
 
 	M0_ENTRY();
+	M0_SET0(&t_dbenv);
 	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	M0_UT_ASSERT(rc == 0);
 
@@ -282,6 +284,7 @@ static void test_reg_unreg(void)
 	 */
 	m0_layout_standard_types_unregister(&domain);
 
+	M0_SET0(&t_dbenv);
 	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	M0_UT_ASSERT(rc == 0);
 
@@ -358,6 +361,7 @@ static void test_reg_unreg_failure(void)
 	 */
 	m0_layout_standard_types_unregister(&domain);
 
+	M0_SET0(&t_dbenv);
 	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	M0_UT_ASSERT(rc == 0);
 
@@ -2208,6 +2212,7 @@ static void test_max_recsize(void)
 	 */
 	m0_layout_standard_types_unregister(&domain);
 
+	M0_SET0(&t_dbenv);
 	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	M0_UT_ASSERT(rc == 0);
 

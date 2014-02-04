@@ -46,6 +46,8 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/repair/ut/cp_common.h"
 
+#include "cm/ut/common_service.h"
+
 enum {
 	ITER_UT_BUF_NR     = 1 << 8,
 	ITER_GOB_KEY_START = 4,

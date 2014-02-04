@@ -32,6 +32,7 @@ static void test_db_create(void)
 	struct m0_dbenv db;
 	int             result;
 
+	M0_SET0(&db);
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_UT_ASSERT(result == 0);
 	m0_dbenv_fini(&db);
@@ -97,6 +98,7 @@ static void test_table_create(void)
 	struct m0_table table;
 	int             result;
 
+	M0_SET0(&db);
 	result = m0_dbenv_init(&db, db_name, 0);
 	M0_UT_ASSERT(result == 0);
 
@@ -117,6 +119,7 @@ static void test_lookup(void)
 	uint64_t          key;
 	uint64_t          rec;
 
+	M0_SET0(&db);
         dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 42;
@@ -140,6 +143,7 @@ static void test_insert(void)
 	uint64_t          rec;
 	uint64_t          rec_out;
 
+	M0_SET0(&db);
         dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 42;
@@ -162,6 +166,7 @@ static void test_insert(void)
 
 	/* and look up again */
 
+	M0_SET0(&db);
         dbut_init(db_name, test_table, &db, &table, &tx);
 
 	m0_db_pair_setup(&cons1, &table, &key, sizeof key,
@@ -186,6 +191,7 @@ static void test_delete(void)
 	uint64_t          rec;
 	uint64_t          rec_out;
 
+	M0_SET0(&db);
         dbut_init(db_name, test_table, &db, &table, &tx);
 
 	key = 43;
@@ -255,6 +261,7 @@ static void test_cursor_flags_read_only(void)
 	uint64_t            key;
 	uint64_t            rec;
 
+	M0_SET0(&db);
         dbut_init(db_name, test_table, &db, &table1, &tx1);
 
 	key = 11;
@@ -267,6 +274,7 @@ static void test_cursor_flags_read_only(void)
 	m0_db_pair_fini(&pair1);
         dbut_fini(&db, &table1, &tx1, &m0_db_tx_commit);
 
+	M0_SET0(&db);
         /* Get readonly cursor */
         dbut_init(db_name, test_table, &db, &table1, &tx1);
 

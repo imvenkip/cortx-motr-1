@@ -31,6 +31,7 @@
 #include "reqh/reqh_service.h"
 #include "cm/proxy.h"
 #include "ut/ut_rpc_machine.h"
+#include "cm/ut/common_service.h"
 #include <unistd.h>			/* usleep */
 
 /* import from pool/pool_store.c */
@@ -763,7 +764,8 @@ static void sender_fini()
         rc = m0_rpc_client_stop(&cctx);
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);
-	m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
+	//m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
+	cm_cp_ut_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
 	reqh = sender_cm_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
 	grp  = m0_locality0_get()->lo_grp;

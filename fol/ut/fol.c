@@ -34,6 +34,19 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 
+#if XXX_USE_DB5
+static const char db_name[] = "ut-fol";
+
+static struct m0_fol_rec_header *h;
+static struct m0_fol_rec_desc   *d;
+static struct m0_fol             fol;
+static struct m0_fol_rec         r;
+static struct m0_fol_rec_desc   *d;
+static struct m0_fol_rec_header *hh;
+static struct m0_buf             buf;
+static struct m0_dbenv           db;
+static struct m0_db_tx           tx;
+#else
 static struct m0_fol            *g_fol;
 static struct m0_fol_rec_header *g_hdr;
 static struct m0_fol_rec_desc   *g_desc;
@@ -67,7 +80,7 @@ static void test_init(void)
 	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &cred);
 
 	M0_BE_OP_SYNC(op,
-		      rc = m0_fol_create(g_fol, &g_tx, &op));
+			rc = m0_fol_create(g_fol, &g_tx, &op));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fol_rec_init(&g_rec);

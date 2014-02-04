@@ -1051,15 +1051,9 @@ static void cs_storage_fini(struct cs_stobs *stob)
 		yaml_document_delete(&stob->s_sfile.sf_document);
 }
 
-/**
-   Initialises and starts a particular service.
-
-   Once the service is initialised, it is started and registered with the
-   appropriate request handler.
- */
-static int
-cs_service_init(const char *name, struct m0_reqh_context *rctx,
-		struct m0_reqh *reqh, struct m0_uint128 *uuid, bool mgmt)
+static int __service_init(const char *name, struct m0_reqh_context *rctx,
+			  struct m0_reqh *reqh, struct m0_uint128 *uuid,
+			  bool mgmt)
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
@@ -1079,19 +1073,35 @@ cs_service_init(const char *name, struct m0_reqh_context *rctx,
 	m0_reqh_service_init(service, reqh, uuid);
 
 	/** @todo Remove the USE_MGMT_STARTUP macro later */
-//#define USE_MGMT_STARTUP 1
-//#if USE_MGMT_STARTUP
 	if (mgmt)
 		rc = m0_mgmt_reqh_service_start(service);
-//#else
 	else
 		rc = m0_reqh_service_start(service);
-//#endif
 	if (rc != 0)
 		m0_reqh_service_fini(service);
 
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
 	M0_RETURN(rc);
+
+}
+
+/**
+   Initialises and starts a particular service.
+
+   Once the service is initialised, it is started and registered with the
+   appropriate request handler.
+ */
+static int
+cs_service_init(const char *name, struct m0_reqh_context *rctx,
+		struct m0_reqh *reqh, struct m0_uint128 *uuid)
+{
+	/** @todo Remove the USE_MGMT_STARTUP macro later */
+#define USE_MGMT_STARTUP 0
+#if USE_MGMT_STARTUP
+	return __service_init(name, rctx, reqh, uuid, true);
+#else
+	return __service_init(name, rctx, reqh, uuid, false);
+#endif
 }
 
 static int reqh_services_init(struct m0_reqh_context *rctx)
@@ -1106,7 +1116,7 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
 		name = rctx->rc_services[i];
 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
-				     &rctx->rc_service_uuids[i], true);
+				     &rctx->rc_service_uuids[i]);
 	}
 #if USE_MGMT_STARTUP
 	/* Do not terminate on failure here as services start asynchronously. */
@@ -1139,9 +1149,9 @@ static int cs_services_init(struct m0_mero *cctx)
 			break;
 		m0_reqh_start(&rctx->rc_reqh);
 		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
-				     NULL, true) ?:
+				     NULL) ?:
 		     cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
-				     NULL, true) ?:
+				     NULL) ?:
 			reqh_services_init(rctx);
 		m0_mgmt_reqh_services_start_wait(&rctx->rc_reqh);
 		/* return failure if any service has failed */
@@ -1154,9 +1164,9 @@ static int cs_services_init(struct m0_mero *cctx)
 #else
 		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
 			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
-					NULL, true) ?:
+					NULL) ?:
 			cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
-					NULL, true) ?:
+					NULL) ?:
 			reqh_services_init(rctx);
 		if (rc != 0)
 			break;
@@ -1331,6 +1341,18 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 	cs_storage_fini(&addb_stob->cas_stobs);
 }
 
+static void cs_reqh_be_tx_svc_stop(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service *svc;
+
+	svc = m0_reqh_service_find(m0_reqh_service_type_find("be-tx-service"),
+				   reqh);
+	if (M0_IN(m0_reqh_service_state_get(svc),
+				(M0_RST_STARTED, M0_RST_STOPPING)))
+		m0_reqh_service_stop(svc);
+	m0_reqh_service_fini(svc);
+}
+
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1360,7 +1382,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		goto out;
 
-	rc = cs_service_init("be-tx-service", rctx, &rctx->rc_reqh, NULL, false);
+	rc = __service_init("be-tx-service", rctx, &rctx->rc_reqh, NULL, false);
 	if (rc != 0)
 		goto reqh_fini;
 	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
@@ -1448,6 +1470,7 @@ reqh_dbenv_fini:
 dbenv_fini:
 	m0_dbenv_fini(&rctx->rc_db);
 reqh_fini:
+	cs_reqh_be_tx_svc_stop(&rctx->rc_reqh);
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
 	M0_ASSERT(rc != 0);
@@ -1499,6 +1522,9 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
+	cs_storage_fini(&rctx->rc_stob);
+	/* Stop m0_be_tx_group_fom */
+	m0_be_engine_stop(&rctx->rc_db.d_i.d_ut_be.but_dom.bd_engine);
 	m0_reqh_fom_domain_idle_wait(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
@@ -1513,7 +1539,7 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	m0_reqh_dbenv_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
-	cs_storage_fini(&rctx->rc_stob);
+	//cs_storage_fini(&rctx->rc_stob);
 	m0_dbenv_fini(&rctx->rc_db);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);

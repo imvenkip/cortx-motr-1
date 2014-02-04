@@ -52,7 +52,6 @@ static void _addb_init(void)
 	/* XXX not thread-safe */
 	act = m0_addb_ctx_type_lookup(M0_ADDB_CTXID_TX_SERVICE);
 	if (act == NULL) {
-		 M0_LOG(M0_FATAL, "addb_init");
 		 m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
 		 //M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_tx_service_mod_addb_ctx,
 		//		 &m0_addb_ct_tx_service, &m0_addb_proc_ctx);
@@ -111,14 +110,14 @@ static int txs_allocate(struct m0_reqh_service **service,
 			struct m0_reqh_service_type *stype,
 			struct m0_reqh_context *rctx)
 {
-	struct m0_be_domain *bdom;
+	//struct m0_be_domain *bdom;
 	struct tx_service   *s;
 
 	M0_ENTRY();
 	M0_PRE(stype == &m0_be_txs_stype);
 
-	M0_ALLOC_PTR(bdom);
-	if (bdom == NULL)
+	M0_ALLOC_PTR(s);
+	if (s == NULL)
 		M0_RETURN(-ENOMEM);
 
 	*service = &s->ts_reqh;

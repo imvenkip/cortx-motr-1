@@ -118,6 +118,7 @@ void m0_be_ut_seg_dict(void)
 		{ "f00d", (void*)0xf00d },
 	};
 
+	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);

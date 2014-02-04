@@ -279,6 +279,8 @@ void test_balloc()
 	struct m0_be_seg	*seg;
 	int			 rc;
 
+	M0_SET0(&ut_be);
+	M0_SET0(&ut_seg);
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);

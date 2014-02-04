@@ -110,7 +110,9 @@ static void cm_setup_ut(void)
 	cm->cm_sw_update.swu_is_complete = true;
 	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
-	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
+	//m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
+	m0_reqh_shutdown(&cmut_rmach_ctx.rmc_reqh);
+	cm_cp_ut_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
 
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
@@ -119,7 +121,6 @@ static void cm_setup_ut(void)
 	m0_sm_group_lock(grp);
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
 	m0_sm_group_unlock(grp);
-
 	m0_ios_poolmach_fini(cm_ut_service);
 	cm_ut_service_cleanup();
 }

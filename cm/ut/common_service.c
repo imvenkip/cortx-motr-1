@@ -272,6 +272,20 @@ int cm_ut_server_start(struct m0_mero *m0ctx, struct m0_net_xprt **xprts,
 	return rc;
 }
 
+void cm_cp_ut_fom_domain_idle_wait(struct m0_reqh *reqh)
+{
+        struct m0_clink clink;
+
+        M0_PRE(reqh != NULL);
+        m0_clink_init(&clink, NULL);
+        m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
+
+        while (reqh->rh_fom_dom.fd_localities[0].fl_foms > 1)
+                m0_chan_timedwait(&clink, m0_time_from_now(2, 0));
+        m0_clink_del_lock(&clink);
+        m0_clink_fini(&clink);
+}
+
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 /*
  *  Local variables:

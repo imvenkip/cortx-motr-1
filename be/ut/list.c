@@ -72,6 +72,7 @@ M0_INTERNAL void m0_be_ut_list_api(void)
 
 	M0_ENTRY();
 
+	M0_SET0(&ut_be);
 	/* Init BE. */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);

@@ -508,9 +508,7 @@ M0_INTERNAL void m0__addb_ctx_init(struct m0_addb_mc *mc,
 				   uint64_t fields[])
 {
 	M0_PRE(!m0_addb_ctx_is_imported(parent));
-	M0_LOG(M0_FATAL, "%p %u %p %p",
-		ct->act_name, ct->act_id, addb_ctx_type_lookup(ct->act_id), ct);
-	//M0_PRE(addb_ctx_type_invariant(ct));
+	M0_PRE(addb_ctx_type_invariant(ct));
 
 	/* construct the context object */
 	ctx->ac_type = ct;

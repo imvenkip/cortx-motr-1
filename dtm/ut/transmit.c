@@ -34,7 +34,6 @@
 #include "lib/errno.h"        /* EPROTO */
 #include "lib/assert.h"
 #include "lib/memory.h"
-
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
@@ -49,6 +48,7 @@
 #include "dtm/fol.h"
 #include "dtm/ltx.h"
 #include "dtm/dtm.h"
+#include "ut/be.h"
 
 M0_INTERNAL void up_print(const struct m0_dtm_up *up);
 M0_INTERNAL void op_print(const struct m0_dtm_op *op);
@@ -437,7 +437,8 @@ static void rpc_fop_fom_init(void)
 
 static void rpc_fop_fom_fini(void)
 {
-	m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);
+	//m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);
+	m0_ut_be_fom_domain_idle_wait(&test_ctx.rmc_reqh);
 	m0_reqh_service_stop(test_svc);
 	m0_reqh_service_fini(test_svc);
 	m0_reqh_service_type_unregister(&test_stype);
@@ -713,7 +714,8 @@ static void redo_test(void)
 
 	ticked = 0;
 	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 2);
-	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
+	//m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
+	m0_ut_be_fom_domain_idle_wait(&test_ctx.rmc_reqh);
 	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();
 	src_fini();

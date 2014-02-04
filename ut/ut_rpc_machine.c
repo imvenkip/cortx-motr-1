@@ -76,6 +76,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 			  .rhia_svc       = (void*)1);
 	M0_ASSERT(rc == 0);
 
+	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &ctx->rmc_reqh;
 	m0_ut_backend_init(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
 	seg = &ctx->rmc_ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
@@ -124,14 +125,9 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 
 	if (m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(&ctx->rmc_reqh);
-	m0_reqh_fom_domain_idle_wait(&ctx->rmc_reqh);
-
 	m0_reqh_services_terminate(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
-
 	m0_reqh_fol_destroy(&ctx->rmc_reqh);
-	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
-
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
 	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp);
 	M0_ASSERT(rc == 0);
@@ -139,6 +135,11 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 
 	rc = m0_be_ut__seg_dict_destroy(&ctx->rmc_ut_seg.bus_seg, grp);
 	M0_ASSERT(rc == 0);
+	m0_be_ut_seg_allocator_fini(&ctx->rmc_ut_seg, &ctx->rmc_ut_be);
+	m0_be_engine_stop(&ctx->rmc_ut_be.but_dom.bd_engine);
+	m0_reqh_fom_domain_idle_wait(&ctx->rmc_reqh);
+
+	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
 	m0_ut_backend_fini(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
 
 	m0_reqh_fini(&ctx->rmc_reqh);

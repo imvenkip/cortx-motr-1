@@ -1761,7 +1761,7 @@ static void bulkio_fini(void)
 	for (i = 0; i < IO_FIDS_NR; ++i)
 		m0_file_fini(&bp->bp_file[i]);
 	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
-	m0_reqh_fom_domain_idle_wait(reqh);
+	//m0_reqh_fom_domain_idle_wait(reqh);
 	bulkio_client_stop(bp->bp_cctx);
 	bulkio_server_stop(bp->bp_sctx);
 	m0_addb_mc_fini(&m0_addb_gmc);

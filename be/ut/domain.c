@@ -27,6 +27,7 @@ void m0_be_ut_domain(void)
 {
 	struct m0_be_ut_backend ut_be;
 
+	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_backend_fini(&ut_be);
 }

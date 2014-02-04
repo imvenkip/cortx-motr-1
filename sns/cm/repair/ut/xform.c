@@ -24,6 +24,7 @@
 #include "mero/setup.h"
 #include "sns/cm/repair/xform.c"
 #include "sns/cm/repair/ut/cp_common.h"
+#include "cm/ut/common_service.h"
 
 enum {
 	SEG_NR                  = 16,
@@ -338,7 +339,8 @@ static void test_single_cp(void)
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_fom_domain_idle_wait(reqh);
+	//m0_reqh_fom_domain_idle_wait(reqh);
+	cm_cp_ut_fom_domain_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that the single copy packet has been treated
@@ -384,7 +386,8 @@ static void test_multi_cp_single_failure(void)
 	 * Wait until the fom in the request handler locality runq is
 	 * processed. This is required for further validity checks.
 	 */
-	m0_reqh_fom_domain_idle_wait(reqh);
+	//m0_reqh_fom_domain_idle_wait(reqh);
+	cm_cp_ut_fom_domain_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that all the copy packets have been collected
@@ -519,7 +522,8 @@ static void test_multi_cp_multi_failures(void)
          * Wait until the fom in the request handler locality runq is
          * processed. This is required for further validity checks.
          */
-        m0_reqh_fom_domain_idle_wait(reqh);
+        //m0_reqh_fom_domain_idle_wait(reqh);
+	cm_cp_ut_fom_domain_idle_wait(reqh);
 
 	/* Verify that first accumulator contains recovered data for D1. */
 	bv_populate(&src, 's', SEG_NR, SEG_SIZE);

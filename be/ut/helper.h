@@ -66,6 +66,9 @@ void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
 
 /* will work with single thread only */
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
+void m0_be_ut_tx_prep(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
+		      struct m0_be_tx_credit *cred);
+void m0_be_ut_tx_fini(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
 
 struct m0_be_ut_seg {
 	/** Stob for segment */
@@ -83,6 +86,8 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_backend_get(struct m0_be_ut_backend **ut_be,
+                          struct m0_be_ut_seg **ut_seg);
 
 /*
  * tx capturing checker for UT.

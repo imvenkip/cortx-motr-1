@@ -404,6 +404,7 @@ static void tx_group_fom_fini(struct m0_fom *fom)
 	struct m0_be_tx_group_fom *m = fom2tx_group_fom(fom);
 
 	m0_semaphore_up(&m->tgf_finish_sem);
+	m0_fom_fini(fom);
 }
 
 static size_t tx_group_fom_locality(const struct m0_fom *fom)
@@ -472,7 +473,8 @@ static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stable);
 
 	m->tgf_stable = true;
-	m0_fom_wakeup(&m->tgf_gen);
+	if (m0_fom_is_waiting(&m->tgf_gen))
+		m0_fom_wakeup(&m->tgf_gen);
 }
 
 static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
@@ -481,7 +483,8 @@ static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stop);
 
 	m->tgf_stopping = true;
-	m0_fom_wakeup(&m->tgf_gen);
+	if (m0_fom_is_waiting(&m->tgf_gen))
+		m0_fom_wakeup(&m->tgf_gen);
 }
 
 static void be_tx_group_fom_timeout_cb(struct m0_fom_callback *cb)
@@ -565,7 +568,6 @@ M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m)
 	m0_semaphore_fini(&m->tgf_start_sem);
 	m0_semaphore_fini(&m->tgf_finish_sem);
 	m0_fom_timeout_fini(&m->tgf_to);
-	m0_fom_fini(&m->tgf_gen);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m)
@@ -604,6 +606,8 @@ M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
 	m0_semaphore_down(&gf->tgf_finish_sem);
+	//if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
+	//	m0_semaphore_down(&gf->tgf_stopped);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,

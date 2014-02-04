@@ -31,6 +31,7 @@ struct m0_be_tx;
 struct m0_be_seg;
 struct m0_be_ut_backend;
 struct m0_be_ut_seg;
+struct m0_reqh;
 
 /**
  * @addtogroup ut
@@ -67,6 +68,17 @@ M0_INTERNAL void *m0_ut_be_alloc(m0_bcount_t size, struct m0_be_seg *seg,
 M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
 			       struct m0_be_seg *seg,
 			       struct m0_be_ut_backend *ut_be);
+
+M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
+
+M0_INTERNAL void m0_ut_backend_init_with_reqh(struct m0_reqh *reqh,
+					      struct m0_be_ut_backend *be,
+					      struct m0_be_ut_seg *seg,
+					      m0_bcount_t seg_size);
+
+M0_INTERNAL void m0_ut_backend_fini_with_reqh(struct m0_reqh *reqh,
+					      struct m0_be_ut_backend *be,
+					      struct m0_be_ut_seg *seg);
 
 /** @} end of ut group */
 #endif /* __MERO_UT_BE_H__ */

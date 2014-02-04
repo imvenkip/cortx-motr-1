@@ -25,7 +25,9 @@
 #include "conf/obj.h"      /* m0_conf_objtype */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/ut/file_helpers.h"
+#include "reqh/reqh.h"
 #include "ut/ut.h"
+#include "ut/be.h"
 #include "be/ut/helper.h"
 
 #define _CONFDB_PATH "_conf.db"
@@ -33,6 +35,7 @@
 
 static struct m0_be_ut_backend ut_be;
 static struct m0_be_ut_seg     ut_seg;
+static struct m0_reqh          reqh;
 static struct m0_be_seg       *seg;
 
 /* ----------------------------------------------------------------
@@ -171,22 +174,29 @@ static void cleanup(void)
 
 static void conf_ut_db_init()
 {
-	struct m0_sm_group     *grp;
-	int                     rc;
+	//struct m0_sm_group     *grp;
+	//int                     rc;
 
-        m0_be_ut_backend_init(&ut_be);
-        m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+        //m0_be_ut_backend_init(&ut_be);
+       // m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+       // m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	m0_ut_backend_init_with_reqh(&reqh, &ut_be, &ut_seg, 1ULL << 20);
+	//grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
         seg = &ut_seg.bus_seg;
-        rc = m0_be_ut__seg_dict_create(seg, grp);
-        M0_UT_ASSERT(rc == 0);
+        //rc = m0_be_ut__seg_dict_create(seg, grp);
+        //M0_UT_ASSERT(rc == 0);
 }
 
 static void conf_ut_db_fini()
 {
+	/*
+	 * XXX: Call m0_ut_backend_fini_with_reqh() after
+	 *      fixing m0_confdb_destroy().
+	 */
+	//m0_ut_backend_fini_with_reqh(&reqh, &ut_be, &ut_seg);
         m0_be_ut_seg_fini(&ut_seg);
         m0_be_ut_backend_fini(&ut_be);
+	m0_reqh_fini(&reqh);
 }
 
 static int conf_ut_be_tx_create(struct m0_be_tx *tx,

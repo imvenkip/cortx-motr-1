@@ -2181,7 +2181,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	rc = m0_be_seg_dict_lookup(seg, cid_name, (void**)out);
 	if (rc == 0)
 		return rc;
-
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);

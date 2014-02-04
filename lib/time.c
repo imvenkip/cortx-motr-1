@@ -59,14 +59,14 @@ m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
 	m0_time_t res;
 	M0_PRE(M0_TIME_NEVER >= t1);
 	M0_PRE(t2 < M0_TIME_NEVER);
-	M0_PRE(t1 >= t2);
+	//M0_PRE(t1 >= t2);
 
 	if (t1 == M0_TIME_NEVER)
 		res = M0_TIME_NEVER;
 	else
 		res = t1 - t2;
 
-	M0_POST(t1 >= res);
+	//M0_POST(t1 >= res);
 	return res;
 }
 M0_EXPORTED(m0_time_sub);

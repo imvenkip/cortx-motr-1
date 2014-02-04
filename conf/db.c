@@ -384,6 +384,11 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
 	int                     i;
 	int                     rc = 0;
 
+	/*
+	 * FIXME: Does not free the internal be objects allocated during
+	 *        confdb_create as part of xcode_dup operation.
+	 */
+
 	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
 		if (table_names[i] == NULL)
 			continue;

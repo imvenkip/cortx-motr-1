@@ -113,6 +113,7 @@ static void test_init(void)
 
 	/* Init BE */
 	/** XXX @todo break UT into small transactions */
+	M0_SET0(&cfg);
 	m0_be_ut_backend_cfg_default(&cfg);
 	cfg.bc_engine.bec_log_size	 = 1 << 27;
 	cfg.bc_engine.bec_tx_size_max	 = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
