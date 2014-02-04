@@ -233,6 +233,7 @@ void write_post(void)
 	rc = m0_stob_create_helper(sdom, &tx, &sid, &stob);
 	M0_UT_ASSERT(rc == 0);
 	m0_dtx_done_sync(&tx);
+	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 
 	m0_stob_put(stob);
