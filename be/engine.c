@@ -325,7 +325,9 @@ M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,
 M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
 				       struct m0_be_tx *tx)
 {
-	etx_tlink_fini(tx);
+	be_engine_lock(en);
+	etx_tlink_del_fini(tx);
+	be_engine_unlock(en);
 }
 
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
@@ -339,8 +341,7 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 
 	if (state != M0_BTS_PREPARE)
 		etx_tlist_del(tx);
-	if (!M0_IN(state, (M0_BTS_DONE, M0_BTS_FAILED)))
-		etx_tlist_add_tail(&en->eng_txs[state], tx);
+	etx_tlist_add_tail(&en->eng_txs[state], tx);
 
 	switch (state) {
 	case M0_BTS_OPENING:
