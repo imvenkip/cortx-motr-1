@@ -23,6 +23,7 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
+#include "ut/be.h"
 #include "lib/misc.h"
 #include "lib/thread.h"
 
@@ -112,8 +113,7 @@ static void cm_setup_ut(void)
 	M0_UT_ASSERT(rc == 0);
 	//m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	m0_reqh_shutdown(&cmut_rmach_ctx.rmc_reqh);
-	cm_cp_ut_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
-
+	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
 	grp  = m0_locality0_get()->lo_grp;

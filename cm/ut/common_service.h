@@ -80,8 +80,6 @@ void cm_ut_server_stop(struct m0_mero *mero_ctx);
 void cm_ut_service_alloc_init();
 void cm_ut_service_cleanup();
 
-void cm_cp_ut_fom_domain_idle_wait(struct m0_reqh *reqh);
-
 #endif /** __MERO_CM_UT_COMMON_SERVICE_H__ */
 /*
  *  Local variables:

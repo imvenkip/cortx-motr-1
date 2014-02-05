@@ -239,8 +239,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_engine = {
 			.bec_group_nr	    = 1,
 			.bec_log_size	    = 1 << 27,
-			.bec_tx_size_max    = M0_BE_TX_CREDIT(1 << 18, 1 << 24),//(1 << 21, 1 << 26),//(1 << 18, 1 << 24),
-			.bec_group_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),//(1 << 22, 1 << 27),//(1 << 18, 1 << 24),
+			.bec_tx_size_max    = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
+			.bec_group_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.bec_group_tx_max   = 20,
 			.bec_log_replay	    = false,
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,

@@ -19,6 +19,7 @@
  */
 
 #include "ut/ut.h"
+#include "ut/be.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "reqh/reqh.h"
@@ -238,8 +239,7 @@ static void test_cp_single_thread(void)
          * processed.
          */
         //m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
-
-	cm_cp_ut_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
 	m0_semaphore_fini(&sem);
 }
 
@@ -277,7 +277,7 @@ static void test_cp_multi_thread(void)
          * processed.
          */
         //m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
-	cm_cp_ut_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
         m0_free(cp_thread);
 	m0_semaphore_fini(&sem);
 }

@@ -19,6 +19,7 @@
  */
 
 #include "lib/locality.h"
+#include "ut/be.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "mero/setup.h"
@@ -340,7 +341,7 @@ static void test_single_cp(void)
 	 * processed. This is required for further validity checks.
 	 */
 	//m0_reqh_fom_domain_idle_wait(reqh);
-	cm_cp_ut_fom_domain_idle_wait(reqh);
+	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that the single copy packet has been treated
@@ -387,7 +388,7 @@ static void test_multi_cp_single_failure(void)
 	 * processed. This is required for further validity checks.
 	 */
 	//m0_reqh_fom_domain_idle_wait(reqh);
-	cm_cp_ut_fom_domain_idle_wait(reqh);
+	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that all the copy packets have been collected
@@ -523,7 +524,7 @@ static void test_multi_cp_multi_failures(void)
          * processed. This is required for further validity checks.
          */
         //m0_reqh_fom_domain_idle_wait(reqh);
-	cm_cp_ut_fom_domain_idle_wait(reqh);
+	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	/* Verify that first accumulator contains recovered data for D1. */
 	bv_populate(&src, 's', SEG_NR, SEG_SIZE);

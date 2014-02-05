@@ -483,7 +483,8 @@ static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stop);
 
 	m->tgf_stopping = true;
-	if (m0_fom_is_waiting(&m->tgf_gen))
+	if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
+	//if (m0_fom_is_waiting(&m->tgf_gen))
 		m0_fom_wakeup(&m->tgf_gen);
 }
 

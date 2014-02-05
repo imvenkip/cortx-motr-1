@@ -26,6 +26,7 @@
 #include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/locality.h"
+#include "ut/be.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
@@ -249,7 +250,7 @@ void write_post(void)
 	 * processed. This is required for further validity checks.
 	 */
 	//m0_reqh_fom_domain_idle_wait(reqh);
-	cm_cp_ut_fom_domain_idle_wait(reqh);
+	m0_ut_be_fom_domain_idle_wait(reqh);
 }
 
 const struct m0_cm_cp_ops read_cp_dummy_ops = {
@@ -299,7 +300,7 @@ static void read_post(void)
          * processed. This is required for further validity checks.
          */
 	//m0_reqh_fom_domain_idle_wait(reqh);
-	cm_cp_ut_fom_domain_idle_wait(reqh);
+	m0_ut_be_fom_domain_idle_wait(reqh);
 }
 
 static void test_cp_write_read(void)
