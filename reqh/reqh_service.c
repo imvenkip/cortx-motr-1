@@ -362,47 +362,11 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_reqh_lockers_clear(reqh, key);
 }
 
-static void reqh_rpc_svc_fini_and_free(struct m0_rpc_service *service)
-{
-	m0_rpc__service_fini(service);
-	service->svc_state = M0_RPC_SERVICE_STATE_UNDEFINED;
-}
-
-static const struct m0_rpc_service_ops reqh_rpc_svc_ops = {
-	.rso_fini_and_free = reqh_rpc_svc_fini_and_free,
-};
-
-static int
-reqh_rpc_svc_alloc_and_init(struct m0_rpc_service_type *service_type,
-			    const char                 *ep_addr,
-			    const struct m0_uint128    *uuid,
-			    struct m0_rpc_service     **out)
-{
-	int rc;
-
-	rc = m0_rpc__service_init(*out, service_type, ep_addr, uuid,
-				  &reqh_rpc_svc_ops);
-	(*out)->svc_state = M0_RPC_SERVICE_STATE_INITIALISED;
-	return rc;
-}
-
-static const struct m0_rpc_service_type_ops reqh_rpc_svct_ops = {
-	.rsto_alloc_and_init = reqh_rpc_svc_alloc_and_init,
-};
-
-M0_RPC_SERVICE_TYPE_DEFINE(static, reqh_rpc_svct, "Reqh service rpc svc",
-			   M0_REQH_SVC_RPC_SERVICE_TYPE, &reqh_rpc_svct_ops);
-
-
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_reqh         *reqh,
 				      struct m0_uint128      *uuid)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
-	//struct m0_rpc_machine   *rmach;
-	const char              *ep;
-	struct m0_uint128        uuid1;
-	struct m0_rpc_service   *rpcsvc = &service->rs_rpc_svc;
 
 	M0_PRE(service != NULL && reqh != NULL &&
 		service->rs_sm.sm_state == M0_RST_INITIALISING);
@@ -425,10 +389,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	m0_reqh_svc_tlink_init(service);
 	m0_mutex_init(&service->rs_mutex);
 	m0_chan_init(&service->rs_rev_conn_wait, &service->rs_mutex);
-	//rmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
-	//M0_ASSERT(rmach != NULL);
-	ep = "lnet:0@lo:12345:34:1";//m0_rpc_machine_ep(rmach);
-	m0_rpc_service_alloc_and_init(&reqh_rpc_svct, ep, &uuid1, &rpcsvc);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
 
 	/** @todo: Need to pass the service uuid "hi" & "low"
@@ -441,7 +401,8 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				 0, 0);
 	else /** This happens in UT, where no ADDB stob is specified */
 		M0_ADDB_CTX_INIT(&m0_addb_gmc, &service->rs_addb_ctx,
-				 serv_addb_ct, &reqh->rh_addb_ctx,
+				 serv_addb_ct,
+				 &reqh->rh_addb_ctx,
 				 0, 0);
 
 	M0_POST(m0_reqh_service_invariant(service));

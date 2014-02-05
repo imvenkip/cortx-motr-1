@@ -78,9 +78,6 @@ static void pm_test_init_fini(void)
 	struct m0_poolmach pm;
 	int                rc = 0;
 
-	M0_SET0(&dbenv);
-	rc = m0_dbenv_init(&dbenv, "pm_testing", 0);
-	M0_ASSERT(rc == 0);
 	M0_SET0(&pm);
 	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
 					 PM_TEST_DEFAULT_NODE_NUMBER,
@@ -109,11 +106,6 @@ static void pm_test_transit(void)
 	struct m0_be_tx_credit         cred = {};
 	struct m0_be_tx                tx;
 
-	M0_SET0(&dbenv);
-	rc = m0_dbenv_init(&dbenv, "pm_test_transit", 0);
-	M0_ASSERT(rc == 0);
-	rc = m0_db_tx_init(&tx, &dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&pm);
 	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
 					 PM_TEST_DEFAULT_NODE_NUMBER,
@@ -435,11 +427,6 @@ static void pm_test_spare_slot(void)
 	struct m0_be_tx       tx;
 	struct m0_be_tx_credit cred = {};
 
-	M0_SET0(&dbenv);
-	rc = m0_dbenv_init(&dbenv, "pm_test_spare_slot", 0);
-	M0_ASSERT(rc == 0);
-	rc = m0_db_tx_init(&tx, &dbenv, 0);
-	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&pm);
 	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
 					 PM_TEST_DEFAULT_NODE_NUMBER,
@@ -605,10 +592,6 @@ static void pm_test_multi_fail(void)
 	struct m0_be_tx       tx;
 	struct m0_be_tx_credit cred = {};
 
-	M0_SET0(&dbenv);
-	rc = m0_dbenv_init(&dbenv, "pm_test_multi_fail", 0);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&pm);
 	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
 					 PM_TEST_DEFAULT_NODE_NUMBER,
@@ -796,9 +779,6 @@ static void pm_test_load_from_persistent_storage(void)
 	struct m0_poolmach pm;
 	int                rc = 0;
 
-	M0_SET0(&dbenv);
-	rc = m0_dbenv_init(&dbenv, "pm_test_multi_fail", 0);
-	M0_ASSERT(rc == 0);
 	M0_SET0(&pm);
 	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
 					 PM_TEST_DEFAULT_NODE_NUMBER,

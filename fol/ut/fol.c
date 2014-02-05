@@ -34,19 +34,6 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 
-#if XXX_USE_DB5
-static const char db_name[] = "ut-fol";
-
-static struct m0_fol_rec_header *h;
-static struct m0_fol_rec_desc   *d;
-static struct m0_fol             fol;
-static struct m0_fol_rec         r;
-static struct m0_fol_rec_desc   *d;
-static struct m0_fol_rec_header *hh;
-static struct m0_buf             buf;
-static struct m0_dbenv           db;
-static struct m0_db_tx           tx;
-#else
 static struct m0_fol            *g_fol;
 static struct m0_fol_rec_header *g_hdr;
 static struct m0_fol_rec_desc   *g_desc;
