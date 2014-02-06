@@ -42,8 +42,6 @@
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
-//#define REQH_EMU 1
-
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
 	BE_UT_SEG_START_ID   = 42ULL,
@@ -135,7 +133,7 @@ static void be_ut_helper_init_once(void)
 	M0_ASSERT(rc == 0);
 }
 
-struct m0_reqh *m0_be_ut_reqh_get(void)
+M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void)
 {
 	struct m0_reqh *reqh;
 	int             result;
@@ -154,7 +152,7 @@ struct m0_reqh *m0_be_ut_reqh_get(void)
 	return reqh;
 }
 
-void m0_be_ut_reqh_put(struct m0_reqh *reqh)
+M0_INTERNAL void m0_be_ut_reqh_put(struct m0_reqh *reqh)
 {
 
 	struct be_ut_helper_struct *h = &be_ut_helper;
@@ -407,19 +405,6 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 	be_ut_tx_lock_if(grp, ut_be);
 	m0_be_tx_init(tx, 0, &ut_be->but_dom, grp, NULL, NULL, NULL, NULL);
 	be_ut_tx_unlock_if(grp, ut_be);
-}
-
-void m0_be_ut_tx_prep(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be,
-		      struct m0_be_tx_credit *cred)
-{
-	be_ut_tx_lock_if(tx->t_sm.sm_grp, ut_be);
-	m0_be_tx_prep(tx, cred);
-}
-
-void m0_be_ut_tx_fini(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
-{
-	m0_be_tx_fini(tx);
-	be_ut_tx_unlock_if(tx->t_sm.sm_grp, ut_be);
 }
 
 struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create)

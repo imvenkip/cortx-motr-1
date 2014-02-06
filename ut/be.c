@@ -101,44 +101,6 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
 	m0_ut_be_tx_end(&tx);
 }
 
-M0_INTERNAL void m0_ut_backend_init_with_reqh(struct m0_reqh *reqh,
-					      struct m0_be_ut_backend *be,
-					      struct m0_be_ut_seg *seg,
-					      m0_bcount_t seg_size)
-{
-	int rc;
-
-	rc = M0_REQH_INIT(reqh,
-			  .rhia_dtm       = NULL,
-			  .rhia_db        = NULL,
-			  .rhia_mdstore   = (void*)1,
-			  .rhia_fol       = NULL,
-			  .rhia_svc       = (void*)1);
-	M0_ASSERT(rc == 0);
-	be->but_dom_cfg.bc_engine.bec_group_fom_reqh = reqh;
-	m0_be_ut_backend_init(be);
-	m0_be_ut_seg_init(seg, be, seg_size);
-	m0_be_ut_seg_allocator_init(seg, be);
-	//m0_ut_backend_init(be, seg);
-	rc = m0_be_ut__seg_dict_create(&seg->bus_seg,
-				       m0_be_ut_backend_sm_group_lookup(be));
-	M0_ASSERT(rc == 0);
-}
-
-M0_INTERNAL void m0_ut_backend_fini_with_reqh(struct m0_reqh *reqh,
-					      struct m0_be_ut_backend *be,
-					      struct m0_be_ut_seg *seg)
-{
-	int rc;
-
-	rc = m0_be_ut__seg_dict_destroy(&seg->bus_seg,
-					m0_be_ut_backend_sm_group_lookup(be));
-	M0_ASSERT(rc == 0);
-	m0_be_ut_seg_allocator_fini(seg, be);
-	m0_ut_backend_fini(be, seg);
-	m0_reqh_fini(reqh);
-}
-
 static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
 {
 	int  i;
@@ -155,7 +117,7 @@ static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
 	return result;
 }
 
-void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
+M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
 {
 	struct m0_clink clink;
 
