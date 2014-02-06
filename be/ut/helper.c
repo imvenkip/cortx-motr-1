@@ -308,7 +308,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 #endif
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);

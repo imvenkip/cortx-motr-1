@@ -102,16 +102,16 @@ M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
  * ------------------------------------------------------------------ */
 
 /* XXX make m0_be_tx_group_cfg? */
-M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
-				    struct m0_be_tx_credit *size_max,
-				    size_t tx_nr_max,
-				    struct m0_be_engine *en,
-				    struct m0_be_log *log,
-				    struct m0_reqh *reqh);
+M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group *gr,
+				     struct m0_be_tx_credit *size_max,
+				     size_t tx_nr_max,
+				     struct m0_be_engine *en,
+				     struct m0_be_log *log,
+				     struct m0_reqh *reqh);
 
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr);
 
-M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr);
+M0_INTERNAL int m0_be_tx_group_start(struct m0_be_tx_group *gr);
 M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr);
 
 /** Adds the transaction to m0_be_tx_group::tg_txs. */
@@ -158,6 +158,9 @@ M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_tx_group *gr);
 
 /** Number of transactions in the group. */
 M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr);
+
+M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr);
+M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr);
 
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 				     struct m0_be_op *op);

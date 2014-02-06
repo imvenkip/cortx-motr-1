@@ -64,21 +64,21 @@ struct m0_be_tx_group_fom {
 	struct m0_sm_ast       tgf_ast_stable;
 	struct m0_sm_ast       tgf_ast_stop;
 	struct m0_sm_ast       tgf_ast_timeout;
-	struct m0_semaphore    tgf_started;
-	struct m0_semaphore    tgf_stopped;
+	struct m0_semaphore    tgf_start_sem;
+	struct m0_semaphore    tgf_finish_sem;
 };
 
 /** @todo XXX TODO s/gf/m/ in function parameters */
-M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *gf,
+M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
+					 struct m0_be_tx_group *gr,
 					 struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_tx_group_fom_fini(struct m0_be_tx_group_fom *m);
 M0_INTERNAL void m0_be_tx_group_fom_reset(struct m0_be_tx_group_fom *m);
 
-M0_INTERNAL void m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf);
+M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf);
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf);
 
 M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
-					   struct m0_be_tx_group *gr,
 					   m0_time_t abs_timeout);
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf);
 

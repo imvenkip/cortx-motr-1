@@ -89,7 +89,7 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine *en,
 				  struct m0_be_engine_cfg *en_cfg);
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en);
 
-M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en);
+M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en);
 M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en);
 
 /* next functions should be called from m0_be_tx implementation */

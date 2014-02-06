@@ -94,15 +94,12 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_init(&en->eng_groups[i]), true));
 	for (i = 0; i < en->eng_group_nr; ++i) {
-		rc = m0_be_tx_group_init(&en->eng_group[0],
-					 &en_cfg->bec_group_size_max,
-					 en_cfg->bec_group_tx_max,
-					 en,
-					 &en->eng_log,
-					 en_cfg->bec_group_fom_reqh);
-		/* XXX invalid for number of groups > 1 */
-		if (rc != 0)
-			goto log_destroy;
+		m0_be_tx_group_init(&en->eng_group[0],
+				    &en_cfg->bec_group_size_max,
+				    en_cfg->bec_group_tx_max,
+				    en,
+				    &en->eng_log,
+				    en_cfg->bec_group_fom_reqh);
 		egr_tlink_init(&en->eng_group[0]);
 	}
 	en->eng_group_closed = false;
@@ -115,10 +112,6 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	M0_POST(m0_be_engine__invariant(en));
 	M0_RETURN(0);
 
-log_destroy:
-	m0_forall(i, ARRAY_SIZE(en->eng_groups),
-		  (egr_tlist_init(&en->eng_groups[i]), true));
-	m0_be_log_destroy(&en->eng_log);
 log_fini:
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);
@@ -397,9 +390,9 @@ M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
 
 static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
 {
-	M0_PRE(be_engine_is_locked(en));
-
 	size_t i;
+
+	M0_PRE(be_engine_is_locked(en));
 
 	for (i = 0; i < nr; ++i) {
 		/*
@@ -413,8 +406,9 @@ static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
 	}
 }
 
-M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en)
+M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 {
+	int    rc = 0;
 	size_t i;
 
 	M0_ENTRY();
@@ -422,7 +416,9 @@ M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en)
 	M0_PRE(be_engine_invariant(en));
 
 	for (i = 0; i < en->eng_group_nr; ++i) {
-		m0_be_tx_group_start(&en->eng_group[i]);
+		rc = m0_be_tx_group_start(&en->eng_group[i]);
+		if (rc != 0)
+			break;
 		egr_tlist_add_tail(&en->eng_groups[M0_BEG_OPEN],
 				   &en->eng_group[i]);
 	}
@@ -431,7 +427,7 @@ M0_INTERNAL void m0_be_engine_start(struct m0_be_engine *en)
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
-	M0_LEAVE();
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)

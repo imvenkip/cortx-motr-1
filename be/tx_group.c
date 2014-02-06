@@ -151,7 +151,7 @@ M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr,
 				      m0_time_t abs_timeout)
 {
 	M0_ENTRY();
-	m0_be_tx_group_fom_handle(&gr->tg_fom, gr, abs_timeout);
+	m0_be_tx_group_fom_handle(&gr->tg_fom, abs_timeout);
 	M0_LEAVE();
 }
 
@@ -166,15 +166,13 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
 
-M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
-				    struct m0_be_tx_credit *size_max,
-				    size_t tx_nr_max,
-				    struct m0_be_engine *en,
-				    struct m0_be_log *log,
-				    struct m0_reqh *reqh)
+M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group *gr,
+				     struct m0_be_tx_credit *size_max,
+				     size_t tx_nr_max,
+				     struct m0_be_engine *en,
+				     struct m0_be_log *log,
+				     struct m0_reqh *reqh)
 {
-	int rc;
-
 	*gr = (struct m0_be_tx_group) {
 		.tg_size      = *size_max,
 		.tg_tx_nr_max = tx_nr_max,
@@ -182,20 +180,13 @@ M0_INTERNAL int m0_be_tx_group_init(struct m0_be_tx_group *gr,
 		.tg_engine    = en,
 	};
 	grp_tlist_init(&gr->tg_txs);
-	/* XXX make the same paremeters order for m0_be_tx_group_ondisk */
-	rc = m0_be_group_ondisk_init(&gr->tg_od, m0_be_log_stob(log),
-				     tx_nr_max, &gr->tg_size);
-	if (rc == 0) {
-		m0_be_tx_group_fom_init(&gr->tg_fom, reqh);
-		m0_be_tx_group_reset(gr);
-	}
-	return rc;
+	m0_be_tx_group_fom_init(&gr->tg_fom, gr, reqh);
+	m0_be_tx_group_reset(gr);
 }
 
 M0_INTERNAL void m0_be_tx_group_fini(struct m0_be_tx_group *gr)
 {
 	m0_be_tx_group_fom_fini(&gr->tg_fom);
-	m0_be_group_ondisk_fini(&gr->tg_od);
 	grp_tlist_fini(&gr->tg_txs);
 }
 
@@ -254,9 +245,9 @@ M0_INTERNAL void m0_be_tx_group_postclose(struct m0_be_tx_group *gr)
 	m0_be_engine__tx_group_close(gr->tg_engine, gr);
 }
 
-M0_INTERNAL void m0_be_tx_group_start(struct m0_be_tx_group *gr)
+M0_INTERNAL int m0_be_tx_group_start(struct m0_be_tx_group *gr)
 {
-	m0_be_tx_group_fom_start(&gr->tg_fom);
+	return m0_be_tx_group_fom_start(&gr->tg_fom);
 }
 
 M0_INTERNAL void m0_be_tx_group_stop(struct m0_be_tx_group *gr)
@@ -285,6 +276,23 @@ static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
 		return true;
 	}
 	return false;
+}
+
+M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
+{
+	/*
+	 * XXX make the same paremeters order for
+	 *     m0_be_tx_group_ondisk
+	 */
+	return m0_be_group_ondisk_init(&gr->tg_od,
+				       m0_be_log_stob(gr->tg_log),
+				       gr->tg_tx_nr_max,
+				       &gr->tg_size);
+}
+
+M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr)
+{
+	m0_be_group_ondisk_fini(&gr->tg_od);
 }
 
 M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
