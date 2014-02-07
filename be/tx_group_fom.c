@@ -404,9 +404,8 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
-	m0_semaphore_down(&gf->tgf_finish_sem);
-	//if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
-	//	m0_semaphore_down(&gf->tgf_stopped);
+	if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
+		m0_semaphore_down(&gf->tgf_finish_sem);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
