@@ -553,18 +553,22 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 			struct m0_pool_event   pme;
 			struct m0_be_tx_credit cred = {};
 			struct m0_be_tx        tx;
-			struct m0_sm_group    *grp  = m0_locality_here()->lo_grp;
+			struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
 
 			M0_SET0(&pme);
 			pme.pe_type  = et;
 			pme.pe_index = dev_id;
 			pme.pe_state = state;
-			//m0_sm_group_lock(grp);
+			m0_sm_group_lock(grp);
 			m0_be_tx_init(&tx, 0, scm->sc_it.si_beseg->bs_domain, grp,
 					      NULL, NULL, NULL, NULL);
 			m0_poolmach_store_credit(scm->sc_base.cm_pm, &cred);
 
 			m0_be_tx_prep(&tx, &cred);
+			/*
+			 * XXX FIX ME: Replace m0_be_tx_{open, close}_sync()
+			 * calls with corresponding async versions.
+			 */
 			rc = m0_be_tx_open_sync(&tx);
 			if (rc == 0) {
 				rc = m0_poolmach_state_transit(scm->sc_base.cm_pm,
@@ -572,7 +576,7 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 				m0_be_tx_close_sync(&tx);
 			}
 			m0_be_tx_fini(&tx);
-			//m0_sm_group_unlock(grp);
+			m0_sm_group_unlock(grp);
 			if (rc != 0)
 				break;
 		}

@@ -211,7 +211,13 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			case TPH_PREPARE_INIT:
 				treq = m0_fop_data(fom->fo_fop);
 				scm->sc_op = treq->op;
+				/*
+				 * To handle blocking pool machine state
+				 * transitions.
+				 */
+				m0_fom_block_enter(fom);
 				rc = m0_cm_prepare_init(cm);
+				m0_fom_block_leave(fom);
 				if (rc != 0)
 					goto fail;
 				rc = m0_cm_prepare_sw_store_init(cm, grp);
