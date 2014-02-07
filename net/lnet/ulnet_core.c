@@ -596,8 +596,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 			return -ENOMEM;
 		rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTRS_GET, &dngp);
 		if (rc < 0) {
-			m0_free(dngp.dng_buf);
-			dngp.dng_buf = NULL;
+			m0_free0(&dngp.dng_buf);
 			if (rc != -EFBIG)
 				return rc;
 		}
@@ -628,9 +627,7 @@ static void nlx_ucore_nidstrs_put(struct nlx_ucore_domain *ud, char ***nidary)
 {
 	M0_PRE(nidary != NULL);
 	m0_free((*nidary)[0]); /* string buffer */
-	m0_free(*nidary);      /* string array */
-	*nidary = NULL;
-	return;
+	m0_free0(nidary);      /* string array */
 }
 
 
@@ -707,10 +704,8 @@ M0_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
 	close(ud->ud_fd);
 	m0_addb_ctx_fini(&ud->ud_addb_ctx);
 	ud->ud_magic = 0;
-	m0_free(ud);
-	cd->cd_upvt = NULL;
+	m0_free0(&cd->cd_upvt);
 	cd->cd_kpvt = NULL;
-	return;
 }
 
 M0_INTERNAL m0_bcount_t nlx_core_get_max_buffer_size(struct nlx_core_domain *cd)

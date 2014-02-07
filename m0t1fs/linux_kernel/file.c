@@ -19,20 +19,21 @@
  */
 
 #include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
-#include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
+#include <linux/mm.h>       /* get_user_pages, get_page, put_page */
 #include <linux/fs.h>       /* struct file_operations */
 #include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
-#include "lib/trace.h"      /* M0_LOG, M0_ENTRY */
+#include "lib/trace.h"
+
 #include "fop/fom_generic.h"/* m0_rpc_item_is_generic_reply_fop */
-#include "lib/memory.h"     /* m0_alloc(), m0_free() */
+#include "lib/memory.h"     /* m0_alloc, m0_free */
 #include "lib/misc.h"       /* m0_round_{up/down} */
 #include "lib/bob.h"        /* m0_bob_type */
 #include "lib/ext.h"        /* m0_ext */
-#include "lib/arith.h"      /* min_type() */
-#include "lib/finject.h"    /* M0_FI_ENABLED() */
-#include "layout/pdclust.h" /* M0_PUT_*, m0_layout_to_pdl(),
+#include "lib/arith.h"      /* min_type */
+#include "lib/finject.h"    /* M0_FI_ENABLED */
+#include "layout/pdclust.h" /* M0_PUT_*, m0_layout_to_pdl,
 			     * m0_pdclust_instance_map */
 #include "lib/bob.h"        /* m0_bob_type */
 #include "ioservice/io_fops.h"    /* m0_io_fop */
@@ -1461,18 +1462,13 @@ fail:
 	m0_indexvec_free(&map->pi_ivec);
 
 	if (map->pi_databufs != NULL) {
-		for (pg = 0; pg < data_row_nr(play); ++pg) {
-			m0_free(map->pi_databufs[pg]);
-			map->pi_databufs[pg] = NULL;
-		}
+		for (pg = 0; pg < data_row_nr(play); ++pg)
+			m0_free0(&map->pi_databufs[pg]);
 		m0_free(map->pi_databufs);
 	}
-
 	if (map->pi_paritybufs != NULL) {
-		for (pg = 0; pg < parity_row_nr(play); ++pg) {
-			m0_free(map->pi_paritybufs[pg]);
-			map->pi_paritybufs[pg] = NULL;
-		}
+		for (pg = 0; pg < parity_row_nr(play); ++pg)
+			m0_free0(&map->pi_paritybufs[pg]);
 		m0_free(map->pi_paritybufs);
 	}
 	M0_RETERR(-ENOMEM, "Memory allocation failed");
@@ -1503,8 +1499,7 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 				map->pi_databufs[row][col] = NULL;
 			}
 		}
-		m0_free(map->pi_databufs[row]);
-		map->pi_databufs[row] = NULL;
+		m0_free0(&map->pi_databufs[row]);
 	}
 
 	if (map->pi_paritybufs != NULL) {
@@ -1516,16 +1511,13 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 					map->pi_paritybufs[row][col] = NULL;
 				}
 			}
-			m0_free(map->pi_paritybufs[row]);
-			map->pi_paritybufs[row] = NULL;
+			m0_free0(&map->pi_paritybufs[row]);
 		}
 	}
 
-	m0_free(map->pi_databufs);
-	m0_free(map->pi_paritybufs);
-	map->pi_ioreq	   = NULL;
-	map->pi_databufs   = NULL;
-	map->pi_paritybufs = NULL;
+	m0_free0(&map->pi_databufs);
+	m0_free0(&map->pi_paritybufs);
+	map->pi_ioreq = NULL;
 	M0_LEAVE();
 }
 
@@ -1890,10 +1882,8 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 	M0_RETURN(0);
 err:
 	for (row = 0; row < parity_row_nr(play); ++row) {
-		for (col = 0; col < parity_col_nr(play); ++col) {
-			m0_free(map->pi_paritybufs[row][col]);
-			map->pi_paritybufs[row][col] = NULL;
-		}
+		for (col = 0; col < parity_col_nr(play); ++col)
+			m0_free0(&map->pi_paritybufs[row][col]);
 	}
 	M0_RETERR(-ENOMEM, "Memory allocation failed for data_buf.");
 }
@@ -2319,12 +2309,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 
 par_fail:
 	M0_ASSERT(rc != 0);
-	for (row = 0; row < parity_row_nr(play); ++row) {
-		m0_free(map->pi_paritybufs[row]);
-		map->pi_paritybufs[row] = NULL;
-	}
-	m0_free(map->pi_paritybufs);
-	map->pi_paritybufs = NULL;
+	for (row = 0; row < parity_row_nr(play); ++row)
+		m0_free0(&map->pi_paritybufs[row]);
+	m0_free0(&map->pi_paritybufs);
 
 	M0_RETERR(rc, "dgmode_process failed");
 }
@@ -2682,14 +2669,12 @@ static void ioreq_iomaps_destroy(struct io_request *req)
 	for (id = 0; id < req->ir_iomap_nr; ++id) {
 		if (req->ir_iomaps[id] != NULL) {
 			pargrp_iomap_fini(req->ir_iomaps[id]);
-			m0_free(req->ir_iomaps[id]);
-			req->ir_iomaps[id] = NULL;
+			m0_free0(&req->ir_iomaps[id]);
 			++iommstats.d_pargrp_iomap_nr;
 		}
 	}
-	m0_free(req->ir_iomaps);
+	m0_free0(&req->ir_iomaps);
 	req->ir_iomap_nr = 0;
-	req->ir_iomaps	 = NULL;
 }
 
 static int dgmode_rwvec_alloc_init(struct target_ioreq *ti)
@@ -2899,9 +2884,8 @@ err:
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		tioreqht_htable_del(&xfer->nxr_tioreqs_hash, ti);
 		target_ioreq_fini(ti);
-		m0_free(ti);
+		m0_free0(&ti);
 		++iommstats.d_target_ioreq_nr;
-		ti = NULL;
 	} m0_htable_endfor;
 
 	M0_RETERR(rc, "io_prepare failed");
@@ -3814,15 +3798,11 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 		ti->ti_ivec.iv_vec.v_nr = ti->ti_bufvec.ov_vec.v_nr;
 
 	m0_indexvec_free(&ti->ti_ivec);
-	m0_free(ti->ti_bufvec.ov_buf);
-	m0_free(ti->ti_bufvec.ov_vec.v_count);
-	m0_free(ti->ti_pageattrs);
+	m0_free0(&ti->ti_bufvec.ov_buf);
+	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
+	m0_free0(&ti->ti_pageattrs);
 	if (ti->ti_dgvec != NULL)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
-
-	ti->ti_bufvec.ov_buf	     = NULL;
-	ti->ti_bufvec.ov_vec.v_count = NULL;
-	ti->ti_pageattrs	     = NULL;
 	M0_LEAVE();
 }
 
@@ -4270,6 +4250,7 @@ static struct m0_indexvec *indexvec_create(unsigned long       seg_nr,
 	rc = m0_indexvec_alloc(ivec, seg_nr, &m0t1fs_addb_ctx, loc);
 	if (rc != 0) {
 		m0_free(ivec);
+		M0_LEAVE();
 		return NULL;
 	}
 
@@ -5109,10 +5090,12 @@ err:
 }
 
 const struct inode_operations m0t1fs_reg_inode_operations = {
-        .setattr        = m0t1fs_setattr,
-        .getattr        = m0t1fs_getattr,
-        .setxattr       = m0t1fs_setxattr,
-        .getxattr       = m0t1fs_getxattr,
-        .listxattr      = m0t1fs_listxattr,
-        .removexattr    = m0t1fs_removexattr
+	.setattr     = m0t1fs_setattr,
+	.getattr     = m0t1fs_getattr,
+	.setxattr    = m0t1fs_setxattr,
+	.getxattr    = m0t1fs_getxattr,
+	.listxattr   = m0t1fs_listxattr,
+	.removexattr = m0t1fs_removexattr
 };
+
+#undef M0_TRACE_SUBSYSTEM

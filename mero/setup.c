@@ -1881,10 +1881,8 @@ static int service_string_parse(const char *str, char **svc,
 
 	/* parse the UUID */
 	rc = m0_uuid_parse(++colon, uuid);
-	if (rc != 0) {
-		m0_free(*svc);
-		*svc = NULL;
-	}
+	if (rc != 0)
+		m0_free0(svc);
 	return rc;
 }
 

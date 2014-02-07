@@ -36,8 +36,7 @@ M0_INTERNAL int m0_vector_init(struct m0_vector *v, uint32_t sz)
 
 M0_INTERNAL void m0_vector_fini(struct m0_vector *v)
 {
-	m0_free(v->v_vector);
-	v->v_vector = NULL;
+	m0_free0(&v->v_vector);
 	v->v_size = 0;
 }
 
@@ -66,16 +65,10 @@ M0_INTERNAL void m0_matrix_fini(struct m0_matrix *m)
 {
 	uint32_t i;
 
-	for (i = 0; i < m->m_height; ++i) {
-		m0_free(m->m_matrix[i]);
-		m->m_matrix[i] = NULL;
-	}
-
-	m0_free(m->m_matrix);
-
-	m->m_matrix = NULL;
-	m->m_height = 0;
-	m->m_width = 0;
+	for (i = 0; i < m->m_height; ++i)
+		m0_free0(&m->m_matrix[i]);
+	m0_free0(&m->m_matrix);
+	m->m_height = m->m_width = 0;
 }
 
 m0_parity_elem_t* m0_vector_elem_get(const struct m0_vector *v, uint32_t x)

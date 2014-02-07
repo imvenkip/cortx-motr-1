@@ -201,10 +201,8 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 
 	RPC_ALLOC_PTR(conn, SESSION_FOM_CONN_ESTABLISH_TICK,
 		      &m0_rpc_addb_ctx);
-	if (M0_FI_ENABLED("conn-alloc-failed")) {
-		m0_free(conn);
-		conn = NULL;
-	}
+	if (M0_FI_ENABLED("conn-alloc-failed"))
+		m0_free0(&conn);
 	if (conn == NULL) {
 		goto ret;
 		/* no reply if conn establish failed.
@@ -377,10 +375,8 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 
 	RPC_ALLOC_PTR(session, SESSION_FOM_SESSION_ESTABLISH_TICK,
 		      &m0_rpc_addb_ctx);
-	if (M0_FI_ENABLED("session-alloc-failed")) {
-		m0_free(session);
-		session = NULL;
-	}
+	if (M0_FI_ENABLED("session-alloc-failed"))
+		m0_free0(&session);
 	if (session == NULL) {
 		rc = -ENOMEM;
 		goto out;

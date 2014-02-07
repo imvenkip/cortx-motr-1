@@ -79,8 +79,7 @@ static void fl_rtype_set(struct rm_ut_data *self)
 static void fl_rtype_unset(struct rm_ut_data *self)
 {
 	m0_rm_type_deregister(self->rd_rt);
-	m0_free(self->rd_rt);
-	self->rd_rt = NULL;
+	m0_free0(&self->rd_rt);
 }
 
 static void fl_res_set(struct rm_ut_data *self)
@@ -126,8 +125,7 @@ static void fl_owner_unset(struct rm_ut_data *self)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(owner_state(self->rd_owner) == ROS_FINAL);
 	m0_file_owner_fini(self->rd_owner);
-	m0_free(self->rd_owner);
-	self->rd_owner = NULL;
+	m0_free0(&self->rd_owner);
 }
 
 static void fl_datum_set(struct rm_ut_data *self)

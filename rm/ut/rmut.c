@@ -281,16 +281,13 @@ void rm_ctx_server_start(enum rm_server srv_id)
 
 void rm_ctx_server_windup(enum rm_server srv_id)
 {
-	struct m0_rm_remote *creditor;
-	struct m0_rm_owner  *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
-	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
+	struct m0_rm_owner *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+	enum rm_server      cred_id = rm_ctx[srv_id].creditor_id;
 
 	if (cred_id != SERVER_INVALID) {
-		creditor = owner->ro_creditor;
-		M0_UT_ASSERT(creditor != NULL);
-		m0_rm_remote_fini(creditor);
-		m0_free(creditor);
-		owner->ro_creditor = NULL;
+		M0_UT_ASSERT(owner->ro_creditor != NULL);
+		m0_rm_remote_fini(owner->ro_creditor);
+		m0_free0(&owner->ro_creditor);
 	}
 	rm_utdata_fini(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
 }

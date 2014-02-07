@@ -227,19 +227,13 @@ balloc_bn2gn(m0_bindex_t blockno, struct m0_balloc *cb)
 M0_INTERNAL struct m0_balloc_group_info *m0_balloc_gn2info(struct m0_balloc *cb,
 							   m0_bindex_t groupno)
 {
-	if (cb->cb_group_info)
-		return &cb->cb_group_info[groupno];
-	else
-		return NULL;
+	return cb->cb_group_info == NULL ? NULL : &cb->cb_group_info[groupno];
 }
 
 M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
 {
 	M0_ASSERT(m0_mutex_is_locked(&grp->bgi_mutex));
-	if (grp->bgi_extents) {
-		m0_free(grp->bgi_extents);
-		grp->bgi_extents = NULL;
-	}
+	m0_free0(&grp->bgi_extents);
 	return 0;
 }
 
@@ -258,7 +252,6 @@ M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp)
 	m0_mutex_unlock(&grp->bgi_mutex);
 }
 
-
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
 /**
@@ -266,8 +259,8 @@ M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp)
  */
 static void balloc_fini_internal(struct m0_balloc *bal)
 {
-	struct m0_balloc_group_info	*gi;
-	int				 i;
+	struct m0_balloc_group_info *gi;
+	int                          i;
 
 	M0_ENTRY();
 
@@ -278,9 +271,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 			m0_balloc_release_extents(gi);
 			m0_balloc_unlock_group(gi);
 		}
-
-		m0_free(bal->cb_group_info);
-		bal->cb_group_info = NULL;
+		m0_free0(&bal->cb_group_info);
 	}
 
 	m0_be_btree_fini(&bal->cb_db_group_extents);

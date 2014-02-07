@@ -18,10 +18,10 @@
  * Original creation date: 09/03/2012
  */
 
-#include "ut/ut.h"		/* M0_UT_ASSERT */
-#include "lib/vec.h"		/* m0_bufvec */
-
 #include "net/test/str.h"
+#include "ut/ut.h"         /* M0_UT_ASSERT */
+#include "lib/vec.h"       /* m0_bufvec */
+#include "lib/memory.h"    /* m0_free0 */
 
 enum {
 	STR_BUF_LEN    = 0x100,
@@ -52,7 +52,7 @@ static void try_serialize(char *str)
 	str_len = strlen(str);
 	rc = strncmp(str, str2, str_len + 1);
 	M0_UT_ASSERT(rc == 0);
-	m0_net_test_str_fini(&str2);
+	m0_free0(&str2);
 }
 
 void m0_net_test_str_ut(void)

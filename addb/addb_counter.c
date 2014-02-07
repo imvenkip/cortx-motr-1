@@ -222,9 +222,8 @@ M0_INTERNAL void m0_addb_counter_fini(struct m0_addb_counter *c)
 	if (c->acn_magic != 0) {
 		M0_PRE(addb_counter_invariant(c));
 		c->acn_magic = 0;
-		c->acn_rt    = NULL;
-		m0_free(c->acn_data);
-		c->acn_data = NULL;
+		c->acn_rt = NULL;
+		m0_free0(&c->acn_data);
 	}
 	M0_LEAVE();
 }
@@ -235,11 +234,11 @@ static int counter_data_update(struct m0_addb_counter_data *data,
 			       uint64_t datum)
 {
 	if (m0_addu64_will_overflow(data->acd_sum_sq, datum * datum))
-                M0_RETERR(-EOVERFLOW, "%s: counter's sum of samples square "
-                          "overflow: datum=%llu", rt->art_name,
-                          (unsigned long long)datum);
+		M0_RETERR(-EOVERFLOW, "%s: counter's sum of samples square "
+			  "overflow: datum=%llu", rt->art_name,
+			  (unsigned long long)datum);
 
-        ++data->acd_nr;
+	++data->acd_nr;
 	data->acd_total += datum;
 	if (data->acd_nr > 1) {
 		data->acd_min = min64u(data->acd_min, datum);

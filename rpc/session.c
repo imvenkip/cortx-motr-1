@@ -402,8 +402,7 @@ static void __session_fini(struct m0_rpc_session *session)
 		}
 		session->s_nr_slots = 0;
 		session->s_slot_table_capacity = 0;
-		m0_free(session->s_slot_table);
-		session->s_slot_table = NULL;
+		m0_free0(&session->s_slot_table);
 	}
 	rpc_session_tlink_fini(session);
 	ready_slot_tlist_fini(&session->s_ready_slots);

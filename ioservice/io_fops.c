@@ -1101,10 +1101,8 @@ M0_INTERNAL void io_fop_ivec_dealloc(struct m0_fop *fop)
 	rw = io_rw_get(fop);
 	ivec = rw->crw_ivecs.cis_ivecs;
 
-	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i) {
-		m0_free(ivec[i].ci_iosegs);
-		ivec[i].ci_iosegs = NULL;
-	}
+	for (i = 0; i < rw->crw_ivecs.cis_nr; ++i)
+		m0_free0(&ivec[i].ci_iosegs);
 	m0_free(ivec);
 	rw->crw_ivecs.cis_ivecs = NULL;
 	rw->crw_ivecs.cis_nr = 0;
@@ -1344,8 +1342,7 @@ static void io_fop_desc_dealloc(struct m0_fop *fop)
 	for (i = 0; i < rw->crw_desc.id_nr; ++i)
 		m0_net_desc_free(&rw->crw_desc.id_descs[i]);
 
-	m0_free(rw->crw_desc.id_descs);
-	rw->crw_desc.id_descs = NULL;
+	m0_free0(&rw->crw_desc.id_descs);
 	rw->crw_desc.id_nr = 0;
 }
 

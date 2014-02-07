@@ -215,10 +215,8 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	M0_PRE(out != NULL);
 
 	RM_ALLOC_PTR(rqfom, REQ_FOM_ALLOC, &m0_rm_addb_ctx);
-	if (M0_FI_ENABLED("fom_alloc_failure")) {
-		m0_free(rqfom);
-		rqfom = NULL;
-	}
+	if (M0_FI_ENABLED("fom_alloc_failure"))
+		m0_free0(&rqfom);
 	if (rqfom == NULL)
 		M0_RETURN(-ENOMEM);
 

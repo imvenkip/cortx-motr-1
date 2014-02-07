@@ -96,8 +96,7 @@ static void request_param_fini(void)
 	m0_rm_remote_fini(&remote);
 	m0_free(test_loan);
 	m0_rm_remote_fini(rm_test_data.rd_owner->ro_creditor);
-	m0_free(rm_test_data.rd_owner->ro_creditor);
-	rm_test_data.rd_owner->ro_creditor = NULL;
+	m0_free0(&rm_test_data.rd_owner->ro_creditor);
 }
 
 /*

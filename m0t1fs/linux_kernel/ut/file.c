@@ -311,8 +311,7 @@ static void ds_test(void)
 	M0_UT_ASSERT(irfop->irf_tioreq      == NULL);
 	M0_UT_ASSERT(irfop->irf_ast.sa_cb   == NULL);
 	M0_UT_ASSERT(irfop->irf_ast.sa_mach == NULL);
-	m0_free(irfop);
-	irfop = NULL;
+	m0_free0(&irfop);
 
 	ti.ti_ivec.iv_vec.v_nr = page_nr(UNIT_SIZE);
 	target_ioreq_fini(&ti);
@@ -336,8 +335,7 @@ static void ds_test(void)
 	M0_UT_ASSERT(map->pi_paritybufs == NULL);
 	M0_UT_ASSERT(map->pi_ioreq      == NULL);
 
-	m0_free(map);
-	map = NULL;
+	m0_free0(&map);
 	req.ir_iomaps[0] = NULL;
 	req.ir_iomap_nr  = 0;
 
@@ -827,8 +825,7 @@ static void target_ioreq_test(void)
 
 	target_ioreq_fini(&ti);
 	pargrp_iomap_fini(map);
-	m0_free(map);
-	map = NULL;
+	m0_free0(&map);
 	req.ir_iomaps[0] = NULL;
 	req.ir_iomap_nr  = 0;
 

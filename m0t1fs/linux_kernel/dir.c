@@ -459,8 +459,7 @@ static int m0t1fs_releasedir(struct inode *inode, struct file *file)
 	M0_ENTRY();
 
 	m0_free(fd->fd_dirpos);
-	m0_free(file->private_data);
-	file->private_data = NULL;
+	m0_free0(&file->private_data);
 	return 0;
 }
 

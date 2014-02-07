@@ -1355,8 +1355,7 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 					&link->l_body.b_tfid,
 					&link->l_spath);
 		if (rc != 0) {
-			m0_free(link->l_tpath.s_buf);
-			link->l_tpath.s_buf = NULL;
+			m0_free0(&link->l_tpath.s_buf);
 			link->l_tpath.s_len = 0;
 			return rc;
 		}
@@ -1378,8 +1377,7 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 					&rename->r_tbody.b_pfid,
 					&rename->r_tpath);
 		if (rc != 0) {
-			m0_free(rename->r_spath.s_buf);
-			rename->r_spath.s_buf = NULL;
+			m0_free0(&rename->r_spath.s_buf);
 			rename->r_spath.s_len = 0;
 			return rc;
 		}

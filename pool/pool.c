@@ -363,8 +363,7 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 		m0_free(state->pst_spare_usage_array);
 		m0_free(state->pst_devices_array);
 		m0_free(state->pst_nodes_array);
-		m0_free(state);
-		pm->pm_state = NULL;
+		m0_free0(&pm->pm_state);
 	}
 	m0_rwlock_write_unlock(&pm->pm_lock);
 

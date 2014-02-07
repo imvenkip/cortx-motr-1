@@ -391,15 +391,8 @@ M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec)
 	M0_PRE(ivec != NULL);
 	M0_PRE(ivec->iv_vec.v_nr > 0);
 
-	if (ivec->iv_index != NULL) {
-		m0_free(ivec->iv_index);
-		ivec->iv_index = NULL;
-	}
-
-	if (ivec->iv_vec.v_count != NULL) {
-		m0_free(ivec->iv_vec.v_count);
-		ivec->iv_vec.v_count = NULL;
-	}
+	m0_free0(&ivec->iv_index);
+	m0_free0(&ivec->iv_vec.v_count);
 	ivec->iv_vec.v_nr = 0;
 }
 

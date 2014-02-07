@@ -1805,8 +1805,7 @@ static int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
 	ctx->pc_buf_callbacks = &cbuf_cb;
 	rc = ping_init(ctx);
 	if (rc != 0) {
-		m0_free(ident);
-		ctx->pc_ident = NULL;
+		m0_free0((char **)&ctx->pc_ident);
 		return rc;
 	}
 	M0_ASSERT(ctx->pc_network != NULL);
@@ -1818,8 +1817,7 @@ static int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
 	rc = m0_net_end_point_create(server_ep, &ctx->pc_tm, addr);
 	if (rc != 0) {
 		ping_fini(ctx);
-		m0_free(ident);
-		ctx->pc_ident = NULL;
+		m0_free0((char **)&ctx->pc_ident);
 		return rc;
 	}
 
@@ -1835,10 +1833,7 @@ static void nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
 {
 	m0_net_end_point_put(server_ep);
 	ping_fini(ctx);
-	if (ctx->pc_ident != NULL) {
-		m0_free((void *)ctx->pc_ident);
-		ctx->pc_ident = NULL;
-	}
+	m0_free0((char **)&ctx->pc_ident);
 }
 
 void nlx_ping_client(struct nlx_ping_client_params *params)

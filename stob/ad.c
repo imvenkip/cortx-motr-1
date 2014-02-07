@@ -775,18 +775,12 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 {
 	struct m0_stob_io *back = &aio->ai_back;
 
-	M0_ASSERT(back->si_stob.iv_vec.v_count ==
-		  back->si_user.ov_vec.v_count);
-
-	m0_free(back->si_user.ov_vec.v_count);
-	back->si_user.ov_vec.v_count = NULL;
+	M0_ASSERT(back->si_user.ov_vec.v_count == back->si_stob.iv_vec.v_count);
+	m0_free0(&back->si_user.ov_vec.v_count);
 	back->si_stob.iv_vec.v_count = NULL;
 
-	m0_free(back->si_user.ov_buf);
-	back->si_user.ov_buf = NULL;
-
-	m0_free(back->si_stob.iv_index);
-	back->si_stob.iv_index = NULL;
+	m0_free0(&back->si_user.ov_buf);
+	m0_free0(&back->si_stob.iv_index);
 
 	back->si_obj = NULL;
 }

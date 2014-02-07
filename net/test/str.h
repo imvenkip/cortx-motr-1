@@ -40,24 +40,15 @@
    Serialize or deserialize ASCIIZ string.
    @pre op == M0_NET_TEST_SERIALIZE || op == M0_NET_TEST_DESERIALIZE
    @pre str != NULL
-   @note str should be finalized after deserializing using
-   m0_net_test_str_fini() to prevent memory leak.
+   @note str should be freed (with m0_free0()) after deserialisation
+         to prevent memory leak.
  */
 m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
 				      char **str,
 				      struct m0_bufvec *bv,
 				      m0_bcount_t bv_offset);
 
-/**
-   Finalize m0_net_test_str.
-   @see m0_net_test_str_serialize().
- */
-void m0_net_test_str_fini(char **str);
-
-/**
-   @} end of NetTestStrDFS group
- */
-
+/** @} end of NetTestStrDFS group */
 #endif /*  __MERO_NET_TEST_STR_H__ */
 
 /*

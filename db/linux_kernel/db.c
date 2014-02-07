@@ -517,8 +517,7 @@ M0_INTERNAL int m0_db_cursor_del(struct m0_db_cursor *cursor)
 	if (ci->ck_current != NULL) {
 		m0_mutex_lock(&ti->tk_lock);
 		pair_tlink_del_fini(ci->ck_current);
-		m0_free(ci->ck_current);
-		ci->ck_current = NULL;
+		m0_free0(&ci->ck_current);
 		m0_mutex_unlock(&ti->tk_lock);
 		result = 0;
 	} else

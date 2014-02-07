@@ -36,8 +36,7 @@ M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob)
 
 M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
 {
-	m0_free(buf->b_addr);
-	buf->b_addr = NULL;
+	m0_free0(&buf->b_addr);
 	buf->b_nob = 0;
 }
 

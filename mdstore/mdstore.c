@@ -944,14 +944,12 @@ restart:
 		m0_cob_put(cob);
 	} while (!m0_fid_eq(&pfid, &M0_COB_ROOT_FID));
 out:
-	if (rc != 0) {
-		if (rc == -EDEADLK) {
-			memset(*path, 0, MDSTORE_PATH_MAX);
-			goto restart;
-		}
-		m0_free(*path);
-		*path = NULL;
+	if (rc == -EDEADLK) {
+		memset(*path, 0, MDSTORE_PATH_MAX);
+		goto restart;
 	}
+	if (rc != 0)
+		m0_free0(path);
 	M0_LEAVE("rc: %d, path: %s", rc, *path);
 	return rc;
 }

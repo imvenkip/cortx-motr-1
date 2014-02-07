@@ -141,8 +141,7 @@ static void owner_api_test (void)
 	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == NULL);
 	M0_UT_ASSERT(rm_test_data.rd_res->r_ref == 0);
 
-	m0_free(rm_test_data.rd_owner);
-	rm_test_data.rd_owner = NULL;
+	m0_free0(&rm_test_data.rd_owner);
 	rm_utdata_fini(&rm_test_data, OBJ_RES);
 }
 

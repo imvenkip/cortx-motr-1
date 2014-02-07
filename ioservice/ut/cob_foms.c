@@ -166,8 +166,7 @@ static void cobfoms_utfini(void)
 	m0_net_xprt_fini(cut->cu_xprt);
 
 	m0_free(cut->cu_stypes);
-	m0_free(cut);
-	cut = NULL;
+	m0_free0(&cut);
 }
 
 static void cobfops_populate_internal(struct m0_fop *fop, uint64_t gob_fid_key)
@@ -244,10 +243,8 @@ static void cobfops_destroy(struct m0_fop_type *ftype1,
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			m0_fop_put(cut->cu_deletefops[i]);
 
-	m0_free(cut->cu_createfops);
-	m0_free(cut->cu_deletefops);
-	cut->cu_createfops = NULL;
-	cut->cu_deletefops = NULL;
+	m0_free0(&cut->cu_createfops);
+	m0_free0(&cut->cu_deletefops);
 }
 
 static void cobfops_threads_init(void)

@@ -120,10 +120,15 @@ static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
  * This function must be a no-op when called with NULL argument.
  *
  * @param data pointer to allocated block
- *
- * @return none
  */
 void m0_free(void *data);
+
+#define m0_free0(pptr)                        \
+	do {                                  \
+		typeof(pptr) __pptr = (pptr); \
+		m0_free(*__pptr);             \
+		*__pptr = NULL;               \
+	} while (0)
 
 /**
  * Frees aligned memory block

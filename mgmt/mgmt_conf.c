@@ -736,8 +736,7 @@ M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf)
 	if (conf != NULL && conf->mc_private != NULL) {
 		m0_free(conf->mc_private->mcp_genders);
 		m0_free(conf->mc_private->mcp_nodename);
-		m0_free(conf->mc_private);
-		conf->mc_private = NULL;
+		m0_free0(&conf->mc_private);
 	}
 }
 

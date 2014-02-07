@@ -184,8 +184,7 @@ static void linux_stob_io_release(struct linux_stob_io *lio)
 {
 	if (lio->si_qev != NULL)
 		m0_free(lio->si_qev->iq_iocb.u.c.buf);
-	m0_free(lio->si_qev);
-	lio->si_qev = NULL;
+	m0_free0(&lio->si_qev);
 }
 
 static void linux_stob_io_fini(struct m0_stob_io *io)

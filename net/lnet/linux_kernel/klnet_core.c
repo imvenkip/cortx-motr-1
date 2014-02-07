@@ -2027,8 +2027,7 @@ static void nlx_core_fini(void)
 	if (nlx_kcore_lni_nidstrs != NULL) {
 		for (i = 0; nlx_kcore_lni_nidstrs[i] != NULL; ++i)
 			m0_free(nlx_kcore_lni_nidstrs[i]);
-		m0_free(nlx_kcore_lni_nidstrs);
-		nlx_kcore_lni_nidstrs = NULL;
+		m0_free0(&nlx_kcore_lni_nidstrs);
 	}
 	nlx_kcore_lni_nr = 0;
 	tms_tlist_fini(&nlx_kcore_tms);

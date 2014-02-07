@@ -89,12 +89,6 @@ m0_bcount_t m0_net_test_str_serialize(enum m0_net_test_serialize_op op,
 	return len_total;
 }
 
-void m0_net_test_str_fini(char **str)
-{
-	m0_free(*str);
-	*str = NULL;
-}
-
 /**
    @} end of NetTestStrInternals group
  */

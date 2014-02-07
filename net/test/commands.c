@@ -204,7 +204,7 @@ static void cmd_free(struct m0_net_test_cmd *cmd)
 	M0_PRE(cmd != NULL);
 
 	if (cmd->ntc_type == M0_NET_TEST_CMD_INIT) {
-		m0_net_test_str_fini(&cmd->ntc_init.ntci_tm_ep);
+		m0_free0(&cmd->ntc_init.ntci_tm_ep);
 		m0_net_test_slist_fini(&cmd->ntc_init.ntci_ep);
 	}
 }

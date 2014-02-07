@@ -273,7 +273,6 @@ M0_INTERNAL void arrbuf_free(struct arr_buf *arr)
 {
 	while (arr->ab_count > 0)
 		m0_buf_free(&arr->ab_elems[--arr->ab_count]);
-	m0_free(arr->ab_elems);
-	arr->ab_elems = NULL;
+	m0_free0(&arr->ab_elems);
 	M0_POST(arr->ab_count == 0);
 }

@@ -992,10 +992,8 @@ M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan         **loan,
 	RM_ALLOC_PTR(new_loan, LOAN_ALLOC, &m0_rm_addb_ctx);
 	if (new_loan != NULL) {
 		rc = m0_rm_loan_init(new_loan, credit, creditor);
-		if (rc != 0) {
-			m0_free(new_loan);
-			new_loan = NULL;
-		}
+		if (rc != 0)
+			m0_free0(&new_loan);
 	}
 
 	*loan = new_loan;
@@ -1024,8 +1022,7 @@ static int remnant_loan_get(const struct m0_rm_loan    *loan,
 		credit_diff(&new_loan->rl_credit, credit);
 	if (rc != 0 && new_loan != NULL) {
 		m0_rm_loan_fini(new_loan);
-		m0_free(new_loan);
-		new_loan = NULL;
+		m0_free0(&new_loan);
 	}
 	*remnant_loan = new_loan;
 	M0_RETURN(rc);
@@ -2672,8 +2669,7 @@ static int remnant_credit_get(const struct m0_rm_credit *src,
 		credit_diff(new_credit, diff);
 	if (rc != 0 && new_credit != NULL) {
 		m0_rm_credit_fini(new_credit);
-		m0_free(new_credit);
-		new_credit = NULL;
+		m0_free0(&new_credit);
 	}
 	*remnant_credit = new_credit;
 	M0_RETURN(rc);
@@ -2698,8 +2694,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 		rc = m0_rm_credit_copy(credit, src_credit);
 		if (rc != 0) {
 			m0_rm_credit_fini(credit);
-			m0_free(credit);
-			credit = NULL;
+			m0_free0(&credit);
 		}
 	}
 	*dest_credit = credit;

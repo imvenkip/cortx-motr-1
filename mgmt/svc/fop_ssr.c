@@ -98,10 +98,8 @@ static void mgmt_fop_ssr_fill(struct m0_fom *fom,
 		++i;
 	} m0_tl_endfor;
 	ssrfop->msr_ss.msss_nr = i;
-	if (i == 0) {
-		m0_free(ssrfop->msr_ss.msss_state);
-		ssrfop->msr_ss.msss_state = NULL;
-	}
+	if (i == 0)
+		m0_free0(&ssrfop->msr_ss.msss_state);
 }
 
 #endif /* M0_MGMT_SERVICE_PRESENT */

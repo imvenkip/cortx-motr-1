@@ -306,10 +306,8 @@ void io_fops_create(struct bulkio_params *bp, enum M0_RPC_OPCODES op,
 
 void io_fops_destroy(struct bulkio_params *bp)
 {
-	m0_free(bp->bp_rfops);
-	m0_free(bp->bp_wfops);
-	bp->bp_rfops = NULL;
-	bp->bp_wfops = NULL;
+	m0_free0(&bp->bp_rfops);
+	m0_free0(&bp->bp_wfops);
 }
 
 void io_fops_rpc_submit(struct thrd_arg *t)

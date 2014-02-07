@@ -282,8 +282,7 @@ M0_INTERNAL int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
 fail_pages:
 	while (knum > 0)
 		WRITABLE_USER_PAGE_PUT(kb->kb_kiov[--knum].kiov_page);
-	m0_free(kb->kb_kiov);
-	kb->kb_kiov = NULL;
+	m0_free0(&kb->kb_kiov);
 	kb->kb_kiov_len = 0;
 fail:
 	M0_ASSERT(rc < 0);
