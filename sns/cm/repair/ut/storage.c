@@ -26,12 +26,10 @@
 #include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/locality.h"
-#include "ut/be.h"
 #include "reqh/reqh.h"
 #include "mero/setup.h"
 #include "net/net.h"
 #include "sns/cm/repair/ut/cp_common.h"
-#include "cm/ut/common_service.h"
 
 struct m0_reqh_service          *service;
 static struct m0_reqh           *reqh;

@@ -19,7 +19,6 @@
  */
 
 #include "ut/ut.h"
-#include "ut/be.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "reqh/reqh.h"

@@ -252,7 +252,6 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 {
 	int rc = 0;
 
-	//M0_SET0(ut_be);
 	ut_be->but_sm_groups_unlocked = false;
 	if (cfg == NULL) {
 		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
@@ -295,7 +294,6 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_forall(i, ut_be->but_sgt_size,
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
 	m0_free(ut_be->but_sgt);
-	m0_be_engine_stop(&ut_be->but_dom.bd_engine);
 	m0_be_domain_fini(&ut_be->but_dom);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 	if (be_ut_helper.buh_reqh_ref_cnt > 0)
@@ -384,14 +382,14 @@ void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be)
 	m0_mutex_unlock(&ut_be->but_sgt_lock);
 }
 
-void be_ut_tx_lock_if(struct m0_sm_group *grp,
+static void be_ut_tx_lock_if(struct m0_sm_group *grp,
 		      struct m0_be_ut_backend *ut_be)
 {
 	if (ut_be->but_sm_groups_unlocked)
 		m0_sm_group_lock(grp);
 }
 
-void be_ut_tx_unlock_if(struct m0_sm_group *grp,
+static void be_ut_tx_unlock_if(struct m0_sm_group *grp,
 			struct m0_be_ut_backend *ut_be)
 {
 	if (ut_be->but_sm_groups_unlocked)
@@ -557,13 +555,10 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 	struct m0_be_tx_credit	credit = {};
 	struct m0_be_allocator *a;
 	struct m0_be_tx         tx;
-	//struct m0_sm_group     *grp
 	int                     rc;
 
 	ut_seg->bus_allocator = m0_be_seg_allocator(&ut_seg->bus_seg);
 	a = ut_seg->bus_allocator;
-        //grp = m0_be_ut_backend_sm_group_lookup(ut_be);
-        //m0_sm_group_lock(grp);
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(&tx, ut_be);
 		be_ut_tx_lock_if(tx.t_sm.sm_grp, ut_be);
@@ -694,6 +689,35 @@ M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
 M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
 {
 	m0_buf_free(&tc->butc_seg_copy);
+}
+
+static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
+{
+	int  i;
+	bool result = false;
+
+	for (i = 0; i < dom->fd_localities_nr; ++i) {
+		if ((i == 0 && dom->fd_localities[i].fl_foms == 1) ||
+				dom->fd_localities[i].fl_foms == 0)
+			result = true;
+		else
+			return false;
+	}
+
+	return result;
+}
+
+M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
+{
+	struct m0_clink clink;
+
+	M0_PRE(reqh != NULL);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
+	while (!fom_domain_is_idle(&reqh->rh_fom_dom))
+		m0_chan_timedwait((&clink), m0_time_from_now(2, 0));
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
 }
 
 #undef M0_TRACE_SUBSYSTEM

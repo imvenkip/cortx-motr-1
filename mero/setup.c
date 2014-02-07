@@ -52,6 +52,8 @@
 #include "rpc/rpc_internal.h"
 #include "addb/addb_monitor.h"
 
+#include "be/ut/helper.h"
+
 /**
    @addtogroup m0d
    @{
@@ -1522,10 +1524,8 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
-	cs_storage_fini(&rctx->rc_stob);
-	/* Stop m0_be_tx_group_fom */
-	m0_be_engine_stop(&rctx->rc_db.d_i.d_ut_be.but_dom.bd_engine);
-	m0_reqh_fom_domain_idle_wait(reqh);
+	//m0_reqh_fom_domain_idle_wait(reqh);
+	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
@@ -1539,7 +1539,7 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	m0_reqh_dbenv_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
-	//cs_storage_fini(&rctx->rc_stob);
+	cs_storage_fini(&rctx->rc_stob);
 	m0_dbenv_fini(&rctx->rc_db);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);

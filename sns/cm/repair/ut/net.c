@@ -31,8 +31,6 @@
 #include "reqh/reqh_service.h"
 #include "cm/proxy.h"
 #include "ut/ut_rpc_machine.h"
-#include "ut/be.h"
-#include "cm/ut/common_service.h"
 #include <unistd.h>			/* usleep */
 
 /* import from pool/pool_store.c */

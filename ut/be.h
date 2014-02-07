@@ -69,13 +69,6 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
 			       struct m0_be_seg *seg,
 			       struct m0_be_ut_backend *ut_be);
 
-/**
- * Blocks until all the FOMs are completed except the be tx_group_fom.
- * @note This is a temporary solution and will be replaced by per service
- * FOM completion notification mechanism.
- */
-M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
-
 /** @} end of ut group */
 #endif /* __MERO_UT_BE_H__ */
 

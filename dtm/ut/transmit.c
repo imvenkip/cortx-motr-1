@@ -48,7 +48,6 @@
 #include "dtm/fol.h"
 #include "dtm/ltx.h"
 #include "dtm/dtm.h"
-#include "ut/be.h"
 
 M0_INTERNAL void up_print(const struct m0_dtm_up *up);
 M0_INTERNAL void op_print(const struct m0_dtm_op *op);

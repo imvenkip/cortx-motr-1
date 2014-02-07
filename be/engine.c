@@ -139,7 +139,6 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 		  (etx_tlist_fini(&en->eng_txs[i]), true));
 	for (i = 0; i < en->eng_group_nr; ++i) {
 		m0_be_tx_group_fini(&en->eng_group[i]);
-		egr_tlist_del(&en->eng_group[i]);
 		egr_tlink_fini(&en->eng_group[i]);
 	}
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
@@ -403,7 +402,7 @@ static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
 		be_engine_unlock(en);
 		m0_be_tx_group_stop(&en->eng_group[i]);
 		be_engine_lock(en);
-//		egr_tlist_del(&en->eng_group[i]);
+		egr_tlist_del(&en->eng_group[i]);
 	}
 }
 

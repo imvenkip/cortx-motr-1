@@ -44,7 +44,7 @@ M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
 
 M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
 {
-	//m0_be_engine_stop(&dom->bd_engine);
+	m0_be_engine_stop(&dom->bd_engine);
 	m0_be_engine_fini(&dom->bd_engine);
 }
 

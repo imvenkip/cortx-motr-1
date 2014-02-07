@@ -23,7 +23,6 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
-#include "ut/be.h"
 #include "lib/misc.h"
 #include "lib/thread.h"
 

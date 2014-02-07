@@ -83,8 +83,6 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
-void m0_be_ut_backend_get(struct m0_be_ut_backend **ut_be,
-                          struct m0_be_ut_seg **ut_seg);
 
 /*
  * tx capturing checker for UT.
@@ -167,6 +165,12 @@ M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
 M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
 					   struct m0_sm_group *grp);
 
+/**
+ * Blocks until all the FOMs are completed except the be tx_group_fom.
+ * @note This is a temporary solution and will be replaced by per service
+ * FOM completion notification mechanism.
+ */
+M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

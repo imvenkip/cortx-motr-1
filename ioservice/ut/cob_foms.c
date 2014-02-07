@@ -22,7 +22,6 @@
 #include "lib/locality.h"
 #include "lib/finject.h"
 #include "ut/ut.h"
-#include "ut/be.h"
 #include "lib/memory.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */

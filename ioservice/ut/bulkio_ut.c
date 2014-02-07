@@ -26,7 +26,6 @@
 #include "lib/finject.h"
 #include "fol/lsn.h"
 #include "ut/ut.h"
-#include "ut/be.h"
 #include "bulkio_common.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"

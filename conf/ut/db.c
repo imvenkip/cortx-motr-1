@@ -27,7 +27,6 @@
 #include "conf/ut/file_helpers.h"
 #include "reqh/reqh.h"
 #include "ut/ut.h"
-#include "ut/be.h"
 #include "be/ut/helper.h"
 
 #define _CONFDB_PATH "_conf.db"

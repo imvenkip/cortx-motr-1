@@ -44,6 +44,8 @@
 #include "layout/pdclust.h"
 #include "mgmt/mgmt.h"
 
+#include "be/ut/helper.h"
+
 /**
    @addtogroup reqh
    @{
@@ -745,7 +747,11 @@ M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh)
 
 	if (service != NULL) {
 		m0_reqh_service_prepare_to_stop(service);
+#ifndef __KERNEL__
+		m0_ut_be_fom_domain_idle_wait(reqh);
+#else
 		m0_reqh_fom_domain_idle_wait(reqh); /* drain mgmt fops */
+#endif
 		m0_reqh_service_stop(service);
 		m0_reqh_service_fini(service);
 		reqh->rh_mgmt_svc = NULL;
