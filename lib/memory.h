@@ -123,6 +123,7 @@ static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
  */
 void m0_free(void *data);
 
+/* Frees memory and unsets the pointer. */
 #define m0_free0(pptr)                        \
 	do {                                  \
 		typeof(pptr) __pptr = (pptr); \
@@ -150,8 +151,8 @@ M0_INTERNAL size_t m0_allocated(void);
 M0_INTERNAL int m0_pagesize_get(void);
 
 /** @} end of memory group */
+#endif /* __MERO_LIB_MEMORY_H__ */
 
-#endif
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
