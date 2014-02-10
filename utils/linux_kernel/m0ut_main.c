@@ -17,14 +17,9 @@
  * Original creation date: 04/12/2011
  */
 
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-
-#include "lib/assert.h"
-#include "lib/thread.h"
-#include "ut/ut.h"
-#include "mero/init.h"
+#include "ut/ut.h"            /* m0_ut_add */
+#include "mero/init.h"        /* m0_init */
+#include "module/instance.h"  /* m0 */
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Unit Test Module");
@@ -98,9 +93,10 @@ static void run_kernel_ut(int ignored)
 
 static int __init m0_ut_module_init(void)
 {
+	static struct m0 instance;
 	int rc;
 
-	rc = m0_init();
+	rc = m0_init(&instance);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_ut_init();

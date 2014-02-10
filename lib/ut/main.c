@@ -34,7 +34,6 @@ extern void test_getopts(void);
 extern void test_list(void);
 extern void test_lockers(void);
 extern void test_memory(void);
-extern void test_module(void);
 extern void m0_test_misc(void);
 extern void test_mutex(void);
 extern void test_processor(void);
@@ -55,8 +54,6 @@ extern void test_hashtable(void);
 const struct m0_test_suite libm0_ut = {
 	.ts_name = "libm0-ut",
 	.ts_owners = "Nikita",
-	.ts_init = NULL,
-	.ts_fini = NULL,
 	.ts_tests = {
 		{ "atomic",           test_atomic        },
 		{ "bitmap",           test_bitmap        },
@@ -74,7 +71,6 @@ const struct m0_test_suite libm0_ut = {
 		{ "locality",         test_locality      },
 		{ "lockers",          test_lockers       },
 		{ "memory",           test_memory        },
-		{ "module",           test_module        },
 		{ "misc",             m0_test_misc       },
 		{ "mutex",            test_mutex         },
 		{ "rwlock",           test_rw            },

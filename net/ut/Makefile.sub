@@ -1,4 +1,5 @@
 ut_libmero_ut_la_SOURCES += net/ut/bulk_if.c \
-                               net/ut/buffer_pool_ut.c
+                            net/ut/buffer_pool_ut.c \
+                            net/ut/module.c
 
 EXTRA_DIST += net/ut/tm_provision_ut.c

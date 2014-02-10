@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 	sprintf(tm_len, "%d" , tm_recv_queue_len);
 	sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
-	result = m0_init();
+	result = m0_init(NULL);
 	if (result != 0) {
 		printf("m0_init failed\n");
 		return result;

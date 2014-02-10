@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
 	char                     local_hostbuf[16];
 	char                     remote_hostbuf[16];
 
-	rc = m0_init();
+	rc = m0_init(NULL);
 	M0_ASSERT(rc == 0);
 
 	rc = M0_GETOPTS("m0bulkping", argc, argv,

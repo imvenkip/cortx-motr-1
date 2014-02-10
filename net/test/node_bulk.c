@@ -1565,9 +1565,7 @@ static int node_bulk_cmd_start(void *ctx_,
 	m0_net_test_mps_init(&sd->ntcsd_mps_recv, 0, sd->ntcsd_time_start, _1s);
 	m0_atomic64_set(&ctx->nbc_stop_flag, 0);
 	rc = M0_THREAD_INIT(&ctx->nbc_thread, struct node_bulk_ctx *, NULL,
-			    &node_bulk_worker, ctx,
-			    "net-test-bulk-worker#%s",
-			    ctx->nbc_net.ntc_tm->ntm_ep->nep_addr);
+			    &node_bulk_worker, ctx, "net-test bulk");
 	if (rc != 0) {
 		/* change service state */
 		m0_net_test_service_state_change(ctx->nbc_svc,

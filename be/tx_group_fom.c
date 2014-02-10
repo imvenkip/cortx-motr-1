@@ -212,8 +212,7 @@ M0_INTERNAL void reqh_emu_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 	int		     rc;
 
 	rc = M0_THREAD_INIT(&re->re_thread, struct reqh_emu_fom *, NULL,
-			    &reqh_emu_loc_handler_thread, re,
-			    "%preqh_emu_fom", re);
+			    &reqh_emu_loc_handler_thread, re, "reqh_emu_fom");
 	M0_ASSERT(rc == 0);
 	reqh_emu_fom_wakeup(fom);
 }

@@ -265,7 +265,7 @@ int main(int argc, char **argv)
 	id = 0x4A494E4E49455349; /* "jinniesi" */
 	m0_uint128_init(&seed, "upjumpandpumpim,");
 
-	rc = m0_init();
+	rc = m0_init(NULL);
 	if (rc != 0)
 		return rc;
 

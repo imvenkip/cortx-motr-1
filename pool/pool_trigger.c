@@ -18,14 +18,11 @@
  * Original creation date: 06/19/2013
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
 #include "lib/trace.h"
+
 #include "lib/assert.h"
-#include "lib/misc.h"        /* M0_IN() */
+#include "lib/misc.h"        /* M0_IN */
 #include "lib/memory.h"
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
@@ -35,7 +32,7 @@
 #include "mero/init.h"
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
-
+#include "module/instance.h"  /* m0 */
 
 /*#define RPC_ASYNC_MODE*/
 
@@ -73,10 +70,9 @@ struct rpc_ctx {
 	const char           *ctx_sep;
 };
 
-
 static int poolmach_client_init(void)
 {
-	int    rc;
+	int rc;
 
 	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
@@ -200,7 +196,7 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 }
 
 const struct m0_rpc_item_ops poolmach_fop_rpc_item_ops = {
-	.rio_replied = trigger_rpc_item_reply_cb,
+	.rio_replied = trigger_rpc_item_reply_cb
 };
 
 void print_help()
@@ -219,6 +215,8 @@ void print_help()
 
 int main(int argc, char *argv[])
 {
+	static struct m0 instance;
+
 	struct rpc_ctx        *ctxs;
 	struct m0_clink        poolmach_clink;
 	const char            *op = NULL;
@@ -307,7 +305,7 @@ int main(int argc, char *argv[])
 			return -EINVAL;
 	}
 
-	rc = m0_init();
+	rc = m0_init(&instance);
 	if (rc != 0)
 		return rc;
 
@@ -339,10 +337,7 @@ int main(int argc, char *argv[])
 		struct m0_fop         *req;
 		struct m0_rpc_session *session;
 
-		if (i == 0)
-			session = &cl_ctx.rcx_session;
-		else
-			session = &ctxs[i].ctx_session;
+		session = i == 0 ? &cl_ctx.rcx_session : &ctxs[i].ctx_session;
 
 		if (op[0] == 'Q' || op[0] == 'q') {
 			struct m0_fop_poolmach_query *query_fop;
@@ -445,6 +440,7 @@ int main(int argc, char *argv[])
 }
 
 #undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

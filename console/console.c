@@ -278,7 +278,7 @@ int main(int argc, char **argv)
 	}
 
 #ifndef CONSOLE_UT
-	result = m0_init();
+	result = m0_init(NULL);
 	if (result != 0) {
 		fprintf(stderr, "m0_init failed\n");
 		return EX_SOFTWARE;

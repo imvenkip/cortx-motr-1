@@ -877,8 +877,7 @@ static int node_ping_cmd_start(void *ctx_,
 	/* start test */
 	ctx->npc_buf_rb_done = false;
 	rc = M0_THREAD_INIT(&ctx->npc_thread, struct node_ping_ctx *, NULL,
-			    &node_ping_worker, ctx, "net-test-ping-worker#%s",
-			    ctx->npc_net.ntc_tm->ntm_ep->nep_addr);
+			    &node_ping_worker, ctx, "net-test ping");
 	if (rc != 0) {
 		/* change service state */
 		m0_net_test_service_state_change(ctx->npc_svc,

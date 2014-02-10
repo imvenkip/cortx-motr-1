@@ -19,22 +19,19 @@
  * Original creation date: 10/31/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <sys/stat.h>
 #include <stdlib.h>
 
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/getopts.h"
-#include "lib/misc.h"        /* M0_IN() */
+#include "lib/misc.h"         /* M0_IN */
 #include "lib/memory.h"
 #include "lib/time.h"
 
 #include "fop/fop.h"
 #include "mero/init.h"
+#include "module/instance.h"  /* m0 */
 
 #include "rpc/rpclib.h"
 #include "rpc/rpc_opcodes.h"
@@ -87,12 +84,14 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 }
 
 const struct m0_rpc_item_ops trigger_fop_rpc_item_ops = {
-	.rio_replied = trigger_rpc_item_reply_cb,
+	.rio_replied = trigger_rpc_item_reply_cb
 };
 
 
 int main(int argc, char *argv[])
 {
+	static struct m0 instance;
+
 	struct trigger_fop    *treq;
 	struct rpc_ctx        *ctxs;
 	struct m0_rpc_session *session;
@@ -120,7 +119,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	rc = m0_init();
+	rc = m0_init(&instance);
 	M0_ASSERT(rc == 0);
 	m0_sns_cm_repair_trigger_fop_init();
 	m0_sns_cm_rebalance_trigger_fop_init();

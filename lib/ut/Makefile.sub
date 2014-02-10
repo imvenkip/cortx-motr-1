@@ -11,7 +11,6 @@ ut_libmero_ut_la_SOURCES += lib/ut/main.c \
                             lib/ut/locality.c \
                             lib/ut/lockers.c \
                             lib/ut/memory.c \
-                            lib/ut/module.c \
                             lib/ut/misc.c \
                             lib/ut/mutex.c \
                             lib/ut/processor.c \

@@ -123,7 +123,7 @@ static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
  */
 void m0_free(void *data);
 
-/* Frees memory and unsets the pointer. */
+/** Frees memory and unsets the pointer. */
 #define m0_free0(pptr)                        \
 	do {                                  \
 		typeof(pptr) __pptr = (pptr); \

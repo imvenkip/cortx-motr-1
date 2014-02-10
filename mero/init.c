@@ -19,12 +19,11 @@
  */
 
 #include "fop/fop.h"
-
 #ifndef __KERNEL__
-#  include "lib/user_space/thread.h"
 #  include "desim/sim.h"
 #endif
-#include "lib/trace.h"  /* m0_trace_init, m0_trace_fini */
+#include "lib/thread.h"  /* m0_threads_init */
+#include "lib/trace.h"   /* m0_trace_init */
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
@@ -54,10 +53,10 @@
 #ifdef __KERNEL__
 #  include "m0t1fs/linux_kernel/m0t1fs.h"
 #  include "mero/linux_kernel/dummy_init_fini.h"
-#  include "net/test/initfini.h"	/* m0_net_test_init */
+#  include "net/test/initfini.h" /* m0_net_test_init */
 #else
 #  include "be/tx_service.h"    /* m0_be_txs_register */
-#  include "be/be.h"		/* m0_backend_init */
+#  include "be/be.h"            /* m0_backend_init */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "conf/addb.h"        /* m0_conf_addb_init */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
@@ -76,6 +75,7 @@
 #include "stats/stats_fops.h"
 #include "mgmt/mgmt.h"
 #include "ha/epoch.h"
+#include "module/instance.h"  /* m0_instance_setup */
 
 M0_INTERNAL int m0_utime_init(void);
 M0_INTERNAL void m0_utime_fini(void);
@@ -103,7 +103,7 @@ struct init_fini_call {
  */
 struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
-	{ &m0_utime_init,	&m0_utime_fini,	      "time" },
+	{ &m0_utime_init,       &m0_utime_fini,       "time" },
 #endif
 	{ &m0_trace_init,       &m0_trace_fini,       "trace" },
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
@@ -148,7 +148,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
-	{ &m0_stats_fops_init,  &m0_stats_fops_fini,   "stats_fops"},
+	{ &m0_stats_fops_init,  &m0_stats_fops_fini,  "stats_fops"},
 	{ &m0_rms_register,     &m0_rms_unregister,   "rmservice"},
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
@@ -178,10 +178,13 @@ static void fini_nr(int i)
 	}
 }
 
-int m0_init(void)
+int m0_init(struct m0 *instance)
 {
 	int i;
 	int rc = 0;
+
+	m0_instance_setup(instance);
+	m0_threads_set_instance(instance);
 
 	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		rc = subsystem[i].ifc_init();

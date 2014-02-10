@@ -142,7 +142,7 @@ int main(int argc, char **argv)
 	struct sim s;
 	int        result;
 
-	result = m0_init();
+	result = m0_init(NULL);
 	M0_ASSERT(result == 0);
 
 	result = M0_GETOPTS(argv[0], argc, argv,

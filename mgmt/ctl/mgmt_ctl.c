@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
 		return usage();
 
 	/* initialize the library */
-	rc = m0_init();
+	rc = m0_init(NULL);
 	if (rc != 0) {
 		emit_error(&ctx, "Failed to initialize library", rc);
 		return 1;

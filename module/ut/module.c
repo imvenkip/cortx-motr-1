@@ -18,12 +18,12 @@
  * Original creation date: 10-Jan-2014
  */
 
-#include "lib/module.h"
-#include "lib/string.h"  /* m0_streq */
+#include "module/instance.h"
+#include "lib/string.h"       /* m0_streq */
 #include "ut/ut.h"
 
-static struct m0 g_m0;
 static char      g_log[32] = "";
+static struct m0 g_instance;
 
 static void _log(char c1, char c2)
 {
@@ -36,14 +36,14 @@ static void _log(char c1, char c2)
 	M0_ASSERT(rc == 2);
 }
 
-static int modlev_enter(struct m0 *_, struct m0_module *module)
+static int modlev_enter(struct m0_module *module)
 {
 	/* Append "<module name> <next level>" record (2 chars) to the log. */
 	_log(*module->m_name, '0' + module->m_cur + 1);
 	return 0;
 }
 
-static void modlev_leave(struct m0 *_, struct m0_module *module)
+static void modlev_leave(struct m0_module *module)
 {
 	/* Append "<module name> <current level>" record to the log. */
 	_log(*module->m_name, '0' + module->m_cur);
@@ -130,17 +130,17 @@ static void _reset(void)
 
 	M0_CASSERT(ARRAY_SIZE(mods) == ARRAY_SIZE(modules));
 	for (i = 0; i < ARRAY_SIZE(mods); ++i) {
+		modules[i].m_m0       = NULL;
+		modules[i].m_cur      = 0;
 		M0_ASSERT(mods[i].level_nr <= ARRAY_SIZE(levels));
 		modules[i].m_level    = levels;
+		modules[i].m_level_nr = mods[i].level_nr;
+		modules[i].m_dep_nr   = mods[i].dep_nr;
+		modules[i].m_inv_nr   = mods[i].inv_nr;
 		memcpy(modules[i].m_dep, mods[i].dep,
 		       mods[i].dep_nr * sizeof modules[i].m_dep[0]);
 		memcpy(modules[i].m_inv, mods[i].inv,
 		       mods[i].inv_nr * sizeof modules[i].m_inv[0]);
-		modules[i].m_level_nr = mods[i].level_nr;
-		modules[i].m_dep_nr   = mods[i].dep_nr;
-		modules[i].m_inv_nr   = mods[i].inv_nr;
-		modules[i].m_m0       = NULL;
-		modules[i].m_cur      = 0;
 	}
 
 	*g_log = 0;
@@ -159,7 +159,7 @@ static void _test_module_init(void)
 	_reset();
 
 	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(modules), cur(i) == 0));
-	rc = m0_module_init(&g_m0, &modules[B], 2);
+	rc = m0_module_init(&modules[B], 2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cur(A) == 2);
 	M0_UT_ASSERT(cur(B) == 2);
@@ -167,7 +167,7 @@ static void _test_module_init(void)
 	M0_UT_ASSERT(cur(D) == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "a1a2b1b2"));
 
-	rc = m0_module_init(&g_m0, &modules[B], 4);
+	rc = m0_module_init(&modules[B], 4);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cur(A) == 2);
 	M0_UT_ASSERT(cur(B) == 4);
@@ -180,7 +180,7 @@ static void _test_module_fini(void)
 {
 	*g_log = 0;
 
-	m0_module_fini(&g_m0, &modules[B], 0);
+	m0_module_fini(&modules[B], 0);
 	/* Doesn't go lower than b3, which d2 depends on. */
 	M0_UT_ASSERT(cur(A) == 2);
 	M0_UT_ASSERT(cur(B) == 3);
@@ -188,21 +188,21 @@ static void _test_module_fini(void)
 	M0_UT_ASSERT(cur(D) == 2); /* c1 -> d3 => d3 gets downgraded */
 	M0_UT_ASSERT(m0_streq(g_log, "b4c1d3"));
 
-	m0_module_fini(&g_m0, &modules[D], 0);
+	m0_module_fini(&modules[D], 0);
 	M0_UT_ASSERT(cur(A) == 2);
 	M0_UT_ASSERT(cur(B) == 2);
 	M0_UT_ASSERT(cur(C) == 0);
 	M0_UT_ASSERT(cur(D) == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "b4c1d3d2b3d1"));
 
-	m0_module_fini(&g_m0, &modules[B], 1);
+	m0_module_fini(&modules[B], 1);
 	M0_UT_ASSERT(cur(A) == 2);
 	M0_UT_ASSERT(cur(B) == 1);
 	M0_UT_ASSERT(cur(C) == 0);
 	M0_UT_ASSERT(cur(D) == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "b4c1d3d2b3d1b2"));
 
-	m0_module_fini(&g_m0, &modules[A], 1);
+	m0_module_fini(&modules[A], 1);
 	/* A noop, since b1 depends on a2. */
 	M0_UT_ASSERT(cur(A) == 2);
 	M0_UT_ASSERT(cur(B) == 1);
@@ -210,14 +210,14 @@ static void _test_module_fini(void)
 	M0_UT_ASSERT(cur(D) == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "b4c1d3d2b3d1b2"));
 
-	m0_module_fini(&g_m0, &modules[B], 0);
+	m0_module_fini(&modules[B], 0);
 	M0_UT_ASSERT(cur(A) == 1);
 	M0_UT_ASSERT(cur(B) == 0);
 	M0_UT_ASSERT(cur(C) == 0);
 	M0_UT_ASSERT(cur(D) == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "b4c1d3d2b3d1b2b1a2"));
 
-	m0_module_fini(&g_m0, &modules[A], 0);
+	m0_module_fini(&modules[A], 0);
 	M0_UT_ASSERT(cur(A) == 0);
 	M0_UT_ASSERT(cur(B) == 0);
 	M0_UT_ASSERT(cur(C) == 0);
@@ -225,10 +225,10 @@ static void _test_module_fini(void)
 	M0_UT_ASSERT(m0_streq(g_log, "b4c1d3d2b3d1b2b1a2a1"));
 }
 
-static int modlev_a3_enter(struct m0 *instance, struct m0_module *module)
+static int modlev_a3_enter(struct m0_module *module)
 {
 	m0_module_dep_add(module, 4, &modules[B], 3);
-	return modlev_enter(instance, module);
+	return modlev_enter(module);
 }
 
 static void _test_module_dep_add(void)
@@ -248,7 +248,7 @@ static void _test_module_dep_add(void)
 	 * m0_module_dep_add() is called implicitly: ->m_enter() callback,
 	 * invoked when module A enters level 3, creates a4 -> b3 dependency.
 	 */
-	rc = m0_module_init(&g_m0, &modules[A], 4);
+	rc = m0_module_init(&modules[A], 4);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(modules[A].m_dep_nr == 1);
 	M0_UT_ASSERT(cur(A) == 4);
@@ -258,12 +258,52 @@ static void _test_module_dep_add(void)
 	M0_UT_ASSERT(m0_streq(g_log, "a1a2a3b1b2b3a4"));
 }
 
-void test_module(void)
+static void test_module(void)
 {
 	_test_module_init();
 	_test_module_fini();
 	_test_module_dep_add();
 }
+
+static void inherit(int _)
+{
+	struct m0 *inst;
+	struct m0  local;
+
+	inst = m0_get();
+	M0_UT_ASSERT(inst == &g_instance);
+
+	m0_set(&local);
+	inst = m0_get();
+	M0_UT_ASSERT(inst == &local);
+}
+
+static void test_instance(void)
+{
+	struct m0       *inst;
+	struct m0_thread t = {0};
+	int              rc;
+
+	m0_set(&g_instance);
+	inst = m0_get();
+	M0_UT_ASSERT(inst == &g_instance);
+
+	rc = M0_THREAD_INIT(&t, int, NULL, &inherit, 0, "heir");
+	M0_ASSERT(rc == 0);
+	m0_thread_join(&t);
+
+	inst = m0_get();
+	M0_UT_ASSERT(inst == &g_instance);
+}
+
+const struct m0_test_suite module_ut = {
+	.ts_name  = "module-ut",
+	.ts_tests = {
+		{ "module",   test_module },
+		{ "instance", test_instance },
+		{ NULL, NULL }
+	}
+};
 
 /*
  *  Local variables:

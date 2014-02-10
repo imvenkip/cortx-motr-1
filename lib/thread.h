@@ -24,15 +24,14 @@
 #ifndef __MERO_LIB_THREAD_H__
 #define __MERO_LIB_THREAD_H__
 
+#ifndef __KERNEL__
+#  include "lib/user_space/thread.h"
+#else
+#  include "lib/linux_kernel/thread.h"
+#endif
 #include "lib/semaphore.h"
 
-#ifndef __KERNEL__
-#include "lib/user_space/thread.h"
-#else
-#include "lib/linux_kernel/thread.h"
-#endif
-
-/* platform-specific headers above must define struct m0_thread_handle */
+struct m0_bitmap;
 
 /**
    @defgroup thread Thread
@@ -97,6 +96,7 @@ struct m0_thread {
 	void                   *t_arg;
 	struct m0_semaphore     t_wait;
 	int                     t_initrc;
+	struct m0_thread_tls    t_tls;
 };
 
 /**
@@ -171,8 +171,8 @@ M0_INTERNAL void *m0_thread_trampoline(void *t);
    @post (result != 0) == (q->t_state == TS_PARKED)
    @post (result == 0) == (q->t_state == TS_RUNNING)
  */
-int  m0_thread_init(struct m0_thread *q, int (*init)(void *),
-		    void (*func)(void *), void *arg, const char *namefmt, ...)
+int m0_thread_init(struct m0_thread *q, int (*init)(void *),
+		   void (*func)(void *), void *arg, const char *namefmt, ...)
 	__attribute__ ((format (printf, 5, 6)));
 
 /**
@@ -204,8 +204,6 @@ int m0_thread_join(struct m0_thread *q);
    Send specified signal to this thread.
 */
 M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig);
-
-struct m0_bitmap;
 
 /**
    Sets thread affinity to a given processor bitmap.
@@ -241,24 +239,36 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 				     struct m0_thread_handle *h2);
 
 /**
- * Sets the thread in awkward context.
+ * Returns thread-local storage.
+ * @note The returned value is never NULL.
  */
+M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void);
+
+/**
+ * Assigns initial m0 instance to be returned by m0_get().
+ * Use m0_set() to reassign m0 instance.
+ *
+ * @note  m0_threads_set_instance() may only be called once. It should be
+ *        called at the early stages of Mero initialisation, i.e., early in
+ *        m0_init().
+ *
+ * @pre instance != NULL
+ *
+ * @see m0_set(), m0_get()
+ */
+M0_INTERNAL void m0_threads_set_instance(struct m0 *instance);
+
+/** Sets the thread in awkward context. */
 M0_INTERNAL void m0_enter_awkward(void);
 
-/**
- * Reset thread from awkward context.
- */
+/** Resets thread from awkward context. */
 M0_INTERNAL void m0_exit_awkward(void);
 
-/**
- * Tells if executing thread is in awkward context.
- */
+/** Tells if executing thread is in awkward context. */
 M0_INTERNAL bool m0_is_awkward(void);
 
 /** @} end of thread group */
-
-/* __MERO_LIB_THREAD_H__ */
-#endif
+#endif /* __MERO_LIB_THREAD_H__ */
 
 /*
  *  Local variables:

@@ -55,6 +55,7 @@
 #  endif
 #  include <arpa/inet.h>
 #  include <netdb.h>
+#  include "module/instance.h"  /* m0 */
 #endif
 
 #define TRANSPORT_NAME  "lnet"
@@ -75,7 +76,8 @@ enum {
 };
 
 #ifndef __KERNEL__
-static bool server_mode = false;
+static struct m0 instance;
+static bool      server_mode = false;
 #endif
 
 static bool  verbose           = false;
@@ -301,9 +303,8 @@ static int client_fini(struct m0_rpc_client_ctx *cctx)
 
 static int run_client(void)
 {
-	int  rc;
-	int  i;
-
+	int               rc;
+	int               i;
 	struct m0_thread *client_thread;
 
 	/*
@@ -336,7 +337,7 @@ static int run_client(void)
 		return rc;
 
 #ifndef __KERNEL__
-	rc = m0_init();
+	rc = m0_init(&instance);
 	if (rc != 0)
 		return rc;
 #endif
@@ -445,7 +446,7 @@ static int run_server(void)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_init();
+	rc = m0_init(&instance);
 	if (rc != 0)
 		return rc;
 

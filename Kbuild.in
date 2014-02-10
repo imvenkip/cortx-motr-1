@@ -59,6 +59,7 @@ include $(src)/mero/Kbuild.sub
 include $(src)/m0t1fs/Kbuild.sub
 
 include $(src)/addb/Kbuild.sub
+include $(src)/be/Kbuild.sub
 include $(src)/conf/Kbuild.sub
 include $(src)/db/Kbuild.sub
 include $(src)/dtm/Kbuild.sub
@@ -72,6 +73,7 @@ include $(src)/layout/Kbuild.sub
 include $(src)/lib/Kbuild.sub
 include $(src)/mdservice/Kbuild.sub
 include $(src)/mgmt/Kbuild.sub
+include $(src)/module/Kbuild.sub
 include $(src)/net/Kbuild.sub
 include $(src)/net/bulk_emulation/Kbuild.sub
 include $(src)/net/lnet/Kbuild.sub
@@ -84,7 +86,6 @@ include $(src)/sns/Kbuild.sub
 include $(src)/stats/Kbuild.sub
 include $(src)/stob/Kbuild.sub
 include $(src)/xcode/Kbuild.sub
-include $(src)/be/Kbuild.sub
 
 
 #

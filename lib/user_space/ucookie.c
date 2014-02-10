@@ -30,7 +30,6 @@
    @{
  */
 
-static pthread_key_t addr_check_key;
 static const struct m0_panic_ctx signal_panic = {
 	.pc_expr   = "fatal signal delivered",
 	.pc_func   = "unknown",
@@ -46,11 +45,11 @@ static void sigsegv(int sig)
 {
 	jmp_buf *buf;
 
-	buf = pthread_getspecific(addr_check_key);
-	if (buf != NULL)
-		longjmp(*buf, 1);
-	else
+	buf = m0_thread_tls()->tls_jmp;
+	if (buf == NULL)
 		m0_panic(&signal_panic, sig);
+	else
+		longjmp(*buf, 1);
 }
 
 /**
@@ -61,60 +60,48 @@ static void sigsegv(int sig)
 M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
 {
 	jmp_buf           buf;
+	jmp_buf         **tls = &m0_thread_tls()->tls_jmp;
 	volatile uint64_t dummy;
 	int               ret;
-	bool              result;
+	bool              result = false;
 
-	ret = pthread_setspecific(addr_check_key, &buf);
-	M0_ASSERT(ret == 0);
+	*tls = &buf;
 	ret = setjmp(buf);
 	if (ret == 0) {
 		dummy = *(uint64_t *)addr;
 		result = true;
-	} else
-		result = false;
-	ret = pthread_setspecific(addr_check_key, NULL);
-	M0_ASSERT(ret == 0);
+	}
+	*tls = NULL;
+
 	return result;
 }
 
-/**
- * Sets up the signal handler for SIGSEGV to the function sigsegv.
- * Creates a pthread_key to be used in the function m0_arch_addr_is_sane.
- */
+/** Sets the signal handler for SIGSEGV to sigsegv() function. */
 M0_INTERNAL int m0_arch_cookie_global_init(void)
 {
-	int		 ret;
-	struct sigaction sa_sigsegv;
+	int              ret;
+	struct sigaction sa_sigsegv = {
+		.sa_handler = sigsegv,
+		.sa_flags   = SA_NODEFER
+	};
 
-	M0_SET0(&sa_sigsegv);
-	sa_sigsegv.sa_handler = sigsegv;
-	sa_sigsegv.sa_flags = SA_NODEFER;
-	ret = sigemptyset(&sa_sigsegv.sa_mask);
-	if (ret == -1)
+	ret = sigemptyset(&sa_sigsegv.sa_mask) ?:
+		sigaction(SIGSEGV, &sa_sigsegv, NULL);
+	if (ret != 0) {
+		M0_ASSERT(ret == -1);
 		return -errno;
-	ret = sigaction(SIGSEGV, &sa_sigsegv, NULL);
-	if (ret == -1)
-		return -errno;
-	return -pthread_key_create(&addr_check_key, NULL);
+	}
+	return 0;
 }
 
-/**
- * Sets the signal handler for SIGSEGV to the default signal handler. Deletes
- * pthread_key.
- */
+/** Sets the signal handler for SIGSEGV to the default handler. */
 M0_INTERNAL void m0_arch_cookie_global_fini(void)
 {
-	struct sigaction sa_sigsegv;
 	int              ret;
+	struct sigaction sa_sigsegv = { .sa_handler = SIG_DFL };
 
-	M0_SET0(&sa_sigsegv);
-	sa_sigsegv.sa_handler = SIG_DFL;
-	ret = sigemptyset(&sa_sigsegv.sa_mask);
-	M0_ASSERT(ret == 0);
-	ret = sigaction(SIGSEGV, &sa_sigsegv, NULL);
-	M0_ASSERT(ret == 0);
-	ret = pthread_key_delete(addr_check_key);
+	ret = sigemptyset(&sa_sigsegv.sa_mask) ?:
+		sigaction(SIGSEGV, &sa_sigsegv, NULL);
 	M0_ASSERT(ret == 0);
 }
 

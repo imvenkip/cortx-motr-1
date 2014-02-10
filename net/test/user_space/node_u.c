@@ -26,7 +26,8 @@
 #include "lib/memory.h"			/* m0_alloc */
 #include "lib/semaphore.h"		/* m0_semaphore_down */
 
-#include "mero/init.h"
+#include "mero/init.h"                  /* m0_init */
+#include "module/instance.h"            /* m0 */
 
 #include "net/test/user_space/common_u.h" /* m0_net_test_u_str_copy */
 #include "net/test/node.h"
@@ -101,6 +102,8 @@ static int configure(int argc, char *argv[], struct m0_net_test_node_cfg *cfg)
 
 int main(int argc, char *argv[])
 {
+	static struct m0 instance;
+
 	int rc;
 	struct m0_net_test_node_ctx node;
 	struct m0_net_test_node_cfg cfg = {
@@ -111,7 +114,7 @@ int main(int argc, char *argv[])
 	};
 
 	m0_net_test_u_printf_v("m0_init()\n");
-	rc = m0_init();
+	rc = m0_init(&instance);
 	m0_net_test_u_print_error("Mero initialization failed.", rc);
 	if (rc != 0)
 		return rc;

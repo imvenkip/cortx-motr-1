@@ -23,6 +23,8 @@
 #ifndef __MERO_MERO_INIT_H__
 #define __MERO_MERO_INIT_H__
 
+struct m0;
+
 /**
    @defgroup init Mero initialisation calls.
 
@@ -35,7 +37,7 @@
 
    @see m0_fini().
  */
-int m0_init(void);
+int m0_init(struct m0 *instance);
 
 /**
    Finalizes all sub-systems initialised by m0_init().
@@ -43,9 +45,7 @@ int m0_init(void);
 void m0_fini(void);
 
 /** @} end of init group */
-
-/* __MERO_MERO_LIST_H__ */
-#endif
+#endif /* __MERO_MERO_LIST_H__ */
 
 /*
  *  Local variables:

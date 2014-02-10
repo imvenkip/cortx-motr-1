@@ -26,17 +26,15 @@
 #include <unistd.h> /* getuid, close, read, write, lseek */
 
 #include "addb/user_space/uctx.h" /* m0_addb_kmod_uuid_file_set */
-#include "mero/init.h"
-#include "lib/arith.h" /* m0_is_po2 */
-#include "lib/assert.h"
+#include "mero/init.h"            /* m0_init */
+#include "module/instance.h"      /* m0 */
+#include "lib/arith.h"            /* m0_is_po2 */
 #include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/misc.h" /* M0_SET0 */
+#include "lib/memory.h"           /* m0_alloc_aligned */
 
-#include "net/net.h"
-#include "net/lnet/lnet_core_types.h"
-#include "net/lnet/lnet_ioctl.h"
-#include "net/lnet/ut/lnet_drv_ut.h"
+#include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
+#include "net/lnet/lnet_ioctl.h"      /* M0_LNET_DEV */
+#include "net/lnet/ut/lnet_drv_ut.h"  /* UT_PROC_NAME */
 
 const char lnet_xprt_dev[] = "/dev/" M0_LNET_DEV;
 const char lnet_ut_proc[]  = "/proc/" UT_PROC_NAME;
@@ -331,6 +329,7 @@ int test_duptm(void)
 
 int main(int argc, char *argv[])
 {
+	static struct m0 instance;
 	int procf;
 	int i;
 	int rc;
@@ -340,7 +339,7 @@ int main(int argc, char *argv[])
 
 	m0_addb_kmod_uuid_file_set("/sys/module/m0ut/parameters/node_uuid");
 
-	rc = m0_init();
+	rc = m0_init(&instance);
 	M0_ASSERT(rc == 0);
 
 	delay = m0_time(PROC_DELAY_SEC, 0);
