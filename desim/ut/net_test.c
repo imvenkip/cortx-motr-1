@@ -125,7 +125,7 @@ int main(int argc, char **argv)
 
 	int result;
 
-	result = m0_init();
+	result = m0_init(NULL);
 	if (result == 0) {
 		client.cc_nr_clients = clients;
 		client.cc_nr_threads = threads;

@@ -22,20 +22,17 @@
 #include <stdlib.h>   /* system */
 #include <sys/stat.h> /* mkdir */
 #include <unistd.h>   /* chdir */
-#include <errno.h>
 #include <err.h>      /* warn */
-#include <stdbool.h>  /* bool */
-#include <yaml.h>
+#include <yaml.h>     /* yaml_parser_t */
 
-#include "mero/init.h"
-#include "lib/assert.h"
-#include "lib/memory.h"
-#include "lib/list.h"
-#include "ut/ut.h"
-#include "lib/finject.h"
-#include "lib/finject_internal.h"
-#include "lib/string.h"   /* m0_strdup */
-#include "ut/ut.h"
+#include "mero/init.h"            /* m0_init */
+#include "lib/errno.h"            /* EINVAL */
+#include "lib/memory.h"           /* M0_ALLOC_PTR */
+#include "lib/finject.h"          /* m0_fi_fpoint_data */
+#include "lib/finject_internal.h" /* m0_fi_fpoint_type_from_str */
+#include "lib/string.h"           /* m0_strdup */
+#include "module/instance.h"      /* m0 */
+#include "ut/ut.h"                /* m0_ut_init */
 
 static int reset_sandbox(const char *sandbox)
 {
@@ -59,12 +56,13 @@ static int reset_sandbox(const char *sandbox)
 
 int unit_start(const char *sandbox)
 {
+	static struct m0 instance;
 	int rc;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	rc = m0_init();
+	rc = m0_init(&instance);
 	if (rc != 0)
 		return rc;
 

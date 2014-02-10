@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
         sigaction(SIGQUIT, &sa, NULL);
         sigaction(SIGPIPE, &sa, NULL);
 
-	rc = m0_init();
+	rc = m0_init(NULL);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to initialize library. rc = %d\n", rc);
 		return rc;

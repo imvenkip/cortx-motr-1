@@ -18,19 +18,20 @@
  * Original creation date: 05/08/2011
  */
 
-#include <stdio.h>     /* fprintf */
-#include <unistd.h>    /* pause */
-#include <signal.h>    /* sigaction */
+#include <stdio.h>            /* fprintf */
+#include <unistd.h>           /* pause */
+#include <signal.h>           /* sigaction */
 #include <sys/time.h>
 #include <sys/resource.h>
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h"  /* M0_SET0 */
+#include "lib/misc.h"         /* M0_SET0 */
 
 #include "mero/setup.h"
 #include "mero/init.h"
 #include "mero/version.h"
+#include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 
@@ -78,6 +79,8 @@ static void cs_wait_for_termination(void)
 
 M0_INTERNAL int main(int argc, char **argv)
 {
+	static struct m0 instance;
+
 	int            rc;
 	struct m0_mero mero_ctx;
 	struct rlimit rlim = {10240, 10240};
@@ -95,7 +98,7 @@ M0_INTERNAL int main(int argc, char **argv)
 	}
 	errno = 0;
 	M0_SET0(&mero_ctx);
-	rc = m0_init();
+	rc = m0_init(&instance);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Mero \n");
 		goto out;

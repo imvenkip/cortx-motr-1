@@ -838,7 +838,7 @@ int main(int argc, char *argv[])
 	 * instead */
 	m0_addb_node_uuid_string_set(NULL);
 
-	rc = m0_init();
+	rc = m0_init(NULL);
 	if (rc != 0) {
 		log_err("failed to initialize libmero\n");
 		return EX_SOFTWARE;

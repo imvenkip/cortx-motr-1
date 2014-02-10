@@ -714,7 +714,7 @@ int main(int argc, char *argv[])
 	int                  rc = 0;
 	int                  r2;
 
-	rc = m0_init();
+	rc = m0_init(NULL);
 	if (rc != 0) {
 		M0_ASSERT(rc < 0);
 		return -rc;

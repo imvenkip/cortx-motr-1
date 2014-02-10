@@ -216,7 +216,7 @@ int main(int argc, char **argv)
 	struct sim s;
 	int result;
 
-	result = m0_init();
+	result = m0_init(NULL);
 	if (result == 0) {
 		chs_conf_init(&ST31000640SS);
 		chs_dev_init(&disc, &s, &ST31000640SS);

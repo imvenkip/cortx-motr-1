@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 	int                      send_msg_size = -1;
 	struct m0_thread	 server_thread;
 
-	rc = m0_init();
+	rc = m0_init(NULL);
 	M0_ASSERT(rc == 0);
 
 	rc = M0_GETOPTS("m0lnetping", argc, argv,
