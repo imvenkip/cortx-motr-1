@@ -75,6 +75,7 @@ extern const struct m0_test_suite m0_mgmt_svc_ut;
 extern const struct m0_test_suite m0_net_bulk_if_ut;
 extern const struct m0_test_suite m0_net_bulk_mem_ut;
 extern const struct m0_test_suite m0_net_lnet_ut;
+extern const struct m0_test_suite m0_net_module_ut;
 extern const struct m0_test_suite m0_net_test_ut;
 extern const struct m0_test_suite m0_net_tm_prov_ut;
 extern const struct m0_test_suite m0d_ut;
@@ -144,6 +145,7 @@ void add_uts(void)
 	m0_ut_add(&m0_net_bulk_if_ut);
 	m0_ut_add(&m0_net_bulk_mem_ut);
 	m0_ut_add(&m0_net_lnet_ut);
+	m0_ut_add(&m0_net_module_ut);
 	m0_ut_add(&m0_net_test_ut);
 	m0_ut_add(&m0_net_tm_prov_ut);
 	m0_ut_add(&m0d_ut);

@@ -1,5 +1,6 @@
 nobase_mero_include_HEADERS += net/buffer_pool.h \
                                net/bulk_mem.h \
+                               net/module.h \
                                net/net.h \
                                net/net_addb.h \
                                net/net_internal.h \
@@ -10,9 +11,10 @@ mero_libmero_la_SOURCES  += net/buf.c \
                             net/buffer_pool.c \
                             net/domain.c \
                             net/ep.c \
+                            net/module.c \
                             net/net.c \
                             net/net_otw_types_xc.c \
                             net/tm.c \
                             net/tm_provision.c
 
-XC_FILES   += net/net_otw_types_xc.h
+XC_FILES += net/net_otw_types_xc.h
