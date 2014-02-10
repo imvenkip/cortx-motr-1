@@ -712,9 +712,8 @@ void m0_net_test_cmd_ut_multiple2(void)
 		node = &nodes[i];
 		rc = M0_THREAD_INIT(&node->ntcn_thread,
 				    struct net_test_cmd_node *, NULL,
-				    &commands_node_thread2,
-				    node, "#%dcmd_ut__%s", (int) i,
-				    i == 0 ? "console" : "node");
+				    &commands_node_thread2, node,
+				    "cmd_ut #%d", (int)i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* barrier with node threads */

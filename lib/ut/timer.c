@@ -341,8 +341,8 @@ static void test_timer_master_mt(struct thread_group *tg)
 	for (i = 0; i < NR_THREADS_TG; ++i) {
 		tg->tg_slaves[i].tgs_group = tg;
 		rc = M0_THREAD_INIT(&tg->tg_threads[i], struct tg_slave *,
-				NULL, &test_timer_slave_mt,
-				&tg->tg_slaves[i], "timer test slave");
+				    NULL, &test_timer_slave_mt,
+				    &tg->tg_slaves[i], "timer slave #%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* wait until all slaves initialized */
@@ -460,8 +460,8 @@ static void test_timer_many_timers_mt()
 	/* start all masters from every thread group */
 	for (i = 0; i < NR_TG; ++i) {
 		rc = M0_THREAD_INIT(&tg[i].tg_master, struct thread_group *,
-				NULL, &test_timer_master_mt,
-				&tg[i], "timer test master");
+				    NULL, &test_timer_master_mt,
+				    &tg[i], "timer master");
 		M0_UT_ASSERT(rc == 0);
 	}
 

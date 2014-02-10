@@ -223,9 +223,9 @@ static int m0_be_ut_sm_group_thread_init(struct m0_be_ut_sm_group_thread **sgtp,
 		m0_sm_group_init(&sgt->sgt_grp);
 		m0_semaphore_init(&sgt->sgt_stop_sem, 0);
 		rc = M0_THREAD_INIT(&sgt->sgt_thread,
-				    struct m0_be_ut_sm_group_thread *,
-				    NULL, &be_ut_sm_group_thread_func, sgt,
-				    "%pbe_sm_group_thread", sgt);
+				    struct m0_be_ut_sm_group_thread *, NULL,
+				    &be_ut_sm_group_thread_func, sgt,
+				    "be_ut sgt");
 		if (rc == 0) {
 			if (sgt->sgt_lock_new)
 				m0_sm_group_lock(&sgt->sgt_grp);

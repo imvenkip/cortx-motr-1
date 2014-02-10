@@ -195,6 +195,7 @@ include $(top_srcdir)/mdservice/Makefile.sub
 include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
 include $(top_srcdir)/mgmt/Makefile.sub
+include $(top_srcdir)/module/Makefile.sub
 #XXX_BE_DB include $(top_srcdir)/mw/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
@@ -246,6 +247,7 @@ include $(top_srcdir)/mdservice/ut/Makefile.sub
 include $(top_srcdir)/mero/ut/Makefile.sub
 include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
 include $(top_srcdir)/mgmt/ut/Makefile.sub
+include $(top_srcdir)/module/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
@@ -1131,6 +1133,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               mdservice/Kbuild.sub \
               mero/Kbuild.sub \
               mgmt/Kbuild.sub \
+              module/Kbuild.sub \
               net/Kbuild.sub \
               net/bulk_emulation/Kbuild.sub \
               net/bulk_emulation/ut/Kbuild.sub \

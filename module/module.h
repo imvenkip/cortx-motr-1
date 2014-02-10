@@ -19,10 +19,8 @@
  */
 
 #pragma once
-#ifndef __MERO_LIB_MODULE_H__
-#define __MERO_LIB_MODULE_H__
-
-#include "lib/types.h"  /* uint64_t */
+#ifndef __MERO_MODULE_MODULE_H__
+#define __MERO_MODULE_MODULE_H__
 
 /**
  * @defgroup module
@@ -124,8 +122,8 @@ struct m0_moddep {
  * array of inverse dependencies (m0_module::m_inv).
  *
  * If there is a (m0, l0) -> (m1, l1) dependency, then there is an
- * { .md_other = m1, md_src = l0, md_dst = l1 } element in m0.dep[] and an
- * { .md_other = m0, md_src = l0, md_dst = l1 } element in m1.inv[].
+ * { .md_other = m1, md_src = l0, md_dst = l1 } element in m0.m_dep[] and an
+ * { .md_other = m0, md_src = l0, md_dst = l1 } element in m1.m_inv[].
  */
 struct m0_module {
 	const char       *m_name;
@@ -149,9 +147,9 @@ struct m0_modlev {
 	 * Entry function, executed before entering the level, after
 	 * all dependencies are satisfied.
 	 */
-	int (*ml_enter)(struct m0 *instance, struct m0_module *module);
+	int  (*ml_enter)(struct m0_module *module);
 	/** Leave function, executed before leaving the level. */
-	void (*ml_leave)(struct m0 *instance, struct m0_module *module);
+	void (*ml_leave)(struct m0_module *module);
 };
 
 /**
@@ -162,63 +160,16 @@ struct m0_modlev {
  *
  * @pre level != 0
  */
-M0_INTERNAL int m0_module_init(struct m0 *instance, struct m0_module *mod,
-			       unsigned level);
+M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level);
 
 /** Downgrade the module to the given level. */
-M0_INTERNAL void m0_module_fini(struct m0 *instance, struct m0_module *mod,
-				unsigned level);
+M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level);
 
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
 				   struct m0_module *m1, unsigned l1);
 
-/**
- * m0 instance.
- *
- * All "global" variables are accessible from this struct.
- *
- * Each module belongs to exactly one instance.
- */
-struct m0 {
-	/**
-	 * Generation counter, modified each time a module or
-	 * dependency is added. Used to detect when initialisation
-	 * should re-start.
-	 */
-	uint64_t         m0_dep_gen;
-	/** Module representing this instance. */
-	struct m0_module m0_self;
-
-	/* Global modules. */
-
-#if 0 /* XXX ENABLEME */
-	/**
-	 * Contains modules for library (thread, xc, etc.) together
-	 * with their global data.
-	 */
-	struct m0_lib    m0_lib;
-
-	/* ... */
-#endif
-};
-
-/**
- * Returns current m0 instance.
- *
- * In the kernel, there is only one instance. It is returned.
- *
- * In user space, the instance is created by m0d early startup code
- * and stored in thread-local-storage. This instance is inherited by
- * threads (i.e., when a thread is created it gets the instance of the
- * creator and stores it in its TLS).
- *
- * Theoretically, user space Mero can support multiple instances in
- * the same address space.
- */
-M0_INTERNAL struct m0 *m0_get(void);
-
-/** @} end of module group */
-#endif /* __MERO_LIB_MODULE_H__ */
+/** @} module */
+#endif /* __MERO_MODULE_MODULE_H__ */
 
 /*
  *  Local variables:

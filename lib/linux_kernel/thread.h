@@ -38,18 +38,19 @@
    @{
  */
 
+enum { M0_THREAD_NAME_LEN = TASK_COMM_LEN };
+
 struct m0_thread_handle {
 	struct task_struct *h_t;
 };
 
-enum {
-	M0_THREAD_NAME_LEN = TASK_COMM_LEN
+/** Thread-local storage. */
+struct m0_thread_tls {
+	struct m0 *tls_m0_instance; /**< The pointer returned by m0_get(). */
 };
 
 /** @} end of thread group */
-
-/* __MERO_LIB_LINUX_KERNEL_THREAD_H__ */
-#endif
+#endif /* __MERO_LIB_LINUX_KERNEL_THREAD_H__ */
 
 /*
  *  Local variables:

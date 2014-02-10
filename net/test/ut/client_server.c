@@ -209,7 +209,7 @@ static void net_test_client_server(const char *nid,
 		rc = M0_THREAD_INIT(&node_thread[i],
 				    struct m0_net_test_node_cfg *,
 				    NULL, &net_test_node, &node_cfg[i],
-				    "ut_node_thread#%d", i);
+				    "net_test node%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* wait until test node started */

@@ -23,9 +23,10 @@
 #ifndef __MERO_LIB_USER_SPACE_THREAD_H__
 #define __MERO_LIB_USER_SPACE_THREAD_H__
 
-#include <sys/types.h>
 #include <pthread.h>
+#include <setjmp.h>     /* jmp_buf */
 #include <signal.h>
+#include "lib/types.h"  /* bool */
 
 /**
    @addtogroup thread Thread
@@ -40,16 +41,24 @@
    @{
  */
 
+enum { M0_THREAD_NAME_LEN = 16 };
+
 struct m0_thread_handle {
 	pthread_t h_id;
 };
 
-enum {
-	M0_THREAD_NAME_LEN = 16
-};
-
 M0_INTERNAL int m0_threads_init(void);
 M0_INTERNAL void m0_threads_fini(void);
+
+/** Thread-local storage. */
+struct m0_thread_tls {
+	/** The pointer returned by m0_get(). */
+	struct m0 *tls_m0_instance;
+	/** True iff the thread is in awkward context. */
+	bool       tls_is_awkward;
+	/** Stack context/environment, saved with setjmp(3). */
+	jmp_buf   *tls_jmp;
+};
 
 /**
    Helper macro creating an anonymous function with a given body.

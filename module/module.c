@@ -14,14 +14,15 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
+ *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
  * Original creation date: 8-Jan-2014
  */
 
-#include "lib/module.h"
-#include "lib/misc.h"    /* m0_forall */
-#include "lib/errno.h"   /* EAGAIN */
-#include "lib/arith.h"   /* M0_CNT_INC */
+#include "module/instance.h"
+#include "lib/misc.h"         /* m0_forall */
+#include "lib/errno.h"        /* EAGAIN */
+#include "lib/arith.h"        /* M0_CNT_INC */
 
 /**
  * @addtogroup module
@@ -60,27 +61,27 @@ static bool module_invariant(const struct m0_module *mod)
 					   md1->md_dst == md->md_dst))));
 }
 
-static int module_up(struct m0 *instance, struct m0_module *mod, unsigned level)
+static int module_up(struct m0_module *module, unsigned level)
 {
-	int      result = 0;
-	uint64_t gen = instance->m0_dep_gen;
+	int        result = 0;
+	struct m0 *instance = m0_get();
+	uint64_t   gen = instance->i_dep_gen;
 
-	M0_PRE(level < mod->m_level_nr);
-	M0_PRE(module_invariant(mod));
+	M0_PRE(level < module->m_level_nr);
+	M0_PRE(module_invariant(module));
 
-	M0_ASSERT(M0_IN(mod->m_m0, (NULL, instance)));
-	mod->m_m0 = instance;
-	while (level > mod->m_cur && result == 0) {
-		unsigned next = mod->m_cur + 1;
+	M0_ASSERT(M0_IN(module->m_m0, (NULL, instance)));
+	module->m_m0 = instance;
+	while (level > module->m_cur && result == 0) {
+		unsigned next = module->m_cur + 1;
 		int      i;
 
-		for (i = 0; i < mod->m_dep_nr && result == 0; ++i) {
-			struct m0_moddep *md = &mod->m_dep[i];
+		for (i = 0; i < module->m_dep_nr && result == 0; ++i) {
+			struct m0_moddep *md = &module->m_dep[i];
 
 			if (md->md_src == next) {
-				result = module_up(instance,
-						   md->md_other, md->md_dst);
-				if (result == 0 && instance->m0_dep_gen != gen)
+				result = module_up(md->md_other, md->md_dst);
+				if (result == 0 && instance->i_dep_gen != gen)
 					/*
 					 * If generation changed, restart the
 					 * initialisation.
@@ -94,37 +95,35 @@ static int module_up(struct m0 *instance, struct m0_module *mod, unsigned level)
 				 */
 			}
 		}
-		if (result == 0 && mod->m_level[next].ml_enter != NULL) {
-			result = mod->m_level[next].ml_enter(instance, mod);
+		if (result == 0 && module->m_level[next].ml_enter != NULL) {
+			result = module->m_level[next].ml_enter(module);
 			M0_ASSERT(result != -EAGAIN);
 			if (result == 0)
-				mod->m_cur = next;
+				module->m_cur = next;
 		}
 	}
-	M0_POST(module_invariant(mod));
+	M0_POST(module_invariant(module));
 	return result;
 }
 
-M0_INTERNAL int
-m0_module_init(struct m0 *instance, struct m0_module *mod, unsigned level)
+M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level)
 {
 	int result;
 	M0_PRE(level != 0);
 
 	/* Repeat initialisation if a new module or dependency were added. */
-	while ((result = module_up(instance, mod, level)) == -EAGAIN)
+	while ((result = module_up(module, level)) == -EAGAIN)
 		;
 	return result;
 }
 
-M0_INTERNAL void
-m0_module_fini(struct m0 *instance, struct m0_module *mod, unsigned level)
+M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level)
 {
-	M0_PRE(level < mod->m_level_nr);
-	M0_PRE(module_invariant(mod));
+	M0_PRE(level < module->m_level_nr);
+	M0_PRE(module_invariant(module));
 
-	while (level < mod->m_cur) {
-		unsigned          cur = mod->m_cur;
+	while (level < module->m_cur) {
+		unsigned          cur = module->m_cur;
 		int               i;
 		struct m0_moddep *md;
 
@@ -133,48 +132,56 @@ m0_module_fini(struct m0 *instance, struct m0_module *mod, unsigned level)
 		 * the modules depending on this one. If a dependency
 		 * would be broken by downgrade --- return.
 		 */
-		for (i = 0; i < mod->m_inv_nr; ++i) {
-			md = &mod->m_inv[i];
+		for (i = 0; i < module->m_inv_nr; ++i) {
+			md = &module->m_inv[i];
 			if (md->md_dst == cur &&
 			    md->md_other->m_cur >= md->md_src)
 				return;
 		}
 
-		if (mod->m_level[cur].ml_leave != NULL)
-			mod->m_level[cur].ml_leave(instance, mod);
+		if (module->m_level[cur].ml_leave != NULL)
+			module->m_level[cur].ml_leave(module);
 		/*
 		 * Decrement the level before downgrading dependencies,
 		 * so that their inverse dependency check (above)
 		 * skips this module.
 		 */
-		--mod->m_cur;
-		for (i = mod->m_dep_nr - 1; i >= 0; --i) {
-			md = &mod->m_dep[i];
+		--module->m_cur;
+		for (i = module->m_dep_nr - 1; i >= 0; --i) {
+			md = &module->m_dep[i];
 			if (md->md_src == cur)
-				m0_module_fini(instance,
-					       md->md_other, md->md_dst - 1);
+				m0_module_fini(md->md_other, md->md_dst - 1);
 		}
 	}
-	M0_POST(module_invariant(mod));
+	M0_POST(module_invariant(module));
+}
+
+static bool equal_or_null(const void *a, const void *b)
+{
+	return a == b || (a == NULL) != (b == NULL);
 }
 
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
 				   struct m0_module *m1, unsigned l1)
 {
+	struct m0 *instance = m0->m_m0 == NULL ? m1->m_m0 : m0->m_m0;
+
+	M0_PRE(_0C(m0 != m1) && _0C(equal_or_null(m0->m_m0, m1->m_m0)));
 	M0_PRE(module_invariant(m0));
 	M0_PRE(module_invariant(m1));
 
 	M0_ASSERT(m0->m_dep_nr < ARRAY_SIZE(m0->m_dep));
 	m0->m_dep[m0->m_dep_nr++] = (struct m0_moddep){
 		.md_other = m1, .md_src = l0, .md_dst = l1 };
-	if (m0->m_m0 != NULL)
-		M0_CNT_INC(m0->m_m0->m0_dep_gen);
 
 	M0_ASSERT(m1->m_inv_nr < ARRAY_SIZE(m1->m_inv));
 	m1->m_inv[m1->m_inv_nr++] = (struct m0_moddep){
 		.md_other = m0, .md_src = l0, .md_dst = l1 };
-	if (m1->m_m0 != NULL)
-		M0_CNT_INC(m1->m_m0->m0_dep_gen);
+
+	if (instance != NULL) {
+		M0_CNT_INC(instance->i_dep_gen);
+		m0->m_m0 = m1->m_m0 = instance;
+	}
 
 	M0_POST(module_invariant(m0));
 	M0_POST(module_invariant(m1));

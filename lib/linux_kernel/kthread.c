@@ -54,6 +54,21 @@
    @{
  */
 
+static struct m0_thread_tls kernel_tls;
+
+M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
+{
+	return &kernel_tls;
+}
+
+M0_INTERNAL void m0_threads_set_instance(struct m0 *instance)
+{
+	M0_PRE(kernel_tls.tls_m0_instance == NULL);
+	M0_PRE(instance != NULL);
+
+	kernel_tls.tls_m0_instance = instance;
+}
+
 static int kthread_trampoline(void *arg)
 {
 	struct m0_thread *t = arg;
@@ -82,13 +97,13 @@ static int kthread_trampoline(void *arg)
 	return 0;
 }
 
-M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *namebuf)
+M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *name)
 {
 	int result;
 
 	M0_PRE(q->t_state == TS_RUNNING);
 
-	q->t_h.h_t = kthread_create(kthread_trampoline, q, "%s", namebuf);
+	q->t_h.h_t = kthread_create(kthread_trampoline, q, "%s", name);
 	if (IS_ERR(q->t_h.h_t)) {
 		result = PTR_ERR(q->t_h.h_t);
 	} else {
@@ -98,7 +113,7 @@ M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *namebuf)
 	return result;
 }
 
-M0_INTERNAL int m0_thread_join(struct m0_thread *q)
+int m0_thread_join(struct m0_thread *q)
 {
 	int result;
 

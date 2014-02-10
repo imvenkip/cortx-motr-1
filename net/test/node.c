@@ -914,21 +914,18 @@ int m0_net_test_node_init(struct m0_net_test_node_ctx *ctx,
 void m0_net_test_node_fini(struct m0_net_test_node_ctx *ctx)
 {
 	int rc = node_init_fini(ctx, NULL);
-	M0_POST(rc == 0);
+	M0_ASSERT(rc == 0);
 }
 
 int m0_net_test_node_start(struct m0_net_test_node_ctx *ctx)
 {
-	int rc;
-
 	M0_PRE(ctx != NULL);
 
 	ctx->ntnc_exit_flag = false;
-	ctx->ntnc_errno	    = 0;
+	ctx->ntnc_errno     = 0;
 
-	rc = M0_THREAD_INIT(&ctx->ntnc_thread, struct m0_net_test_node_ctx *,
-			    NULL, &node_thread, ctx, "net_test_node_thread");
-	return rc;
+	return M0_THREAD_INIT(&ctx->ntnc_thread, struct m0_net_test_node_ctx *,
+			      NULL, &node_thread, ctx, "net_test_node");
 }
 
 void m0_net_test_node_stop(struct m0_net_test_node_ctx *ctx)

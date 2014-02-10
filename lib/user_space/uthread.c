@@ -19,13 +19,13 @@
  * Original creation date: 02/18/2011
  */
 
-#include <stdlib.h>     /* getenv */
-#include <unistd.h>     /* getpid */
-#include <errno.h>      /* program_invocation_name */
-#include <stdio.h>      /* snprinf */
+#include <stdlib.h>      /* getenv */
+#include <unistd.h>      /* getpid */
+#include <errno.h>       /* program_invocation_name */
+#include <stdio.h>       /* snprinf */
 
-#include "lib/misc.h"   /* M0_SET0 */
-#include "lib/string.h" /* m0_strdup */
+#include "lib/misc.h"    /* M0_SET0 */
+#include "lib/string.h"  /* m0_strdup */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/thread.h"
@@ -49,61 +49,38 @@
    @{
  */
 
-/**
- * Thread specific data.
- */
-struct uthread_specific_data {
-	/** Flag to indicate thread is in awkward context. */
-	bool tsd_is_awkward;
-};
-
+static pthread_key_t  tls_key;
 static pthread_attr_t pthread_attr_default;
-static pthread_key_t pthread_data_key;
+static struct m0     *instance_0;
 
-/**
- * Initialize thread specific data.
- */
-M0_INTERNAL int uthread_specific_data_init(void)
+M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
 {
-	struct uthread_specific_data *ptr;
-
-	M0_ALLOC_PTR(ptr);
-	if (ptr == NULL)
-		return -ENOMEM;
-
-	ptr->tsd_is_awkward = false;
-	return -pthread_setspecific(pthread_data_key, ptr);
+	return pthread_getspecific(tls_key);
 }
 
-/**
- * Finalise thread specific data.
- */
-M0_INTERNAL void uthread_specific_data_fini(void)
+M0_INTERNAL void m0_threads_set_instance(struct m0 *instance)
 {
-	struct uthread_specific_data *ptr;
+	M0_PRE(instance_0 == NULL);
+	M0_PRE(instance != NULL);
 
-	ptr = pthread_getspecific(pthread_data_key);
-	pthread_setspecific(pthread_data_key, NULL);
-	m0_free(ptr);
+	instance_0 = instance;
 }
 
-/*
- * Used to initialize user thread specific data.
- */
 static void *uthread_trampoline(void *arg)
 {
-	struct m0_thread	     *t = arg;
+	struct m0_thread *t = arg;
 
-	t->t_initrc = uthread_specific_data_init();
+	M0_PRE(pthread_getspecific(tls_key) == NULL);
+
+	t->t_initrc = -pthread_setspecific(tls_key, &t->t_tls);
 	if (t->t_initrc == 0) {
 		m0_thread_trampoline(arg);
-		uthread_specific_data_fini();
+		(void)pthread_setspecific(tls_key, NULL);
 	}
-
 	return NULL;
 }
 
-M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *namebuf)
+M0_INTERNAL int m0_thread_init_impl(struct m0_thread *q, const char *_)
 {
 	M0_PRE(q->t_state == TS_RUNNING);
 
@@ -117,6 +94,7 @@ int m0_thread_join(struct m0_thread *q)
 
 	M0_PRE(q->t_state == TS_RUNNING);
 	M0_PRE(!pthread_equal(q->t_h.h_id, pthread_self()));
+
 	result = -pthread_join(q->t_h.h_id, NULL);
 	if (result == 0)
 		q->t_state = TS_PARKED;
@@ -154,9 +132,11 @@ M0_INTERNAL char *m0_debugger_args[4] = {
 
 M0_INTERNAL int m0_threads_init(void)
 {
-	int          result;
-	static char  pidbuf[20];
-	char        *env_ptr;
+	static struct m0_thread main_thread;
+	static char             pidbuf[20];
+
+	char *env_ptr;
+	int   result;
 
 	env_ptr = getenv("MERO_DEBUGGER");
 	if (env_ptr != NULL)
@@ -166,37 +146,39 @@ M0_INTERNAL int m0_threads_init(void)
 	 */
 	m0_debugger_args[1] = program_invocation_name;
 	m0_debugger_args[2] = pidbuf;
-	snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
+	result = snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
+	M0_ASSERT(result < ARRAY_SIZE(pidbuf));
 
-	result = -pthread_attr_init(&pthread_attr_default);
-	if (result != 0)
-		return result;
-
-	result = -pthread_attr_setdetachstate(&pthread_attr_default,
+	result = -pthread_attr_init(&pthread_attr_default) ?:
+		 -pthread_attr_setdetachstate(&pthread_attr_default,
 					      PTHREAD_CREATE_JOINABLE);
 	if (result != 0)
-		return result;
+		goto err_0;
 
-	/* Generate key for thread specific data. */
-	result = -pthread_key_create(&pthread_data_key, NULL);
-	if (result != 0) {
-		pthread_attr_destroy(&pthread_attr_default);
-		return result;
+	result = -pthread_key_create(&tls_key, NULL);
+	if (result != 0)
+		goto err_1;
+
+	result = -pthread_setspecific(tls_key, &main_thread.t_tls);
+	if (result == 0) {
+		M0_ASSERT(instance_0 != NULL);
+		main_thread.t_tls.tls_m0_instance = instance_0;
+		return 0;
 	}
 
-	return uthread_specific_data_init();
+	(void)pthread_key_delete(tls_key);
+err_1:
+	(void)pthread_attr_destroy(&pthread_attr_default);
+err_0:
+	m0_free0(&m0_debugger_args[0]); /* harmless even if env_ptr == NULL */
+	return result;
 }
 
 M0_INTERNAL void m0_threads_fini(void)
 {
-	if (m0_debugger_args[0] != NULL) {
-		free(m0_debugger_args[0]);
-		m0_debugger_args[0] = NULL;
-	}
-
-	pthread_attr_destroy(&pthread_attr_default);
-	uthread_specific_data_fini();
-	pthread_key_delete(pthread_data_key);
+	(void)pthread_key_delete(tls_key);
+	(void)pthread_attr_destroy(&pthread_attr_default);
+	m0_free0(&m0_debugger_args[0]);
 }
 
 M0_INTERNAL void m0_thread_self(struct m0_thread_handle *id)
@@ -212,33 +194,19 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	struct uthread_specific_data *ptr;
-
-	ptr = pthread_getspecific(pthread_data_key);
-	M0_ASSERT(ptr != NULL);
-
-	ptr->tsd_is_awkward = true;
+	m0_thread_tls()->tls_is_awkward = true;
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	struct uthread_specific_data *ptr;
-
-	ptr = pthread_getspecific(pthread_data_key);
-	M0_ASSERT(ptr != NULL);
-
-	ptr->tsd_is_awkward = false;
+	m0_thread_tls()->tls_is_awkward = false;
 }
 
 M0_INTERNAL bool m0_is_awkward(void)
 {
-	struct uthread_specific_data *ptr;
-
-	ptr = pthread_getspecific(pthread_data_key);
-	M0_ASSERT(ptr != NULL);
-
-	return ptr->tsd_is_awkward;
+	return m0_thread_tls()->tls_is_awkward;
 }
+
 /** @} end of thread group */
 
 /*
