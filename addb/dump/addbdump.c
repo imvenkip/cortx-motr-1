@@ -30,6 +30,7 @@
 #include "stob/linux.h"
 #include "mero/setup.h" /* m0_addb_stob_id */
 #include "mero/init.h"  /* m0_init */
+#include "module/instance.h"  /* m0 */
 
 /*
  * Encapsulates stob, stob type and
@@ -713,8 +714,9 @@ int main(int argc, char *argv[])
 	uint64_t             min_seg_id = 0;
 	int                  rc = 0;
 	int                  r2;
+	static struct m0     instance;
 
-	rc = m0_init(NULL);
+	rc = m0_init(&instance);
 	if (rc != 0) {
 		M0_ASSERT(rc < 0);
 		return -rc;
