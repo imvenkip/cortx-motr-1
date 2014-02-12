@@ -24,6 +24,7 @@
 #define __MERO_IOSERVICE_IO_SERVICE_ADDB_H__
 
 #include "addb/addb.h"
+#include "fop/fom.h"   /* FOM_STATE_STATS_HIST_ARGS */
 
 /**
    @addtogroup io_foms
@@ -78,6 +79,8 @@ enum {
 	M0_ADDB_RECID_IOS_DESC_IO_FINISH,
 	/** Data point record to convey buffer pool low condition */
 	M0_ADDB_RECID_IOS_BUFFER_POOL_LOW,
+	/** IO fom phases statistic counters */
+	M0_ADDB_RECID_IOS_IO_FOM_PHASE_STATS,
 };
 
 /** @todo adjust IOS counter histogram buckets */
@@ -156,6 +159,7 @@ enum {
 	M0_IOS_ADDB_LOC_CREATE_BUF_POOL,
 	M0_IOS_ADDB_LOC_SERVICE_ALLOC,
 	M0_IOS_ADDB_LOC_FOM_COB_RW_CREATE,
+	M0_IOS_ADDB_LOC_FOM_COB_RW_ADDB_INIT,
 	M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
 	M0_IOS_ADDB_LOC_ZERO_COPY_INITIATE_1,
 	M0_IOS_ADDB_LOC_ZERO_COPY_INITIATE_2,
@@ -195,6 +199,11 @@ enum {
 };
 
 extern struct m0_addb_ctx m0_ios_addb_ctx;
+extern struct m0_sm_conf io_conf;
+/** FOM state statistics counter */
+M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_io_fom_phase_stats,
+		   M0_ADDB_RECID_IOS_IO_FOM_PHASE_STATS,
+		   &io_conf, M0_FOM_SM_STATS_HIST_ARGS);
 
 /* Total time required and size for IO */
 M0_ADDB_RT_DP(m0_addb_rt_ios_io_finish, M0_ADDB_RECID_IOS_IO_FINISH,

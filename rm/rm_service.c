@@ -100,16 +100,13 @@ M0_INTERNAL int m0_rms_register(void)
 			 &m0_addb_ct_rm_mod, &m0_addb_proc_ctx);
 	m0_addb_ctx_type_register(&m0_addb_ct_rms_serv);
 
-#undef RT_REG
-#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_rm_##n)
-	RT_REG(local_rate);
-	RT_REG(borrow_rate);
-	RT_REG(revoke_rate);
-	RT_REG(local_times);
-	RT_REG(borrow_times);
-	RT_REG(revoke_times);
-	RT_REG(credit_times);
-#undef RT_REG
+	m0_addb_rec_type_register(&m0_addb_rt_rm_local_rate);
+	m0_addb_rec_type_register(&m0_addb_rt_rm_borrow_rate);
+	m0_addb_rec_type_register(&m0_addb_rt_rm_revoke_rate);
+	m0_addb_rec_type_register(&m0_addb_rt_rm_local_times);
+	m0_addb_rec_type_register(&m0_addb_rt_rm_borrow_times);
+	m0_addb_rec_type_register(&m0_addb_rt_rm_revoke_times);
+	m0_addb_rec_type_register(&m0_addb_rt_rm_credit_times);
 
 	m0_reqh_service_type_register(&m0_rms_type);
 	/**

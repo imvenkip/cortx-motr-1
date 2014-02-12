@@ -27,25 +27,20 @@
 
 M0_INTERNAL int m0_sns_init()
 {
-#undef CT_REG
-#define CT_REG(n) m0_addb_ctx_type_register(&m0_addb_ct_sns_##n)
-        CT_REG(mod);
-        CT_REG(cm);
-        CT_REG(ag);
-        CT_REG(cp);
-#undef CT_REG
-#undef RT_REG
-#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_sns_##n)
-        RT_REG(cm_buf_nr);
-        RT_REG(ag_alloc);
-        RT_REG(ag_fini);
-        RT_REG(sw_update);
-        RT_REG(iter_next_gfid);
-        RT_REG(ag_info);
-        RT_REG(cp_info);
-	RT_REG(repair_info);
-	RT_REG(repair_progress);
-#undef RT_REG
+        m0_addb_ctx_type_register(&m0_addb_ct_sns_mod);
+        m0_addb_ctx_type_register(&m0_addb_ct_sns_cm);
+        m0_addb_ctx_type_register(&m0_addb_ct_sns_ag);
+        m0_addb_ctx_type_register(&m0_addb_ct_sns_cp);
+
+        m0_addb_rec_type_register(&m0_addb_rt_sns_cm_buf_nr);
+        m0_addb_rec_type_register(&m0_addb_rt_sns_ag_alloc);
+        m0_addb_rec_type_register(&m0_addb_rt_sns_ag_fini);
+        m0_addb_rec_type_register(&m0_addb_rt_sns_sw_update);
+        m0_addb_rec_type_register(&m0_addb_rt_sns_iter_next_gfid);
+        m0_addb_rec_type_register(&m0_addb_rt_sns_ag_info);
+        m0_addb_rec_type_register(&m0_addb_rt_sns_cp_info);
+	m0_addb_rec_type_register(&m0_addb_rt_sns_repair_info);
+	m0_addb_rec_type_register(&m0_addb_rt_sns_repair_progress);
 
 	m0_xc_sns_cp_onwire_init();
 	m0_xc_sw_onwire_fop_init();

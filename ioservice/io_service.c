@@ -179,6 +179,7 @@ static struct m0_addb_rec_type *ios_rwfom_cntr_rts[] = {
 M0_INTERNAL int m0_ios_register(void)
 {
 	int i;
+	int rc;
 
 	/* The onwire version-number structure is declared as a struct,
 	 * not a sequence (which is more like an array.
@@ -191,15 +192,18 @@ M0_INTERNAL int m0_ios_register(void)
 	for (i = 0; i < ARRAY_SIZE(ios_rwfom_cntr_rts); ++i)
 		m0_addb_rec_type_register(ios_rwfom_cntr_rts[i]);
 
-#undef RT_REG
-#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_ios_##n)
-	RT_REG(rwfom_finish);
-	RT_REG(ccfom_finish);
-	RT_REG(cdfom_finish);
-	RT_REG(io_finish);
-	RT_REG(desc_io_finish);
-	RT_REG(buffer_pool_low);
-#undef RT_REG
+	rc = m0_ioservice_fop_init();
+	if (rc != 0) {
+		return rc;
+	}
+
+	m0_addb_rec_type_register(&m0_addb_rt_ios_rwfom_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_ios_ccfom_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_ios_cdfom_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_ios_io_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_ios_desc_io_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_ios_buffer_pool_low);
+	m0_addb_rec_type_register(&m0_addb_rt_ios_io_fom_phase_stats);
 
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_create_fom);
 	m0_addb_ctx_type_register(&m0_addb_ct_cob_delete_fom);
@@ -208,7 +212,7 @@ M0_INTERNAL int m0_ios_register(void)
 	ios_cdom_key = m0_reqh_lockers_allot();
 	poolmach_key = m0_reqh_lockers_allot();
 	ios_mds_conn_key = m0_reqh_lockers_allot();
-	return m0_ioservice_fop_init();
+	return rc;
 }
 
 /**

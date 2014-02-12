@@ -35,6 +35,8 @@ struct m0_rpc_item;
  * @addtogroup fom
  */
 
+#define FOM_PHASE_STATS_DATA_SZ(nr)	(M0_FOM_STATS_CNTR_DATA * (nr))
+
 /**
  * "Phases" through which fom execution typically passes.
  *
@@ -199,6 +201,12 @@ int m0_fom_tick_generic(struct m0_fom *fom);
 M0_INTERNAL void m0_fom_generic_fini(void);
 M0_INTERNAL int m0_fom_generic_init(void);
 
+enum {
+	M0_FOM_GENERIC_TRANS_NR = 44,
+};
+
+extern struct m0_sm_trans_descr
+m0_generic_phases_trans[M0_FOM_GENERIC_TRANS_NR];
 extern struct m0_sm_conf m0_generic_conf;
 
 /**

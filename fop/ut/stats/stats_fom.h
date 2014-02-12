@@ -22,6 +22,9 @@
 #ifndef __MERO_FOP_UT_STATS_FOM_H__
 #define __MERO_FOP_UT_STATS_FOM_H__
 
+#include "fop/fom.h"
+#include "fop/fom_generic.h"
+
 
 enum fom_stats_phase {
 	PH_INIT = M0_FOM_PHASE_INIT,  /*< fom has been initialised. */
@@ -29,31 +32,8 @@ enum fom_stats_phase {
 	PH_RUN
 };
 
-/**
- * Histogram arguments for m0_addb_rt_fom_phase_stats.
- * Define the macro with histogram arguments if desired.
- * e.g. #define FOM_PHASE_STATS_HIST_ARGS 100, 200, 500
- */
-#undef FOM_PHASE_STATS_HIST_ARGS
-
-#ifdef FOM_PHASE_STATS_HIST_ARGS
-#define FOM_PHASE_STATS_HIST_ARGS2 0, FOM_PHASE_STATS_HIST_ARGS
-#else
-#define FOM_PHASE_STATS_HIST_ARGS2
-#endif
-
-enum {
-	TRANS_NR = 3,
-};
-
 enum {
 	ADDB_RECID_FOM_PHASE_STATS = 1777123,
-	FOM_PHASE_STATS_DATA_SZ =
-		(sizeof(struct m0_addb_counter_data) +
-		  ((M0_COUNT_PARAMS(FOM_PHASE_STATS_HIST_ARGS2) > 0 ?
-		    M0_COUNT_PARAMS(FOM_PHASE_STATS_HIST_ARGS2) + 1 : 0) *
-                   sizeof(uint64_t))) *
-		TRANS_NR
 };
 
 /**
@@ -66,8 +46,6 @@ struct fom_stats {
 
 	/** addb sm counter for states statistics */
 	struct m0_addb_sm_counter fs_phase_stats;
-	/** counter data for states statistics */
-	uint8_t                   fs_stats_data[FOM_PHASE_STATS_DATA_SZ];
 };
 
 #endif /* __MERO_FOP_UT_STATS_FOM_H__ */

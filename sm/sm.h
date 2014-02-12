@@ -350,7 +350,7 @@ struct m0_sm_conf {
 	/** Number of state transitions in this state machine. */
 	uint32_t                        scf_trans_nr;
 	/** Array of state transitions descriptions. */
-	const struct m0_sm_trans_descr *scf_trans;
+	struct m0_sm_trans_descr       *scf_trans;
 };
 
 enum {
@@ -726,6 +726,16 @@ enum m0_sm_return {
 	M0_SM_BREAK = -1,
 };
 
+/**
+ * Extends transition table of "base" with new transitions from "sub".
+ *
+ * Resulting table is stored in "sub", which should be of sufficient size.
+ * Transitions in "sub" override matching transitions in "base".
+ *
+ * sub->scf_trans[] reserves array elements for base.
+ */
+M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
+					 struct m0_sm_conf *sub);
 /**
  * "Extends" base state descriptions with the given sub descriptions.
  *

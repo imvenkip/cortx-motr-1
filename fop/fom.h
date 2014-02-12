@@ -378,24 +378,23 @@ enum m0_fom_state {
 enum { M0_FOS_TRANS_NR = 8 };
 
 /**
- * Histogram arguments for m0_addb_rt_fom_state_stats.
+ * Histogram arguments for m0_addb_rt_fom_[state|phase]_stats.
  * Define the macro with histogram arguments if desired.
- * e.g. #define M0_FOM_STATE_STATS_HIST_ARGS 100, 200, 500
+ * e.g. #define M0_FOM_SM_STATS_HIST_ARGS 100, 200, 500
+ * @note Histogtam may different for states & phases stats.
+ *       May differentiate it later if required.
  */
-#undef M0_FOM_STATE_STATS_HIST_ARGS
+#undef M0_FOM_SM_STATS_HIST_ARGS
+#define M0_FOM_SM_STATS_HIST_ARGS 100
+#define M0_FOM_SM_STATS_HIST_ARGS2 0, M0_FOM_SM_STATS_HIST_ARGS
 
-#ifdef M0_FOM_STATE_STATS_HIST_ARGS
-#define M0_FOM_STATE_STATS_HIST_ARGS2 0, M0_FOM_STATE_STATS_HIST_ARGS
-#else
-#define M0_FOM_STATE_STATS_HIST_ARGS2
-#endif
+#define M0_FOM_STATS_CNTR_DATA						\
+	(sizeof(struct m0_addb_counter_data) +				\
+	((M0_COUNT_PARAMS(M0_FOM_SM_STATS_HIST_ARGS2) > 0 ?		\
+	  M0_COUNT_PARAMS(M0_FOM_SM_STATS_HIST_ARGS2) + 1 : 0) *	\
+                  sizeof(uint64_t)))
 enum {
-	FOM_STATE_STATS_DATA_SZ =
-		(sizeof(struct m0_addb_counter_data) +
-		  ((M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) > 0 ?
-		    M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) + 1 : 0) *
-                   sizeof(uint64_t))) *
-		M0_FOS_TRANS_NR
+	FOM_STATE_STATS_DATA_SZ = M0_FOM_STATS_CNTR_DATA * M0_FOS_TRANS_NR
 };
 
 enum m0_fom_phase {
@@ -551,7 +550,10 @@ struct m0_fom {
 	/** addb sm counter for states statistics */
 	struct m0_addb_sm_counter fo_sm_state_stats;
 	/** counter data for states statistics */
-	uint8_t fo_fos_stats_data[FOM_STATE_STATS_DATA_SZ];
+	uint8_t                   fo_fos_stats_data[FOM_STATE_STATS_DATA_SZ];
+
+	/** addb sm counter for phases statistics */
+	struct m0_addb_sm_counter fo_sm_phase_stats;
 
 	/** Thread executing current phase transition. */
 	struct m0_loc_thread     *fo_thread;
@@ -634,28 +636,6 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
  * @pre m0_fom_phase(fom) == M0_FOM_PHASE_FINISH
 */
 void m0_fom_fini(struct m0_fom *fom);
-
-/**
- * Enables m0_sm state statistics for the fom's phases.
- * Must be called between m0_fom_init() and m0_fom_queue()
- * (which calls m0_fom_sm_init() inside).
- * It is caller's responsibility to:
- *
- *  - initialize the counter;
- *
- *  - serialize access to the counter between different state machines
- *    along with posting; for this reason it is encouraged that the counter
- *    is shared only among the state machines of the same group;
- *
- *  - finalize the counter.
- *
- * @param c counter initialized by caller.
- *
- * @pre fom != NULL
- * @pre fom->fo_sm_phase.sm_state_epoch == 0
- */
-M0_INTERNAL void m0_fom_phase_stats_enable(struct m0_fom *fom,
-					   struct m0_addb_sm_counter *c);
 
 /**
  * Iterates over m0_fom members and check if they are consistent,

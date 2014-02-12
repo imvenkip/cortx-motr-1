@@ -1155,12 +1155,13 @@ static int io_fop_stob_create_fom_create(struct m0_fop  *fop,
 	int            rc;
 	struct m0_fom *fom;
 
+	m0_fi_enable_once("m0_io_fom_cob_rw_addb_init", "skip_counter_alloc");
 	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
         M0_UT_ASSERT(rc == 0);
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
-	*m = fom;
-        M0_UT_ASSERT(fom->fo_fop != 0);
-	return rc;
+        *m = fom;
+
+        return 0;
 }
 
 static int io_fop_server_write_fom_create(struct m0_fop  *fop,

@@ -24,7 +24,6 @@
 
 #include "fop/ut/stats/stats_fom.h"
 
-
 static struct m0_chan   chan;
 static struct m0_mutex  mutex;
 static struct m0_clink	clink;
@@ -45,7 +44,7 @@ static struct m0_sm_state_descr phases[] = {
 	}
 };
 
-static struct m0_sm_trans_descr trans[TRANS_NR] = {
+static struct m0_sm_trans_descr trans[] = {
 	{ "Start",    PH_INIT,   PH_RUN },
 	{ "Failed",   PH_INIT,   PH_FINISH },
 	{ "Stop",     PH_RUN,    PH_FINISH }
@@ -59,13 +58,8 @@ static struct m0_sm_conf fom_phases_conf = {
 	.scf_trans     = trans
 };
 
-#ifdef FOM_PHASE_STATS_HIST_ARGS
 M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
-		   &fom_phases_conf, FOM_STATE_STATS_HIST_ARGS);
-#else
-M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
-		   &fom_phases_conf);
-#endif
+		   &fom_phases_conf, M0_FOM_SM_STATS_HIST_ARGS);
 
 static size_t fom_stats_home_locality(const struct m0_fom *fom);
 static void fop_stats_fom_fini(struct m0_fom *fom);
@@ -100,8 +94,18 @@ static size_t fom_stats_home_locality(const struct m0_fom *fom)
 
 static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
+	struct fom_stats *fom_obj;
+	uint8_t          *cntr_data;
+	int trans_size = m0_addb_sm_counter_data_size(&addb_rt_fom_phase_stats);
+	fom_obj = container_of(fom, struct fom_stats, fs_gen);
+
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &fom->fo_addb_ctx, &m0_addb_ct_fop_mod,
 			 &m0_addb_proc_ctx);
+
+	M0_ALLOC_ARR(cntr_data, trans_size);
+	m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
+				&addb_rt_fom_phase_stats,
+				cntr_data, trans_size);
 }
 
 static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
@@ -118,18 +122,18 @@ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
 	m0_fom_init(fom, &stats_fom_type, &fom_stats_ops, NULL, NULL,
 	            reqh, &ut_stats_service_type);
 
-	m0_addb_sm_counter_init(&fom_obj->fs_phase_stats,
-				&addb_rt_fom_phase_stats,
-				fom_obj->fs_stats_data,
-				sizeof(fom_obj->fs_stats_data));
-	m0_fom_phase_stats_enable(fom, &fom_obj->fs_phase_stats);
-
 	*m = fom;
 	return 0;
 }
 
 static void fop_stats_fom_fini(struct m0_fom *fom)
 {
+#undef UT_SM_ADDB_CTR_PTR
+#define UT_SM_ADDB_CTR_PTR(idx)					\
+	((struct m0_addb_counter_data *)			\
+	 ((void *)sm->sm_addb_stats->asc_data +			\
+	  sm->sm_addb_stats->asc_cntr_data_sz * idx))		\
+
 	struct fom_stats *fom_obj;
 	struct m0_sm *sm;
 
@@ -138,26 +142,27 @@ static void fop_stats_fom_fini(struct m0_fom *fom)
 	sm = &fom->fo_sm_phase;
 
 	M0_UT_ASSERT(sm->sm_addb_stats != NULL);
-	M0_UT_ASSERT(sm->sm_addb_stats == &fom_obj->fs_phase_stats);
+	M0_UT_ASSERT(sm->sm_addb_stats == &fom->fo_sm_phase_stats);
 
 	M0_UT_ASSERT(sm->sm_addb_stats->asc_data != NULL);
 	/* init -> run */
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[0].acd_nr == 1);
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[0].acd_total >= 10);
+	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(0)->acd_nr == 1);
+	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(0)->acd_total >= 10);
 	/* init -> fail: we don't use this transition */
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[1].acd_nr == 0);
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[1].acd_total == 0);
+	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(1)->acd_nr == 0);
+	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(1)->acd_total == 0);
 	/* run -> fini */
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[2].acd_nr == 1);
-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[2].acd_total >= 10);
+	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(2)->acd_nr == 1);
+	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(2)->acd_total >= 10);
 
 	m0_fom_fini(fom);
-	m0_addb_sm_counter_fini(&fom_obj->fs_phase_stats);
+	m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
 	m0_free(fom_obj);
 
 	m0_chan_signal_lock(&chan);
 
 	return;
+#undef UT_SM_ADDB_CTR_PTR
 }
 
 static int fom_stats_tick(struct m0_fom *fom)

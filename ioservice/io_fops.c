@@ -225,6 +225,10 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			  m0_generic_conf.scf_nr_states);
 	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
 			  m0_generic_conf.scf_nr_states);
+
+	m0_sm_conf_trans_extend(&m0_generic_conf, &io_conf);
+
+	m0_sm_conf_init(&io_conf);
 #endif
 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
 			 .name      = "Read request",

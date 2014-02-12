@@ -101,20 +101,18 @@ M0_INTERNAL int m0t1fs_init(void)
 	m0_addb_ctx_type_register(&m0_addb_ct_m0t1fs_op_write);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0t1fs_addb_ctx, &m0_addb_ct_m0t1fs_mod,
 	                 &m0_addb_proc_ctx);
-#undef RT_REG
-#define RT_REG(n) m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_##n)
-	RT_REG(io_finish);
-	RT_REG(cob_io_finish);
-	RT_REG(root_cob);
-	RT_REG(ior_sizes);
-	RT_REG(iow_sizes);
-	RT_REG(ior_times);
-	RT_REG(iow_times);
-	RT_REG(dgior_sizes);
-	RT_REG(dgiow_sizes);
-	RT_REG(dgior_times);
-	RT_REG(dgiow_times);
-#undef RT_REG
+
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_io_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_cob_io_finish);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_root_cob);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_ior_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_iow_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_ior_times);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_iow_times);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_dgior_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_dgiow_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_dgior_times);
+	m0_addb_rec_type_register(&m0_addb_rt_m0t1fs_dgiow_times);
 
 	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_m0t1fs_mon_io_size,
 					    "io_size");

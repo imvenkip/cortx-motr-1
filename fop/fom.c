@@ -427,7 +427,7 @@ static void fom_ready(struct m0_fom *fom)
 	bool                    empty;
 
 	fom_state_set(fom, M0_FOS_READY);
-	fom->fo_sched_epoch = fom->fo_sm_state.sm_state_epoch ?: m0_time_now();
+	fom->fo_sched_epoch = fom->fo_sm_state.sm_state_epoch;
 	loc = fom->fo_loc;
 	empty = runq_tlist_is_empty(&loc->fl_runq);
 	runq_tlist_add_tail(&loc->fl_runq, fom);
@@ -630,7 +630,7 @@ static void fom_exec(struct m0_fom *fom)
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
 	fom_state_set(fom, M0_FOS_RUNNING);
-	exec_time = fom->fo_sm_state.sm_state_epoch ?: m0_time_now();
+	exec_time = fom->fo_sm_state.sm_state_epoch;
 	do {
 		M0_ASSERT(m0_fom_invariant(fom));
 		M0_ASSERT(m0_fom_phase(fom) != M0_FOM_PHASE_FINISH);
@@ -1125,6 +1125,11 @@ void m0_fom_fini(struct m0_fom *fom)
 				M0_FOM_ADDB_CTX_VEC(fom));
 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
 	}
+	if (fom->fo_sm_phase_stats.asc_data != NULL) {
+		m0_free(fom->fo_sm_phase_stats.asc_data);
+		m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+	}
+
 	m0_sm_fini(&fom->fo_sm_phase);
 	m0_sm_fini(&fom->fo_sm_state);
 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
@@ -1194,19 +1199,8 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
 	}
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
 		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
-	fom->fo_sm_phase.sm_state_epoch = 0;
 }
 M0_EXPORTED(m0_fom_init);
-
-M0_INTERNAL void m0_fom_phase_stats_enable(struct m0_fom *fom,
-					   struct m0_addb_sm_counter *c)
-{
-	M0_PRE(fom != NULL);
-	M0_PRE(fom->fo_sm_phase.sm_state_epoch == 0);
-
-	fom->fo_sm_phase.sm_state_epoch = 1;
-	fom->fo_sm_phase.sm_addb_stats = c;
-}
 
 static bool fom_clink_cb(struct m0_clink *link)
 {
@@ -1444,8 +1438,6 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	struct m0_sm_group             *fom_group;
 	struct m0_addb_ctx             *fom_addb_ctx = NULL;
 	const struct m0_sm_conf        *conf;
-	struct m0_addb_sm_counter      *phase_cntr;
-	bool                            phase_stats_enabled;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_loc != NULL);
@@ -1462,10 +1454,6 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	if (fom->fo_service != NULL && fom->fo_service->rs_reqh != NULL)
 		fom_addb_ctx = &fom->fo_service->rs_reqh->rh_addb_ctx;
 
-	/* Preserve these across the call to m0_sm_init(). */
-	phase_stats_enabled = fom->fo_sm_phase.sm_state_epoch != 0;
-	phase_cntr = fom->fo_sm_phase.sm_addb_stats;
-
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
 	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
 
@@ -1476,8 +1464,10 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 					sizeof(fom->fo_fos_stats_data));
 		m0_sm_stats_enable(&fom->fo_sm_state,
 				   &fom->fo_sm_state_stats);
-		if (phase_stats_enabled)
-			m0_sm_stats_enable(&fom->fo_sm_phase, phase_cntr);
+
+		if (fom->fo_sm_phase_stats.asc_data != NULL)
+			m0_sm_stats_enable(&fom->fo_sm_phase,
+					   &fom->fo_sm_phase_stats);
 	}
 }
 

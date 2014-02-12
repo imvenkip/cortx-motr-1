@@ -639,6 +639,40 @@ M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to)
 	return m0_sm_timer_is_armed(&to->st_timer);
 }
 
+static bool trans_exists(const struct m0_sm_conf *conf,
+			 uint32_t src, uint32_t tgt)
+{
+	return !m0_forall(i, conf->scf_trans_nr,
+			  conf->scf_trans[i].td_src != src ||
+			  conf->scf_trans[i].td_tgt != tgt);
+}
+
+M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
+					 struct m0_sm_conf *sub)
+{
+	uint32_t i;
+	uint32_t j;
+
+	M0_PRE(conf_invariant(base));
+
+	for (i = 0, j = 0; i < base->scf_trans_nr; i++) {
+		const struct m0_sm_trans_descr *b = &base->scf_trans[i];
+
+		if (!trans_exists(sub, b->td_src, b->td_tgt)) {
+			M0_ASSERT(j < sub->scf_trans_nr);
+			M0_ASSERT(sub->scf_trans[j].td_cause == NULL);
+			sub->scf_trans[j++] = *b;
+		}
+	}
+
+	for (;i < sub->scf_trans_nr; i++)
+		sub->scf_trans[j++] = sub->scf_trans[i];
+
+	sub->scf_trans_nr = j;
+
+	M0_POST(conf_invariant(sub));
+}
+
 M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
 				   struct m0_sm_state_descr *sub, uint32_t nr)
 {

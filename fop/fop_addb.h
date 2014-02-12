@@ -118,14 +118,9 @@ M0_ADDB_RT_DP(m0_addb_rt_fom_fini, M0_ADDB_RECID_FOM_FINI, "transitions");
 
 extern struct m0_sm_conf fom_states_conf;
 
-#ifdef FOM_STATE_STATS_HIST_ARGS
 /** FOM state statistics counter */
 M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
-		   &fom_states_conf, FOM_STATE_STATS_HIST_ARGS);
-#else
-M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
-		   &fom_states_conf);
-#endif
+		   &fom_states_conf, M0_FOM_SM_STATS_HIST_ARGS);
 
 /**
  * Accumulated run time of all locality foms (in "binary" usec).
