@@ -412,9 +412,6 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 {
 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
-	/*
-	 * Wait iff FOM in not already in TGS_FINISH state.
-	 */
 	m0_semaphore_down(&gf->tgf_finish_sem);
 }
 
