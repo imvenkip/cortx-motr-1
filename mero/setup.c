@@ -1524,7 +1524,8 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(reqh);
-	//m0_reqh_fom_domain_idle_wait(reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||

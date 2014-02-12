@@ -515,7 +515,8 @@ static void fom_fini_test(enum cob_fom_type fomtype)
 	 *    stray foms around.
 	 */
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
-	//m0_reqh_fom_domain_idle_wait(reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	base_mem = m0_allocated();
@@ -1197,7 +1198,8 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 				 ftype->ft_ops->fto_undo(fp_part, rec->fr_fol) :
 				 ftype->ft_ops->fto_redo(fp_part, rec->fr_fol);
 			M0_UT_ASSERT(result == 0);
-			//m0_reqh_fom_domain_idle_wait(rec->fr_fol->f_reqh);
+			/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+			/*m0_reqh_fom_domain_idle_wait(rec->fr_fol->f_reqh);*/
 			m0_ut_be_fom_domain_idle_wait(rec->fr_fol->f_reqh);
 		}
 	} m0_tl_endfor;

@@ -338,7 +338,8 @@ static void test_single_cp(void)
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	//m0_reqh_fom_domain_idle_wait(reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	/*
@@ -385,7 +386,8 @@ static void test_multi_cp_single_failure(void)
 	 * Wait until the fom in the request handler locality runq is
 	 * processed. This is required for further validity checks.
 	 */
-	//m0_reqh_fom_domain_idle_wait(reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	/*
@@ -521,7 +523,8 @@ static void test_multi_cp_multi_failures(void)
          * Wait until the fom in the request handler locality runq is
          * processed. This is required for further validity checks.
          */
-        //m0_reqh_fom_domain_idle_wait(reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+        /*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
 
 	/* Verify that first accumulator contains recovered data for D1. */

@@ -110,7 +110,8 @@ static void cm_setup_ut(void)
 	cm->cm_sw_update.swu_is_complete = true;
 	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
-	//m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);*/
 	m0_reqh_shutdown(&cmut_rmach_ctx.rmc_reqh);
 	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
 	reqh = cm_ut_service->rs_reqh;

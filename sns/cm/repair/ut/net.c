@@ -763,7 +763,8 @@ static void sender_fini()
         rc = m0_rpc_client_stop(&cctx);
         M0_UT_ASSERT(rc == 0);
         m0_net_domain_fini(&client_net_dom);
-	//m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);*/
 	m0_ut_be_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
 	reqh = sender_cm_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);

@@ -436,7 +436,8 @@ static void rpc_fop_fom_init(void)
 
 static void rpc_fop_fom_fini(void)
 {
-	//m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);
+	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
+	/*m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);*/
 	m0_reqh_shutdown(&test_ctx.rmc_reqh);
 #ifndef __KERNEL__
 	m0_ut_be_fom_domain_idle_wait(&test_ctx.rmc_reqh);
