@@ -201,8 +201,8 @@ static void tx_group_fom_fini(struct m0_fom *fom)
 {
 	struct m0_be_tx_group_fom *m = fom2tx_group_fom(fom);
 
-	m0_semaphore_up(&m->tgf_finish_sem);
 	m0_fom_fini(fom);
+	m0_semaphore_up(&m->tgf_finish_sem);
 }
 
 static size_t tx_group_fom_locality(const struct m0_fom *fom)
@@ -242,8 +242,7 @@ static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
 	       m0_be_tx_group_size(m->tgf_group));
 
 	m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
-	if (m0_fom_is_waiting(&m->tgf_gen))
-		m0_fom_wakeup(&m->tgf_gen);
+	m0_fom_wakeup(&m->tgf_gen);
 }
 
 static void be_tx_group_fom_handle(struct m0_sm_group *gr,
@@ -266,14 +265,24 @@ static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 	M0_LEAVE();
 }
 
+/*
+ * Wakes up tx_group_fom iff it is waiting.
+ * It is possible that multiple fom wakeup asts are posted through different
+ * code paths. Thus we avoid waking up of already running FOM.
+ */
+static void be_tx_group_fom_iff_waiting_wakeup(struct m0_fom *fom)
+{
+	if (m0_fom_is_waiting(fom))
+		m0_fom_wakeup(fom);
+}
+
 static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
 	struct m0_be_tx_group_fom *m =
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stable);
 
 	m->tgf_stable = true;
-	if (m0_fom_is_waiting(&m->tgf_gen))
-		m0_fom_wakeup(&m->tgf_gen);
+	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
 }
 
 static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
@@ -282,8 +291,7 @@ static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
 		container_of(ast, struct m0_be_tx_group_fom, tgf_ast_stop);
 
 	m->tgf_stopping = true;
-	if (m0_fom_is_waiting(&m->tgf_gen))
-		m0_fom_wakeup(&m->tgf_gen);
+	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
 }
 
 static void be_tx_group_fom_timeout_cb(struct m0_fom_callback *cb)
@@ -407,8 +415,7 @@ M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 	/*
 	 * Wait iff FOM in not already in TGS_FINISH state.
 	 */
-	if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH)))
-		m0_semaphore_down(&gf->tgf_finish_sem);
+	m0_semaphore_down(&gf->tgf_finish_sem);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
