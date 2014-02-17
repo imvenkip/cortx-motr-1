@@ -27,6 +27,7 @@
 #include "lib/assert.h"
 #include "lib/arith.h"
 #include "mero/init.h"
+#include "module/instance.h"
 
 #include "pool/pool.h"
 #include "layout/layout.h"
@@ -234,6 +235,7 @@ int main(int argc, char **argv)
 	struct m0_pdclust_instance *pi;
 	struct m0_fid               gfid;
 	struct m0_layout_instance  *li;
+	static struct m0            instance;
 	if (argc != 6) {
 		printf(
 "\t\tm0layout N K P R I\nwhere\n"
@@ -265,7 +267,7 @@ int main(int argc, char **argv)
 	id = 0x4A494E4E49455349; /* "jinniesi" */
 	m0_uint128_init(&seed, "upjumpandpumpim,");
 
-	rc = m0_init(NULL);
+	rc = m0_init(&instance);
 	if (rc != 0)
 		return rc;
 
@@ -277,6 +279,7 @@ int main(int argc, char **argv)
 		attr.pa_unit_size = unitsize;
 		attr.pa_seed = seed;
 
+		M0_SET0(&dbenv);
 		rc = dummy_create(&domain, &dbenv, id, &attr, &play);
 		if (rc == 0) {
 			m0_fid_set(&gfid, 0, 999);
