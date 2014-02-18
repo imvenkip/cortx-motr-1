@@ -138,7 +138,7 @@ M0_INTERNAL int m0_threads_init(void)
 	char *env_ptr;
 	int   result;
 
-	env_ptr = getenv("MERO_DEBUGGER");
+	env_ptr = getenv("M0_DEBUGGER");
 	if (env_ptr != NULL)
 		m0_debugger_args[0] = m0_strdup(env_ptr);
 	/*

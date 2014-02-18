@@ -261,7 +261,7 @@ bool foo_invariant(const struct foo *f)
  *
  * This can be used for debugging purposes. Note that this function can return.
  *
- * In user space, this function invokes the debugger specified in MERO_DEBUGGER
+ * In user space, this function invokes the debugger specified in M0_DEBUGGER
  * environment variable.
  *
  * In Linux kernel this breaks in kgdb, if configured.
