@@ -25,7 +25,6 @@
 #include <limits.h>    /* CHAR_BIT */
 #include <ctype.h>     /* tolower */
 #include <sys/types.h>
-#include <unistd.h>    /* getpid */
 #include <sys/user.h>  /* PAGE_SIZE */
 #endif
 #include "lib/errno.h"
@@ -166,6 +165,9 @@ static uint32_t calc_string_data_size(const struct m0_trace_descr *td,
 	int       i;
 	uint32_t  total_size = 0;
 
+	if (!td->td_hasstr)
+		return 0;
+
 	for (i = 0; i < td->td_nr; ++i)
 		if (td->td_isstr[i]) {
 			char *s = *(char**)((char*)body + td->td_offset[i]) ?:
@@ -257,7 +259,7 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 #ifdef __KERNEL__
 	header->trh_pid       = current->pid;
 #else
-	header->trh_pid       = getpid();
+	header->trh_pid       = m0_pid;
 #endif
 	header->trh_no        = record_num;
 	header->trh_pos       = pos;

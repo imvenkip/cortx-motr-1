@@ -424,6 +424,7 @@ struct m0_trace_descr {
 	const int           *td_sizeof;
 	const bool          *td_isstr;
 	enum m0_trace_level  td_level;
+	bool                 td_hasstr;
 };
 
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
@@ -459,11 +460,15 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
  * @param DECL C definition of a trace entry format
  * @param OFFSET the set of offsets of each argument
  * @param SIZEOF the set of sizes of each argument
+ * @param ISSTR  the set of bool flags, which indicate whether corresponding
+ *               argument is a string
+ * @param HASSTR bool flags, which is set true iff there is at least one string
+ *               argument present
  * @param FMT the printf-like format string
  * @note The variadic arguments must match the number
  *       and types of fields in the format.
  */
-#define M0_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, ISSTR, FMT, ...)\
+#define M0_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, ISSTR, HASSTR, FMT, ...)\
 ({									\
 	struct t_body DECL;						\
 	static const int  _offset[NR] = OFFSET;				\
@@ -482,6 +487,7 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 		.td_offset = _offset,					\
 		.td_sizeof = _sizeof,					\
 		.td_isstr  = _isstr,					\
+		.td_hasstr = (HASSTR),					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
 	m0_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });\
@@ -519,7 +525,8 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
  */
 #define LOG_GROUP(...) __VA_ARGS__
 
-#define M0_LOG0(level, fmt)     M0_TRACE_POINT(level, 0, { ; }, {}, {}, {}, fmt)
+#define M0_LOG0(level, fmt) \
+	M0_TRACE_POINT(level, 0, { ; }, {}, {}, {}, false, fmt)
 
 #define M0_LOG1(level, fmt, a0)						\
 ({ M0_TRACE_POINT(level, 1,						\
@@ -527,6 +534,7 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    { LOG_OFFSETOF(v0) },						\
    { LOG_SIZEOF(a0) },							\
    { LOG_IS_STR_ARG(a0) },						\
+   LOG_IS_STR_ARG(a0),							\
    fmt, a0);								\
    LOG_CHECK(a0); })
 
@@ -536,6 +544,7 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1) }),			\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1) }),			\
    LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1) }),		\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1),				\
    fmt, a0, a1);							\
    LOG_CHECK(a0); LOG_CHECK(a1); })
 
@@ -546,6 +555,7 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2) }),	\
    LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
                LOG_IS_STR_ARG(a2) }),					\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2),	\
    fmt, a0, a1, a2);							\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); })
 
@@ -559,6 +569,8 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_SIZEOF(a3) }),					\
    LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
                LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3)  }),		\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2) ||	\
+	LOG_IS_STR_ARG(a3),							\
    fmt, a0, a1, a2, a3);						\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3); })
 
@@ -573,6 +585,8 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
                LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
                LOG_IS_STR_ARG(a4) }),					\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2) ||	\
+	LOG_IS_STR_ARG(a3) || LOG_IS_STR_ARG(a4),			\
    fmt, a0, a1, a2, a3, a4);						\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); })
@@ -588,6 +602,8 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
    LOG_GROUP({ LOG_IS_STR_ARG(a0), LOG_IS_STR_ARG(a1),			\
                LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
                LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5) }),		\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2) ||	\
+	LOG_IS_STR_ARG(a3) || LOG_IS_STR_ARG(a4) || LOG_IS_STR_ARG(a5),	\
    fmt, a0, a1, a2, a3, a4, a5);					\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); })
@@ -607,6 +623,9 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
                LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5),			\
                LOG_IS_STR_ARG(a6) }),					\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2) ||	\
+	LOG_IS_STR_ARG(a3) || LOG_IS_STR_ARG(a4) ||			\
+	LOG_IS_STR_ARG(a5) || LOG_IS_STR_ARG(a6),			\
    fmt, a0, a1, a2, a3, a4, a5, a6);					\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); })
@@ -626,6 +645,10 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_IS_STR_ARG(a2), LOG_IS_STR_ARG(a3),			\
                LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5),			\
                LOG_IS_STR_ARG(a6), LOG_IS_STR_ARG(a7) }),		\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2) ||	\
+	LOG_IS_STR_ARG(a3) || LOG_IS_STR_ARG(a4) ||			\
+	LOG_IS_STR_ARG(a5) || LOG_IS_STR_ARG(a6) ||			\
+	LOG_IS_STR_ARG(a7),						\
    fmt, a0, a1, a2, a3, a4, a5, a6, a7);				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); })
@@ -646,6 +669,10 @@ M0_CASSERT(!M0_HAS_TYPE(a, const char []) &&				\
                LOG_IS_STR_ARG(a4), LOG_IS_STR_ARG(a5),			\
                LOG_IS_STR_ARG(a6), LOG_IS_STR_ARG(a7),			\
                LOG_IS_STR_ARG(a8) }),					\
+   LOG_IS_STR_ARG(a0) || LOG_IS_STR_ARG(a1) || LOG_IS_STR_ARG(a2) ||	\
+	LOG_IS_STR_ARG(a3) || LOG_IS_STR_ARG(a4) ||			\
+	LOG_IS_STR_ARG(a5) || LOG_IS_STR_ARG(a6) ||			\
+	LOG_IS_STR_ARG(a7) || LOG_IS_STR_ARG(a8),			\
    fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8);				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); LOG_CHECK(a8); })

@@ -25,12 +25,16 @@
 
 #include <stdio.h>  /* FILE */
 
+#include "lib/types.h"  /* pid_t */
+
 /**
    @defgroup trace Tracing.
 
    User-space specific declarations.
 
  */
+
+extern pid_t m0_pid;
 
 M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 			       bool yaml_stream_mode, bool header_only,

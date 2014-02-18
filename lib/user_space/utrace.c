@@ -24,7 +24,7 @@
 #include <sysexits.h> /* EX_* exit codes (EX_OSERR, EX_SOFTWARE) */
 #include <stdio.h>
 #include <stdlib.h>   /* getenv, strtoul */
-#include <unistd.h>   /* getpagesize */
+#include <unistd.h>   /* getpagesize, getpid */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <sys/mman.h> /* mmap */
 #include <sys/stat.h> /* fstat */
@@ -49,6 +49,8 @@
 
    @{
  */
+
+pid_t m0_pid;
 
 static int logfd;
 
@@ -163,6 +165,8 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 {
 	int         rc;
 	const char *var;
+
+	m0_pid = getpid();
 
 	var = getenv("M0_TRACE_IMMEDIATE_MASK");
 	rc = m0_trace_set_immediate_mask(var);
