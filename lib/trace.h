@@ -462,7 +462,7 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
  * @param SIZEOF the set of sizes of each argument
  * @param ISSTR  the set of bool flags, which indicate whether corresponding
  *               argument is a string
- * @param HASSTR bool flags, which is set true iff there is at least one string
+ * @param HASSTR bool flag, which is set true iff there is at least one string
  *               argument present
  * @param FMT the printf-like format string
  * @note The variadic arguments must match the number
