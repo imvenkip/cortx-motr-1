@@ -313,11 +313,16 @@ static void clear_stats(struct stats_svc *stats_srv, int idx)
 
 static void mon_test(int test_no)
 {
-	int i;
+	m0_time_t rem;
+	int	  rc;
+	int	  i;
 
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i)
 		addb_post_record(&ut_srv_reqh->rh_addb_mc, i, cv);
-	m0_nanosleep(m0_time(0, 4 * 1000 * 1000 * 100), NULL);
+	rem = m0_time(0, 400 * 1000 * 1000);
+	do {
+		rc = m0_nanosleep(rem, &rem);
+	} while (rc != 0);
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i) {
 		addb_ut_mon_verify_stats_data(stats_srv, i, test_no);
 		addb_ut_mon_fini(i);
