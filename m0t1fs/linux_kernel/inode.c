@@ -124,12 +124,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 	/**
 	 * @todo Get di type from configuration.
 	 */
-	m0_file_init(&ci->ci_flock, fid, rdom,
-#ifdef ENABLE_DATA_INTEGRITY
-		     M0_DI_CRC32_4K);
-#else
-		     M0_DI_NONE);
-#endif
+	m0_file_init(&ci->ci_flock, fid, rdom, M0_DI_DEFAULT_TYPE);
 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_no_group,
 			   &ci->ci_flock, NULL);

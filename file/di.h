@@ -76,6 +76,15 @@ enum m0_di_types {
 	M0_DI_NR
 };
 
+enum {
+	M0_DI_DEFAULT_TYPE =
+#ifdef ENABLE_DATA_INTEGRITY
+		M0_DI_CRC32_4K
+#else
+		M0_DI_NONE
+#endif
+};
+
 struct m0_di_ops {
 	const struct m0_di_type *do_type;
 	/**

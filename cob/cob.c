@@ -785,11 +785,7 @@ static void cob_init(struct m0_cob_domain *dom, struct m0_cob *cob)
 	 * @todo Get di type from configuration.
 	 */
 	m0_file_init(&cob->co_file, &cob->co_nsrec.cnr_fid, NULL,
-#ifdef ENABLE_DATA_INTEGRITY
-		     M0_DI_CRC32_4K);
-#else
-		     M0_DI_NONE);
-#endif
+		     M0_DI_DEFAULT_TYPE);
 	cob->co_nskey = NULL;
 	cob->co_dom = dom;
 	cob->co_flags = 0;
