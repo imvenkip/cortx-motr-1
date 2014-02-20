@@ -128,7 +128,7 @@ struct m0_be_domain;
    to another hardlink filename.  If ->m0_cob_nsrec::cnr_nlink > 0
    this means that it is stat data record and there are other
    hardlinks for the file, so stat data should be moved.  To find
-   out were to move stat data quickly, we just do lookup in the
+   out where to move stat data quickly, we just do lookup in the
    object index for the next linkno of the file:
 
    (F, 0 + 1) -> (b.fid, "f1")
@@ -243,7 +243,7 @@ struct m0_cob_domain_id {
 
    Component object metadata is stored in database tables. The
    database in turn is stored in a metadata container. A cob_domain
-   is a grouping of cob's described by a namespace or object index.
+   is a grouping of cobs described by a namespace or object index.
    The objects referenced by the tables will reside in other,
    filedata containers.
 
