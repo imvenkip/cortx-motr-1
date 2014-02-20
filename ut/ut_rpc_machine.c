@@ -97,7 +97,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_cob_tx_credit(&ctx->rmc_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ctx->rmc_ut_be, &cred);
 	rc = m0_cob_domain_mkfs(&ctx->rmc_mdstore.md_dom, &M0_COB_SLASH_FID,
-				&M0_COB_SESSIONS_FID, &tx);
+				&tx);
 	m0_ut_be_tx_end(&tx);
 	M0_ASSERT(rc == 0);
 

@@ -203,9 +203,6 @@ struct m0_be_domain;
    - metadata hierarchy root cob (what potentially metadata client
    can see) with fid M0_COB_ROOT_FID and name M0_COB_ROOT_NAME;
 
-   - sessions root cob (all sessions are created below it) with fid
-   M0_COB_SESSIONS_FID and name M0_COB_SESSIONS_NAME;
-
    - omgid terminator record with id = ~0ULL. This is used for omgid
    allocation during m0_cob_create();
 
@@ -225,17 +222,11 @@ struct m0_cob_domain_id;
 /* Namespace name for root cob (not exposed to user) */
 extern const char M0_COB_ROOT_NAME[];
 
-/* Namespace name for sessions root cob. */
-extern const char M0_COB_SESSIONS_NAME[];
-
 /* Grobal cob root fid. */
 extern const struct m0_fid M0_COB_ROOT_FID;
 
 /* Hierarchy root fid (exposed to user). */
 extern const struct m0_fid M0_COB_SLASH_FID;
-
-/* Root sessions cob fid. */
-extern const struct m0_fid M0_COB_SESSIONS_FID;
 
 /**
    Unique cob domain identifier.
@@ -290,7 +281,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp);
  */
 M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 				   const struct m0_fid *rootfid,
-				   const struct m0_fid *sessfid,
 				   struct m0_be_tx *tx);
 
 /**

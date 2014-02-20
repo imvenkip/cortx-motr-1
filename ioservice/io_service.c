@@ -554,7 +554,6 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		rc = m0_dtx_open_sync(&tx);
 		if (rc == 0) {
 			rc = m0_cob_domain_mkfs(cdom, &M0_COB_SLASH_FID,
-						&M0_COB_SESSIONS_FID,
 						&tx.tx_betx);
 			m0_dtx_done_sync(&tx);
 		}
