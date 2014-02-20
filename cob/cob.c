@@ -694,9 +694,14 @@ static int cob_table_lookup(struct m0_be_btree *tree, struct m0_buf *key,
 }
 
 
-static int _mkfs(struct m0_cob_domain *dom,
-		 const struct m0_fid *rootfid,
-		 struct m0_be_tx *tx)
+/**
+ * Create initial files system structures, such as: entire storage root, root
+ * cob for sessions and root cob for hierarchy. Latter is only one of them
+ * visible to user on client.
+ */
+M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+				   const struct m0_fid *rootfid,
+				   struct m0_be_tx *tx)
 {
 	struct m0_cob_nskey  *nskey;
 	struct m0_cob_nsrec   nsrec;
@@ -766,29 +771,14 @@ static int _mkfs(struct m0_cob_domain *dom,
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	m0_cob_put(cob);
+	if (rc == -EEXIST)
+		rc = 0;
 	if (rc != 0) {
 		m0_free(nskey);
 		m0_free(fabrec);
 		return rc;
 	}
 	return 0;
-}
-
-/**
- * Create initial files system structures, such as: entire storage root, root
- * cob for sessions and root cob for hierarchy. Latter is only one of them
- * visible to user on client.
- */
-M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
-				   const struct m0_fid *rootfid,
-				   struct m0_be_tx *tx)
-{
-	int rc;
-
-	rc = _mkfs(dom, rootfid, tx);
-	if (rc == -EEXIST)
-		rc = 0;
-	return rc;
 }
 
 static void cob_free_cb(struct m0_ref *ref);
