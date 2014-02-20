@@ -44,10 +44,6 @@
    There is one timer thread for each timer.
  */
 
-#ifndef M0_TIMER_DEBUG
-#define M0_TIMER_DEBUG 1
-#endif
-
 /**
    Hard timer implementation uses TIMER_SIGNO signal
    for user-defined callback delivery.
@@ -62,7 +58,6 @@ enum timer_func {
 	TIMER_FINI,
 	TIMER_START,
 	TIMER_STOP,
-	TIMER_ATTACH,
 	TIMER_FUNC_NR
 };
 
@@ -111,26 +106,42 @@ static struct m0_timer_tid *locality_tid_find(struct m0_timer_locality *loc,
 		pid_t tid)
 {
 	struct m0_timer_tid *tt;
-	struct m0_timer_tid *result = NULL;
 
 	M0_PRE(loc != NULL);
 
 	m0_mutex_lock(&loc->tlo_lock);
 	m0_tl_for(tid, &loc->tlo_tids, tt) {
-		if (tt->tt_tid == tid) {
-			result = tt;
+		if (tt->tt_tid == tid)
 			break;
-		}
 	} m0_tl_endfor;
 	m0_mutex_unlock(&loc->tlo_lock);
 
-	return result;
+	return tt;
+}
+
+static pid_t timer_locality_tid_next(struct m0_timer_locality *loc)
+{
+	pid_t tid = 0;
+
+	if (loc != NULL) {
+		m0_mutex_lock(&loc->tlo_lock);
+		if (!tid_tlist_is_empty(&loc->tlo_tids)) {
+			if (loc->tlo_rrtid == NULL)
+				loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
+			tid = loc->tlo_rrtid->tt_tid;
+			loc->tlo_rrtid = tid_tlist_next(&loc->tlo_tids,
+							loc->tlo_rrtid);
+		}
+		m0_mutex_unlock(&loc->tlo_lock);
+	}
+	return tid;
 }
 
 M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc)
 {
-	pid_t tid;
 	struct m0_timer_tid *tt;
+	pid_t		     tid;
+	int		     rc;
 
 	M0_PRE(loc != NULL);
 
@@ -138,16 +149,18 @@ M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc)
 	M0_ASSERT(locality_tid_find(loc, tid) == NULL);
 
 	M0_ALLOC_PTR(tt);
-	if (tt == NULL)
-		return -ENOMEM;
+	if (tt == NULL) {
+		rc = -ENOMEM;
+	} else {
+		tt->tt_tid = tid;
 
-	tt->tt_tid = tid;
+		m0_mutex_lock(&loc->tlo_lock);
+		tid_tlink_init_at_tail(tt, &loc->tlo_tids);
+		m0_mutex_unlock(&loc->tlo_lock);
 
-	m0_mutex_lock(&loc->tlo_lock);
-	tid_tlink_init_at_tail(tt, &loc->tlo_tids);
-	m0_mutex_unlock(&loc->tlo_lock);
-
-	return 0;
+		rc = 0;
+	}
+	return rc;
 }
 
 M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc)
@@ -173,19 +186,24 @@ M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc)
 /**
    Init POSIX timer, write it to timer->t_ptimer.
    Timer notification is signal TIMER_SIGNO to
-   thread timer->t_tid.
+   thread timer->t_tid (or signal TIMER_SIGNO to the process
+   if timer->t_tid == 0).
  */
 static int timer_posix_init(struct m0_timer *timer)
 {
-	struct sigevent se;
-	timer_t ptimer;
-	int rc;
+	struct sigevent	se;
+	timer_t		ptimer;
+	int		rc;
 
 	M0_SET0(&se);
-	se.sigev_notify = SIGEV_THREAD_ID;
 	se.sigev_signo = TIMER_SIGNO;
-	se._sigev_un._tid = timer->t_tid;
 	se.sigev_value.sival_ptr = timer;
+	if (timer->t_tid == 0) {
+		se.sigev_notify = SIGEV_SIGNAL;
+	} else {
+		se.sigev_notify = SIGEV_THREAD_ID;
+		se._sigev_un._tid = timer->t_tid;
+	}
 	rc = timer_create(clock_source_timer, &se, &ptimer);
 	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
 	if (rc == 0)
@@ -204,7 +222,15 @@ static void timer_posix_fini(timer_t posix_timer)
 	/*
 	 * timer_delete() can fail iff timer->t_ptimer isn't valid timer ID.
 	 */
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+}
+
+static m0_time_t timer_time_to_realtime(m0_time_t expire)
+{
+	if (M0_CLOCK_SOURCE == M0_CLOCK_SOURCE_REALTIME_MONOTONIC &&
+	    !M0_IN(expire, (M0_TIME_NEVER, 0, 1)))
+		expire -= m0_time_monotonic_offset;
+	return expire;
 }
 
 /**
@@ -220,8 +246,7 @@ timer_posix_set(struct m0_timer *timer, m0_time_t expire, m0_time_t *old_expire)
 
 	M0_PRE(timer != NULL);
 
-	if (M0_CLOCK_SOURCE == M0_CLOCK_SOURCE_REALTIME_MONOTONIC)
-		expire -= m0_time_monotonic_offset;
+	expire = timer_time_to_realtime(expire);
 
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
@@ -231,7 +256,7 @@ timer_posix_set(struct m0_timer *timer, m0_time_t expire, m0_time_t *old_expire)
 	rc = timer_settime(timer->t_ptimer, TIMER_ABSTIME, &ts, &ots);
 	/* timer_settime() can only fail if timer->t_ptimer isn't valid
 	 * timer ID or ts has invalid fields. */
-	M0_ASSERT(rc == 0);
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 
 	if (old_expire != NULL)
 		*old_expire = m0_time(ots.it_value.tv_sec,
@@ -239,17 +264,28 @@ timer_posix_set(struct m0_timer *timer, m0_time_t expire, m0_time_t *old_expire)
 }
 
 /** Set up signal handler sighandler for given signo. */
-static int
-timer_sigaction(int signo, void (*sighandler)(int, siginfo_t*, void*))
+static int timer_sigaction(int signo,
+			   void (*sighandler)(int, siginfo_t*, void*))
 {
 	struct sigaction sa;
 
 	M0_SET0(&sa);
-	sa.sa_sigaction = sighandler;
 	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_SIGINFO;
+	if (sighandler == NULL) {
+		sa.sa_handler = SIG_DFL;
+	} else {
+		sa.sa_sigaction = sighandler;
+		sa.sa_flags = SA_SIGINFO;
+	}
 
 	return sigaction(signo, &sa, NULL) == 0 ? 0 : errno;
+}
+
+static void timer_callback_execute(struct m0_timer *timer)
+{
+	m0_enter_awkward();
+	timer->t_callback(timer->t_data);
+	m0_exit_awkward();
 }
 
 /**
@@ -265,23 +301,20 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 	M0_PRE(signo == TIMER_SIGNO);
 
 	timer = si->si_value.sival_ptr;
-#ifdef M0_TIMER_DEBUG
-	M0_ASSERT(timer->t_tid == gettid());
-#endif
-	timer->t_callback(timer->t_data);
+	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == gettid()));
+	timer_callback_execute(timer);
 	m0_semaphore_up(&timer->t_stop_sem);
 }
 
 /**
    Soft timer working thread.
  */
-static void m0_timer_working_thread(struct m0_timer *timer)
+static void timer_working_thread(struct m0_timer *timer)
 {
-	if (!m0_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire)) {
-		m0_enter_awkward();
-		timer->t_callback(timer->t_data);
-		m0_exit_awkward();
-	}
+	m0_semaphore_down(&timer->t_sleep_sem);
+	if (!m0_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire))
+		timer_callback_execute(timer);
+	m0_semaphore_up(&timer->t_stop_sem);
 }
 
 static bool timer_invariant(const struct m0_timer *timer)
@@ -293,7 +326,7 @@ static bool timer_invariant(const struct m0_timer *timer)
 }
 
 /*
-   This function called on every m0_timer_init/fini/start/stop/attach.
+   This function called on every m0_timer_init/fini/start/stop.
    It checks the possibility of transition from the current state
    with a given function and if possible and changes timer state to a new state
    if it needed.
@@ -311,28 +344,24 @@ static bool timer_state_change(struct m0_timer *timer, enum timer_func func,
 				[TIMER_FINI]   = TIMER_INVALID,
 				[TIMER_START]  = TIMER_INVALID,
 				[TIMER_STOP]   = TIMER_INVALID,
-				[TIMER_ATTACH] = TIMER_INVALID
 			},
 			[TIMER_INITED] = {
 				[TIMER_INIT]   = TIMER_INVALID,
 				[TIMER_FINI]   = TIMER_UNINIT,
 				[TIMER_START]  = TIMER_RUNNING,
 				[TIMER_STOP]   = TIMER_INVALID,
-				[TIMER_ATTACH] = TIMER_INITED
 			},
 			[TIMER_RUNNING] = {
 				[TIMER_INIT]   = TIMER_INVALID,
 				[TIMER_FINI]   = TIMER_INVALID,
 				[TIMER_START]  = TIMER_INVALID,
 				[TIMER_STOP]   = TIMER_STOPPED,
-				[TIMER_ATTACH] = TIMER_INVALID
 			},
 			[TIMER_STOPPED] = {
 				[TIMER_INIT]   = TIMER_INVALID,
 				[TIMER_FINI]   = TIMER_UNINIT,
 				[TIMER_START]  = TIMER_INVALID,
 				[TIMER_STOP]   = TIMER_INVALID,
-				[TIMER_ATTACH] = TIMER_INVALID
 			}
 		};
 
@@ -348,11 +377,12 @@ static bool timer_state_change(struct m0_timer *timer, enum timer_func func,
 /**
    Create POSIX timer for the given m0_timer.
  */
-static int timer_hard_init(struct m0_timer *timer)
+static int timer_hard_init(struct m0_timer *timer,
+			   struct m0_timer_locality *loc)
 {
 	int rc;
 
-	timer->t_tid = gettid();
+	timer->t_tid = timer_locality_tid_next(loc);
 	rc = timer_posix_init(timer);
 	if (rc == 0) {
 		rc = m0_semaphore_init(&timer->t_stop_sem, 0);
@@ -376,7 +406,9 @@ static void timer_hard_fini(struct m0_timer *timer)
  */
 static void timer_hard_start(struct m0_timer *timer)
 {
-	timer_posix_set(timer, timer->t_expire, NULL);
+	/* expire = 0 will not arm the timer, so use 1ns in this case */
+	timer_posix_set(timer,
+			timer->t_expire == 0 ? 1 : timer->t_expire, NULL);
 }
 
 /**
@@ -392,109 +424,106 @@ static void timer_hard_stop(struct m0_timer *timer)
 		m0_semaphore_down(&timer->t_stop_sem);
 }
 
-static int timer_soft_init(struct m0_timer *timer)
+static int timer_soft_initfini(struct m0_timer *timer, bool init)
 {
-	return m0_semaphore_init(&timer->t_sleep_sem, 0);
+	int rc;
+
+	if (!init)
+		goto fini;
+	rc = m0_semaphore_init(&timer->t_sleep_sem, 0);
+	if (rc != 0)
+		goto err;
+	rc = m0_semaphore_init(&timer->t_stop_sem, 0);
+	if (rc != 0)
+		goto fini_sleep_sem;
+	rc = M0_THREAD_INIT(&timer->t_thread, struct m0_timer*, NULL,
+			    &timer_working_thread, timer, "timer_thread");
+	if (rc != 0)
+		goto fini_stop_sem;
+	return 0;
+
+fini:
+	rc = m0_thread_join(&timer->t_thread);
+	/*
+	 * There is something wrong with timers logic
+	 * if thread can't be joined.
+	 */
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+	m0_thread_fini(&timer->t_thread);
+fini_stop_sem:
+	m0_semaphore_fini(&timer->t_stop_sem);
+fini_sleep_sem:
+	m0_semaphore_fini(&timer->t_sleep_sem);
+err:
+	return rc;
+}
+
+static int timer_soft_init(struct m0_timer *timer,
+			   struct m0_timer_locality *loc)
+{
+	return timer_soft_initfini(timer, true);
 }
 
 static void timer_soft_fini(struct m0_timer *timer)
 {
-	m0_semaphore_fini(&timer->t_sleep_sem);
+	int rc;
+
+	m0_semaphore_up(&timer->t_sleep_sem);
+	rc = timer_soft_initfini(timer, false);
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 }
 
-/**
-   Start soft timer thread.
- */
-static int timer_soft_start(struct m0_timer *timer)
+static void timer_soft_start(struct m0_timer *timer)
 {
-	return M0_THREAD_INIT(&timer->t_thread, struct m0_timer*, NULL,
-			    &m0_timer_working_thread,
-			    timer, "m0_timer_worker");
+	m0_semaphore_up(&timer->t_sleep_sem);
 }
 
 /**
    Stop soft timer thread and wait for its termination.
  */
-static int timer_soft_stop(struct m0_timer *timer)
+static void timer_soft_stop(struct m0_timer *timer)
 {
-	int rc;
-
 	m0_semaphore_up(&timer->t_sleep_sem);
-	rc = m0_thread_join(&timer->t_thread);
-	if (rc == 0)
-		m0_thread_fini(&timer->t_thread);
-	return rc;
+	m0_semaphore_down(&timer->t_stop_sem);
 }
 
-M0_INTERNAL int m0_timer_attach(struct m0_timer *timer,
-				struct m0_timer_locality *loc)
-{
-	struct m0_timer_tid *tt;
-	int rc;
-	timer_t ptimer;
-	pid_t old_tid;
-
-	M0_PRE(loc != NULL);
-	M0_PRE(timer != NULL);
-
-	if (timer->t_type == M0_TIMER_SOFT)
-		return 0;
-
-	if (!timer_state_change(timer, TIMER_ATTACH, true))
-		return -EINVAL;
-
-	old_tid = timer->t_tid;
-	m0_mutex_lock(&loc->tlo_lock);
-	if (!tid_tlist_is_empty(&loc->tlo_tids)) {
-		if (loc->tlo_rrtid == NULL)
-			loc->tlo_rrtid = tid_tlist_head(&loc->tlo_tids);
-		tt = loc->tlo_rrtid;
-		timer->t_tid = tt->tt_tid;
-		loc->tlo_rrtid = tid_tlist_next(&loc->tlo_tids, tt);
-	}
-	m0_mutex_unlock(&loc->tlo_lock);
-
-	if (timer->t_tid != old_tid) {
-		/*
-		 * don't delete old posix timer
-		 * until the new one can be created
-		 */
-		ptimer = timer->t_ptimer;
-		rc = timer_posix_init(timer);
-		if (rc == 0)
-			timer_posix_fini(ptimer);
-	} else {
-		rc = 0;
-	}
-
-	timer_state_change(timer, TIMER_ATTACH, rc != 0);
-	return rc;
-}
+static const struct m0_timer_ops timer_ops[] = {
+	[M0_TIMER_SOFT] = {
+		.tmr_init  = timer_soft_init,
+		.tmr_fini  = timer_soft_fini,
+		.tmr_start = timer_soft_start,
+		.tmr_stop  = timer_soft_stop,
+	},
+	[M0_TIMER_HARD] = {
+		.tmr_init  = timer_hard_init,
+		.tmr_fini  = timer_hard_fini,
+		.tmr_start = timer_hard_start,
+		.tmr_stop  = timer_hard_stop,
+	},
+};
 
 /**
    Init the timer data structure.
  */
-M0_INTERNAL int m0_timer_init(struct m0_timer *timer, enum m0_timer_type type,
-			      m0_time_t expire,
-			      m0_timer_callback_t callback, unsigned long data)
+M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
+			      enum m0_timer_type	type,
+			      struct m0_timer_locality *loc,
+			      m0_timer_callback_t	callback,
+			      unsigned long		data)
 {
 	int rc;
 
 	M0_PRE(callback != NULL);
-	M0_PRE(type == M0_TIMER_SOFT || type == M0_TIMER_HARD);
+	M0_PRE(M0_IN(type, (M0_TIMER_SOFT, M0_TIMER_HARD)));
 	M0_PRE(timer != NULL);
 
 	M0_SET0(timer);
 	timer->t_type     = type;
-	timer->t_expire	  = expire;
+	timer->t_expire	  = 0;
 	timer->t_callback = callback;
 	timer->t_data     = data;
 
-	if (timer->t_type == M0_TIMER_HARD)
-		rc = timer_hard_init(timer);
-	else
-		rc = timer_soft_init(timer);
-
+	rc = timer_ops[timer->t_type].tmr_init(timer, loc);
 	timer_state_change(timer, TIMER_INIT, rc != 0);
 
 	return rc;
@@ -503,56 +532,40 @@ M0_INTERNAL int m0_timer_init(struct m0_timer *timer, enum m0_timer_type type,
 /**
    Destroy the timer.
  */
-M0_INTERNAL int m0_timer_fini(struct m0_timer *timer)
+M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 {
-	if (!timer_state_change(timer, TIMER_FINI, true))
-		return -EINVAL;
+	M0_PRE(timer != NULL);
+	M0_PRE(timer_state_change(timer, TIMER_FINI, true));
 
-	if (timer->t_type == M0_TIMER_HARD)
-		timer_hard_fini(timer);
-	else
-		timer_soft_fini(timer);
-
-	M0_SET0(timer);
-	return 0;
+	timer_ops[timer->t_type].tmr_fini(timer);
+	timer_state_change(timer, TIMER_FINI, false);
 }
 
 /**
    Start a timer.
  */
-M0_INTERNAL int m0_timer_start(struct m0_timer *timer)
+M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
+				m0_time_t	 expire)
 {
-	int rc = 0;
+	M0_PRE(timer != NULL);
+	M0_PRE(timer_state_change(timer, TIMER_START, true));
 
-	if (!timer_state_change(timer, TIMER_START, true))
-		return -EINVAL;
+	timer->t_expire = expire;
 
-	if (timer->t_type == M0_TIMER_HARD)
-		timer_hard_start(timer);
-	else
-		rc = timer_soft_start(timer);
-
-	timer_state_change(timer, TIMER_START, rc != 0);
-	return rc;
+	timer_ops[timer->t_type].tmr_start(timer);
+	timer_state_change(timer, TIMER_START, false);
 }
 
 /**
    Stop a timer.
  */
-M0_INTERNAL int m0_timer_stop(struct m0_timer *timer)
+M0_INTERNAL void m0_timer_stop(struct m0_timer *timer)
 {
-	int rc = 0;
+	M0_PRE(timer != NULL);
+	M0_PRE(timer_state_change(timer, TIMER_STOP, true));
 
-	if (!timer_state_change(timer, TIMER_STOP, true))
-		return -EINVAL;
-
-	if (timer->t_type == M0_TIMER_HARD)
-		timer_hard_stop(timer);
-	else
-		rc = timer_soft_stop(timer);
-
-	timer_state_change(timer, TIMER_STOP, rc != 0);
-	return rc;
+	timer_ops[timer->t_type].tmr_stop(timer);
+	timer_state_change(timer, TIMER_STOP, false);
 }
 
 M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer)
@@ -587,6 +600,8 @@ M0_INTERNAL int m0_timers_init(void)
 
 M0_INTERNAL void m0_timers_fini(void)
 {
+	clock_source_timer = -1;
+	timer_sigaction(TIMER_SIGNO, NULL);
 }
 
 /** @} end of timer group */

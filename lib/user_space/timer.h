@@ -87,8 +87,8 @@ struct m0_timer {
 
 	/**
 	   Target thread ID for hard timer callback.
-	   Initially set in m0_timer_init() to callers TID.
-	   Can be changed by calling m0_timer_attach().
+	   If it is 0 then signal will be sent to the process
+	   but not to any specific thread.
 	 */
 	pid_t t_tid;
 
@@ -96,7 +96,7 @@ struct m0_timer {
 	   Timer state.
 	   Used in state changes checking in hard timer.
 	   m0_timer_init() will set state to TIMER_INITED.
-	   m0_timer_fini()/start()/stop()/attach() will check current
+	   m0_timer_fini()/start()/stop() will check current
 	   state using state transition matrix.
 	   If there is no transition from current state using given
 	   function, M0_ASSERT() will take `false' parameter.
@@ -112,10 +112,43 @@ struct m0_timer {
 	/**
 	   POSIX timer ID, returned by timer_create().
 	   Used in hard timer implementation.
-	   POSIX timer is creating in m0_timer_init() and m0_timer_attach().
-	   POSIX timer is deleting in m0_timer_attach() and m0_timer_fini().
+	   POSIX timer is creating in m0_timer_init().
+	   POSIX timer is deleting in m0_timer_fini().
 	 */
 	timer_t t_ptimer;
+};
+
+/**
+   Item of threads ID list in locality.
+   Used in the implementation of userspace hard timer.
+ */
+struct m0_timer_tid {
+	pid_t		tt_tid;
+	struct m0_tlink tt_linkage;
+	uint64_t	tt_magic;
+};
+
+/**
+   Timer locality.
+
+   The signal for M0_TIMER_HARD timers will be delivered to a thread
+   from the locality.
+ */
+struct m0_timer_locality {
+	/** Lock for tlo_tids */
+	struct m0_mutex tlo_lock;
+	/** List of thread ID's, associated with this locality */
+	struct m0_tl tlo_tids;
+	/** ThreadID of next thread for round-robin timer thread selection */
+	struct m0_timer_tid *tlo_rrtid;
+};
+
+/* Timer operations */
+struct m0_timer_ops {
+	int (*tmr_init)(struct m0_timer *timer, struct m0_timer_locality *loc);
+	void (*tmr_fini)(struct m0_timer *timer);
+	void (*tmr_start)(struct m0_timer *timer);
+	void (*tmr_stop)(struct m0_timer *timer);
 };
 
 M0_INTERNAL int m0_timers_init(void);

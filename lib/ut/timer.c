@@ -27,6 +27,8 @@
 #include "lib/semaphore.h"	/* m0_semaphore */
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/atomic.h"		/* m0_atomic64 */
+#include "lib/ub.h"		/* m0_ub_set */
+#include "lib/trace.h"		/* M0_LOG */
 
 #include <stdlib.h>		/* rand */
 #include <unistd.h>		/* syscall */
@@ -144,17 +146,13 @@ static void test_timers(enum m0_timer_type timer_type, int nr_timers,
 	/* m0_timer_init() */
 	for (i = 0; i < nr_timers; ++i) {
 		time = time_rand_ms(interval_min_ms, interval_max_ms);
-		rc = m0_timer_init(&timers[i], timer_type,
-				make_time_abs(time),
-				timer_callback,
-				i);
+		rc = m0_timer_init(&timers[i], timer_type, NULL,
+				   timer_callback, i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* m0_timer_start() */
-	for (i = 0; i < nr_timers; ++i) {
-		rc = m0_timer_start(&timers[i]);
-		M0_UT_ASSERT(rc == 0);
-	}
+	for (i = 0; i < nr_timers; ++i)
+		m0_timer_start(&timers[i], make_time_abs(time));
 	/* wait some time */
 	wait = make_time(wait_time_ms);
 	do {
@@ -162,15 +160,11 @@ static void test_timers(enum m0_timer_type timer_type, int nr_timers,
 		wait = rem;
 	} while (rc != 0);
 	/* m0_timer_stop() */
-	for (i = 0; i < nr_timers; ++i) {
-		rc = m0_timer_stop(&timers[i]);
-		M0_UT_ASSERT(rc == 0);
-	}
+	for (i = 0; i < nr_timers; ++i)
+		m0_timer_stop(&timers[i]);
 	/* m0_timer_fini() */
-	for (i = 0; i < nr_timers; ++i) {
-		rc = m0_timer_fini(&timers[i]);
-		M0_UT_ASSERT(rc == 0);
-	}
+	for (i = 0; i < nr_timers; ++i)
+		m0_timer_fini(&timers[i]);
 
 	M0_UT_ASSERT(m0_atomic64_get(&callbacks_executed) >= callbacks_min);
 	M0_UT_ASSERT(m0_atomic64_get(&callbacks_executed) <= callbacks_max);
@@ -185,28 +179,28 @@ static unsigned long locality_default_callback(unsigned long data)
 	return 0;
 }
 
+/*
+ * This test will be successful iff it is called from process main thread.
+ */
 static void timer_locality_default_test()
 {
 	int		rc;
 	struct m0_timer timer;
 
-	rc = m0_timer_init(&timer, M0_TIMER_HARD, make_time_abs(100),
-			&locality_default_callback, 0);
+	rc = m0_timer_init(&timer, M0_TIMER_HARD, NULL,
+			   &locality_default_callback, 0);
 	M0_UT_ASSERT(rc == 0);
 
 	sem_init_zero(&loc_default_lock);
 
 	loc_default_tid = gettid();
-	rc = m0_timer_start(&timer);
-	M0_UT_ASSERT(rc == 0);
+	m0_timer_start(&timer, make_time_abs(100));
 	m0_semaphore_down(&loc_default_lock);
 
-	rc = m0_timer_stop(&timer);
-	M0_UT_ASSERT(rc == 0);
+	m0_timer_stop(&timer);
 
 	m0_semaphore_fini(&loc_default_lock);
-	rc = m0_timer_fini(&timer);
-	M0_UT_ASSERT(rc == 0);
+	m0_timer_fini(&timer);
 }
 
 static unsigned long locality_test_callback(unsigned long data)
@@ -247,29 +241,22 @@ static void timer_locality_test(int nr_timers,
 	/* m0_timer_init() */
 	for (i = 0; i < nr_timers; ++i) {
 		time = time_rand_ms(interval_min_ms, interval_max_ms);
-		rc = m0_timer_init(&timers[i], M0_TIMER_HARD,
-				make_time_abs(time),
-				&locality_test_callback, i);
-		M0_UT_ASSERT(rc == 0);
-		rc = m0_timer_attach(&timers[i], &loc);
+		rc = m0_timer_init(&timers[i], M0_TIMER_HARD, &loc,
+				   &locality_test_callback, i);
 		M0_UT_ASSERT(rc == 0);
 	}
 
 	/* m0_timer_start() */
-	for (i = 0; i < nr_timers; ++i) {
-		rc = m0_timer_start(&timers[i]);
-		M0_UT_ASSERT(rc == 0);
-	}
+	for (i = 0; i < nr_timers; ++i)
+		m0_timer_start(&timers[i], make_time_abs(time));
 
 	for (i = 0; i < nr_timers; ++i)
 		m0_semaphore_down(&test_locality_lock[i]);
 
 	/* m0_timer_stop(), m0_timer_fini() */
 	for (i = 0; i < nr_timers; ++i) {
-		rc = m0_timer_stop(&timers[i]);
-		M0_UT_ASSERT(rc == 0);
-		rc = m0_timer_fini(&timers[i]);
-		M0_UT_ASSERT(rc == 0);
+		m0_timer_stop(&timers[i]);
+		m0_timer_fini(&timers[i]);
 		m0_semaphore_fini(&test_locality_lock[i]);
 	}
 
@@ -366,33 +353,25 @@ static void test_timer_master_mt(struct thread_group *tg)
 		 * `struct tg_timer'
 		 */
 		rc = m0_timer_init(&tg->tg_timers[i].tgt_timer, M0_TIMER_HARD,
-				tgt->tgt_expire,
-				test_timer_callback_mt, (unsigned long) tgt);
-		M0_UT_ASSERT(rc == 0);
-		/* attach timer to timer group locality */
-		rc = m0_timer_attach(&tg->tg_timers[i].tgt_timer, &tg->tg_loc);
+				   &tg->tg_loc,
+				   test_timer_callback_mt, (unsigned long) tgt);
 		M0_UT_ASSERT(rc == 0);
 	}
 	/* synchronize with all master threads */
 	m0_semaphore_up(&tg->tg_sem_init);
 	m0_semaphore_down(&tg->tg_sem_resume);
 	/* start() all timers */
-	for (i = 0; i < NR_TIMERS_TG; ++i) {
-		rc = m0_timer_start(&tg->tg_timers[i].tgt_timer);
-		M0_UT_ASSERT(rc == 0);
-	}
+	for (i = 0; i < NR_TIMERS_TG; ++i)
+		m0_timer_start(&tg->tg_timers[i].tgt_timer, tgt->tgt_expire);
 	/* wait for all timers */
 	for (i = 0; i < NR_TIMERS_TG; ++i)
 		m0_semaphore_down(&tg->tg_timers[i].tgt_done);
 	/* stop() all timers */
-	for (i = 0; i < NR_TIMERS_TG; ++i) {
-		rc = m0_timer_stop(&tg->tg_timers[i].tgt_timer);
-		M0_UT_ASSERT(rc == 0);
-	}
+	for (i = 0; i < NR_TIMERS_TG; ++i)
+		m0_timer_stop(&tg->tg_timers[i].tgt_timer);
 	/* fini() all timers */
 	for (i = 0; i < NR_TIMERS_TG; ++i) {
-		rc = m0_timer_fini(&tg->tg_timers[i].tgt_timer);
-		M0_UT_ASSERT(rc == 0);
+		m0_timer_fini(&tg->tg_timers[i].tgt_timer);
 		m0_semaphore_fini(&tg->tg_timers[i].tgt_done);
 	}
 	/* resume all slaves */
@@ -422,7 +401,6 @@ static void test_timer_master_mt(struct thread_group *tg)
    wait for masters init
 				init slaves
 				wait for all slaves
-							attach to locality
 				barrier with slaves	barrier with master
 				sync with main
 				wait for all masters
@@ -513,6 +491,278 @@ void test_timer(void)
 	/* hard timer test in multithreaded environment */
 	test_timer_many_timers_mt();
 }
+
+enum { UB_TIMER_NR = 0x1 };
+
+static struct m0_timer	   timer_ub_timers[UB_TIMER_NR];
+static struct m0_semaphore timer_ub_semaphores[UB_TIMER_NR];
+static enum m0_timer_type  timer_ub_type;
+static m0_time_t	   timer_ub_expiration;
+static m0_timer_callback_t timer_ub_cb;
+
+unsigned long timer_ub_callback_dummy(unsigned long unused)
+{
+	return 0;
+}
+
+static int timers_ub_init(const char *opts)
+{
+	return 0;
+}
+
+static void timers_ub_fini(void)
+{
+}
+
+static void timer_ub__init(int index)
+{
+	int rc = m0_timer_init(&timer_ub_timers[index], timer_ub_type, NULL,
+			       timer_ub_cb, index);
+	M0_UB_ASSERT(rc == 0);
+}
+
+static void timer_ub__fini(int index)
+{
+	m0_timer_fini(&timer_ub_timers[index]);
+}
+
+static void timer_ub__start(int index)
+{
+	m0_timer_start(&timer_ub_timers[index], timer_ub_expiration);
+}
+
+static void timer_ub__stop(int index)
+{
+	m0_timer_stop(&timer_ub_timers[index]);
+}
+
+static void timer_ub_for_each(void (*func)(int index))
+{
+	int i;
+
+	for (i = 0; i < UB_TIMER_NR; ++i)
+		func(i);
+}
+
+static void timer_ub_init_dummy(void)
+{
+	timer_ub_expiration = M0_TIME_NEVER;
+	timer_ub_cb	    = &timer_ub_callback_dummy;
+}
+
+static void timer_ub_soft_init_dummy(void)
+{
+	timer_ub_init_dummy();
+	timer_ub_type = M0_TIMER_SOFT;
+}
+
+static void timer_ub_hard_init_dummy(void)
+{
+	timer_ub_init_dummy();
+	timer_ub_type = M0_TIMER_HARD;
+}
+
+static void timer_ub_soft_init_all(void)
+{
+	timer_ub_soft_init_dummy();
+	timer_ub_for_each(&timer_ub__init);
+}
+
+static void timer_ub_hard_init_all(void)
+{
+	timer_ub_hard_init_dummy();
+	timer_ub_for_each(&timer_ub__init);
+}
+
+static void timer_ub_soft_init_start_all(void)
+{
+	timer_ub_soft_init_all();
+	timer_ub_for_each(&timer_ub__start);
+}
+
+static void timer_ub_hard_init_start_all(void)
+{
+	timer_ub_hard_init_all();
+	timer_ub_for_each(&timer_ub__start);
+}
+
+static void timer_ub_fini_dummy(void)
+{
+}
+
+static void timer_ub_fini_all(void)
+{
+	timer_ub_for_each(&timer_ub__fini);
+}
+
+static void timer_ub_stop_fini_all(void)
+{
+	timer_ub_for_each(&timer_ub__stop);
+	timer_ub_fini_all();
+}
+
+static void timer_ub_start_stop(int index)
+{
+	timer_ub__start(index);
+	timer_ub__stop(index);
+}
+
+static void timer_ub_init_start_stop(int index)
+{
+	timer_ub__init(index);
+	timer_ub__start(index);
+	timer_ub__stop(index);
+}
+
+static void timer_ub_init_start_stop_fini(int index)
+{
+	timer_ub__init(index);
+	timer_ub__start(index);
+	timer_ub__stop(index);
+	timer_ub__fini(index);
+}
+
+unsigned long timer_ub_callback(unsigned long index)
+{
+	m0_semaphore_up(&timer_ub_semaphores[index]);
+	return 0;
+}
+
+static void timer_ub__init_cb(int index)
+{
+	int rc;
+
+	timer_ub__init(index);
+	rc = m0_semaphore_init(&timer_ub_semaphores[index], 0);
+	M0_UB_ASSERT(rc == 0);
+}
+
+static void timer_ub__fini_cb(int index)
+{
+	m0_semaphore_fini(&timer_ub_semaphores[index]);
+	timer_ub__fini(index);
+}
+
+static void timer_ub_init_cb_dummy(void)
+{
+	timer_ub_expiration = m0_time_now();
+	timer_ub_cb	    = &timer_ub_callback;
+}
+
+static void timer_ub_soft_init_cb_all(void)
+{
+	timer_ub_init_cb_dummy();
+	timer_ub_type = M0_TIMER_SOFT;
+	timer_ub_for_each(&timer_ub__init_cb);
+}
+
+static void timer_ub_hard_init_cb_all(void)
+{
+	timer_ub_init_cb_dummy();
+	timer_ub_type = M0_TIMER_HARD;
+	timer_ub_for_each(&timer_ub__init_cb);
+}
+
+static void timer_ub_soft_init_start_cb_all(void)
+{
+	timer_ub_soft_init_cb_all();
+	timer_ub_for_each(&timer_ub__start);
+}
+
+static void timer_ub_hard_init_start_cb_all(void)
+{
+	timer_ub_hard_init_cb_all();
+	timer_ub_for_each(&timer_ub__start);
+}
+
+static void timer_ub_start_callback(int index)
+{
+	timer_ub__start(index);
+	m0_semaphore_down(&timer_ub_semaphores[index]);
+}
+
+static void timer_ub_fini_cb_all(void)
+{
+	timer_ub_for_each(&timer_ub__fini_cb);
+}
+
+static void timer_ub_stop_fini_cb_all(void)
+{
+	timer_ub_for_each(&timer_ub__stop);
+	timer_ub_fini_cb_all();
+}
+
+static void timer_ub_callback_stop(int index)
+{
+	m0_semaphore_down(&timer_ub_semaphores[index]);
+	timer_ub__stop(index);
+}
+
+static void timer_ub_init_start_callback_stop_fini(int index)
+{
+	timer_ub_expiration = m0_time_now();
+	timer_ub_cb	    = &timer_ub_callback;
+	timer_ub__init_cb(index);
+	timer_ub__start(index);
+	m0_semaphore_down(&timer_ub_semaphores[index]);
+	timer_ub__stop(index);
+	timer_ub__fini_cb(index);
+}
+
+#define TIMER_UB(name, init, round, fini) (struct m0_ub_bench) {	\
+	.ub_name = name,						\
+	.ub_iter = UB_TIMER_NR,						\
+	.ub_init = timer_ub_##init,					\
+	.ub_fini = timer_ub_##fini,					\
+	.ub_round = timer_ub_##round,					\
+}
+
+#define TIMER_UB2(name, init, round, fini)				\
+	TIMER_UB("S-"name, soft_##init, round, fini),		\
+	TIMER_UB("H-"name, hard_##init, round, fini)
+
+/*
+ * <init>-fini
+ * init-<fini>
+ * init-<start>-stop-fini
+ * init-start-<stop>-fini
+ * init-<start-stop>-fini
+ * <init-start-stop>-fini
+ * <init-start-stop-fini>
+ * init-<start-callback>-stop-fini
+ * init-start-<callback-stop>-fini
+ * <init-start-callback-stop-fini>
+ */
+const struct m0_ub_set m0_timer_ub = {
+	.us_name = "timer-ub",
+	.us_init = timers_ub_init,
+	.us_fini = timers_ub_fini,
+	.us_run  = {
+		TIMER_UB2("<init>-fini", init_dummy, _init, fini_all),
+		TIMER_UB2("init-<fini>", init_all, _fini, fini_dummy),
+		TIMER_UB2("init-<start>-stop-fini",
+			  init_all, _start, stop_fini_all),
+		TIMER_UB2("init-start-<stop>-fini",
+			  init_start_all, _stop, fini_all),
+		TIMER_UB2("init-<start-stop>-fini",
+			  init_all, start_stop, fini_all),
+		TIMER_UB2("<init-start-stop>-fini",
+			  init_dummy, init_start_stop, fini_all),
+		TIMER_UB2("<init-start-stop-fini>",
+			  init_dummy, init_start_stop_fini, fini_dummy),
+		TIMER_UB2("init-<start-callback>-stop-fini",
+			  init_cb_all, start_callback, stop_fini_cb_all),
+		TIMER_UB2("init-start-<callback-stop>-fini",
+			  init_start_cb_all, callback_stop, fini_cb_all),
+		TIMER_UB2("<init-start-callback-stop-fini>",
+			  init_dummy, init_start_callback_stop_fini,
+			  fini_dummy),
+		{ .ub_name = NULL }
+	}
+};
+
+#undef TIMER_UB
+#undef TIMER_UB2
 
 /*
  *  Local variables:

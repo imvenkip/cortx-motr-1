@@ -78,6 +78,7 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 
 	m0_ref_init(&fop->f_ref, 1, fop_release);
 	fop->f_type = fopt;
+	M0_SET0(&fop->f_item);
 	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_data.fd_data = data;
 	M0_LOG(M0_DEBUG, "fop: %p %s", fop, fop_name(fop));

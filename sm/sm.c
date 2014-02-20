@@ -522,13 +522,10 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	timer->tr_state = ARMED;
 	timer->tr_grp   = group;
 	timer->tr_cb    = cb;
-	m0_timer_init(&timer->tr_timer, M0_TIMER_SOFT, deadline, sm_timer_top,
-		      (unsigned long)timer);
-	result = m0_timer_start(&timer->tr_timer);
-	if (result != 0) {
-		timer->tr_state = DONE;
-		m0_sm_timer_fini(timer);
-	}
+	result = m0_timer_init(&timer->tr_timer, M0_TIMER_SOFT, NULL,
+			       sm_timer_top, (unsigned long)timer);
+	if (result == 0)
+		m0_timer_start(&timer->tr_timer, deadline);
 	return result;
 }
 

@@ -159,12 +159,10 @@ void test_chan(void)
 	M0_UT_ASSERT(!got);
 
 	/* chan is signaled after 1/10 second. so the wait will return true */
-	rc = m0_timer_init(&timer, M0_TIMER_HARD,
-			   m0_time_from_now(0, M0_TIME_ONE_SECOND/10),
+	rc = m0_timer_init(&timer, M0_TIMER_HARD, NULL,
 			   &signal_the_chan_in_timer, (unsigned long)&clink1);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_timer_start(&timer);
-	M0_UT_ASSERT(rc == 0);
+	m0_timer_start(&timer, m0_time_from_now(0, M0_TIME_ONE_SECOND/10));
 	got = m0_chan_timedwait(&clink1,
 				m0_time_from_now(0, M0_TIME_ONE_SECOND/5));
 	M0_UT_ASSERT(got);
@@ -173,10 +171,10 @@ void test_chan(void)
 
 	/* chan is signaled after 1/3 seconds. so the wait will timeout and
 	   return false. Another wait should work.*/
-	m0_timer_init(&timer, M0_TIMER_HARD,
-		      m0_time_from_now(0, M0_TIME_ONE_SECOND/3),
-		      &signal_the_chan_in_timer, (unsigned long)&clink1);
-	m0_timer_start(&timer);
+	rc = m0_timer_init(&timer, M0_TIMER_HARD, NULL,
+			   &signal_the_chan_in_timer, (unsigned long)&clink1);
+	M0_UT_ASSERT(rc == 0);
+	m0_timer_start(&timer, m0_time_from_now(0, M0_TIME_ONE_SECOND/3));
 	got = m0_chan_timedwait(&clink1,
 				m0_time_from_now(0, M0_TIME_ONE_SECOND/5));
 	M0_UT_ASSERT(!got);
@@ -259,10 +257,10 @@ void test_chan(void)
 			m0_clink_add_lock(&cc[i], &l[i]);
 
 		flag = 0;
-		m0_timer_init(&timer, M0_TIMER_HARD,
-			      m0_time_from_now(0, M0_TIME_ONE_SECOND/100),
-			      &signal_the_chan_in_timer, (unsigned long)&l[j]);
-		m0_timer_start(&timer);
+		rc = m0_timer_init(&timer, M0_TIMER_HARD, NULL,
+				   &signal_the_chan_in_timer, (unsigned long)&l[j]);
+		M0_UT_ASSERT(rc == 0);
+		m0_timer_start(&timer, m0_time_from_now(0, M0_TIME_ONE_SECOND/100));
 
 		m0_chan_wait(&l[(j + 1) % ARRAY_SIZE(cc)]);
 		M0_UT_ASSERT(flag == 1);

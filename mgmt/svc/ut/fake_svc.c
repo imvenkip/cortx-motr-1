@@ -68,6 +68,7 @@ static int mgmt_svc_ut_rso_start_async_called;
 static int mgmt_svc_ut_rso_start_async(struct m0_reqh_service_start_async_ctx
 				       *asc)
 {
+	int			rc;
 	struct mgmt_svc_ut_svc *svc = container_of(asc->sac_service,
 						   struct mgmt_svc_ut_svc,
 						   msus_reqhs);
@@ -79,10 +80,10 @@ static int mgmt_svc_ut_rso_start_async(struct m0_reqh_service_start_async_ctx
 	++mgmt_svc_ut_rso_start_async_called;
 	if (mgmt_svc_ut_start_async_rc != 0)
 		M0_RETURN(mgmt_svc_ut_start_async_rc);
-	m0_timer_init(&svc->msus_timer, M0_TIMER_HARD,
-		      m0_time_from_now(0, 5000000), /* 5ms */
-		      mgmt_svc_ut_timer_callback, (unsigned long)asc);
-	m0_timer_start(&svc->msus_timer);
+	rc = m0_timer_init(&svc->msus_timer, M0_TIMER_HARD, NULL,
+			   mgmt_svc_ut_timer_callback, (unsigned long)asc);
+	M0_UT_ASSERT(rc == 0);
+	m0_timer_start(&svc->msus_timer, m0_time_from_now(0, 5000000)); /* 5ms */
 	svc->msus_used_timer = true;
 	M0_RETURN(0);
 }
@@ -110,7 +111,7 @@ static void mgmt_svc_ut_svc_rso_fini(struct m0_reqh_service *service)
 	++mgmt_svc_ut_rso_fini_called;
 	if (svc->msus_used_timer) {
 		m0_timer_stop(&svc->msus_timer);
-		M0_UT_ASSERT(m0_timer_fini(&svc->msus_timer) == 0);
+		m0_timer_fini(&svc->msus_timer);
 	}
 	m0_free(service);
 	mgmt_svc_ut_fake_svc = NULL;

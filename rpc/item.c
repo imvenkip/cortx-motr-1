@@ -396,8 +396,6 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && itype != NULL);
 
-	M0_SET0(item);
-
 	item->ri_type  = itype;
 	item->ri_magic = M0_RPC_ITEM_MAGIC;
 	item->ri_ha_epoch = M0_HA_EPOCH_NONE;
@@ -664,6 +662,7 @@ void m0_rpc_item_delete(struct m0_rpc_item *item)
 		item->ri_error = 0;
 	}
 	m0_rpc_item_fini(item);
+	m0_rpc_item_init(item, item->ri_type);
         m0_rpc_machine_unlock(mach);
 }
 

@@ -53,19 +53,25 @@
      The user-defined callback execution may take longer time and it will
      not impact other timers.
 
+   - Number of hard timers is limited by maximum number of pending signals,
+     see `ulimit -i`.
+   - Number of soft timers is limited by maximum number of threads.
+
    @note m0_timer_* functions should not be used in the timer callbacks.
    @{
  */
 
 typedef	unsigned long (*m0_timer_callback_t)(unsigned long data);
 struct m0_timer;
+struct m0_timer_locality;
 
 /**
    Timer type.
  */
 enum m0_timer_type {
 	M0_TIMER_SOFT,
-	M0_TIMER_HARD
+	M0_TIMER_HARD,
+	M0_TIMER_TYPE_NR,
 };
 
 #ifndef __KERNEL__
@@ -75,59 +81,36 @@ enum m0_timer_type {
 #endif
 
 /**
-   Item of threads ID list in locality.
-   Used in the implementation of userspace hard timer.
- */
-struct m0_timer_tid {
-	pid_t		tt_tid;
-	struct m0_tlink tt_linkage;
-	uint64_t	tt_magic;
-};
-
-/**
-   Timer locality.
-   Used in userspace hard timers.
- */
-struct m0_timer_locality {
-	/**
-	   Lock for tlo_tids
-	 */
-	struct m0_mutex tlo_lock;
-	/**
-	   List of thread ID's, associated with this locality
-	 */
-	struct m0_tl tlo_tids;
-	/**
-	   ThreadID of next thread for round-robin timer thread selection
-	   in m0_timer_attach(). It is pointer to timer_tid structure.
-	 */
-	struct m0_timer_tid *tlo_rrtid;
-};
-
-/**
    Init the timer data structure.
 
    @param timer m0_timer structure
    @param type timer type (M0_TIMER_SOFT or M0_TIMER_HARD)
-   @param expire absolute expiration time for timer. If this time is already
-	  passed, then the timer callback will be executed immediately
-	  after m0_timer_start().
+   @param loc timer locality, ignored for M0_TIMER_SOFT timers.
+	  Can be NULL - in this case hard timer signal will be delivered
+	  to the process. This parameter is ignored in kernel implementation.
    @param callback this callback will be triggered when timer alarms.
    @param data data for the callback.
    @pre callback != NULL
+   @pre loc have at least one thread attached
    @post timer is not running
+   @see m0_timer_locality
  */
-M0_INTERNAL int m0_timer_init(struct m0_timer *timer, enum m0_timer_type type,
-			      m0_time_t expire,
-			      m0_timer_callback_t callback, unsigned long data);
+M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
+			      enum m0_timer_type	type,
+			      struct m0_timer_locality *loc,
+			      m0_timer_callback_t	callback,
+			      unsigned long		data);
 
 /**
    Start a timer.
 
+   @param expire absolute expiration time for timer. If this time is already
+	  passed, then the timer callback will be executed ASAP.
    @pre m0_timer_init() successfully called.
    @pre timer is not running
  */
-M0_INTERNAL int m0_timer_start(struct m0_timer *timer);
+M0_INTERNAL void m0_timer_start(struct m0_timer *timer,
+				m0_time_t	 expire);
 
 /**
    Stop a timer.
@@ -137,7 +120,7 @@ M0_INTERNAL int m0_timer_start(struct m0_timer *timer);
    @post timer is not running
    @post callback isn't running
  */
-M0_INTERNAL int m0_timer_stop(struct m0_timer *timer);
+M0_INTERNAL void m0_timer_stop(struct m0_timer *timer);
 
 /**
    Returns true iff the timer is running.
@@ -150,7 +133,7 @@ M0_INTERNAL bool m0_timer_is_started(const struct m0_timer *timer);
    @pre m0_timer_init() for this timer was successfully called.
    @pre timer is not running.
  */
-M0_INTERNAL int m0_timer_fini(struct m0_timer *timer);
+M0_INTERNAL void m0_timer_fini(struct m0_timer *timer);
 
 /**
    Init timer locality.
@@ -183,22 +166,6 @@ M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc);
    @post current thread is not attached to locality.
  */
 M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc);
-
-/**
-   Attach hard timer to the given locality.
-   This function will set timer signal number to signal number, associated
-   with given locality, and thread ID for timer callback - it will be chosen
-   from locality threads list in round-robin fashion.
-   Therefore internal POSIX timer will be recreated.
-
-   @pre m0_timer_init() successfully called.
-   @pre m0_timer_locality_init() successfully called.
-   @pre locality has some threads attached.
-   @pre timer type is M0_TIMER_HARD
-   @pre timer is not running.
- */
-M0_INTERNAL int m0_timer_attach(struct m0_timer *timer,
-				struct m0_timer_locality *loc);
 
 /** @} end of timer group */
 /* __MERO_LIB_TIMER_H__ */
