@@ -711,7 +711,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	struct m0_buf         key;
 	struct m0_buf         rec;
 	struct m0_cob        *cob;
-	time_t                now;
 	int                   rc;
 
 	/**
@@ -748,12 +747,8 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	nsrec.cnr_size = MKFS_ROOT_SIZE;
 	nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
 	nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
-	if (time(&now) < 0) {
-		m0_cob_put(cob);
-		m0_free(nskey);
-		return errno;
-	}
-	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
+	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime =
+		m0_time_seconds(m0_time_now());
 
 	omgrec.cor_uid = 0;
 	omgrec.cor_gid = 0;
