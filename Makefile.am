@@ -173,7 +173,6 @@ include $(top_srcdir)/addb/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
-include $(top_srcdir)/cfg/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub

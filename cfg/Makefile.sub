@@ -1,2 +1,0 @@
-nobase_mero_include_HEADERS += cfg/cfg.h
-mero_libmero_la_SOURCES  += cfg/cfg.c

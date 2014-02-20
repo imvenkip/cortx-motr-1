@@ -38,7 +38,6 @@
 #include "stats/stats_fops.h"
 #include "mero/setup.h"
 #include "lib/chan.h"
-#include "cfg/cfg.h"
 #include "lib/user_space/getopts.h"
 
 enum {
