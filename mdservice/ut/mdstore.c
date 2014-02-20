@@ -136,8 +136,7 @@ static void test_mkfs(void)
 	m0_cob_tx_credit(&md.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
         m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
-        rc = m0_cob_domain_mkfs(&md.md_dom, &rootfid,
-				&M0_COB_SESSIONS_FID, &tx);
+        rc = m0_cob_domain_mkfs(&md.md_dom, &rootfid, &tx);
         M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 

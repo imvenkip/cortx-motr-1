@@ -87,23 +87,14 @@ const struct m0_fid M0_COB_ROOT_FID = {
 };
 
 /**
-   Root session fid. All sessions are placed in it.
-*/
-const struct m0_fid M0_COB_SESSIONS_FID = {
-	.f_container = 1ULL,
-	.f_key       = 2ULL
-};
-
-/**
    Metadata hierarchry root fid.
 */
 const struct m0_fid M0_COB_SLASH_FID = {
 	.f_container = 1ULL,
-	.f_key       = 3ULL
+	.f_key       = 2ULL
 };
 
 const char M0_COB_ROOT_NAME[] = "ROOT";
-const char M0_COB_SESSIONS_NAME[] = "SESSIONS";
 
 struct m0_addb_ctx m0_cob_mod_ctx;
 
@@ -703,10 +694,14 @@ static int cob_table_lookup(struct m0_be_btree *tree, struct m0_buf *key,
 }
 
 
-static int _mkfs(struct m0_cob_domain *dom,
-		 const struct m0_fid *rootfid,
-		 const struct m0_fid *sessfid,
-		 struct m0_be_tx *tx)
+/**
+ * Create initial files system structures, such as: entire storage root, root
+ * cob for sessions and root cob for hierarchy. Latter is only one of them
+ * visible to user on client.
+ */
+M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+				   const struct m0_fid *rootfid,
+				   struct m0_be_tx *tx)
 {
 	struct m0_cob_nskey  *nskey;
 	struct m0_cob_nsrec   nsrec;
@@ -716,7 +711,6 @@ static int _mkfs(struct m0_cob_domain *dom,
 	struct m0_buf         key;
 	struct m0_buf         rec;
 	struct m0_cob        *cob;
-	time_t                now;
 	int                   rc;
 
 	/**
@@ -753,12 +747,8 @@ static int _mkfs(struct m0_cob_domain *dom,
 	nsrec.cnr_size = MKFS_ROOT_SIZE;
 	nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
 	nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
-	if (time(&now) < 0) {
-		m0_cob_put(cob);
-		m0_free(nskey);
-		return errno;
-	}
-	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
+	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime =
+		m0_time_seconds(m0_time_now());
 
 	omgrec.cor_uid = 0;
 	omgrec.cor_gid = 0;
@@ -776,79 +766,14 @@ static int _mkfs(struct m0_cob_domain *dom,
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	m0_cob_put(cob);
-	if (rc != 0) {
-		m0_free(nskey);
-		m0_free(fabrec);
-		return rc;
-	}
-
-	/**
-	   Create root session.
-	 */
-	M0_SET0(&nsrec);
-
-	rc = m0_cob_alloc(dom, &cob);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_SESSIONS_NAME,
-			       strlen(M0_COB_SESSIONS_NAME));
-	if (rc != 0) {
-		m0_cob_put(cob);
-		return rc;
-	}
-
-	nsrec.cnr_omgid = 0;
-	nsrec.cnr_fid = *sessfid;
-
-	nsrec.cnr_nlink = 1;
-	nsrec.cnr_size = MKFS_ROOT_SIZE;
-	nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
-	nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
-	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
-
-	omgrec.cor_uid = 0;
-	omgrec.cor_gid = 0;
-	omgrec.cor_mode = S_IFDIR |
-			  S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
-			  S_IRGRP | S_IXGRP |           /* r-x for group */
-			  S_IROTH | S_IXOTH;            /* r-x for others */
-
-	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
-	if (rc != 0) {
-		m0_cob_put(cob);
-		m0_free(nskey);
-	}
-
-	fabrec->cfb_version.vn_lsn = M0_LSN_RESERVED_NR + 2;
-	fabrec->cfb_version.vn_vc = 0;
-
-	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
-	m0_cob_put(cob);
+	if (rc == -EEXIST)
+		rc = 0;
 	if (rc != 0) {
 		m0_free(nskey);
 		m0_free(fabrec);
 		return rc;
 	}
 	return 0;
-}
-
-/**
- * Create initial files system structures, such as: entire storage root, root
- * cob for sessions and root cob for hierarchy. Latter is only one of them
- * visible to user on client.
- */
-M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
-				   const struct m0_fid *rootfid,
-				   const struct m0_fid *sessfid,
-				   struct m0_be_tx *tx)
-{
-	int rc;
-
-	rc = _mkfs(dom, rootfid, sessfid, tx);
-	if (rc == -EEXIST)
-		rc = 0;
-	return rc;
 }
 
 static void cob_free_cb(struct m0_ref *ref);
