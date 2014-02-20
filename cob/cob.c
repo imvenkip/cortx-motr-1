@@ -91,7 +91,7 @@ const struct m0_fid M0_COB_ROOT_FID = {
 */
 const struct m0_fid M0_COB_SLASH_FID = {
 	.f_container = 1ULL,
-	.f_key       = 3ULL
+	.f_key       = 2ULL
 };
 
 const char M0_COB_ROOT_NAME[] = "ROOT";

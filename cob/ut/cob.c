@@ -125,8 +125,6 @@ static void test_mkfs(void)
 
 	rc = _locate(1, 2); /* slash */
 	M0_UT_ASSERT(rc == 0);
-	rc = _locate(1, 3); /* session */
-	M0_UT_ASSERT(rc == 0);
 	rc = _locate(1, 1); /* root */
 	M0_UT_ASSERT(rc != 0);
 
