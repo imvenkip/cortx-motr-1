@@ -287,6 +287,12 @@ try to adhere to some higher level idioms.
 
     * declare one variable per line;
 
+    * avoid bit-fields. Instead, use explicit bit manipulations with
+      integer types.
+
+      (Rationale: eliminates non-atomic access to bit-fields and implicit
+      integer promotion);
+
     * avoid dead assignments and initializations (i.e., assignments
       which are overwritten before the variable is read)
 
