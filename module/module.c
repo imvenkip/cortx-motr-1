@@ -169,6 +169,8 @@ M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
 	M0_PRE(_0C(m0 != m1) && _0C(equal_or_null(m0->m_m0, m1->m_m0)));
 	M0_PRE(module_invariant(m0));
 	M0_PRE(module_invariant(m1));
+	M0_PRE(m0->m_cur < l0); /* Otherwise it is too late to enforce the
+				 * dependency. */
 
 	M0_ASSERT(m0->m_dep_nr < ARRAY_SIZE(m0->m_dep));
 	m0->m_dep[m0->m_dep_nr++] = (struct m0_moddep){
