@@ -126,18 +126,18 @@ struct m0_moddep {
  * { .md_other = m0, md_src = l0, md_dst = l1 } element in m1.m_inv[].
  */
 struct m0_module {
-	const char       *m_name;
-	struct m0        *m_m0;
+	const char             *m_name;
+	struct m0              *m_m0;
 	/** Current level. */
-	unsigned          m_cur;
-	struct m0_modlev *m_level;
-	unsigned          m_level_nr;
+	unsigned                m_cur;
+	const struct m0_modlev *m_level;
+	unsigned                m_level_nr;
 	/** List of dependencies. */
-	struct m0_moddep  m_dep[M0_MODDEP_MAX];
-	unsigned          m_dep_nr;
+	struct m0_moddep        m_dep[M0_MODDEP_MAX];
+	unsigned                m_dep_nr;
 	/** List of inverse dependencies. */
-	struct m0_moddep  m_inv[M0_MODDEP_MAX];
-	unsigned          m_inv_nr;
+	struct m0_moddep        m_inv[M0_MODDEP_MAX];
+	unsigned                m_inv_nr;
 };
 
 /** Module level. */
