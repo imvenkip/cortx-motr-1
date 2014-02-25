@@ -1457,18 +1457,14 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
 	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
 
-	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx)) {
-		m0_addb_sm_counter_init(&fom->fo_sm_state_stats,
-					&m0_addb_rt_fom_state_stats,
-					fom->fo_fos_stats_data,
-					sizeof(fom->fo_fos_stats_data));
-		m0_sm_stats_enable(&fom->fo_sm_state,
-				   &fom->fo_sm_state_stats);
+	m0_addb_sm_counter_init(&fom->fo_sm_state_stats,
+				&m0_addb_rt_fom_state_stats,
+				fom->fo_fos_stats_data,
+				sizeof(fom->fo_fos_stats_data));
+	m0_sm_stats_enable(&fom->fo_sm_state, &fom->fo_sm_state_stats);
 
-		if (fom->fo_sm_phase_stats.asc_data != NULL)
-			m0_sm_stats_enable(&fom->fo_sm_phase,
-					   &fom->fo_sm_phase_stats);
-	}
+	if (fom->fo_sm_phase_stats.asc_data != NULL)
+		m0_sm_stats_enable(&fom->fo_sm_phase, &fom->fo_sm_phase_stats);
 }
 
 void m0_fom_phase_set(struct m0_fom *fom, int phase)
