@@ -72,9 +72,9 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
-%{_sysconfdir}/*
 %{_mandir}/*
 /lib/modules/*
+%config  %{_sysconfdir}/*
 %exclude %{_includedir}
 
 %pre
