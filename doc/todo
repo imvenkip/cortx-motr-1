@@ -98,6 +98,11 @@ sub-team leads, contact them to add more things here.
     all direct calls to sop_block_shift() should be replaced with
     m0_stob_block_shift().
 
+2014-Feb-27 enforce uniqueness of magic values
+
+    `scripts/check-sources' should check uniqueness of magic numbers
+    in mero/magic.h.
+
                           ***** IN-PROGRESS *****
 
 2012-Sep-05 Usage of m0_*_awkward() with signal handler and intrupt handler.

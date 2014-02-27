@@ -210,8 +210,8 @@ enum m0_magic_satchel {
 	/* m0t1fs_services_tl::td_head_magic (seize sicilia) */
 	M0_T1FS_SERVICE_HEAD_MAGIC =0x335e12e51c111a77,
 
-	/* hashbucket::hb_tioreqs::td_head_magic = desirability */
-	M0_T1FS_TLIST_HEAD_MAGIC = 0x33de512ab1111777,
+	/* hashbucket::hb_tioreqs::td_head_magic (affable close) */
+	M0_T1FS_TLIST_HEAD_MAGIC = 0x33affab1ec105e77,
 
 /* Configuration */
 	/* m0_conf_cache::ca_registry::t_magic (fabled feodal) */
