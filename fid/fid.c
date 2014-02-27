@@ -19,7 +19,7 @@
  */
 
 #include "lib/errno.h"         /* EINVAL */
-#include "lib/misc.h"          /* memcmp */
+#include "lib/misc.h"          /* memcmp, strcmp */
 #include "lib/string.h"        /* sscanf */
 #include "lib/assert.h"        /* M0_PRE */
 #include "fid/fid_xc.h"
@@ -31,9 +31,52 @@
    @{
  */
 
+/* TODO move to m0 */
+static struct m0_fid_type *fid_types[256];
+
+M0_INTERNAL void m0_fid_type_register(struct m0_fid_type *fidt)
+{
+	uint8_t id = fidt->ft_id;
+
+	M0_PRE(IS_IN_ARRAY(id, fid_types));
+	M0_PRE(fid_types[id] == NULL);
+	fid_types[id] = fidt;
+}
+
+M0_INTERNAL struct m0_fid_type *m0_fid_type_get(uint8_t id)
+{
+	M0_PRE(IS_IN_ARRAY(id, fid_types));
+	return fid_types[id];
+}
+
+M0_INTERNAL struct m0_fid_type *m0_fid_type_gethi(uint64_t id)
+{
+	return m0_fid_type_get(id >> (64 - 8));
+}
+
+M0_INTERNAL struct m0_fid_type *m0_fid_type_getfid(const struct m0_fid *fid)
+{
+	return m0_fid_type_gethi(fid->f_container);
+}
+
+M0_INTERNAL struct m0_fid_type *m0_fid_type_getname(const char *name)
+{
+	size_t i;
+	struct m0_fid_type *fidt;
+
+	for (i = 0; i < ARRAY_SIZE(fid_types); ++i) {
+		fidt = fid_types[i];
+		M0_ASSERT(ergo(fidt != NULL, fidt->ft_name != NULL));
+		if (fidt != NULL && strcmp(name, fidt->ft_name) == 0)
+			return fidt;
+	}
+
+	return NULL;
+}
+
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
-	return true; /* XXX TODO */
+	return m0_fid_type_getfid(fid) != NULL;
 }
 M0_EXPORTED(m0_fid_is_valid);
 

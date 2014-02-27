@@ -33,6 +33,21 @@
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 
+/* export */
+struct m0_fid_type;
+struct m0_fid;
+
+struct m0_fid_type {
+	uint8_t     ft_id;
+	const char *ft_name;
+};
+
+M0_INTERNAL void m0_fid_type_register(struct m0_fid_type *fidt);
+M0_INTERNAL struct m0_fid_type *m0_fid_type_get(uint8_t id);
+M0_INTERNAL struct m0_fid_type *m0_fid_type_gethi(uint64_t id);
+M0_INTERNAL struct m0_fid_type *m0_fid_type_getfid(const struct m0_fid *fid);
+M0_INTERNAL struct m0_fid_type *m0_fid_type_getname(const char *name);
+
 struct m0_fid {
         uint64_t f_container;
         uint64_t f_key;
