@@ -38,6 +38,12 @@ static bool module_invariant(const struct m0_module *mod)
 	const struct m0_moddep *md1;
 
 	return  _0C(mod->m_cur < mod->m_level_nr) &&
+		_0C(m0_forall(i, mod->m_level_nr, (i == 0) ==
+			      (mod->m_level[i].ml_name == NULL &&
+			       /* A level without ->ml_enter() operation
+				* is a pure decoration that we can do
+				* without. */
+			       mod->m_level[i].ml_enter == NULL))) &&
 		_0C(mod->m_dep_nr <= ARRAY_SIZE(mod->m_dep)) &&
 		_0C(mod->m_inv_nr <= ARRAY_SIZE(mod->m_inv)) &&
 		_0C(moddeps_are_unique(mod->m_dep, mod->m_dep_nr)) &&
