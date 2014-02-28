@@ -98,9 +98,9 @@ static int module_up(struct m0_module *module, unsigned level)
 		if (result == 0 && module->m_level[next].ml_enter != NULL) {
 			result = module->m_level[next].ml_enter(module);
 			M0_ASSERT(result != -EAGAIN);
-			if (result == 0)
-				module->m_cur = next;
 		}
+		if (result == 0)
+			module->m_cur = next;
 	}
 	M0_POST(module_invariant(module));
 	return result;
