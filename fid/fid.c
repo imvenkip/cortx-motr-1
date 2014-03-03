@@ -76,7 +76,17 @@ M0_INTERNAL struct m0_fid_type *m0_fid_type_getname(const char *name)
 
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
+#if 0
+	/*
+	 * Some code doesn't take into account hierarchical structure of
+	 * m0_fid and respecitve fid types ain't registered. So leave this
+	 * commented for now.
+	 *
+	 * TODO uncomment when fid types are implemented for all fids.
+	 */
 	return m0_fid_type_getfid(fid) != NULL;
+#endif
+	return true;
 }
 M0_EXPORTED(m0_fid_is_valid);
 
