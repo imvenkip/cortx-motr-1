@@ -48,6 +48,9 @@ To summarise:
 
     * comment formatting follows Linux kernel style;
 
+    * British spelling is used in the documentation, comments and
+      variable names;
+
     * continuation line starts one column after the last unclosed
       opening parenthesis:
 
