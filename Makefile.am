@@ -196,7 +196,7 @@ include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
 include $(top_srcdir)/mgmt/Makefile.sub
 include $(top_srcdir)/module/Makefile.sub
-#XXX_BE_DB include $(top_srcdir)/mw/Makefile.sub
+include $(top_srcdir)/mw/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/Makefile.sub
 include $(top_srcdir)/net/lnet/Makefile.sub
