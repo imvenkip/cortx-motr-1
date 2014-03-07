@@ -187,12 +187,15 @@ struct m0_gvertice *m0_garc_try(const struct m0_gvertice *vertice,
 	return arc_try(vertice, atype);
 }
 
-void m0_gvertice_type_register(const struct m0_gvertice_type *vt)
+void m0_gvertice_type_register(struct m0_gvertice_type *vt)
 {
 	M0_PRE(IS_IN_ARRAY(vt->vt_id, vtypes));
 	M0_PRE(vtypes[vt->vt_id] == NULL);
 	M0_PRE(vt->vt_arc_nr < ARRAY_SIZE(vt->vt_arc) - 1);
 	vtypes[vt->vt_id] = vt;
+
+	m0_garc_type_add(vt, &GRAPH_NEXT);
+	m0_garc_type_add(vt, &GRAPH_PREV);
 
 	M0_POST(m0_gvertice_type_invariant(vt));
 }
@@ -206,6 +209,14 @@ void m0_garc_type_pair_register(struct m0_garc_type *direct,
 {
 	direct->at_reverse = reverse;
 	reverse->at_reverse = direct;
+}
+
+void m0_garc_type_add(struct m0_gvertice_type *vt,
+		      const struct m0_garc_type *atype)
+{
+	M0_PRE(vt->vt_arc_nr < ARRAY_SIZE(vt->vt_arc) - 1);
+	vt->vt_arc[vt->vt_arc_nr++] = atype;
+	M0_POST(m0_garc_type_invariant(vt, atype));
 }
 
 static struct m0_gvertice *arc_try(const struct m0_gvertice *vertice,
@@ -273,6 +284,27 @@ static bool has_arc(const struct m0_gvertice *vertice,
 	const struct m0_gvertice_type *vt = vtype(vertice);
 	return !m0_forall(i, vt->vt_arc_nr, vt->vt_arc[i] != arc);
 }
+
+static struct m0_garc_type GRAPH_NEXT = {
+	.at_name = "next in graph",
+	.at_field = 1
+};
+
+static struct m0_garc_type GRAPH_PREV = {
+	.at_name = "prev in graph",
+	.at_field = 2
+};
+
+int m0_graph_mod_init(void)
+{
+	m0_garc_type_register(&GRAPH_NEXT);
+	m0_garc_type_register(&GRAPH_PREV);
+	m0_garc_type_pair_register(&GRAPH_NEXT, &GRAPH_PREV);
+	return 0;
+}
+
+void m0_graph_mod_fini(void)
+{;}
 
 /** @} end of graph group */
 

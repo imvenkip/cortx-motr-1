@@ -108,10 +108,15 @@ struct m0_gvertice *m0_garc_try(const struct m0_gvertice *vertice,
 int m0_garc_follow(const struct m0_gvertice *vertice,
 		   const struct m0_garc_type *atype, ...);
 
-void m0_gvertice_type_register(const struct m0_gvertice_type *vt);
+void m0_gvertice_type_register(struct m0_gvertice_type *vt);
 void m0_garc_type_register(const struct m0_garc_type *atype);
 void m0_garc_type_pair_register(struct m0_garc_type *direct,
 				struct m0_garc_type *reverse);
+
+void m0_garc_type_add(struct m0_gvertice_type *vt,
+		      const struct m0_garc_type *atype);
+int  m0_graph_mod_init(void);
+void m0_graph_mod_fini(void);
 
 /** @} end of graph group */
 #endif /* __MERO_GRAPH_GRAPH_H__ */

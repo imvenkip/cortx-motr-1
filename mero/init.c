@@ -47,6 +47,7 @@
 #include "fid/fid.h"
 #include "fop/fom_simple.h"
 #include "fop/fom_generic.h"
+#include "graph/graph.h"
 #include "mero/init.h"
 #include "lib/cookie.h"
 #include "conf/fop.h"           /* m0_conf_fops_init, m0_confx_types_init */
@@ -145,6 +146,7 @@ struct init_fini_call subsystem[] = {
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 #endif
 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
+	{ &m0_graph_mod_init,   &m0_graph_mod_fini,   "graph" },
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },
