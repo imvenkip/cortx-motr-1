@@ -61,7 +61,6 @@
 
 enum {
 	CLIENT_COB_DOM_ID  = 101,
-	SESSION_SLOTS      = 5,
 	MAX_RPCS_IN_FLIGHT = 32,
 	MAX_RETRIES        = 5,
 };
@@ -336,7 +335,7 @@ static void fop_send(struct m0_fop *fop, struct m0_rpc_session *session)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);
-	m0_fop_put(fop);
+	m0_fop_put_lock(fop);
 }
 
 /** Sends create fop request. */
@@ -384,7 +383,6 @@ static void write_send(struct m0_rpc_session *session)
 		rh_io_fop = m0_fop_data(fop);
 		rh_io_fop->fiw_object.f_seq = i;
 		rh_io_fop->fiw_object.f_oid = i;
-
 		M0_ALLOC_ARR(buf, 1 << BALLOC_DEF_BLOCK_SHIFT);
 		M0_ASSERT(buf != NULL);
 		rh_io_fop->fiw_value.fi_buf   = buf;
@@ -421,7 +419,6 @@ void test_reqh(void)
 		.rcx_net_dom            = &net_dom,
 		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rcx_nr_slots           = SESSION_SLOTS,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};
 

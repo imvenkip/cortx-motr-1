@@ -184,7 +184,6 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 		fop = m0_fop_alloc(fopt, NULL);
 		M0_UT_ASSERT(fop != NULL);
 		item = &oreq->ou_fop.f_item;
-		m0_fop_get(&oreq->ou_fop);
 		switch (reqtype) {
 		case M0_RIT_BORROW:
 			breply = m0_fop_data(fop);

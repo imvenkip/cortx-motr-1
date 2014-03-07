@@ -35,7 +35,6 @@
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
 enum {
-	SESSION_SLOTS      = 15,
 	MAX_RPCS_IN_FLIGHT = 1,
 	CONNECT_TIMEOUT    = 5,
 	MAX_RETRIES        = 5,
@@ -49,7 +48,6 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom               = &client_net_dom,
 	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
-	.rcx_nr_slots              = SESSION_SLOTS,
 	.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };

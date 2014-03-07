@@ -39,8 +39,7 @@
  * @{
  */
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
-				    struct m0_rpc_slot *slot);
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
 
 struct m0_addb_ctx m0_rpc_addb_ctx;
 
@@ -82,12 +81,6 @@ M0_INTERNAL void m0_rpc_fini(void)
 
 M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 {
-	return m0_rpc_post_slot(item, NULL);
-}
-
-M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
-				 struct m0_rpc_slot *slot)
-{
 	int                    rc;
 	struct m0_rpc_machine *machine;
 
@@ -100,21 +93,20 @@ M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
 	M0_ASSERT(m0_rpc_item_size(item) <= machine->rm_min_recv_size);
 
 	m0_rpc_machine_lock(machine);
-	rc = m0_rpc__post_locked(item, slot);
+	rc = m0_rpc__post_locked(item);
 	m0_rpc_machine_unlock(machine);
 
 	M0_RETURN(rc);
 }
 M0_EXPORTED(m0_rpc_post);
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
-				    struct m0_rpc_slot *slot)
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session  *session;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
-	M0_PRE(m0_rpc_item_is_request(item) && !m0_rpc_item_is_bound(item));
+	M0_PRE(m0_rpc_item_is_request(item));
 
 	session = item->ri_session;
 	M0_ASSERT_EX(m0_rpc_session_invariant(session));
@@ -128,24 +120,24 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
 	item->ri_rpc_time = m0_time_now();
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);
 
-	if (slot == NULL) {
-		item->ri_stage = RPC_ITEM_STAGE_FUTURE;
-		m0_rpc_item_send(item);
-	} else {
-		m0_rpc_slot_item_add(slot, item);
-	}
+	m0_cookie_new(&item->ri_cookid);
+	m0_cookie_init(&item->ri_header.osr_cookie, &item->ri_cookid);
+	item->ri_header.osr_uuid       = session->s_conn->c_uuid;
+	item->ri_header.osr_sender_id  = session->s_conn->c_sender_id;
+	item->ri_header.osr_session_id = session->s_session_id;
+	item->ri_header.osr_xid        = session->s_conn->c_xid++;
+
+	m0_rpc_item_send(item);
+
 	M0_RETURN(item->ri_error);
 }
 
 int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 {
-	struct m0_rpc_slot_ref *sref;
 	struct m0_rpc_machine  *machine;
-	struct m0_rpc_slot     *slot;
 
 	M0_ENTRY("req_item: %p, rep_item: %p", request, reply);
 	M0_PRE(request != NULL && reply != NULL);
-	M0_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 	M0_PRE(request->ri_session != NULL);
 	M0_PRE(reply->ri_type != NULL);
 	M0_PRE(m0_rpc_item_size(reply) <=
@@ -154,29 +146,22 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 
 	if (M0_FI_ENABLED("delay_reply")) {
 		M0_LOG(M0_DEBUG, "%p reply delayed", request);
-		m0_nanosleep(m0_time(1, 200 * 1000 * 1000), NULL);
+		m0_nanosleep(m0_time(M0_RPC_ITEM_RESEND_INTERVAL,
+				     200 * 1000 * 1000), NULL);
 	}
 
 	reply->ri_resend_interval = M0_TIME_NEVER;
 	reply->ri_rpc_time = m0_time_now();
 	reply->ri_session  = request->ri_session;
 	machine = reply->ri_rmachine = request->ri_rmachine;
-	/* BEWARE: structure instance copy ahead */
-	reply->ri_slot_refs[0] = request->ri_slot_refs[0];
-	sref = &reply->ri_slot_refs[0];
-	/* don't need values of sr_link and sr_ready_link of request item */
-	slot_item_tlink_init(reply);
-
-	sref->sr_item = reply;
 
 	reply->ri_prio     = request->ri_prio;
 	reply->ri_deadline = 0;
 	reply->ri_error    = 0;
 
-	slot = sref->sr_slot;
 	m0_rpc_machine_lock(machine);
 	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
-	__slot_reply_received(slot, request, reply);
+	m0_rpc_item_send_reply(request, reply);
 	m0_rpc_machine_unlock(machine);
 	M0_RETURN(0);
 }

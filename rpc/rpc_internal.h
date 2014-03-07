@@ -26,7 +26,6 @@
 #include "addb/addb.h"
 #include "rpc/conn_internal.h"
 #include "rpc/session_internal.h"
-#include "rpc/slot_internal.h"
 #include "rpc/item_internal.h"
 #include "rpc/rpc_machine_internal.h"
 #include "rpc/formation2_internal.h"
@@ -79,14 +78,7 @@ M0_INTERNAL void m0_rpc_session_module_fini(void);
 
 /**
    Called for each received item.
-   If item is request then
-	APPLY the item to proper slot
-   else
-	report REPLY_RECEIVED to appropriate slot
  */
-M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
-				     struct m0_rpc_machine *machine);
-
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 
 /**
@@ -103,8 +95,6 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
    selected for execution.
  */
 M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item);
-
-M0_INTERNAL bool m0_rpc_item_is_control_msg(const struct m0_rpc_item *item);
 
 M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 						struct m0_rpc_item *item);

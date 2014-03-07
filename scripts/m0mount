@@ -141,9 +141,9 @@ M0_TRACE_LEVEL=warn+
 M0_TRACE_PRINT_CONTEXT=short
 
 # kernel space tracing parameters
-MERO_MODULE_TRACE_MASK=fop,m0t1fs
+MERO_MODULE_TRACE_MASK=m0t1fs,fop,rpc,formation
 MERO_TRACE_PRINT_CONTEXT=short
-MERO_TRACE_LEVEL=notice+
+MERO_TRACE_LEVEL=warn+
 
 # Local mount data
 MP=/mnt/m0

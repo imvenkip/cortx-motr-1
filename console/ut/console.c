@@ -76,7 +76,6 @@ static struct m0_ut_redirect err_redir;
 
 enum {
 	CLIENT_COB_DOM_ID  = 14,
-	SESSION_SLOTS      = 1,
 	MAX_RPCS_IN_FLIGHT = 1,
 	MAX_RETRIES        = 5,
 };
@@ -88,7 +87,6 @@ static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
 	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
 	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-	.rcx_nr_slots           = SESSION_SLOTS,
 	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
 
@@ -539,7 +537,9 @@ static void mesg_send_client(int dummy)
 	result = m0_rpc_client_call(fop, &cctx.rcx_session,
 				    NULL, 0 /* deadline */);
 	M0_UT_ASSERT(result == 0);
-	m0_fop_put(fop);
+	result = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
+	M0_UT_ASSERT(result == 0);
+	m0_fop_put_lock(fop);
 	cons_client_fini(&cctx);
 }
 

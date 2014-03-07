@@ -141,7 +141,9 @@ int m0_stats_query(struct m0_rpc_session      *session,
 
 	*stats = stats_recs_dup(&qrfop->sqrf_stats);
 
+	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
 	m0_fop_put(fop);
+	m0_sm_group_unlock(&item->ri_rmachine->rm_sm_grp);
 	return rc;
 }
 

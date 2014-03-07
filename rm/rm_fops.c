@@ -329,7 +329,6 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "filling fop failed: rc [%d]\n", rc);
-		m0_fop_put(&outreq->ou_fop);
 		goto out;
 	}
 	outgoing_queue(otype, credit->cr_owner, outreq, in, other);
@@ -410,7 +409,6 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put(&outreq->ou_fop);
 	M0_LEAVE();
 }
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -446,7 +444,6 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 out:
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put(&outreq->ou_fop);
 	M0_LEAVE();
 }
 
@@ -487,7 +484,6 @@ static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
-	m0_fop_put(&outreq->ou_fop);
 	M0_LEAVE();
 }
 

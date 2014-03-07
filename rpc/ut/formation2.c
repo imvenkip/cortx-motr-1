@@ -34,7 +34,6 @@ static struct m0_rpc_frm_constraints  constraints;
 static struct m0_rpc_machine          rmachine;
 static struct m0_rpc_chan             rchan;
 static struct m0_rpc_session          session;
-static struct m0_rpc_slot             slot;
 
 static int frm_ut_init(void)
 {
@@ -90,39 +89,25 @@ static bool packet_stack_is_empty(void)
 }
 
 static bool packet_ready_called;
-static bool item_bind_called;
 static int  item_bind_count;
 
 static void flags_reset(void)
 {
-	packet_ready_called = item_bind_called = false;
+	packet_ready_called = false;
 	item_bind_count = 0;
 }
 
-static bool packet_ready(struct m0_rpc_packet *p)
+static int packet_ready(struct m0_rpc_packet *p)
 {
 	M0_UT_ASSERT(frm_rmachine(p->rp_frm) == &rmachine);
 	M0_UT_ASSERT(frm_rchan(p->rp_frm) == &rchan);
 	packet_stack_push(p);
 	packet_ready_called = true;
-	return true;
-}
-
-static bool item_bind(struct m0_rpc_item *item)
-{
-	item_bind_called = true;
-	++item_bind_count;
-
-	if (M0_FI_ENABLED("slot_unavailable"))
-		return false;
-
-	item->ri_slot_refs[0].sr_slot = &slot;
-	return true;
+	return 0;
 }
 
 static struct m0_rpc_frm_ops frm_ops = {
 	.fo_packet_ready = packet_ready,
-	.fo_item_bind    = item_bind
 };
 
 static void frm_init_test(void)
@@ -187,9 +172,8 @@ enum {
 	WAITING  = 2,
 	NEVER    = 3,
 
-	BOUND    = 1,
-	UNBOUND  = 2,
-	ONEWAY  = 3,
+	NORMAL  = 1,
+	ONEWAY  = 2,
 };
 
 static uint64_t timeout; /* nano seconds */
@@ -204,7 +188,7 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 	struct m0_rpc_item      *item;
 
 	M0_UT_ASSERT(M0_IN(deadline, (TIMEDOUT, WAITING, NEVER)));
-	M0_UT_ASSERT(M0_IN(kind,     (BOUND, UNBOUND, ONEWAY)));
+	M0_UT_ASSERT(M0_IN(kind,     (NORMAL, ONEWAY)));
 
 	M0_ALLOC_PTR(item);
 	M0_UT_ASSERT(item != NULL);
@@ -225,7 +209,6 @@ static struct m0_rpc_item *new_item(int deadline, int kind)
 		break;
 	}
 	item->ri_prio = M0_RPC_ITEM_PRIO_MAX;
-	item->ri_slot_refs[0].sr_slot = kind == BOUND ? &slot : NULL;
 	item->ri_session = &session;
 
 	return item;
@@ -276,8 +259,7 @@ static void frm_test1(void)
 		if (deadline == WAITING) {
 			int result;
 
-			M0_UT_ASSERT(!packet_ready_called &&
-				     !item_bind_called);
+			M0_UT_ASSERT(!packet_ready_called);
 			check_frm(FRM_BUSY, 1, 0);
 			/* Allow RPC worker to process timeout AST */
 			m0_rpc_machine_unlock(&rmachine);
@@ -297,8 +279,7 @@ static void frm_test1(void)
 			M0_UT_ASSERT(result == 0);
 			m0_rpc_machine_lock(&rmachine);
 		}
-		M0_UT_ASSERT(packet_ready_called &&
-			     equi(kind == UNBOUND, item_bind_called));
+		M0_UT_ASSERT(packet_ready_called);
 		check_ready_packet_has_item(item);
 		m0_free(item);
 	}
@@ -307,22 +288,20 @@ static void frm_test1(void)
 	/* Do not let formation trigger because of size limit */
 	frm->f_constraints.fc_max_nr_bytes_accumulated = ~0;
 
-	perform_test(TIMEDOUT, BOUND);
-	perform_test(TIMEDOUT, UNBOUND);
+	perform_test(TIMEDOUT, NORMAL);
 	perform_test(TIMEDOUT, ONEWAY);
-	perform_test(WAITING,  BOUND);
-	perform_test(WAITING,  UNBOUND);
+	perform_test(WAITING,  NORMAL);
 	perform_test(WAITING,  ONEWAY);
 
 	/* Test: item is moved to URGENT state when call to m0_sm_timeout_arm()
 	   fails to start item->ri_deadline_timeout in frm_insert().
 	 */
 	set_timeout(100);
-	item = new_item(WAITING, UNBOUND);
+	item = new_item(WAITING, NORMAL);
 	flags_reset();
 	m0_fi_enable_once("m0_sm_timeout_arm", "failed");
 	m0_rpc_frm_enq_item(frm, item);
-	M0_UT_ASSERT(packet_ready_called && item_bind_called);
+	M0_UT_ASSERT(packet_ready_called);
 	check_ready_packet_has_item(item);
 	m0_free(item);
 
@@ -356,13 +335,11 @@ static void frm_test2(void)
 		flags_reset();
 		for (i = 0; i < N - 1; ++i) {
 			m0_rpc_frm_enq_item(frm, items[i]);
-			M0_UT_ASSERT(!packet_ready_called &&
-				     !item_bind_called);
+			M0_UT_ASSERT(!packet_ready_called);
 			check_frm(FRM_BUSY, i + 1, 0);
 		}
 		m0_rpc_frm_enq_item(frm, items[N - 1]);
-		M0_UT_ASSERT(packet_ready_called &&
-			     equi(kind == UNBOUND, item_bind_count == N));
+		M0_UT_ASSERT(packet_ready_called);
 		check_frm(FRM_BUSY, 0, 1);
 
 		p = packet_stack_pop();
@@ -383,8 +360,7 @@ static void frm_test2(void)
 
 	set_timeout(999);
 
-	perform_test(BOUND);
-	perform_test(UNBOUND);
+	perform_test(NORMAL);
 	perform_test(ONEWAY);
 
 	M0_LEAVE();
@@ -399,40 +375,17 @@ static void frm_test3(void)
 	M0_ENTRY();
 
 
-	item = new_item(TIMEDOUT, BOUND);
+	item = new_item(TIMEDOUT, NORMAL);
 	saved = frm->f_constraints.fc_max_nr_packets_enqed;
 	frm->f_constraints.fc_max_nr_packets_enqed = 0;
 	flags_reset();
 	m0_rpc_frm_enq_item(frm, item);
-	M0_UT_ASSERT(!packet_ready_called && !item_bind_called);
+	M0_UT_ASSERT(!packet_ready_called);
 	check_frm(FRM_BUSY, 1, 0);
 
 	frm->f_constraints.fc_max_nr_packets_enqed = saved;
 	m0_rpc_frm_run_formation(frm);
-	M0_UT_ASSERT(packet_ready_called && !item_bind_called);
-
-	check_ready_packet_has_item(item);
-	m0_free(item);
-
-	M0_LEAVE();
-}
-
-static void frm_test4(void)
-{
-	/* packet is not formed if no slot is available */
-	struct m0_rpc_item   *item;
-
-	M0_ENTRY();
-
-	item = new_item(TIMEDOUT, UNBOUND);
-	m0_fi_enable_once("item_bind", "slot_unavailable");
-	flags_reset();
-	m0_rpc_frm_enq_item(frm, item);
-	M0_UT_ASSERT(!packet_ready_called && item_bind_called);
-	check_frm(FRM_BUSY, 1, 0);
-
-	m0_rpc_frm_run_formation(frm);
-	M0_UT_ASSERT(packet_ready_called && item_bind_called);
+	M0_UT_ASSERT(packet_ready_called);
 
 	check_ready_packet_has_item(item);
 	m0_free(item);
@@ -453,7 +406,7 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	M0_ENTRY("N: %d ITEMS_PER_PACKET: %d", N, ITEMS_PER_PACKET);
 
 	for (i = 0; i < N; ++i)
-		items[i] = new_item(WAITING, BOUND);
+		items[i] = new_item(WAITING, NORMAL);
 
 	saved_max_nr_bytes_acc = frm->f_constraints.fc_max_nr_bytes_accumulated;
 	frm->f_constraints.fc_max_nr_bytes_accumulated = ~0;
@@ -462,7 +415,7 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	for (i = 0; i < N; ++i)
 		m0_rpc_frm_enq_item(frm, items[i]);
 
-	M0_UT_ASSERT(!packet_ready_called && !item_bind_called);
+	M0_UT_ASSERT(!packet_ready_called);
 	check_frm(FRM_BUSY, N, 0);
 
 	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
@@ -519,7 +472,7 @@ static void frm_test6(void)
 	M0_ENTRY();
 
 	flags_reset();
-	item = new_item(TIMEDOUT, BOUND);
+	item = new_item(TIMEDOUT, NORMAL);
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
 
@@ -548,8 +501,8 @@ static void frm_test7(void)
 
 	M0_ENTRY();
 
-	item1 = new_item(TIMEDOUT, BOUND);
-	item2 = new_item(TIMEDOUT, BOUND);
+	item1 = new_item(TIMEDOUT, NORMAL);
+	item2 = new_item(TIMEDOUT, NORMAL);
 	item1->ri_prio = M0_RPC_ITEM_PRIO_MIN;
 	item2->ri_prio = M0_RPC_ITEM_PRIO_MAX;
 
@@ -618,7 +571,6 @@ static void frm_test8(void)
 	int                        i;
 	int                        deadline;
 	int                        kind;
-	int                        unbound_cnt;
 
 	saved_max_nr_packets_enqed = frm->f_constraints.fc_max_nr_packets_enqed;
 	frm->f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
@@ -628,17 +580,14 @@ static void frm_test8(void)
 	seed_kind     = 17;
 	seed_prio     = 57;
 
-	unbound_cnt = 0;
 	flags_reset();
 	for (i = 0; i < N; ++i) {
 		deadline = m0_rnd(3, &seed_deadline) + 1;
-		kind     = m0_rnd(3, &seed_kind) + 1;
+		kind     = m0_rnd(2, &seed_kind) + 1;
 		prio     = m0_rnd(M0_RPC_ITEM_PRIO_NR, &seed_prio);
 		_timeout = m0_rnd(1000, &seed_timeout);
 
 		set_timeout(_timeout);
-		if (kind == UNBOUND)
-			++unbound_cnt;
 
 		items[i] = new_item(deadline, kind);
 		items[i]->ri_prio = prio;
@@ -653,11 +602,6 @@ static void frm_test8(void)
 	frm->f_constraints.fc_max_nr_bytes_accumulated = 0;
 	m0_rpc_frm_run_formation(frm);
 	M0_UT_ASSERT(packet_ready_called);
-	if (unbound_cnt > 0)
-		M0_UT_ASSERT(item_bind_called &&
-			     unbound_cnt == item_bind_count);
-	else
-		M0_UT_ASSERT(!item_bind_called);
 	check_frm(FRM_BUSY, 0, top);
 
 	while (!packet_stack_is_empty()) {
@@ -690,7 +634,6 @@ const struct m0_test_suite frm_ut = {
 		{ "frm-test1",    frm_test1    },
 		{ "frm-test2",    frm_test2    },
 		{ "frm-test3",    frm_test3    },
-		{ "frm-test4",    frm_test4    },
 		{ "frm-test5",    frm_test5    },
 		{ "frm-test6",    frm_test6    },
 		{ "frm-test7",    frm_test7    },

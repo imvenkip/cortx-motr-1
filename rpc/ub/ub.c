@@ -41,7 +41,6 @@
 /* X(name, defval, max) */
 #define ARGS                     \
 	X(nr_conns,    2, 10000) \
-	X(nr_slots,   15,   100) \
 	X(nr_msgs,  1000,  5000) \
 	X(msg_len,    32,  8192)
 
@@ -202,7 +201,6 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 
 	client->rc_ctx = (struct m0_rpc_client_ctx){
 		.rcx_net_dom               = &client->rc_net_dom,
-		.rcx_nr_slots              = g_args.a_nr_slots,
 		.rcx_local_addr            = m0_strdup(ep),
 		.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
 		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
@@ -315,8 +313,7 @@ static void fop_send(struct m0_rpc_session *session, size_t msg_id)
 	item->ri_deadline    = m0_time_from_now(1, 0);
 	item->ri_prio        = M0_RPC_ITEM_PRIO_MID; /* XXX CONFIGUREME */
 
-	rc = m0_rpc_post_slot(item, session->s_slot_table[msg_id %
-							  g_args.a_nr_slots]);
+	rc = m0_rpc_post(item);
 	M0_UB_ASSERT(rc == 0);
 	m0_fop_put(fop);
 }

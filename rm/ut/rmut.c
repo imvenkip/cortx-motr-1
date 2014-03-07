@@ -225,7 +225,7 @@ void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest)
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
-				   &src->rc_conn[dest->rc_id], 1,
+				   &src->rc_conn[dest->rc_id],
 				   M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 }

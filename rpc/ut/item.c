@@ -90,7 +90,9 @@ static void test_simple_transitions(void)
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_sent_items) &&
 		     IS_INCR_BY_1(nr_rcvd_items));
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_LOG(M0_DEBUG, "TEST:1:END");
 }
 
@@ -119,7 +121,9 @@ static void test_timeout(void)
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items) &&
 		     IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_LOG(M0_DEBUG, "TEST:2.1:END");
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
@@ -251,7 +255,9 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_nr_sent == 3);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_LOG(M0_DEBUG, "TEST:3.4:END");
 
 	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
@@ -285,27 +291,6 @@ static const struct m0_rpc_item_ops misordered_item_ops = {
 	.rio_replied = misordered_item_replied_cb,
 };
 
-static void test_misordered(void)
-{
-	struct m0_rpc_item *item;
-	int                 rc;
-
-	M0_LOG(M0_DEBUG, "TEST:3.6:START");
-	m0_fi_enable_once("m0_rpc_slot_item_apply", "misorder_item");
-	fop = fop_alloc();
-	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session, &misordered_item_ops, 0);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(item->ri_error == 0);
-	M0_UT_ASSERT(item->ri_nr_sent >= 1);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(item->ri_reply->ri_type ==
-	             &m0_rpc_fop_noop_fopt.ft_rpc_item_type);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	m0_fop_put(fop);
-	M0_LOG(M0_DEBUG, "TEST:3.6:END");
-}
-
 static void __test_resend(struct m0_fop *fop)
 {
 	bool fop_put_flag = false;
@@ -322,8 +307,11 @@ static void __test_resend(struct m0_fop *fop)
 	M0_UT_ASSERT(item->ri_nr_sent >= 1);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	if (fop_put_flag)
+	if (fop_put_flag) {
+		m0_rpc_machine_lock(item->ri_rmachine);
 		m0_fop_put(fop);
+		m0_rpc_machine_unlock(item->ri_rmachine);
+	}
 }
 
 static void __test_timer_start_failure(void)
@@ -403,7 +391,9 @@ static int __test(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	return rc;
 }
 
@@ -475,7 +465,9 @@ static void test_oneway_item(void)
 	arrow_sent_cb_called = fop_release_called = false;
 	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
 	M0_UT_ASSERT(rc == 0);
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_UT_ASSERT(!arrow_sent_cb_called);
 	M0_UT_ASSERT(!fop_release_called);
 	m0_fi_enable("frm_fill_packet", "skip_oneway_items");
@@ -485,61 +477,6 @@ static void test_oneway_item(void)
 	M0_UT_ASSERT(fop_release_called);
 	start_rpc_client_and_server();
 	m0_fi_disable("frm_fill_packet", "skip_oneway_items");
-}
-
-static struct m0_semaphore done_sem;
-enum {NR_ITEMS = 100};
-
-static void bound_item_replied_cb(struct m0_rpc_item *item)
-{
-	struct cs_ds2_rep_fop *reply;
-	static int             expected = 0;
-
-	M0_UT_ASSERT(item->ri_error == 0 && item->ri_reply != NULL);
-	reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-	M0_UT_ASSERT(reply->csr_rc == expected);
-	++expected;
-	if (expected == NR_ITEMS)
-		m0_semaphore_up(&done_sem);
-}
-
-static const struct m0_rpc_item_ops bound_item_ops = {
-	.rio_replied = bound_item_replied_cb,
-};
-
-static void test_bound_items(void)
-{
-	struct cs_ds2_req_fop *data;
-	int                    rc;
-	int                    i;
-
-	m0_semaphore_init(&done_sem, 0);
-	/* Test case confirms that items that are posted on a specific slot are
-	   delivered in order.
-
-	   The test posts 100 request items on slot0 of session. Each fop
-	   carries its sequence number. Receiver simply copies the sequence
-	   number in reply fop. RPC is instructed to invoke
-	   bound_item_replied_cb() upon receiving reply to any of the request
-	   items. The callback ensures that the sequence number in
-	   received reply is one greater than sequence number received
-	   in previous call.
-	 */
-	for (i = 0; i < NR_ITEMS; i++) {
-		fop = fop_alloc();
-		data = m0_fop_data(fop);
-		M0_UT_ASSERT(data != NULL);
-		data->csr_value   = i;
-		item              = &fop->f_item;
-		item->ri_session  = session;
-		item->ri_deadline = 0;
-		item->ri_ops      = &bound_item_ops;
-		rc = m0_rpc_post_slot(item, session->s_slot_table[0]);
-		M0_UT_ASSERT(rc == 0);
-		m0_fop_put(fop);
-	}
-	/* wait until reply to all items is received */
-	m0_semaphore_down(&done_sem);
 }
 
 /*
@@ -593,7 +530,9 @@ static void test_cancel(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
 		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
 	check_cancel();
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_LOG(M0_DEBUG, "TEST:5:1:END");
 
 	/* Cancel item while in formation. */
@@ -608,7 +547,9 @@ static void test_cancel(void)
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_ENQUEUED));
 	check_cancel();
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_LOG(M0_DEBUG, "TEST:5:2:END");
 
 	/* Cancel while waiting for reply. */
@@ -625,7 +566,9 @@ static void test_cancel(void)
 	m0_nanosleep(m0_time(0, 100000000), NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY));
 	check_cancel();
+	m0_rpc_machine_lock(item->ri_rmachine);
 	m0_fop_put(fop);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 	M0_LOG(M0_DEBUG, "TEST:5:3:END");
 }
 
@@ -637,10 +580,8 @@ const struct m0_test_suite item_ut = {
 		{ "simple-transitions",     test_simple_transitions     },
 		{ "item-timeout",           test_timeout                },
 		{ "item-resend",            test_resend                 },
-		{ "item-misordered",        test_misordered             },
 		{ "failure-before-sending", test_failure_before_sending },
 		{ "oneway-item",            test_oneway_item            },
-		{ "bound-item",             test_bound_items            },
 		{ "cancel",                 test_cancel                 },
 		{ NULL, NULL },
 	}

@@ -214,7 +214,6 @@ struct addb_post_fom;
 
 enum {
 	ADDB_STATS_MAX_RPCS_IN_FLIGHT = 1,
-	ADDB_STATS_MAX_RPC_SLOTS_NR   = 1
 };
 
 M0_TL_DESCR_DECLARE(addb_mon, M0_EXTERN);

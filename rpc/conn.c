@@ -293,6 +293,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_rpc_machine = machine;
 	conn->c_sender_id   = SENDER_ID_INVALID;
 	conn->c_nr_sessions = 0;
+	conn->c_xid         = 0;
 
 	rpc_session_tlist_init(&conn->c_sessions);
 	item_source_tlist_init(&conn->c_item_sources);
@@ -308,10 +309,8 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 
 static int session_zero_attach(struct m0_rpc_conn *conn)
 {
-	struct m0_rpc_slot    *slot;
 	struct m0_rpc_session *session;
 	int                    rc;
-	int                    i;
 
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL && m0_rpc_machine_is_locked(conn->c_rpc_machine));
@@ -322,27 +321,18 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 	if (session == NULL)
 		M0_RETURN(-ENOMEM);
 
-	rc = m0_rpc_session_init_locked(session, conn, 10 /* NR_SLOTS */);
+	rc = m0_rpc_session_init_locked(session, conn);
 	if (rc != 0) {
 		m0_free(session);
 		M0_RETURN(rc);
 	}
 
 	session->s_session_id = SESSION_ID_0;
-
 	/* It is done as there is no need to establish session0 explicitly
 	 * and direct transition from INITIALISED => IDLE is not allowed.
 	 */
-	session_state_set(session, M0_RPC_SESSION_ESTABLISHING);
 	session_state_set(session, M0_RPC_SESSION_IDLE);
 
-	for (i = 0; i < session->s_nr_slots; ++i) {
-		slot = session->s_slot_table[i];
-		M0_ASSERT(slot != NULL &&
-			  slot->sl_ops != NULL &&
-			  slot->sl_ops->so_slot_idle != NULL);
-		slot->sl_ops->so_slot_idle(slot);
-	}
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_RETURN(0);
 }
@@ -451,8 +441,6 @@ static void session_zero_detach(struct m0_rpc_conn *conn)
 	session = m0_rpc_conn_session0(conn);
 	M0_ASSERT(session_state(session) == M0_RPC_SESSION_IDLE);
 
-	session_state_set(session, M0_RPC_SESSION_TERMINATING);
-	m0_rpc_session_del_slots_from_ready_list(session);
 	session_state_set(session, M0_RPC_SESSION_TERMINATED);
 	m0_rpc_session_fini_locked(session);
 	m0_free(session);
@@ -641,13 +629,9 @@ M0_EXPORTED(m0_rpc_conn_establish);
  */
 static void conn_failed(struct m0_rpc_conn *conn, int32_t error)
 {
-	struct m0_rpc_session *session0;
-
 	M0_ENTRY("conn: %p, error: %d", conn, error);
-	m0_sm_fail(&conn->c_sm, M0_RPC_CONN_FAILED, error);
 
-	session0 = m0_rpc_conn_session0(conn);
-	m0_rpc_session_del_slots_from_ready_list(session0);
+	m0_sm_fail(&conn->c_sm, M0_RPC_CONN_FAILED, error);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_LEAVE();
@@ -922,11 +906,6 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_sent(struct m0_rpc_conn *conn)
 M0_INTERNAL bool m0_rpc_item_is_conn_establish(const struct m0_rpc_item *item)
 {
 	return item->ri_type->rit_opcode == M0_RPC_CONN_ESTABLISH_OPCODE;
-}
-
-M0_INTERNAL bool m0_rpc_item_is_conn_terminate(const struct m0_rpc_item *item)
-{
-	return item->ri_type->rit_opcode == M0_RPC_CONN_TERMINATE_OPCODE;
 }
 
 /**

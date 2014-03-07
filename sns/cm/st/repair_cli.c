@@ -52,7 +52,6 @@ M0_INTERNAL void repair_client_init(void)
 	cl_ctx.rcx_net_dom            = &cl_ndom;
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
 	cl_ctx.rcx_remote_addr        = srv_ep_addr[0];
-	cl_ctx.rcx_nr_slots           = MAX_RPC_SLOTS_NR;
 	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
 	rc = m0_rpc_client_start(&cl_ctx);
@@ -74,8 +73,7 @@ M0_INTERNAL int repair_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep)
 	return m0_rpc_client_connect(&ctx->ctx_conn,
 				     &ctx->ctx_session,
 				     &cl_ctx.rcx_rpc_machine, sep,
-				     MAX_RPCS_IN_FLIGHT,
-				     MAX_RPC_SLOTS_NR);
+				     MAX_RPCS_IN_FLIGHT);
 }
 
 M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx)

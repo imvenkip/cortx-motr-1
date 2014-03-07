@@ -41,6 +41,9 @@ static int item_entered_in_urgent_state(struct m0_sm *mach);
 static void item_timer_cb(struct m0_sm_timer *timer);
 static void item_timedout(struct m0_rpc_item *item);
 static void item_resend(struct m0_rpc_item *item);
+static int item_reply_received(struct m0_rpc_item *reply,
+			       struct m0_rpc_item **req_out);
+static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply);
 
 M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL,
 		   struct m0_rpc_item, ri_field,
@@ -54,12 +57,6 @@ M0_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct m0_rpc_item_type,
 		   M0_RPC_ITEM_TYPE_HEAD_MAGIC);
 
 M0_TL_DEFINE(rit, static, struct m0_rpc_item_type);
-
-static const struct m0_rpc_onwire_slot_ref invalid_slot_ref = {
-	.osr_slot_id    = SLOT_ID_INVALID,
-	.osr_sender_id  = SENDER_ID_INVALID,
-	.osr_session_id = SESSION_ID_INVALID,
-};
 
 /** Global rpc item types list. */
 static struct m0_tl        rpc_item_types_list;
@@ -80,31 +77,31 @@ static bool opcode_is_dup(uint32_t opcode)
 
 M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size;
 
-#define ITEM_XCODE_OBJ(ptr)     M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
-#define SLOT_REF_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
+#define HEADER1_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_header1_xc, ptr)
+#define HEADER2_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_header2_xc, ptr)
 
 M0_INTERNAL int m0_rpc_item_module_init(void)
 {
-	struct m0_rpc_item_onwire_header head;
-	struct m0_xcode_ctx              head_xc;
-	struct m0_rpc_onwire_slot_ref    slotr;
-	struct m0_xcode_ctx              slotr_xc;
+	struct m0_rpc_item_header1 h1;
+	struct m0_xcode_ctx        h1_xc;
+	struct m0_rpc_item_header2 h2;
+	struct m0_xcode_ctx        h2_xc;
 
 	M0_ENTRY();
 
 	/**
 	 * @todo This should be done from dtm subsystem init.
 	 */
-	m0_xc_verno_init();
 	m0_xc_rpc_onwire_init();
+	m0_xc_cookie_init();
 
 	m0_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
 
-	m0_xcode_ctx_init(&head_xc, &ITEM_XCODE_OBJ(&head));
-	m0_xcode_ctx_init(&slotr_xc, &SLOT_REF_XCODE_OBJ(&slotr));
-	m0_rpc_item_onwire_header_size = m0_xcode_length(&head_xc) +
-		m0_xcode_length(&slotr_xc);
+	m0_xcode_ctx_init(&h1_xc, &HEADER1_XCODE_OBJ(&h1));
+	m0_xcode_ctx_init(&h2_xc, &HEADER2_XCODE_OBJ(&h2));
+	m0_rpc_item_onwire_header_size = m0_xcode_length(&h1_xc) +
+		m0_xcode_length(&h2_xc);
 
 	M0_RETURN(0);
 }
@@ -187,17 +184,11 @@ static struct m0_sm_state_descr outgoing_item_states[] = {
 	[M0_RPC_ITEM_INITIALISED] = {
 		.sd_flags   = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name    = "INITIALISED",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_WAITING_IN_STREAM,
-				      M0_RPC_ITEM_ENQUEUED,
+		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED,
 				      M0_RPC_ITEM_URGENT,
 				      M0_RPC_ITEM_SENDING,
 				      M0_RPC_ITEM_FAILED,
 				      M0_RPC_ITEM_UNINITIALISED),
-	},
-	[M0_RPC_ITEM_WAITING_IN_STREAM] = {
-		.sd_name    = "WAITING_IN_STREAM",
-		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED,
-				      M0_RPC_ITEM_URGENT),
 	},
 	[M0_RPC_ITEM_ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
@@ -297,7 +288,6 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 	bool req;
 	bool rply;
 	bool oneway;
-	bool bound;
 
 	if (item == NULL || item->ri_type == NULL)
 		return false;
@@ -306,23 +296,14 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 	req    = m0_rpc_item_is_request(item);
 	rply   = m0_rpc_item_is_reply(item);
 	oneway = m0_rpc_item_is_oneway(item);
-	bound  = m0_rpc_item_is_bound(item);
 
 	return  item->ri_magic == M0_RPC_ITEM_MAGIC &&
 		item->ri_prio >= M0_RPC_ITEM_PRIO_MIN &&
 		item->ri_prio <= M0_RPC_ITEM_PRIO_MAX &&
-		item->ri_stage >= RPC_ITEM_STAGE_PAST_COMMITTED &&
-		item->ri_stage <= RPC_ITEM_STAGE_FUTURE &&
 		(req + rply + oneway == 1) && /* only one of three is true */
 		equi(req || rply, item->ri_session != NULL) &&
 
 		equi(state == M0_RPC_ITEM_FAILED, item->ri_error != 0) &&
-		equi(state == M0_RPC_ITEM_FAILED,
-		     M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FAILED,
-					    RPC_ITEM_STAGE_TIMEDOUT))) &&
-
-		equi(req && item->ri_error == -ETIMEDOUT,
-		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT) &&
 
 		ergo(item->ri_reply != NULL,
 			req &&
@@ -330,55 +311,17 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 				      M0_RPC_ITEM_WAITING_FOR_REPLY,
 				      M0_RPC_ITEM_REPLIED))) &&
 
-		ergo(M0_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
-					    RPC_ITEM_STAGE_PAST_VOLATILE)),
-		     item->ri_reply != NULL) &&
-
-		ergo(M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FUTURE,
-					    RPC_ITEM_STAGE_FAILED,
-					    RPC_ITEM_STAGE_TIMEDOUT)),
-		     item->ri_reply == NULL) &&
-
 		equi(itemq_tlink_is_in(item), state == M0_RPC_ITEM_ENQUEUED) &&
-
 		equi(item->ri_itemq != NULL,  state == M0_RPC_ITEM_ENQUEUED) &&
 
 		equi(packet_item_tlink_is_in(item),
-		     state == M0_RPC_ITEM_SENDING) &&
+		     state == M0_RPC_ITEM_SENDING);
 
-		ergo(M0_IN(state, (M0_RPC_ITEM_SENDING,
-				   M0_RPC_ITEM_SENT,
-				   M0_RPC_ITEM_WAITING_FOR_REPLY)),
-			ergo(req || rply, bound) &&
-			ergo(req,
-			     item->ri_stage <= RPC_ITEM_STAGE_IN_PROGRESS)) &&
-
-		ergo(state == M0_RPC_ITEM_REPLIED,
-			req && bound &&
-			item->ri_reply != NULL &&
-			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
 }
 
 M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item)
 {
 	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
-}
-
-M0_INTERNAL bool item_is_active(const struct m0_rpc_item *item)
-{
-	return M0_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
-				      RPC_ITEM_STAGE_FUTURE));
-}
-M0_INTERNAL struct m0_verno *item_verno(struct m0_rpc_item *item, int idx)
-{
-	M0_PRE(idx < MAX_SLOT_REF);
-	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
-}
-
-M0_INTERNAL uint64_t item_xid(struct m0_rpc_item *item, int idx)
-{
-	M0_PRE(idx < MAX_SLOT_REF);
-	return item->ri_slot_refs[idx].sr_ow.osr_xid;
 }
 
 M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item)
@@ -391,8 +334,6 @@ M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item)
 void m0_rpc_item_init(struct m0_rpc_item *item,
 		      const struct m0_rpc_item_type *itype)
 {
-	struct m0_rpc_slot_ref	*sref;
-
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && itype != NULL);
 
@@ -400,14 +341,9 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 	item->ri_magic = M0_RPC_ITEM_MAGIC;
 	item->ri_ha_epoch = M0_HA_EPOCH_NONE;
 
-	item->ri_resend_interval = m0_time(1, 0);
+	item->ri_resend_interval = m0_time(M0_RPC_ITEM_RESEND_INTERVAL, 0);
 	item->ri_nr_sent_max     = ~(uint64_t)0;
 
-	sref = &item->ri_slot_refs[0];
-	sref->sr_ow = invalid_slot_ref;
-
-	slot_item_tlink_init(item);
-        m0_list_link_init(&item->ri_unbound_link);
 	packet_item_tlink_init(item);
 	itemq_tlink_init(item);
         rpcitem_tlink_init(item);
@@ -421,9 +357,6 @@ M0_EXPORTED(m0_rpc_item_init);
 
 void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
-	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
-	struct m0_rpc_slot *slot = sref->sr_slot;
-
 	M0_ENTRY("item: %p", item);
 
 	m0_sm_timer_fini(&item->ri_timer);
@@ -431,23 +364,14 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 
 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
 		m0_rpc_item_sm_fini(item);
+
 	if (item->ri_reply != NULL) {
 		m0_rpc_item_put(item->ri_reply);
 		item->ri_reply = NULL;
 	}
-	if (slot_item_tlink_is_in(item)) {
-		if (item == slot->sl_last_sent) {
-			slot->sl_last_sent =
-				slot_item_tlist_prev(&slot->sl_item_list, item);
-		}
-		slot_item_tlist_del(item);
-	}
 	if (itemq_tlink_is_in(item))
 		m0_rpc_frm_remove_item(item->ri_frm, item);
-	sref->sr_ow = invalid_slot_ref;
-	sref->sr_slot = NULL;
-	slot_item_tlink_fini(item);
-        m0_list_link_fini(&item->ri_unbound_link);
+
 	itemq_tlink_fini(item);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
@@ -469,7 +393,9 @@ void m0_rpc_item_put(struct m0_rpc_item *item)
 {
 	M0_PRE(item != NULL && item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
-	       item->ri_type->rit_ops->rito_item_put != NULL);
+	       item->ri_type->rit_ops->rito_item_put != NULL &&
+	       item->ri_rmachine != NULL);
+	M0_PRE(m0_mutex_is_locked(&item->ri_rmachine->rm_sm_grp.s_lock));
 
 	item->ri_type->rit_ops->rito_item_put(item);
 }
@@ -517,38 +443,6 @@ M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item)
 	M0_PRE(item->ri_type != NULL);
 
 	return (item->ri_type->rit_flags & M0_RPC_ITEM_TYPE_ONEWAY) != 0;
-}
-
-M0_INTERNAL bool m0_rpc_item_is_bound(const struct m0_rpc_item *item)
-{
-	M0_PRE(item != NULL);
-
-	return item->ri_slot_refs[0].sr_slot != NULL;
-}
-
-M0_INTERNAL bool m0_rpc_item_is_unbound(const struct m0_rpc_item *item)
-{
-	return !m0_rpc_item_is_bound(item) && !m0_rpc_item_is_oneway(item);
-}
-
-M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
-				       enum m0_rpc_item_stage stage)
-{
-	bool                   was_active;
-	struct m0_rpc_session *session = item->ri_session;
-
-	M0_PRE_EX(m0_rpc_session_invariant(session));
-
-	was_active = item_is_active(item);
-	M0_ASSERT(ergo(was_active && m0_rpc_item_is_bound(item),
-		       session_state(session) == M0_RPC_SESSION_BUSY));
-
-	item->ri_stage = stage;
-	if (m0_rpc_item_is_bound(item))
-		m0_rpc_session_mod_nr_active_items(session,
-					   item_is_active(item) - was_active);
-
-	M0_POST_EX(m0_rpc_session_invariant(session));
 }
 
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
@@ -653,7 +547,6 @@ void m0_rpc_item_delete(struct m0_rpc_item *item)
 
 	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
         m0_rpc_machine_lock(mach);
-	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_WAITING_IN_STREAM);
 	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_SENT);
 
 	if (!M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_FAILED,
@@ -812,7 +705,6 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
 		    M0_IN(state, (M0_RPC_ITEM_INITIALISED,
 				  M0_RPC_ITEM_WAITING_FOR_REPLY,
-				  M0_RPC_ITEM_WAITING_IN_STREAM,
 				  M0_RPC_ITEM_REPLIED,
 				  M0_RPC_ITEM_FAILED))) &&
 	       ergo(m0_rpc_item_is_reply(item),
@@ -832,12 +724,14 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 			return;
 		}
 	}
+
 	item->ri_nr_sent++;
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
 	 */
 	m0_rpc_session_hold_busy(item->ri_session);
+	m0_rpc_item_get(item);
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	M0_LEAVE();
 }
@@ -850,7 +744,184 @@ m0_rpc_item_remote_ep_addr(const struct m0_rpc_item *item)
 	return item->ri_session->s_conn->c_rpcchan->rc_destep->nep_addr;
 }
 
-#undef SLOT_REF_XCODE_OBJ
+M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
+				     struct m0_rpc_machine *machine)
+{
+	struct m0_rpc_item    *req;
+	struct m0_rpc_conn    *conn;
+	struct m0_rpc_session *sess;
+	int rc = 0;
+
+	M0_PRE(item != NULL);
+	M0_PRE(m0_rpc_machine_is_locked(machine));
+
+	M0_ENTRY("item=%p xid=%llu machine=%p", item,
+	         (unsigned long long)item->ri_header.osr_xid, machine);
+
+	m0_addb_counter_update(&machine->rm_cntr_rcvd_item_sizes,
+			       (uint64_t)m0_rpc_item_size(item));
+	++machine->rm_stats.rs_nr_rcvd_items;
+
+	if (m0_rpc_item_is_oneway(item)) {
+		m0_rpc_item_dispatch(item);
+		M0_RETURN(0);
+	}
+
+	M0_ASSERT(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
+
+	if (m0_rpc_item_is_conn_establish(item)) {
+		m0_rpc_item_dispatch(item);
+		M0_RETURN(0);
+	}
+
+	conn = m0_rpc_machine_find_conn(machine, item);
+	if (conn == NULL)
+		M0_RETURN(-ENOENT);
+	sess = m0_rpc_session_search(conn, item->ri_header.osr_session_id);
+	if (sess == NULL)
+		M0_RETURN(-ENOENT);
+	item->ri_session = sess;
+
+	if (m0_rpc_item_is_request(item)) {
+		m0_rpc_session_hold_busy(sess);
+		rc = m0_rpc_item_dispatch(item);
+		if (rc != 0)
+			m0_rpc_session_release(sess);
+	} else {
+		rc = item_reply_received(item, &req);
+	}
+
+	M0_RETURN(rc);
+}
+
+static int item_reply_received(struct m0_rpc_item *reply,
+			       struct m0_rpc_item **req_out)
+{
+	struct m0_rpc_item     *req;
+	int                     rc;
+
+	M0_ENTRY("item_reply: %p", reply);
+	M0_PRE(reply != NULL && req_out != NULL);
+
+	*req_out = NULL;
+
+	req = m0_cookie_of(&reply->ri_header.osr_cookie,
+	                   struct m0_rpc_item, ri_cookid);
+	if (req == NULL) {
+		/*
+		 * Either it is a duplicate reply and its corresponding request
+		 * item is pruned from the item list, or it is a corrupted
+		 * reply
+		 * XXX This situation is not expected to arise during testing.
+		 *     When control reaches this point during testing it might
+		 *     be because of a possible bug. So assert.
+		 */
+		M0_RETURN(-EPROTO);
+	}
+	rc = req_replied(req, reply);
+	if (rc == 0)
+		*req_out = req;
+
+	M0_RETURN(rc);
+}
+
+static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
+{
+	int rc = 0;
+
+	M0_PRE(req != NULL && reply != NULL);
+
+	if (req->ri_error == -ETIMEDOUT) {
+		/*
+		 * The reply is valid but too late. Do nothing.
+		 */
+		M0_LOG(M0_DEBUG, "rply rcvd, timedout req %p [%s/%u]",
+			req, item_kind(req), req->ri_type->rit_opcode);
+		rc = -EPROTO;
+	} else {
+		/*
+		 * This is valid reply case.
+		 */
+		m0_rpc_item_get(reply);
+
+		switch (req->ri_sm.sm_state) {
+		case M0_RPC_ITEM_ENQUEUED:
+		case M0_RPC_ITEM_URGENT:
+			m0_rpc_frm_remove_item(
+				&req->ri_session->s_conn->c_rpcchan->rc_frm,
+				req);
+			m0_rpc_item_process_reply(req, reply);
+			m0_rpc_session_release(req->ri_session);
+			break;
+
+		case M0_RPC_ITEM_SENDING:
+			/*
+			 * Buffer sent callback is still pending;
+			 * postpone reply processing.
+			 * item_sent() will process the reply.
+			 */
+			M0_LOG(M0_DEBUG, "req: %p rply: %p rply postponed",
+			       req, reply);
+			req->ri_pending_reply = reply;
+			break;
+
+		case M0_RPC_ITEM_ACCEPTED:
+		case M0_RPC_ITEM_WAITING_FOR_REPLY:
+			m0_rpc_item_process_reply(req, reply);
+			break;
+
+		case M0_RPC_ITEM_REPLIED:
+			/* Duplicate reply. Drop it. */
+			req->ri_rmachine->rm_stats.rs_nr_dropped_items++;
+			m0_rpc_item_put(reply);
+			break;
+
+		default:
+			M0_ASSERT(false);
+		}
+	}
+	return rc;
+}
+
+M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
+					   struct m0_rpc_item *reply)
+{
+	M0_ENTRY("req: %p", req);
+
+	M0_PRE(req != NULL && reply != NULL);
+	M0_PRE(m0_rpc_item_is_request(req));
+	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_WAITING_FOR_REPLY,
+					   M0_RPC_ITEM_ENQUEUED,
+					   M0_RPC_ITEM_URGENT)));
+
+	m0_rpc_item_stop_timer(req);
+	req->ri_reply = reply;
+	if (req->ri_ops != NULL && req->ri_ops->rio_replied != NULL)
+		req->ri_ops->rio_replied(req);
+
+	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
+					struct m0_rpc_item *reply)
+{
+	M0_ENTRY("req: %p", req);
+
+	M0_PRE(req != NULL && reply != NULL);
+	M0_PRE(m0_rpc_item_is_request(req));
+	M0_PRE(M0_IN(req->ri_sm.sm_state, (M0_RPC_ITEM_ACCEPTED)));
+
+	req->ri_reply = reply;
+	m0_rpc_item_change_state(req, M0_RPC_ITEM_REPLIED);
+
+	m0_rpc_session_release(req->ri_session);
+	reply->ri_header = req->ri_header;
+	m0_rpc_item_send(reply);
+
+	M0_LEAVE();
+}
 
 /** @} end of rpc group */
 

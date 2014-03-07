@@ -350,7 +350,6 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 		M0_ASSERT(rbulk->rb_rc == 0);
 		m0_mutex_unlock(&rbulk->rb_mutex);
 	}
-	m0_fop_put(&io_fops[i]->if_fop);
 }
 
 void bulkio_params_init(struct bulkio_params *bp)
@@ -450,7 +449,6 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	M0_ASSERT(cctx != NULL);
 
 	cctx->rcx_remote_addr           = saddr;
-	cctx->rcx_nr_slots              = IO_RPC_SESSION_SLOTS;
 	cctx->rcx_max_rpcs_in_flight    = IO_RPC_MAX_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	cctx->rcx_max_rpc_msg_size	= M0_RPC_DEF_MAX_RPC_MSG_SIZE;

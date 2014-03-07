@@ -214,7 +214,6 @@ static struct m0_net_xprt *cs_xprts[] = {
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
-	MAX_RPC_SLOTS_NR   = 2,
 };
 
 #define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
@@ -237,7 +236,6 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	cl_ctx->rcx_net_dom            = &cctx->cl_ndom;
 	cl_ctx->rcx_local_addr         = cl_ep_addr;
 	cl_ctx->rcx_remote_addr        = srv_ep_addr;
-	cl_ctx->rcx_nr_slots           = MAX_RPC_SLOTS_NR;
 	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
 
 	rc = m0_rpc_client_start(cl_ctx);
@@ -281,7 +279,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 						&cs_ds_req_fop_rpc_item_ops,
 						0 /* deadline */);
 			M0_UT_ASSERT(rc == 0);
-			m0_fop_put(fop[i]);
+			m0_fop_put_lock(fop[i]);
 		}
 		break;
 	case CS_UT_SERVICE2:
@@ -293,7 +291,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 						&cs_ds_req_fop_rpc_item_ops,
 						0 /* deadline */);
 			M0_UT_ASSERT(rc == 0);
-			m0_fop_put(fop[i]);
+			m0_fop_put_lock(fop[i]);
 		}
 		break;
 	default:

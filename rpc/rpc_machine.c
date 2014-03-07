@@ -768,7 +768,7 @@ static void net_buf_received(struct m0_net_buffer    *nb,
 		 (unsigned long long)length, (char *)from_ep->nep_addr);
 
 	machine = tm_to_rpc_machine(nb->nb_tm);
-	m0_rpc_packet_init(&p);
+	m0_rpc_packet_init(&p, machine);
 	rc = m0_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
 	if (rc != 0)
 		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
@@ -799,14 +799,45 @@ static void packet_received(struct m0_rpc_packet    *p,
 	for_each_item_in_packet(item, p) {
 		item->ri_rmachine = machine;
 		m0_rpc_item_get(item);
+		m0_rpc_machine_lock(machine);
 		m0_rpc_packet_remove_item(p, item);
 		item_received(item, from_ep);
-		m0_rpc_machine_lock(machine); /* protect ri_sm fini() */
 		m0_rpc_item_put(item);
 		m0_rpc_machine_unlock(machine);
 	} end_for_each_item_in_packet;
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL struct m0_rpc_conn *
+m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
+			 const struct m0_rpc_item    *item)
+{
+	const struct m0_rpc_item_header2 *header;
+	const struct m0_tl               *conn_list;
+	struct m0_rpc_conn               *conn;
+	bool                              use_uuid;
+
+	M0_ENTRY("machine: %p, item: %p", machine, item);
+
+	header = &item->ri_header;
+	use_uuid = (header->osr_sender_id == SENDER_ID_INVALID);
+	conn_list = m0_rpc_item_is_request(item) ?
+				&machine->rm_incoming_conns :
+				&machine->rm_outgoing_conns;
+
+	m0_tl_for(rpc_conn, conn_list, conn) {
+		if (use_uuid) {
+			if (m0_uint128_cmp(&conn->c_uuid,
+					   &header->osr_uuid) == 0)
+				break;
+		} else if (conn->c_sender_id == header->osr_sender_id) {
+			break;
+		}
+	} m0_tl_endfor;
+
+	M0_LEAVE("conn: %p", conn);
+	return conn;
 }
 
 static void item_received(struct m0_rpc_item      *item,
@@ -828,7 +859,6 @@ static void item_received(struct m0_rpc_item      *item,
 
 	item->ri_rpc_time = m0_time_now();
 
-	m0_rpc_machine_lock(machine);
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_INCOMING);
 	rc = m0_rpc_item_received(item, machine);
 	if (rc == 0) {
@@ -839,7 +869,6 @@ static void item_received(struct m0_rpc_item      *item,
 		       item->ri_type->rit_opcode);
 		machine->rm_stats.rs_nr_dropped_items++;
 	}
-	m0_rpc_machine_unlock(machine);
 
 	M0_LEAVE();
 }

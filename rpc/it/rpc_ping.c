@@ -86,7 +86,6 @@ static char *client_nid        = "0@lo";
 static int   server_tmid       = 1;
 static int   client_tmid       = 2;
 static int   nr_client_threads = 1;
-static int   nr_slots          = 1;
 static int   nr_ping_bytes     = 8;
 static int   nr_ping_item      = 1;
 static int   tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -116,9 +115,6 @@ MODULE_PARM_DESC(client_tmid, "local transfer machine identifier");
 
 module_param(nr_client_threads, int, S_IRUGO);
 MODULE_PARM_DESC(nr_client_threads, "number of client threads");
-
-module_param(nr_slots, int, S_IRUGO);
-MODULE_PARM_DESC(nr_slots, "number of slots");
 
 module_param(nr_ping_bytes, int, S_IRUGO);
 MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
@@ -321,7 +317,6 @@ static int run_client(void)
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_endpoint;
 	cctx.rcx_remote_addr           = server_endpoint;
-	cctx.rcx_nr_slots              = nr_slots;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size,
@@ -524,7 +519,6 @@ int main(int argc, char *argv[])
 		M0_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		M0_FORMATARG('t', "number of client threads", "%i",
 						&nr_client_threads),
-		M0_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		M0_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		M0_FORMATARG('q', "minimum TM receive queue length \n"
 				   "Note: It's default value is 2. \n"

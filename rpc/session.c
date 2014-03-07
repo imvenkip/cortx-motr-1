@@ -43,42 +43,9 @@
    This file defines functions related to m0_rpc_session.
  */
 
-static void snd_slot_idle(struct m0_rpc_slot *slot);
-static void snd_slot_busy(struct m0_rpc_slot *slot);
-
-static int  snd_item_consume(struct m0_rpc_item *item);
-
-static void snd_reply_consume(struct m0_rpc_item *req,
-				 struct m0_rpc_item *reply);
-
-static void rcv_slot_idle(struct m0_rpc_slot *slot);
-static void rcv_slot_busy(struct m0_rpc_slot *slot);
-
-static int  rcv_item_consume(struct m0_rpc_item *item);
-
-static void rcv_reply_consume(struct m0_rpc_item *req,
-			      struct m0_rpc_item *reply);
-
-static int nr_active_items_count(const struct m0_rpc_session *session);
-
-static int slot_table_alloc_and_init(struct m0_rpc_session *session);
 static void __session_fini(struct m0_rpc_session *session);
 static void session_failed(struct m0_rpc_session *session, int32_t error);
 static void session_idle_x_busy(struct m0_rpc_session *session);
-
-static const struct m0_rpc_slot_ops snd_slot_ops = {
-	.so_slot_idle     = snd_slot_idle,
-	.so_slot_busy     = snd_slot_busy,
-	.so_item_consume  = snd_item_consume,
-	.so_reply_consume = snd_reply_consume
-};
-
-static const struct m0_rpc_slot_ops rcv_slot_ops = {
-	.so_slot_idle     = rcv_slot_idle,
-	.so_slot_busy     = rcv_slot_busy,
-	.so_item_consume  = rcv_item_consume,
-	.so_reply_consume = rcv_reply_consume
-};
 
 /**
    Container of session_establish fop.
@@ -103,11 +70,6 @@ static const struct m0_rpc_item_ops session_establish_item_ops = {
 static const struct m0_rpc_item_ops session_terminate_item_ops = {
 	.rio_replied = m0_rpc_session_terminate_reply_received,
 };
-
-M0_TL_DESCR_DEFINE(ready_slot, "ready-slots", M0_INTERNAL, struct m0_rpc_slot,
-		   sl_link, sl_magic, M0_RPC_SLOT_MAGIC,
-		   M0_RPC_SLOT_HEAD_MAGIC);
-M0_TL_DEFINE(ready_slot, M0_INTERNAL, struct m0_rpc_slot);
 
 M0_TL_DESCR_DEFINE(rpc_session, "rpc-sessions", M0_INTERNAL,
 		   struct m0_rpc_session, s_link, s_magic, M0_RPC_SESSION_MAGIC,
@@ -191,15 +153,10 @@ session_machine(const struct m0_rpc_session *s)
  */
 M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 {
-	struct m0_rpc_slot *slot;
-	bool                ok;
-	int                 i;
+	bool ok;
 
 	ok = _0C(session != NULL) &&
 	     _0C(session->s_conn != NULL) &&
-	     _0C(session->s_nr_slots > 0) &&
-	     _0C(nr_active_items_count(session) ==
-			session->s_nr_active_items) &&
 	     _0C(rpc_session_tlist_contains(&session->s_conn->c_sessions,
 			             session)) &&
 	     _0C(ergo(session->s_session_id != SESSION_ID_0,
@@ -207,22 +164,6 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 
 	if (!ok)
 		return false;
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		ok = m0_rpc_slot_invariant(slot) &&
-		     _0C(ergo(M0_IN(session_state(session),
-				(M0_RPC_SESSION_INITIALISED,
-				 M0_RPC_SESSION_ESTABLISHING,
-				 M0_RPC_SESSION_TERMINATING,
-				 M0_RPC_SESSION_TERMINATED,
-				 M0_RPC_SESSION_FAILED)),
-		          !ready_slot_tlink_is_in(slot)));
-		    /* A slot cannot be on ready slots list if session is
-		       in one of above states */
-		if (!ok)
-			return false;
-	}
 
 	switch (session_state(session)) {
 	case M0_RPC_SESSION_INITIALISED:
@@ -255,45 +196,22 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
 
 M0_INTERNAL bool m0_rpc_session_is_idle(const struct m0_rpc_session *session)
 {
-	return session->s_nr_active_items == 0 &&
-	       session->s_hold_cnt == 0;
+	return session->s_hold_cnt == 0;
 }
-
-static int nr_active_items_count(const struct m0_rpc_session *session)
-{
-	struct m0_rpc_slot *slot;
-	struct m0_rpc_item *item;
-	int                 i;
-	int                 count = 0;
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		for_each_item_in_slot(item, slot) {
-			if (item_is_active(item))
-				count++;
-		} end_for_each_item_in_slot;
-	}
-	return count;
-}
-
 
 M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
-				    struct m0_rpc_conn *conn, uint32_t nr_slots)
+				    struct m0_rpc_conn *conn)
 {
 	struct m0_rpc_machine *machine;
 	int                    rc;
 
-	M0_ENTRY("session: %p, conn: %p, nr_slots: %u", session,
-		 conn, nr_slots);
-	M0_PRE(session != NULL && conn != NULL && nr_slots >= 1);
+	M0_ENTRY("session: %p, conn: %p", session, conn);
+	M0_PRE(session != NULL && conn != NULL);
 
 	machine = conn->c_rpc_machine;
 	M0_PRE(machine != NULL);
-
 	m0_rpc_machine_lock(machine);
-
-	rc = m0_rpc_session_init_locked(session, conn, nr_slots);
-
+	rc = m0_rpc_session_init_locked(session, conn);
 	m0_rpc_machine_unlock(machine);
 
 	M0_RETURN(rc);
@@ -301,80 +219,25 @@ M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
 M0_EXPORTED(m0_rpc_session_init);
 
 M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
-					   struct m0_rpc_conn *conn,
-					   uint32_t nr_slots)
+					   struct m0_rpc_conn *conn)
 {
-	int rc;
-
-	M0_ENTRY("session: %p, conn: %p, nr_slots: %u", session,
-		 conn, nr_slots);
-	M0_PRE(session != NULL && conn != NULL && nr_slots >= 1);
+	M0_ENTRY("session: %p, conn: %p", session, conn);
+	M0_PRE(session != NULL && conn != NULL);
 	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	M0_SET0(session);
 
-	session->s_session_id          = SESSION_ID_INVALID;
-	session->s_conn                = conn;
-	session->s_nr_slots            = nr_slots;
-	session->s_slot_table_capacity = nr_slots;
+	session->s_session_id = SESSION_ID_INVALID;
+	session->s_conn       = conn;
 
 	rpc_session_tlink_init(session);
-	m0_list_init(&session->s_unbound_items);
-	ready_slot_tlist_init(&session->s_ready_slots);
+	m0_sm_init(&session->s_sm, &session_conf,
+		   M0_RPC_SESSION_INITIALISED,
+		   &conn->c_rpc_machine->rm_sm_grp);
+	m0_rpc_conn_add_session(conn, session);
+	M0_ASSERT(m0_rpc_session_invariant(session));
+	M0_LOG(M0_INFO, "Session %p INITIALISED \n", session);
 
-	rc = slot_table_alloc_and_init(session);
-	if (rc == 0) {
-		m0_sm_init(&session->s_sm, &session_conf,
-			   M0_RPC_SESSION_INITIALISED,
-			   &conn->c_rpc_machine->rm_sm_grp);
-		M0_LOG(M0_INFO, "Session %p INITIALISED \n", session);
-		m0_rpc_conn_add_session(conn, session);
-		M0_ASSERT(m0_rpc_session_invariant(session));
-	} else {
-		__session_fini(session);
-	}
-
-	M0_RETURN(rc);
-}
-
-static int slot_table_alloc_and_init(struct m0_rpc_session *session)
-{
-	const struct m0_rpc_slot_ops *slot_ops;
-	struct m0_rpc_slot           *slot;
-	int                           i;
-	int                           rc;
-
-	M0_ENTRY("session: %p", session);
-
-	RPC_ALLOC_ARR(session->s_slot_table, session->s_nr_slots,
-		      SESSION_SLOT_TABLE_ALLOC_AND_INIT, &m0_rpc_addb_ctx);
-	if (session->s_slot_table == NULL)
-		M0_RETURN(-ENOMEM);
-
-	slot_ops = m0_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
-					               : &rcv_slot_ops;
-	for (i = 0; i < session->s_nr_slots; i++) {
-
-		RPC_ALLOC_PTR(slot, SESSION_SLOT_TABLE_ALLOC_AND_INIT,
-			      &m0_rpc_addb_ctx);
-		if (slot == NULL) {
-			M0_RETURN(-ENOMEM);
-			/* __session_fini() will do the cleanup */
-		}
-
-		rc = m0_rpc_slot_init(slot, slot_ops);
-		if (rc != 0) {
-			m0_free(slot);
-			M0_RETURN(rc);
-		}
-
-		slot->sl_session = session;
-		slot->sl_slot_id = i;
-
-		session->s_slot_table[i] = slot;
-	}
-	if (M0_FI_ENABLED("failed"))
-		M0_RETURN(-ENOMEM);
 	M0_RETURN(0);
 }
 
@@ -386,27 +249,10 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
  */
 static void __session_fini(struct m0_rpc_session *session)
 {
-	struct m0_rpc_slot *slot;
-	int                 i;
-
 	M0_ENTRY("session: %p", session);
 
-	if (session->s_slot_table != NULL) {
-		for (i = 0; i < session->s_nr_slots; i++) {
-			slot = session->s_slot_table[i];
-			if (slot != NULL) {
-				m0_rpc_slot_fini(slot);
-				m0_free(slot);
-			}
-			session->s_slot_table[i] = NULL;
-		}
-		session->s_nr_slots = 0;
-		session->s_slot_table_capacity = 0;
-		m0_free0(&session->s_slot_table);
-	}
 	rpc_session_tlink_fini(session);
-	ready_slot_tlist_fini(&session->s_ready_slots);
-	m0_list_fini(&session->s_unbound_items);
+
 	M0_LEAVE();
 }
 
@@ -468,14 +314,13 @@ M0_EXPORTED(m0_rpc_session_timedwait);
 
 M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 				      struct m0_rpc_conn *conn,
-				      uint32_t nr_slots, m0_time_t abs_timeout)
+				      m0_time_t abs_timeout)
 {
 	int rc;
 
-	M0_ENTRY("session: %p, conn: %p, nr_slots: %u", session,
-		 conn, nr_slots);
+	M0_ENTRY("session: %p, conn: %p", session, conn);
 
-	rc = m0_rpc_session_init(session, conn, nr_slots);
+	rc = m0_rpc_session_init(session, conn);
 	if (rc == 0) {
 		rc = m0_rpc_session_establish_sync(session, abs_timeout);
 		if (rc != 0)
@@ -557,7 +402,6 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	M0_ASSERT(args != NULL);
 
 	args->rse_sender_id = conn->c_sender_id;
-	args->rse_slot_cnt  = session->s_nr_slots;
 
 	session_0 = m0_rpc_conn_session0(conn);
 	rc = m0_rpc__fop_post(fop, session_0, &session_establish_item_ops,
@@ -609,13 +453,11 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 	struct fop_session_establish_ctx        *ctx;
 	struct m0_rpc_machine                   *machine;
 	struct m0_rpc_session                   *session;
-	struct m0_rpc_slot                      *slot;
 	struct m0_rpc_item                      *reply_item;
 	struct m0_fop                           *fop;
 	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
 	int32_t                                  rc;
-	int                                      i;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL &&
@@ -651,10 +493,6 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 		    sender_id != SENDER_ID_INVALID) {
 			session->s_session_id = session_id;
 			session_state_set(session, M0_RPC_SESSION_IDLE);
-			for (i = 0; i < session->s_nr_slots; i++) {
-				slot = session->s_slot_table[i];
-				slot->sl_ops->so_slot_idle(slot);
-			}
 		} else {
 			rc = -EPROTO;
 		}
@@ -749,8 +587,6 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
 		m0_rpc_machine_unlock(machine);
 		M0_RETURN(0);
 	}
-
-	m0_rpc_session_del_slots_from_ready_list(session);
 
 	fop = m0_fop_alloc(&m0_rpc_fop_session_terminate_fopt, NULL);
 	if (fop == NULL) {
@@ -891,18 +727,6 @@ M0_INTERNAL void m0_rpc_session_release(struct m0_rpc_session *session)
 	session_idle_x_busy(session);
 }
 
-M0_INTERNAL void m0_rpc_session_mod_nr_active_items(struct m0_rpc_session
-						    *session, int delta)
-{
-	M0_PRE(session != NULL);
-
-	if (delta != 0) {
-		/* XXX TODO overflow check */
-		session->s_nr_active_items += delta;
-		session_idle_x_busy(session);
-	}
-}
-
 /** Perform (IDLE -> BUSY) or (BUSY -> IDLE) transition if required */
 static void session_idle_x_busy(struct m0_rpc_session *session)
 {
@@ -922,106 +746,6 @@ static void session_idle_x_busy(struct m0_rpc_session *session)
 					       M0_RPC_SESSION_BUSY)));
 }
 
-static void snd_slot_idle(struct m0_rpc_slot *slot)
-{
-	struct m0_rpc_frm *frm;
-
-	M0_PRE(slot != NULL);
-	M0_PRE(slot->sl_session != NULL);
-	M0_PRE(slot->sl_in_flight == 0);
-	M0_PRE(!ready_slot_tlink_is_in(slot));
-
-	ready_slot_tlist_add_tail(&slot->sl_session->s_ready_slots, slot);
-	frm = session_frm(slot->sl_session);
-	m0_rpc_frm_run_formation(frm);
-}
-
-static void snd_slot_busy(struct m0_rpc_slot *slot)
-{
-	M0_PRE(slot != NULL);
-	ready_slot_tlist_remove(slot);
-}
-
-M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item)
-{
-	struct m0_rpc_session *session;
-	struct m0_rpc_slot    *slot;
-
-	M0_ENTRY("item: %p", item);
-	M0_PRE(item != NULL && item->ri_session != NULL);
-
-	session = item->ri_session;
-
-	if (ready_slot_tlist_is_empty(&session->s_ready_slots)) {
-		M0_LEAVE("rc: FALSE");
-		return false;
-	}
-	slot = ready_slot_tlist_pop(&session->s_ready_slots);
-	m0_rpc_slot_item_add_internal(slot, item);
-
-	M0_POST(m0_rpc_item_is_bound(item));
-	M0_LEAVE("rc: TRUE");
-	return true;
-}
-
-static int snd_item_consume(struct m0_rpc_item *item)
-{
-	m0_rpc_item_send(item);
-	return 0;
-}
-
-static void snd_reply_consume(struct m0_rpc_item *req,
-			      struct m0_rpc_item *reply)
-{
-	/* Don't do anything on sender to consume reply */
-}
-
-static void rcv_slot_idle(struct m0_rpc_slot *slot)
-{
-	M0_ASSERT(slot->sl_in_flight == 0);
-	/*
-	 * On receiver side, no slot is placed on ready_slots list.
-	 * All consumed reply items, will be treated as bound items by
-	 * formation, and will find these items in its own lists.
-	 */
-}
-
-static void rcv_slot_busy(struct m0_rpc_slot *slot)
-{
-	/* Do nothing on receiver */
-}
-
-static int rcv_item_consume(struct m0_rpc_item *item)
-{
-	return m0_rpc_item_dispatch(item);
-}
-
-static void rcv_reply_consume(struct m0_rpc_item *req,
-			      struct m0_rpc_item *reply)
-{
-	switch (reply->ri_sm.sm_state) {
-	case M0_RPC_ITEM_INITIALISED:
-	case M0_RPC_ITEM_SENT:
-	case M0_RPC_ITEM_FAILED:
-		m0_rpc_item_send(reply);
-		break;
-	case M0_RPC_ITEM_ENQUEUED:
-	case M0_RPC_ITEM_URGENT:
-	case M0_RPC_ITEM_SENDING:
-		/*
-		  This situation can arise when reply item is posted but
-		  not yet sent (i.e. reply is in formation queue or is
-		  currently being sent) and duplicate req item is received.
-		  In this case there is no need to again queue the reply
-		  for sending.
-		 */
-		/* Do nothing */
-		break;
-	default:
-		M0_IMPOSSIBLE("State of reply item is invalid");
-	}
-}
-
 M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
 {
 	M0_ENTRY("session: %p", session);
@@ -1031,10 +755,7 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_PRE(session_state(session) == M0_RPC_SESSION_IDLE);
 
-	/* For receiver side session, no slots are on ready_slots list
-	   since all reply items are bound items. */
 	session_state_set(session, M0_RPC_SESSION_TERMINATED);
-
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_RETURN(0);
 }
@@ -1044,77 +765,12 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 	M0_PRE(item != NULL && item->ri_error != 0);
 	M0_PRE(item->ri_sm.sm_state == M0_RPC_ITEM_FAILED);
 
-	if (m0_rpc_item_is_request(item) &&
-	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FUTURE,
-				   RPC_ITEM_STAGE_IN_PROGRESS))) {
-
+	if (m0_rpc_item_is_request(item)) {
 		M0_ASSERT(item->ri_error != 0);
 		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 			item->ri_ops->rio_replied(item);
-
-		if (item->ri_error == -ETIMEDOUT)
-			m0_rpc_item_set_stage(item, RPC_ITEM_STAGE_TIMEDOUT);
-		else
-			m0_rpc_item_set_stage(item, RPC_ITEM_STAGE_FAILED);
 	}
-	/*
-	 * Note that the slot is not marked as idle. Because we cannot
-	 * use this slot to send more items.
-	 * When session->s_nr_slots number of items fail then there will be
-	 * no slot left to send further items.
-	 *
-	 * @todo Replay mechanism should bring items from UNKNOWN stage to
-	 *       some known stage e.g. {PAST_VOLATILE, PAST_COMMITTED}
-	 * @todo If item is failed _before_ placing on network, then we
-	 *       can keep the slot in usable state, by performing inverse
-	 *       operation of m0_rpc_slot_item_apply(). But this will
-	 *       require reference counting implemented for RPC items.
-	 *       Otherwise how the item (which was removed from slot) will
-	 *       be freed?
-	 */
 }
-
-/**
-   For all slots belonging to @session,
-     if slot is in m0_rpc_session::s_ready_slots list,
-     then remove it from the list.
- */
-M0_INTERNAL void m0_rpc_session_del_slots_from_ready_list(struct m0_rpc_session
-							  *session)
-{
-	struct m0_rpc_slot    *slot;
-	struct m0_rpc_machine *machine = session_machine(session);
-	int                    i;
-
-	M0_ENTRY("session: %p", session);
-
-	M0_ASSERT(m0_rpc_machine_is_locked(machine));
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-
-		M0_ASSERT(slot != NULL);
-		ready_slot_tlist_remove(slot);
-	}
-	M0_LEAVE();
-}
-#ifndef __KERNEL__
-/* for debugging  */
-M0_INTERNAL int m0_rpc_session_items_print(struct m0_rpc_session *session,
-					   bool only_active)
-{
-	struct m0_rpc_slot *slot;
-	int                 count;
-	int                 i;
-
-	count = 0;
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot  = session->s_slot_table[i];
-		count = m0_rpc_slot_item_list_print(slot, only_active, count);
-	}
-	return count;
-}
-#endif
 
 #undef M0_TRACE_SUBSYSTEM
 

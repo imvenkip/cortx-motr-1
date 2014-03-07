@@ -102,8 +102,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
-				      uint64_t               max_rpcs_in_flight,
-				      uint32_t               nr_slots)
+				      uint64_t               max_rpcs_in_flight)
 {
 	struct m0_net_end_point *ep;
 	int                      rc;
@@ -120,7 +119,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	rc = m0_rpc_session_create(session, conn, nr_slots, M0_TIME_NEVER);
+	rc = m0_rpc_session_create(session, conn, M0_TIME_NEVER);
 	if (rc != 0)
 		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
 
@@ -167,8 +166,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	rc = m0_rpc_client_connect(&cctx->rcx_connection, &cctx->rcx_session,
 				   &cctx->rcx_rpc_machine,
 				   cctx->rcx_remote_addr,
-				   cctx->rcx_max_rpcs_in_flight,
-				   cctx->rcx_nr_slots);
+				   cctx->rcx_max_rpcs_in_flight);
 	if (rc == 0)
 		M0_RETURN(rc);
 

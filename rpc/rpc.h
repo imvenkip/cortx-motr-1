@@ -56,9 +56,6 @@ M0_INTERNAL void m0_rpc_fini(void);
 /**
   Posts an item to the rpc layer.
 
-  If slot is not NULL then item will be bound to the slot, otherwise RPC
-  will choose any available slot in item->ri_session.
-
   The rpc layer will try to send the item out not later than
   item->ri_deadline and with priority of item->ri_priority.
 
@@ -98,14 +95,6 @@ M0_INTERNAL void m0_rpc_fini(void);
   @pre m0_rpc_item_size(item) <=
           m0_rpc_session_get_max_item_size(item->ri_session)
 */
-M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
-				 struct m0_rpc_slot *slot);
-
-/**
-   @see m0_rpc_post_slot()
-
-   Calls m0_rpc_post_slot() with NULL slot.
- */
 M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
 
 /**

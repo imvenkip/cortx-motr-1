@@ -22,7 +22,7 @@
 #include "lib/memory.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "rpc/rpc_helpers.h"   /* m0_rpc_slot_refs_encdec */
+#include "rpc/rpc_helpers.h"   /* m0_rpc_item_header2_encdec */
 
 M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
 {
@@ -98,7 +98,7 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
 	M0_PRE(cur != NULL);
 
 	/* Currently MAX slot references in sessions is 1. */
-	return	m0_rpc_slot_refs_encdec(cur, item->ri_slot_refs, 1, what) ?:
+	return m0_rpc_item_header2_encdec(&item->ri_header, cur, what) ?:
 		m0_fop_encdec(m0_rpc_item_to_fop(item), cur, what);
 }
 

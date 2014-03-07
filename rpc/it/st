@@ -31,7 +31,7 @@ expect -i $server -re {Press Enter to terminate.*#+\r*\n$} {
 } eof {die "server has quit unexpectedly"}
 
 # Start client:
-spawn sudo $prog -t300 -n2 -l100 -v
+spawn sudo $prog -t300 -n2 -v
 set client $spawn_id
 
 # Wait till client terminates:

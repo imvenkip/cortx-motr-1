@@ -34,7 +34,6 @@ static struct m0_rpc_machine *machine;
 static const char            *remote_addr;
 enum {
 	TIMEOUT  = 4 /* second */,
-	NR_SLOTS = 5,
 };
 
 static int ts_rcv_session_init(void)   /* ts_ for "test suite" */
@@ -104,8 +103,8 @@ static void test_conn_establish(void)
 		m0_fi_enable(fps1[i].fn, fps1[i].pt);
 		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 					m0_time_from_now(TIMEOUT, 0));
-		M0_UT_ASSERT(rc == -ETIMEDOUT);
 		m0_fi_disable(fps1[i].fn, fps1[i].pt);
+		M0_UT_ASSERT(rc == -ETIMEDOUT);
 	}
 	for (i = 0; i < ARRAY_SIZE(fps2); ++i) {
 		count = 0;
@@ -113,8 +112,8 @@ static void test_conn_establish(void)
 				  enable_for_all_but_first_call, &count);
 		rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 					m0_time_from_now(TIMEOUT, 0));
-		M0_UT_ASSERT(rc == -ETIMEDOUT);
 		m0_fi_disable(fps2[i].fn, fps2[i].pt);
+		M0_UT_ASSERT(rc == -ETIMEDOUT);
 	}
 	m0_net_end_point_put(ep);
 }
@@ -124,7 +123,6 @@ static void test_session_establish(void)
 	struct m0_net_end_point *ep;
 	struct m0_rpc_session    session;
 	struct m0_rpc_conn       conn;
-	int                      count;
 	int                      rc;
 	int                      i;
 	struct fp fps[] = {
@@ -140,7 +138,7 @@ static void test_session_establish(void)
 	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+	rc = m0_rpc_session_create(&session, &conn,
 				   m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_session_destroy(&session, m0_time_from_now(TIMEOUT, 0));
@@ -148,19 +146,11 @@ static void test_session_establish(void)
 
 	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
 		m0_fi_enable(fps[i].fn, fps[i].pt);
-		rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+		rc = m0_rpc_session_create(&session, &conn,
 					   m0_time_from_now(TIMEOUT, 0));
 		M0_UT_ASSERT(rc == fps[i].erc);
 		m0_fi_disable(fps[i].fn, fps[i].pt);
 	}
-
-	count = 0;
-	m0_fi_enable_func("slot_table_alloc_and_init", "failed",
-			  enable_for_all_but_first_call, &count);
-	rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
-				   m0_time_from_now(TIMEOUT, 0));
-	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_disable("slot_table_alloc_and_init", "failed");
 
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0);
@@ -186,7 +176,7 @@ static void test_session_terminate(void)
 	rc = m0_rpc_conn_create(&conn, ep, machine, MAX_RPCS_IN_FLIGHT,
 				m0_time_from_now(TIMEOUT, 0));
 	for (i = 0; i < ARRAY_SIZE(fps); ++i) {
-		rc = m0_rpc_session_create(&session, &conn, NR_SLOTS,
+		rc = m0_rpc_session_create(&session, &conn,
 					   m0_time_from_now(TIMEOUT, 0));
 		M0_UT_ASSERT(rc == 0);
 

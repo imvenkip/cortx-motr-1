@@ -37,7 +37,7 @@ extern struct m0_ub_set m0_fom_ub;
 extern struct m0_ub_set m0_list_ub;
 extern struct m0_ub_set m0_memory_ub;
 extern struct m0_ub_set m0_parity_math_ub;
-extern struct m0_ub_set m0_rpc_ub;
+//extern struct m0_ub_set m0_rpc_ub;
 extern struct m0_ub_set m0_thread_ub;
 extern struct m0_ub_set m0_time_ub;
 extern struct m0_ub_set m0_timer_ub;
@@ -103,7 +103,7 @@ static void ub_add(const struct ub_args *args)
 	m0_ub_set_add(&m0_timer_ub);
 	m0_ub_set_add(&m0_time_ub);
 	m0_ub_set_add(&m0_thread_ub);
-	m0_ub_set_add(&m0_rpc_ub);
+//	m0_ub_set_add(&m0_rpc_ub);
 //XXX_BE_DB	m0_ub_set_add(&m0_parity_math_ub);
 	m0_ub_set_add(&m0_memory_ub);
 	m0_ub_set_add(&m0_list_ub);

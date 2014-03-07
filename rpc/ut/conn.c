@@ -195,11 +195,6 @@ static void conn_init_fail_test(void)
 	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
-	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
-	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_disable("m0_alloc", "fail_allocation");
-
 	/* Checks for failure due to error in rpc_chan_get() */
 	m0_fi_enable_once("rpc_chan_get", "fake_error");
 	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);

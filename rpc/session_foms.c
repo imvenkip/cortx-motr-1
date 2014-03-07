@@ -151,7 +151,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_fop_conn_establish_rep *reply;
 	struct m0_rpc_fop_conn_establish_ctx *ctx;
 	struct m0_rpc_fop_conn_establish     *request;
-	struct m0_rpc_onwire_slot_ref        *ow_sref;
+	struct m0_rpc_item_header2           *header;
 	struct m0_fom_timeout                *fom_timeout;
 	struct m0_fop                        *fop;
 	struct m0_fop                        *fop_rep;
@@ -159,7 +159,6 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_session                *session0;
 	struct m0_rpc_conn                   *conn;
-	struct m0_rpc_slot                   *slot;
 	int                                   rc;
 
 	M0_ENTRY("fom: %p", fom);
@@ -189,7 +188,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(reply != NULL);
 
 	item = &fop->f_item;
-	ow_sref = &item->ri_slot_refs[0].sr_ow;
+	header = &item->ri_header;
 	/*
 	 * On receiver side CONN_ESTABLISH fop is wrapped in
 	 * m0_rpc_fop_conn_etablish_ctx object.
@@ -224,30 +223,17 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 		goto ret;
 	}
 	rc = m0_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &ow_sref->osr_uuid);
+				  &header->osr_uuid);
 	if (rc == 0) {
 		session0 = m0_rpc_conn_session0(conn);
-		if (ow_sref->osr_slot_id >= session0->s_nr_slots) {
-			rc = -EPROTO;
-			m0_rpc_conn_fini_locked(conn);
-			goto out;
-		}
 		conn->c_sender_id = m0_rpc_id_generate();
 		conn_state_set(conn, M0_RPC_CONN_ACTIVE);
-
-		/* See [1] at the end of function */
-		slot = session0->s_slot_table[ow_sref->osr_slot_id];
-		M0_ASSERT(slot != NULL);
 		item->ri_session = session0;
-		m0_rpc_slot_item_add_internal(slot, item);
-		/* See [2] at the end of function */
-		ow_sref->osr_sender_id = SENDER_ID_INVALID;
-		M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
-		M0_ASSERT(m0_rpc_conn_invariant(conn));
+		/* freed at m0_rpc_item_process_reply() */
+		m0_rpc_session_hold_busy(session0);
 	}
 	m0_rpc_machine_unlock(machine);
 
-out:
 	if (rc == 0) {
 		reply->rcer_sender_id = conn->c_sender_id;
 		reply->rcer_rc        = 0;
@@ -278,45 +264,6 @@ M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
 }
 
 /*
- * [1]
- * As CONN_ESTABLISH request is directly submitted for execution.
- * Add the item explicitly to the slot0. This makes the slot
- * symmetric to corresponding sender side slot.
- */
-
-/* [2]
- * IMPORTANT
- * @code
- *     item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
- * @endcode
- * Request item has SENDER_ID_INVALID.
- * slot_item_add_internal() overwrites it with conn->c_sender_id.
- * But we want reply to have sender_id SENDER_ID_INVALID.
- * m0_rpc_reply_post() simply copies sender id from req item to
- * reply item as it is. So set sender id of request item
- * to SENDER_ID_INVALID
- */
-
-/* [3]
- * CONN_ESTABLISH item is directly submitted for execution. Update
- * rpc-layer stats on INCOMING path here.
- */
-
-/* [4]
- * IMPORTANT: No reply is sent if conn establishing is failed.
- *
- * ACTIVE session is required to send reply. In case of, successful
- * conn establish operation, there is ACTIVE SESSION_0 and slot 0
- * (in the newly established ACTIVE conn) to send reply.
- *
- * But there is no SESSION_0 (in fact here is no conn object) if
- * conn establish operation is failed. Hence reply cannot be sent.
- *
- * In this case, sender will time-out and mark sender side conn
- * as FAILED.
- */
-
-/*
  * FOM session create
  */
 
@@ -341,7 +288,6 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_session                   *session;
 	struct m0_rpc_conn                      *conn;
 	struct m0_rpc_machine                   *machine;
-	uint32_t                                 slot_cnt;
 	int                                      rc;
 
 	M0_ENTRY("fom: %p", fom);
@@ -356,21 +302,10 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	reply = m0_fop_data(fop_rep);
 	M0_ASSERT(reply != NULL);
 
-	slot_cnt = request->rse_slot_cnt;
-
-	session = NULL;
-	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
-		rc = -EINVAL;
-		m0_console_printf("Error: m0_rpc_fom_session_establish_tick\n");
-		goto out;
-	}
-
 	item = &fop->f_item;
 	M0_ASSERT(item->ri_session != NULL);
-
 	conn = item->ri_session->s_conn;
 	M0_ASSERT(conn != NULL);
-
 	machine = conn->c_rpc_machine;
 
 	RPC_ALLOC_PTR(session, SESSION_FOM_SESSION_ESTABLISH_TICK,
@@ -382,7 +317,7 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 		goto out;
 	}
 	m0_rpc_machine_lock(machine);
-	rc = m0_rpc_session_init_locked(session, conn, slot_cnt);
+	rc = m0_rpc_session_init_locked(session, conn);
 	if (rc == 0) {
 		do {
 			session->s_session_id = m0_rpc_id_generate();
@@ -396,7 +331,6 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 out:
 	reply->rser_sender_id  = request->rse_sender_id;
 	reply->rser_rc         = rc;
-
 	if (rc != 0) {
 		reply->rser_session_id = SESSION_ID_INVALID;
 		if (session != NULL)
@@ -469,7 +403,11 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	m0_rpc_machine_lock(machine);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
-	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
+	if (conn_state(conn) != M0_RPC_CONN_ACTIVE) {
+		rc = -EINVAL;
+		session = NULL;
+		goto out;
+	}
 
 	session = m0_rpc_session_search(conn, session_id);
 	if (session != NULL) {
@@ -488,7 +426,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	} else { /* session == NULL */
 		rc = -ENOENT;
 	}
-
+out:
 	m0_rpc_machine_unlock(machine);
 
 	reply->rstr_rc = rc;
@@ -529,36 +467,6 @@ struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
-static void conn_cleanup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_rpc_conn *conn;
-
-	conn = container_of(ast, struct m0_rpc_conn, c_ast);
-	m0_rpc_conn_terminate_reply_sent(conn);
-}
-
-static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
-{
-	struct m0_rpc_conn *conn;
-
-	M0_ENTRY("item: %p", item);
-
-	M0_PRE(item != NULL &&
-	       item->ri_session != NULL &&
-	       item->ri_session->s_session_id == SESSION_ID_0 &&
-	       item->ri_session->s_conn != NULL);
-
-	conn = item->ri_session->s_conn;
-	M0_LOG(M0_DEBUG, "conn: %p\n", conn);
-	conn->c_ast.sa_cb = conn_cleanup_ast;
-	m0_sm_ast_post(&conn->c_rpc_machine->rm_sm_grp, &conn->c_ast);
-	M0_LEAVE();
-}
-
-static const struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
-	.rio_sent = conn_terminate_reply_sent_cb,
-};
-
 M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 {
 	struct m0_rpc_fop_conn_terminate_rep *reply;
@@ -587,8 +495,14 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	reply->ctr_rc        = m0_rpc_rcv_conn_terminate(conn);
 	m0_rpc_machine_unlock(machine);
 
-	fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
 	m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+
+	m0_rpc_machine_lock(machine);
+	m0_sm_timedwait(&item->ri_session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
+			M0_TIME_NEVER);
+	m0_rpc_conn_terminate_reply_sent(conn);
+	m0_rpc_machine_unlock(machine);
+
 	/*
 	 * In memory state of conn is not cleaned up, at this point.
 	 * conn will be finalised and freed in the ->rio_sent()

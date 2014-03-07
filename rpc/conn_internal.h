@@ -109,8 +109,8 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *req);
    Cleans up in memory state of rpc connection.
 
    The conn_terminate FOM cannot free in-memory state of rpc connection.
-   Because it needs to send conn_terminate_reply fop, by using session-0 and
-   slot-0 of the rpc connection being terminated. Hence we cleanup in memory
+   Because it needs to send conn_terminate_reply fop, by using session-0
+   of the rpc connection being terminated. Hence we cleanup in memory
    state of the conn when conn_terminate_reply has been sent.
 
    @pre conn_state(conn) == M0_RPC_CONN_TERMINATING
@@ -128,11 +128,6 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *req);
    Returns true iff given rpc item is conn_establish.
  */
 M0_INTERNAL bool m0_rpc_item_is_conn_establish(const struct m0_rpc_item *item);
-
-/**
-   Returns true iff given rpc item is conn_terminate.
- */
-M0_INTERNAL bool m0_rpc_item_is_conn_terminate(const struct m0_rpc_item *item);
 
 /**
    @see m0_rpc_fop_conn_establish_ctx for more information.

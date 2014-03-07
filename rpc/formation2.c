@@ -50,9 +50,7 @@ static bool frm_is_ready(const struct m0_rpc_frm *frm);
 static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
 static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 					      struct m0_rpc_packet *p);
-static bool frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
-static bool frm_try_to_bind_item(struct m0_rpc_frm  *frm,
-				 struct m0_rpc_item *item);
+static int  frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
 static void frm_try_merging_item(struct m0_rpc_frm  *frm,
 				 struct m0_rpc_item *item,
 				 m0_bcount_t         limit);
@@ -70,18 +68,14 @@ static bool item_will_exceed_packet_size(struct m0_rpc_item         *item,
 
 static bool item_supports_merging(const struct m0_rpc_item *item);
 
-static void drop_all_oneway_items(struct m0_rpc_frm *frm);
+static void drop_all_items(struct m0_rpc_frm *frm);
 
 static bool
 constraints_are_valid(const struct m0_rpc_frm_constraints *constraints);
 
 static const char *str_qtype[] = {
-	[FRMQ_URGENT_BOUND]    = "URGENT_BOUND",
-	[FRMQ_URGENT_UNBOUND]  = "URGENT_UNBOUND",
-	[FRMQ_URGENT_ONEWAY]   = "URGENT_ONEWAY",
-	[FRMQ_WAITING_UNBOUND] = "WAITING_UNBOUND",
-	[FRMQ_WAITING_BOUND]   = "WAITING_BOUND",
-	[FRMQ_WAITING_ONEWAY]  = "WAITING_ONEWAY"
+	[FRMQ_URGENT]   = "URGENT",
+	[FRMQ_WAITING]  = "WAITING",
 };
 
 M0_BASSERT(ARRAY_SIZE(str_qtype) == FRMQ_NR_QUEUES);
@@ -222,9 +216,8 @@ M0_INTERNAL void m0_rpc_frm_init(struct m0_rpc_frm *frm,
 	frm->f_constraints = *constraints; /* structure instance copy */
 	frm->f_magic       =  M0_RPC_FRM_MAGIC;
 
-	for_each_itemq_in_frm(q, frm) {
+	for_each_itemq_in_frm(q, frm)
 		itemq_tlist_init(q);
-	}
 
 	chan    = frm_rchan(frm);
 	addb_mc = REQH_ADDB_MC_CONFIGURED(chan->rc_rpc_machine->rm_reqh) ?
@@ -248,20 +241,11 @@ M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm)
 	M0_PRE(frm_invariant(frm));
 	M0_LOG(M0_DEBUG, "frm state: %d", frm->f_state);
 
-	/*
-	 * It is possible that some oneway items might still be queued.
-	 * There are two alternatives here:
-	 * - send all remaining oneway items; or
-	 * - simply drop them.
-	 * Choosing later one for its simplicity.
-	 * In future iff needed this can be changed to implement first option.
-	 */
-	drop_all_oneway_items(frm);
+	drop_all_items(frm);
 	M0_ASSERT(frm->f_state == FRM_IDLE);
 	m0_addb_ctx_fini(&frm->f_addb_ctx);
-	for_each_itemq_in_frm(q, frm) {
+	for_each_itemq_in_frm(q, frm)
 		itemq_tlist_fini(q);
-	}
 
 	frm->f_state = FRM_UNINITIALISED;
 	frm->f_magic = 0;
@@ -269,24 +253,22 @@ M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm)
 	M0_LEAVE();
 }
 
-static void drop_all_oneway_items(struct m0_rpc_frm *frm)
+static void drop_all_items(struct m0_rpc_frm *frm)
 {
 	struct m0_rpc_item *item;
 	struct m0_tl       *q;
 	int                 i;
 
 	for (i = 0; i < FRMQ_NR_QUEUES; i++) {
-		if (M0_IN(i, (FRMQ_URGENT_ONEWAY, FRMQ_WAITING_ONEWAY))) {
-			q = &frm->f_itemq[i];
-			m0_tl_for(itemq, q, item) {
-				M0_ASSERT(m0_rpc_item_is_oneway(item));
-				m0_rpc_item_get(item);
-				frm_remove(frm, item);
-				m0_rpc_item_failed(item, -ECANCELED);
-				m0_rpc_item_put(item);
-			} m0_tl_endfor;
-			M0_ASSERT(itemq_tlist_is_empty(q));
-		}
+		q = &frm->f_itemq[i];
+		m0_tl_for(itemq, q, item) {
+			M0_ASSERT(m0_rpc_item_is_oneway(item));
+			m0_rpc_item_get(item);
+			frm_remove(frm, item);
+			m0_rpc_item_failed(item, -ECANCELED);
+			m0_rpc_item_put(item);
+		} m0_tl_endfor;
+		M0_ASSERT(itemq_tlist_is_empty(q));
 	}
 }
 
@@ -357,9 +339,7 @@ up:
 M0_INTERNAL bool item_is_in_waiting_queue(const struct m0_rpc_item *item,
 					  const struct m0_rpc_frm *frm)
 {
-	return  M0_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_BOUND],
-				       &frm->f_itemq[FRMQ_WAITING_UNBOUND],
-				       &frm->f_itemq[FRMQ_WAITING_ONEWAY]));
+	return item->ri_itemq == &frm->f_itemq[FRMQ_WAITING];
 }
 
 /**
@@ -370,32 +350,20 @@ static enum m0_rpc_frm_itemq_type
 frm_which_qtype(struct m0_rpc_frm *frm, const struct m0_rpc_item *item)
 {
 	enum m0_rpc_frm_itemq_type qtype;
-	bool                       oneway;
-	bool                       bound;
 	bool                       deadline_passed;
 
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL);
 
-	oneway          = m0_rpc_item_is_oneway(item);
-	bound           = oneway ? false : m0_rpc_item_is_bound(item);
 	deadline_passed = m0_time_now() >= item->ri_deadline;
 
 	M0_LOG(M0_DEBUG,
-	       "deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
+	       "deadline: [%llu:%llu] deadline_passed: %s",
 	       (unsigned long long)m0_time_seconds(item->ri_deadline),
 	       (unsigned long long)m0_time_nanoseconds(item->ri_deadline),
-	       m0_bool_to_str(bound), m0_bool_to_str(oneway),
 	       m0_bool_to_str(deadline_passed));
 
-	if (deadline_passed)
-		qtype = oneway ? FRMQ_URGENT_ONEWAY
-			       : bound  ? FRMQ_URGENT_BOUND
-					: FRMQ_URGENT_UNBOUND;
-	else
-		qtype = oneway ? FRMQ_WAITING_ONEWAY
-			       : bound  ? FRMQ_WAITING_BOUND
-					: FRMQ_WAITING_UNBOUND;
+	qtype = deadline_passed ? FRMQ_URGENT : FRMQ_WAITING;
 	M0_LEAVE("qtype: %s", str_qtype[qtype]);
 	return qtype;
 }
@@ -461,7 +429,7 @@ static void frm_balance(struct m0_rpc_frm *frm)
 	struct m0_rpc_packet *p;
 	int                   packet_count;
 	int                   item_count;
-	bool                  packet_enqed;
+	int                   rc;
 
 	M0_ENTRY("frm: %p", frm);
 
@@ -481,7 +449,7 @@ static void frm_balance(struct m0_rpc_frm *frm)
 			M0_LOG(M0_ERROR, "Error: packet allocation failed");
 			break;
 		}
-		m0_rpc_packet_init(p);
+		m0_rpc_packet_init(p, frm_rmachine(frm));
 		frm_fill_packet(frm, p);
 		if (m0_rpc_packet_is_empty(p)) {
 			/* See FRM_BALANCE_NOTE_1 at the end of this function */
@@ -491,8 +459,8 @@ static void frm_balance(struct m0_rpc_frm *frm)
 		}
 		++packet_count;
 		item_count += p->rp_ow.poh_nr_items;
-		packet_enqed = frm_packet_ready(frm, p);
-		if (packet_enqed) {
+		rc = frm_packet_ready(frm, p);
+		if (rc == 0) {
 			++frm->f_nr_packets_enqed;
 			/*
 			 * f_nr_packets_enqed will be decremented in packet
@@ -510,9 +478,7 @@ static void frm_balance(struct m0_rpc_frm *frm)
  * FRM_BALANCE_NOTE_1
  * This case can arise if:
  * - Accumulated bytes are >= max_nr_bytes_accumulated,
- *   hence frm is READY AND
- * - All the items in frm are unbound items AND
- * - No slot is available to bind with any of these items.
+ *   hence frm is READY
  */
 
 /**
@@ -531,9 +497,7 @@ static bool frm_is_ready(const struct m0_rpc_frm *frm)
 	if (M0_FI_ENABLED("ready"))
 		return true;
 	has_urgent_items =
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_BOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_UNBOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_ONEWAY]);
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT]);
 
 	c = &frm->f_constraints;
 	return frm->f_nr_packets_enqed < c->fc_max_nr_packets_enqed &&
@@ -551,7 +515,6 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 	struct m0_rpc_item *item;
 	struct m0_tl       *q;
 	m0_bcount_t         limit;
-	bool                bound;
 
 	M0_ENTRY("frm: %p packet: %p", frm, p);
 
@@ -564,13 +527,6 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 				goto out;
 			if (item_will_exceed_packet_size(item, p, frm))
 				continue;
-			if (m0_rpc_item_is_unbound(item)) {
-				bound = frm_try_to_bind_item(frm, item);
-				if (!bound)
-					continue;
-			}
-			M0_ASSERT(m0_rpc_item_is_oneway(item) ||
-				  m0_rpc_item_is_bound(item));
 			if (M0_FI_ENABLED("skip_oneway_items") &&
 			    m0_rpc_item_is_oneway(item))
 				continue;
@@ -668,31 +624,6 @@ out:
 	M0_LEAVE();
 }
 
-/**
-   @see m0_rpc_frm_ops::f_item_bind()
- */
-static bool
-frm_try_to_bind_item(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
-{
-	bool result;
-
-	M0_ENTRY("frm: %p item: %p", frm, item);
-	M0_PRE(frm != NULL &&
-	       item != NULL &&
-	       item->ri_session != NULL &&
-	       m0_rpc_item_is_unbound(item));
-	M0_PRE(frm->f_ops != NULL &&
-	       frm->f_ops->fo_item_bind != NULL);
-	M0_LOG(M0_DEBUG, "session: %p id: %llu", item->ri_session,
-		   (unsigned long long)item->ri_session->s_session_id);
-
-	/* See item_bind() in rpc/frmops.c */
-	result = frm->f_ops->fo_item_bind(item);
-
-	M0_LEAVE("result: %s", (char *)m0_bool_to_str(result));
-	return result;
-}
-
 M0_INTERNAL void m0_rpc_frm_remove_item(struct m0_rpc_frm  *frm,
 					struct m0_rpc_item *item)
 {
@@ -735,12 +666,10 @@ static void frm_try_merging_item(struct m0_rpc_frm  *frm,
 }
 
 /**
-   @see m0_rpc_frm_ops::f_packet_ready()
+   @see m0_rpc_frm_ops::fo_packet_ready()
  */
-static bool frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
+static int frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 {
-	bool packet_enqed;
-
 	M0_ENTRY("frm: %p packet %p", frm, p);
 
 	M0_PRE(frm != NULL && p != NULL && !m0_rpc_packet_is_empty(p));
@@ -750,10 +679,7 @@ static bool frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 
 	p->rp_frm = frm;
 	/* See packet_ready() in rpc/frmops.c */
-	packet_enqed = frm->f_ops->fo_packet_ready(p);
-
-	M0_LEAVE("result: %s", (char *)m0_bool_to_str(packet_enqed));
-	return packet_enqed;
+	M0_RETURN(frm->f_ops->fo_packet_ready(p));
 }
 
 M0_INTERNAL void m0_rpc_frm_run_formation(struct m0_rpc_frm *frm)

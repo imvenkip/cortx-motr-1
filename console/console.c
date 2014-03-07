@@ -195,7 +195,6 @@ int main(int argc, char **argv)
 		.rcx_net_dom               = &client_net_dom,
 		.rcx_local_addr            = "0@lo:12345:34:*",
 		.rcx_remote_addr           = "0@lo:12345:34:1",
-		.rcx_nr_slots              = 1,
 		.rcx_max_rpcs_in_flight    = 1,
 	};
 

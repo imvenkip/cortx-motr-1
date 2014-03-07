@@ -911,6 +911,7 @@ static void ioseg_unlink_free(struct ioseg *ioseg)
 /**
    Returns if given 2 fops belong to same type.
  */
+__attribute__((unused))
 static bool io_fop_type_equal(const struct m0_fop *fop1,
 			      const struct m0_fop *fop2)
 {
@@ -1607,11 +1608,13 @@ cleanup:
 	return rc;
 }
 
+__attribute__((unused))
 static struct m0_fid *io_fop_fid_get(struct m0_fop *fop)
 {
 	return &(io_rw_get(fop))->crw_fid;
 }
 
+__attribute__((unused))
 static bool io_fop_fid_equal(struct m0_fop *fop1, struct m0_fop *fop2)
 {
         return m0_fid_eq(io_fop_fid_get(fop1), io_fop_fid_get(fop2));
@@ -1659,8 +1662,8 @@ static void io_item_replied(struct m0_rpc_item *item)
 {
 	struct m0_fop		   *fop;
 	struct m0_fop		   *rfop;
-	/* struct m0_fop           *bkpfop; */
-	/* struct m0_rpc_item	   *ritem;  */
+	struct m0_fop		   *bkpfop;
+	struct m0_rpc_item	   *ritem;
 	struct m0_rpc_bulk	   *rbulk;
 	struct m0_fop_cob_rw_reply *reply;
 
@@ -1686,7 +1689,8 @@ static void io_item_replied(struct m0_rpc_item *item)
 	M0_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
-#if 0
+if (0) /* if (0) is used instead of #if 0 to avoid code rot. */
+{
 	/** @todo Rearrange IO item merging code to work with new
 		  formation code.
 	 */
@@ -1725,15 +1729,17 @@ static void io_item_replied(struct m0_rpc_item *item)
 		 */
 		/* m0_chan_broadcast(&ritem->ri_chan); */
 	} m0_tl_endfor;
-#endif
+}
 }
 
 static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 			     uint64_t size)
 {
+	/* Coalescing RPC items is not yet supported */
+if (0)
+{
 	int			 rc;
 	struct m0_fop		*bfop;
-	struct m0_fop		*ufop;
 	struct m0_rpc_item	*item;
 	struct m0_rpc_item	*item_next;
 
@@ -1751,22 +1757,6 @@ static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 	 * head->compound_items list.
 	 */
 	bfop = m0_rpc_item_to_fop(head);
-	m0_list_for_each_entry_safe(list, item, item_next, struct m0_rpc_item,
-				    ri_unbound_link) {
-		ufop = m0_rpc_item_to_fop(item);
-		if (io_fop_type_equal(bfop, ufop) &&
-		    io_fop_fid_equal(bfop, ufop)) {
-			/*
-			 * The item is removed from session->unbound list
-			 * only when io coalescing succeeds because
-			 * this routine is called from a loop over
-			 * session->unbound items and any tinkering will
-			 * mess up the order of processing of items in
-			 * session->unbound items list.
-			 */
-			rpcitem_tlist_add(&head->ri_compound_items, item);
-		}
-	}
 
 	if (rpcitem_tlist_is_empty(&head->ri_compound_items))
 		return;
@@ -1790,11 +1780,8 @@ static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
 		 */
 		item_next = rpcitem_tlist_head(&head->ri_compound_items);
 		rpcitem_tlist_del(head);
-		m0_tl_for (rpcitem, &head->ri_compound_items, item) {
-			if (item != item_next)
-				m0_list_del(&item->ri_unbound_link);
-		} m0_tl_endfor;
 	}
+}
 }
 
 M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop)

@@ -53,8 +53,8 @@ M0_INTERNAL void m0_rpc_session_module_fini(void)
         m0_rpc_session_fop_fini();
 }
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
-				    struct m0_rpc_slot *slot);
+M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
+
 /**
    Initialises rpc item and posts it to rpc-layer
  */
@@ -89,7 +89,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 		if (item->ri_nr_sent_max == 0)
 			item->ri_nr_sent_max = 1;
 	}
-	rc = m0_rpc__post_locked(item, NULL);
+	rc = m0_rpc__post_locked(item);
 	M0_RETURN(rc);
 }
 
@@ -108,9 +108,6 @@ M0_INTERNAL uint64_t m0_rpc_id_generate(void)
 	return id;
 }
 
-/**
-  XXX temporary routine that submits the fop inside item for execution.
- */
 M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 {
 	int                                rc;

@@ -19,14 +19,12 @@ nobase_mero_include_HEADERS += rpc/session.h \
                                   rpc/item_source.h \
                                   rpc/conn.h \
                                   rpc/conn_internal.h \
-                                  rpc/slot_internal.h \
                                   rpc/rpc_internal.h \
                                   rpc/session_fops_xc.h \
 				  rpc/rpc_addb.h \
                                   rpc/rev_conn.h
 
 mero_libmero_la_SOURCES  += rpc/session.c \
-                                  rpc/slot.c \
                                   rpc/conn.c \
                                   rpc/session_utils.c \
                                   rpc/session_fops.c \

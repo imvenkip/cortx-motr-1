@@ -31,6 +31,7 @@
 #include "lib/misc.h" /* M0_SET0 */
 #include "lib/errno.h"
 #include "mero/magic.h"
+#include "rpc/rpc_machine.h" /* for ri_rmachine */
 #include "fop/fop.h"
 #include "fop/fop_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
@@ -60,6 +61,16 @@ static const char *fop_name(const struct m0_fop *fop)
 static size_t fop_data_size(const struct m0_fop *fop)
 {
 	return fop->f_type->ft_xt->xct_sizeof;
+}
+
+M0_INTERNAL void m0_fop_rpc_lock(struct m0_fop *fop)
+{
+	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
+}
+
+M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop)
+{
+	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
 }
 
 M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop)
@@ -163,6 +174,13 @@ void m0_fop_put(struct m0_fop *fop)
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_fop_put);
+
+M0_INTERNAL void m0_fop_put_lock(struct m0_fop *fop)
+{
+	m0_fop_rpc_lock(fop);
+	m0_fop_put(fop);
+	m0_fop_rpc_unlock(fop);
+}
 
 void *m0_fop_data(const struct m0_fop *fop)
 {

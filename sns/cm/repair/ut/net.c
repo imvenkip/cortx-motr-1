@@ -66,7 +66,6 @@ static struct m0_net_buffer_pool  r_nbp;
 /* Sender side. */
 enum {
         CLIENT_COB_DOM_ID  = 44,
-        SESSION_SLOTS      = 2,
         MAX_RPCS_IN_FLIGHT = 5,
         STOB_UPDATE_DELAY  = 1,
         MAX_RETRIES        = 5,
@@ -94,7 +93,6 @@ static struct m0_rpc_client_ctx cctx = {
         .rcx_net_dom            = &client_net_dom,
         .rcx_local_addr         = client_addr,
         .rcx_remote_addr        = server_addr,
-        .rcx_nr_slots           = SESSION_SLOTS,
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
 
@@ -710,8 +708,7 @@ static void sender_init()
 				   &sender_cm_proxy.px_session,
                                    &cctx.rcx_rpc_machine,
                                    cctx.rcx_remote_addr,
-                                   cctx.rcx_max_rpcs_in_flight,
-                                   cctx.rcx_nr_slots);
+                                   cctx.rcx_max_rpcs_in_flight);
 	M0_UT_ASSERT(rc == 0);
 	cp_cm_proxy_init(&sender_cm_proxy,
 		sender_cm_proxy.px_conn.c_rpcchan->rc_destep->nep_addr);

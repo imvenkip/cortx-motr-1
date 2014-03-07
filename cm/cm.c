@@ -704,8 +704,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 			rc = m0_rpc_client_connect(&pxy->px_conn,
 						   &pxy->px_session,
 						   rmach, ex->ex_endpoint,
-						   CM_MAX_NR_RPC_IN_FLIGHT,
-						   CM_NR_SLOTS_PER_SESSION);
+						   CM_MAX_NR_RPC_IN_FLIGHT);
 			if (rc == 0) {
 				m0_cm_proxy_add(cm, pxy);
 				M0_LOG(M0_DEBUG, "Connected to %s", ex->ex_endpoint);

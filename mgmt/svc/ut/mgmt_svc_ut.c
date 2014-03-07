@@ -588,7 +588,9 @@ static void test_status_query(void)
 	}
 	M0_UT_ASSERT(foundFakeService);
 
+	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
 	m0_fop_put(ss_fop);
+	m0_sm_group_unlock(&item->ri_rmachine->rm_sm_grp);
 	mgmt_svc_ut_setup_stop();
 }
 

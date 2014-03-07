@@ -547,7 +547,6 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 {
 	struct m0_fom *fom;
-	int	       result;
 	int            rc;
 
 	M0_ENTRY();
@@ -567,15 +566,15 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	M0_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
 	M0_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
-	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
-	if (result == 0) {
+	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
+	if (rc == 0) {
 		m0_fom_queue(fom, reqh);
 	} else {
-		REQH_ADDB_FUNCFAIL(result, FOM_CREATE, &reqh->rh_addb_ctx);
+		REQH_ADDB_FUNCFAIL(rc, FOM_CREATE, &reqh->rh_addb_ctx);
         }
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-	M0_RETURN(result);
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)

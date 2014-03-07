@@ -177,7 +177,7 @@ static void buf_bulk_cb(const struct m0_net_buffer_event *evt)
 		m0_chan_signal(&rbulk->rb_chan);
 	m0_mutex_unlock(&rbulk->rb_mutex);
 
-	M0_LEAVE();
+	M0_LEAVE("rb_rc=%d", rbulk->rb_rc);
 }
 
 M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)

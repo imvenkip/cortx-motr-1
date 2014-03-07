@@ -72,8 +72,8 @@ M0_INTERNAL void m0_cookie_new(uint64_t * gen);
 /**
  * Embeds address of an object along with a generation-count in a cookie.
  *
- * @param obj (in)	 address of an object
  * @param cookie (out)   address of a cookie in which obj gets embedded
+ * @param obj (in)	 address of an object
  */
 M0_INTERNAL void m0_cookie_init(struct m0_cookie *cookie, const uint64_t *obj);
 

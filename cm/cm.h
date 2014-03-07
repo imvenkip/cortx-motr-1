@@ -149,7 +149,6 @@ enum m0_cm_failure {
 
 enum {
 	CM_RPC_TIMEOUT              = 30, /* seconds */
-	CM_NR_SLOTS_PER_SESSION     = 10,
 	CM_MAX_NR_RPC_IN_FLIGHT     = 100,
 };
 

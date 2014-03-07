@@ -36,6 +36,8 @@
 
 #define cmp_field(obj1, obj2, field)((obj1)->field == (obj2)->field)
 
+static struct m0_rpc_machine rmachine;
+
 static struct m0_rpc_item *prepare_ping_fop_item(void);
 static struct m0_rpc_item *prepare_ping_rep_fop_item(void);
 static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr);
@@ -49,6 +51,7 @@ static void packet_fini(struct m0_rpc_packet *packet);
 
 static int packet_encdec_ut_init(void)
 {
+	m0_sm_group_init(&rmachine.rm_sm_grp);
 	m0_ping_fop_init();
 	return 0;
 }
@@ -56,6 +59,7 @@ static int packet_encdec_ut_init(void)
 static int packet_encdec_ut_fini(void)
 {
 	m0_ping_fop_fini();
+	m0_sm_group_fini(&rmachine.rm_sm_grp);
 	return 0;
 }
 
@@ -68,14 +72,18 @@ static void test_packet_encode_decode(void)
 	m0_bcount_t          bufvec_size;
 	int		     rc;
 
-	m0_rpc_packet_init(&packet);
+	m0_rpc_packet_init(&packet, &rmachine);
 
 	item = prepare_ping_fop_item();
 	m0_rpc_packet_add_item(&packet, item);
+	m0_sm_group_lock(&rmachine.rm_sm_grp);
 	m0_rpc_item_put(item);
+	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	item = prepare_ping_rep_fop_item();
 	m0_rpc_packet_add_item(&packet, item);
+	m0_sm_group_lock(&rmachine.rm_sm_grp);
 	m0_rpc_item_put(item);
+	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	bufvec_size = m0_align(packet.rp_size, 8);
 	/* m0_alloc_aligned() (lib/linux_kernel/memory.c), supports
 	 * alignment of PAGE_SHIFT only
@@ -84,7 +92,7 @@ static void test_packet_encode_decode(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_packet_encode(&packet, &bufvec);
 	M0_UT_ASSERT(rc == 0);
-	m0_rpc_packet_init(&decoded_packet);
+	m0_rpc_packet_init(&decoded_packet, &rmachine);
 	rc = m0_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
 	M0_UT_ASSERT(rc == 0);
 	packet_compare(&packet, &decoded_packet);
@@ -141,26 +149,12 @@ static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr)
 
 static void populate_item(struct m0_rpc_item *item)
 {
-	item->ri_slot_refs[0].sr_ow = (struct m0_rpc_onwire_slot_ref) {
+	item->ri_header = (struct m0_rpc_item_header2) {
 		.osr_uuid.u_hi = 9876,
 		.osr_uuid.u_lo = 6789,
 		.osr_sender_id = 101,
 		.osr_session_id = 523,
-		.osr_slot_id = 23,
-		.osr_verno = {
-			.vn_lsn = 7654,
-			.vn_vc = 12345,
-		},
-		.osr_last_persistent_verno = {
-			.vn_lsn = 4356,
-			.vn_vc = 2345,
-		},
-		.osr_last_seen_verno = {
-			.vn_lsn = 1456,
-			.vn_vc = 7865,
-		},
 		.osr_xid = 212,
-		.osr_slot_gen = 321,
 	};
 }
 
@@ -189,11 +183,11 @@ static void packet_compare(struct m0_rpc_packet *p1, struct m0_rpc_packet *p2)
 static void item_compare(struct m0_rpc_item *item1, struct m0_rpc_item *item2)
 {
 
-	struct m0_rpc_onwire_slot_ref *sr_ow1 = &item1->ri_slot_refs[0].sr_ow;
-	struct m0_rpc_onwire_slot_ref *sr_ow2 = &item2->ri_slot_refs[0].sr_ow;
+	struct m0_rpc_item_header2 *h1 = &item1->ri_header;
+	struct m0_rpc_item_header2 *h2 = &item2->ri_header;
 
 	M0_UT_ASSERT(cmp_field(item1, item2, ri_type->rit_opcode));
-	M0_UT_ASSERT(memcmp(sr_ow1, sr_ow2, sizeof *sr_ow1) == 0);
+	M0_UT_ASSERT(memcmp(h1, h2, sizeof *h1) == 0);
 }
 
 static void fop_data_compare(struct m0_fop *fop1, struct m0_fop *fop2)
@@ -239,7 +233,9 @@ static void packet_fini(struct m0_rpc_packet *packet)
 
 	/* items will be freed as soon as they're removed
 	   from packet, because this is last reference on them */
+	m0_sm_group_lock(&rmachine.rm_sm_grp);
 	m0_rpc_packet_remove_all_items(packet);
+	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	m0_rpc_packet_fini(packet);
 }
 

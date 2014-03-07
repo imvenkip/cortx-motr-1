@@ -41,8 +41,6 @@ enum {
 	/** Range of valid session ids */
 	SESSION_ID_MIN           = SESSION_ID_0 + 1,
 	SESSION_ID_MAX           = SESSION_ID_INVALID - 1,
-	SLOT_ID_INVALID          = UINT32_MAX,
-	SESSION_COB_MAX_NAME_LEN = 40,
 };
 
 /**
@@ -77,8 +75,7 @@ M0_INTERNAL void session_state_set(struct m0_rpc_session *session, int state);
 M0_INTERNAL int session_state(const struct m0_rpc_session *session);
 
 M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
-					   struct m0_rpc_conn *conn,
-					   uint32_t nr_slots);
+					   struct m0_rpc_conn *conn);
 M0_INTERNAL void m0_rpc_session_fini_locked(struct m0_rpc_session *session);
 
 /**
@@ -107,22 +104,9 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
 							 *req);
 
-/**
-   For all slots belonging to @session,
-     if slot is in m0_rpc_machine::rm_ready_slots list,
-     then remove it from the list.
- */
-M0_INTERNAL void m0_rpc_session_del_slots_from_ready_list(struct m0_rpc_session
-							  *session);
-
 M0_INTERNAL bool m0_rpc_session_is_idle(const struct m0_rpc_session *session);
 
-M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item);
-
 M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item);
-
-M0_INTERNAL void m0_rpc_session_mod_nr_active_items(struct m0_rpc_session
-						    *session, int delta);
 
 M0_INTERNAL struct m0_rpc_machine *session_machine(const struct m0_rpc_session
 						   *s);

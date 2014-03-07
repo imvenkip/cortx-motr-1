@@ -17,5 +17,4 @@ m0mero_objects += rpc/bulk.o \
                  rpc/session_fops_xc.o \
                  rpc/session.o \
                  rpc/session_utils.o \
-                 rpc/slot.o \
                  rpc/rev_conn.o

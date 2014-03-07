@@ -263,6 +263,9 @@ struct m0_rpc_conn {
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
 
+	/** Unique item identifier counter */
+	uint64_t                  c_xid;
+
 	/** List of all the sessions created under this rpc connection.
 	    m0_rpc_session objects are placed in this list using
 	    m0_rpc_session::s_link.

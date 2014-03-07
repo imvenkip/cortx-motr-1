@@ -300,9 +300,9 @@ static int cs_req_fop_fom_tick(struct m0_fom *fom)
 			break;
 		}
 	}
-	if (M0_FI_ENABLED("inject_delay")) {
-		m0_nanosleep(m0_time(2, 0), NULL);
-	}
+	if (M0_FI_ENABLED("inject_delay"))
+		m0_nanosleep(m0_time(M0_RPC_ITEM_RESEND_INTERVAL +1, 0), NULL);
+
 	return rc;
 }
 

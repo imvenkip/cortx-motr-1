@@ -146,21 +146,10 @@ enum frm_state {
    WAITING_* are the queues which contain items whose deadline is not yet
    reached. An item from these queues can be picked for formation even
    before its deadline is passed.
-
-   (URGENT|WAITING)_BOUND queues contain items for which slot is already
-   assigned. These are "ready to go" items.
-   (URGENT|WAITING)_UNBOUND queues contain items for which slot needs to
-   assigned first. @see m0_rpc_frm_ops::fo_item_bind()
-
-   A bound item cannot be merged with other bound RPC items.
  */
 enum m0_rpc_frm_itemq_type {
-	FRMQ_URGENT_BOUND,
-	FRMQ_URGENT_UNBOUND,
-	FRMQ_URGENT_ONEWAY,
-	FRMQ_WAITING_BOUND,
-	FRMQ_WAITING_UNBOUND,
-	FRMQ_WAITING_ONEWAY,
+	FRMQ_URGENT,
+	FRMQ_WAITING,
 	FRMQ_NR_QUEUES
 };
 
@@ -173,11 +162,9 @@ enum m0_rpc_frm_itemq_type {
    - RPC item is posted for sending
    - RPC packet has been sent or packet sending is failed
    - deadline timer of WAITING item is expired
-   - Ready slot is available
 
    Events that formation machine triggers for rest of RPC are:
    - Packet is ready for sending
-   - Request to bind an item to a slot
 
 @verbatim
                 FRM_UNINITIALISED
@@ -256,22 +243,17 @@ struct m0_rpc_frm {
 struct m0_rpc_frm_ops {
 	/**
 	   A packet is ready to be sent over network.
-	   @return true iff packet has been submitted to network layer.
-		   If result is false then all the items in packet
-		   p are moved to FAILED state and are removed from p.
+	   @return 0 iff packet has been submitted to network layer.
+		   Otherwise the items in packet p are moved to
+		   FAILED state and are removed from p.
 		   m0_rpc_packet instance pointed by p is freed.
+	   @note through there is only one implementation instance of
+	         this routine in the real code, the UTs code still
+		 implement its own version of this routine also
+	         and heavily depend on it - that's why we still
+		 have this vector here.
 	 */
-	bool (*fo_packet_ready)(struct m0_rpc_packet *p);
-
-	/**
-	   Bind a slot to the item.
-
-	   @pre m0_rpc_item_is_unbound(item) && item->ri_session != NULL
-	   @pre m0_rpc_machine_is_locked(item_machine(item))
-	   @post equi(result, m0_rpc_item_is_bound(item))
-	   @post m0_rpc_machine_is_locked(item_machine(item))
-	 */
-	bool (*fo_item_bind)(struct m0_rpc_item *item);
+	int (*fo_packet_ready)(struct m0_rpc_packet *p);
 };
 
 /**

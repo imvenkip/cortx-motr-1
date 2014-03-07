@@ -175,7 +175,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 {
 	enum {
 		MAX_RPCS_IN_FLIGHT = 32,
-		NR_SLOTS           = 1
 	};
 	static struct m0_net_domain     client_net_dom;
 	static struct m0_rpc_client_ctx cctx;
@@ -192,7 +191,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	cctx.rcx_net_dom               = &client_net_dom;
 	cctx.rcx_local_addr            = client_ep;
 	cctx.rcx_remote_addr           = server_ep;
-	cctx.rcx_nr_slots              = NR_SLOTS;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	cctx.rcx_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;

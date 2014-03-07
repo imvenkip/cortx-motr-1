@@ -504,8 +504,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 	m0t1fs_service_context_init(ctx, csb, type);
 	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session,
 				   &m0t1fs_globals.g_rpc_machine, addr,
-				   M0T1FS_MAX_NR_RPC_IN_FLIGHT,
-				   M0T1FS_NR_SLOTS_PER_SESSION);
+				   M0T1FS_MAX_NR_RPC_IN_FLIGHT);
 	if (rc == 0) {
 		svc_ctx_tlist_add_tail(&csb->csb_service_contexts, ctx);
 		M0_CNT_INC(csb->csb_nr_active_contexts);

@@ -619,7 +619,6 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 
 enum {
 	RPC_TIMEOUT          = 8, /* seconds */
-	NR_SLOTS_PER_SESSION = 10,
 	MAX_NR_RPC_IN_FLIGHT = 100,
 };
 
@@ -650,7 +649,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh *reqh,
 	M0_LOG(M0_DEBUG, "Ios connecting to mds %s", srv_ep_addr);
 	rc = m0_rpc_client_connect(&conn->imc_conn, &conn->imc_session,
 				   rpc_machine, srv_ep_addr,
-				   MAX_NR_RPC_IN_FLIGHT, NR_SLOTS_PER_SESSION);
+				   MAX_NR_RPC_IN_FLIGHT);
 	if (rc == 0) {
 		conn->imc_connected = true;
 		M0_LOG(M0_DEBUG, "Ios connected to mds %s", srv_ep_addr);

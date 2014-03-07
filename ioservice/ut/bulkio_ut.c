@@ -1717,7 +1717,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(wfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==
 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
-	m0_fop_put(wfop);
+	m0_fop_put_lock(wfop);
 
 	rfop = m0_fop_alloc(&m0_fop_cob_readv_fopt, NULL);
 	M0_UT_ASSERT(rfop != NULL);
@@ -1732,7 +1732,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(rfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==
 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
-	m0_fop_put(rfop);
+	m0_fop_put_lock(rfop);
 }
 
 static void bulkio_init(void)

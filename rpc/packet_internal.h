@@ -59,6 +59,8 @@ struct m0_rpc_packet {
 	int                                rp_status;
 
 	struct m0_rpc_frm                 *rp_frm;
+
+	struct m0_rpc_machine             *rp_rmachine;
 };
 
 M0_INTERNAL m0_bcount_t m0_rpc_packet_onwire_header_size(void);
@@ -72,7 +74,8 @@ M0_TL_DECLARE(packet_item, M0_INTERNAL, struct m0_rpc_item);
 #define end_for_each_item_in_packet m0_tl_endfor
 
 M0_INTERNAL bool m0_rpc_packet_invariant(const struct m0_rpc_packet *packet);
-M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *packet);
+M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *packet,
+				    struct m0_rpc_machine *rmach);
 M0_INTERNAL void m0_rpc_packet_fini(struct m0_rpc_packet *packet);
 
 /**

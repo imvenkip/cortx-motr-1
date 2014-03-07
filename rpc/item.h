@@ -30,7 +30,7 @@
 #include "lib/list.h"
 #include "lib/time.h"
 #include "sm/sm.h"                 /* m0_sm */
-#include "rpc/rpc_onwire.h"        /* m0_rpc_onwire_slot_ref */
+#include "rpc/rpc_onwire.h"        /* m0_rpc_item_header2 */
 
 /**
    @addtogroup rpc
@@ -39,7 +39,6 @@
  */
 
 /* Imports */
-struct m0_rpc_slot;
 struct m0_rpc_session;
 struct m0_bufvec_cursor;
 struct m0_rpc_frm;
@@ -59,13 +58,6 @@ enum m0_rpc_item_priority {
 enum m0_rpc_item_state {
 	M0_RPC_ITEM_UNINITIALISED,
 	M0_RPC_ITEM_INITIALISED,
-	/**
-	 * On sender side when a bound item is posted to RPC, the item
-	 * is kept in slot's item stream. The item remains in this state
-	 * until slot forwards this item to formation.
-	 * @see __slot_balance()
-	 */
-	M0_RPC_ITEM_WAITING_IN_STREAM,
 	/**
 	 * Item is in one of the WAITING_ queues maintained by formation.
 	 * The item is waiting to be selected by formation machine for sending
@@ -111,52 +103,16 @@ enum m0_rpc_item_state {
 	M0_RPC_ITEM_NR_STATES,
 };
 
-/** Stages of item in slot */
-enum m0_rpc_item_stage {
-	/** the reply for the item was received and the receiver confirmed
-	    that the item is persistent */
-	RPC_ITEM_STAGE_PAST_COMMITTED = 1,
-	/** the reply was received, but persistence confirmation wasn't */
-	RPC_ITEM_STAGE_PAST_VOLATILE,
-	/** the item is sent but no reply is received */
-	RPC_ITEM_STAGE_IN_PROGRESS,
-	/** Operation is timedout. Uncertain whether receiver has processed
-	    the request or not. */
-	RPC_ITEM_STAGE_TIMEDOUT,
-	/** Failed to send the item */
-	RPC_ITEM_STAGE_FAILED,
-	/** the item is not sent */
-	RPC_ITEM_STAGE_FUTURE,
-};
-
-enum {
-	/** Maximum number of slots to which an rpc item can be associated */
-	MAX_SLOT_REF    = 1,
-};
-
-/**
-   slot_ref object establishes association between m0_rpc_item and
-   m0_rpc_slot. Upto MAX_SLOT_REF number of m0_rpc_slot_ref objects are
-   embeded with m0_rpc_item.
- */
-struct m0_rpc_slot_ref {
-	/** sr_slot and sr_item identify two ends of association */
-	struct m0_rpc_slot           *sr_slot;
-	struct m0_rpc_item           *sr_item;
-	/** Part of onwire RPC item header */
-	struct m0_rpc_onwire_slot_ref sr_ow;
-	/** Anchor to put item on m0_rpc_slot::sl_item_list
-	    List descriptor: slot_item
-	 */
-	struct m0_tlink               sr_link;
-};
-
 /**
    RPC item direction.
  */
 enum m0_rpc_item_dir {
 	M0_RPC_ITEM_INCOMING,
 	M0_RPC_ITEM_OUTGOING,
+};
+
+enum m0_rpc_item_resend {
+	M0_RPC_ITEM_RESEND_INTERVAL = 5 /* in secs */
 };
 
 /**
@@ -178,7 +134,8 @@ struct m0_rpc_item {
 	    the item.
 	 */
 	m0_time_t			 ri_deadline;
-	/** Time to wait before resending (defaults to 1 second). */
+	/** Time to wait before resending
+	 * (defaults to M0_RPC_ITEM_RESEND_INTERVAL seconds). */
 	m0_time_t                        ri_resend_interval;
 	/** How many resending attempts to make (defaults to ~0). */
 	uint64_t                         ri_nr_sent_max;
@@ -217,18 +174,19 @@ struct m0_rpc_item {
 	    @see incoming_item_states
 	 */
 	struct m0_sm                     ri_sm;
-	enum m0_rpc_item_stage		 ri_stage;
 	/** Number of times the item was sent */
 	uint32_t                         ri_nr_sent;
 	/** Reply received when request is still in SENDING state is kept
 	    "pending" until the request item moves to SENT state.
 	 */
 	struct m0_rpc_item              *ri_pending_reply;
-	struct m0_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
-	/** @deprecated Anchor to put item on
-	    m0_rpc_session::s_unbound_items list
-	 */
-	struct m0_list_link		 ri_unbound_link;
+
+	/** Cookie id by which we find the request from the reply. */
+	uint64_t                         ri_cookid;
+
+	/** On-wire data of the item. */
+	struct m0_rpc_item_header2       ri_header;
+
 	/** Item size in bytes. header + payload.
 	    Set during first call to m0_rpc_item_size() on this item.
 	 */

@@ -25,8 +25,8 @@
 
 #include "lib/types.h"        /* uint64_t */
 #include "lib/types_xc.h"     /* m0_uint128_xc */
-#include "dtm/verno.h"        /* m0_verno */
-#include "dtm/verno_xc.h"     /* m0_verno_xc */
+#include "lib/cookie.h"
+#include "lib/cookie_xc.h"
 #include "xcode/xcode_attr.h" /* M0_XCA_RECORD */
 
 /**
@@ -38,53 +38,15 @@ enum {
 	M0_RPC_VERSION_1 = 1,
 };
 
-struct m0_rpc_onwire_slot_ref {
-	struct m0_uint128 osr_uuid;
-	uint64_t          osr_sender_id;
-	uint64_t          osr_session_id;
-
-	/** Numeric id of slot. Used when encoding and decoding rpc item to
-	    and from wire-format
-	 */
-	uint32_t          osr_slot_id;
-
-	/** If slot has verno matching sr_verno, then only the item can be
-	    APPLIED to the slot
-	 */
-	struct m0_verno   osr_verno;
-	/**
-	 * @todo These are temporary fields; there is no need to duplicate
-	 * this information with each and every reply. In the future, special
-	 * 1-way item will be used to transfer this information.
-	 */
-	/** In each reply item, receiver reports to sender, verno of item
-	    whose effects have reached persistent storage, using this field
-	 */
-	struct m0_verno   osr_last_persistent_verno;
-
-	/** Inform the sender about current slot version */
-	struct m0_verno   osr_last_seen_verno;
-
-	/** An identifier that uniquely identifies item within
-	    slot->item_list.
-        */
-	uint64_t          osr_xid;
-
-	/** Generation number of slot */
-	uint64_t          osr_slot_gen;
-} M0_XCA_RECORD;
-
 struct m0_rpc_packet_onwire_header {
 	/* Version */
 	uint32_t poh_version;
-
 	/** Number of RPC items in packet */
 	uint32_t poh_nr_items;
-
 	uint64_t poh_magic;
 } M0_XCA_RECORD;
 
-struct m0_rpc_item_onwire_header {
+struct m0_rpc_item_header1 {
 	/** Item opcode */
 	uint32_t ioh_opcode;
 	/** Item flags, taken from enum m0_rpc_item_flags. */
@@ -94,9 +56,17 @@ struct m0_rpc_item_onwire_header {
 	uint64_t ioh_magic;
 } M0_XCA_RECORD;
 
-M0_INTERNAL int m0_rpc_item_header_encdec(struct m0_rpc_item_onwire_header *ioh,
-					  struct m0_bufvec_cursor *cur,
-					  enum m0_xcode_what what);
+struct m0_rpc_item_header2 {
+	struct m0_uint128 osr_uuid;
+	uint64_t          osr_sender_id;
+	uint64_t          osr_session_id;
+	uint64_t          osr_xid;
+	struct m0_cookie  osr_cookie;
+} M0_XCA_RECORD;
+
+M0_INTERNAL int m0_rpc_item_header1_encdec(struct m0_rpc_item_header1 *ioh,
+					   struct m0_bufvec_cursor *cur,
+					   enum m0_xcode_what what);
 
 /** @}  End of rpc group */
 

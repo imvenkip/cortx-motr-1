@@ -51,12 +51,8 @@ http://tools.ietf.org/html/rfc5661#section-2.10.6
 Session module defines following types of objects:
 - rpc connection @see m0_rpc_conn
 - rpc session @see m0_rpc_session
-- slot @see m0_rpc_slot
-- slot ref @see m0_rpc_slot_ref.
 
 Out of these, m0_rpc_conn and m0_rpc_session are visible to user.
-m0_rpc_slot and m0_rpc_slot_ref are internal to rpc layer and not visible to
-users outside rpc layer.
 
 Session module uses following types of objects:
 - rpc machine @see m0_rpc_machine
@@ -73,145 +69,9 @@ Rpc connection has a list of rpc sessions, which are created on this
 connection. A rpc connection cannot be terminated until all the sessions
 created on the connection are terminated.
 
-A session contains one or more slots. Number of slots in the session can
-vary over the lifetime of session (In current implementation state, the number
-of slots do not vary. The slot count is fixed for entire lifetime of session.
-Slot count is specified at the time of session initialisation).
-
-Each object of type [m0_rpc_conn|m0_rpc_session|m0_rpc_slot] on sender
+Each object of type [m0_rpc_conn|m0_rpc_session] on sender
 has counterpart object of same type on receiver. (Note: same structure
 definitions are used on both sender and receiver side)
-
-<B> Bound and Unbound rpc items: </B>
-
-Rpc layer can send an rpc item on network only if it is associated with some
-slot within the session. User can specify the slot on which the item needs to
-be sent. Or the user can just specify session and leave the task of choosing
-any available slot to rpc layer.
-
-With respect to session and slots, an rpc item is said to be "bound" if
-the item is associated with slot. An item is called as "unbound"/"freestanding"
-if it is not associated with any particular slot yet. An unbound item will be
-eventually associated with slot, and hence become bound item.
-
-<b> Reply cache: </b>
-
-Reply cache caches replies of update operations. Reply of read-only
-operation is not cached. When a duplicate update item is received which is
-already executed on receiver, then instead of again processing the item,
-its reply is retrieved from reply cache and returned to the sender.
-By preventing multiple executions of same item (or FOP), reply cache provides
-"exactly once" semantics. If reply cache is persistent, then EOS can be
-guaranteed even in the face of receiver restart. Mero implements Reply
-Cache via FOL (File Operation Log). See section "Slot as a cob" for more
-details on this.
-
-<B> Slot as a "cob": </B>
-Session module implements a slot as a "special file". This allows to reuse
-persistent data structure and code of cob infrastructure.
-
-For each slot, session module will create a cob named $SLOT_ID:$GEN inside
-directory /sessions/$SENDER_ID/$SESSION_ID/.
-Where $SENDER_ID, $SESSION_ID, $SLOT_ID and $GEN are place-holders for actual
-identifier values.
-
-Version number of slot is same as version number of cob that represents
-the slot. Each item also contains a version number. If an item is received,
-whose version number matches with version number of slot, then the item is
-accepted as valid item in the sequence and sent for execution. If item is an
-"update operation" (i.e. it modifies file-system state) then the version
-number of slot is advanced.
-
-FOL (File Operation Log) contains record for each update operation executed.
-The FOL record contains all the information required to undo or redo that
-specific operation. If along with the operation details, reply of operation
-is also stored in the FOL record, the FOL itself acts as a "Reply Cache".
-Given fid of cob that represents the slot and version number of item, it is
-possible to determine whether the item is duplicate or not. If it is duplicate
-item then version number within the item will be less than version number of
-slot. And there will be a record already present in the FOL representing the
-same operation. Then the reply can be extracted from the FOL record and resent
-back to sender.
-
-<B>Ensuring FIFO when slot.max_in_flight > 1 </B>
-
- XXX Current implementation does not have way to define dependencies.
-     Hence no more than 1 items are allowed to be in-flight for a particular
-     slot.
-
- First, let's clarify that xid is used to uniquely identify items sent through
- a particular slot, whereas verno is used to identify the state of target
- objects (including slots) when the operation is applicable.
-
- We want to achieve the following goals:
-
-   - sequence of operations sent through a slot can be exactly reproduced
-     after the receiver or the network failed. "Reproduced" here means that
-     after the operations are re-applied the same observable system state
-     results.
-
-   - Network level concurrency (multiple items in flight).
-
-   - Server level concurrency (multiple operations executed on the receiver
-     concurrently, where possible).
-
-   - Operations might have dependencies.
-
- Let's put the following data into each item:
- @code
- struct m0_rpc_item {
-       struct m0_verno     verno;
-       uint64_t            xid;
-       struct m0_rpc_item *dep;
- };
- @endcode
-
- ->verno and ->xid are used as usual. ->dep identifies an item, sent to
-  the same receiver, which this item "depends on". item can be executed only
-  after item->dep has been executed. If an item does not depend on any other
-  item, then item->dep == NULL.
-
- When an item is submitted to the rpc layer, its ->dep is
-
-   - either set by the caller (the rpc checks that the receiver is the same
-     in a pre-condition);
-
-   - set to NULL to indicate that there are no dependencies;
-
-   - set to a special LAST constant value, to indicate that the item depends
-     on the last item sent through the same slot. In this case, the rpc code
-     assigns ->dep to the appropriate item:
-
-     @code
-       if (item->flags & MUTABO)
-               item->dep = latest item on the slot list;
-       else
-               item->dep = latest MUTABO item on the slot list;
-     @endcode
-
-     For a freestanding item, this assignment is done lately, when the
-     freestanding item is assigned a slot and xid.
-
- item->dep->xid is sent to the receiver along with other item attributes. On
- the receiver, the item is submitted to the request handler only when
-
-   - item->dep item has been received and executed and
-
-   - item->verno matches the slot verno (as usual).
-
- Typical scenarios are as following:
-
-   - update operations are submitted, all with LAST dep, they are sent
-     over the network concurrently (up to slot->max_in_flight) and executed
-     serially by the receiver;
-
-   - an update item I0 is submitted, then a set of read-only items is submitted,
-     all with ->dep set to LAST. Read-only operations are sent concurrently and
-     executed concurrently after I0 has been executed.
-
- Note that LAST can be nicely generalized (we don't need this now): instead of
- distinguishing MUTABO and !MUTABO items, we split items into "commutative"
- groups such that items in a group can be executed in any order.
 
  <B> Using two identifiers for session and conn </B>
  @todo
@@ -228,12 +88,8 @@ back to sender.
     @todo
 	- Generate ADDB data points for important session events
 	- store replies in FOL
-	- Support more than one items in flight for a slot
 	- Optimization: Cache misordered items at receiver, rather than
 	  discarding them.
-	- How to get unique stob_id for session and slot cobs?
-	- slot table resize needs to be implemented.
-	- Design protocol to dynamically adjust number of slots.
  */
 
 #include "lib/list.h"
@@ -244,8 +100,6 @@ back to sender.
 
 /* Imports */
 struct m0_rpc_conn;
-struct m0_cob;
-struct m0_rpc_slot;
 
 /* Exports */
 struct m0_rpc_session;
@@ -265,21 +119,14 @@ enum m0_rpc_session_state {
 	 */
 	M0_RPC_SESSION_ESTABLISHING,
 	/**
-	   A session is IDLE if both of following is true
-		- for each slot S in session
-			for each item I in S->item_list
-				// I has got reply
-				I->state is in {PAST_COMMITTED, PAST_VOLATILE}
-		- formation queue has no item associated with this session
 	   A session can be terminated only if it is IDLE.
 	 */
 	M0_RPC_SESSION_IDLE,
 	/**
 	   A session is busy if any of following is true
-		- Any of slots has item to be sent (FUTURE items)
-		- Any of slots has item for which reply is not received
-			(IN_PROGRESS items)
-		- Formation queue has item associated with this session
+		- There is item for which the reply is not received yet
+			(on receive side).
+		- Formation queue has item associated with this session.
 	 */
 	M0_RPC_SESSION_BUSY,
 	/**
@@ -307,7 +154,7 @@ enum m0_rpc_session_state {
    Rpc connection can be shared by multiple entities (e.g. users) by
    creating their own "session" on the connection.
    A session can be used to maintain authentication information or QoS
-   parameters. But currently it is just a container for slots.
+   parameters.
 
    <B> Liveness: </B>
 
@@ -380,8 +227,7 @@ enum m0_rpc_session_state {
 
    // INITIALISE SESSION
 
-   nr_slots = 4;
-   rc = m0_rpc_session_init(session, conn, nr_slots);
+   rc = m0_rpc_session_init(session, conn);
    M0_ASSERT(ergo(rc == 0, session_state(session) ==
                            M0_RPC_SESSION_INITIALISED));
 
@@ -464,43 +310,8 @@ struct m0_rpc_session {
 	 */
 	struct m0_tlink		  s_link;
 
-	/** Number of items that needs to be sent or their reply is
-	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
-	    state in all slots belonging to this session.
-
-	    XXX FIXME The value can't be negative. Change the type to uint32_t.
-	 */
-	int32_t                   s_nr_active_items;
-
-	/** list of items that can be sent through any available slot.
-	    items are placed using m0_rpc_item::ri_unbound_link
-	    @deprecated XXX
-	 */
-	struct m0_list            s_unbound_items;
-
-	/** Capacity of slot table */
-	uint32_t                  s_slot_table_capacity;
-
-	/**
-	 * Only [0, s_nr_slots) slots from the s_slot_table can be used to bind
-	 * items.  s_nr_slots <= s_slot_table_capacity
-	 *
-	 * Each slot is serial: the next fop is sent only once the reply to the
-	 * previous one has been received.  Hence, ->s_nr_slots should be equal
-	 * to the expected concurrency level.
-	 */
-	uint32_t                  s_nr_slots;
-
-	/** Array of pointers to slots */
-	struct m0_rpc_slot      **s_slot_table;
-
 	/** if > 0, then session is in BUSY state */
 	uint32_t                  s_hold_cnt;
-
-	/** List of slots, which can be associated with an unbound item.
-	    Link: m0_rpc_slot::sl_link
-	 */
-	struct m0_tl              s_ready_slots;
 
 	/** RPC session state machine
 	    @see m0_rpc_session_state, session_conf
@@ -512,21 +323,18 @@ struct m0_rpc_session {
 };
 
 /**
-   Initialises all fields of session. Allocates and initialises
-   nr_slots number of slots.
+   Initialises all fields of session.
    No network communication is involved.
 
    @param session session being initialised
    @param conn rpc connection with which this session is associated
-   @param nr_slots number of slots in the session
 
    @post ergo(rc == 0, session_state(session) == M0_RPC_SESSION_INITIALISED &&
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
 M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
-				    struct m0_rpc_conn *conn,
-				    uint32_t nr_slots);
+				    struct m0_rpc_conn *conn);
 
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
@@ -560,12 +368,10 @@ M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
  * A combination of m0_rpc_session_init() and m0_rpc_session_establish_sync() in
  * a single routine - initialize session object, establish a session and wait
  * until it become idle.
- *
- * @see m0_rpc_session::s_nr_slots
  */
 M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 				      struct m0_rpc_conn *conn,
-				      uint32_t nr_slots, m0_time_t abs_timeout);
+				      m0_time_t abs_timeout);
 
 /**
    Sends terminate session fop to receiver.

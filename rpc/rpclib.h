@@ -122,9 +122,6 @@ struct m0_rpc_client_ctx {
 	/** Transport specific remote address (server's address) */
 	const char                *rcx_remote_addr;
 
-	/** Number of session slots */
-	uint32_t		   rcx_nr_slots;
-
 	uint64_t		   rcx_max_rpcs_in_flight;
 
 	/* -------------------------------------------------------------
@@ -157,14 +154,12 @@ struct m0_rpc_client_ctx {
  * @param[in]  rpc_mach
  * @param[in]  remote_addr
  * @param[in]  max_rpcs_in_flight
- * @param[in]  nr_slots
  */
 M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 				      struct m0_rpc_session *session,
 				      struct m0_rpc_machine *rpc_mach,
 				      const char            *remote_addr,
-				      uint64_t               max_rpcs_in_flight,
-				      uint32_t               nr_slots);
+				      uint64_t               max_rpcs_in_flight);
 
 /**
  * Starts client's rpc machine.

@@ -340,7 +340,7 @@ HLD of Mero LNet Transport</a>
 
    @subsection KLNetCoreDLD-lspec-buf-res LNet Buffer Resources
 
-   A network buffer is associated with a Match Descriptor (MD).  This is
+   A network buffer is associated with a Memory Descriptor (MD).  This is
    represented by the nlx_kcore_buffer::kb_mdh handle.  There may be a Match
    Entry (ME) associated with this MD for some operations, but when created, it
    is set up to unlink automatically when the MD is unlinked so it is not

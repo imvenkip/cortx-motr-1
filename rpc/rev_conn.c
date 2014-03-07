@@ -46,7 +46,6 @@
 
 enum {
 	RPCS_IN_FLIGHT = 1,
-	NR_SLOTS       = 1,
 };
 
 struct rev_conn_state_transition {
@@ -184,7 +183,7 @@ static int session_establish(struct m0_fom *fom)
 
 	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
 
-	rc = m0_rpc_session_init(revc->rcf_sess, revc->rcf_conn, NR_SLOTS);
+	rc = m0_rpc_session_init(revc->rcf_sess, revc->rcf_conn);
 	if (rc == 0) {
 		rc = m0_rpc_session_establish(revc->rcf_sess,
 				      m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));

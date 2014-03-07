@@ -42,7 +42,6 @@
 #include "lib/user_space/getopts.h"
 
 enum {
-	STATS_SESSION_SLOTS = 2,
 	STATS_MAX_COUNT     = 3,
 	STATS_MAX_NAME_SIZE = 32,
 	STATS_DEFAULT_COUNT = 1,
@@ -57,7 +56,6 @@ static bool signaled = false;
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom               = &client_net_dom,
 	.rcx_max_rpcs_in_flight    = 1,
-	.rcx_nr_slots              = STATS_SESSION_SLOTS,
 	.rcx_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE,
 	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
 };

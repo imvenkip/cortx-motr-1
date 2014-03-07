@@ -27,7 +27,6 @@
 enum {
 	SENDER_ID  = 1001,
 	SESSION_ID = 101,
-	SLOTS_NR   = 1,
 };
 
 static struct m0_rpc_machine machine;
@@ -67,7 +66,7 @@ static int session_ut_init(void)
 	rmach_watch_tlist_init(&machine.rm_watch);
 
 	m0_sm_group_init(&machine.rm_sm_grp);
-	rc = m0_rpc_session_init(&session0, &conn, SLOTS_NR);
+	rc = m0_rpc_session_init(&session0, &conn);
 	M0_ASSERT(rc == 0);
 	session0.s_session_id = SESSION_ID_0;
 
@@ -100,7 +99,7 @@ static void session_init(void)
 {
 	int rc;
 
-	rc = m0_rpc_session_init(&session, &conn, SLOTS_NR);
+	rc = m0_rpc_session_init(&session, &conn);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_INITIALISED);
 }
@@ -218,20 +217,6 @@ static void session_check(void)
 	session_terminate_reply_and_fini(0);
 }
 
-static void session_init_fail_test(void)
-{
-	int rc;
-	/* Checks for m0_rpc_session_init() failure due to allocation failure */
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_rpc_session_init(&session, &conn, SLOTS_NR);
-	M0_UT_ASSERT(rc == -ENOMEM);
-
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
-	rc = m0_rpc_session_init(&session, &conn, SLOTS_NR);
-	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_disable("m0_alloc", "fail_allocation");
-}
-
 static void session_establish_fail_test(void)
 {
 	int rc;
@@ -339,7 +324,6 @@ const struct m0_test_suite session_ut = {
 	.ts_tests = {
 		{ "session-init-fini", session_init_fini_test},
 		{ "session-check", session_check},
-		{ "session-init-fail", session_init_fail_test},
 		{ "session-establish-fail", session_establish_fail_test},
 		{ "session-terminate-fail", session_terminate_fail_test},
 		{ "session-establish-reply-fail", session_establish_reply_fail_test},

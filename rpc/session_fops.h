@@ -51,7 +51,6 @@ extern struct m0_fop_type m0_rpc_fop_session_establish_fopt;
 extern struct m0_fop_type m0_rpc_fop_session_establish_rep_fopt;
 extern struct m0_fop_type m0_rpc_fop_session_terminate_fopt;
 extern struct m0_fop_type m0_rpc_fop_session_terminate_rep_fopt;
-extern struct m0_fop_type m0_rpc_fop_noop_fopt;
 
 M0_INTERNAL int m0_rpc_session_fop_init(void);
 
@@ -130,10 +129,6 @@ struct m0_rpc_fop_session_establish {
 	   sender_id of rpc-connection in which a new session is to be created.
 	 */
 	uint64_t rse_sender_id;
-	/**
-	   Number of slots the new session should have.
-	 */
-	uint32_t rse_slot_cnt;
 } M0_XCA_RECORD;
 
 /**
@@ -190,10 +185,6 @@ struct m0_rpc_fop_session_terminate_rep {
 	   otherwise.
 	 */
 	uint32_t rstr_rc;
-} M0_XCA_RECORD;
-
-struct m0_rpc_fop_noop {
-	uint64_t n_unused;
 } M0_XCA_RECORD;
 
 /* __MERO_RPC_SESSION_FOPS_H__ */

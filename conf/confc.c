@@ -932,11 +932,12 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	rc = resp->fr_rc ?: cache_grow(ctx->fc_confc, resp);
 
+	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
 	/* Let the rpc layer free memory allocated for response. */
 	m0_rpc_item_put(item->ri_reply);
-
 	/* The item has been consumed and is not needed any more. */
 	m0_rpc_item_put(item);
+	m0_sm_group_unlock(&item->ri_rmachine->rm_sm_grp);
 	ctx->fc_rpc_item = NULL;
 
 	if (rc == 0) {
@@ -1322,10 +1323,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 			    struct m0_rpc_machine *rpc_mach)
 {
 	enum {
-		NR_SLOTS = 5, /* That many m0_confc_ctx's will be able
-			       * to talk to confd simultaneously. */
-		MAX_RPCS_IN_FLIGHT = 2 * NR_SLOTS /* XXX Or should it
-						   * be == NR_SLOTS? */
+		MAX_RPCS_IN_FLIGHT = 2
 	};
 	int rc;
 
@@ -1333,8 +1331,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 	M0_PRE(not_empty(confd_addr) && rpc_mach != NULL);
 
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
-				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT,
-				   NR_SLOTS);
+				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT);
 	M0_POST((rc == 0) == confc_is_online(confc));
 	M0_RETURN(rc);
 }

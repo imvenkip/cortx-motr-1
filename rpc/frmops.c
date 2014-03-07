@@ -36,8 +36,7 @@
  * @{
  */
 
-static bool packet_ready(struct m0_rpc_packet *p);
-static bool item_bind(struct m0_rpc_item *item);
+static int packet_ready(struct m0_rpc_packet *p);
 
 static int net_buffer_allocate(struct m0_net_buffer *netbuf,
 			       struct m0_net_domain *ndom,
@@ -59,7 +58,6 @@ static void item_sent(struct m0_rpc_item *item);
  */
 const struct m0_rpc_frm_ops m0_rpc_frm_default_ops = {
 	.fo_packet_ready = packet_ready,
-	.fo_item_bind    = item_bind,
 };
 
 /**
@@ -126,7 +124,7 @@ rpc_buffer__rmachine(const struct rpc_buffer *rpcbuf)
 
    @see m0_rpc_frm_ops::fo_packet_ready()
  */
-static bool packet_ready(struct m0_rpc_packet *p)
+static int packet_ready(struct m0_rpc_packet *p)
 {
 	struct rpc_buffer *rpcbuf;
 	int                rc;
@@ -148,8 +146,7 @@ static bool packet_ready(struct m0_rpc_packet *p)
 	if (rc != 0)
 		goto out_fini;
 
-	M0_LEAVE("true");
-	return true;
+	M0_RETURN(rc);
 
 out_fini:
 	rpc_buffer_fini(rpcbuf);
@@ -164,8 +161,7 @@ out:
 	m0_rpc_packet_fini(p);
 	m0_free(p);
 
-	M0_LEAVE("false");
-	return false;
+	M0_RETURN(rc);
 }
 
 /**
@@ -410,15 +406,6 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
 
-	if (m0_rpc_item_is_request(item) &&
-	    M0_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_VOLATILE,
-				   RPC_ITEM_STAGE_PAST_COMMITTED))) {
-		/* cannot fail already completed request, just because
-		   resending it failed.
-		 */
-		M0_ASSERT(item->ri_reply != NULL && item->ri_nr_sent > 0);
-		rc = 0;
-	}
 	if (item->ri_pending_reply != NULL) {
 		/* item that is never sent, i.e. item->ri_nr_sent == 0,
 		   can never have a (pending/any) reply.
@@ -481,30 +468,12 @@ static void item_sent(struct m0_rpc_item *item)
 		if (item->ri_pending_reply != NULL) {
 			/* Reply has already been received when we
 			   were waiting for buffer callback */
-			m0_rpc_slot_process_reply(item,
-						  item->ri_pending_reply);
+			m0_rpc_item_process_reply(item, item->ri_pending_reply);
 			item->ri_pending_reply = NULL;
 			M0_ASSERT(item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED);
 		}
 	}
 	M0_LEAVE();
-}
-
-/**
-   @see m0_rpc_frm_ops::fo_item_bind()
- */
-static bool item_bind(struct m0_rpc_item *item)
-{
-	bool result;
-
-	M0_ENTRY("item: %p", item);
-	M0_PRE(item != NULL && m0_rpc_item_is_unbound(item));
-	M0_PRE(item->ri_session != NULL);
-
-	result = m0_rpc_session_bind_item(item);
-
-	M0_LEAVE("result: %s", m0_bool_to_str(result));
-	return result;
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -56,7 +56,6 @@ enum cob_fom_type {
 
 enum {
 	CLIENT_COB_DOM_ID         = 12,
-	CLIENT_RPC_SESSION_SLOTS  = 1,
 	CLIENT_RPC_CONN_TIMEOUT   = 200,
 	CLIENT_MAX_RPCS_IN_FLIGHT = 8,
 	COB_NAME_STRLEN           = 34,
@@ -142,7 +141,6 @@ static void cobfoms_utinit(void)
 	cctx->rcx_net_dom            = &cut->cu_nd;
 	cctx->rcx_local_addr         = CLIENT_EP_ADDR;
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
-	cctx->rcx_nr_slots           = CLIENT_RPC_SESSION_SLOTS;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
 
 	rc = m0_rpc_client_start(cctx);
@@ -235,6 +233,7 @@ static void cobfops_destroy(struct m0_fop_type *ftype1,
 	M0_UT_ASSERT(ftype1 == NULL || ftype1 == &m0_fop_cob_create_fopt);
 	M0_UT_ASSERT(ftype2 == NULL || ftype2 == &m0_fop_cob_delete_fopt);
 
+	m0_sm_group_lock(&cut->cu_cctx.rcx_rpc_machine.rm_sm_grp);
 	if (ftype1 != NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			m0_fop_put(cut->cu_createfops[i]);
@@ -242,6 +241,7 @@ static void cobfops_destroy(struct m0_fop_type *ftype1,
 	if (ftype2 != NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			m0_fop_put(cut->cu_deletefops[i]);
+	m0_sm_group_unlock(&cut->cu_cctx.rcx_rpc_machine.rm_sm_grp);
 
 	m0_free0(&cut->cu_createfops);
 	m0_free0(&cut->cu_deletefops);
@@ -293,6 +293,8 @@ static void cobfops_send_wait(struct cobthread_arg *arg)
 
 	rc = m0_rpc_client_call(fop, &cut->cu_cctx.rcx_session,
 				NULL, 0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	M0_UT_ASSERT(rfop->cor_rc == arg->ca_rc);

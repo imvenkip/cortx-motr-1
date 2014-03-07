@@ -92,9 +92,6 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 	M0_RETURN(rc);
 }
 
-const struct m0_fop_type_ops m0_rpc_fop_noop_ops = {
-};
-
 static struct m0_rpc_item_type_ops conn_establish_item_type_ops = {
 	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 	.rito_decode       = conn_establish_item_decode,
@@ -108,23 +105,9 @@ struct m0_fop_type m0_rpc_fop_session_establish_fopt;
 struct m0_fop_type m0_rpc_fop_session_establish_rep_fopt;
 struct m0_fop_type m0_rpc_fop_session_terminate_fopt;
 struct m0_fop_type m0_rpc_fop_session_terminate_rep_fopt;
-struct m0_fop_type m0_rpc_fop_noop_fopt;
-
-static struct m0_fop_type *fop_types[] = {
-	&m0_rpc_fop_conn_establish_fopt,
-	&m0_rpc_fop_conn_terminate_fopt,
-	&m0_rpc_fop_session_establish_fopt,
-	&m0_rpc_fop_session_terminate_fopt,
-	&m0_rpc_fop_conn_establish_rep_fopt,
-	&m0_rpc_fop_conn_terminate_rep_fopt,
-	&m0_rpc_fop_session_establish_rep_fopt,
-	&m0_rpc_fop_session_terminate_rep_fopt,
-	&m0_rpc_fop_noop_fopt,
-};
 
 M0_INTERNAL void m0_rpc_session_fop_fini(void)
 {
-	m0_fop_type_fini(&m0_rpc_fop_noop_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_session_terminate_rep_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_session_establish_rep_fopt);
 	m0_fop_type_fini(&m0_rpc_fop_conn_terminate_rep_fopt);
@@ -143,6 +126,7 @@ extern struct m0_fom_type_ops m0_rpc_fom_session_establish_type_ops;
 extern struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops;
 extern struct m0_fom_type_ops m0_rpc_fom_session_terminate_type_ops;
 extern struct m0_reqh_service_type m0_rpc_service_type;
+
 M0_INTERNAL int m0_rpc_session_fop_init(void)
 {
 	m0_xc_session_fops_init();
@@ -207,13 +191,6 @@ M0_INTERNAL int m0_rpc_session_fop_init(void)
 			 .xt        = m0_rpc_fop_session_terminate_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .svc_type  = &m0_rpc_service_type);
-	M0_FOP_TYPE_INIT(&m0_rpc_fop_noop_fopt,
-			 .name      = "No-op",
-			 .opcode    = M0_RPC_NOOP_OPCODE,
-			 .xt        = m0_rpc_fop_noop_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
-			 .fop_ops   = &m0_rpc_fop_noop_ops,
-			 .svc_type  = &m0_rpc_service_type);
 	return 0;
 }
 
@@ -233,18 +210,6 @@ M0_INTERNAL void m0_rpc_fop_conn_establish_ctx_init(struct m0_rpc_item *item,
 	m0_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
 	M0_LEAVE();
-}
-
-M0_INTERNAL bool m0_rpc_item_is_control_msg(const struct m0_rpc_item *item)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(fop_types); i++) {
-		if (item->ri_type->rit_opcode ==
-		    fop_types[i]->ft_rpc_item_type.rit_opcode)
-			return true;
-	}
-	return false;
 }
 
 /** @} End of rpc_session group */

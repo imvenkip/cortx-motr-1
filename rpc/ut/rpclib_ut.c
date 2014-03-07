@@ -109,7 +109,9 @@ static int send_fop(struct m0_rpc_session *session)
 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);
 
+	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
 	m0_fop_put(fop);
+	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
 out:
 	return rc;
 }

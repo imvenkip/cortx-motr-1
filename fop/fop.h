@@ -132,6 +132,21 @@ struct m0_fop *m0_fop_get(struct m0_fop *fop);
 void m0_fop_put(struct m0_fop *fop);
 
 /**
+ * Same as m0_fop_put() but also locks/unlocks rpc machine.
+ */
+M0_INTERNAL void m0_fop_put_lock(struct m0_fop *fop);
+
+/**
+ * Takes rpc machine lock.
+ */
+M0_INTERNAL void m0_fop_rpc_lock(struct m0_fop *fop);
+
+/**
+ * Releases rpc machine lock.
+ */
+M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop);
+
+/**
    Allocates and initialises fop object
 
    @param fopt fop type to assign to this fop object

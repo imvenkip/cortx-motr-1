@@ -25,23 +25,16 @@
 
 #include "xcode/xcode.h"  /* m0_xcode_what */
 
-struct m0_rpc_slot_ref;
+struct m0_rpc_item_header2;
 
 /**
  * @addtogroup rpc
  * @{
  */
 
-/**
- * Encodes or decodes onwire parts of m0_rpc_slot_refs.
- *
- * For every x in `slot_refs' array, encodes or decodes, depending on
- * `what' argument, x->sr_ow.
- */
-M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
-					struct m0_rpc_slot_ref *slot_refs,
-					int nr_slot_refs,
-					enum m0_xcode_what what);
+M0_INTERNAL int m0_rpc_item_header2_encdec(struct m0_rpc_item_header2 *ioh,
+					   struct m0_bufvec_cursor    *cur,
+					   enum m0_xcode_what          what);
 
 /** @} */
 

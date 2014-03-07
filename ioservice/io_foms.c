@@ -922,7 +922,8 @@ M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
         m0_fid_set(out, in->si_bits.u_hi, in->si_bits.u_lo);
 }
 
-static struct m0_file *io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid)
+static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
+			   struct m0_file **out)
 {
 	int			   rc;
 	struct m0_cob		  *cob;
@@ -937,14 +938,14 @@ static struct m0_file *io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid)
 			   rios_gen);
 	cob_dom = ios->rios_cdom;
 	if (cob_dom == NULL)
-		return NULL;
+		return -EINVAL;
 
 	m0_cob_oikey_make(&oikey, fid, 0);
 	rc = m0_cob_locate(cob_dom, &oikey, M0_CA_NSKEY_FREE, &cob);
-	if (rc < 0 || cob == NULL)
-		return NULL;
+	if (rc == 0)
+		*out = &cob->co_file;
 
-	return &cob->co_file;
+	return rc;
 }
 
 /**
@@ -1134,7 +1135,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_PRE(m0_is_io_fop(fop));
 	M0_PRE(out != NULL);
 
-	M0_ENTRY();
+	M0_ENTRY("fop=%p", fop);
 
 	rwfop = io_rw_get(fop);
 
@@ -1187,7 +1188,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
 	stobio_tlist_init(&fom_obj->fcrw_done_list);
 
-	M0_LOG(M0_DEBUG, "FOM created : operation=%s, desc=%d.",
+	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d.", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
 
         M0_RETURN(rc);
@@ -1242,6 +1243,8 @@ static int io_prepare(struct m0_fom *fom)
 	struct m0_pool_version_numbers *cliv;
 	int                             rc;
 
+	M0_ENTRY("fom=%p", fom);
+
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
 	rwfop = io_rw_get(fom->fo_fop);
@@ -1264,6 +1267,7 @@ static int io_prepare(struct m0_fom *fom)
 	if (rc != 0)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 
+	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }
 /**
@@ -1295,6 +1299,8 @@ static int net_buffer_acquire(struct m0_fom *fom)
         M0_PRE(fom->fo_service != NULL);
         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_ACQUIRE ||
                m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_WAIT);
+
+	M0_ENTRY("fom=%p", fom);
 
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
@@ -1363,6 +1369,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
                     m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
                     m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
+                    M0_LEAVE();
                     return M0_FSO_WAIT;
             } else if (nb == NULL) {
                     m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
@@ -1391,6 +1398,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
 	M0_LOG(M0_DEBUG, "Acquired network buffers, batch_size = %d.",
 	       fom_obj->fcrw_batch_size);
 
+	M0_LEAVE();
         return M0_FSO_AGAIN;
 }
 
@@ -1419,6 +1427,8 @@ static int net_buffer_release(struct m0_fom *fom)
 	M0_PRE(m0_is_read_fop(fom->fo_fop) || m0_is_write_fop(fom->fo_fop));
 	M0_PRE(fom->fo_service != NULL);
 	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_BUFFER_RELEASE);
+
+	M0_ENTRY("fom=%p", fom);
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
@@ -1452,6 +1462,7 @@ static int net_buffer_release(struct m0_fom *fom)
         if (required_net_bufs == 0)
                m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 
+	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }
 
@@ -1481,6 +1492,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_INIT);
+
+	M0_ENTRY("fom=%p", fom);
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
@@ -1517,13 +1530,13 @@ static int zero_copy_initiate(struct m0_fom *fom)
                  *         count to original since buffers are reused by other
                  *         I/O requests.
                  */
-
 		rc = rc ?: m0_rpc_bulk_buf_add(rbulk, segs_nr, dom,
 					       nb, &rb_buf);
                 if (rc != 0) {
                         m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
                         IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_1,
 					  &fom->fo_addb_ctx);
+			M0_LEAVE();
                         return M0_FSO_AGAIN;
                 }
 
@@ -1554,11 +1567,13 @@ static int zero_copy_initiate(struct m0_fom *fom)
                 m0_rpc_bulk_fini(rbulk);
                 m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
                 IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_2, &fom->fo_addb_ctx);
+		M0_LEAVE();
                 return M0_FSO_AGAIN;
         }
 	M0_LOG(M0_DEBUG, "Zero-copy initiated. Added buffers %d",
 	       buffers_added);
 
+	M0_LEAVE();
         return M0_FSO_WAIT;
 }
 
@@ -1576,6 +1591,8 @@ static int zero_copy_finish(struct m0_fom *fom)
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_rpc_bulk      *rbulk;
 
+	M0_ENTRY("fom=%p", fom);
+
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
@@ -1592,6 +1609,7 @@ static int zero_copy_finish(struct m0_fom *fom)
                 IOS_ADDB_FUNCFAIL(rbulk->rb_rc, ZERO_COPY_FINISH,
 				  &fom->fo_addb_ctx);
                 m0_mutex_unlock(&rbulk->rb_mutex);
+		M0_LEAVE();
                 return M0_FSO_AGAIN;
         }
 
@@ -1599,6 +1617,7 @@ static int zero_copy_finish(struct m0_fom *fom)
         m0_rpc_bulk_fini(rbulk);
 	M0_LOG(M0_DEBUG, "Zero-copy finished.");
 
+	M0_LEAVE();
         return M0_FSO_AGAIN;
 }
 
@@ -1645,6 +1664,8 @@ static int io_launch(struct m0_fom *fom)
         M0_PRE(m0_is_io_fop(fom->fo_fop));
         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_INIT);
 
+	M0_ENTRY("fom=%p", fom);
+
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 	M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
@@ -1656,11 +1677,11 @@ static int io_launch(struct m0_fom *fom)
 
 	rc = stob_object_find(fom);
 	if (rc != 0)
-		goto cleanup;
+		goto out;
 
-	file = io_fom_cob2file(fom, &rwfop->crw_fid);
-	if (file == NULL)
-		goto cleanup;
+	rc = io_fom_cob2file(fom, &rwfop->crw_fid, &file);
+	if (rc != 0)
+		goto out;
 
 	/*
 	  Since the upper layer IO block size could differ with IO block size
@@ -1790,11 +1811,14 @@ static int io_launch(struct m0_fom *fom)
 	if (fom_obj->fcrw_num_stobio_launched > 0) {
 		M0_LOG(M0_DEBUG, "STOB I/O launched, io_descs = %d",
 		       fom_obj->fcrw_num_stobio_launched);
+		M0_LEAVE();
 		return M0_FSO_WAIT;
 	}
 
-	m0_stob_put(fom_obj->fcrw_stob);
-cleanup:
+out:
+	if (fom_obj->fcrw_stob != NULL)
+		m0_stob_put(fom_obj->fcrw_stob);
+
 	if (rc != 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_1, &fom->fo_addb_ctx);
@@ -1803,6 +1827,7 @@ cleanup:
 		M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
 		M0_IMPOSSIBLE("Implement me.");
 	}
+	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }
 
@@ -1825,6 +1850,8 @@ static int io_finish(struct m0_fom *fom)
         M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
+
+	M0_ENTRY("fom=%p", fom);
 
 	if (M0_FI_ENABLED("fake_error"))
 		rc = -EINVAL;
@@ -1868,11 +1895,13 @@ static int io_finish(struct m0_fom *fom)
 		M0_LOG(M0_ERROR, "rc=%d", rc);
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
                 IOS_ADDB_FUNCFAIL(rc, IO_FINISH, &fom->fo_addb_ctx);
+		M0_LEAVE();
 	        return M0_FSO_AGAIN;
         }
 
 	M0_LOG(M0_DEBUG, "STOB I/O finished.");
 
+	M0_LEAVE();
         return M0_FSO_AGAIN;
 }
 
@@ -2070,18 +2099,6 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 			       (uint64_t) fom_obj->fcrw_count);
 
 	m0_fom_fini(fom);
-
-	/* drop it completely from rpc slot also */
-	if (!fom->fo_local) {
-		struct m0_rpc_machine *rmachine = fop->f_item.ri_rmachine;
-
-		M0_ASSERT(rmachine != NULL);
-		m0_sm_group_lock(&rmachine->rm_sm_grp);
-		if (m0_ref_read(&fop->f_ref) > 0)
-			m0_fop_put(fop);
-		m0_sm_group_unlock(&rmachine->rm_sm_grp);
-	}
-
 	m0_free(fom_obj);
 }
 
