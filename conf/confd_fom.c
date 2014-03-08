@@ -50,7 +50,7 @@ static void conf_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 static int conf_fetch_tick(struct m0_fom *fom);
 static int conf_update_tick(struct m0_fom *fom);
 static int confx_populate(struct m0_confx *dest, const struct objid *origin,
-			  const struct arr_buf *path,
+			  const struct arr_fid *path,
 			  struct m0_conf_cache *cache);
 
 static size_t confd_fom_locality(const struct m0_fom *fom)
@@ -188,7 +188,7 @@ static int readiness_check(const struct m0_conf_obj *obj)
  * @param n      Address of the counter to be used by apply().
  * @param enc    Encoded configuration data to be used by apply().
  */
-static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
+static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 			   int (*apply)(size_t *n, struct m0_confx *enc,
 					const struct m0_conf_obj *obj),
 			   size_t *n, struct m0_confx *enc)
@@ -200,7 +200,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 	M0_ENTRY();
 	M0_PRE(m0_conf_obj_invariant(cur) && cur->co_status == M0_CS_READY);
 
-	for (i = 0; i < path->ab_count; ++i) {
+	for (i = 0; i < path->af_count; ++i) {
 		/* Handle intermediate object. */
 		if (cur->co_type != M0_CO_DIR) {
 			rc = apply(n, enc, cur);
@@ -208,7 +208,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 				M0_RETURN(rc);
 		}
 
-		rc = cur->co_ops->coo_lookup(cur, &path->ab_elems[i], &cur) ?:
+		rc = cur->co_ops->coo_lookup(cur, &path->af_elems[i], &cur) ?:
 			readiness_check(cur);
 		if (rc != 0)
 			M0_RETURN(rc);
@@ -238,7 +238,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 }
 
 static int confx_populate(struct m0_confx *dest, const struct objid *origin,
-			  const struct arr_buf *path,
+			  const struct arr_fid *path,
 			  struct m0_conf_cache *cache)
 {
 	struct m0_conf_obj *org;

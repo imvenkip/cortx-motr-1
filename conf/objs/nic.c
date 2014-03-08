@@ -70,7 +70,7 @@ nic_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		m0_buf_streq(&xobj->xi_filename, obj->ni_filename);
 }
 
-static int nic_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
+static int nic_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 		      struct m0_conf_obj **out)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
@@ -110,4 +110,3 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__nic_create(void)
 	ret->co_ops = &nic_ops;
 	return ret;
 }
-

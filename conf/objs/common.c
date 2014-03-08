@@ -20,7 +20,6 @@
 
 #include "conf/objs/common.h"
 #include "conf/cache.h"
-#include "conf/buf_ext.h" /* m0_buf_is_aimed */
 
 static bool mounted_as(const struct m0_conf_obj *obj, enum m0_conf_objtype type)
 {
@@ -98,9 +97,9 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 }
 
 M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
-			const struct m0_buf *dir_id,
+			const struct m0_fid *dir_id,
 			enum m0_conf_objtype children_type,
-			const struct arr_buf *src, struct m0_conf_dir **out)
+			const struct arr_fid *src, struct m0_conf_dir **out)
 {
 	struct m0_conf_obj *child;
 	uint32_t            i;
@@ -117,15 +116,15 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 
 	(*out)->cd_item_type = children_type;
 
-	for (rc = 0, i = 0; i < src->ab_count; ++i) {
+	for (rc = 0, i = 0; i < src->af_count; ++i) {
 		child = m0_conf_cache_lookup(cache, children_type,
-					     &src->ab_elems[i]);
+					     &src->af_elems[i]);
 		if (child != NULL) {
 			rc = -EEXIST; /* ban duplicates */
 			break;
 		}
 
-		rc = m0_conf_obj_find(cache, children_type, &src->ab_elems[i],
+		rc = m0_conf_obj_find(cache, children_type, &src->af_elems[i],
 				      &child);
 		if (rc != 0)
 			break;
@@ -236,37 +235,28 @@ M0_INTERNAL int arrbuf_from_strings(struct arr_buf *dest, const char **src)
 	return 0;
 }
 
-M0_INTERNAL int arrbuf_from_dir(struct arr_buf *dest,
+M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
 				const struct m0_conf_dir *dir)
 {
 	struct m0_conf_obj *obj;
 	size_t              i;
-	int                 rc;
 
-	dest->ab_elems = NULL;
-	dest->ab_count = m0_conf_dir_tlist_length(&dir->cd_items);
+	dest->af_elems = NULL;
+	dest->af_count = m0_conf_dir_tlist_length(&dir->cd_items);
 
-	if (dest->ab_count == 0)
+	if (dest->af_count == 0)
 		return 0;
 
-	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
-	if (dest->ab_elems == NULL)
+	M0_ALLOC_ARR(dest->af_elems, dest->af_count);
+	if (dest->af_elems == NULL)
 		return -ENOMEM;
 
 	i = 0;
 	m0_tl_for(m0_conf_dir, &dir->cd_items, obj) {
-		rc = m0_buf_copy(&dest->ab_elems[i], &obj->co_id);
-		if (rc != 0)
-			goto err;
-		++i;
+		dest->af_elems[i++] = obj->co_id;
 	} m0_tl_endfor;
 
 	return 0;
-err:
-	M0_ASSERT(i < dest->ab_count);
-	dest->ab_count = i;
-	arrbuf_free(dest);
-	return rc;
 }
 
 M0_INTERNAL void arrbuf_free(struct arr_buf *arr)
@@ -275,4 +265,9 @@ M0_INTERNAL void arrbuf_free(struct arr_buf *arr)
 		m0_buf_free(&arr->ab_elems[--arr->ab_count]);
 	m0_free0(&arr->ab_elems);
 	M0_POST(arr->ab_count == 0);
+}
+
+M0_INTERNAL void arrfid_free(struct arr_fid *arr)
+{
+	m0_free0(&arr->af_elems);
 }

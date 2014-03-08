@@ -156,7 +156,7 @@ static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 	return ret;
 }
 
-static int dir_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
+static int dir_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 		      struct m0_conf_obj **out)
 {
 	struct m0_conf_obj *item;
@@ -165,7 +165,7 @@ static int dir_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
 	M0_PRE(parent->co_status == M0_CS_READY);
 
 	m0_tl_for(m0_conf_dir, &x->cd_items, item) {
-		if (m0_buf_eq(&item->co_id, name)) {
+		if (m0_fid_eq(&item->co_id, name)) {
 			*out = item;
 			M0_POST(m0_conf_obj_invariant(*out));
 			return 0;

@@ -224,6 +224,12 @@ void __dummy_function(void);
 	(obj) = container_of((ptr), typeof(*(obj)), field);	\
 })
 
+#define M0_MEMBER_PTR(ptr, member)		\
+({						\
+	typeof(ptr) __ptr = (ptr);		\
+	__ptr == NULL ? NULL : &__ptr->member;	\
+})
+
 /**
  * Produces an expression having the same type as a given field in a given
  * struct or union. Suitable to be used as an argument to sizeof() or typeof().

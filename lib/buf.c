@@ -61,6 +61,38 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 	return 0;
 }
 
+M0_INTERNAL bool m0_buf_is_aimed(const struct m0_buf *buf)
+{
+	return buf->b_nob > 0 && buf->b_addr != NULL;
+}
+
+M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str)
+{
+	M0_PRE(m0_buf_is_aimed(buf) && str != NULL);
+
+	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
+		strlen(str) == buf->b_nob;
+}
+
+M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf)
+{
+	size_t len;
+	char  *s;
+
+	M0_PRE(m0_buf_is_aimed(buf));
+
+	/* Measure the size of payload. */
+	s = memchr(buf->b_addr, 0, buf->b_nob);
+	len = s == NULL ? buf->b_nob : s - (char *)buf->b_addr;
+
+	M0_ALLOC_ARR(s, len + 1);
+	if (s != NULL) {
+		memcpy(s, buf->b_addr, len);
+		s[len] = 0;
+	}
+	return s;
+}
+
 /** @} end of buf group */
 
 /*

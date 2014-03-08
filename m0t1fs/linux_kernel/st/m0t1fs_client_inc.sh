@@ -26,8 +26,15 @@ mount_m0t1fs()
 	# prepare configuration data
 	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
 	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
+	PROF='(1, 0)'
+	PROF_OPT='1:0'
+	FS='(1, 1)'
+	MDS='(1, 2)'
+	RM='(1, 3)'
+	STATS='(1, 4)'
+	NODE='(4, 0)'
 	for ((i=1; i < ${#EP[*]}; i++)); do
-	    IOS_NAME="\"ios$i\""
+	    IOS_NAME="(3, $i)"
 
 	    if ((i == 1)); then
 	        IOS_NAMES="$IOS_NAME"
@@ -36,7 +43,7 @@ mount_m0t1fs()
 	    fi
 
 	    local ep=\"${server_nid}:${EP[$i]}\"
-	    IOS_OBJ="($IOS_NAME, {3| (2, [1: $ep], \"_\")})"
+	    IOS_OBJ="($IOS_NAME, {3| (2, [1: $ep], $NODE)})"
 	    if ((i == 1)); then
 	        IOS_OBJS="$IOS_OBJ"
 	    else
@@ -46,21 +53,21 @@ mount_m0t1fs()
 
 	local CONF="`cat <<EOF
 [$((${#EP[*]} + 3)):
-  ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22),
+  ($PROF, {1| ($FS)}),
+  ($FS, {2| ((11, 22),
 	      [4: "pool_width=$P",
 		  "nr_data_units=$N",
 		  "nr_parity_units=$K",
 		  "unit_size=$unit_size"],
-	      [$((${#EP[*]} + 1)): "mds", "dlm", $IOS_NAMES])}),
-  ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
-  ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
+	      [$((${#EP[*]} + 1)): $MDS, $RM, $IOS_NAMES])}),
+  ($MDS, {3| (1, [1: $MDS_ENDPOINT], $NODE)}),
+  ($RM, {3| (4, [1: $RMS_ENDPOINT], $NODE)}),
   $IOS_OBJS]
 EOF`"
 
 	echo "Mounting file system..."
 
-	cmd="sudo mount -t m0t1fs -o profile=prof,local_conf='$CONF' \
+	cmd="sudo mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF' \
 	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {

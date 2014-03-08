@@ -66,8 +66,8 @@ struct m0_confx;
  *
 @verbatim
 [2:
- ("prof", {1| ("fs")}),
- ("fs", {2|
+ ((0, 1), {1| (0, 2)}),
+ ((0, 2), {2|
          ((11, 22),
           [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
               "unit_size=4096"],
@@ -78,17 +78,17 @@ struct m0_confx;
  *
  * @code
  * struct m0_confx_obj a = {
- *         .o_id = M0_BUF_INITS("prof"),
+ *         .o_id = { 0, 1 },
  *         .o_conf = {
  *                 .u_type = M0_CO_PROFILE,
  *                 .u.u_profile = {
- *                         .xp_filesystem = M0_BUF_INITS("fs")
+ *                         .xp_filesystem = { 0, 2 }
  *                 }
  *         }
  * };
  *
  * struct m0_confx_obj b = {
- *         .o_id = M0_BUF_INITS("fs"),
+ *         .o_id = { 0, 2 },
  *         .o_conf = {
  *                 .u_type = M0_CO_FILESYSTEM,
  *                 .u.u_filesystem = {

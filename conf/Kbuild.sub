@@ -1,4 +1,4 @@
-m0mero_objects += conf/buf_ext.o \
+m0mero_objects += \
                   conf/cache.o \
                   conf/confc.o \
                   conf/fop.o \

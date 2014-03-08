@@ -668,33 +668,41 @@ main()
 	MDS_ENDPOINT="\"${SERVICES[1]}\""
 	RMS_ENDPOINT="\"${SERVICES[1]}\""
 	STATS_ENDPOINT="\"${SERVICES[1]}\""
-	IOS_NAMES='"ios1"'
-	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
+	PROF='(1, 0)'
+	PROF_OPT='1:0'
+	FS='(1, 1)'
+	MDS='(1, 2)'
+	RM='(1, 3)'
+	STATS='(1, 4)'
+	NODE='(4, 0)'
+	IOS_NAMES='(3, 1)'
+	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], $NODE)})"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
-		IOS_NAME="\"ios$(((i+1) / 2))\""
+		IOS_NAME="(3, $(((i+1) / 2)))"
 		IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-		IOS_OBJ="($IOS_NAME, {3| (2, [1: \"${SERVICES[$i]}\"], \"_\")})"
+		IOS_OBJ="($IOS_NAME, {3| (2, [1: \"${SERVICES[$i]}\"], $NODE)})"
 		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
 	done
 
 	CONF="`cat <<EOF
 [$((SERVICES_NR + 5)):
-  ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22),
+  ($PROF, {1| ($FS)}),
+  ($FS, {2| ((11, 22),
               [4: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
 		  "nr_parity_units=$NR_PARITY",
                   "unit_size=$UNIT_SIZE"],
-              [$((SERVICES_NR + 3)): "mds", "dlm", "stats", $IOS_NAMES])}),
-  ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
-  ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
-  ("stats", {3| (5, [1: $STATS_ENDPOINT], "_")}),
+              [$((SERVICES_NR + 3)): $MDS, $RM, $STATS, $IOS_NAMES])}),
+  ($MDS, {3| (1, [1: $MDS_ENDPOINT], $NODE)}),
+  ($RM, {3| (4, [1: $RMS_ENDPOINT], $NODE)}),
+  ($STATS, {3| (5, [1: $STATS_ENDPOINT], $NODE)}),
   $IOS_OBJS]
 EOF`"
 
 	# mount the file system
 	mkdir -p $MP
-	l_run "mount -t m0t1fs -o profile=prof,local_conf='$CONF' none $MP" || {
+	l_run "mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF' \
+               'm0t1' $MP" || {
 		echo ERROR: Unable to mount the file system
 		exit 1
 	}

@@ -43,7 +43,6 @@
 #include "lib/finject.h"
 #include "lib/string.h"		/* m0_strdup */
 
-#include "conf/buf_ext.h" /* m0_buf_is_aimed */
 #include "mero/magic.h"
 #include "db/db.h"
 #include "db/db_common.h"

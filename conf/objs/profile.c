@@ -22,6 +22,8 @@
 #include "conf/confc.h"  /* m0_confc */
 #include "mero/magic.h"  /* M0_CONF_PROFILE_MAGIC */
 
+const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID = { 0, 1 };
+
 static bool profile_check(const void *bob)
 {
 	const struct m0_conf_profile *self = bob;
@@ -33,7 +35,7 @@ static bool profile_check(const void *bob)
 		self_obj->co_parent == NULL &&
 		ergo(self_obj->co_mounted,
 		     child_check(self_obj,
-				 MEMBER_PTR(self->cp_filesystem, cf_obj),
+				 M0_MEMBER_PTR(self->cp_filesystem, cf_obj),
 				 M0_CO_FILESYSTEM));
 }
 
@@ -62,19 +64,12 @@ static int profile_decode(struct m0_conf_obj *dest,
 static int
 profile_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	int rc;
 	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
 
 	dest->o_conf.u_type = src->co_type;
-	rc = m0_buf_copy(&dest->o_id, &src->co_id);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_buf_copy(&dest->o_conf.u.u_profile.xp_filesystem,
-			 &s->cp_filesystem->cf_obj.co_id);
-	if (rc != 0)
-		m0_buf_free(&dest->o_id);
-	return rc;
+	dest->o_id = src->co_id;
+	dest->o_conf.u.u_profile.xp_filesystem = s->cp_filesystem->cf_obj.co_id;
+	return 0;
 }
 
 static bool
@@ -84,15 +79,15 @@ profile_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	const struct m0_conf_filesystem *child =
 		M0_CONF_CAST(cached, m0_conf_profile)->cp_filesystem;
 
-	return m0_buf_eq(&child->cf_obj.co_id, &xobj->xp_filesystem);
+	return m0_fid_eq(&child->cf_obj.co_id, &xobj->xp_filesystem);
 }
 
-static int profile_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
+static int profile_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 			  struct m0_conf_obj **out)
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!m0_buf_streq(name, "filesystem"))
+	if (!m0_fid_eq(name, &M0_CONF_PROFILE_FILESYSTEM_FID))
 		return -ENOENT;
 
 	*out = &M0_CONF_CAST(parent, m0_conf_profile)->cp_filesystem->cf_obj;

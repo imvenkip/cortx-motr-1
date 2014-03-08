@@ -24,11 +24,11 @@
 #include "conf/confc.h"
 #include "conf/obj_ops.h"
 #include "conf/preload.h"     /* m0_confstr_parse */
-#include "conf/buf_ext.h"     /* m0_buf_is_aimed */
 #include "conf/fop.h"         /* m0_conf_fetch_fopt */
 #include "mero/magic.h"       /* M0_CONFC_MAGIC, M0_CONFC_CTX_MAGIC */
 #include "fop/fom_generic.h"  /* m0_rpc_item_is_generic_reply_fop */
 #include "rpc/rpc.h"          /* m0_rpc_post */
+#include "fid/fid.h"          /* m0_fid_is_set */
 #include "rpc/rpclib.h"       /* m0_rpc_client_connect */
 #include "lib/arith.h"        /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/misc.h"         /* M0_IN */
@@ -396,13 +396,13 @@ static bool not_empty(const char *s)
 }
 
 static int confc_cache_create(struct m0_confc *confc,
-			      const struct m0_buf *profile,
+			      const struct m0_fid *profile,
 			      const char *local_conf)
 {
 	int rc;
 
 	M0_ENTRY("confc=%p", confc);
-	M0_PRE(m0_buf_is_aimed(profile));
+	M0_PRE(m0_fid_is_set(profile));
 	M0_PRE(confc_is_locked(confc));
 
 	m0_conf_cache_init(&confc->cc_cache, &confc->cc_lock);
@@ -424,7 +424,7 @@ static int confc_cache_create(struct m0_confc *confc,
 			 * that of profile, is retrieved from confd.
 			 *  --vvv */
 			M0_LOG(M0_ERROR, "Preloaded configuration has no data"
-			       " on profile `%s'", (char *)profile->b_addr);
+			       " on profile "FID_F, FID_P(profile));
 			rc = -ENODATA;
 		}
 	}
@@ -433,7 +433,7 @@ static int confc_cache_create(struct m0_confc *confc,
 
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 			      struct m0_sm_group    *sm_group,
-			      const struct m0_buf   *profile,
+			      const struct m0_fid   *profile,
 			      const char            *confd_addr,
 			      struct m0_rpc_machine *rpc_mach,
 			      const char            *local_conf)
@@ -511,7 +511,7 @@ static bool _confc_check(const void *bob)
 
 static bool on_object_updated(struct m0_clink *link);
 static bool request_check(const struct m0_confc_ctx *ctx);
-static bool eop(const struct m0_buf *buf);
+static bool eop(const struct m0_fid *buf);
 static void confc_group_lock(const struct m0_confc *confc);
 static void confc_group_unlock(const struct m0_confc *confc);
 
@@ -544,20 +544,14 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 
 M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx)
 {
-	struct m0_buf   *pc;
 	struct m0_confc *confc = ctx->fc_confc;
 
 	M0_ENTRY("ctx=%p", ctx);
 	M0_PRE(ctx_invariant(ctx));
 
 	m0_clink_fini(&ctx->fc_clink);
-
-	for (pc = ctx->fc_path; !eop(pc); ++pc)
-		m0_buf_free(pc);
 	ctx->fc_origin = NULL;
-
 	confc_group_lock(confc); /* needed for m0_sm_fini() */
-
 	confc_lock(confc);
 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
 		m0_conf_obj_put(ctx->fc_result);
@@ -669,12 +663,12 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
  * ------------------------------------------------------------------ */
 
 static void ast_state_set(struct m0_sm_ast *ast, enum confc_ctx_state state);
-static int path_copy(const struct m0_buf *src, struct m0_buf *dest,
+static int path_copy(const struct m0_fid *src, struct m0_fid *dest,
 		     size_t dest_sz);
 
 M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 			       struct m0_conf_obj *origin,
-			       const struct m0_buf *path)
+			       const struct m0_fid *path)
 {
 	int rc;
 
@@ -695,7 +689,7 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 				    struct m0_conf_obj *origin,
-				    const struct m0_buf *path)
+				    const struct m0_fid *path)
 {
 	struct sm_waiter w;
 	int              rc;
@@ -731,37 +725,27 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
  * @retval -ENOMEM  Memory allocation failure.
  */
 static int
-path_copy(const struct m0_buf *src, struct m0_buf *dest, size_t dest_sz)
+path_copy(const struct m0_fid *src, struct m0_fid *dest, size_t dest_sz)
 {
 	size_t i;
-	int    rc;
 
 	M0_ENTRY();
 
-	for (rc = 0, i = 0; i < dest_sz && !eop(&src[i]); ++i) {
-		rc = m0_buf_copy(&dest[i], &src[i]);
-		if (rc != 0)
-			goto err;
-	}
+	for (i = 0; i < dest_sz && !eop(&src[i]); ++i)
+		dest[i] = src[i];
 
-	if (i == dest_sz) {
-		rc = -E2BIG;
-		goto err;
-	}
-	dest[i] = (struct m0_buf)M0_BUF_INIT0; /* terminate the path */
+	if (i == dest_sz)
+		M0_RETURN(-E2BIG);
+	dest[i] = (struct m0_fid)M0_FID0; /* terminate the path */
 
 	M0_RETURN(0);
-err:
-	for (; i > 0; --i)
-		m0_buf_free(&dest[i - 1]);
-	M0_RETURN(rc);
 }
 
 /* ------------------------------------------------------------------
  * readdir
  * ------------------------------------------------------------------ */
 
-static void dir_relation(enum m0_conf_objtype item_type, struct m0_buf *dest);
+static void dir_relation(enum m0_conf_objtype item_type, struct m0_fid *dest);
 
 M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 				 struct m0_conf_obj  *dir,
@@ -782,8 +766,8 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 		 *   relation is how dir is referred to by the origin,
 		 *   entry is the first missing entry in the dir.
 		 */
-		struct m0_buf path[3] = {
-			[ARRAY_SIZE(path) - 1] = M0_BUF_INIT0 /* eop */
+		struct m0_fid path[3] = {
+			[ARRAY_SIZE(path) - 1] = M0_FID0 /* eop */
 		};
 
 		dir_relation(M0_CONF_CAST(dir, m0_conf_dir)->cd_item_type,
@@ -821,22 +805,18 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 	return rc;
 }
 
-static void dir_relation(enum m0_conf_objtype item_type, struct m0_buf *dest)
+static void dir_relation(enum m0_conf_objtype item_type, struct m0_fid *dest)
 {
-	switch (item_type) {
-#define _CASE(type, name)                                        \
-	case type:                                               \
-		*dest = (const struct m0_buf)M0_BUF_INITS(name); \
-		break
+	static const struct m0_fid *relation[M0_CO_NR] = {
+		[M0_CO_SERVICE] = &M0_CONF_FILESYSTEM_SERVICES_FID,
+		[M0_CO_NIC]     = &M0_CONF_NODE_NICS,
+		[M0_CO_SDEV]    = &M0_CONF_NODE_SDEVS
+	};
 
-	_CASE(M0_CO_SERVICE,   "services");
-	_CASE(M0_CO_NIC,       "nics");
-	_CASE(M0_CO_SDEV,      "sdevs");
-	_CASE(M0_CO_PARTITION, "partitions");
-#undef _CASE
-	default:
+	if (IS_IN_ARRAY(item_type, relation) && relation[item_type] != NULL)
+		*dest = *relation[item_type];
+	else
 		M0_IMPOSSIBLE("Invalid value of m0_conf_dir::cd_item_type");
-	}
 }
 
 /* ------------------------------------------------------------------
@@ -1040,10 +1020,9 @@ static int request_create(struct m0_confc_ctx *ctx,
 static bool confc_group_is_locked(const struct m0_confc *confc);
 
 /** Last path element? */
-static bool eop(const struct m0_buf *buf)
+static bool eop(const struct m0_fid *id)
 {
-	M0_PRE(equi(buf->b_nob == 0, buf->b_addr == NULL));
-	return buf->b_nob == 0;
+	return !m0_fid_is_set(id);
 }
 
 /**
@@ -1296,7 +1275,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 	for (i = 0; i < resp->fr_data.cx_nr; ++i) {
 		flat = &resp->fr_data.cx_objs[i];
 
-		if (!m0_buf_is_aimed(&flat->o_id)) {
+		if (!m0_fid_is_set(&flat->o_id)) {
 			M0_LOG(M0_ERROR, "Invalid m0_confx_obj received");
 			rc = -EPROTO;
 			break;
@@ -1473,9 +1452,8 @@ static int request_create(struct m0_confc_ctx *ctx,
 
 	for (len = 0; !eop(&ctx->fc_path[ri + len]); ++len)
 		; /* measure path length */
-	req->f_path.ab_count = len;
-	req->f_path.ab_elems = len == 0 ? NULL :
-		(struct m0_buf *)&ctx->fc_path[ri]; /* strip const */
+	req->f_path.af_count = len;
+	req->f_path.af_elems = len == 0 ? NULL : &ctx->fc_path[ri];
 
 	ctx->fc_rpc_item = item;
 
@@ -1494,8 +1472,8 @@ static bool request_check(const struct m0_confc_ctx *ctx)
 
 	return  req->f_origin.oi_type != M0_CO_DIR &&
 		req->f_origin.oi_type < M0_CO_NR &&
-		m0_buf_is_aimed(&req->f_origin.oi_id) &&
-		equi(req->f_path.ab_count == 0, req->f_path.ab_elems == NULL) &&
+		m0_fid_is_set(&req->f_origin.oi_id) &&
+		equi(req->f_path.af_count == 0, req->f_path.af_elems == NULL) &&
 		item->ri_type == &m0_conf_fetch_fopt.ft_rpc_item_type &&
 		item->ri_ops != NULL &&
 		item->ri_ops->rio_replied == on_replied &&

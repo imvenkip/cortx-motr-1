@@ -38,15 +38,51 @@ static struct m0_be_seg       *seg;
 
 /* ----------------------------------------------------------------
  * Source of configuration data: conf/ut/conf_xc.txt
+ *
+ * fid table:
+ *
+ * profile (test-2) (1, 0)
+ * filesystem (m0t1fs) (1, 1)
+ * service (mds)       (1, 2)
+ * service (ios)       (1, 3)
+ * node     (N)        (1, 4)
+ * nic     (nic0)      (1, 5)
+ * sdev    (sdev0)     (1, 6)
+ * partition (part0)   (1, 7)
+ *
  * ---------------------------------------------------------------- */
+
+enum {
+	PROFILE,
+	FILESYSTEM,
+	MDS,
+	IOS,
+	N,
+	NIC0,
+	SDEV0,
+	PART0,
+
+	NR
+};
+
+static const struct m0_fid fids[NR] = {
+	[PROFILE]    = { 1, 0 },
+	[FILESYSTEM] = { 1, 1 },
+	[MDS]        = { 1, 2 },
+	[IOS]        = { 1, 3 },
+	[N]          = { 1, 4 },
+	[NIC0]       = { 1, 5 },
+	[SDEV0]      = { 1, 6 },
+	[PART0]      = { 1, 7 }
+};
 
 static void profile_check(const struct m0_confx_obj *xobj)
 {
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_PROFILE);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("test-2")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[PROFILE]));
 
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_conf.u.u_profile.xp_filesystem,
-			       &_BUF("m0t1fs")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_conf.u.u_profile.xp_filesystem,
+			       &fids[FILESYSTEM]));
 }
 
 static void filesystem_check(const struct m0_confx_obj *xobj)
@@ -54,7 +90,7 @@ static void filesystem_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_filesystem *x = &xobj->o_conf.u.u_filesystem;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_FILESYSTEM);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("m0t1fs")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[FILESYSTEM]));
 
 	M0_UT_ASSERT(x->xf_rootfid.f_container == 11);
 	M0_UT_ASSERT(x->xf_rootfid.f_key == 22);
@@ -64,9 +100,9 @@ static void filesystem_check(const struct m0_confx_obj *xobj)
 	M0_UT_ASSERT(m0_buf_eq(&x->xf_params.ab_elems[1], &_BUF("60")));
 	M0_UT_ASSERT(m0_buf_eq(&x->xf_params.ab_elems[2], &_BUF("70")));
 
-	M0_UT_ASSERT(x->xf_services.ab_count == 2);
-	M0_UT_ASSERT(m0_buf_eq(&x->xf_services.ab_elems[0], &_BUF("mds")));
-	M0_UT_ASSERT(m0_buf_eq(&x->xf_services.ab_elems[1], &_BUF("io")));
+	M0_UT_ASSERT(x->xf_services.af_count == 2);
+	M0_UT_ASSERT(m0_fid_eq(&x->xf_services.af_elems[0], &fids[MDS]));
+	M0_UT_ASSERT(m0_fid_eq(&x->xf_services.af_elems[1], &fids[IOS]));
 }
 
 static void md_service_check(const struct m0_confx_obj *xobj)
@@ -74,12 +110,12 @@ static void md_service_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_service *x = &xobj->o_conf.u.u_service;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_SERVICE);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("mds")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[MDS]));
 
 	M0_UT_ASSERT(x->xs_type == 1);
 	M0_UT_ASSERT(x->xs_endpoints.ab_count == 1);
 	M0_UT_ASSERT(m0_buf_eq(&x->xs_endpoints.ab_elems[0], &_BUF("addr0")));
-	M0_UT_ASSERT(m0_buf_eq(&x->xs_node, &_BUF("N")));
+	M0_UT_ASSERT(m0_fid_eq(&x->xs_node, &fids[N]));
 }
 
 static void io_service_check(const struct m0_confx_obj *xobj)
@@ -87,14 +123,14 @@ static void io_service_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_service *x = &xobj->o_conf.u.u_service;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_SERVICE);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("io")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[IOS]));
 
 	M0_UT_ASSERT(x->xs_type == 2);
 	M0_UT_ASSERT(x->xs_endpoints.ab_count == 3);
 	M0_UT_ASSERT(m0_buf_eq(&x->xs_endpoints.ab_elems[0], &_BUF("addr1")));
 	M0_UT_ASSERT(m0_buf_eq(&x->xs_endpoints.ab_elems[1], &_BUF("addr2")));
 	M0_UT_ASSERT(m0_buf_eq(&x->xs_endpoints.ab_elems[2], &_BUF("addr3")));
-	M0_UT_ASSERT(m0_buf_eq(&x->xs_node, &_BUF("N")));
+	M0_UT_ASSERT(m0_fid_eq(&x->xs_node, &fids[N]));
 }
 
 static void node_check(const struct m0_confx_obj *xobj)
@@ -102,7 +138,7 @@ static void node_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_node *x = &xobj->o_conf.u.u_node;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_NODE);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("N")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[N]));
 
 	M0_UT_ASSERT(x->xn_memsize == 8000);
 	M0_UT_ASSERT(x->xn_nr_cpu == 2);
@@ -110,11 +146,11 @@ static void node_check(const struct m0_confx_obj *xobj)
 	M0_UT_ASSERT(x->xn_flags == 2);
 	M0_UT_ASSERT(x->xn_pool_id == 0);
 
-	M0_UT_ASSERT(x->xn_nics.ab_count == 1);
-	M0_UT_ASSERT(m0_buf_eq(&x->xn_nics.ab_elems[0], &_BUF("nic0")));
+	M0_UT_ASSERT(x->xn_nics.af_count == 1);
+	M0_UT_ASSERT(m0_fid_eq(&x->xn_nics.af_elems[0], &fids[NIC0]));
 
-	M0_UT_ASSERT(x->xn_sdevs.ab_count == 1);
-	M0_UT_ASSERT(m0_buf_eq(&x->xn_sdevs.ab_elems[0], &_BUF("sdev0")));
+	M0_UT_ASSERT(x->xn_sdevs.af_count == 1);
+	M0_UT_ASSERT(m0_fid_eq(&x->xn_sdevs.af_elems[0], &fids[SDEV0]));
 }
 
 static void nic_check(const struct m0_confx_obj *xobj)
@@ -122,7 +158,7 @@ static void nic_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_nic *x = &xobj->o_conf.u.u_nic;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_NIC);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("nic0")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[NIC0]));
 
 	M0_UT_ASSERT(x->xi_iface == 5);
 	M0_UT_ASSERT(x->xi_mtu == 8192);
@@ -136,7 +172,7 @@ static void sdev_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_sdev *x = &xobj->o_conf.u.u_sdev;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_SDEV);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("sdev0")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[SDEV0]));
 
 	M0_UT_ASSERT(x->xd_iface == 4);
 	M0_UT_ASSERT(x->xd_media == 1);
@@ -144,8 +180,8 @@ static void sdev_check(const struct m0_confx_obj *xobj)
 	M0_UT_ASSERT(x->xd_last_state == 3);
 	M0_UT_ASSERT(x->xd_flags == 4);
 	M0_UT_ASSERT(m0_buf_eq(&x->xd_filename, &_BUF("/dev/sdev0")));
-	M0_UT_ASSERT(x->xd_partitions.ab_count == 1);
-	M0_UT_ASSERT(m0_buf_eq(&x->xd_partitions.ab_elems[0], &_BUF("part0")));
+	M0_UT_ASSERT(x->xd_partitions.af_count == 1);
+	M0_UT_ASSERT(m0_fid_eq(&x->xd_partitions.af_elems[0], &fids[PART0]));
 }
 
 static void partition_check(const struct m0_confx_obj *xobj)
@@ -153,7 +189,7 @@ static void partition_check(const struct m0_confx_obj *xobj)
 	const struct m0_confx_partition *x = &xobj->o_conf.u.u_partition;
 
 	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_PARTITION);
-	M0_UT_ASSERT(m0_buf_eq(&xobj->o_id, &_BUF("part0")));
+	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[PART0]));
 
 	M0_UT_ASSERT(x->xa_start == 0);
 	M0_UT_ASSERT(x->xa_size == 596000000000);
@@ -224,8 +260,8 @@ void test_confdb(void)
 	} tests[] = {
 		{ M0_CO_PROFILE,    profile_check     },
 		{ M0_CO_FILESYSTEM, filesystem_check  },
-		{ M0_CO_SERVICE,    io_service_check  },
 		{ M0_CO_SERVICE,    md_service_check  },
+		{ M0_CO_SERVICE,    io_service_check  },
 		{ M0_CO_NODE,       node_check        },
 		{ M0_CO_NIC,        nic_check         },
 		{ M0_CO_SDEV,       sdev_check        },

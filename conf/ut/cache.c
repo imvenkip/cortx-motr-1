@@ -36,7 +36,7 @@ void test_obj_xtors(void)
 
 	M0_CASSERT(M0_CO_DIR == 0);
 	for (t = 0; t < M0_CO_NR; ++t) {
-		obj = m0_conf_obj_create(&g_cache, t, &M0_BUF_INITS("test"));
+		obj = m0_conf_obj_create(&g_cache, t, &M0_FID_INIT(1, 0));
 		M0_UT_ASSERT(obj != NULL);
 
 		m0_mutex_lock(&g_lock);
@@ -52,11 +52,11 @@ void test_cache(void)
 	int                  rc;
 	struct {
 		enum m0_conf_objtype type;
-		struct m0_buf        id;
+		struct m0_fid        id;
 	} samples[] = {
-		{ M0_CO_PROFILE,    M0_BUF_INIT(7, "pr\0file") },
-		{ M0_CO_FILESYSTEM, M0_BUF_INITS("filesystem") },
-		{ M0_CO_DIR,        M0_BUF_INITS("dir") }
+		{ M0_CO_PROFILE,    M0_FID_INIT(~0, 0) },
+		{ M0_CO_FILESYSTEM, M0_FID_INIT(7, 2) },
+		{ M0_CO_DIR,        M0_FID_INIT(7, 3) }
 	};
 
 	for (i = 0; i < ARRAY_SIZE(samples); ++i) {
@@ -101,7 +101,7 @@ void test_cache(void)
 void test_obj_find(void)
 {
 	int                 rc;
-	const struct m0_buf id = M0_BUF_INITS("test");
+	const struct m0_fid id = M0_FID_INIT(1, 0);
 	struct m0_conf_obj *p = NULL;
 	struct m0_conf_obj *q = NULL;
 

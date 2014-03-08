@@ -21,7 +21,6 @@
 #ifndef __MERO_CONF_OBJ_H__
 #define __MERO_CONF_OBJ_H__
 
-#include "lib/buf.h"      /* m0_buf */
 #include "lib/chan.h"     /* m0_chan */
 #include "lib/tlist.h"    /* m0_tl, m0_tlink */
 #include "lib/bob.h"      /* m0_bob_type */
@@ -163,7 +162,7 @@ struct m0_conf_obj {
 	 * Object identifier.
 	 * This value is unique among the object of given ->co_type.
 	 */
-	struct m0_buf                 co_id;
+	struct m0_fid                 co_id;
 
 	enum m0_conf_status           co_status;
 
@@ -382,6 +381,12 @@ extern const struct m0_bob_type m0_conf_node_bob;
 extern const struct m0_bob_type m0_conf_nic_bob;
 extern const struct m0_bob_type m0_conf_sdev_bob;
 extern const struct m0_bob_type m0_conf_partition_bob;
+
+extern const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID;
+extern const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID;
+extern const struct m0_fid M0_CONF_SERVICE_NODE_FID;
+extern const struct m0_fid M0_CONF_NODE_NICS;
+extern const struct m0_fid M0_CONF_NODE_SDEVS;
 
 /** @} conf_dfspec_obj */
 #endif /* __MERO_CONF_OBJ_H__ */

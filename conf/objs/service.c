@@ -34,13 +34,15 @@ static bool service_check(const void *bob)
 			   M0_CST_SS))) &&
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
-		     child_check(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
+		     child_check(self_obj, M0_MEMBER_PTR(self->cs_node, cn_obj),
 				 M0_CO_NODE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
 
 M0_CONF__INVARIANT_DEFINE(service_invariant, m0_conf_service);
+
+const struct m0_fid M0_CONF_SERVICE_NODE_FID = { 0, 2 };
 
 static int service_decode(struct m0_conf_obj *dest,
 			  const struct m0_confx_obj *src,
@@ -71,25 +73,16 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_service  *s = M0_CONF_CAST(src, m0_conf_service);
 	struct m0_confx_service *d = &dest->o_conf.u.u_service;
 
-	rc = m0_buf_copy(&dest->o_id, &src->co_id);
-	if (rc != 0)
-		return -ENOMEM;
-
+	dest->o_id = src->co_id;
 	dest->o_conf.u_type = src->co_type;
 	d->xs_type = s->cs_type;
 
 	rc = arrbuf_from_strings(&d->xs_endpoints, s->cs_endpoints);
 	if (rc != 0)
-		goto err;
+		return -ENOMEM;
 
-	rc = m0_buf_copy(&d->xs_node, &s->cs_node->cn_obj.co_id);
-	if (rc == 0)
-		return 0;
-
-	arrbuf_free(&d->xs_endpoints);
-err:
-	m0_buf_free(&dest->o_id);
-	return -ENOMEM;
+	d->xs_node = s->cs_node->cn_obj.co_id;
+	return 0;
 }
 
 static bool
@@ -100,15 +93,15 @@ service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 							  m0_conf_service);
 	return obj->cs_type == xobj->xs_type &&
 		arrays_eq(obj->cs_endpoints, &xobj->xs_endpoints) &&
-		m0_buf_eq(&obj->cs_node->cn_obj.co_id, &xobj->xs_node);
+		m0_fid_eq(&obj->cs_node->cn_obj.co_id, &xobj->xs_node);
 }
 
-static int service_lookup(struct m0_conf_obj *parent, const struct m0_buf *name,
+static int service_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 			  struct m0_conf_obj **out)
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!m0_buf_streq(name, "node"))
+	if (!m0_fid_eq(name, &M0_CONF_SERVICE_NODE_FID))
 		return -ENOENT;
 
 	*out = &M0_CONF_CAST(parent, m0_conf_service)->cs_node->cn_obj;

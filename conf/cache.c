@@ -72,14 +72,14 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
-		     enum m0_conf_objtype type, const struct m0_buf *id)
+		     enum m0_conf_objtype type, const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		if (obj->co_type == type && m0_buf_eq(&obj->co_id, id))
+		if (obj->co_type == type && m0_fid_eq(&obj->co_id, id))
 			break;
 	} m0_tl_endfor;
 

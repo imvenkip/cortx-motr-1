@@ -34,7 +34,7 @@ static bool filesystem_check(const void *bob)
 		     M0_CONF_CAST(self_obj->co_parent,
 				  m0_conf_profile)->cp_filesystem == self &&
 		     child_check(self_obj,
-				 MEMBER_PTR(self->cf_services, cd_obj),
+				 M0_MEMBER_PTR(self->cf_services, cd_obj),
 				 M0_CO_DIR));
 }
 
@@ -43,6 +43,7 @@ M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
 
 M0_CONF__INVARIANT_DEFINE(filesystem_invariant, m0_conf_filesystem);
 
+const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID = { 0, 3 };
 static int filesystem_decode(struct m0_conf_obj *dest,
 			     const struct m0_confx_obj *src,
 			     struct m0_conf_cache *cache)
@@ -75,24 +76,21 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_filesystem  *s = M0_CONF_CAST(src, m0_conf_filesystem);
 	struct m0_confx_filesystem *d = &dest->o_conf.u.u_filesystem;
 
-	if (m0_buf_copy(&dest->o_id, &src->co_id))
-		return -ENOMEM;
-
+	dest->o_id = src->co_id;
 	dest->o_conf.u_type = src->co_type;
 	d->xf_rootfid = s->cf_rootfid;
 
 	rc = arrbuf_from_strings(&d->xf_params, s->cf_params);
 	if (rc != 0)
-		goto err;
+		return rc;
 
-	rc = arrbuf_from_dir(&d->xf_services, s->cf_services);
-	if (rc == 0)
+	rc = arrfid_from_dir(&d->xf_services, s->cf_services);
+	if (rc != 0) {
+		arrbuf_free(&d->xf_params);
+		return rc;
+	} else
 		return 0;
 
-	arrbuf_free(&d->xf_params);
-err:
-	m0_buf_free(&dest->o_id);
-	return rc;
 }
 
 static bool filesystem_match(const struct m0_conf_obj *cached,
@@ -109,12 +107,12 @@ static bool filesystem_match(const struct m0_conf_obj *cached,
 }
 
 static int filesystem_lookup(struct m0_conf_obj *parent,
-			     const struct m0_buf *name,
+			     const struct m0_fid *name,
 			     struct m0_conf_obj **out)
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!m0_buf_streq(name, "services"))
+	if (!m0_fid_eq(name, &M0_CONF_FILESYSTEM_SERVICES_FID))
 		return -ENOENT;
 
 	*out = &M0_CONF_CAST(parent, m0_conf_filesystem)->cf_services->cd_obj;

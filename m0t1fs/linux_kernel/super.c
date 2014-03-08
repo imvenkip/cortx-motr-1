@@ -557,7 +557,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
 	M0_PRE(csb->csb_nr_active_contexts == 0);
 
-	rc = m0_confc_open_sync(&dir, fs, M0_BUF_INITS("services"));
+	rc = m0_confc_open_sync(&dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
 	if (rc != 0)
 		M0_RETURN(rc);
 
@@ -955,6 +955,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_conf_obj            *fs;
 	struct m0_reqh                *reqh = &m0t1fs_globals.g_reqh;
 	const char                    *ep_addr;
+	struct m0_fid                  prof_fid;
 	uint32_t                       nr_ios = 0;
 	int                            rc;
 	struct fs_params               fs_params = {0};
@@ -965,14 +966,20 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	csb->csb_next_key = mops->mo_fid_start;
 
-	rc = m0_confc_init(&confc, &csb->csb_iogroup,
-			   &M0_BUF_INITS(mops->mo_profile),
+	rc = m0_fid_sscanf(mops->mo_profile, &prof_fid);
+	if (rc != 0) {
+		M0_LOG(M0_FATAL, "Cannot parse profile `%s'", mops->mo_profile);
+		M0_RETURN(rc);
+	}
+
+	rc = m0_confc_init(&confc, &csb->csb_iogroup, &prof_fid,
 			   mops->mo_confd, &m0t1fs_globals.g_rpc_machine,
 			   mops->mo_local_conf);
 	if (rc != 0)
 		M0_RETURN(rc);
 
-	rc = m0_confc_open_sync(&fs, confc.cc_root, M0_BUF_INITS("filesystem"));
+	rc = m0_confc_open_sync(&fs, confc.cc_root,
+				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0)
 		goto end;
 

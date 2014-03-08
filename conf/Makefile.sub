@@ -1,6 +1,5 @@
 nobase_mero_include_HEADERS += \
                                conf/addb.h \
-                               conf/buf_ext.h \
                                conf/cache.h \
                                conf/confc.h \
                                conf/confd.h \
@@ -15,7 +14,6 @@ nobase_mero_include_HEADERS += \
 
 mero_libmero_la_SOURCES += \
                            conf/addb.c \
-                           conf/buf_ext.c \
                            conf/cache.c \
                            conf/confc.c \
                            conf/confd.c \

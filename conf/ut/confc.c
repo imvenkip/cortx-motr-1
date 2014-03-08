@@ -22,7 +22,6 @@
 #include "lib/trace.h"
 
 #include "conf/confc.h"
-#include "conf/buf_ext.h"   /* m0_buf_streq */
 #include "conf/obj_ops.h"   /* M0_CONF_DIREND */
 #include "conf/ut/file_helpers.h"
 #include "conf/ut/rpc_helpers.h"
@@ -100,7 +99,49 @@ static int waiter_wait(struct waiter *w, struct m0_conf_obj **result)
 
 /* ----------------------------------------------------------------
  * Source of configuration data: conf/ut/conf-str.txt
+ *
+ * fid table:
+ *
+ * profile (prof)      (2, 0)
+ * filesystem (fs)     (2, 1)
+ * service (svc-0)     (2, 2)
+ * service (svc-1)     (2, 3)
+ * service (svc-2)     (2, 4)
+ * node    (node-0)    (2, 5)
+ * node    (node-1)    (2, 9)
+ * nic     (nic-0)     (2, 6)
+ * nic     (nic-1)     (2, 7)
+ * sdev    (sdev-0)    (2, 8)
+ *
  * ---------------------------------------------------------------- */
+
+enum {
+	PROF,
+	FS,
+	SVC0,
+	SVC1,
+	SVC2,
+	NODE0,
+	NODE1,
+	NIC0,
+	NIC1,
+	SDEV0,
+
+	NR
+};
+
+static const struct m0_fid fids[NR] = {
+	[PROF]       = { 2, 0 },
+	[FS]         = { 2, 1 },
+	[SVC0]       = { 2, 2 },
+	[SVC1]       = { 2, 3 },
+	[SVC2]       = { 2, 4 },
+	[NODE0]      = { 2, 5 },
+	[NODE1]      = { 2, 9 },
+	[NIC0]       = { 2, 6 },
+	[NIC1]       = { 2, 7 },
+	[SDEV0]      = { 2, 8 },
+};
 
 static void sync_open_test(struct m0_conf_obj *svc_dir)
 {
@@ -110,28 +151,28 @@ static void sync_open_test(struct m0_conf_obj *svc_dir)
 
 	M0_PRE(svc_dir->co_type == M0_CO_DIR);
 
-	rc = m0_confc_open_sync(&obj, svc_dir, M0_BUF_INITS("unknown"));
+	rc = m0_confc_open_sync(&obj, svc_dir, M0_FID_INIT(5, 5));
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	/* There is no configuration data for the node of "svc-2". */
-	rc = m0_confc_open_sync(&obj, svc_dir, M0_BUF_INITS("svc-2"),
-				M0_BUF_INITS("node"));
+	rc = m0_confc_open_sync(&obj, svc_dir, fids[SVC2],
+				M0_CONF_SERVICE_NODE_FID);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	rc = m0_confc_open_sync(&obj, svc_dir, M0_BUF_INITS("svc-0"));
+	rc = m0_confc_open_sync(&obj, svc_dir, fids[SVC0]);
 	M0_UT_ASSERT(rc == 0);
 
 	svc = M0_CONF_CAST(obj, m0_conf_service);
 	M0_UT_ASSERT(svc->cs_obj.co_status == M0_CS_READY);
 	M0_UT_ASSERT(svc->cs_obj.co_cache == svc_dir->co_cache);
-	M0_UT_ASSERT(m0_buf_streq(&svc->cs_obj.co_id, "svc-0"));
+	M0_UT_ASSERT(m0_fid_eq(&svc->cs_obj.co_id, &fids[SVC0]));
 	M0_UT_ASSERT(svc->cs_type == 1);
 	M0_UT_ASSERT(strcmp(svc->cs_endpoints[0], "addr0") == 0);
 	M0_UT_ASSERT(svc->cs_endpoints[1] == NULL);
-	M0_UT_ASSERT(m0_buf_streq(&svc->cs_node->cn_obj.co_id, "node-0"));
+	M0_UT_ASSERT(m0_fid_eq(&svc->cs_node->cn_obj.co_id, &fids[NODE0]));
 
 	M0_UT_ASSERT(obj == &svc->cs_obj);
-	rc = m0_confc_open_sync(&obj, obj, M0_BUF_INITS("node"));
+	rc = m0_confc_open_sync(&obj, obj, M0_CONF_SERVICE_NODE_FID);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(obj != &svc->cs_obj);
 	M0_UT_ASSERT(obj == &svc->cs_node->cn_obj);
@@ -146,8 +187,8 @@ static void services_open(struct m0_conf_obj **result, struct m0_confc *confc)
 	int           rc;
 
 	waiter_init(&w, confc);
-	rc = m0_confc_open(&w.w_ctx, NULL, M0_BUF_INITS("filesystem"),
-			   M0_BUF_INITS("services"));
+	rc = m0_confc_open(&w.w_ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID,
+			   M0_CONF_FILESYSTEM_SERVICES_FID);
 	M0_UT_ASSERT(rc == 0);
 	rc = waiter_wait(&w, result);
 	M0_UT_ASSERT(rc == 0);
@@ -222,10 +263,10 @@ static void _retrieval_initiate(struct m0_confc_ctx *ctx)
 {
 	int rc;
 
-	rc = m0_confc_open(ctx, NULL, M0_BUF_INITS("filesystem"),
-			   M0_BUF_INITS("services"), M0_BUF_INITS("svc-1"),
-			   M0_BUF_INITS("node"), M0_BUF_INITS("nics"),
-			   M0_BUF_INITS("nic-0"));
+	rc = m0_confc_open(ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID,
+			   M0_CONF_FILESYSTEM_SERVICES_FID, fids[SVC1],
+			   M0_CONF_SERVICE_NODE_FID, M0_CONF_NODE_NICS,
+			   fids[NIC0]);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -280,12 +321,13 @@ static void dir_test(struct m0_confc *confc)
 	 * confc_test() below.)
 	 */
 	rc = m0_confc_open_sync(&fs, confc->cc_root,
-				M0_BUF_INITS("filesystem")) ?:
-		m0_confc_open_sync(&svc_dir, fs, M0_BUF_INITS("services"));
+				M0_CONF_PROFILE_FILESYSTEM_FID) ?:
+		m0_confc_open_sync(&svc_dir, fs,
+				   M0_CONF_FILESYSTEM_SERVICES_FID);
 #else
 	rc = m0_confc_open_sync(&svc_dir, confc->cc_root,
-				M0_BUF_INITS("filesystem"),
-				M0_BUF_INITS("services"));
+				M0_CONF_PROFILE_FILESYSTEM_FID,
+				M0_CONF_FILESYSTEM_SERVICES_FID);
 	fs = NULL;
 #endif
 	M0_UT_ASSERT(rc == 0);
@@ -317,7 +359,7 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 	struct m0_conf_obj *svc_dir;
 	int                 rc;
 
-	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("prof"),
+	rc = m0_confc_init(&confc, &g_grp, &fids[PROF],
 			   confd_addr, rpc_mach, local_conf);
 	M0_UT_ASSERT(rc == 0);
 
@@ -340,11 +382,11 @@ static void test_confc_local(void)
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("prof"),
+	rc = m0_confc_init(&confc, &g_grp, &fids[PROF],
 			   NULL, NULL, "bad configuration string");
 	M0_UT_ASSERT(rc == -EPROTO);
 
-	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("bad profile"),
+	rc = m0_confc_init(&confc, &g_grp, &M0_FID_INIT(7, 7),
 			   NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == -ENODATA);
 
@@ -393,8 +435,7 @@ static void test_confc_invalid_input(void)
 			     sizeof local_conf);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_confc_init(&confc, &g_grp, &M0_BUF_INITS("prof"),
-			   NULL, NULL, local_conf);
+	rc = m0_confc_init(&confc, &g_grp, &fids[PROF], NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == -EEXIST);
 }
 

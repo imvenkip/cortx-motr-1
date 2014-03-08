@@ -27,7 +27,6 @@
 #include "mero/setup.h"           /* cs_args */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
-#include "conf/buf_ext.h"         /* m0_buf_strdup */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "mgmt/mgmt.h"            /* m0_mgmt_conf */
@@ -110,25 +109,32 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 	struct m0_conf_obj *fs;
 	struct m0_conf_obj *svc_dir;
 	struct m0_conf_obj *svc;
+	struct m0_fid       prof_fid;
 	int                 rc;
 
 	M0_ENTRY();
 
+	rc = m0_fid_sscanf(profile, &prof_fid);
+	if (rc != 0) {
+		M0_LOG(M0_FATAL, "Cannot parse profile `%s'", profile);
+		goto profile_err;
+	}
+
 	ast_thread_init();
-	rc = m0_confc_init(&confc, &g_grp,
-			   &M0_BUF_INITS((char *)profile),
+	rc = m0_confc_init(&confc, &g_grp, &prof_fid,
 			   confd_addr, rpc_mach, NULL);
 	if (rc != 0)
 		goto end;
 
 	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
 
-	rc = m0_confc_open_sync(&fs, confc.cc_root, M0_BUF_INITS("filesystem"));
+	rc = m0_confc_open_sync(&fs, confc.cc_root,
+				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0)
 		goto confc_fini;
 	fs_options_add(dest, M0_CONF_CAST(fs, m0_conf_filesystem));
 
-	rc = m0_confc_open_sync(&svc_dir, fs, M0_BUF_INITS("services"));
+	rc = m0_confc_open_sync(&svc_dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
 	if (rc != 0)
 		goto fs_close;
 
@@ -137,7 +143,7 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 
 		service_options_add(dest, M0_CONF_CAST(svc, m0_conf_service));
 
-		rc = m0_confc_open_sync(&node, svc, M0_BUF_INITS("node"));
+		rc = m0_confc_open_sync(&node, svc, M0_CONF_SERVICE_NODE_FID);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR,
 			       "Unable to obtain configuration of a node");
@@ -163,6 +169,7 @@ confc_fini:
 	m0_confc_fini(&confc);
 end:
 	ast_thread_fini();
+profile_err:
 	M0_RETURN(rc);
 }
 

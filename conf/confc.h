@@ -23,7 +23,6 @@
 
 #include "conf/cache.h"   /* m0_conf_cache */
 #include "conf/onwire.h"  /* m0_conf_fetch */
-#include "lib/buf.h"      /* m0_buf, M0_BUF_INIT0 */
 #include "lib/mutex.h"    /* m0_mutex */
 #include "sm/sm.h"        /* m0_sm, m0_sm_ast */
 #include "rpc/conn.h"     /* m0_rpc_conn */
@@ -111,7 +110,7 @@ struct m0_conf_obj;
  * struct m0_rpc_machine *rpcm = ...;
  * struct m0_confc        confc;
  *
- * startup(const struct m0_buf *profile, ...)
+ * startup(const struct m0_fid *profile, ...)
  * {
  *         rc = m0_confc_init(&confc, grp, profile, "confd-ep-addr", rpcm,
  *                            NULL);
@@ -189,7 +188,7 @@ struct m0_conf_obj;
  *
  *         sm_waiter_init(&w, g_confc);
  *
- *         m0_confc_open(&w.w_ctx, NULL, M0_BUF_INITS("filesystem"));
+ *         m0_confc_open(&w.w_ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID);
  *         while (!m0_confc_ctx_is_completed(&w.w_ctx))
  *                 m0_chan_wait(&w.w_clink);
  *
@@ -209,7 +208,7 @@ struct m0_conf_obj;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&obj, g_confc->cc_root,
- *                                 M0_BUF_INITS("filesystem"));
+ *                                 M0_CONF_PROFILE_FILESYSTEM_FID);
  *         if (rc == 0)
  *                 *fs = M0_CONF_CAST(obj, m0_conf_filesystem);
  *         return rc;
@@ -255,8 +254,8 @@ struct m0_conf_obj;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&dir, g_confc->cc_root,
- *                                 M0_BUF_INITS("filesystem"),
- *                                 M0_BUF_INITS("services"));
+ *                                 M0_CONF_PROFILE_FILESYSTEM_FID,
+ *                                 M0_CONF_FILESYSTEM_SERVICES_FID);
  *         if (rc != 0)
  *                 return rc;
  *
@@ -289,29 +288,30 @@ struct m0_conf_obj;
  *
  * // Accesses configuration data of devices that are being used by
  * // specific service on specific node.
- * static int specific_devices_process(const struct m0_buf *svc_id,
- *                                     const struct m0_buf *node_id)
+ * static int specific_devices_process(const struct m0_fid *svc_id,
+ *                                     const struct m0_fid *node_id)
  * {
  *         struct m0_conf_obj *dir;
  *         struct m0_conf_obj *svc;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&dir, g_confc->cc_root,
- *                                 M0_BUF_INITS("filesystem"),
- *                                 M0_BUF_INITS("services"));
+ *                                 M0_CONF_PROFILE_FILESYSTEM_FID,
+ *                                 M0_CONF_FILESYSTEM_SERVICES_FID);
  *         if (rc != 0)
  *                 return rc;
  *
  *         for (svc = NULL; (rc = m0_confc_readdir_sync(dir, &svc)) > 0; ) {
  *                 struct m0_conf_obj *node;
  *
- *                 if (!m0_buf_eq(svc->co_id, svc_id))
+ *                 if (!m0_fid_eq(svc->co_id, svc_id))
  *                         // This is not the service we are looking for.
  *                         continue;
  *
- *                 rc = m0_confc_open_sync(&node, svc, M0_BUF_INITS("node"));
+ *                 rc = m0_confc_open_sync(&node, svc,
+ *                                         M0_CONF_SERVICE_NODE_FID);
  *                 if (rc == 0) {
- *                         if (m0_buf_eq(node->co_id, node_id))
+ *                         if (m0_fid_eq(node->co_id, node_id))
  *                                 rc = node_devices_process(node);
  *                         m0_confc_close(node);
  *                 }
@@ -339,7 +339,7 @@ struct m0_conf_obj;
  *         struct m0_conf_obj *entry;
  *         int                 rc;
  *
- *         rc = m0_confc_open_sync(&dir, node, M0_BUF_INITS("nics"));
+ *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_NICS);
  *         if (rc != 0)
  *                 return rc;
  *
@@ -360,7 +360,7 @@ struct m0_conf_obj;
  *         struct m0_conf_obj *entry;
  *         int                 rc;
  *
- *         rc = m0_confc_open_sync(&dir, node, M0_BUF_INITS("sdevs"));
+ *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_SDEVS);
  *         if (rc != 0)
  *                 return rc;
  *
@@ -535,7 +535,7 @@ struct m0_confc {
  */
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 			      struct m0_sm_group    *sm_group,
-			      const struct m0_buf   *profile,
+			      const struct m0_fid   *profile,
 			      const char            *confd_addr,
 			      struct m0_rpc_machine *rpc_mach,
 			      const char            *local_conf);
@@ -587,7 +587,7 @@ struct m0_confc_ctx {
 	struct m0_conf_obj  *fc_origin;
 
 	/** Path to the object being requested by the application. */
-	struct m0_buf        fc_path[M0_CONF_PATH_MAX + 1];
+	struct m0_fid        fc_path[M0_CONF_PATH_MAX + 1];
 
 	/**
 	 * Record of interest in `object loading completed' or
@@ -668,9 +668,9 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
  * @param ctx     Fetch context.
  * @param origin  Path origin (NULL = root configuration object).
  * @param ...     Path to the requested object. Variable arguments --
- *                path components -- are m0_buf initialisers
- *                (M0_BUF_INIT(), M0_BUF_INITS()); use M0_BUF_INIT0
- *                for empty path.  The number of path components
+ *                path components -- are m0_fid initialisers
+ *                (M0_FID()); use M0_FID0 for empty path.
+ *                The number of path components
  *                should not exceed M0_CONF_PATH_MAX.
  *
  * @pre  ctx->fc_origin == NULL && ctx->fc_path is empty
@@ -678,11 +678,11 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx);
  * @pre  ergo(origin != NULL, origin->co_cache == &ctx->fc_confc->cc_cache)
  */
 #define m0_confc_open(ctx, origin, ...)                           \
-	m0_confc__open((ctx), (origin), (const struct m0_buf []){ \
-			__VA_ARGS__, M0_BUF_INIT0 })
+	m0_confc__open((ctx), (origin), (const struct m0_fid []){ \
+			__VA_ARGS__, M0_FID0 })
 M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 			       struct m0_conf_obj *origin,
-			       const struct m0_buf *path);
+			       const struct m0_fid *path);
 
 /**
  * Opens configuration object synchronously.
@@ -701,15 +701,16 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
  * struct m0_conf_obj *fs_obj;
  * int rc;
  *
- * rc = m0_confc_open_sync(&fs_obj, confc->cc_root, M0_BUF_INITS("filesystem"));
+ * rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
+ *                         M0_CONF_PROFILE_FILESYSTEM_FID);
  * @endcode
  */
 #define m0_confc_open_sync(result, origin, ...)                           \
-	m0_confc__open_sync((result), (origin), (const struct m0_buf []){ \
-			__VA_ARGS__, M0_BUF_INIT0 })
+	m0_confc__open_sync((result), (origin), (const struct m0_fid []){ \
+			__VA_ARGS__, M0_FID0 })
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 				    struct m0_conf_obj *origin,
-				    const struct m0_buf *path);
+				    const struct m0_fid *path);
 
 /**
  * Closes configuration object opened with m0_confc_open() or

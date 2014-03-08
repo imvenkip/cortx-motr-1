@@ -18,7 +18,9 @@
  * Original creation date: 09-Sep-2010
  */
 
+#include "lib/errno.h"         /* EINVAL */
 #include "lib/misc.h"          /* memcmp */
+#include "lib/string.h"        /* sscanf */
 #include "lib/assert.h"        /* M0_PRE() */
 #include "fid/fid_xc.h"
 #include "fid/fid.h"
@@ -76,6 +78,19 @@ M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0, const struct m0_fid *fid1)
 	return m0_uint128_cmp(&u0, &u1);
 }
 M0_EXPORTED(m0_fid_cmp);
+
+M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
+{
+	/* use separate variables to keep sscanf format checks in gcc happy. */
+	unsigned long long container;
+	unsigned long long key;
+
+	if (sscanf(s, " %llx : %llx ", &container, &key) == 2) {
+		*fid = M0_FID_INIT(container, key);
+		return 0;
+	} else
+		return -EINVAL;
+}
 
 M0_INTERNAL int m0_fid_init(void)
 {

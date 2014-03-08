@@ -122,7 +122,7 @@ struct m0_conf_obj_ops {
 	 * @post  M0_IN(retval, (0, -ENOENT))
 	 * @post  ergo(retval == 0, m0_conf_obj_invariant(*out))
 	 */
-	int (*coo_lookup)(struct m0_conf_obj *parent, const struct m0_buf *name,
+	int (*coo_lookup)(struct m0_conf_obj *parent, const struct m0_fid *name,
 			  struct m0_conf_obj **out);
 
 	/**
@@ -163,13 +163,13 @@ struct m0_conf_obj_ops {
  * Note, that m0_conf_obj_create() does not add the resulting object
  * into configuration cache.
  *
- * @pre   cache != NULL && m0_buf_is_aimed(id)
+ * @pre   cache != NULL && m0_fid_is_set(id)
  * @post  ergo(retval != NULL,
  *             !retval->co_mounted && retval->co_status == M0_CS_MISSING)
  */
 M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 						   enum m0_conf_objtype type,
-						   const struct m0_buf *id);
+						   const struct m0_fid *id);
 
 /**
  * Finds registered object with given identity or, if no object is
@@ -181,7 +181,7 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
  */
 M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 				 enum m0_conf_objtype type,
-				 const struct m0_buf *id,
+				 const struct m0_fid *id,
 				 struct m0_conf_obj **out);
 
 /**
@@ -229,7 +229,7 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
  * @pre   m0_mutex_is_locked(cache->ca_lock)
  * @pre   m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0
  * @pre   dest->co_type == src->o_conf.u_type
- * @pre   m0_buf_eq(&dest->co_id, &src->o_id)
+ * @pre   m0_fid_eq(&dest->co_id, &src->o_id)
  *
  * @post  m0_conf_obj_invariant(dest)
  * @post  m0_mutex_is_locked(cache->ca_lock)

@@ -105,24 +105,39 @@ services_start() {
 	error 'Invalid argument'
     local MODE="${1:-}"
 
+    PROF='(1, 0)'
+    PROF_OPT='1:0'
+    FS='(1, 1)'
+    MDS='(1, 2)'
+    RM='(1, 3)'
+    STATS='(1, 4)'
+    IOS='(1, 5)'
+    NODE0='(4, 0)'
+    NODE1='(4, 1)'
+
+    PROF_AC='(11, 0)'
+    PROF_AC_OPT='11:0'
+    FS1='(11, 1)'
+    IOS1='(11, 5)'
+
     local CONF="`cat <<EOF
 [9:
-  ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22),
+  ($PROF, {1| ($FS)}),
+  ($FS, {2| ((11, 22),
               [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
                   "unit_size=4096"],
-              [3: "mds", "dlm", "ios"])}),
-  ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
-  ("dlm", {3| (4, [1: "$RMS_ENDPOINT"], "node-0")}),
-  ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")}),
+              [3: $MDS, $RM, $IOS])}),
+  ($MDS, {3| (1, [1: "$MDS_ENDPOINT"], $NODE0)}),
+  ($RM, {3| (4, [1: "$RMS_ENDPOINT"], $NODE0)}),
+  ($IOS, {3| (2, [1: "$IOS0_ENDPOINT"], $NODE0)}),
 
-  ("prof-ac", {1| ("fs-1")}),
-  ("fs-1", {2| ((11, 22),
+  ($PROF_AC, {1| ($FS1)}),
+  ($FS1, {2| ((11, 22),
                 [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs",
                      "-A", "addb-stobs", "-w", "3"],
-                [1: "ios-1"])}),
-  ("ios-1", {3| (2, [1: "lnet:$IOS1_ENDPOINT"], "node-1")}),
-  ("node-1", {4| (163840, 0, 0, 16, 0, [0], [0])})]
+                [1: $IOS1])}),
+  ($IOS1, {3| (2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)}),
+  ($NODE1, {4| (163840, 0, 0, 16, 0, [0], [0])})]
 EOF`"
 
     local CONFD_SPEC=
@@ -137,7 +152,7 @@ EOF`"
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
 EOF`"
-    [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-ac"
+    [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P $PROF_AC_OPT"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
@@ -165,30 +180,37 @@ _mount() {
 '[4: "pool_width=3","nr_data_units=1","nr_parity_units=1","unit_size=4096"]'
     [ "$fault" = bad_fs_params ] && FS_PARAMS='[1: "bad_param"]'
 
+    PROF='(1, 0)'
+    FS='(1, 1)'
+    MDS='(1, 2)'
+    RM='(1, 3)'
+    STATS='(1, 4)'
+    IOS='(1, 5)'
+    NODE0='(4, 0)'
     local CONF="`cat <<EOF
 [5:
-  ("prof", {1| ("fs")}),
-  ("fs", {2| ((11, 22), $FS_PARAMS, [3: "mds", "dlm", "ios"])}),
-  ("mds", {3| (1, [1: "$MDS_ENDPOINT"], "node-0")}),
-  ("dlm", {3| (4, [1: "$RMS_ENDPOINT"], "node-0")}),
-  ("ios", {3| (2, [1: "$IOS0_ENDPOINT"], "node-0")})]
+  ($PROF, {1| ($FS)}),
+  ($FS, {2| ((11, 22), $FS_PARAMS, [3: $MDS, $RM, $IOS])}),
+  ($MDS, {3| (1, [1: "$MDS_ENDPOINT"], $NODE0)}),
+  ($RM, {3| (4, [1: "$RMS_ENDPOINT"], $NODE0)}),
+  ($IOS, {3| (2, [1: "$IOS0_ENDPOINT"], $NODE0)})],
 EOF`"
 
     case "$fault" in
 	garbage)        CONF="$(head -c 64 /dev/urandom)";;
 	premature_eof)  CONF="$(echo $CONF | head -c 64)";;
-	duplicated_ids) CONF="$(echo $CONF | sed 's/mds/ios/')";;
-	no_fs_data)     CONF='[1: ("prof", {1| ("fs")})]';;
+	duplicated_ids) CONF=$(echo $CONF | sed "s/$MDS/$IOS/g");;
+	no_fs_data)     CONF='[1: ($PROF, {1| ($FS)})]';;
 	'' | bad_fs_params) ;;
 	*) die "_mount: Unsupported value of \`fault' argument: $fault";;
     esac
 
     case "$mode" in
 	net) # XXX TODO: Feed bad configuration strings to confd as well.
-	    mount -t m0t1fs -o profile=prof,confd=$CONFD_ENDPOINT \
+	    mount -t m0t1fs -o profile=$PROF_OPT,confd=$CONFD_ENDPOINT \
 		none $SANDBOX_DIR/mnt || return $?;;
 	local)
-	    mount -t m0t1fs -o profile=prof,local_conf="$CONF" \
+	    mount -t m0t1fs -o profile=$PROF_OPT,local_conf="$CONF" \
 		none $SANDBOX_DIR/mnt || return $?;;
 	*) die "_mount: Unsupported value of \`mode' argument: $mode";;
     esac

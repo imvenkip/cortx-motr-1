@@ -39,10 +39,15 @@ struct arr_buf {
 	struct m0_buf *ab_elems;
 } M0_XCA_SEQUENCE;
 
+struct arr_fid {
+	uint32_t       af_count;
+	struct m0_fid *af_elems;
+} M0_XCA_SEQUENCE;
+
 /** XXX @todo s/objid/objiden/ ? */
 struct objid {
 	uint32_t      oi_type; /* see m0_conf_objtype for values */
-	struct m0_buf oi_id;
+	struct m0_fid oi_id;
 } M0_XCA_RECORD;
 
 /* ------------------------------------------------------------------
@@ -53,7 +58,7 @@ struct objid {
 
 struct m0_confx_profile {
 	/* Name of profile's filesystem. */
-	struct m0_buf xp_filesystem;
+	struct m0_fid xp_filesystem;
 } M0_XCA_RECORD;
 
 struct m0_confx_filesystem {
@@ -62,7 +67,7 @@ struct m0_confx_filesystem {
 	/* Filesystem parameters. */
 	struct arr_buf xf_params;
 	/* Services of this filesystem. */
-	struct arr_buf xf_services;
+	struct arr_fid xf_services;
 } M0_XCA_RECORD;
 
 struct m0_confx_service {
@@ -71,7 +76,7 @@ struct m0_confx_service {
 	/* End-points from which this service is reachable. */
 	struct arr_buf xs_endpoints;
 	/* Hosting node. */
-	struct m0_buf  xs_node;
+	struct m0_fid  xs_node;
 } M0_XCA_RECORD;
 
 struct m0_confx_node {
@@ -86,9 +91,9 @@ struct m0_confx_node {
 	/* Pool id. */
 	uint64_t       xn_pool_id;
 	/* Network interfaces. */
-	struct arr_buf xn_nics;
+	struct arr_fid xn_nics;
 	/* Storage devices. */
-	struct arr_buf xn_sdevs;
+	struct arr_fid xn_sdevs;
 } M0_XCA_RECORD;
 
 struct m0_confx_nic {
@@ -118,7 +123,7 @@ struct m0_confx_sdev {
 	/* Filename in host OS. */
 	struct m0_buf  xd_filename;
 	/* Partitions of this storage device. */
-	struct arr_buf xd_partitions;
+	struct arr_fid xd_partitions;
 } M0_XCA_RECORD;
 
 struct m0_confx_partition {
@@ -140,7 +145,7 @@ struct m0_confx_u {
 		/*
 		 * Note that there is no such thing as `m0_confx_dir'.
 		 * One-to-many relations are represented by a list of
-		 * identifiers --- `arr_buf'.
+		 * identifiers --- `arr_fid'.
 		 */
 		struct m0_confx_profile    u_profile    M0_XCA_TAG("1");
 		struct m0_confx_filesystem u_filesystem M0_XCA_TAG("2");
@@ -154,7 +159,7 @@ struct m0_confx_u {
 
 /** Configuration object descriptor. */
 struct m0_confx_obj {
-	struct m0_buf     o_id;   /*< Object identifier. */
+	struct m0_fid     o_id;   /*< Object identifier. */
 	struct m0_confx_u o_conf; /*< Configuration data. */
 } M0_XCA_RECORD;
 
@@ -173,7 +178,7 @@ struct m0_conf_fetch {
 	/** Configuration object the path originates from. */
 	struct objid   f_origin;
 	/** Path components. */
-	struct arr_buf f_path;
+	struct arr_fid f_path;
 } M0_XCA_RECORD;
 
 /** Confd's response to m0_conf_fetch. */

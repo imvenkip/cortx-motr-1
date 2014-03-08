@@ -47,12 +47,26 @@ M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
 M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
                             uint64_t container,
 			    uint64_t key);
+M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);
 
 M0_INTERNAL int m0_fid_init(void);
 M0_INTERNAL void m0_fid_fini(void);
 
 #define FID_F "<%lx:%lx>"
 #define FID_P(f) (unsigned long)(f)->f_container, (unsigned long)(f)->f_key
+
+#define M0_FID_INIT(container, key)		\
+	((struct m0_fid) {			\
+		.f_container = (container),	\
+		.f_key = (key)			\
+	})
+
+#define M0_FID0 { 0ULL, 0ULL }
+
+#define M0_FID_BUF(fid) ((struct m0_buf){	\
+	.b_nob = sizeof *(fid),			\
+	.b_addr = (fid)				\
+})
 
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */

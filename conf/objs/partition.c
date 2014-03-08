@@ -74,7 +74,7 @@ static bool partition_match(const struct m0_conf_obj *cached,
 }
 
 static int partition_lookup(struct m0_conf_obj *parent,
-			    const struct m0_buf *name, struct m0_conf_obj **out)
+			    const struct m0_fid *name, struct m0_conf_obj **out)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
 	return -ENOSYS;

@@ -24,7 +24,6 @@
 #include "conf/obj_ops.h"
 #include "conf/cache.h"
 #include "conf/onwire.h"   /* m0_confx_obj */
-#include "conf/buf_ext.h"  /* m0_buf_is_aimed */
 #include "lib/misc.h"      /* M0_IN */
 #include "lib/arith.h"     /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/errno.h"     /* ENOMEM */
@@ -59,7 +58,7 @@ static bool _generic_obj_invariant(const void *bob)
 	const struct m0_conf_obj *obj = bob;
 
 	return 0 <= obj->co_type && obj->co_type < M0_CO_NR &&
-		m0_buf_is_aimed(&obj->co_id) && obj->co_ops != NULL &&
+		m0_fid_is_set(&obj->co_id) && obj->co_ops != NULL &&
 		M0_IN(obj->co_status,
 		      (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)) &&
 		ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0) &&
@@ -72,9 +71,7 @@ static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
 	bool ret = obj->co_ops->coo_invariant(obj);
 	if (unlikely(!ret))
 		M0_LOG(M0_ERROR, "Configuration object invariant doesn't hold: "
-		       "type=%d, id={%lu, \"%s\"}", obj->co_type,
-		       (unsigned long)obj->co_id.b_nob,
-		       (const char *)obj->co_id.b_addr);
+		       "type=%d, id="FID_F, obj->co_type, FID_P(&obj->co_id));
 	return ret;
 }
 
@@ -100,12 +97,11 @@ static struct m0_conf_obj *(*concrete_ctors[M0_CO_NR])(void) = {
 
 M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 						   enum m0_conf_objtype type,
-						   const struct m0_buf *id)
+						   const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
-	int                 rc;
 
-	M0_PRE(cache != NULL && m0_buf_is_aimed(id));
+	M0_PRE(cache != NULL && m0_fid_is_set(id));
 	M0_PRE(IS_IN_ARRAY(type, concrete_ctors));
 
 	/* Allocate concrete object; initialise concrete fields. */
@@ -114,11 +110,7 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 		return NULL;
 
 	/* Initialise generic fields. */
-	rc = m0_buf_copy(&obj->co_id, id);
-	if (rc != 0) {
-		obj->co_ops->coo_delete(obj);
-		return NULL;
-	}
+	obj->co_id = *id;
 	obj->co_type = type;
 	obj->co_status = M0_CS_MISSING;
 	obj->co_cache = cache;
@@ -144,7 +136,7 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 }
 
 static int stub_create(struct m0_conf_cache *cache, enum m0_conf_objtype type,
-		       const struct m0_buf *id, struct m0_conf_obj **out)
+		       const struct m0_fid *id, struct m0_conf_obj **out)
 {
 	int rc;
 
@@ -164,7 +156,7 @@ static int stub_create(struct m0_conf_cache *cache, enum m0_conf_objtype type,
 
 M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 				 enum m0_conf_objtype type,
-				 const struct m0_buf *id,
+				 const struct m0_fid *id,
 				 struct m0_conf_obj **out)
 {
 	int rc = 0;
@@ -193,7 +185,6 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	m0_conf_dir_tlink_fini(obj);
 	m0_conf_cache_tlink_fini(obj);
 	m0_chan_fini(&obj->co_chan);
-	m0_buf_free(&obj->co_id);
 
 	/* Finalise concrete fields; free the object. */
 	obj->co_ops->coo_delete(obj);
@@ -223,8 +214,8 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 static bool confx_obj_is_valid(const struct m0_confx_obj *flat)
 {
 	/* XXX TODO
-	 * - All of m0_buf-s contained in `flat' are m0_buf_is_aimed();
-	 * - all of arr_buf-s are populated with valid m0_buf-s;
+	 * - All of m0_fid-s contained in `flat' are m0_fid_is_set();
+	 * - all of arr_fid-s are populated with valid m0_fid-s;
 	 * - etc.
 	 */
 	(void)flat; /* XXX */
@@ -242,7 +233,7 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
 	M0_PRE(dest->co_type == src->o_conf.u_type);
-	M0_PRE(m0_buf_eq(&dest->co_id, &src->o_id));
+	M0_PRE(m0_fid_eq(&dest->co_id, &src->o_id));
 	M0_PRE(confx_obj_is_valid(src));
 
 	rc = dest->co_ops->coo_decode(dest, src, cache);
@@ -262,7 +253,7 @@ M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 	M0_PRE(confx_obj_is_valid(flat));
 
 	return cached->co_type == flat->o_conf.u_type &&
-		m0_buf_eq(&cached->co_id, &flat->o_id) &&
+		m0_fid_eq(&cached->co_id, &flat->o_id) &&
 		(m0_conf_obj_is_stub(cached) ||
 		 cached->co_ops->coo_match(cached, flat));
 }
