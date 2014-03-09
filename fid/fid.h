@@ -47,6 +47,7 @@ M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
 M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
                             uint64_t container,
 			    uint64_t key);
+
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);
 
 M0_INTERNAL int m0_fid_init(void);
