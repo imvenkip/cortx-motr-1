@@ -21,7 +21,7 @@
 #include "lib/errno.h"         /* EINVAL */
 #include "lib/misc.h"          /* memcmp */
 #include "lib/string.h"        /* sscanf */
-#include "lib/assert.h"        /* M0_PRE() */
+#include "lib/assert.h"        /* M0_PRE */
 #include "fid/fid_xc.h"
 #include "fid/fid.h"
 
