@@ -140,7 +140,7 @@ static const struct m0_fid fids[NR] = {
 	[NODE1]      = { 2, 9 },
 	[NIC0]       = { 2, 6 },
 	[NIC1]       = { 2, 7 },
-	[SDEV0]      = { 2, 8 },
+	[SDEV0]      = { 2, 8 }
 };
 
 static void sync_open_test(struct m0_conf_obj *svc_dir)
