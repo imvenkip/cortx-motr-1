@@ -85,12 +85,9 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 		return rc;
 
 	rc = arrfid_from_dir(&d->xf_services, s->cf_services);
-	if (rc != 0) {
+	if (rc != 0)
 		arrbuf_free(&d->xf_params);
-		return rc;
-	} else
-		return 0;
-
+	return rc;
 }
 
 static bool filesystem_match(const struct m0_conf_obj *cached,
