@@ -1,7 +1,6 @@
 This document describes the user interface, which controls mero's tracing
 mechanism. For higher-level overview of tracing and logging principles, used in
-mero, pleas refer to the doc/logging-and-tracing and lib/trace.h
-documentation.
+mero, please refer to the doc/logging-and-tracing and lib/trace.h documentation.
 
 
 General info
