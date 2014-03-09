@@ -139,7 +139,6 @@ enum {
 		CONFDB_SDEVS_MAX + CONFDB_PART_MAX)
 };
 
-/** XXX DOCUMENTME */
 struct confdb_key {
 	struct m0_fid cdk_id;
 };
@@ -509,7 +508,10 @@ confx_fill(struct m0_confx *dest, struct m0_be_btree *btrees[])
 			M0_ASSERT(i < dest->cx_nr);
 			/**
 			 * @todo check validity of key and record addresses and
-			 * sizes.
+			 * sizes. Specifically, check that keybuf.b_addr points
+			 * to an allocated region in a segment with appropriate
+			 * size and alignment. Such checks should be done
+			 * generally by (not existing) beobj interface.
 			 */
 			dbobj.do_key = *(struct m0_fid *)keybuf.b_addr;
 			confx_from_db(&dest->cx_objs[i], ti, &dbobj);
