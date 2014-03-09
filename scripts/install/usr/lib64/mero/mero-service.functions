@@ -284,6 +284,10 @@ m0_get_server_pid_for()
 
 }
 
+# Profile fid in the format suitable for 'prof=' mount option. Must match $prof
+# variable in m0_build_local_conf()
+m0_prof_opt='1:0'
+
 # Construct local_conf mount option from genders file
 m0_build_local_conf()
 {
@@ -305,13 +309,14 @@ m0_build_local_conf()
     stats='(1, 4)'
     node='(4, 0)'
 
+    ios_num=0
     for ios_ep in $(m0_get_global_ios_eps | sed -e 's/lnet://g'); do
         local ios_name="(3, $((ios_idx++)))"
+        ios_num=$(($ios_num+1))
         ios_names="$ios_names${ios_names:+, }$ios_name"
         ios_objs="$ios_objs${ios_objs:+, }($ios_name, {3| (2, [1: \"$ios_ep\"], $node)})"
     done
 
-    local ios_num=$(echo $ios_names | wc -w)
     local_conf=$(cat <<CONF_END
 [$((ios_num + 5)):
   ($prof, {1| ($fs)}),
