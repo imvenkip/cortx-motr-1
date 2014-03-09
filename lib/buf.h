@@ -82,12 +82,12 @@ M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y);
 M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
 
 /** Does the buffer point at anything? */
-M0_INTERNAL bool m0_buf_is_aimed(const struct m0_buf *buf);
+M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf);
 
 /**
  * Do `buf' and `str' contain equal sequences of non-'\0' characters?
  *
- * @pre  m0_buf_is_aimed(buf) && str != NULL
+ * @pre  m0_buf_is_set(buf) && str != NULL
  */
 M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str);
 
@@ -97,7 +97,7 @@ M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str);
  * Maximum length of the resulting string, including null character,
  * is buf->b_nob.
  *
- * @pre  m0_buf_is_aimed(buf)
+ * @pre  m0_buf_is_set(buf)
  */
 M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf);
 

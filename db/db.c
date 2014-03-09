@@ -602,7 +602,7 @@ static void cursor_get(struct m0_be_btree_cursor *cursor,
 
 #if 0
 	if (pair->dp_rec.db_type == DBT_ALLOC) {
-		if (m0_buf_is_aimed(&rec))
+		if (m0_buf_is_set(&rec))
 			m0_buf_copy(&pair->dp_rec.db_i.db_dbt, &rec);
 	} else
 #endif
