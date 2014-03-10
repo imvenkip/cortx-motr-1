@@ -115,8 +115,8 @@ void m0_garc_type_pair_register(struct m0_garc_type *direct,
 
 void m0_garc_type_add(struct m0_gvertice_type *vt,
 		      const struct m0_garc_type *atype);
-int  m0_graph_mod_init(void);
-void m0_graph_mod_fini(void);
+M0_INTERNAL int  m0_graph_mod_init(void);
+M0_INTERNAL void m0_graph_mod_fini(void);
 
 /** @} end of graph group */
 #endif /* __MERO_GRAPH_GRAPH_H__ */

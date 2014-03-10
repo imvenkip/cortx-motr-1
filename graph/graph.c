@@ -226,6 +226,13 @@ static struct m0_gvertice *arc_try(const struct m0_gvertice *vertice,
 			    struct m0_gvertice, vh_gen);
 }
 
+int m0_garc_follow(const struct m0_gvertice *vertice,
+		   const struct m0_garc_type *atype, ...)
+{
+	M0_IMPOSSIBLE("Not implemented.");
+	return 0;
+}
+
 static struct m0_garc *arc_get(const struct m0_gvertice *src,
 			       const struct m0_garc_type *atype)
 {
@@ -295,7 +302,7 @@ static struct m0_garc_type GRAPH_PREV = {
 	.at_field = 2
 };
 
-int m0_graph_mod_init(void)
+M0_INTERNAL int m0_graph_mod_init(void)
 {
 	m0_garc_type_register(&GRAPH_NEXT);
 	m0_garc_type_register(&GRAPH_PREV);
@@ -303,7 +310,7 @@ int m0_graph_mod_init(void)
 	return 0;
 }
 
-void m0_graph_mod_fini(void)
+M0_INTERNAL void m0_graph_mod_fini(void)
 {;}
 
 /** @} end of graph group */
