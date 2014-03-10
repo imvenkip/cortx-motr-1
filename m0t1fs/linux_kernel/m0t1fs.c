@@ -119,13 +119,9 @@ M0_INTERNAL int m0t1fs_init(void)
 
 	m0t1fs_globals.g_laddr = local_addr;
 
-        rc = m0_fid_init();
-        if (rc != 0)
-                goto out;
-
 	rc = m0_ioservice_fop_init();
 	if (rc != 0)
-		goto fid_fini;
+		goto out;
 
 	rc = m0_mdservice_fop_init();
 	if (rc != 0)
@@ -172,8 +168,6 @@ mdservice_fini:
         m0_mdservice_fop_fini();
 ioservice_fini:
         m0_ioservice_fop_fini();
-fid_fini:
-        m0_fid_fini();
 out:
 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
 
@@ -194,7 +188,6 @@ M0_INTERNAL void m0t1fs_fini(void)
 	m0t1fs_inode_cache_fini();
 	m0_mdservice_fop_fini();
 	m0_ioservice_fop_fini();
-	m0_fid_fini();
 
 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
 

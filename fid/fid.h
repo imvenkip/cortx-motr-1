@@ -37,17 +37,6 @@
 struct m0_fid_type;
 struct m0_fid;
 
-struct m0_fid_type {
-	uint8_t     ft_id;
-	const char *ft_name;
-};
-
-M0_INTERNAL void m0_fid_type_register(struct m0_fid_type *fidt);
-M0_INTERNAL struct m0_fid_type *m0_fid_type_get(uint8_t id);
-M0_INTERNAL struct m0_fid_type *m0_fid_type_gethi(uint64_t id);
-M0_INTERNAL struct m0_fid_type *m0_fid_type_getfid(const struct m0_fid *fid);
-M0_INTERNAL struct m0_fid_type *m0_fid_type_getname(const char *name);
-
 struct m0_fid {
         uint64_t f_container;
         uint64_t f_key;
@@ -83,6 +72,19 @@ M0_INTERNAL void m0_fid_fini(void);
 	.b_nob = sizeof *(fid),			\
 	.b_addr = (fid)				\
 })
+
+struct m0_fid_type {
+	uint8_t     ft_id;
+	const char *ft_name;
+	bool      (*ft_is_valid)(const struct m0_fid *fid);
+};
+
+M0_INTERNAL void m0_fid_type_register(const struct m0_fid_type *fidt);
+M0_INTERNAL const struct m0_fid_type *m0_fid_type_get(uint8_t id);
+M0_INTERNAL const struct m0_fid_type *m0_fid_type_gethi(uint64_t id);
+M0_INTERNAL const struct m0_fid_type *
+m0_fid_type_getfid(const struct m0_fid *fid);
+M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */

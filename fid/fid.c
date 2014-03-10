@@ -32,9 +32,9 @@
  */
 
 /* TODO move to m0 */
-static struct m0_fid_type *fid_types[256];
+static const struct m0_fid_type *fid_types[256];
 
-M0_INTERNAL void m0_fid_type_register(struct m0_fid_type *fidt)
+M0_INTERNAL void m0_fid_type_register(const struct m0_fid_type *fidt)
 {
 	uint8_t id = fidt->ft_id;
 
@@ -43,26 +43,27 @@ M0_INTERNAL void m0_fid_type_register(struct m0_fid_type *fidt)
 	fid_types[id] = fidt;
 }
 
-M0_INTERNAL struct m0_fid_type *m0_fid_type_get(uint8_t id)
+M0_INTERNAL const struct m0_fid_type *m0_fid_type_get(uint8_t id)
 {
 	M0_PRE(IS_IN_ARRAY(id, fid_types));
 	return fid_types[id];
 }
 
-M0_INTERNAL struct m0_fid_type *m0_fid_type_gethi(uint64_t id)
+M0_INTERNAL const struct m0_fid_type *m0_fid_type_gethi(uint64_t id)
 {
 	return m0_fid_type_get(id >> (64 - 8));
 }
 
-M0_INTERNAL struct m0_fid_type *m0_fid_type_getfid(const struct m0_fid *fid)
+M0_INTERNAL const struct m0_fid_type *
+m0_fid_type_getfid(const struct m0_fid *fid)
 {
 	return m0_fid_type_gethi(fid->f_container);
 }
 
-M0_INTERNAL struct m0_fid_type *m0_fid_type_getname(const char *name)
+M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name)
 {
 	size_t i;
-	struct m0_fid_type *fidt;
+	const struct m0_fid_type *fidt;
 
 	for (i = 0; i < ARRAY_SIZE(fid_types); ++i) {
 		fidt = fid_types[i];
@@ -76,17 +77,11 @@ M0_INTERNAL struct m0_fid_type *m0_fid_type_getname(const char *name)
 
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
-#if 0
-	/*
-	 * Some code doesn't take into account hierarchical structure of
-	 * m0_fid and respecitve fid types ain't registered. So leave this
-	 * commented for now.
-	 *
-	 * TODO uncomment when fid types are implemented for all fids.
-	 */
-	return m0_fid_type_getfid(fid) != NULL;
-#endif
-	return true;
+	const struct m0_fid_type *ft = m0_fid_type_getfid(fid);
+
+	return
+		ft != NULL &&
+		ergo(ft->ft_is_valid != NULL, ft->ft_is_valid(fid));
 }
 M0_EXPORTED(m0_fid_is_valid);
 
@@ -145,8 +140,17 @@ M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
 		return -EINVAL;
 }
 
+/**
+ * Type of miscellaneous fids used in tests, etc.
+ */
+static const struct m0_fid_type misc = {
+	.ft_id   = 0,
+	.ft_name = "miscellaneous fid"
+};
+
 M0_INTERNAL int m0_fid_init(void)
 {
+	m0_fid_type_register(&misc);
 	m0_xc_fid_init();
 	return 0;
 }
