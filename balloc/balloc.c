@@ -668,7 +668,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		rc = balloc_format(bal, &req, grp);
 		if (rc != 0)
 			balloc_fini_internal(bal);
-		return M0_ERR(rc);
+		return M0_RCN(rc);
 	}
 
 	if (bal->cb_sb.bsb_blocksize != 1 << bshift) {

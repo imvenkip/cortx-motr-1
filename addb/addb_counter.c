@@ -279,7 +279,7 @@ M0_INTERNAL int m0_addb_counter_update(struct m0_addb_counter *c,
 
 	res = counter_data_update(c->acn_data, c->acn_rt, datum);
 	if (res != 0)
-		M0_ERR(res);
+		return M0_ERR(res);
 
 	M0_POST(addb_counter_invariant(c));
 	return M0_RC(0);
@@ -364,7 +364,7 @@ M0_INTERNAL int m0_addb_sm_counter_update(struct m0_addb_sm_counter *c,
 				  c->asc_cntr_data_sz * idx,
 				  c->asc_rt, datum);
 	if (res != 0)
-		M0_ERR(res);
+		return M0_ERR(res);
 
 	++c->asc_nr;
 

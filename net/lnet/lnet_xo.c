@@ -122,7 +122,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 		nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
 
 	M0_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
-	return M0_ERR(rc);
+	return M0_RCN(rc);
 }
 
 static void nlx_xo_dom_fini(struct m0_net_domain *dom)
