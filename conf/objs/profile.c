@@ -66,8 +66,7 @@ profile_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
 
-	dest->o_conf.u_type = src->co_type;
-	dest->o_id = src->co_id;
+	confx_encode(dest, src);
 	dest->o_conf.u.u_profile.xp_filesystem = s->cp_filesystem->cf_obj.co_id;
 	return 0;
 }

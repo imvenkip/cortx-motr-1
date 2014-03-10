@@ -101,8 +101,7 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_node  *s = M0_CONF_CAST(src, m0_conf_node);
 	struct m0_confx_node *d = &dest->o_conf.u.u_node;
 
-	dest->o_id = src->co_id;
-	dest->o_conf.u_type = src->co_type;
+	confx_encode(dest, src);
 	d->xn_memsize    = s->cn_memsize;
 	d->xn_nr_cpu     = s->cn_nr_cpu;
 	d->xn_last_state = s->cn_last_state;

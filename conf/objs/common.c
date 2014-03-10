@@ -271,3 +271,10 @@ M0_INTERNAL void arrfid_free(struct arr_fid *arr)
 {
 	m0_free0(&arr->af_elems);
 }
+
+M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
+				 const struct m0_conf_obj *src)
+{
+	dest->o_id          = src->co_id;
+	dest->o_conf.u_type = src->co_type;
+}

@@ -95,4 +95,7 @@ M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
 M0_INTERNAL void arrbuf_free(struct arr_buf *arr);
 M0_INTERNAL void arrfid_free(struct arr_fid *arr);
 
+M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
+			      const struct m0_conf_obj *src);
+
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */

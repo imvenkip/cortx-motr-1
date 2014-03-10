@@ -73,8 +73,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_service  *s = M0_CONF_CAST(src, m0_conf_service);
 	struct m0_confx_service *d = &dest->o_conf.u.u_service;
 
-	dest->o_id = src->co_id;
-	dest->o_conf.u_type = src->co_type;
+	confx_encode(dest, src);
 	d->xs_type = s->cs_type;
 
 	rc = arrbuf_from_strings(&d->xs_endpoints, s->cs_endpoints);

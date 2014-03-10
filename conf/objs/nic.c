@@ -53,6 +53,7 @@ static int nic_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 
 static int nic_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
+	confx_encode(dest, src);
 	M0_IMPOSSIBLE("XXX not implemented");
 	return -ENOSYS;
 }

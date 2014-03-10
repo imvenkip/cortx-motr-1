@@ -76,8 +76,7 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_filesystem  *s = M0_CONF_CAST(src, m0_conf_filesystem);
 	struct m0_confx_filesystem *d = &dest->o_conf.u.u_filesystem;
 
-	dest->o_id = src->co_id;
-	dest->o_conf.u_type = src->co_type;
+	confx_encode(dest, src);
 	d->xf_rootfid = s->cf_rootfid;
 
 	rc = arrbuf_from_strings(&d->xf_params, s->cf_params);

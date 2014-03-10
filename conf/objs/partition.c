@@ -56,6 +56,7 @@ static int partition_decode(struct m0_conf_obj *dest,
 static int
 partition_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
+	confx_encode(dest, src);
 	M0_IMPOSSIBLE("XXX not implemented");
 	return -ENOSYS;
 }
