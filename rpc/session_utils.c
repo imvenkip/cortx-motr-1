@@ -90,7 +90,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 			item->ri_nr_sent_max = 1;
 	}
 	rc = m0_rpc__post_locked(item, NULL);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL uint64_t m0_rpc_id_generate(void)
@@ -120,7 +120,7 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 
 	rc = m0_ha_epoch_check(item);
 	if (rc != 0)
-		M0_RETURN(0);
+		return M0_RC(0);
 
 	if (itops != NULL && itops->rito_deliver != NULL)
 		rc = itops->rito_deliver(item->ri_rmachine, item);
@@ -130,7 +130,7 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 		 */
 		rc = m0_reqh_fop_handle(item->ri_rmachine->rm_reqh,
 					m0_rpc_item_to_fop(item));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

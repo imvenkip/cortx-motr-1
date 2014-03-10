@@ -1145,14 +1145,14 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 
 	IOS_ALLOC_PTR(fom_obj, &m0_ios_addb_ctx, FOM_COB_RW_CREATE);
 	if (fom_obj == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	if (m0_is_write_fop(fop) && max_frags_nr > 0) {
 		rc = m0_indexvec_alloc(&fom_obj->fcrw_ivec, max_frags_nr,
 			&m0_ios_addb_ctx, M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC);
 		if (rc != 0) {
 			m0_free(fom_obj);
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 		}
 	}
 
@@ -1161,7 +1161,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
 	if (rep_fop == NULL) {
 		m0_free(fom_obj);
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	fom  = &fom_obj->fcrw_gen;
@@ -1190,7 +1190,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_LOG(M0_DEBUG, "FOM created : operation=%s, desc=%d.",
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
 
-        M0_RETURN(rc);
+        return M0_RCN(rc);
 }
 
 /**
@@ -1216,7 +1216,7 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 		m0_poolmach_version_dump(&curr);
 		m0_poolmach_event_list_dump(poolmach);
 		m0_poolmach_device_state_dump(poolmach);
-		M0_RETURN(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
+		return M0_ERR(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 	}
 
 	rc = m0_poolmach_device_state(poolmach, cob_fid->f_container,
@@ -1230,7 +1230,7 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 			rc = -EIO;
 		}
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int io_prepare(struct m0_fom *fom)

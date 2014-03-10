@@ -268,7 +268,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
 
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_init);
 
@@ -287,7 +287,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_rpcchan = rpc_chan_get(machine, ep, max_rpcs_in_flight);
 	if (conn->c_rpcchan == NULL) {
 		M0_SET0(conn);
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	conn->c_rpc_machine = machine;
@@ -303,7 +303,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 		__conn_fini(conn);
 		M0_SET0(conn);
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int session_zero_attach(struct m0_rpc_conn *conn)
@@ -320,12 +320,12 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 
 	RPC_ALLOC_PTR(session, CONN_SESSION_ZERO_ATTACH, &m0_rpc_addb_ctx);
 	if (session == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = m0_rpc_session_init_locked(session, conn, 10 /* NR_SLOTS */);
 	if (rc != 0) {
 		m0_free(session);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 
 	session->s_session_id = SESSION_ID_0;
@@ -344,7 +344,7 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 		slot->sl_ops->so_slot_idle(slot);
 	}
 	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void __conn_fini(struct m0_rpc_conn *conn)
@@ -390,7 +390,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
 			      m0_rpc_conn_is_rcv(conn)));
 	M0_POST(m0_rpc_machine_is_locked(machine));
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_rpc_conn_fini(struct m0_rpc_conn *conn)
@@ -479,7 +479,7 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	m0_rpc_machine_unlock(conn->c_rpc_machine);
 
-	M0_RETURN(rc ?: conn->c_sm.sm_rc);
+	return M0_RCN(rc ?: conn->c_sm.sm_rc);
 }
 M0_EXPORTED(m0_rpc_conn_timedwait);
 
@@ -552,7 +552,7 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 		 (unsigned long long)max_rpcs_in_flight);
 
 	if (M0_FI_ENABLED("fake_error"))
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	rc = m0_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
 	if (rc == 0) {
@@ -560,7 +560,7 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 		if (rc != 0)
 			m0_rpc_conn_fini(conn);
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
@@ -572,7 +572,7 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 
 	rc = m0_rpc_conn_establish(conn, abs_timeout);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_ACTIVE,
 						 M0_RPC_CONN_FAILED),
@@ -580,7 +580,7 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 
 	M0_POST(M0_IN(conn_state(conn),
 		      (M0_RPC_CONN_ACTIVE, M0_RPC_CONN_FAILED)));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_establish_sync);
 
@@ -596,7 +596,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 	M0_PRE(conn != NULL && conn->c_rpc_machine != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	machine = conn->c_rpc_machine;
 
@@ -605,7 +605,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 		m0_rpc_machine_lock(machine);
 		conn_failed(conn, -ENOMEM);
 		m0_rpc_machine_unlock(machine);
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	m0_rpc_machine_lock(machine);
@@ -632,7 +632,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_establish);
 
@@ -708,7 +708,7 @@ int m0_rpc_conn_destroy(struct m0_rpc_conn *conn, m0_time_t abs_timeout)
 	rc = m0_rpc_conn_terminate_sync(conn, abs_timeout);
 	m0_rpc_conn_fini(conn);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_destroy);
 
@@ -720,9 +720,8 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 	M0_ENTRY();
 
 	rc = m0_rpc_conn_terminate(conn, abs_timeout);
-	if (rc != 0) {
-		M0_RETURN(rc);
-	}
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_TERMINATED,
 						 M0_RPC_CONN_FAILED),
@@ -730,7 +729,7 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 
 	M0_ASSERT(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
 					   M0_RPC_CONN_FAILED)));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_terminate_sync);
 
@@ -767,7 +766,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	if (conn_state(conn) == M0_RPC_CONN_TERMINATING) {
 		m0_fop_put(fop);
 		m0_rpc_machine_unlock(machine);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 	args = m0_fop_data(fop);
 	args->ct_sender_id = conn->c_sender_id;
@@ -791,7 +790,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 
 	m0_rpc_machine_unlock(machine);
 	/* see m0_rpc_conn_terminate_reply_received() */
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_conn_terminate);
 /*
@@ -903,7 +902,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	/* In-core state will be cleaned up by
 	   m0_rpc_conn_terminate_reply_sent() */
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rpc_conn_terminate_reply_sent(struct m0_rpc_conn *conn)

@@ -152,14 +152,14 @@ static int stub_create(struct m0_conf_cache *cache, enum m0_conf_objtype type,
 
 	*out = m0_conf_obj_create(cache, type, id);
 	if (*out == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = m0_conf_cache_add(cache, *out);
 	if (rc != 0) {
 		m0_conf_obj_delete(*out);
 		*out = NULL;
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
@@ -178,7 +178,7 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 
 	M0_POST(ergo(rc == 0,
 		     m0_conf_obj_invariant(*out) && (*out)->co_cache == cache));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)

@@ -1101,32 +1101,32 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 	/* Get cob memory. */
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	cob->co_oikey = *oikey;
 	rc = cob_oi_lookup(cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_oi_lookup() failed with %d", rc);
 		m0_cob_put(cob);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 
 	rc = cob_ns_lookup(cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_ns_lookup() failed with %d", rc);
 		m0_cob_put(cob);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 
 	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_get_fabomg() failed with %d", rc);
 		m0_cob_put(cob);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 
 	*out = cob;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
@@ -1353,7 +1353,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 	}
 
 	m0_be_btree_cursor_fini(&cursor);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 
@@ -1454,7 +1454,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
 out:
 	COB_FUNC_FAIL(CREATE, rc);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)

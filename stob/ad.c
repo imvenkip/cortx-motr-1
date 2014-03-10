@@ -389,7 +389,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 
 	m0_be_tx_fini(&tx);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
@@ -459,7 +459,7 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
 		m0_stob_get(adom->ad_bstore);
 		m0_be_emap_init(&adom->ad_adata, be_seg);
 	}
-	M0_RETURN(result);
+	return M0_RCN(result);
 }
 
 static int ad_incache_init(struct m0_stob_domain *dom,
@@ -1238,7 +1238,7 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_op_fini(&it.ec_op);
 
 	if (result != 0)
-		M0_RETURN(result);
+		return M0_ERR(result);
 	/*
 	 * Insert a new segment into extent map, overwriting parts of the map.
 	 *
@@ -1300,7 +1300,7 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_op_fini(&it.ec_op);
 	m0_be_emap_close(&it);
 
-	M0_RETURN(result ?: rc);
+	return M0_RCN(result ?: rc);
 }
 
 static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
@@ -1495,7 +1495,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		}
 	}
 	ad_wext_fini(&head);
-	M0_RETURN(result);
+	return M0_RCN(result);
 }
 
 static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
@@ -1577,7 +1577,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 
 	result = ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
 	if (result != 0)
-		M0_RETURN(result);
+		return M0_ERR(result);
 
 	back->si_opcode	      = io->si_opcode;
 	back->si_flags	      = io->si_flags;
@@ -1617,7 +1617,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	}
 	if (!wentout)
 		ad_stob_io_release(aio);
-	M0_RETURN(result);
+	return M0_RCN(result);
 }
 
 /**
@@ -1688,7 +1688,7 @@ M0_INTERNAL int m0_ad_stobs_init(void)
 	int rc;
 	M0_ENTRY();
 	rc = M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_init);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_ad_stobs_fini(void)

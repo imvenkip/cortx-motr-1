@@ -115,7 +115,7 @@ M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 		goto err_io;
 
 	M0_POST(m0_be_group_ondisk__invariant(go));
-	M0_RETURN(0);
+	return M0_RC(0);
 
 err_io:
 	group_io_fini(go);
@@ -124,7 +124,7 @@ err_reg:
 err_entry:
 	m0_free(go->go_entry);
 err:
-	M0_RETURN(-ENOMEM);
+	return M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go)

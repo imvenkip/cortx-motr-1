@@ -110,14 +110,14 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 
 	M0_ASSERT(rc == 0);
 	M0_POST(m0_be_engine__invariant(en));
-	M0_RETURN(0);
+	return M0_RC(0);
 
 log_fini:
 	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);
 err:
 	M0_ASSERT(rc != 0);
-	M0_RETURN(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
@@ -427,7 +427,7 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)

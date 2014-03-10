@@ -71,7 +71,7 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 
 	RPC_ALLOC_PTR(ctx, SESSION_FOP_CONN_ESTABLISH_ITEM_DECODE, &m0_rpc_addb_ctx);
 	if (ctx == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	ctx->cec_sender_ep = NULL;
 	fop = &ctx->cec_fop;
@@ -89,7 +89,7 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 	else
 		m0_fop_put(fop);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 const struct m0_fop_type_ops m0_rpc_fop_noop_ops = {

@@ -63,7 +63,7 @@ M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 
 	M0_ALLOC_PTR(sns_cm);
 	if (sns_cm == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	cm = &sns_cm->sc_base;
 
@@ -76,7 +76,7 @@ M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 		m0_free(sns_cm);
 
 	M0_LOG(M0_DEBUG, "sns_cm: %p service: %p", sns_cm, *service);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void addb_init()

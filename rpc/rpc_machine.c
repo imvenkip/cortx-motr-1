@@ -143,7 +143,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	M0_PRE(receive_pool != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	M0_SET0(machine);
 	machine->rm_reqh	  = reqh;
@@ -151,7 +151,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 
 	rc = __rpc_machine_init(machine);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
@@ -162,14 +162,14 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	rc = rpc_tm_setup(&machine->rm_tm, net_dom, ep_addr, receive_pool,
 			  colour, msg_size, queue_len);
 	if (rc == 0)
-		M0_RETURN(0);
+		return M0_RC(0);
 
 	machine->rm_stopping = true;
 	m0_clink_signal(&machine->rm_sm_grp.s_clink);
 	m0_thread_join(&machine->rm_worker);
 err:
 	__rpc_machine_fini(machine);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_machine_init);
 
@@ -208,13 +208,13 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	m0_sm_group_init(&machine->rm_sm_grp);
 	m0_rpc_machine_bob_init(machine);
 	m0_sm_group_init(&machine->rm_sm_grp);
-	M0_RETURN(0);
+	return M0_RC(0);
 
 cntr_fini:
 	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
 out_fini:
 	m0_addb_ctx_fini(&machine->rm_addb_ctx);
-	M0_RETURN(rc);
+	return M0_ERR(rc);
 }
 
 static void __rpc_machine_fini(struct m0_rpc_machine *machine)
@@ -416,7 +416,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 		m0_net_tm_fini(tm);
 		M0_RETERR(rc, "TM start");
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void rpc_tm_cleanup(struct m0_rpc_machine *machine)
@@ -674,7 +674,7 @@ static int rpc_chan_create(struct m0_rpc_chan **chan,
 			  &m0_addb_proc_ctx, &machine->rm_addb_ctx);
 	if (ch == NULL) {
 		*chan = NULL;
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	ch->rc_rpc_machine = machine;
@@ -694,7 +694,7 @@ static int rpc_chan_create(struct m0_rpc_chan **chan,
 	m0_rpc_frm_init(&ch->rc_frm, &constraints, &m0_rpc_frm_default_ops);
 	rpc_chan_tlink_init_at(ch, &machine->rm_chans);
 	*chan = ch;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void rpc_chan_put(struct m0_rpc_chan *chan)

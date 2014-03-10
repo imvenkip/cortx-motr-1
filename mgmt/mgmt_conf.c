@@ -543,7 +543,7 @@ static int mgmt_svc_names_query(struct m0_mgmt_conf_names *names,
 	if (p == NULL) {
 		rc = (errno == 0) ? -ENOMEM : -errno;
 		m0_free(cmd);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 	m0_free(cmd);
 
@@ -551,14 +551,14 @@ static int mgmt_svc_names_query(struct m0_mgmt_conf_names *names,
 	ptr = fgets(buf, BUFSIZ, p);
 	rc = pclose(p);
 	if (rc < 0)
-		M0_RETURN(-errno);
+		return M0_ERR(-errno);
 	else if (rc > 0)
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 	if (ptr == NULL)
-		M0_RETURN(-ENOENT);
+		return M0_ERR(-ENOENT);
 	l = strlen(ptr);
 	if (l == 0 || ptr[l - 1] != '\n')
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 	ptr[l - 1] = 0;
 
 	return mgmt_strarg_parse(&names->mcn_nr, &names->mcn_name, buf, ' ');
@@ -581,7 +581,7 @@ M0_INTERNAL int m0_mgmt_node_get(struct m0_mgmt_conf      *conf,
 			     conf->mc_private->mcp_genders, nodename);
 	if (rc < 0)
 		m0_mgmt_node_free(node);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_mgmt_node_free(struct m0_mgmt_node_conf *node)
@@ -618,7 +618,7 @@ M0_INTERNAL int m0_mgmt_client_get(struct m0_mgmt_conf        *conf,
 			     conf->mc_private->mcp_nodename);
 	if (rc < 0)
 		m0_mgmt_client_free(clnt);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_mgmt_client_free(struct m0_mgmt_client_conf *clnt)
@@ -712,23 +712,23 @@ M0_INTERNAL int m0_mgmt_conf_init(struct m0_mgmt_conf *conf,
 
 	rc = gethostname(hostname, sizeof hostname);
 	if (rc < 0)
-		M0_RETURN(-errno);
+		return M0_ERR(-errno);
 	ptr = strchr(hostname, '.');
 	if (ptr != NULL)		/* want short name only */
 		*ptr = 0;
 
 	M0_ALLOC_PTR(conf->mc_private);
 	if (conf->mc_private == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	conf->mc_private->mcp_genders = m0_strdup(genders);
 	conf->mc_private->mcp_nodename = m0_strdup(hostname);
 	if (conf->mc_private->mcp_genders == NULL ||
 	    conf->mc_private->mcp_nodename == NULL) {
 		m0_mgmt_conf_fini(conf);
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf)

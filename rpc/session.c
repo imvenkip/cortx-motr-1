@@ -296,7 +296,7 @@ M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
 
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_session_init);
 
@@ -334,7 +334,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 		__session_fini(session);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int slot_table_alloc_and_init(struct m0_rpc_session *session)
@@ -349,7 +349,7 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
 	RPC_ALLOC_ARR(session->s_slot_table, session->s_nr_slots,
 		      SESSION_SLOT_TABLE_ALLOC_AND_INIT, &m0_rpc_addb_ctx);
 	if (session->s_slot_table == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	slot_ops = m0_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
 					               : &rcv_slot_ops;
@@ -358,14 +358,14 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
 		RPC_ALLOC_PTR(slot, SESSION_SLOT_TABLE_ALLOC_AND_INIT,
 			      &m0_rpc_addb_ctx);
 		if (slot == NULL) {
-			M0_RETURN(-ENOMEM);
+			return M0_ERR(-ENOMEM);
 			/* __session_fini() will do the cleanup */
 		}
 
 		rc = m0_rpc_slot_init(slot, slot_ops);
 		if (rc != 0) {
 			m0_free(slot);
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 		}
 
 		slot->sl_session = session;
@@ -374,8 +374,8 @@ static int slot_table_alloc_and_init(struct m0_rpc_session *session)
 		session->s_slot_table[i] = slot;
 	}
 	if (M0_FI_ENABLED("failed"))
-		M0_RETURN(-ENOMEM);
-	M0_RETURN(0);
+		return M0_ERR(-ENOMEM);
+	return M0_RC(0);
 }
 
 /**
@@ -462,7 +462,7 @@ M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(rc ?: session->s_sm.sm_rc);
+	return M0_RCN(rc ?: session->s_sm.sm_rc);
 }
 M0_EXPORTED(m0_rpc_session_timedwait);
 
@@ -482,7 +482,7 @@ M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 			m0_rpc_session_fini(session);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
@@ -493,7 +493,7 @@ M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
 	M0_ENTRY("session: %p", session);
 	rc = m0_rpc_session_establish(session, abs_timeout);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	rc = m0_rpc_session_timedwait(session, M0_BITS(M0_RPC_SESSION_IDLE,
 						       M0_RPC_SESSION_FAILED),
@@ -501,7 +501,7 @@ M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
 
 	M0_ASSERT(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
 						 M0_RPC_SESSION_FAILED)));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_session_establish_sync);
 
@@ -520,7 +520,7 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	M0_PRE(session != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	machine = session_machine(session);
 
@@ -545,7 +545,7 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	if (rc != 0) {
 		session_failed(session, rc);
 		m0_rpc_machine_unlock(machine);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 
 	conn = session->s_conn;
@@ -575,7 +575,7 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	m0_rpc_machine_unlock(machine);
 
 	/* see m0_rpc_session_establish_reply_received() */
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_session_establish);
 
@@ -690,7 +690,7 @@ int m0_rpc_session_destroy(struct m0_rpc_session *session,
 	rc = m0_rpc_session_terminate_sync(session, abs_timeout);
 	m0_rpc_session_fini(session);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_session_destroy);
 
@@ -719,7 +719,7 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 				(M0_RPC_SESSION_TERMINATED,
 				 M0_RPC_SESSION_FAILED)));
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_session_terminate_sync);
 
@@ -747,7 +747,7 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
 
 	if (session_state(session) == M0_RPC_SESSION_TERMINATING) {
 		m0_rpc_machine_unlock(machine);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	m0_rpc_session_del_slots_from_ready_list(session);
@@ -781,7 +781,7 @@ out_unlock:
 
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rpc_session_terminate);
 /*
@@ -1036,7 +1036,7 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
 	session_state_set(session, M0_RPC_SESSION_TERMINATED);
 
 	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)

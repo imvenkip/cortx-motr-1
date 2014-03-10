@@ -192,13 +192,13 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 
 	m0_fom_queue(&revc->rcf_fom, service->rs_reqh);
 	rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
-	M0_RETURN(0);
+	return M0_RC(0);
 
 err_ep:
 	m0_free(revc->rcf_rem_ep);
 err_revc:
 	m0_free(revc);
-	M0_RETURN(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void

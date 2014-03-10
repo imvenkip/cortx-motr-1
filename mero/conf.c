@@ -163,7 +163,7 @@ confc_fini:
 	m0_confc_fini(&confc);
 end:
 	ast_thread_fini();
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /*
@@ -211,7 +211,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 
 	rc = m0_net_xprt_init(xprt);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
@@ -230,7 +230,7 @@ net_dom:
 	m0_net_domain_fini(&client_net_dom);
 xprt:
 	m0_net_xprt_fini(xprt);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,

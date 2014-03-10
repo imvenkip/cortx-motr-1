@@ -309,11 +309,11 @@ static bool file_checksum_check(bool (*checksum)(const void *data,
 		blk_data = m0_bufvec_cursor_addr(&data_cur);
 		if (!checksum(blk_data, di->d_bsize,
 			      cksum + current_pos(di, i)))
-			M0_RETURN(false);
+			return M0_ERR(false);
 		m0_bufvec_cursor_move(&data_cur, di->d_bsize);
 	}
 
-	M0_RETURN(true);
+	return M0_RC(true);
 }
 
 static void t10_ref_tag_compute(const struct m0_io_indexvec *io_info,
@@ -354,11 +354,11 @@ static bool t10_ref_tag_check(const struct m0_io_indexvec *io_info,
 				      io_info->ci_iosegs[i].ci_count) {
 			M0_LOG(M0_ERROR,"Segment no: %d TAG value is %d \n", i,
 					(int)cksum[cur_pos]);
-			M0_RETURN(false);
+			return M0_ERR(false);
 		}
 	}
 
-	M0_RETURN(true);
+	return M0_RC(true);
 }
 
 M0_INTERNAL const struct m0_di_ops *m0_di_ops_get(enum m0_di_types di_type)

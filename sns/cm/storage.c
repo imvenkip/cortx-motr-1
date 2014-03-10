@@ -220,7 +220,7 @@ out:
 	} else
 		rc = cp->c_ops->co_phase_next(cp);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
@@ -275,7 +275,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 		rc = cp->c_ops->co_phase_next(cp);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /** @} SNSCMCP */

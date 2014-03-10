@@ -491,7 +491,7 @@ static int file_read(const char *path, char *dest, size_t sz)
 
 	f = fopen(path, "r");
 	if (f == NULL)
-		M0_RETURN(-errno);
+		return M0_ERR(-errno);
 
 	n = fread(dest, 1, sz - 1, f);
 	if (ferror(f))
@@ -502,7 +502,7 @@ static int file_read(const char *path, char *dest, size_t sz)
 		dest[n] = '\0';
 
 	fclose(f);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
@@ -517,7 +517,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 
 	rc = file_read(dbpath, buf, sizeof buf) ?: m0_confstr_parse(buf, &enc);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	for (i = 0; i < enc->cx_nr && rc == 0; ++i) {
 		struct m0_conf_obj        *obj;
@@ -529,7 +529,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 	}
 
 	m0_confx_free(enc);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /** Allocates and initialises confd service. */
@@ -550,7 +550,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 	M0_ALLOC_PTR_ADDB(confd, &m0_addb_gmc, M0_CONF_ADDB_LOC_CONFD_ALLOCATE,
 	                  &m0_conf_mod_ctx);
 	if (confd == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	m0_mutex_init(&confd->d_lock);
 	m0_conf_cache_init(&confd->d_cache, &confd->d_lock);
@@ -568,7 +568,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 		m0_mutex_fini(&confd->d_lock);
 		m0_free(confd);
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /** Finalises and deallocates confd service. */
@@ -590,7 +590,7 @@ static int confd_start(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
 	/* XXX FUTURE: mount local storage, ... ? */
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void confd_stop(struct m0_reqh_service *service)

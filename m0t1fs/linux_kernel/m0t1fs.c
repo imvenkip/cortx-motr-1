@@ -289,7 +289,7 @@ static int m0t1fs_rpc_init(void)
 	rc = m0t1fs_reqh_services_start();
 	if (rc != 0)
 		goto reqh_fini;
-	M0_RETURN(0);
+	return M0_RC(0);
 
 reqh_fini:
 	m0_reqh_fini(reqh);
@@ -361,7 +361,7 @@ static int m0t1fs_addb_mon_total_io_size_init(void)
 					     sizeof (uint64_t);
 	M0_ALLOC_PTR(sum_rec);
 	if (sum_rec == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	m0_addb_monitor_init(&m0t1fs_globals.g_addb_mon_rw_io_size,
 			     &m0t1fs_addb_mon_rw_io_ops);
@@ -427,7 +427,7 @@ static int m0t1fs_layout_init(void)
 			m0_layout_domain_fini(&m0t1fs_globals.g_layout_dom);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void m0t1fs_layout_fini(void)
@@ -450,15 +450,15 @@ static int m0t1fs_service_start(const char *sname)
 
 	stype = m0_reqh_service_type_find(sname);
 	if (stype == NULL)
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 	rc = m0_reqh_service_allocate(&service, stype, NULL);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RCN(rc);
 	m0_uuid_generate(&uuid);
 	m0_reqh_service_init(service, reqh, &uuid);
 	rc = m0_reqh_service_start(service);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int m0t1fs_reqh_services_start(void)
@@ -471,10 +471,10 @@ static int m0t1fs_reqh_services_start(void)
 	rc = m0t1fs_service_start("rmservice");
 	if (rc)
 		goto err;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 err:
 	m0t1fs_reqh_services_stop();
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void m0t1fs_reqh_services_stop(void)

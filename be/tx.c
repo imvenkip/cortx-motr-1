@@ -285,7 +285,7 @@ m0_be_tx_timedwait(struct m0_be_tx *tx, uint64_t states, m0_time_t deadline)
 	M0_PRE(be_tx_is_locked(tx));
 
 	m0_sm_timedwait(&tx->t_sm, states, deadline);
-	M0_RETURN(tx->t_sm.sm_rc);
+	return M0_RCN(tx->t_sm.sm_rc);
 }
 
 M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx)

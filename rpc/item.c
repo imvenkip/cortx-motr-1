@@ -106,7 +106,7 @@ M0_INTERNAL int m0_rpc_item_module_init(void)
 	m0_rpc_item_onwire_header_size = m0_xcode_length(&head_xc) +
 		m0_xcode_length(&slotr_xc);
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rpc_item_module_fini(void)

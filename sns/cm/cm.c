@@ -398,7 +398,7 @@ M0_INTERNAL int m0_sns_cm_type_register(void)
 	rc = m0_cm_type_register(&sns_repair_cmt) ?:
 	     m0_cm_type_register(&sns_rebalance_cmt);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_sns_cm_type_deregister(void)
@@ -634,7 +634,7 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 	if (rc == 0)
 		scm->sc_start_time = m0_time_now();
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)

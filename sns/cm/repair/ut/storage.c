@@ -89,7 +89,7 @@ static int dummy_fom_tick(struct m0_fom *fom)
 
 	rc = cp->c_ops->co_action[m0_fom_phase(fom)](cp);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void dummy_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

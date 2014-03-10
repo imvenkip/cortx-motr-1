@@ -114,13 +114,13 @@ static int txs_allocate(struct m0_reqh_service **service,
 
 	M0_ALLOC_PTR(s);
 	if (s == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	*service = &s->ts_reqh;
 	(*service)->rs_ops = &txs_ops;
 	_addb_init();
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /** Finalises and deallocates transaction service. */
@@ -135,7 +135,7 @@ static void txs_fini(struct m0_reqh_service *service)
 static int txs_start(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void txs_stop(struct m0_reqh_service *service)

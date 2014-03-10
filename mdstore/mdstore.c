@@ -847,7 +847,7 @@ out_end:
 		rc = ENOENT;
 out:
 	MDSTORE_FUNC_FAIL(READDIR, rc);
-	M0_RETURN(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
@@ -901,7 +901,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 	flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
 	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
 out:
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 #define MDSTORE_PATH_MAX 1024

@@ -173,7 +173,7 @@ M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 
 	if (M0_FI_ENABLED("fake_error")) {
 		m0_mutex_unlock(&dom->nd_mutex);
-		M0_RETURN(-EINVAL);
+		return M0_ERR(-EINVAL);
 	}
 	m0_mutex_init(&tm->ntm_mutex);
 	tm->ntm_callback_counter = 0;
@@ -289,7 +289,7 @@ M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 	if (M0_FI_ENABLED("fake_error")) {
 		tm->ntm_state = M0_NET_TM_FAILED;
 		m0_mutex_unlock(&tm->ntm_mutex);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	tm->ntm_state = M0_NET_TM_STARTING;

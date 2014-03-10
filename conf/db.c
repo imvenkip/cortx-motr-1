@@ -82,7 +82,7 @@ static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
 		M0_RETERR(-EINVAL, "Invalid object type: %u", xobj_type(xobj));
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /* Note: m0_xcode_ctx_init() doesn't allow `xobj' to be const. Sigh. */
@@ -98,7 +98,7 @@ xcode_ctx_init(struct m0_xcode_ctx *ctx, struct m0_confx_obj *xobj, bool decode)
 	if (decode)
 		ctx->xcx_alloc = _conf_xcode_alloc;
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int confx_obj_measure(struct m0_confx_obj *xobj, m0_bcount_t *result)
@@ -110,15 +110,15 @@ static int confx_obj_measure(struct m0_confx_obj *xobj, m0_bcount_t *result)
 
 	rc = xcode_ctx_init(&ctx, xobj, false);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	rc = m0_xcode_length(&ctx);
 	if (rc < 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	M0_ASSERT(rc != 0); /* XXX How can we be so sure? */
 
 	*result = rc;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /* ------------------------------------------------------------------
@@ -229,7 +229,7 @@ static int confx_from_db(struct m0_confx_obj *dest, enum m0_conf_objtype type,
 	if (rc == 0)
 		dest->o_conf = *(struct m0_confx_u *)src->do_rec.b_addr;
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -297,7 +297,7 @@ confdb_tables_init(struct m0_be_seg *seg, struct m0_be_btree *btrees[],
 		m0_confdb_destroy(seg, tx);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -348,13 +348,13 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 		M0_ASSERT(IS_IN_ARRAY(xobj_type(obj), table_names));
 		rc = confx_obj_measure(obj, &len);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 		len += sizeof(obj->o_conf.u_type);
 		ksize = sizeof(struct confdb_key);
 		m0_be_btree_insert_credit(&btree, 1, ksize, len, accum);
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
@@ -370,12 +370,12 @@ M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
 		rc = m0_be_seg_dict_lookup(seg, table_names[i],
 					   (void **)&btree);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 		m0_be_btree_destroy_credit(btree, 1, accum);
 		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
@@ -395,15 +395,15 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
 		rc = m0_be_seg_dict_lookup(seg, table_names[i],
 					   (void **)&btree);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
 		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
 		rc = m0_be_seg_dict_delete(seg, tx, table_names[i]);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
@@ -453,7 +453,7 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		m0_confdb_destroy(seg, tx);
 	}
 	m0_free(confx_objs);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /* XXX FIXME: Other functions receive both `tables' and the number of tables.
@@ -481,7 +481,7 @@ confdb_objs_count(struct m0_be_btree *btrees[], size_t *result)
 		rc = 0;
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static struct m0_confx *confx_alloc(size_t nr_objs)
@@ -548,7 +548,7 @@ out:
 		confx_free(dest);
 		M0_SET0(dest);
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
@@ -587,7 +587,7 @@ M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 		*out = NULL;
 	}
 out:
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

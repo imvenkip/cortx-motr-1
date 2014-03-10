@@ -273,7 +273,7 @@ static int file_lock_encdec(struct m0_file          *file,
 	 * entire ambient object: an inode on client and a cob on server.
 	 */
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /** Encode file_lock - ready to send over the wire */
@@ -288,7 +288,7 @@ static int file_lock_encode(struct m0_bufvec_cursor     *cur,
 
 	fl = container_of(resource, struct m0_file, fi_res);
 	rc = file_lock_encdec(fl, cur, M0_XCODE_ENCODE);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /** Decode file_lock - from the wire */
@@ -303,7 +303,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 
 	RM_ALLOC_PTR(fl, FILE_ALLOC, &m0_rm_addb_ctx);
 	if (fl == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = file_lock_encdec(fl, cur, M0_XCODE_DECODE);
 	if (rc == 0) {
@@ -316,7 +316,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 	} else
 		m0_free(fl);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /** Initialises credit (lock state) and ops vector for the file_lock */
@@ -442,8 +442,9 @@ static int file_lock_cr_encdec(struct m0_rm_credit     *self,
 	M0_ENTRY();
 	M0_ASSERT(cur != NULL);
 
-	M0_RETURN(m0_xcode_encdec(&M0_XCODE_OBJ(&M0_XT_U64, &self->cr_datum),
-				  cur, what));
+	return M0_RCN(m0_xcode_encdec(&M0_XCODE_OBJ(&M0_XT_U64,
+						    &self->cr_datum),
+				      cur, what));
 }
 
 static int file_lock_cr_encode(struct m0_rm_credit     *self,
@@ -545,7 +546,7 @@ M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom)
 
 	flock_rt.rt_id = M0_RM_FLOCK_RT;
 	flock_rt.rt_ops = &file_lock_type_ops;
-	M0_RETURN(m0_rm_type_register(dom, &flock_rt));
+	return M0_RCN(m0_rm_type_register(dom, &flock_rt));
 }
 M0_EXPORTED(m0_file_lock_type_register);
 

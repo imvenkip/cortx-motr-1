@@ -204,7 +204,7 @@ static int mem_xo_dom_init(struct m0_net_xprt *xprt,
 	} else {
 		M0_ALLOC_PTR(dp);
 		if (dp == NULL) {
-			M0_RETURN(-ENOMEM);
+			return M0_ERR(-ENOMEM);
 		}
 		dom->nd_xprt_private = dp;
 	}
@@ -227,7 +227,7 @@ static int mem_xo_dom_init(struct m0_net_xprt *xprt,
 	}
 	M0_POST(mem_dom_invariant(dom));
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /**

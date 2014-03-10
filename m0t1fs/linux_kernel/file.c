@@ -1106,7 +1106,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 
 			if (map->pi_databufs[row][col]->db_flags &
 			    PA_COPY_FRMUSR_DONE)
-				M0_RETURN(0);
+				return M0_RC(0);
 
 			/*
 			 * Copies page to auxiliary buffer before it gets
@@ -1123,7 +1123,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 					       db_buf.b_addr,
 					       PAGE_CACHE_SIZE);
 				else
-					M0_RETURN(0);
+					return M0_RC(0);
 			}
 
 			pagefault_disable();
@@ -1159,7 +1159,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 			M0_RETERR(-EFAULT, "Failed to copy_to_user");
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
@@ -1257,7 +1257,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 last:
 	m0_free(dbufs);
 	m0_free(pbufs);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int ioreq_parity_recalc(struct io_request *req)
@@ -1275,7 +1275,7 @@ static int ioreq_parity_recalc(struct io_request *req)
 			M0_RETERR(rc, "Parity recalc failed for grpid : %llu",
 				  req->ir_iomaps[map]->pi_grpid);
 	}
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /* Finds out pargrp_iomap from array of such structures in io_request. */
@@ -1360,7 +1360,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 		}
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void indexvec_sort(struct m0_indexvec *ivec)
@@ -1456,7 +1456,7 @@ static int pargrp_iomap_init(struct pargrp_iomap *map,
 		}
 	}
 	M0_POST_EX(pargrp_iomap_invariant(map));
-	M0_RETURN(0);
+	return M0_RC(0);
 
 fail:
 	m0_indexvec_free(&map->pi_ivec);
@@ -1615,7 +1615,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 				start, count, row, col, dbuf->db_flags);
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 err:
 	for (row = 0; row < data_row_nr(play); ++row) {
 		for (col = 0; col < data_col_nr(play); ++col) {
@@ -1670,7 +1670,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 	++iommstats.a_page_nr;
 	map->pi_databufs[row][col]->db_auxbuf.b_nob = PAGE_CACHE_SIZE;
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /*
@@ -1725,7 +1725,7 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 				M0_RETERR(rc, "auxbuf_alloc failed");
 		}
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /*
@@ -1850,7 +1850,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 		}
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
@@ -1879,7 +1879,7 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 					PA_READ;
 		}
 	}
-	M0_RETURN(0);
+	return M0_RC(0);
 err:
 	for (row = 0; row < parity_row_nr(play); ++row) {
 		for (col = 0; col < parity_col_nr(play); ++col)
@@ -2100,7 +2100,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 
 	M0_POST_EX(ergo(rc == 0, pargrp_iomap_invariant(map)));
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
@@ -2163,7 +2163,7 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
 			bufs[row][col]->db_flags |= PA_READ_FAILED;
 		}
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
@@ -2305,7 +2305,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 		}
 	}
 	rc = pargrp_iomap_pages_mark(map, M0_PUT_SPARE);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 
 par_fail:
 	M0_ASSERT(rc != 0);
@@ -2412,7 +2412,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 		goto err;
 	/* If parity group is healthy, there is no need to read parity. */
 	if (map->pi_state != PI_DEGRADED)
-		M0_RETURN(0);
+		return M0_RC(0);
 
 	/*
 	 * Populates the index vector if original read IO request did not
@@ -2453,7 +2453,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	}
 	if (rc != 0)
 		goto err;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 err:
 	M0_RETERR(rc,"%s", rc == -ENOMEM ?  "Failed to allocate data buffer":
 			"Illegal device queried for status");
@@ -2550,7 +2550,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	m0_free(failed.b_addr);
 	free_page(zpage);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int ioreq_iomaps_prepare(struct io_request *req)
@@ -2651,7 +2651,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 		       req->ir_iomaps[id]->pi_grpid);
 	}
 
-	M0_RETURN(0);
+	return M0_RCN(0);
 failed:
 	req->ir_ops->iro_iomaps_destroy(req);
 	M0_RETERR(rc, "iomaps_prepare failed");
@@ -2738,7 +2738,7 @@ static int dgmode_rwvec_alloc_init(struct target_ioreq *ti)
 	dg->dr_ivec.iv_vec.v_nr = 0;
 
 	ti->ti_dgvec = dg;
-	M0_RETURN(0);
+	return M0_RC(0);
 failed:
 	ti->ti_dgvec = NULL;
 	if (dg->dr_bufvec.ov_buf != NULL)
@@ -2879,7 +2879,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		}
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 err:
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		tioreqht_htable_del(&xfer->nxr_tioreqs_hash, ti);
@@ -2904,7 +2904,7 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 	rc = m0_sm_timedwait(&req->ir_sm, (1 << state), M0_TIME_NEVER);
 	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int ioreq_dgmode_recover(struct io_request *req)
@@ -2925,7 +2925,7 @@ static int ioreq_dgmode_recover(struct io_request *req)
 		}
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /*
@@ -2968,7 +2968,7 @@ static int device_check(struct io_request *req)
 		M0_RETERR(-EIO, "Failed to recover data since number of failed"
 			  " data units exceed number of parity units in"
 			  " parity group");
-	M0_RETURN(st_cnt);
+	return M0_RCN(st_cnt);
 }
 
 static int ioreq_dgmode_write(struct io_request *req, bool rmw)
@@ -2985,9 +2985,9 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	rc = device_check(req);
 	if (req->ir_nwxfer.nxr_rc !=
 	    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-		M0_RETURN(req->ir_nwxfer.nxr_rc);
+		return M0_RCN(req->ir_nwxfer.nxr_rc);
 	else if (rc < 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	csb = file_to_sb(req->ir_file);
 	ioreq_sm_state_set(req, IRS_DEGRADED_WRITING);
@@ -3076,7 +3076,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	m0_addb_counter_update(&stats->ais_sizes_cntr,
 			       (uint64_t) req->ir_nwxfer.nxr_bytes);
 
-	M0_RETURN(req->ir_nwxfer.nxr_rc);
+	return M0_RCN(req->ir_nwxfer.nxr_rc);
 }
 
 static int ioreq_dgmode_read(struct io_request *req, bool rmw)
@@ -3102,9 +3102,9 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * failed device(s) at all.
 	 */
 	if (req->ir_nwxfer.nxr_rc == 0)
-		M0_RETURN(req->ir_nwxfer.nxr_rc);
+		return M0_RC(req->ir_nwxfer.nxr_rc);
 	else if (rc < 0)
-		M0_RETURN(rc);
+		return M0_RCN(rc);
 
 	csb = file_to_sb(req->ir_file);
 	start = m0_time_now();
@@ -3212,7 +3212,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 			M0_RETERR(rc, "Failed to recover lost data.");
 	}
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int ioreq_file_lock(struct io_request *req)
@@ -3234,7 +3234,7 @@ static int ioreq_file_lock(struct io_request *req)
 	if (rc == 0)
 		ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void ioreq_file_unlock(struct io_request *req)
@@ -3442,7 +3442,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	if (rmw)
 		ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 
-	M0_RETURN(0);
+	return M0_RC(0);
 
 fail_locked:
 	req->ir_ops->iro_file_unlock(req);
@@ -3502,7 +3502,7 @@ static int io_request_init(struct io_request  *req,
 	indexvec_sort(&req->ir_ivec);
 
 	M0_POST_EX(ergo(rc == 0, io_request_invariant(req)));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void io_request_fini(struct io_request *req)
@@ -3593,7 +3593,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
 		                  M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST, rc,
 				  &m0t1fs_addb_ctx);
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 	}
 
 	if (M0_FI_ENABLED("poolmach_client_repaired_device1")) {
@@ -3681,7 +3681,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
 					  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
 					  rc, &m0t1fs_addb_ctx);
-			M0_RETURN(rc);
+			return M0_ERR(rc);
 		}
 		spare.sa_unit = layout_n(play) + layout_k(play) + spare_slot;
 		m0_pdclust_instance_map(play_instance, &spare, tgt);
@@ -3700,7 +3700,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	if (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
 	    device_state != M0_PNDS_ONLINE)
 		(*out)->ti_state = device_state;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int target_ioreq_init(struct target_ioreq    *ti,
@@ -3772,7 +3772,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_ivec.iv_vec.v_nr = 0;
 
 	M0_POST_EX(target_ioreq_invariant(ti));
-	M0_RETURN(0);
+	return M0_RC(0);
 fail:
 	m0_indexvec_free(&ti->ti_ivec);
 	m0_free(ti->ti_bufvec.ov_vec.v_count);
@@ -3863,7 +3863,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 		rc = dgmode_rwvec_alloc_init(ti);
 
 	*out = ti;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
@@ -4062,7 +4062,7 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 	fop->irf_iofop.if_fop.f_item.ri_ops = &m0t1fs_item_ops;
 
 	M0_POST(ergo(rc == 0, io_req_fop_invariant(fop)));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void io_req_fop_fini(struct io_req_fop *fop)
@@ -4356,10 +4356,8 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	/* Index vector has to be created before io_request is created. */
 	ivec = indexvec_create(seg_nr, iov, pos,
 	                       M0T1FS_ADDB_LOC_AIO_READ);
-	if (ivec == NULL) {
-		M0_LEAVE();
-		M0_RETURN(0);
-	}
+	if (ivec == NULL)
+		return M0_RC(0);
 
 	/*
 	 * For read IO, if any segment from index vector goes beyond EOF,
@@ -4381,7 +4379,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	if (m0_vec_count(&ivec->iv_vec) == 0) {
 		m0_indexvec_free(ivec);
 		m0_free(ivec);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	M0_LOG(M0_INFO, "Read vec-count = %llu", m0_vec_count(&ivec->iv_vec));
@@ -4433,7 +4431,7 @@ static int io_fops_async_submit(struct m0_io_fop      *iofop,
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
 
 out:
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void io_req_fop_release(struct m0_ref *ref)
@@ -4703,7 +4701,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 
 out:
 	xfer->nxr_state = NXS_INFLIGHT;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
@@ -4827,7 +4825,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 					  "process failed");
 		}
 	} m0_tl_endfor;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /*
@@ -4903,7 +4901,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 	}
 
 	M0_POST(ergo(rc == 0, *rbuf != NULL));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
@@ -5078,7 +5076,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		iofops_tlist_add(&ti->ti_iofops, irfop);
 	}
 
-	M0_RETURN(0);
+	return M0_RC(0);
 fini_fop:
 	irfop_fini(irfop);
 err:

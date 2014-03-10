@@ -579,10 +579,10 @@ static int mgmt_svc_rso_start(struct m0_reqh_service *service)
 	reqh = service->rs_reqh;
 	if (m0_reqh_state_get(reqh) != M0_REQH_ST_MGMT_STARTED ||
 	    reqh->rh_mgmt_svc != service)
-		M0_RETURN(-EPROTO);
+		return M0_ERR(-EPROTO);
 
 	if (M0_FI_ENABLED("-ECANCELED"))
-		M0_RETURN(-ECANCELED);
+		return M0_ERR(-ECANCELED);
 
 	the_mgmt_svc = svc; /* UT */
 	return 0;
@@ -636,12 +636,12 @@ static int mgmt_svc_rso_fop_accept(struct m0_reqh_service *service,
 	M0_PRE(fop != NULL);
 
 	if (m0_reqh_service_state_get(service) != M0_RST_STARTED)
-		M0_RETURN(-ESHUTDOWN);
+		return M0_ERR(-ESHUTDOWN);
 
 	if (fop->f_type == &m0_fop_mgmt_service_state_req_fopt)
 		return 0;
 
-	M0_RETURN(-ESHUTDOWN);
+	return M0_ERR(-ESHUTDOWN);
 }
 
 static const struct m0_reqh_service_ops mgmt_service_ops = {

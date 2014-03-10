@@ -143,7 +143,7 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 	 */
 	fop = m0_fop_alloc(&m0_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -192,7 +192,7 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 	};
 
 	slot_item_tlink_init_at(dummy_item, &slot->sl_item_list);
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void reply_item_put(struct m0_rpc_item *item)
@@ -495,7 +495,7 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 		misordered_item_received(slot, item);
 	}
 	M0_POST(m0_rpc_slot_invariant(slot));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static void duplicate_item_received(struct m0_rpc_slot *slot,
@@ -591,7 +591,7 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 		 *     When control reaches this point during testing it might
 		 *     be because of a possible bug. So assert.
 		 */
-		M0_RETURN(-EPROTO);
+		return M0_ERR(-EPROTO);
 	}
 	rc = __slot_reply_received(slot, req, reply);
 	if (rc == 0)
@@ -849,11 +849,11 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 
 	conn = m0_rpc_machine_find_conn(machine, item);
 	if (conn == NULL)
-		M0_RETURN(-ENOENT);
+		return M0_ERR(-ENOENT);
 
 	session = m0_rpc_session_search(conn, sref->sr_ow.osr_session_id);
 	if (session == NULL || sref->sr_ow.osr_slot_id >= session->s_nr_slots)
-		M0_RETURN(-ENOENT);
+		return M0_ERR(-ENOENT);
 
 	slot = session->s_slot_table[sref->sr_ow.osr_slot_id];
 	/* XXX Check generation of slot */
@@ -863,7 +863,7 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 
 	M0_POST(item->ri_session != NULL &&
 		item->ri_slot_refs[0].sr_slot != NULL);
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
@@ -881,17 +881,17 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 
 	if (m0_rpc_item_is_oneway(item)) {
 		m0_rpc_item_dispatch(item);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	M0_ASSERT(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
 	rc = associate_session_and_slot(item, machine);
 	if (rc == 0)
-		M0_RETURN(m0_rpc_slot_item_received(item));
+		return M0_RCN(m0_rpc_slot_item_received(item));
 
 	if (m0_rpc_item_is_conn_establish(item)) {
 		m0_rpc_item_dispatch(item);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	/*
@@ -904,7 +904,7 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	 * reference will be dropped in packet_received(), resulting
 	 * in the item getting deallocated.
 	 */
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)

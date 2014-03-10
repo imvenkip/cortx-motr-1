@@ -264,7 +264,7 @@ M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain        *dom,
 	rc = M0_THREAD_INIT(&rt->rt_worker, struct m0_rm_resource_type *, NULL,
 			    &credit_processor, rt, "RM RT agent");
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_ERR(rc);
 
 	m0_mutex_lock(&dom->rd_lock);
 	dom->rd_types[rt->rt_id] = rt;
@@ -285,7 +285,7 @@ M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain        *dom,
 	M0_POST(dom->rd_types[rt->rt_id] == rt);
 	M0_POST(rt->rt_dom == dom);
 
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_type_register);
 
@@ -431,7 +431,7 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 	 */
 	m0_bufvec_cursor_copyto(&cursor, (void *)&res->r_type->rt_id,
 				sizeof res->r_type->rt_id);
-	M0_RETURN(res->r_type->rt_ops->rto_encode(&cursor, res));
+	return M0_RCN(res->r_type->rt_ops->rto_encode(&cursor, res));
 }
 M0_EXPORTED(m0_rm_resource_encode);
 
@@ -680,7 +680,7 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 		rc = -ENOMEM;
 
 	M0_POST(ergo(rc == 0, owner_invariant(owner)));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_owner_selfadd);
 
@@ -997,7 +997,7 @@ M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan         **loan,
 	}
 
 	*loan = new_loan;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_loan_alloc);
 
@@ -1025,7 +1025,7 @@ static int remnant_loan_get(const struct m0_rm_loan    *loan,
 		m0_free0(&new_loan);
 	}
 	*remnant_loan = new_loan;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
@@ -1044,7 +1044,7 @@ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
 	if (loan->rl_other != NULL)
 		resource_get(loan->rl_other->rem_resource);
 
-	M0_RETURN(m0_rm_credit_copy(&loan->rl_credit, credit));
+	return M0_RCN(m0_rm_credit_copy(&loan->rl_credit, credit));
 }
 M0_EXPORTED(m0_rm_loan_init);
 
@@ -1088,7 +1088,7 @@ static int remote_find(struct m0_rm_remote          **rem,
 			rc = m0_rm_reverse_session_get(rem_in, other);
 			if (rc != 0) {
 				m0_free(other);
-				M0_RETURN(-ENOMEM);
+				return M0_ERR(-ENOMEM);
 			}
 			other->rem_state = REM_SERVICE_LOCATED;
 			other->rem_cookie = *cookie;
@@ -1099,7 +1099,7 @@ static int remote_find(struct m0_rm_remote          **rem,
 			rc = -ENOMEM;
 	}
 	*rem = other;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
@@ -1241,7 +1241,7 @@ static int cached_credits_remove(struct m0_rm_incoming *in)
 
 	m0_rm_ur_tlist_fini(&retain_list);
 	m0_rm_ur_tlist_fini(&remove_list);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 static inline struct m0_rm_resource_type *
@@ -1331,7 +1331,7 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
 	}
 
 	M0_POST(owner_invariant(o));
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_borrow_commit);
 
@@ -1403,7 +1403,7 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 
 	M0_POST(owner_invariant(owner));
 	rm_addb_req_counter_update(M0_RIT_REVOKE, rem_in);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_revoke_commit);
 
@@ -1634,7 +1634,7 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 
 out:
 	m0_rm_credit_fini(&rest);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /**
@@ -1845,7 +1845,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 				rc = pin_add(in, r, M0_RPF_PROTECT);
 			rc = rc ?: credit_diff(rest, r);
 			if (rc != 0)
-				M0_RETURN(rc);
+				return M0_ERR(rc);
 		} m0_tl_endfor;
 	}
 
@@ -1864,14 +1864,14 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (!group_mismatch) {
 				rc = credit_diff(rest, r);
 				if (rc != 0)
-					M0_RETURN(rc);
+					return M0_ERR(rc);
 				if (!credit_is_empty(rest))
 					continue;
 				else
 					break;
 			} else if (group_mismatch &&
 				   !(in->rin_flags & RIF_MAY_REVOKE))
-				M0_RETURN(-EREMOTE);
+				return M0_ERR(-EREMOTE);
 
 			loan = bob_of(r, struct m0_rm_loan, rl_credit,
 				      &loan_bob);
@@ -1893,7 +1893,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (rc != 0) {
 				RM_ADDB_FUNCFAIL(rc, REVOKE_FAIL,
 						 &m0_rm_addb_ctx);
-				M0_RETURN(rc);
+				return M0_ERR(rc);
 			}
 		} m0_tl_endfor;
 	}
@@ -1907,7 +1907,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (!(in->rin_flags & RIF_MAY_BORROW)) {
 				RM_ADDB_FUNCFAIL(-EREMOTE, BORROW_FAIL,
 						 &m0_rm_addb_ctx);
-				M0_RETURN(-EREMOTE);
+				return M0_ERR(-EREMOTE);
 			}
 			wait++;
 			rc = borrow_send(in, rest);
@@ -1915,7 +1915,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			rc = -ESRCH;
 	}
 
-	M0_RETURN(rc ?: wait);
+	return M0_RCN(rc ?: wait);
 }
 
 /**
@@ -2038,7 +2038,7 @@ static int outgoing_check(struct m0_rm_incoming    *in,
 		if (rc != 0)
 			break;
 	}
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /**
@@ -2072,7 +2072,7 @@ static int revoke_send(struct m0_rm_incoming *in,
 				       loan, &rest, other);
 
 	m0_rm_credit_fini(&rest);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /**
@@ -2101,7 +2101,7 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
 		rc = m0_rm_request_out(M0_ROT_BORROW, in,
 				       NULL, credit, other) ?:
 			credit_diff(credit, credit);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /**
@@ -2117,7 +2117,7 @@ static int cancel_send(struct m0_rm_loan *loan)
 
 	rc = m0_rm_request_out(M0_ROT_CANCEL, NULL, loan,
 			       &loan->rl_credit, loan->rl_other);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
@@ -2178,7 +2178,7 @@ M0_INTERNAL int m0_rm_owner_loan_debit(struct m0_rm_owner *owner,
 
 	m0_rm_ur_tlist_fini(&retain_list);
 	m0_rm_ur_tlist_fini(&remove_list);
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_owner_loan_debit);
 
@@ -2199,7 +2199,7 @@ static int loan_check(struct m0_rm_owner  *owner,
 		if (rc != 0 || credit_is_empty(rest))
 			break;
 	} m0_tl_endfor;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
@@ -2573,7 +2573,7 @@ int pin_add(struct m0_rm_incoming *in,
 		if (pin->rp_credit == credit) {
 			M0_LOG(M0_DEBUG, "pins exists for credit: %p\n",
 			       credit);
-			M0_RETURN(0);
+			return M0_RC(0);
 		}
 	} m0_tl_endfor;
 
@@ -2587,9 +2587,9 @@ int pin_add(struct m0_rm_incoming *in,
 		pr_tlist_add(&credit->cr_pins, pin);
 		pi_tlist_add(&in->rin_pins, pin);
 		m0_rm_pin_bob_init(pin);
-		M0_RETURN(0);
+		return M0_RC(0);
 	} else
-		M0_RETURN(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 }
 
 /** @} end of pin group */
@@ -2672,7 +2672,7 @@ static int remnant_credit_get(const struct m0_rm_credit *src,
 		m0_free0(&new_credit);
 	}
 	*remnant_credit = new_credit;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 
 /**
@@ -2698,7 +2698,7 @@ M0_INTERNAL int m0_rm_credit_dup(const struct m0_rm_credit *src_credit,
 		}
 	}
 	*dest_credit = credit;
-	M0_RETURN(rc);
+	return M0_RCN(rc);
 }
 M0_EXPORTED(m0_rm_credit_dup);
 
@@ -2743,7 +2743,7 @@ M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
 	datum_buf.ov_vec.v_count = &buf->b_nob;
 
 	m0_bufvec_cursor_init(&cursor, &datum_buf);
-	M0_RETURN(credit->cr_ops->cro_encode(credit, &cursor));
+	return M0_RCN(credit->cr_ops->cro_encode(credit, &cursor));
 }
 M0_EXPORTED(m0_rm_credit_encode);
 
@@ -2760,7 +2760,7 @@ M0_INTERNAL int m0_rm_credit_decode(struct m0_rm_credit *credit,
 	M0_PRE(credit->cr_ops->cro_decode != NULL);
 
 	m0_bufvec_cursor_init(&cursor, &datum_buf);
-	M0_RETURN(credit->cr_ops->cro_decode(credit, &cursor));
+	return M0_RCN(credit->cr_ops->cro_decode(credit, &cursor));
 }
 M0_EXPORTED(m0_rm_credit_decode);
 
