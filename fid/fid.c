@@ -43,6 +43,16 @@ M0_INTERNAL void m0_fid_type_register(const struct m0_fid_type *fidt)
 	fid_types[id] = fidt;
 }
 
+M0_INTERNAL void m0_fid_type_unregister(const struct m0_fid_type *fidt)
+{
+	uint8_t id = fidt->ft_id;
+
+	M0_PRE(IS_IN_ARRAY(id, fid_types));
+	M0_PRE(fid_types[id] == fidt);
+	fid_types[id] = NULL;
+}
+
+
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_get(uint8_t id)
 {
 	M0_PRE(IS_IN_ARRAY(id, fid_types));
@@ -105,6 +115,13 @@ M0_INTERNAL void m0_fid_set(struct m0_fid *fid, uint64_t container,
 }
 M0_EXPORTED(m0_fid_set);
 
+M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
+			     uint8_t tid, uint64_t container, uint64_t key)
+{
+	m0_fid_set(fid, M0_FID_TCONTAINER(tid, container), key);
+}
+M0_EXPORTED(m0_fid_tset);
+
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;
@@ -145,7 +162,7 @@ M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
  */
 static const struct m0_fid_type misc = {
 	.ft_id   = 0,
-	.ft_name = "miscellaneous fid"
+	.ft_name = "miscellaneous"
 };
 
 M0_INTERNAL int m0_fid_init(void)

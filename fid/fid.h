@@ -49,22 +49,35 @@ M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0,
 M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
 			   const struct m0_fid *fid1);
 M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
-                            uint64_t container,
-			    uint64_t key);
+			    uint64_t container, uint64_t key);
+M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
+			     uint8_t tid, uint64_t container, uint64_t key);
 
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);
 
 M0_INTERNAL int m0_fid_init(void);
 M0_INTERNAL void m0_fid_fini(void);
 
+enum {
+	/** Clears high 8 bits off. */
+	M0_FID_TYPE_MASK = 0x00ffffffffffffffULL
+};
+
 #define FID_F "<%lx:%lx>"
 #define FID_P(f) (unsigned long)(f)->f_container, (unsigned long)(f)->f_key
+
+#define M0_FID_TCONTAINER(type, container)		\
+	((((uint64_t)(type)) << (64 - 8)) |		\
+	 (((uint64_t)(container)) & M0_FID_TYPE_MASK))
 
 #define M0_FID_INIT(container, key)		\
 	((struct m0_fid) {			\
 		.f_container = (container),	\
 		.f_key = (key)			\
 	})
+
+#define M0_FID_TINIT(type, container, key)				\
+	M0_FID_INIT(M0_FID_TCONTAINER((type), (container)), (key))
 
 #define M0_FID0 { 0ULL, 0ULL }
 
@@ -80,6 +93,7 @@ struct m0_fid_type {
 };
 
 M0_INTERNAL void m0_fid_type_register(const struct m0_fid_type *fidt);
+M0_INTERNAL void m0_fid_type_unregister(const struct m0_fid_type *fidt);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_get(uint8_t id);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_gethi(uint64_t id);
 M0_INTERNAL const struct m0_fid_type *
