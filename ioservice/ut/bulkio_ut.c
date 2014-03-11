@@ -1713,13 +1713,13 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	M0_UT_ASSERT(wfop != NULL);
 
 	wfop->f_type->ft_ops = &io_fop_rwv_ops;
-        wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+	wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 	rw = io_rw_get(wfop);
 
 	rw->crw_fid = bp->bp_fids[0];
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
-	rc = m0_rpc_client_call(wfop, sess, NULL, 0 /* deadline */);
+	rc = m0_rpc_post_sync(wfop, sess, NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(wfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==
@@ -1730,10 +1730,10 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	M0_UT_ASSERT(rfop != NULL);
 
 	rfop->f_type->ft_ops = &io_fop_rwv_ops;
-        rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+	rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
-	rc = m0_rpc_client_call(rfop, sess, NULL, 0 /* deadline */);
+	rc = m0_rpc_post_sync(rfop, sess, NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(rfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==

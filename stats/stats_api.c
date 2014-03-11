@@ -111,9 +111,9 @@ error:
 	return NULL;
 }
 
-int m0_stats_query(struct m0_rpc_session      *session,
-		   struct m0_addb_uint64_seq  *stats_ids,
-                   struct m0_stats_recs      **stats)
+int m0_stats_query(struct m0_rpc_session     *session,
+		   struct m0_addb_uint64_seq *stats_ids,
+		   struct m0_stats_recs     **stats)
 {
 	int                            rc;
 	struct m0_fop                 *fop;
@@ -130,7 +130,7 @@ int m0_stats_query(struct m0_rpc_session      *session,
 		return -ENOMEM;
 
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session, NULL, 0);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0);
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		return rc;
@@ -148,8 +148,8 @@ int m0_stats_query(struct m0_rpc_session      *session,
 void m0_stats_free(struct m0_stats_recs *stats)
 {
 	struct m0_xcode_obj obj = {
-                .xo_type = m0_stats_recs_xc,
-                .xo_ptr  = stats,
+		.xo_type = m0_stats_recs_xc,
+		.xo_ptr  = stats
 	};
 
 	m0_xcode_free_obj(&obj);

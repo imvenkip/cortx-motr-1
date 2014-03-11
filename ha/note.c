@@ -199,8 +199,8 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 	item->ri_resend_interval = m0_time(RESEND_INTERVAL_SET_S,
 					   RESEND_INTERVAL_SET_NS);
 
-	rc = m0_rpc_client_call(fop, session, NULL,
-				m0_time_from_now(DEADLINE_S, DEADLINE_NS));
+	rc = m0_rpc_post_sync(fop, session, NULL,
+			      m0_time_from_now(DEADLINE_S, DEADLINE_NS));
 	/* Clear the fop data field so the user buffer is not released. */
 	fop->f_data.fd_data = NULL;
 	m0_fop_put_lock(fop);

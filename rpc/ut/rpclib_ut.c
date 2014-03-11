@@ -107,8 +107,8 @@ static int send_fop(struct m0_rpc_session *session)
 	cs_ds2_fop = m0_fop_data(fop);
 	cs_ds2_fop->csr_value = 0xaaf5;
 
-	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);

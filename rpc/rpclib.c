@@ -128,7 +128,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 {
-	enum { NR_TM = 1 }; /* Number of TMs. */
+	enum { NR_TM = 1 }; /* number of TMs */
 	int rc;
 
 	M0_ENTRY("client_ctx: %p", cctx);
@@ -145,9 +145,8 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 
 	M0_SET0(&cctx->rcx_reqh);
 	rc = M0_REQH_INIT(&cctx->rcx_reqh,
-			  .rhia_dtm          = (void*)1,
-			  .rhia_db           = NULL,
-			  .rhia_mdstore      = (void*)1);
+			  .rhia_dtm     = (void*)1,
+			  .rhia_mdstore = (void*)1);
 	if (rc != 0)
 		goto err;
 	m0_reqh_start(&cctx->rcx_reqh);
@@ -198,16 +197,14 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	return M0_RC(rc0 ?: rc1);
 }
 
-int m0_rpc_client_call(struct m0_fop                *fop,
-		       struct m0_rpc_session        *session,
-		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t                     deadline)
+int m0_rpc_post_sync(struct m0_fop                *fop,
+		     struct m0_rpc_session        *session,
+		     const struct m0_rpc_item_ops *ri_ops,
+		     m0_time_t                     deadline)
 {
-	int                 rc;
 	struct m0_rpc_item *item;
 
 	M0_ENTRY("fop: %p, session: %p", fop, session);
-	M0_PRE(fop != NULL);
 	M0_PRE(session != NULL);
 
 	item              = &fop->f_item;
@@ -216,13 +213,11 @@ int m0_rpc_client_call(struct m0_fop                *fop,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
-	rc = m0_rpc_post(item) ?:
-		m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
-		m0_rpc_item_generic_reply_rc(item->ri_reply);
-
-	return M0_RC(rc);
+	return M0_RC(m0_rpc_post(item) ?:
+		     m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
+		     m0_rpc_item_generic_reply_rc(item->ri_reply));
 }
-M0_EXPORTED(m0_rpc_client_call);
+M0_EXPORTED(m0_rpc_post_sync);
 
 #undef M0_TRACE_SUBSYSTEM
 

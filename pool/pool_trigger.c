@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
 				       &poolmach_fop_rpc_item_ops,
 				       0);
 #else
-		rc = m0_rpc_client_call(req, session, NULL, 0);
+		rc = m0_rpc_post_sync(req, session, NULL, 0);
 		if (rc != 0) {
 			m0_fop_put_lock(req);
 			return rc;

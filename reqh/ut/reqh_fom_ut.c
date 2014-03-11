@@ -319,7 +319,7 @@ static void fop_send(struct m0_fop *fop, struct m0_rpc_session *session)
 {
 	int rc;
 
-	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);

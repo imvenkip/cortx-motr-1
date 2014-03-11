@@ -112,7 +112,6 @@ m0_reqh_rpc_mach_tlist_invariant
 m0_reqh_rpc_mach_tlist_invariant_ext
 m0_reqh_service_type_register
 m0_reqh_service_type_unregister
-m0_rpc_client_call
 m0_rpc_client_start
 m0_rpc_client_stop
 m0_rpc_conn_destroy
@@ -141,6 +140,7 @@ m0_rpc_machine_get_stats
 m0_rpc_machine_watch_attach
 m0_rpc_machine_watch_detach
 m0_rpc_net_buffer_pool_cleanup
+m0_rpc_post_sync
 m0_rpc_reply_post
 m0_rpc_server_start
 m0_rpc_server_stop

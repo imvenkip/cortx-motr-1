@@ -538,8 +538,8 @@ static void mesg_send_client(int dummy)
 	M0_UT_ASSERT(fop != NULL);
 	m0_cons_fop_obj_input(fop);
 	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
-	result = m0_rpc_client_call(fop, &cctx.rcx_session,
-				    NULL, 0 /* deadline */);
+	result = m0_rpc_post_sync(fop, &cctx.rcx_session, NULL,
+				  0 /* deadline */);
 	M0_UT_ASSERT(result == 0);
 	result = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
 	M0_UT_ASSERT(result == 0);

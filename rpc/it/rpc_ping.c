@@ -259,8 +259,8 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	rc = m0_rpc_client_call(fop, session, &ping_item_ops,
-				m0_time_from_now(0, 20 * 1000 * 1000));
+	rc = m0_rpc_post_sync(fop, session, &ping_item_ops,
+			      m0_time_from_now(0, 20 * 1000 * 1000));
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(fop->f_item.ri_error == 0);
 	M0_ASSERT(fop->f_item.ri_reply != 0);

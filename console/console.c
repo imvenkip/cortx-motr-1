@@ -27,8 +27,7 @@
 #include "lib/memory.h"       /* m0_free */
 #include "lib/getopts.h"      /* M0_GETOPTS */
 #include "mero/init.h"        /* m0_init */
-#include "net/lnet/lnet.h"
-#include "rpc/rpclib.h"       /* m0_rpc_client_call */
+#include "rpc/rpclib.h"       /* m0_rpc_post_sync */
 #include "fop/fop.h"
 #include "module/instance.h"  /* m0 */
 #include "console/console.h"
@@ -104,7 +103,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 		return M0_RC(rc);
 
 	fop->f_item.ri_nr_sent_max = timeout;
-	rc = m0_rpc_client_call(fop, &cctx->rcx_session, NULL, 0/* deadline*/);
+	rc = m0_rpc_post_sync(fop, &cctx->rcx_session, NULL, 0 /* deadline*/);
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		return M0_ERR(-EINVAL, "Sending message failed");

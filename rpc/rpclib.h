@@ -180,7 +180,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx);
 int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
 
 /**
- * Makes synchronous RPC call to a server.
+ * Sends a fop (an RPC item, to be precise) and waits for reply.
  *
  * By default, fop is resent after every second until reply is received.
  * To change this behaviour set fop->f_item.ri_nr_sent_max and
@@ -189,7 +189,7 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
  * respectively. Their default values are ~0 and m0_time(1, 0).
  *
  * To simply timeout fop after N seconds set fop->f_item.ri_nr_sent_max
- * to N before calling m0_rpc_client_call().
+ * to N before calling m0_rpc_post_sync().
  *
  * @param fop       Fop to send.  Presumably, fop->f_item.ri_reply will hold
  *                  the reply upon successful return.
@@ -199,14 +199,10 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx);
  *		    fop as soon as possible. deadline should be 0 if
  *		    fop shouldn't wait in formation queue and should
  *		    be sent immediately.
- *
- * XXX @todo m0_rpc_client_call() is a misnomer, it has nothing to do
- * with the rest of m0_rpc_client_*() functions.
- * Rename to m0_rpc_call_sync()?
  */
-int m0_rpc_client_call(struct m0_fop *fop,
-		       struct m0_rpc_session *session,
-		       const struct m0_rpc_item_ops *ri_ops,
-		       m0_time_t deadline);
+int m0_rpc_post_sync(struct m0_fop                *fop,
+		     struct m0_rpc_session        *session,
+		     const struct m0_rpc_item_ops *ri_ops,
+		     m0_time_t                     deadline);
 
 #endif /* __MERO_RPC_RPCLIB_H__ */

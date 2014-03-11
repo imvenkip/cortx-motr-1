@@ -794,7 +794,7 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	req_fop_cob->b_tfid = *gfid;
 
 	M0_LOG(M0_DEBUG, "ios getattr for "FID_F, FID_P(gfid));
-	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
+	rc = m0_rpc_post_sync(req, &imc->imc_session, NULL, 0);
 	M0_LOG(M0_DEBUG, "ios getattr for "FID_F" rc: %d", FID_P(gfid), rc);
 
 	if (rc == 0) {
@@ -860,7 +860,7 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 
 	M0_LOG(M0_DEBUG, "ios getlayout for %llu",
 			 (unsigned long long)lid);
-	rc = m0_rpc_client_call(req, &imc->imc_session, NULL, 0);
+	rc = m0_rpc_post_sync(req, &imc->imc_session, NULL, 0);
 	M0_LOG(M0_DEBUG, "ios getlayout for %llu: rc %d",
 			 (unsigned long long)lid, rc);
 	if (rc == 0) {

@@ -19,13 +19,14 @@
  * Original creation date: 10/14/2011
  */
 
-#include "lib/misc.h"      /* M0_SET0() */
-#include "lib/memory.h"    /* M0_ALLOC_PTR() */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
-#include "lib/trace.h"           /* M0_LOG and M0_ENTRY */
+#include "lib/trace.h"
+
+#include "lib/misc.h"      /* M0_SET0 */
+#include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "lib/bob.h"
-#include "fop/fop.h"             /* m0_fop_alloc() */
-#include "rpc/rpclib.h"          /* m0_rpc_client_call */
+#include "fop/fop.h"       /* m0_fop_alloc */
+#include "rpc/rpclib.h"    /* m0_rpc_post_sync */
 #include "rpc/rpc_opcodes.h"
 #include "ioservice/io_device.h"
 #include "mero/magic.h"
@@ -1393,9 +1394,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		         m0_fop_opcode(fop), session,
 		         (unsigned long)session->s_session_id);
 
-	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_rpc_client_call(%x) failed with %d",
+		M0_LOG(M0_ERROR, "m0_rpc_post_sync(%x) failed with %d",
 		       m0_fop_opcode(fop), rc);
 		goto out;
 	}
@@ -1708,7 +1709,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	       cobcreate ? "cob_create" : "cob_delete",
 	       FID_P(cob_fid), session, (unsigned long)session->s_session_id);
 
-	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0)
 		goto fop_put;
 
@@ -1811,3 +1812,5 @@ const struct inode_operations m0t1fs_fid_dir_inode_operations = {
 	.listxattr      = m0t1fs_fid_listxattr,
 	.removexattr    = m0t1fs_fid_removexattr
 };
+
+#undef M0_TRACE_SUBSYSTEM

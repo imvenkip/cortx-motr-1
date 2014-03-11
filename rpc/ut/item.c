@@ -20,6 +20,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
+
 #include "ut/ut.h"
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
@@ -33,8 +34,7 @@
 enum { MILLISEC = 1000 * 1000 };
 
 static int __test(void);
-static void __test_timeout(m0_time_t deadline,
-			   m0_time_t timeout);
+static void __test_timeout(m0_time_t deadline, m0_time_t timeout);
 static void __test_resend(struct m0_fop *fop);
 static void __test_timer_start_failure(void);
 
@@ -79,9 +79,8 @@ static void test_simple_transitions(void)
 	m0_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session,
-				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_reply != NULL);
@@ -108,9 +107,8 @@ static void test_timeout(void)
 	item->ri_nr_sent_max = 1;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
-	rc = m0_rpc_client_call(fop, session,
-				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
 	M0_UT_ASSERT(rc == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -165,7 +163,7 @@ static void __test_timeout(m0_time_t deadline,
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	item->ri_nr_sent_max = 1;
 	item->ri_resend_interval = timeout;
-	rc = m0_rpc_client_call(fop, session, NULL, deadline);
+	rc = m0_rpc_post_sync(fop, session, NULL, deadline);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
@@ -284,7 +282,7 @@ static void misordered_item_replied_cb(struct m0_rpc_item *item)
 }
 
 static const struct m0_rpc_item_ops misordered_item_ops = {
-	.rio_replied = misordered_item_replied_cb,
+	.rio_replied = misordered_item_replied_cb
 };
 
 static void __test_resend(struct m0_fop *fop)
@@ -297,7 +295,7 @@ static void __test_resend(struct m0_fop *fop)
 		fop_put_flag = true;
 	}
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session, NULL, 0 /* urgent */);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_nr_sent >= 1);
@@ -315,7 +313,7 @@ static void __test_timer_start_failure(void)
 
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session, NULL, 0 /* urgent */);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item->ri_error == -EINVAL);
 	M0_UT_ASSERT(item->ri_reply == NULL);
@@ -378,9 +376,8 @@ static int __test(void)
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	fop  = fop_alloc(machine);
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session,
-				&cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
@@ -495,8 +492,8 @@ static void check_cancel(void)
 	m0_rpc_item_cancel(item);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_UNINITIALISED));
-	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_reply != NULL);
@@ -512,8 +509,8 @@ static void test_cancel(void)
 	M0_LOG(M0_DEBUG, "TEST:5:1:START");
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
-	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
-				0 /* deadline */);
+	rc = m0_rpc_post_sync(fop, session, &cs_ds_req_fop_rpc_item_ops,
+			      0 /* deadline */);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_reply != NULL);
@@ -573,6 +570,8 @@ struct m0_ut_suite item_ut = {
 		{ NULL, NULL },
 	}
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
