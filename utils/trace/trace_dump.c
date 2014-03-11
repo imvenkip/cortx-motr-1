@@ -25,6 +25,7 @@
 #include <string.h>     /* strcpy, basename */
 #include <sysexits.h>   /* EX_* exit codes (EX_OSERR, EX_SOFTWARE) */
 
+#include "module/instance.h"       /* m0 */
 #include "mero/init.h"             /* m0_init */
 #include "addb/user_space/uctx.h"  /* m0_addb_node_uuid_string_set */
 #include "lib/getopts.h"           /* M0_GETOPTS */
@@ -39,6 +40,8 @@
 
 int main(int argc, char *argv[])
 {
+	static struct m0 instance;
+
 	const char  std_inout_file_name[] = "-";
 	const char *input_file_name = std_inout_file_name;
 	const char *output_file_name = std_inout_file_name;
@@ -116,7 +119,7 @@ int main(int argc, char *argv[])
 	 * instead */
 	m0_addb_node_uuid_string_set(NULL);
 
-	rc = m0_init(NULL);
+	rc = m0_init(&instance);
 	if (rc != 0)
 		return EX_SOFTWARE;
 
