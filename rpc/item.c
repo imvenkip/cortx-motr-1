@@ -838,6 +838,11 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
 		M0_LOG(M0_DEBUG, "rply rcvd, timedout req %p [%s/%u]",
 			req, item_kind(req), req->ri_type->rit_opcode);
 		rc = -EPROTO;
+	} else if (req->ri_error != 0) {
+		M0_LOG(M0_NOTICE, "rply rcvd, req %p [%s/%u], error=%d",
+			req, item_kind(req), req->ri_type->rit_opcode,
+			req->ri_error);
+		rc = -EPROTO;
 	} else {
 		/*
 		 * This is valid reply case.
