@@ -26,7 +26,7 @@ static bool partition_check(const void *bob)
 	const struct m0_conf_partition *self = bob;
 	const struct m0_conf_obj       *self_obj = &self->pa_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_PARTITION);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_PARTITION);
 
 	return m0_conf_obj_is_stub(self_obj) == (self->pa_filename == NULL) &&
 		ergo(self_obj->co_mounted, parent_check(self_obj));
@@ -100,7 +100,7 @@ static const struct m0_conf_obj_ops partition_ops = {
 	.coo_delete    = partition_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__partition_create(void)
+static struct m0_conf_obj *partition_create(void)
 {
 	struct m0_conf_partition *x;
 	struct m0_conf_obj       *ret;
@@ -114,3 +114,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__partition_create(void)
 	ret->co_ops = &partition_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_PARTITION_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'P',
+		.ft_name = "partition",
+	},
+	.cot_id         = M0_CO_PARTITION,
+	.cot_ctor       = &partition_create,
+	.cot_table_name = "partition",
+	.cot_magic      = M0_CONF_PARTITION_MAGIC
+};

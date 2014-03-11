@@ -26,7 +26,7 @@ static bool nic_check(const void *bob)
 	const struct m0_conf_nic *self = bob;
 	const struct m0_conf_obj *self_obj = &self->ni_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_NIC);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_NIC);
 
 	return m0_conf_obj_is_stub(self_obj) == (self->ni_filename == NULL) &&
 		ergo(self_obj->co_mounted, parent_check(self_obj));
@@ -97,7 +97,7 @@ static const struct m0_conf_obj_ops nic_ops = {
 	.coo_delete    = nic_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__nic_create(void)
+static struct m0_conf_obj *nic_create(void)
 {
 	struct m0_conf_nic *x;
 	struct m0_conf_obj *ret;
@@ -111,3 +111,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__nic_create(void)
 	ret->co_ops = &nic_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_NIC_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'i',
+		.ft_name = "nic",
+	},
+	.cot_id         = M0_CO_NIC,
+	.cot_ctor       = &nic_create,
+	.cot_table_name = "nic",
+	.cot_magic      = M0_CONF_NIC_MAGIC
+};

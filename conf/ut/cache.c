@@ -31,12 +31,14 @@ struct m0_conf_cache g_cache;
 
 void test_obj_xtors(void)
 {
-	struct m0_conf_obj  *obj;
-	enum m0_conf_objtype t;
+	struct m0_conf_obj            *obj;
+	const struct m0_conf_obj_type *t = NULL;
 
-	M0_CASSERT(M0_CO_DIR == 0);
-	for (t = 0; t < M0_CO_NR; ++t) {
-		obj = m0_conf_obj_create(&g_cache, t, &M0_FID_INIT(1, 0));
+	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		const struct m0_fid fid = M0_FID_TINIT(t->cot_ftype.ft_id ,
+						       1, 0);
+		M0_ASSERT(m0_conf_fid_is_valid(&fid));
+		obj = m0_conf_obj_create(&g_cache, &fid);
 		M0_UT_ASSERT(obj != NULL);
 
 		m0_mutex_lock(&g_lock);
@@ -51,29 +53,27 @@ void test_cache(void)
 	size_t               i;
 	int                  rc;
 	struct {
-		enum m0_conf_objtype type;
-		struct m0_fid        id;
+		struct m0_fid id;
 	} samples[] = {
-		{ M0_CO_PROFILE,    M0_FID_INIT(~0, 0) },
-		{ M0_CO_FILESYSTEM, M0_FID_INIT(7, 2) },
-		{ M0_CO_DIR,        M0_FID_INIT(7, 3) }
+		{ /* profile */     M0_FID_TINIT('p', ~0, 0) },
+		{ /* file-system */ M0_FID_TINIT('f', 7, 2) },
+		{ /* directory */   M0_FID_TINIT('D', 7, 3) }
 	};
 
 	for (i = 0; i < ARRAY_SIZE(samples); ++i) {
-		obj = m0_conf_cache_lookup(&g_cache, samples[i].type,
-					   &samples[i].id);
+		obj = m0_conf_cache_lookup(&g_cache, &samples[i].id);
 		M0_UT_ASSERT(obj == NULL);
 
-		obj = m0_conf_obj_create(&g_cache, samples[i].type,
-					 &samples[i].id);
+		obj = m0_conf_obj_create(&g_cache, &samples[i].id);
 		M0_UT_ASSERT(obj != NULL);
+		M0_UT_ASSERT(m0_fid_eq(&obj->co_id, &samples[i].id));
 
 		m0_mutex_lock(&g_lock);
 		rc = m0_conf_cache_add(&g_cache, obj);
 		m0_mutex_unlock(&g_lock);
 		M0_UT_ASSERT(rc == 0);
 
-		M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, samples[i].type,
+		M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache,
 						  &samples[i].id) == obj);
 	}
 
@@ -81,11 +81,10 @@ void test_cache(void)
 	m0_conf_cache_del(&g_cache, obj);
 	m0_mutex_unlock(&g_lock);
 
-	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, obj->co_type, &obj->co_id)
-		     == NULL);
+	M0_UT_ASSERT(m0_conf_cache_lookup(&g_cache, &obj->co_id) == NULL);
 
 	/* Duplicated identity. */
-	obj = m0_conf_obj_create(&g_cache, samples[0].type, &samples[0].id);
+	obj = m0_conf_obj_create(&g_cache, &samples[0].id);
 	M0_UT_ASSERT(obj != NULL);
 
 	m0_mutex_lock(&g_lock);
@@ -101,21 +100,21 @@ void test_cache(void)
 void test_obj_find(void)
 {
 	int                 rc;
-	const struct m0_fid id = M0_FID_INIT(1, 0);
+	const struct m0_fid id = M0_FID_TINIT('p', 1, 0);
 	struct m0_conf_obj *p = NULL;
 	struct m0_conf_obj *q = NULL;
 
 	m0_mutex_lock(&g_lock);
 
-	rc = m0_conf_obj_find(&g_cache, M0_CO_PROFILE, &id, &p);
+	rc = m0_conf_obj_find(&g_cache, &id, &p);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(p != NULL);
 
-	rc = m0_conf_obj_find(&g_cache, M0_CO_PROFILE, &id, &q);
+	rc = m0_conf_obj_find(&g_cache, &id, &q);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(q == p);
 
-	rc = m0_conf_obj_find(&g_cache, M0_CO_DIR, &id, &q);
+	rc = m0_conf_obj_find(&g_cache, &M0_FID_TINIT('d', 1, 0), &q);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(q != p);
 
@@ -128,7 +127,7 @@ void test_obj_fill(void)
 	struct m0_conf_obj *obj;
 	int                 i;
 	int                 rc;
-	char                buf[1024] = {0};
+	char                buf[4096] = {0};
 
 	m0_confx_free(NULL); /* to make sure this can be done */
 
@@ -143,8 +142,7 @@ void test_obj_fill(void)
 	for (i = 0; i < enc->cx_nr; ++i) {
 		struct m0_confx_obj *xobj = &enc->cx_objs[i];
 
-		rc = m0_conf_obj_find(&g_cache, xobj->o_conf.u_type,
-				      &xobj->o_id, &obj) ?:
+		rc = m0_conf_obj_find(&g_cache, &xobj->o_id, &obj) ?:
 			m0_conf_obj_fill(obj, xobj, &g_cache);
 		M0_UT_ASSERT(rc == 0);
 	}

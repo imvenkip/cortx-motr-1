@@ -22,7 +22,7 @@
 #define __MERO_CONF_CACHE_H__
 
 #include "lib/tlist.h"  /* m0_tl, M0_TL_DESCR_DECLARE */
-#include "conf/obj.h"   /* m0_conf_objtype */
+#include "conf/obj.h"
 
 struct m0_mutex;
 
@@ -123,7 +123,7 @@ M0_INTERNAL void m0_conf_cache_del(const struct m0_conf_cache *cache,
  */
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
-		     enum m0_conf_objtype type, const struct m0_fid *id);
+		     const struct m0_fid *id);
 
 /** @} conf_dfspec_cache */
 #endif /* __MERO_CONF_CACHE_H__ */

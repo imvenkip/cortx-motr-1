@@ -26,7 +26,7 @@ static bool service_check(const void *bob)
 	const struct m0_conf_service *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cs_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_SERVICE);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_SERVICE);
 
 	return ergo(self_obj->co_status == M0_CS_READY,
 		    M0_IN(self->cs_type,
@@ -35,14 +35,14 @@ static bool service_check(const void *bob)
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
 		     child_check(self_obj, M0_MEMBER_PTR(self->cs_node, cn_obj),
-				 M0_CO_NODE));
+				 &M0_CONF_NODE_TYPE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
 
 M0_CONF__INVARIANT_DEFINE(service_invariant, m0_conf_service);
 
-const struct m0_fid M0_CONF_SERVICE_NODE_FID = { 0, 2 };
+const struct m0_fid M0_CONF_SERVICE_NODE_FID = M0_FID_TINIT('/', 0, 2);
 
 static int service_decode(struct m0_conf_obj *dest,
 			  const struct m0_confx_obj *src,
@@ -55,7 +55,7 @@ static int service_decode(struct m0_conf_obj *dest,
 
 	d->cs_type = s->xs_type;
 
-	rc = m0_conf_obj_find(cache, M0_CO_NODE, &s->xs_node, &child);
+	rc = m0_conf_obj_find(cache, &s->xs_node, &child);
 	if (rc != 0)
 		return rc;
 
@@ -127,7 +127,7 @@ static const struct m0_conf_obj_ops conf_service_ops = {
 	.coo_delete    = service_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__service_create(void)
+static struct m0_conf_obj *service_create(void)
 {
 	struct m0_conf_service *x;
 	struct m0_conf_obj     *ret;
@@ -141,3 +141,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__service_create(void)
 	ret->co_ops = &conf_service_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 's',
+		.ft_name = "service",
+	},
+	.cot_id         = M0_CO_SERVICE,
+	.cot_ctor       = &service_create,
+	.cot_table_name = "service",
+	.cot_magic      = M0_CONF_SERVICE_MAGIC
+};

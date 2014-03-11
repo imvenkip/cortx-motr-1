@@ -26,15 +26,15 @@ mount_m0t1fs()
 	# prepare configuration data
 	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
 	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
-	PROF='(1, 0)'
-	PROF_OPT='1:0'
-	FS='(1, 1)'
-	MDS='(1, 2)'
-	RM='(1, 3)'
-	STATS='(1, 4)'
-	NODE='(4, 0)'
+	PROF='(0x7000000000000001, 0)'
+	PROF_OPT='0x7000000000000001:0'
+	FS='(0x6600000000000001, 1)'
+	MDS='(0x7300000000000001, 2)'
+	RM='(0x7300000000000001, 3)'
+	STATS='(0x7300000000000001, 4)'
+	NODE='(0x6e00000000000001, 0)'
 	for ((i=1; i < ${#EP[*]}; i++)); do
-	    IOS_NAME="(3, $i)"
+	    IOS_NAME="(0x7300000000000003, $i)"
 
 	    if ((i == 1)); then
 	        IOS_NAMES="$IOS_NAME"

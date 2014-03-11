@@ -26,16 +26,17 @@ static bool filesystem_check(const void *bob)
 	const struct m0_conf_filesystem *self = bob;
 	const struct m0_conf_obj        *self_obj = &self->cf_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_FILESYSTEM);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_FILESYSTEM);
 
-	return ergo(m0_conf_obj_is_stub(self_obj), self->cf_params == NULL) &&
+	return ergo(m0_conf_obj_is_stub(self_obj),
+		    _0C(self->cf_params == NULL)) &&
 		ergo(self_obj->co_mounted,
-		     parent_check(self_obj) &&
-		     M0_CONF_CAST(self_obj->co_parent,
-				  m0_conf_profile)->cp_filesystem == self &&
+		     _0C(parent_check(self_obj)) &&
+		     _0C(M0_CONF_CAST(self_obj->co_parent,
+				    m0_conf_profile)->cp_filesystem == self) &&
 		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->cf_services, cd_obj),
-				 M0_CO_DIR));
+				     M0_MEMBER_PTR(self->cf_services, cd_obj),
+				     &M0_CONF_DIR_TYPE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
@@ -43,7 +44,8 @@ M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
 
 M0_CONF__INVARIANT_DEFINE(filesystem_invariant, m0_conf_filesystem);
 
-const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID = { 0, 3 };
+const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID = M0_FID_TINIT('/', 0, 3);
+
 static int filesystem_decode(struct m0_conf_obj *dest,
 			     const struct m0_confx_obj *src,
 			     struct m0_conf_cache *cache)
@@ -57,8 +59,8 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 	if (rc != 0)
 		return rc;
 
-	rc = dir_new(cache, &src->o_id, M0_CO_SERVICE, &s->xf_services,
-		     &d->cf_services);
+	rc = dir_new(cache, &src->o_id, &M0_CONF_FILESYSTEM_SERVICES_FID,
+		     &M0_CONF_SERVICE_TYPE, &s->xf_services, &d->cf_services);
 	if (rc == 0) {
 		child_adopt(dest, &d->cf_services->cd_obj);
 		dest->co_mounted = true;
@@ -135,7 +137,7 @@ static const struct m0_conf_obj_ops filesystem_ops = {
 	.coo_delete    = filesystem_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__filesystem_create(void)
+static struct m0_conf_obj *filesystem_create(void)
 {
 	struct m0_conf_filesystem *x;
 	struct m0_conf_obj        *ret;
@@ -149,3 +151,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__filesystem_create(void)
 	ret->co_ops = &filesystem_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'f',
+		.ft_name = "configuration file-system",
+	},
+	.cot_id         = M0_CO_FILESYSTEM,
+	.cot_ctor       = &filesystem_create,
+	.cot_table_name = "filesystem",
+	.cot_magic      = M0_CONF_FILESYSTEM_MAGIC
+};

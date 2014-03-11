@@ -26,19 +26,21 @@ static bool sdev_check(const void *bob)
 	const struct m0_conf_sdev *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->sd_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_SDEV);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_SDEV);
 
 	return  m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
 		ergo(self_obj->co_mounted, /* check relations */
 		     parent_check(self_obj) &&
 		     child_check(self_obj,
 				 M0_MEMBER_PTR(self->sd_partitions, cd_obj),
-				 M0_CO_DIR));
+				 &M0_CONF_DIR_TYPE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
 
 M0_CONF__INVARIANT_DEFINE(sdev_invariant, m0_conf_sdev);
+
+const struct m0_fid M0_CONF_SDEV_PARTITIONS_FID = M0_FID_TINIT('/', 0, 6);
 
 static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		       struct m0_conf_cache *cache)
@@ -57,12 +59,14 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	if (d->sd_filename == NULL)
 		return -ENOMEM;
 
-	rc = dir_new(cache, &src->o_id, M0_CO_PARTITION, &s->xd_partitions,
+	rc = dir_new(cache, &src->o_id, &M0_CONF_SDEV_PARTITIONS_FID,
+		     &M0_CONF_PARTITION_TYPE, &s->xd_partitions,
 		     &d->sd_partitions);
 	if (rc == 0) {
 		child_adopt(dest, &d->sd_partitions->cd_obj);
 		dest->co_mounted = true;
-	}
+	} else
+		m0_free(&d->sd_filename);
 	return rc;
 }
 
@@ -114,7 +118,7 @@ static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_delete    = sdev_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__sdev_create(void)
+static struct m0_conf_obj *sdev_create(void)
 {
 	struct m0_conf_sdev *x;
 	struct m0_conf_obj  *ret;
@@ -128,3 +132,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__sdev_create(void)
 	ret->co_ops = &sdev_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'd',
+		.ft_name = "storage device",
+	},
+	.cot_id         = M0_CO_SDEV,
+	.cot_ctor       = &sdev_create,
+	.cot_table_name = "sdev",
+	.cot_magic      = M0_CONF_SDEV_MAGIC
+};

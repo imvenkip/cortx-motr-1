@@ -22,21 +22,21 @@
 #include "conf/confc.h"  /* m0_confc */
 #include "mero/magic.h"  /* M0_CONF_PROFILE_MAGIC */
 
-const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID = { 0, 1 };
+const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID = M0_FID_TINIT('/', 0, 1);
 
 static bool profile_check(const void *bob)
 {
 	const struct m0_conf_profile *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cp_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_PROFILE);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_PROFILE);
 
 	return  /* profile is the topmost object of a DAG */
 		self_obj->co_parent == NULL &&
 		ergo(self_obj->co_mounted,
 		     child_check(self_obj,
 				 M0_MEMBER_PTR(self->cp_filesystem, cf_obj),
-				 M0_CO_FILESYSTEM));
+				 &M0_CONF_FILESYSTEM_TYPE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
@@ -51,7 +51,7 @@ static int profile_decode(struct m0_conf_obj *dest,
 	struct m0_conf_obj     *child;
 	struct m0_conf_profile *d = M0_CONF_CAST(dest, m0_conf_profile);
 
-	rc = m0_conf_obj_find(cache, M0_CO_FILESYSTEM,
+	rc = m0_conf_obj_find(cache,
 			      &FLAT_OBJ(src, profile)->xp_filesystem, &child);
 	if (rc == 0) {
 		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
@@ -112,7 +112,7 @@ static const struct m0_conf_obj_ops profile_ops = {
 	.coo_delete    = profile_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__profile_create(void)
+static struct m0_conf_obj *profile_create(void)
 {
 	struct m0_conf_profile *x;
 	struct m0_conf_obj     *ret;
@@ -126,3 +126,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__profile_create(void)
 	ret->co_ops = &profile_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'p',
+		.ft_name = "configuration profile",
+	},
+	.cot_id         = M0_CO_PROFILE,
+	.cot_ctor       = &profile_create,
+	.cot_table_name = "profile",
+	.cot_magic      = M0_CONF_PROFILE_MAGIC
+};

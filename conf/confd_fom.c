@@ -202,7 +202,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 
 	for (i = 0; i < path->af_count; ++i) {
 		/* Handle intermediate object. */
-		if (cur->co_type != M0_CO_DIR) {
+		if (m0_conf_obj_type(cur) != &M0_CONF_DIR_TYPE) {
 			rc = apply(n, enc, cur);
 			if (rc != 0)
 				M0_RETURN(rc);
@@ -215,10 +215,11 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 	}
 
 	/* Handle final object. */
-	if (cur->co_parent != NULL && cur->co_parent->co_type == M0_CO_DIR)
+	if (cur->co_parent != NULL &&
+	    m0_conf_obj_type(cur->co_parent) == &M0_CONF_DIR_TYPE)
 		/* Include siblings into the resulting set. */
 		cur = cur->co_parent;
-	if (cur->co_type == M0_CO_DIR) {
+	if (m0_conf_obj_type(cur) == &M0_CONF_DIR_TYPE) {
 		m0_conf_obj_get(cur); /* as expected by ->coo_readdir() */
 		for (entry = NULL;
 		     (rc = cur->co_ops->coo_readdir(cur, &entry)) > 0; ) {
@@ -250,7 +251,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 
 	M0_SET0(dest);
 
-	rc = m0_conf_obj_find(cache, origin->oi_type, &origin->oi_id, &org) ?:
+	rc = m0_conf_obj_find(cache, &origin->oi_id, &org) ?:
 		readiness_check(org);
 	if (rc != 0)
 		M0_RETURN(rc);

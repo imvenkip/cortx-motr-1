@@ -155,12 +155,8 @@ enum m0_conf_status {
  * object.
  */
 struct m0_conf_obj {
-	/** Type of the ambient (concrete) configuration object. */
-	enum m0_conf_objtype          co_type;
-
 	/**
-	 * Object identifier.
-	 * This value is unique among the object of given ->co_type.
+	 * Unique object identifier.
 	 */
 	struct m0_fid                 co_id;
 
@@ -236,6 +232,24 @@ struct m0_conf_obj {
 	bool                          co_mounted;
 };
 
+struct m0_conf_obj_type {
+	const struct m0_fid_type cot_ftype;
+	enum m0_conf_objtype     cot_id;
+	struct m0_conf_obj    *(*cot_ctor)(void);
+	const char              *cot_table_name;
+	uint64_t                 cot_magic;
+};
+
+void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype);
+void m0_conf_obj_type_unregister(const struct m0_conf_obj_type *otype);
+
+enum m0_conf_objtype           m0_conf_obj_tid (const struct m0_conf_obj *obj);
+enum m0_conf_objtype           m0_conf_fid_tid (const struct m0_fid *id);
+const struct m0_conf_obj_type *m0_conf_obj_type(const struct m0_conf_obj *obj);
+const struct m0_conf_obj_type *m0_conf_fid_type(const struct m0_fid *id);
+
+bool m0_conf_fid_is_valid(const struct m0_fid *fid);
+
 /**
  * Returns true iff obj->co_status != M0_CS_READY.
  *
@@ -249,15 +263,17 @@ M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
 
 /** Directory object --- a container for configuration objects. */
 struct m0_conf_dir {
-	struct m0_conf_obj   cd_obj;
+	struct m0_conf_obj             cd_obj;
 	/** List of m0_conf_obj-s, linked through m0_conf_obj::co_dir_link. */
-	struct m0_tl         cd_items;
+	struct m0_tl                   cd_items;
 	/**
 	 * Type of items.
-	 *
-	 * This field lets m0_conf_dir know which "relation" it represents.
 	 */
-	enum m0_conf_objtype cd_item_type;
+	const struct m0_conf_obj_type *cd_item_type;
+	/**
+	 * "Relation" represented by this directory.
+	 */
+	struct m0_fid                  cd_relfid;
 };
 
 struct m0_conf_profile {
@@ -382,11 +398,30 @@ extern const struct m0_bob_type m0_conf_nic_bob;
 extern const struct m0_bob_type m0_conf_sdev_bob;
 extern const struct m0_bob_type m0_conf_partition_bob;
 
+/* relation fids */
+
 extern const struct m0_fid M0_CONF_FILESYSTEM_SERVICES_FID;
 extern const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID;
 extern const struct m0_fid M0_CONF_SERVICE_NODE_FID;
-extern const struct m0_fid M0_CONF_NODE_NICS;
-extern const struct m0_fid M0_CONF_NODE_SDEVS;
+extern const struct m0_fid M0_CONF_NODE_NICS_FID;
+extern const struct m0_fid M0_CONF_NODE_SDEVS_FID;
+extern const struct m0_fid M0_CONF_SDEV_PARTITIONS_FID;
+extern const struct m0_fid_type M0_CONF_RELFID_TYPE;
+
+extern const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_NODE_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_NIC_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_SDEV_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_PARTITION_TYPE;
+extern const struct m0_conf_obj_type M0_CONF_DIR_TYPE;
+
+M0_INTERNAL const struct m0_conf_obj_type *m0_conf_obj_type_next
+(const struct m0_conf_obj_type *otype);
+
+M0_INTERNAL int m0_conf_obj_init(void);
+M0_INTERNAL void m0_conf_obj_fini(void);
 
 /** @} conf_dfspec_obj */
 #endif /* __MERO_CONF_OBJ_H__ */

@@ -46,7 +46,6 @@ struct arr_fid {
 
 /** XXX @todo s/objid/objiden/ ? */
 struct objid {
-	uint32_t      oi_type; /* see m0_conf_objtype for values */
 	struct m0_fid oi_id;
 } M0_XCA_RECORD;
 

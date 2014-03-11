@@ -339,7 +339,7 @@ struct m0_conf_obj;
  *         struct m0_conf_obj *entry;
  *         int                 rc;
  *
- *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_NICS);
+ *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_NICS_FID);
  *         if (rc != 0)
  *                 return rc;
  *
@@ -360,7 +360,7 @@ struct m0_conf_obj;
  *         struct m0_conf_obj *entry;
  *         int                 rc;
  *
- *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_SDEVS);
+ *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_SDEVS_FID);
  *         if (rc != 0)
  *                 return rc;
  *
@@ -760,7 +760,8 @@ M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj);
  * @see confc-fspec-recipe4
  *
  * @pre   ctx->fc_mach.sm_state == S_INITIAL
- * @pre   dir->co_type == M0_CO_DIR && dir->co_cache == &ctx->fc_confc->cc_cache
+ * @pre   m0_conf_obj_type(dir) == &M0_CONF_DIR_TYPE &&
+ *              dir->co_cache == &ctx->fc_confc->cc_cache
  * @post  ergo(M0_IN(retval, (M0_CONF_DIRNEXT, M0_CONF_DIREND)),
  *             ctx->fc_mach.sm_state == S_INITIAL)
  */

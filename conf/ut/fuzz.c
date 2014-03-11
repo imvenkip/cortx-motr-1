@@ -210,7 +210,7 @@ void test_confstr_fuzz(void)
 {
 	int             rc;
 	struct fuzz_acc acc = {0};
-	char            buf[1024] = {0};
+	char            buf[4096] = {0};
 
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
@@ -222,7 +222,11 @@ void test_confstr_fuzz(void)
 	fuzz_nonprint_test(buf, 5, &acc);
 	_fuzz_test(buf, '\0', '\0', false, 0, strdup_without_chunk, &acc);
 
-	M0_ASSERT(100 * acc.nr_successes / acc.nr_total < 1); /* < 1% */
+	/*
+	 * conf_xc.txt contains comments and long numbers, resistant to
+	 * truncation. I am getting 334/2742.
+	 */
+	M0_ASSERT(100 * acc.nr_successes / acc.nr_total < 20); /* < 20% */
 }
 
 const struct m0_test_suite confstr_ut = {

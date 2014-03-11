@@ -27,7 +27,7 @@ static bool node_check(const void *bob)
 	const struct m0_conf_node *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->cn_obj;
 
-	M0_PRE(self_obj->co_type == M0_CO_NODE);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_NODE);
 
 	return /* The notion of parent is not applicable to a node,
 		* since a node may host (be a child of) several services. */
@@ -35,18 +35,18 @@ static bool node_check(const void *bob)
 		ergo(self_obj->co_mounted, /* check relations */
 		     child_check(self_obj,
 				 M0_MEMBER_PTR(self->cn_nics, cd_obj),
-				 M0_CO_DIR) &&
+				 &M0_CONF_DIR_TYPE) &&
 		     child_check(self_obj,
 				 M0_MEMBER_PTR(self->cn_sdevs, cd_obj),
-				 M0_CO_DIR));
+				 &M0_CONF_DIR_TYPE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_node, M0_CONF_NODE_MAGIC, node_check);
 
 M0_CONF__INVARIANT_DEFINE(node_invariant, m0_conf_node);
 
-const struct m0_fid M0_CONF_NODE_NICS = { 0, 4 };
-const struct m0_fid M0_CONF_NODE_SDEVS = { 0, 5 };
+const struct m0_fid M0_CONF_NODE_NICS_FID = M0_FID_TINIT('/', 0, 4);
+const struct m0_fid M0_CONF_NODE_SDEVS_FID = M0_FID_TINIT('/', 0, 5);
 
 static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		       struct m0_conf_cache *cache)
@@ -55,14 +55,16 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	size_t                      i;
 	struct m0_conf_node        *d = M0_CONF_CAST(dest, m0_conf_node);
 	const struct m0_confx_node *s = FLAT_OBJ(src, node);
-	struct {
-		struct m0_conf_dir  **pptr;
-		uint64_t              fidtype;
-		enum m0_conf_objtype  children_type;
-		const struct arr_fid *children_ids;
+	struct subdir {
+		struct m0_conf_dir           **pptr;
+		const struct m0_conf_obj_type *children_type;
+		const struct m0_fid           *relfid;
+		const struct arr_fid          *children_ids;
 	} subdirs[] = {
-		{ &d->cn_nics,  'N', M0_CO_NIC,  &s->xn_nics },
-		{ &d->cn_sdevs, 'S', M0_CO_SDEV, &s->xn_sdevs }
+		{ &d->cn_nics,  &M0_CONF_NIC_TYPE,
+		  &M0_CONF_NODE_NICS_FID,  &s->xn_nics },
+		{ &d->cn_sdevs, &M0_CONF_SDEV_TYPE,
+		  &M0_CONF_NODE_SDEVS_FID, &s->xn_sdevs }
 	};
 
 	d->cn_memsize    = s->xn_memsize;
@@ -72,19 +74,10 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	d->cn_pool_id    = s->xn_pool_id;
 
 	for (i = 0; i < ARRAY_SIZE(subdirs); ++i) {
-		struct m0_fid sub_id = src->o_id;
-		/**
-		 * Mangle directory identifier.
-		 *
-		 * @todo Use (not-existing) fid/fid.h interface to change fid
-		 * type.
-		 */
-		/* clean upper 8 bits... */
-		sub_id.f_container &= ~(0xffULL << 56);
-		/* put new typeid there. */
-		sub_id.f_container |= subdirs[i].fidtype << 56;
-		rc = dir_new(cache, &sub_id, subdirs[i].children_type,
-			     subdirs[i].children_ids, subdirs[i].pptr);
+		struct subdir *s = &subdirs[i];
+
+		rc = dir_new(cache, &src->o_id, s->relfid, s->children_type,
+			     s->children_ids, s->pptr);
 		if (rc != 0)
 			return rc;
 
@@ -138,9 +131,9 @@ static int node_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 {
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (m0_fid_eq(name, &M0_CONF_NODE_NICS))
+	if (m0_fid_eq(name, &M0_CONF_NODE_NICS_FID))
 		*out = &M0_CONF_CAST(parent, m0_conf_node)->cn_nics->cd_obj;
-	else if (m0_fid_eq(name, &M0_CONF_NODE_SDEVS))
+	else if (m0_fid_eq(name, &M0_CONF_NODE_SDEVS_FID))
 		*out = &M0_CONF_CAST(parent, m0_conf_node)->cn_sdevs->cd_obj;
 	else
 		return -ENOENT;
@@ -167,7 +160,7 @@ static const struct m0_conf_obj_ops node_ops = {
 	.coo_delete    = node_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__node_create(void)
+static struct m0_conf_obj *node_create(void)
 {
 	struct m0_conf_node *x;
 	struct m0_conf_obj  *ret;
@@ -181,3 +174,14 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__node_create(void)
 	ret->co_ops = &node_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'n',
+		.ft_name = "node",
+	},
+	.cot_id         = M0_CO_NODE,
+	.cot_ctor       = &node_create,
+	.cot_table_name = "node",
+	.cot_magic      = M0_CONF_NODE_MAGIC
+};

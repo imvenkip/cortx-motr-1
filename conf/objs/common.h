@@ -21,7 +21,7 @@
 #ifndef __MERO_CONF_OBJS_COMMON_H__
 #define __MERO_CONF_OBJS_COMMON_H__
 
-#include "conf/obj.h"     /* m0_conf_obj, m0_conf_objtype */
+#include "conf/obj.h"     /* m0_conf_obj */
 #include "conf/obj_ops.h" /* m0_conf_obj_ops */
 #include "conf/onwire.h"  /* m0_confx_obj, arr_buf */
 #include "lib/memory.h"   /* m0_free */
@@ -46,19 +46,19 @@ const struct m0_bob_type type ## _bob = {                                     \
 };                                                                            \
 M0_BOB_DEFINE(static, &type ## _bob, type)
 
-#define M0_CONF__INVARIANT_DEFINE(name, type)                         \
-static bool name(const struct m0_conf_obj *obj)                       \
-{                                                                     \
-	return type ## _bob_check(container_of(obj, struct type,      \
-					       type ## _cast_field)); \
-}                                                                     \
+#define M0_CONF__INVARIANT_DEFINE(name, type)				\
+static bool name(const struct m0_conf_obj *obj)				\
+{									\
+	return type ## _bob_check(container_of(obj, struct type,	\
+				    type ## _cast_field));		\
+}									\
 struct __ ## abbrev ## _semicolon_catcher
 
 M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj);
 
 M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 			     const struct m0_conf_obj *child,
-			     enum m0_conf_objtype child_type);
+			     const struct m0_conf_obj_type *child_type);
 
 M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
 			     struct m0_conf_obj *child);
@@ -79,7 +79,8 @@ M0_INTERNAL void child_adopt(struct m0_conf_obj *parent,
  */
 M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			const struct m0_fid *dir_id,
-			enum m0_conf_objtype children_type,
+			const struct m0_fid *relfid,
+			const struct m0_conf_obj_type *children_type,
 			const struct arr_fid *src,
 			struct m0_conf_dir **out);
 

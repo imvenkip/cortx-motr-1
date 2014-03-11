@@ -221,35 +221,21 @@ static void confx_from_db(struct m0_confx_obj *dest, enum m0_conf_objtype type,
 /* XXX Consider using "The X macro":
  * http://www.drdobbs.com/cpp/the-x-macro/228700289 */
 
-static const char *table_names[] = {
-	[M0_CO_DIR]        = NULL,
-	[M0_CO_PROFILE]    = "profile",
-	[M0_CO_FILESYSTEM] = "filesystem",
-	[M0_CO_SERVICE]    = "service",
-	[M0_CO_NODE]       = "node",
-	[M0_CO_NIC]        = "nic",
-	[M0_CO_SDEV]       = "sdev",
-	[M0_CO_PARTITION]  = "partition"
-};
-M0_BASSERT(ARRAY_SIZE(table_names) == M0_CO_NR);
-
 static void confdb_tables_fini(struct m0_be_seg *seg)
 {
-	struct m0_be_btree *btree;
-	int                 i;
-	int                 rc;
+	struct m0_be_btree            *btree;
+	int                            rc;
+	const struct m0_conf_obj_type *t = NULL;
 
 	M0_ENTRY();
-
-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
-		if (table_names[i] == NULL)
-			continue;
-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
-					   (void **)&btree);
-		if (rc == 0)
-			m0_be_btree_fini(btree);
+	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		if (t->cot_table_name != NULL) {
+			rc = m0_be_seg_dict_lookup(seg, t->cot_table_name,
+						   (void **)&btree);
+			if (rc == 0)
+				m0_be_btree_fini(btree);
+		}
 	}
-
 	M0_LEAVE();
 }
 
@@ -257,18 +243,20 @@ static int
 confdb_tables_init(struct m0_be_seg *seg, struct m0_be_btree *btrees[],
 		   struct m0_be_tx *tx)
 {
-	int                 i;
-	int                 rc = 0;
+	int                            i;
+	int                            rc = 0;
+	const struct m0_conf_obj_type *t = NULL;
 
 	M0_ENTRY();
+	for (i = 0; (t = m0_conf_obj_type_next(t)) != NULL; ++i) {
+		const char *tn = t->cot_table_name;
 
-	for (i = 0; i < M0_CO_NR; ++i) {
-		if (table_names[i] == NULL)
+		if (tn == NULL)
 			continue;
 		M0_BE_ALLOC_PTR_SYNC(btrees[i], seg, tx);
 		m0_be_btree_init(btrees[i], seg, &confdb_ops);
 		M0_BE_OP_SYNC(op, m0_be_btree_create(btrees[i], tx, &op));
-		rc = m0_be_seg_dict_insert(seg, tx, table_names[i], btrees[i]);
+		rc = m0_be_seg_dict_insert(seg, tx, tn, btrees[i]);
 		if (rc != 0)
 			break;
 	}
@@ -309,24 +297,25 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 					const struct m0_confx *conf,
 					struct m0_be_tx_credit *accum)
 {
-	struct m0_be_btree   btree = { .bb_seg = seg };
-	m0_bcount_t          len;
-	m0_bcount_t          ksize;
-	struct m0_confx_obj *obj;
-	int                  rc;
-	int                  i;
+	struct m0_be_btree             btree = { .bb_seg = seg };
+	m0_bcount_t                    len;
+	m0_bcount_t                    ksize;
+	struct m0_confx_obj           *obj;
+	int                            rc;
+	int                            i;
+	const struct m0_conf_obj_type *t = NULL;
 
-	m0_be_btree_create_credit(&btree, ARRAY_SIZE(table_names), accum);
-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
-		if (table_names[i] == NULL)
+	M0_ENTRY();
+	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		if (t->cot_table_name == NULL)
 			continue;
 		M0_BE_ALLOC_CREDIT_PTR(&btree, seg, accum);
-		m0_be_seg_dict_insert_credit(seg, table_names[i], accum);
+		m0_be_seg_dict_insert_credit(seg, t->cot_table_name, accum);
+		m0_be_btree_create_credit(&btree, 1, accum);
 	}
 
 	for (i = 0; i < conf->cx_nr; ++i) {
 		obj = &conf->cx_objs[i];
-		M0_ASSERT(IS_IN_ARRAY(xobj_type(obj), table_names));
 		rc = confx_obj_measure(obj, &len);
 		if (rc != 0)
 			M0_RETURN(rc);
@@ -341,14 +330,15 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
 					 struct m0_be_tx_credit *accum)
 {
-	struct m0_be_btree *btree;
-	int                 i;
-	int                 rc = 0;
+	struct m0_be_btree            *btree;
+	int                            rc = 0;
+	const struct m0_conf_obj_type *t = NULL;
 
-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
-		if (table_names[i] == NULL)
+	M0_ENTRY();
+	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		if (t->cot_table_name == NULL)
 			continue;
-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+		rc = m0_be_seg_dict_lookup(seg, t->cot_table_name,
 					   (void **)&btree);
 		if (rc != 0)
 			M0_RETURN(rc);
@@ -361,25 +351,27 @@ M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
 
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	struct m0_be_btree     *btree;
-	int                     i;
-	int                     rc = 0;
+	struct m0_be_btree            *btree;
+	int                            rc = 0;
+	const struct m0_conf_obj_type *t = NULL;
+
+	M0_ENTRY();
 
 	/*
 	 * FIXME: Does not free the internal be objects allocated during
 	 *        confdb_create as part of xcode_dup operation.
 	 */
 
-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
-		if (table_names[i] == NULL)
+	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		if (t->cot_table_name == NULL)
 			continue;
-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+		rc = m0_be_seg_dict_lookup(seg, t->cot_table_name,
 					   (void **)&btree);
 		if (rc != 0)
 			M0_RETURN(rc);
 		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
 		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
-		rc = m0_be_seg_dict_delete(seg, tx, table_names[i]);
+		rc = m0_be_seg_dict_delete(seg, tx, t->cot_table_name);
 		if (rc != 0)
 			M0_RETURN(rc);
 	}
@@ -392,10 +384,24 @@ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
 	confdb_tables_fini(seg);
 }
 
+static size_t nr_tables(void)
+{
+	int                            i = 0;
+	const struct m0_conf_obj_type *t = NULL;
+
+	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		if (t->cot_table_name != NULL)
+			++i;
+	}
+	return i;
+}
+
+enum { MAX_TABLES = 10 };
+
 M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 				 const struct m0_confx *conf)
 {
-	struct m0_be_btree  *btrees[ARRAY_SIZE(table_names)];
+	struct m0_be_btree  *btrees[MAX_TABLES];
 	struct m0_be_btree  *btree;
 	struct m0_confx_obj *confx_objs;
 	struct confdb_key    db_key;
@@ -406,14 +412,13 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 
 	M0_ENTRY();
 	M0_PRE(conf->cx_nr > 0);
+	M0_ASSERT(nr_tables() <= ARRAY_SIZE(btrees));
 
 	rc = confdb_tables_init(seg, btrees, tx);
 	if (rc != 0)
 		return rc;
 	M0_ALLOC_ARR(confx_objs, conf->cx_nr);
 	for (i = 0; i < conf->cx_nr && rc == 0; ++i) {
-		M0_ASSERT(IS_IN_ARRAY(xobj_type(&conf->cx_objs[i]),
-				      table_names));
 		rc = confx_obj_dup(&confx_objs[i], &conf->cx_objs[i], seg, tx);
 		if (rc != 0)
 			break;
@@ -442,16 +447,19 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 static int
 confdb_objs_count(struct m0_be_btree *btrees[], size_t *result)
 {
-	struct m0_be_btree_cursor  bcur;
-	int                        t;
-	int                        rc;
+	struct m0_be_btree_cursor      bcur;
+	int                            rc;
+	int                            i;
+	const struct m0_conf_obj_type *t = NULL;
 
 	M0_ENTRY();
 
 	/* Too large to be allocated on stack. */
 	*result = 0;
-	for (t = M0_CO_PROFILE; t < M0_CO_NR; ++t) {
-		m0_be_btree_cursor_init(&bcur, btrees[t]);
+	for (i = 0; (t = m0_conf_obj_type_next(t)) != NULL; ++i) {
+		if (t->cot_table_name == NULL)
+			continue;
+		m0_be_btree_cursor_init(&bcur, btrees[i]);
 		for (rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
 		     rc = m0_be_btree_cursor_next_sync(&bcur)) {
 			++*result;
@@ -488,17 +496,20 @@ static struct m0_confx *confx_alloc(size_t nr_objs)
 static void
 confx_fill(struct m0_confx *dest, struct m0_be_btree *btrees[])
 {
-	struct m0_be_btree_cursor bcur;
-	size_t                    ti;    /* index in tables[] */
-	size_t                    i = 0; /* index in dest->cx_objs[] */
+	struct m0_be_btree_cursor      bcur;
+	int                            ti;    /* index in btrees[] */
+	size_t                         i = 0; /* index in dest->cx_objs[] */
+	const struct m0_conf_obj_type *t = NULL;
 
 	M0_ENTRY();
 	M0_PRE(dest->cx_nr > 0);
 
-	for (ti = M0_CO_PROFILE; ti <= M0_CO_PARTITION; ++ti) {
+	for (ti = 0; (t = m0_conf_obj_type_next(t)) != NULL; ++ti) {
 		int rc;
 		struct m0_buf keybuf;
 
+		if (t->cot_table_name == NULL)
+			continue;
 		m0_be_btree_cursor_init(&bcur, btrees[ti]);
 		for (rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
 		     rc = m0_be_btree_cursor_next_sync(&bcur), ++i) {
@@ -523,17 +534,19 @@ confx_fill(struct m0_confx *dest, struct m0_be_btree *btrees[])
 
 M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 {
-	struct m0_be_btree *btrees[ARRAY_SIZE(table_names)];
-	int                 i;
-	int                 rc;
-	size_t              nr_objs = 0;
+	struct m0_be_btree            *btrees[MAX_TABLES];
+	int                            i;
+	int                            rc;
+	size_t                         nr_objs = 0;
+	const struct m0_conf_obj_type *t = NULL;
 
+	M0_ASSERT(nr_tables() <= ARRAY_SIZE(btrees));
 	M0_ENTRY();
 
-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
-		if (table_names[i] == NULL)
+	for (i = 0; (t = m0_conf_obj_type_next(t)) != NULL; ++i) {
+		if (t->cot_table_name == NULL)
 			continue;
-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+		rc = m0_be_seg_dict_lookup(seg, t->cot_table_name,
 					   (void **)&btrees[i]);
 		if (rc != 0)
 			return rc;

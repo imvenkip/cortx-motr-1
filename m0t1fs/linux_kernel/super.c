@@ -972,6 +972,11 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		M0_RETURN(rc);
 	}
 
+	if (!m0_conf_fid_is_valid(&prof_fid) ||
+	    m0_conf_fid_type(&prof_fid) != &M0_CONF_PROFILE_TYPE) {
+		M0_LOG(M0_FATAL, "Wrong profile fid "FID_F, FID_P(&prof_fid));
+		M0_RETURN(-EINVAL);
+	}
 	rc = m0_confc_init(&confc, &csb->csb_iogroup, &prof_fid,
 			   mops->mo_confd, &m0t1fs_globals.g_rpc_machine,
 			   mops->mo_local_conf);

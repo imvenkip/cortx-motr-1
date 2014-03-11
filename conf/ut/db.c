@@ -20,9 +20,9 @@
 
 #include <stdlib.h>        /* system */
 #include "lib/finject.h"
+#include "conf/obj.h"
 #include "conf/db.h"       /* m0_confdb_create, m0_confdb_read */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
-#include "conf/obj.h"      /* m0_conf_objtype */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
 #include "conf/ut/file_helpers.h"
 #include "reqh/reqh.h"
@@ -66,19 +66,19 @@ enum {
 };
 
 static const struct m0_fid fids[NR] = {
-	[PROFILE]    = { 1, 0 },
-	[FILESYSTEM] = { 1, 1 },
-	[MDS]        = { 1, 2 },
-	[IOS]        = { 1, 3 },
-	[N]          = { 1, 4 },
-	[NIC0]       = { 1, 5 },
-	[SDEV0]      = { 1, 6 },
-	[PART0]      = { 1, 7 }
+	[PROFILE]    = M0_FID_TINIT('p', 1, 0),
+	[FILESYSTEM] = M0_FID_TINIT('f', 1, 1),
+	[MDS]        = M0_FID_TINIT('s', 1, 2),
+	[IOS]        = M0_FID_TINIT('s', 1, 3),
+	[N]          = M0_FID_TINIT('n', 1, 4),
+	[NIC0]       = M0_FID_TINIT('i', 1, 5),
+	[SDEV0]      = M0_FID_TINIT('d', 1, 6),
+	[PART0]      = M0_FID_TINIT('P', 1, 7)
 };
 
 static void profile_check(const struct m0_confx_obj *xobj)
 {
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_PROFILE);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_PROFILE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[PROFILE]));
 
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_conf.u.u_profile.xp_filesystem,
@@ -89,7 +89,7 @@ static void filesystem_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_filesystem *x = &xobj->o_conf.u.u_filesystem;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_FILESYSTEM);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_FILESYSTEM_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[FILESYSTEM]));
 
 	M0_UT_ASSERT(x->xf_rootfid.f_container == 11);
@@ -109,7 +109,7 @@ static void md_service_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_service *x = &xobj->o_conf.u.u_service;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_SERVICE);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_SERVICE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[MDS]));
 
 	M0_UT_ASSERT(x->xs_type == 1);
@@ -122,7 +122,7 @@ static void io_service_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_service *x = &xobj->o_conf.u.u_service;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_SERVICE);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_SERVICE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[IOS]));
 
 	M0_UT_ASSERT(x->xs_type == 2);
@@ -137,7 +137,7 @@ static void node_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_node *x = &xobj->o_conf.u.u_node;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_NODE);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_NODE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[N]));
 
 	M0_UT_ASSERT(x->xn_memsize == 8000);
@@ -157,7 +157,7 @@ static void nic_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_nic *x = &xobj->o_conf.u.u_nic;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_NIC);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_NIC_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[NIC0]));
 
 	M0_UT_ASSERT(x->xi_iface == 5);
@@ -171,7 +171,7 @@ static void sdev_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_sdev *x = &xobj->o_conf.u.u_sdev;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_SDEV);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_SDEV_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[SDEV0]));
 
 	M0_UT_ASSERT(x->xd_iface == 4);
@@ -188,7 +188,7 @@ static void partition_check(const struct m0_confx_obj *xobj)
 {
 	const struct m0_confx_partition *x = &xobj->o_conf.u.u_partition;
 
-	M0_UT_ASSERT(xobj->o_conf.u_type == M0_CO_PARTITION);
+	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_PARTITION_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[PART0]));
 
 	M0_UT_ASSERT(x->xa_start == 0);
@@ -253,19 +253,18 @@ void test_confdb(void)
 	struct m0_be_tx         tx = {};
 	int                     i;
 	int                     rc;
-	char                    buf[1024] = {0};
+	char                    buf[4096] = {0};
 	struct {
-		enum m0_conf_objtype type;
-		void               (*check)(const struct m0_confx_obj *xobj);
+		void (*check)(const struct m0_confx_obj *xobj);
 	} tests[] = {
-		{ M0_CO_PROFILE,    profile_check     },
-		{ M0_CO_FILESYSTEM, filesystem_check  },
-		{ M0_CO_SERVICE,    md_service_check  },
-		{ M0_CO_SERVICE,    io_service_check  },
-		{ M0_CO_NODE,       node_check        },
-		{ M0_CO_NIC,        nic_check         },
-		{ M0_CO_SDEV,       sdev_check        },
-		{ M0_CO_PARTITION,  partition_check   }
+		{ profile_check      },
+		{ &filesystem_check  },
+		{ &md_service_check  },
+		{ &io_service_check  },
+		{ &node_check        },
+		{ &nic_check         },
+		{ &sdev_check        },
+		{ &partition_check   }
 	};
 
 	cleanup();

@@ -388,3 +388,100 @@ M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj)
 		     (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)));
 	return obj->co_status != M0_CS_READY;
 }
+
+static const struct m0_conf_obj_type *obj_types[256];
+
+void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
+{
+	uint8_t id = otype->cot_ftype.ft_id;
+
+	M0_PRE(IS_IN_ARRAY(id, obj_types));
+	M0_PRE(obj_types[id] == NULL);
+	m0_fid_type_register(&otype->cot_ftype);
+	obj_types[id] = otype;
+	M0_POST(m0_forall(i, ARRAY_SIZE(obj_types),
+	  ergo(obj_types[i] != NULL,
+	       (obj_types[i]->cot_id == otype->cot_id) == (i == id) &&
+	       (obj_types[i]->cot_magic == otype->cot_magic) == (i == id))));
+}
+
+void m0_conf_obj_type_unregister(const struct m0_conf_obj_type *otype)
+{
+	uint8_t id = otype->cot_ftype.ft_id;
+
+	M0_PRE(IS_IN_ARRAY(id, obj_types));
+	M0_PRE(obj_types[id] == otype);
+	m0_fid_type_unregister(&otype->cot_ftype);
+	obj_types[id] = NULL;
+}
+
+M0_INTERNAL const struct m0_conf_obj_type *m0_conf_obj_type_next
+(const struct m0_conf_obj_type *otype)
+{
+	int idx;
+
+	idx = otype == NULL ? 0 : otype->cot_ftype.ft_id + 1;
+	for (; idx < ARRAY_SIZE(obj_types); ++idx) {
+		if (obj_types[idx] != NULL)
+			return obj_types[idx];
+	}
+	return NULL;
+}
+
+enum m0_conf_objtype m0_conf_obj_tid(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj)->cot_id;
+}
+
+enum m0_conf_objtype m0_conf_fid_tid(const struct m0_fid *id)
+{
+	return m0_conf_fid_type(id)->cot_id;
+}
+
+const struct m0_conf_obj_type *m0_conf_obj_type(const struct m0_conf_obj *obj)
+{
+	return m0_conf_fid_type(&obj->co_id);
+}
+
+const struct m0_conf_obj_type *m0_conf_fid_type(const struct m0_fid *fid)
+{
+	uint8_t id = m0_fid_type_getfid(fid)->ft_id;
+
+	M0_PRE(IS_IN_ARRAY(id, obj_types));
+	M0_PRE(obj_types[id] != NULL);
+	return obj_types[id];
+}
+
+bool m0_conf_fid_is_valid(const struct m0_fid *fid)
+{
+	return
+		m0_fid_is_valid(fid) &&
+		obj_types[m0_fid_type_getfid(fid)->ft_id] != NULL;
+}
+
+M0_INTERNAL int m0_conf_obj_init(void)
+{
+	m0_conf_obj_type_register(&M0_CONF_PROFILE_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_FILESYSTEM_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_SERVICE_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_NODE_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_NIC_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_SDEV_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_PARTITION_TYPE);
+	m0_conf_obj_type_register(&M0_CONF_DIR_TYPE);
+	m0_fid_type_register(&M0_CONF_RELFID_TYPE);
+	return 0;
+}
+
+M0_INTERNAL void m0_conf_obj_fini(void)
+{
+	m0_conf_obj_type_unregister(&M0_CONF_PROFILE_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_FILESYSTEM_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_SERVICE_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_NODE_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_NIC_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_SDEV_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_PARTITION_TYPE);
+	m0_conf_obj_type_unregister(&M0_CONF_DIR_TYPE);
+	m0_fid_type_unregister(&M0_CONF_RELFID_TYPE);
+}

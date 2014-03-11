@@ -35,19 +35,16 @@ static bool dir_check(const void *bob)
 	const struct m0_conf_obj *self_obj = &self->cd_obj;
 	const struct m0_conf_obj *parent = self_obj->co_parent;
 
-	M0_PRE(self_obj->co_type == M0_CO_DIR);
+	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_DIR);
 
-	return ergo(self_obj->co_status == M0_CS_READY,
-		    M0_IN(self->cd_item_type, (M0_CO_SERVICE, M0_CO_NIC,
-					       M0_CO_SDEV, M0_CO_PARTITION))) &&
-		ergo(self_obj->co_mounted, /* check relations */
-		     parent->co_mounted && parent->co_status == M0_CS_READY &&
-		     M0_IN(parent->co_type,
-			   (M0_CO_FILESYSTEM, M0_CO_NODE, M0_CO_SDEV)) &&
-		     ergo(self_obj->co_status == M0_CS_READY,
-			  m0_tl_forall(m0_conf_dir, child, &self->cd_items,
-				       child_check(self_obj, child,
-						   self->cd_item_type))));
+	return ergo(self_obj->co_mounted, /* check relations */
+		 _0C(parent->co_mounted && parent->co_status == M0_CS_READY) &&
+		 _0C(M0_IN(m0_conf_obj_tid(parent),
+			   (M0_CO_FILESYSTEM, M0_CO_NODE, M0_CO_SDEV))) &&
+		 ergo(self_obj->co_status == M0_CS_READY,
+			 m0_tl_forall(m0_conf_dir, child, &self->cd_items,
+				      child_check(self_obj, child,
+						      self->cd_item_type))));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, dir_check);
@@ -79,7 +76,7 @@ static bool dir_match(const struct m0_conf_obj *cached M0_UNUSED,
 static bool
 belongs(const struct m0_conf_obj *entry, const struct m0_conf_dir *dir)
 {
-	return  entry->co_type == dir->cd_item_type &&
+	return  m0_conf_obj_type(entry) == dir->cd_item_type &&
 		entry->co_parent == &dir->cd_obj;
 }
 
@@ -198,7 +195,7 @@ static const struct m0_conf_obj_ops dir_ops = {
 	.coo_delete    = dir_delete
 };
 
-M0_INTERNAL struct m0_conf_obj *m0_conf__dir_create(void)
+static struct m0_conf_obj *dir_create(void)
 {
 	struct m0_conf_dir *x;
 	struct m0_conf_obj *ret;
@@ -215,5 +212,20 @@ M0_INTERNAL struct m0_conf_obj *m0_conf__dir_create(void)
 	ret->co_ops = &dir_ops;
 	return ret;
 }
+
+const struct m0_conf_obj_type M0_CONF_DIR_TYPE = {
+	.cot_ftype = {
+		.ft_id   = 'D',
+		.ft_name = "configuration directory",
+	},
+	.cot_id    = M0_CO_DIR,
+	.cot_ctor  = &dir_create,
+	.cot_magic = M0_CONF_DIR_MAGIC
+};
+
+const struct m0_fid_type M0_CONF_RELFID_TYPE = {
+	.ft_id   = '/',
+	.ft_name = "relation",
+};
 
 #undef M0_TRACE_SUBSYSTEM

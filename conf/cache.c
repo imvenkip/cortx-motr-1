@@ -62,7 +62,7 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 	M0_PRE(!m0_conf_cache_tlink_is_in(obj));
 
-	x = m0_conf_cache_lookup(cache, obj->co_type, &obj->co_id);
+	x = m0_conf_cache_lookup(cache, &obj->co_id);
 	if (x == NULL) {
 		m0_conf_cache_tlist_add(&cache->ca_registry, obj);
 		M0_RETURN(0);
@@ -72,14 +72,14 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
-		     enum m0_conf_objtype type, const struct m0_fid *id)
+		     const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		if (obj->co_type == type && m0_fid_eq(&obj->co_id, id))
+		if (m0_fid_eq(&obj->co_id, id))
 			break;
 	} m0_tl_endfor;
 

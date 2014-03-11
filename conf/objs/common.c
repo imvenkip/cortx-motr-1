@@ -21,74 +21,66 @@
 #include "conf/objs/common.h"
 #include "conf/cache.h"
 
-static bool mounted_as(const struct m0_conf_obj *obj, enum m0_conf_objtype type)
+static bool mounted_as(const struct m0_conf_obj *obj,
+		       const struct m0_conf_obj_type *type)
 {
-	return obj->co_mounted && obj->co_type == type;
+	return obj->co_mounted && m0_conf_obj_type(obj) == type;
 }
 
 M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj)
 {
-	enum { _NOT_SURE = -9, _ORPHAN = -1 };
-	static const enum m0_conf_objtype expected[M0_CO_NR] = {
-		[M0_CO_DIR]        = _NOT_SURE, /* filesystem | node | sdev */
-		[M0_CO_PROFILE]    = _ORPHAN,
-		[M0_CO_FILESYSTEM] = M0_CO_PROFILE,
-		[M0_CO_SERVICE]    = M0_CO_DIR,
-		[M0_CO_NODE]       = _ORPHAN,
-		[M0_CO_NIC]        = M0_CO_DIR,
-		[M0_CO_SDEV]       = M0_CO_DIR,
-		[M0_CO_PARTITION]  = M0_CO_DIR
-	};
-	const struct m0_conf_obj *parent = obj->co_parent;
-	enum m0_conf_objtype actual =
-		parent == NULL ? _ORPHAN : parent->co_type;
+	const struct m0_conf_obj      *parent = obj->co_parent;
+	const struct m0_conf_obj_type *otype = m0_conf_obj_type(obj);
+	const struct m0_conf_obj_type *actual =
+		parent == NULL ? NULL : m0_conf_obj_type(parent);
 
-	M0_PRE(obj->co_mounted && obj->co_type != actual);
+	M0_PRE(obj->co_mounted && otype != actual);
 
-	return M0_IN(obj->co_type, (M0_CO_PROFILE, M0_CO_NODE)) ?
+	return M0_IN(otype, (&M0_CONF_PROFILE_TYPE, &M0_CONF_NODE_TYPE)) ?
 		parent == NULL :
 		parent != NULL && parent->co_mounted &&
 		parent->co_status == M0_CS_READY &&
-		0 <= actual && actual < M0_CO_NR &&
-		actual == expected[obj->co_type] &&
-		(obj->co_type == M0_CO_DIR) == M0_IN(actual, (M0_CO_FILESYSTEM,
-							      M0_CO_NODE,
-							      M0_CO_SDEV)) &&
-		ergo(actual == M0_CO_DIR,
+		(otype == &M0_CONF_DIR_TYPE) == M0_IN(actual,
+						      (&M0_CONF_FILESYSTEM_TYPE,
+						       &M0_CONF_NODE_TYPE,
+						       &M0_CONF_SDEV_TYPE)) &&
+		ergo(actual == &M0_CONF_DIR_TYPE,
 		     /* Parent is a directory. Ensure that it may
 		      * contain objects of given type. */
-		     M0_CONF_CAST(parent, m0_conf_dir)->cd_item_type ==
-		     obj->co_type);
+		     M0_CONF_CAST(parent, m0_conf_dir)->cd_item_type == otype);
 }
 
 M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 			     const struct m0_conf_obj *child,
-			     enum m0_conf_objtype child_type)
+			     const struct m0_conf_obj_type *child_type)
 {
 	M0_PRE(obj->co_mounted);
 
 	/* Profile is a topmost object, it cannot be a child. */
-	M0_ASSERT(child == NULL || child->co_type != M0_CO_PROFILE);
+	M0_ASSERT(child == NULL ||
+		  m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
 
 	return ergo(obj->co_status == M0_CS_READY,
-		    mounted_as(child, child_type) &&
-		    child->co_parent == (child->co_type == M0_CO_NODE ? NULL :
-					 obj));
+		    _0C(mounted_as(child, child_type)) &&
+		    _0C(child->co_parent ==
+		    (m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE ?
+		     NULL : obj)));
 }
 
 M0_INTERNAL void
 child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
 	/* Profile cannot be a child, because it is the topmost object. */
-	M0_PRE(child->co_type != M0_CO_PROFILE);
+	M0_PRE(m0_conf_obj_tid(child) != M0_CO_PROFILE);
 
 	M0_ASSERT(equi(child->co_parent == NULL,
-		       !child->co_mounted || child->co_type == M0_CO_NODE));
+		       !child->co_mounted ||
+		       m0_conf_obj_tid(child) == M0_CO_NODE));
 	M0_ASSERT(ergo(child->co_mounted, child->co_parent != NULL ||
-		       child->co_type == M0_CO_NODE));
+		       m0_conf_obj_tid(child) == M0_CO_NODE));
 	M0_ASSERT(child->co_cache == parent->co_cache);
 
-	if (child->co_type == M0_CO_NODE)
+	if (m0_conf_obj_tid(child) == M0_CO_NODE)
 		M0_ASSERT(child->co_parent == NULL);
 	else
 		child->co_parent = parent;
@@ -97,35 +89,50 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 }
 
 M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
-			const struct m0_fid *dir_id,
-			enum m0_conf_objtype children_type,
+			const struct m0_fid *id,
+			const struct m0_fid *relfid,
+			const struct m0_conf_obj_type *children_type,
 			const struct arr_fid *src, struct m0_conf_dir **out)
 {
 	struct m0_conf_obj *child;
 	uint32_t            i;
 	int                 rc;
-	struct m0_conf_obj *dir = m0_conf_cache_lookup(cache, M0_CO_DIR,
-						       dir_id);
-	M0_PRE(dir == NULL);
+	struct m0_conf_obj *dir;
+	struct m0_fid       dir_id;
+
+	M0_PRE(m0_fid_type_getfid(relfid) == &M0_CONF_RELFID_TYPE);
 	M0_PRE(*out == NULL);
 
-	dir = m0_conf_obj_create(cache, M0_CO_DIR, dir_id);
+	/*
+	 * Construct directory identifier.
+	 */
+	m0_fid_tset(&dir_id, M0_CONF_DIR_TYPE.cot_ftype.ft_id,
+		    id->f_container, id->f_key);
+	/* clear the next 16 bits after fid type... */
+	dir_id.f_container &= ~0x00ffff00000000ULL;
+	/* ... place parent type there... */
+	dir_id.f_container |= ((uint64_t)m0_fid_type_getfid(id)->ft_id) << 48;
+	/* ... and place parent type there. */
+	dir_id.f_container |= ((uint64_t)children_type->cot_ftype.ft_id) << 40;
+
+	M0_ASSERT(m0_conf_cache_lookup(cache, &dir_id) == NULL);
+
+	dir = m0_conf_obj_create(cache, &dir_id);
 	if (dir == NULL)
 		return -ENOMEM;
 	*out = M0_CONF_CAST(dir, m0_conf_dir);
 
 	(*out)->cd_item_type = children_type;
+	(*out)->cd_relfid    = *relfid;
 
 	for (rc = 0, i = 0; i < src->af_count; ++i) {
-		child = m0_conf_cache_lookup(cache, children_type,
-					     &src->af_elems[i]);
+		child = m0_conf_cache_lookup(cache, &src->af_elems[i]);
 		if (child != NULL) {
 			rc = -EEXIST; /* ban duplicates */
 			break;
 		}
 
-		rc = m0_conf_obj_find(cache, children_type, &src->af_elems[i],
-				      &child);
+		rc = m0_conf_obj_find(cache, &src->af_elems[i], &child);
 		if (rc != 0)
 			break;
 
@@ -144,6 +151,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			m0_conf_cache_del(cache, child);
 		}
 		m0_conf_obj_delete(dir);
+		*out = NULL;
 	}
 
 	return rc;
@@ -276,5 +284,5 @@ M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
 				 const struct m0_conf_obj *src)
 {
 	dest->o_id          = src->co_id;
-	dest->o_conf.u_type = src->co_type;
+	dest->o_conf.u_type = m0_conf_obj_tid(src);
 }

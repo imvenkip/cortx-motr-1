@@ -408,8 +408,7 @@ static int confc_cache_create(struct m0_confc *confc,
 	m0_conf_cache_init(&confc->cc_cache, &confc->cc_lock);
 
 	/* Create a stub for root object. */
-	rc = m0_conf_obj_find(&confc->cc_cache, M0_CO_PROFILE, profile,
-			      &confc->cc_root);
+	rc = m0_conf_obj_find(&confc->cc_cache, profile, &confc->cc_root);
 	if (rc != 0)
 		M0_RETURN(rc);
 	confc->cc_root->co_mounted = true;
@@ -444,6 +443,7 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 	M0_PRE(sm_group != NULL);
 	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
 	M0_PRE(ergo(not_empty(confd_addr), rpc_mach != NULL));
+	M0_PRE(m0_conf_fid_type(profile) == &M0_CONF_PROFILE_TYPE);
 
 	M0_LOG(M0_DEBUG, "confd=%s lconf=%s", confd_addr, local_conf);
 
@@ -745,8 +745,6 @@ path_copy(const struct m0_fid *src, struct m0_fid *dest, size_t dest_sz)
  * readdir
  * ------------------------------------------------------------------ */
 
-static void dir_relation(enum m0_conf_objtype item_type, struct m0_fid *dest);
-
 M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 				 struct m0_conf_obj  *dir,
 				 struct m0_conf_obj **pptr)
@@ -754,7 +752,7 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 	int rc;
 
 	M0_ENTRY("ctx=%p dir=%p *pptr=%p", ctx, dir, *pptr);
-	M0_PRE(dir->co_type == M0_CO_DIR &&
+	M0_PRE(m0_conf_obj_type(dir) == &M0_CONF_DIR_TYPE &&
 	       dir->co_cache == &ctx->fc_confc->cc_cache);
 
 	confc_lock(m0_confc_from_obj(dir));
@@ -766,13 +764,11 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 		 *   relation is how dir is referred to by the origin,
 		 *   entry is the first missing entry in the dir.
 		 */
-		struct m0_fid path[3] = {
-			[ARRAY_SIZE(path) - 1] = M0_FID0 /* eop */
+		struct m0_fid path[] = {
+			M0_CONF_CAST(dir, m0_conf_dir)->cd_relfid,
+			(*pptr)->co_id,
+			M0_FID0
 		};
-
-		dir_relation(M0_CONF_CAST(dir, m0_conf_dir)->cd_item_type,
-			     &path[0]);
-		path[1] = (*pptr)->co_id;
 
 		rc = m0_confc__open(ctx, dir->co_parent, path) ?:
 			M0_CONF_DIRMISS;
@@ -805,19 +801,6 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 	return rc;
 }
 
-static void dir_relation(enum m0_conf_objtype item_type, struct m0_fid *dest)
-{
-	static const struct m0_fid *relation[M0_CO_NR] = {
-		[M0_CO_SERVICE] = &M0_CONF_FILESYSTEM_SERVICES_FID,
-		[M0_CO_NIC]     = &M0_CONF_NODE_NICS,
-		[M0_CO_SDEV]    = &M0_CONF_NODE_SDEVS
-	};
-
-	if (IS_IN_ARRAY(item_type, relation) && relation[item_type] != NULL)
-		*dest = *relation[item_type];
-	else
-		M0_IMPOSSIBLE("Invalid value of m0_conf_dir::cd_item_type");
-}
 
 /* ------------------------------------------------------------------
  * Casts
@@ -1116,7 +1099,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			M0_RETURN(-ENOENT);
 		obj->co_status = M0_CS_LOADING;
 
-		if (obj->co_type == M0_CO_DIR) {
+		if (m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE) {
 			/*
 			 * Directory objects don't travel over the
 			 * network.  Query the parent object.
@@ -1205,7 +1188,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 	int rc;
 
 	M0_ENTRY();
-	M0_PRE(dest->co_type == src->o_conf.u_type);
+	M0_PRE(m0_conf_obj_tid(dest) == src->o_conf.u_type);
 	M0_PRE(confc_is_locked(confc));
 	M0_PRE(dest->co_cache == &confc->cc_cache);
 
@@ -1230,8 +1213,7 @@ cached_obj_update(struct m0_confc *confc, const struct m0_confx_obj *flat)
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY("confc=%p", confc);
-	M0_RETURN(m0_conf_obj_find(&confc->cc_cache, flat->o_conf.u_type,
-				   &flat->o_id, &obj) ?:
+	M0_RETURN(m0_conf_obj_find(&confc->cc_cache, &flat->o_id, &obj) ?:
 		  object_enrich(obj, flat, confc));
 }
 
@@ -1447,7 +1429,6 @@ static int request_create(struct m0_confc_ctx *ctx,
 
 	/* Setup payload. */
 	req = m0_fop_data(&p->cf_fop);
-	req->f_origin.oi_type = orig->co_type;
 	req->f_origin.oi_id = orig->co_id;
 
 	for (len = 0; !eop(&ctx->fc_path[ri + len]); ++len)
@@ -1470,8 +1451,7 @@ static bool request_check(const struct m0_confc_ctx *ctx)
 
 	req = m0_fop_data(m0_rpc_item_to_fop(item));
 
-	return  req->f_origin.oi_type != M0_CO_DIR &&
-		req->f_origin.oi_type < M0_CO_NR &&
+	return  m0_conf_fid_is_valid(&req->f_origin.oi_id) &&
 		m0_fid_is_set(&req->f_origin.oi_id) &&
 		equi(req->f_path.af_count == 0, req->f_path.af_elems == NULL) &&
 		item->ri_type == &m0_conf_fetch_fopt.ft_rpc_item_type &&

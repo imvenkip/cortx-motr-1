@@ -51,6 +51,7 @@
 #include "mero/init.h"
 #include "lib/cookie.h"
 #include "conf/fop.h"           /* m0_conf_fops_init, m0_confx_types_init */
+#include "conf/obj.h"           /* m0_conf_obj_init */
 #ifdef __KERNEL__
 #  include "m0t1fs/linux_kernel/m0t1fs.h"
 #  include "mero/linux_kernel/dummy_init_fini.h"
@@ -147,6 +148,7 @@ struct init_fini_call subsystem[] = {
 #endif
 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
 	{ &m0_graph_mod_init,   &m0_graph_mod_fini,   "graph" },
+	{ &m0_conf_obj_init,    &m0_conf_obj_fini,    "conf-obj" },
 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
 	{ &m0_addb_service_fop_init, &m0_addb_service_fop_fini, "addb_fops" },

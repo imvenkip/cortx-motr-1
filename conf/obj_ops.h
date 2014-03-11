@@ -21,7 +21,7 @@
 #ifndef __MERO_CONF_OBJOPS_H__
 #define __MERO_CONF_OBJOPS_H__
 
-#include "conf/obj.h"  /* m0_conf_objtype */
+#include "conf/obj.h"
 
 struct m0_conf_cache;
 struct m0_confx_obj;
@@ -168,7 +168,6 @@ struct m0_conf_obj_ops {
  *             !retval->co_mounted && retval->co_status == M0_CS_MISSING)
  */
 M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
-						   enum m0_conf_objtype type,
 						   const struct m0_fid *id);
 
 /**
@@ -180,7 +179,6 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
  *             m0_conf_obj_invariant(*out) && (*out)->co_cache == cache)
  */
 M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
-				 enum m0_conf_objtype type,
 				 const struct m0_fid *id,
 				 struct m0_conf_obj **out);
 
@@ -228,7 +226,7 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
  * @pre   `src' is valid
  * @pre   m0_mutex_is_locked(cache->ca_lock)
  * @pre   m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0
- * @pre   dest->co_type == src->o_conf.u_type
+ * @pre   m0_conf_obj_tid(dest) == src->o_conf.u_type
  * @pre   m0_fid_eq(&dest->co_id, &src->o_id)
  *
  * @post  m0_conf_obj_invariant(dest)

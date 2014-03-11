@@ -102,16 +102,16 @@ static int waiter_wait(struct waiter *w, struct m0_conf_obj **result)
  *
  * fid table:
  *
- * profile (prof)      (2, 0)
- * filesystem (fs)     (2, 1)
- * service (svc-0)     (2, 2)
- * service (svc-1)     (2, 3)
- * service (svc-2)     (2, 4)
- * node    (node-0)    (2, 5)
- * node    (node-1)    (2, 9)
- * nic     (nic-0)     (2, 6)
- * nic     (nic-1)     (2, 7)
- * sdev    (sdev-0)    (2, 8)
+ * profile (prof)      ('p', 2, 0)
+ * filesystem (fs)     ('f', 2, 1)
+ * service (svc-0)     ('s', 2, 2)
+ * service (svc-1)     ('s', 2, 3)
+ * service (svc-2)     ('s', 2, 4)
+ * node    (node-0)    ('n', 2, 5)
+ * node    (node-1)    ('n', 2, 9)
+ * nic     (nic-0)     ('i', 2, 6)
+ * nic     (nic-1)     ('i', 2, 7)
+ * sdev    (sdev-0)    ('d', 2, 8)
  *
  * ---------------------------------------------------------------- */
 
@@ -131,16 +131,16 @@ enum {
 };
 
 static const struct m0_fid fids[NR] = {
-	[PROF]       = { 2, 0 },
-	[FS]         = { 2, 1 },
-	[SVC0]       = { 2, 2 },
-	[SVC1]       = { 2, 3 },
-	[SVC2]       = { 2, 4 },
-	[NODE0]      = { 2, 5 },
-	[NODE1]      = { 2, 9 },
-	[NIC0]       = { 2, 6 },
-	[NIC1]       = { 2, 7 },
-	[SDEV0]      = { 2, 8 }
+	[PROF]       = M0_FID_TINIT('p', 2, 0),
+	[FS]         = M0_FID_TINIT('f', 2, 1),
+	[SVC0]       = M0_FID_TINIT('s', 2, 2),
+	[SVC1]       = M0_FID_TINIT('s', 2, 3),
+	[SVC2]       = M0_FID_TINIT('s', 2, 4),
+	[NODE0]      = M0_FID_TINIT('n', 2, 5),
+	[NODE1]      = M0_FID_TINIT('n', 2, 9),
+	[NIC0]       = M0_FID_TINIT('i', 2, 6),
+	[NIC1]       = M0_FID_TINIT('i', 2, 7),
+	[SDEV0]      = M0_FID_TINIT('d', 2, 8)
 };
 
 static void sync_open_test(struct m0_conf_obj *svc_dir)
@@ -149,9 +149,9 @@ static void sync_open_test(struct m0_conf_obj *svc_dir)
 	struct m0_conf_service *svc;
 	int                     rc;
 
-	M0_PRE(svc_dir->co_type == M0_CO_DIR);
+	M0_PRE(m0_conf_obj_tid(svc_dir) == M0_CO_DIR);
 
-	rc = m0_confc_open_sync(&obj, svc_dir, M0_FID_INIT(5, 5));
+	rc = m0_confc_open_sync(&obj, svc_dir, M0_FID_TINIT('s', 5, 5));
 	M0_UT_ASSERT(rc == -ENOENT);
 
 	/* There is no configuration data for the node of "svc-2". */
@@ -265,7 +265,7 @@ static void _retrieval_initiate(struct m0_confc_ctx *ctx)
 
 	rc = m0_confc_open(ctx, NULL, M0_CONF_PROFILE_FILESYSTEM_FID,
 			   M0_CONF_FILESYSTEM_SERVICES_FID, fids[SVC1],
-			   M0_CONF_SERVICE_NODE_FID, M0_CONF_NODE_NICS,
+			   M0_CONF_SERVICE_NODE_FID, M0_CONF_NODE_NICS_FID,
 			   fids[NIC0]);
 	M0_UT_ASSERT(rc == 0);
 }
@@ -374,7 +374,7 @@ static void confc_test(const char *confd_addr, struct m0_rpc_machine *rpc_mach,
 
 static void test_confc_local(void)
 {
-	char            local_conf[1024];
+	char            local_conf[4096];
 	struct m0_confc confc;
 	int             rc;
 
@@ -386,7 +386,7 @@ static void test_confc_local(void)
 			   NULL, NULL, "bad configuration string");
 	M0_UT_ASSERT(rc == -EPROTO);
 
-	rc = m0_confc_init(&confc, &g_grp, &M0_FID_INIT(7, 7),
+	rc = m0_confc_init(&confc, &g_grp, &M0_FID_TINIT('p', 7, 7),
 			   NULL, NULL, local_conf);
 	M0_UT_ASSERT(rc == -ENODATA);
 
@@ -427,7 +427,7 @@ static void test_confc_net(void)
 
 static void test_confc_invalid_input(void)
 {
-	char            local_conf[1024];
+	char            local_conf[4096];
 	struct m0_confc confc;
 	int             rc;
 
