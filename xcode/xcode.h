@@ -605,8 +605,8 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *     COUNT       ::= ATOM
  *
  * Where CHAR is any non-NUL character, NUMBER is anything recognizable by
- * sscanf(3) as a number and EMPTY is the empty string. White-spaces between
- * tokens are ignored.
+ * sscanf(3) as a number and EMPTY is the empty string. White-spaces, including
+ * #-to-EOL comments, between tokens are ignored.
  *
  * Examples:
  * @verbatim

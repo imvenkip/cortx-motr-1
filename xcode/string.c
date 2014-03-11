@@ -40,9 +40,18 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
 M0_INTERNAL const char *space_skip(const char *str)
 {
 	static const char space[] = " \t\v\n\r";
+	const char       *s0;
 
-	while (*str != 0 && strchr(space, *str) != NULL)
-		str++;
+	do {
+		s0 = str;
+		while (*str != 0 && strchr(space, *str) != NULL)
+			str++;
+
+		if (*str == '#') {
+			while (*str != 0 && *str != '\n')
+				str++;
+		}
+	} while (s0 != str);
 	return str;
 }
 
