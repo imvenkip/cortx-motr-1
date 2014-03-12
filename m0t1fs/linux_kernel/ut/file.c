@@ -919,6 +919,7 @@ static void dgmode_readio_test(void)
 	/* Retrieves an IO fop that will be treated as a failed fop. */
 	irfop = iofops_tlist_head(&ti->ti_iofops);
 	reply = m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL);
+	reply->f_item.ri_rmachine = conn->c_rpc_machine;
 	irfop->irf_iofop.if_fop.f_item.ri_reply = &reply->f_item;
 
 	/* Increments refcount so that ref release can be verified. */
