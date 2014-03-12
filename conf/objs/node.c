@@ -178,7 +178,7 @@ static struct m0_conf_obj *node_create(void)
 const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'n',
-		.ft_name = "node",
+		.ft_name = "node"
 	},
 	.cot_id         = M0_CO_NODE,
 	.cot_ctor       = &node_create,

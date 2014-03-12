@@ -136,7 +136,7 @@ static struct m0_conf_obj *sdev_create(void)
 const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'd',
-		.ft_name = "storage device",
+		.ft_name = "storage device"
 	},
 	.cot_id         = M0_CO_SDEV,
 	.cot_ctor       = &sdev_create,

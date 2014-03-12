@@ -145,7 +145,7 @@ static struct m0_conf_obj *service_create(void)
 const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 's',
-		.ft_name = "service",
+		.ft_name = "service"
 	},
 	.cot_id         = M0_CO_SERVICE,
 	.cot_ctor       = &service_create,

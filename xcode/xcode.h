@@ -605,8 +605,9 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *     COUNT       ::= ATOM
  *
  * Where CHAR is any non-NUL character, NUMBER is anything recognizable by
- * sscanf(3) as a number and EMPTY is the empty string. White-spaces, including
- * #-to-EOL comments, between tokens are ignored.
+ * sscanf(3) as a number and EMPTY is the empty string. White-spaces (\n, \t,
+ * \v, \r, space and comments) between tokens are ignored. Comments start with a
+ * hash symbol and run to the end of line.
  *
  * Examples:
  * @verbatim
@@ -615,14 +616,14 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  * ()
  * {1| (1, 2)}
  * {2| 6}
- * {3|}               -- a union with invalid discriminant or with a void value
- * [0]                -- 0 sized array
+ * {3|}               # a union with invalid discriminant or with a void value
+ * [0]                # 0 sized array
  * [3: 6, 5, 4]
- * [: 1, 2, 3]        -- fixed size sequence
- * "incomprehensible" -- a byte (U8) sequence with 16 elements
- * 10                 -- number 10
- * 0xa                -- number 10
- * 012                -- number 10
+ * [: 1, 2, 3]        # fixed size sequence
+ * "incomprehensible" # a byte (U8) sequence with 16 elements
+ * 10                 # number 10
+ * 0xa                # number 10
+ * 012                # number 10
  * (0, "katavothron", {42| [3: ("x"), ("y"), ("z")]}, "paradiorthosis")
  * @endverbatim
  *

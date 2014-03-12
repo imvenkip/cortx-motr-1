@@ -397,8 +397,10 @@ void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 
 	M0_PRE(IS_IN_ARRAY(id, obj_types));
 	M0_PRE(obj_types[id] == NULL);
+
 	m0_fid_type_register(&otype->cot_ftype);
 	obj_types[id] = otype;
+
 	M0_POST(m0_forall(i, ARRAY_SIZE(obj_types),
 	  ergo(obj_types[i] != NULL,
 	       (obj_types[i]->cot_id == otype->cot_id) == (i == id) &&
@@ -415,8 +417,8 @@ void m0_conf_obj_type_unregister(const struct m0_conf_obj_type *otype)
 	obj_types[id] = NULL;
 }
 
-M0_INTERNAL const struct m0_conf_obj_type *m0_conf_obj_type_next
-(const struct m0_conf_obj_type *otype)
+M0_INTERNAL const struct m0_conf_obj_type *
+m0_conf_obj_type_next(const struct m0_conf_obj_type *otype)
 {
 	int idx;
 
@@ -454,8 +456,7 @@ const struct m0_conf_obj_type *m0_conf_fid_type(const struct m0_fid *fid)
 
 bool m0_conf_fid_is_valid(const struct m0_fid *fid)
 {
-	return
-		m0_fid_is_valid(fid) &&
+	return	m0_fid_is_valid(fid) &&
 		obj_types[m0_fid_type_getfid(fid)->ft_id] != NULL;
 }
 

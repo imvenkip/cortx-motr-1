@@ -52,7 +52,6 @@ M0_INTERNAL void m0_fid_type_unregister(const struct m0_fid_type *fidt)
 	fid_types[id] = NULL;
 }
 
-
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_get(uint8_t id)
 {
 	M0_PRE(IS_IN_ARRAY(id, fid_types));

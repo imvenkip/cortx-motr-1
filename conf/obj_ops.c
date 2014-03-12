@@ -57,8 +57,7 @@ static bool _generic_obj_invariant(const void *bob)
 {
 	const struct m0_conf_obj *obj = bob;
 
-	return
-		m0_fid_is_set(&obj->co_id) && obj->co_ops != NULL &&
+	return	m0_fid_is_set(&obj->co_id) && obj->co_ops != NULL &&
 		m0_conf_fid_is_valid(&obj->co_id) &&
 		M0_IN(obj->co_status,
 		      (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)) &&

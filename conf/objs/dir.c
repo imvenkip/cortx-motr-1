@@ -216,7 +216,7 @@ static struct m0_conf_obj *dir_create(void)
 const struct m0_conf_obj_type M0_CONF_DIR_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'D',
-		.ft_name = "configuration directory",
+		.ft_name = "configuration directory"
 	},
 	.cot_id    = M0_CO_DIR,
 	.cot_ctor  = &dir_create,
@@ -225,7 +225,7 @@ const struct m0_conf_obj_type M0_CONF_DIR_TYPE = {
 
 const struct m0_fid_type M0_CONF_RELFID_TYPE = {
 	.ft_id   = '/',
-	.ft_name = "relation",
+	.ft_name = "conf relation"
 };
 
 #undef M0_TRACE_SUBSYSTEM

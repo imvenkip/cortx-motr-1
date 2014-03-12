@@ -115,7 +115,7 @@ static struct m0_conf_obj *nic_create(void)
 const struct m0_conf_obj_type M0_CONF_NIC_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'i',
-		.ft_name = "nic",
+		.ft_name = "nic"
 	},
 	.cot_id         = M0_CO_NIC,
 	.cot_ctor       = &nic_create,

@@ -33,7 +33,6 @@ struct m0_conf_fetch_resp;
 struct m0_conf_update;
 struct m0_conf_update_resp;
 
-/* XXX TODO: rename to `arrbuf' */
 struct arr_buf {
 	uint32_t       ab_count;
 	struct m0_buf *ab_elems;
@@ -44,7 +43,6 @@ struct arr_fid {
 	struct m0_fid *af_elems;
 } M0_XCA_SEQUENCE;
 
-/** XXX @todo s/objid/objiden/ ? */
 struct objid {
 	struct m0_fid oi_id;
 } M0_XCA_RECORD;

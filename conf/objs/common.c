@@ -63,15 +63,15 @@ M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 	return ergo(obj->co_status == M0_CS_READY,
 		    _0C(mounted_as(child, child_type)) &&
 		    _0C(child->co_parent ==
-		    (m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE ?
-		     NULL : obj)));
+			(m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE ?
+			 NULL : obj)));
 }
 
 M0_INTERNAL void
 child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
 	/* Profile cannot be a child, because it is the topmost object. */
-	M0_PRE(m0_conf_obj_tid(child) != M0_CO_PROFILE);
+	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
 
 	M0_ASSERT(equi(child->co_parent == NULL,
 		       !child->co_mounted ||
@@ -86,6 +86,26 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 		child->co_parent = parent;
 
 	child->co_mounted = true;
+}
+
+/**
+ * Constructs directory identifier.
+ *
+ * @todo This would produce non-unique identifier, if an object has two
+ * different directories with the same children types. Perhaps relation fid
+ * should be factored in somehow.
+ */
+static void dir_id_build(struct m0_fid *out, const struct m0_fid *id,
+			 const struct m0_conf_obj_type *children_type)
+{
+	m0_fid_tset(out, M0_CONF_DIR_TYPE.cot_ftype.ft_id,
+		    id->f_container, id->f_key);
+	/* clear the next 16 bits after fid type... */
+	out->f_container &= ~0x00ffff00000000ULL;
+	/* ... place parent type there... */
+	out->f_container |= ((uint64_t)m0_fid_type_getfid(id)->ft_id) << 48;
+	/* ... and place parent type there. */
+	out->f_container |= ((uint64_t)children_type->cot_ftype.ft_id) << 40;
 }
 
 M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
@@ -103,18 +123,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 	M0_PRE(m0_fid_type_getfid(relfid) == &M0_CONF_RELFID_TYPE);
 	M0_PRE(*out == NULL);
 
-	/*
-	 * Construct directory identifier.
-	 */
-	m0_fid_tset(&dir_id, M0_CONF_DIR_TYPE.cot_ftype.ft_id,
-		    id->f_container, id->f_key);
-	/* clear the next 16 bits after fid type... */
-	dir_id.f_container &= ~0x00ffff00000000ULL;
-	/* ... place parent type there... */
-	dir_id.f_container |= ((uint64_t)m0_fid_type_getfid(id)->ft_id) << 48;
-	/* ... and place parent type there. */
-	dir_id.f_container |= ((uint64_t)children_type->cot_ftype.ft_id) << 40;
-
+	dir_id_build(&dir_id, id, children_type);
 	M0_ASSERT(m0_conf_cache_lookup(cache, &dir_id) == NULL);
 
 	dir = m0_conf_obj_create(cache, &dir_id);
@@ -281,7 +290,7 @@ M0_INTERNAL void arrfid_free(struct arr_fid *arr)
 }
 
 M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
-				 const struct m0_conf_obj *src)
+			      const struct m0_conf_obj *src)
 {
 	dest->o_id          = src->co_id;
 	dest->o_conf.u_type = m0_conf_obj_tid(src);

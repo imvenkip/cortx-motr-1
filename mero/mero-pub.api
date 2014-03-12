@@ -8,6 +8,13 @@ m0_cob_domain_fini
 m0_cob_domain_init
 m0_cob_domain_create
 m0_cob_domain_destroy
+m0_conf_fid_is_valid
+m0_conf_fid_tid
+m0_conf_fid_type
+m0_conf_obj_tid
+m0_conf_obj_type
+m0_conf_obj_type_register
+m0_conf_obj_type_unregister
 m0_cs_fini
 m0_cs_init
 m0_cs_reqh_get

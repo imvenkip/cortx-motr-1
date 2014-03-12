@@ -118,7 +118,7 @@ static struct m0_conf_obj *partition_create(void)
 const struct m0_conf_obj_type M0_CONF_PARTITION_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'P',
-		.ft_name = "partition",
+		.ft_name = "partition"
 	},
 	.cot_id         = M0_CO_PARTITION,
 	.cot_ctor       = &partition_create,

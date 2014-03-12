@@ -155,9 +155,7 @@ enum m0_conf_status {
  * object.
  */
 struct m0_conf_obj {
-	/**
-	 * Unique object identifier.
-	 */
+	/** Unique object identifier. */
 	struct m0_fid                 co_id;
 
 	enum m0_conf_status           co_status;
@@ -266,13 +264,9 @@ struct m0_conf_dir {
 	struct m0_conf_obj             cd_obj;
 	/** List of m0_conf_obj-s, linked through m0_conf_obj::co_dir_link. */
 	struct m0_tl                   cd_items;
-	/**
-	 * Type of items.
-	 */
+	/** Type of items. */
 	const struct m0_conf_obj_type *cd_item_type;
-	/**
-	 * "Relation" represented by this directory.
-	 */
+	/** "Relation" represented by this directory. */
 	struct m0_fid                  cd_relfid;
 };
 
@@ -417,8 +411,22 @@ extern const struct m0_conf_obj_type M0_CONF_SDEV_TYPE;
 extern const struct m0_conf_obj_type M0_CONF_PARTITION_TYPE;
 extern const struct m0_conf_obj_type M0_CONF_DIR_TYPE;
 
-M0_INTERNAL const struct m0_conf_obj_type *m0_conf_obj_type_next
-(const struct m0_conf_obj_type *otype);
+/**
+ * Iterates over registered conf object types.
+ *
+ * To start iteration call m0_conf_obj_type_next(NULL). Returns NULL when the
+ * iteration is over.
+ *
+ * @code
+ * const struct m0_conf_obj_type *t = NULL;
+ *
+ * while ((t = m0_conf_obj_type_next(t)) != NULL) {
+ *         ... do something with t ...
+ * }
+ * @endcode
+ */
+M0_INTERNAL const struct m0_conf_obj_type *
+m0_conf_obj_type_next(const struct m0_conf_obj_type *otype);
 
 M0_INTERNAL int m0_conf_obj_init(void);
 M0_INTERNAL void m0_conf_obj_fini(void);

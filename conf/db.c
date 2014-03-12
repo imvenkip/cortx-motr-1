@@ -218,17 +218,15 @@ static void confx_from_db(struct m0_confx_obj *dest, enum m0_conf_objtype type,
 /* ------------------------------------------------------------------
  * Tables
  * ------------------------------------------------------------------ */
-/* XXX Consider using "The X macro":
- * http://www.drdobbs.com/cpp/the-x-macro/228700289 */
 
 static void confdb_tables_fini(struct m0_be_seg *seg)
 {
-	struct m0_be_btree            *btree;
 	int                            rc;
 	const struct m0_conf_obj_type *t = NULL;
 
 	M0_ENTRY();
 	while ((t = m0_conf_obj_type_next(t)) != NULL) {
+		struct m0_be_btree *btree;
 		if (t->cot_table_name != NULL) {
 			rc = m0_be_seg_dict_lookup(seg, t->cot_table_name,
 						   (void **)&btree);
@@ -386,14 +384,14 @@ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
 
 static size_t nr_tables(void)
 {
-	int                            i = 0;
+	int                            n = 0;
 	const struct m0_conf_obj_type *t = NULL;
 
 	while ((t = m0_conf_obj_type_next(t)) != NULL) {
 		if (t->cot_table_name != NULL)
-			++i;
+			++n;
 	}
-	return i;
+	return n;
 }
 
 enum { MAX_TABLES = 10 };

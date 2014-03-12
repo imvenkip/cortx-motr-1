@@ -130,7 +130,7 @@ static struct m0_conf_obj *profile_create(void)
 const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'p',
-		.ft_name = "configuration profile",
+		.ft_name = "configuration profile"
 	},
 	.cot_id         = M0_CO_PROFILE,
 	.cot_ctor       = &profile_create,

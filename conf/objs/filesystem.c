@@ -33,10 +33,10 @@ static bool filesystem_check(const void *bob)
 		ergo(self_obj->co_mounted,
 		     _0C(parent_check(self_obj)) &&
 		     _0C(M0_CONF_CAST(self_obj->co_parent,
-				    m0_conf_profile)->cp_filesystem == self) &&
+				      m0_conf_profile)->cp_filesystem == self)&&
 		     child_check(self_obj,
-				     M0_MEMBER_PTR(self->cf_services, cd_obj),
-				     &M0_CONF_DIR_TYPE));
+				 M0_MEMBER_PTR(self->cf_services, cd_obj),
+				 &M0_CONF_DIR_TYPE));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
@@ -155,7 +155,7 @@ static struct m0_conf_obj *filesystem_create(void)
 const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
 	.cot_ftype = {
 		.ft_id   = 'f',
-		.ft_name = "configuration file-system",
+		.ft_name = "configuration file-system"
 	},
 	.cot_id         = M0_CO_FILESYSTEM,
 	.cot_ctor       = &filesystem_create,
