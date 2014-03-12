@@ -1121,6 +1121,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               fop/ut/Kbuild.sub \
 	      file/Kbuild.sub \
 	      file/ut/Kbuild.sub \
+	      graph/Kbuild.sub \
               ha/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
