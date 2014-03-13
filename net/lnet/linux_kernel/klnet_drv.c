@@ -1522,8 +1522,7 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	} else {
 		file->private_data = kd;
 	}
-	M0_LOG(M0_INFO, "open rc=%d", rc);
-        return rc;
+	M0_RETURN(rc);
 }
 
 /**
@@ -1618,10 +1617,9 @@ M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 		nlx_core_kmem_loc_set(&kd->kd_cd_loc, NULL, 0);
 	}
 
-	M0_LOG(M0_INFO, "close");
 	nlx_kcore_kcore_dom_fini(kd);
 	m0_free(kd);
-	return 0;
+	M0_RETURN(0);
 }
 
 /** File operations for the m0lnet device, UT can override. */

@@ -320,7 +320,7 @@ M0_INTERNAL void m0_rm_type_deregister(struct m0_rm_resource_type *rt)
 	m0_clink_signal(&rt->rt_sm_grp.s_clink);
 	m0_sm_group_unlock(&rt->rt_sm_grp);
 
-	M0_LOG(M0_INFO, "Waiting for RM RT agent to join");
+	M0_LOG(M0_DEBUG, "Waiting for RM RT agent to join");
 	m0_thread_join(&rt->rt_worker);
 	m0_thread_fini(&rt->rt_worker);
 	m0_sm_group_fini(&rt->rt_sm_grp);

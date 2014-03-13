@@ -172,7 +172,7 @@
 #define M0_RETURN(rc)                                    \
 do {                                                     \
 	typeof(rc) __rc = (rc);                          \
-	(__rc == 0) ? M0_LOG(M0_CALL, "< rc=%d", __rc) : \
+	(__rc >= 0) ? M0_LOG(M0_CALL, "< rc=%d", __rc) : \
 		M0_LOG(M0_NOTICE, "< rc=%d", __rc);      \
 	return __rc;                                     \
 } while (0)
