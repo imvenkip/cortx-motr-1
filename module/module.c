@@ -35,7 +35,6 @@ static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n);
 static bool module_invariant(const struct m0_module *mod)
 {
 	const struct m0_moddep *md;
-	const struct m0_moddep *md1;
 
 	return  _0C(mod->m_cur < mod->m_level_nr) &&
 		_0C(m0_forall(i, mod->m_level_nr, (i == 0) ==
@@ -60,11 +59,15 @@ static bool module_invariant(const struct m0_module *mod)
 				   md->md_dst <= md->md_other->m_cur)) &&
 			  /* Check that there is a matching inverse
 			   * dependency. */
-			  _0C(!m0_forall(j, md->md_other->m_inv_nr,
-					 (md1 = &md->md_other->m_inv[j]) &&
-					 !(md1->md_other == mod &&
-					   md1->md_src == md->md_src &&
-					   md1->md_dst == md->md_dst))));
+			  _0C(m0_exists(j, md->md_other->m_inv_nr,
+					({
+						const struct m0_moddep *md1 =
+							&md->md_other->m_inv[j];
+
+						md1->md_other == mod &&
+						md1->md_src == md->md_src &&
+						md1->md_dst == md->md_dst;
+					}))));
 }
 
 static int module_up(struct m0_module *module, unsigned level)

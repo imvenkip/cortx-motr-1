@@ -171,7 +171,8 @@ bool m0_garc_type_invariant(const struct m0_gvertice_type *vt,
 {
 	const struct m0_xcode_type *xt = vt->vt_xt;
 
-	return _0C(atype->at_field < xt->xct_nr) &&
+	return
+		_0C(atype->at_field < xt->xct_nr) &&
 		_0C(xt->xct_child[atype->at_field].xf_type == m0_garc_xc);
 }
 
@@ -289,7 +290,7 @@ static bool has_arc(const struct m0_gvertice *vertice,
 		    const struct m0_garc_type *arc)
 {
 	const struct m0_gvertice_type *vt = vtype(vertice);
-	return !m0_forall(i, vt->vt_arc_nr, vt->vt_arc[i] != arc);
+	return m0_exists(i, vt->vt_arc_nr, vt->vt_arc[i] == arc);
 }
 
 static struct m0_garc_type GRAPH_NEXT = {
