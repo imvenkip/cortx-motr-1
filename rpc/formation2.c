@@ -95,38 +95,35 @@ M0_TL_DEFINE(itemq, M0_INTERNAL, struct m0_rpc_item);
 
 static bool frm_invariant(const struct m0_rpc_frm *frm)
 {
-	const struct m0_tl *q;
-	m0_bcount_t         nr_bytes_acc;
-	uint64_t            nr_items;
+	m0_bcount_t nr_bytes_acc = 0;
+	uint64_t    nr_items = 0;
 
-	nr_bytes_acc = 0;
-	nr_items     = 0;
+	return  frm != NULL &&
+		frm->f_magic == M0_RPC_FRM_MAGIC &&
+		frm->f_state > FRM_UNINITIALISED &&
+		frm->f_state < FRM_NR_STATES &&
+		frm->f_ops != NULL &&
+		equi(frm->f_state == FRM_IDLE,  frm_is_idle(frm)) &&
+		m0_forall(i, FRMQ_NR_QUEUES,
+			  ({
+				  const struct m0_tl *q = &frm->f_itemq[i];
 
-	return frm != NULL &&
-	       frm->f_magic == M0_RPC_FRM_MAGIC &&
-	       frm->f_state > FRM_UNINITIALISED &&
-	       frm->f_state < FRM_NR_STATES &&
-	       frm->f_ops != NULL &&
-	       equi(frm->f_state == FRM_IDLE,  frm_is_idle(frm)) &&
-	       m0_forall(i, FRMQ_NR_QUEUES,
-			 q             = &frm->f_itemq[i];
-			 nr_items     += itemq_tlist_length(q);
-			 nr_bytes_acc += itemq_nr_bytes_acc(q);
-			 itemq_invariant(q)) &&
-	       frm->f_nr_items == nr_items &&
-	       frm->f_nr_bytes_accumulated == nr_bytes_acc;
+				  nr_items     += itemq_tlist_length(q);
+				  nr_bytes_acc += itemq_nr_bytes_acc(q);
+				  itemq_invariant(q); })) &&
+		frm->f_nr_items == nr_items &&
+		frm->f_nr_bytes_accumulated == nr_bytes_acc;
 }
 
 static bool itemq_invariant(const struct m0_tl *q)
 {
-	struct m0_rpc_item *prev;
-
 	return  q != NULL &&
-		m0_tl_forall(itemq, item, q,
-				prev = itemq_tlist_prev(q, item);
-				ergo(prev != NULL,
-				     item_less_or_equal(prev, item))
-			    );
+		m0_tl_forall(itemq, item, q, ({
+					const struct m0_rpc_item *prev =
+						itemq_tlist_prev(q, item);
+					ergo(prev != NULL,
+					     item_less_or_equal(prev, item));
+				}));
 }
 
 /**
