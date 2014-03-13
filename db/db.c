@@ -117,12 +117,15 @@ static void seg_map_add(const char *name,
 static struct seg_map_item *seg_map_lookup(const char *name)
 {
 	struct seg_map_item *smi = NULL;
+	int                  i;
 
 	seg_map_lock();
-	m0_forall(i, seg_map_size,
-		  smi = strcmp(seg_map[i].smi_name, name) == 0 ?
-			 &seg_map[i] : NULL,
-		  smi == NULL);
+	for (i = 0; i < seg_map_size; ++i) {
+		if (m0_streq(seg_map[i].smi_name, name)) {
+			smi = &seg_map[i];
+			break;
+		}
+	}
 	seg_map_unlock();
 	return smi;
 }
@@ -130,12 +133,15 @@ static struct seg_map_item *seg_map_lookup(const char *name)
 static struct seg_map_item *seg_map_lookup_ut_seg(struct m0_be_ut_seg *ut_seg)
 {
 	struct seg_map_item *smi = NULL;
+	int                  i;
 
 	seg_map_lock();
-	m0_forall(i, seg_map_size,
-		  smi = seg_map[i].smi_ut_seg == ut_seg ?
-			 &seg_map[i] : NULL,
-		  smi == NULL);
+	for (i = 0; i < seg_map_size; ++i) {
+		if (seg_map[i].smi_ut_seg == ut_seg) {
+			smi = &seg_map[i];
+			break;
+		}
+	}
 	seg_map_unlock();
 	return smi;
 }

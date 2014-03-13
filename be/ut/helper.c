@@ -333,15 +333,21 @@ static size_t be_ut_backend_sm_group_find(struct m0_be_ut_backend *ut_be)
 static struct m0_sm_group *
 be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be, bool lock_new)
 {
-	struct m0_be_ut_sm_group_thread	*sgt;
-	struct m0_sm_group		*grp = NULL;
-	pid_t				 tid = gettid_impl();
-	int				 rc;
+	struct m0_be_ut_sm_group_thread *sgt;
+	struct m0_sm_group              *grp;
+	pid_t                            tid = gettid_impl();
+	unsigned                         i;
+	int                              rc;
 
 	m0_mutex_lock(&ut_be->but_sgt_lock);
-	m0_forall(i, ut_be->but_sgt_size, sgt = ut_be->but_sgt[i],
-		  grp = sgt->sgt_tid == tid ? &sgt->sgt_grp : NULL,
-		  grp == NULL);
+	grp = NULL;
+	for (i = 0; i < ut_be->but_sgt_size; ++i) {
+		sgt = ut_be->but_sgt[i];
+		if (sgt->sgt_tid == tid) {
+			grp = &sgt->sgt_grp;
+			break;
+		}
+	}
 	if (grp == NULL) {
 		rc = m0_be_ut_sm_group_thread_init(&sgt, lock_new);
 		M0_ASSERT(rc == 0);
