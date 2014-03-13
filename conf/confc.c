@@ -1429,7 +1429,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 
 	/* Setup payload. */
 	req = m0_fop_data(&p->cf_fop);
-	req->f_origin.oi_id = orig->co_id;
+	req->f_origin = orig->co_id;
 
 	for (len = 0; !eop(&ctx->fc_path[ri + len]); ++len)
 		; /* measure path length */
@@ -1451,8 +1451,8 @@ static bool request_check(const struct m0_confc_ctx *ctx)
 
 	req = m0_fop_data(m0_rpc_item_to_fop(item));
 
-	return  m0_conf_fid_is_valid(&req->f_origin.oi_id) &&
-		m0_fid_is_set(&req->f_origin.oi_id) &&
+	return  m0_conf_fid_is_valid(&req->f_origin) &&
+		m0_fid_is_set(&req->f_origin) &&
 		equi(req->f_path.af_count == 0, req->f_path.af_elems == NULL) &&
 		item->ri_type == &m0_conf_fetch_fopt.ft_rpc_item_type &&
 		item->ri_ops != NULL &&

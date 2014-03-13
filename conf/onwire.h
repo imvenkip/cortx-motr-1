@@ -43,9 +43,6 @@ struct arr_fid {
 	struct m0_fid *af_elems;
 } M0_XCA_SEQUENCE;
 
-struct objid {
-	struct m0_fid oi_id;
-} M0_XCA_RECORD;
 
 /* ------------------------------------------------------------------
  * Configuration objects
@@ -173,7 +170,7 @@ struct m0_confx {
 /** Configuration request. */
 struct m0_conf_fetch {
 	/** Configuration object the path originates from. */
-	struct objid   f_origin;
+	struct m0_fid  f_origin;
 	/** Path components. */
 	struct arr_fid f_path;
 } M0_XCA_RECORD;
@@ -189,7 +186,7 @@ struct m0_conf_fetch_resp {
 /** XXX FUTURE: Update request. */
 struct m0_conf_update {
 	/** Configuration object the path originates from. */
-	struct objid    f_origin;
+	struct m0_fid   f_origin;
 	/** A sequence of configuration object descriptors. */
 	struct m0_confx fr_data;
 } M0_XCA_RECORD;
