@@ -122,22 +122,22 @@ services_start() {
 
     local CONF="`cat <<EOF
 [9:
-  ($PROF, {1| ($FS)}),
-  ($FS, {2| ((11, 22),
+  {1| (($PROF), $FS)},
+  {2| (($FS), (11, 22),
               [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
                   "unit_size=4096"],
-              [3: $MDS, $RM, $IOS])}),
-  ($MDS, {3| (1, [1: "$MDS_ENDPOINT"], $NODE0)}),
-  ($RM, {3| (4, [1: "$RMS_ENDPOINT"], $NODE0)}),
-  ($IOS, {3| (2, [1: "$IOS0_ENDPOINT"], $NODE0)}),
+              [3: $MDS, $RM, $IOS])},
+  {3| (($MDS), 1, [1: "$MDS_ENDPOINT"], $NODE0)},
+  {3| (($RM), 4, [1: "$RMS_ENDPOINT"], $NODE0)},
+  {3| (($IOS), 2, [1: "$IOS0_ENDPOINT"], $NODE0)},
 
-  ($PROF_AC, {1| ($FS1)}),
-  ($FS1, {2| ((11, 22),
+  {1| (($PROF_AC), $FS1)},
+  {2| (($FS1), (11, 22),
                 [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs",
                      "-A", "addb-stobs", "-w", "3"],
-                [1: $IOS1])}),
-  ($IOS1, {3| (2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)}),
-  ($NODE1, {4| (163840, 0, 0, 16, 0, [0], [0])})]
+                [1: $IOS1])},
+  {3| (($IOS1), 2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)},
+  {4| (($NODE1), 163840, 0, 0, 16, 0, [0], [0])}]
 EOF`"
 
     local CONFD_SPEC=
@@ -191,11 +191,11 @@ _mount() {
 
     local CONF="`cat <<EOF
 [5:
-  ($PROF, {1| ($FS)}),
-  ($FS, {2| ((11, 22), $FS_PARAMS, [3: $MDS, $RM, $IOS])}),
-  ($MDS, {3| (1, [1: "$MDS_ENDPOINT"], $NODE0)}),
-  ($RM, {3| (4, [1: "$RMS_ENDPOINT"], $NODE0)}),
-  ($IOS, {3| (2, [1: "$IOS0_ENDPOINT"], $NODE0)})],
+  {1| (($PROF), $FS)},
+  {2| (($FS), (11, 22), $FS_PARAMS, [3: $MDS, $RM, $IOS])},
+  {3| (($MDS), 1, [1: "$MDS_ENDPOINT"], $NODE0)},
+  {3| (($RM), 4, [1: "$RMS_ENDPOINT"], $NODE0)},
+  {3| (($IOS), 2, [1: "$IOS0_ENDPOINT"], $NODE0)}],
 EOF`"
 
     case "$fault" in

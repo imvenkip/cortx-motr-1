@@ -1188,7 +1188,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 	int rc;
 
 	M0_ENTRY();
-	M0_PRE(m0_conf_obj_tid(dest) == src->o_conf.u_type);
+	M0_PRE(m0_conf_obj_type(dest) == m0_conf_objx_type(src));
 	M0_PRE(confc_is_locked(confc));
 	M0_PRE(dest->co_cache == &confc->cc_cache);
 
@@ -1213,8 +1213,8 @@ cached_obj_update(struct m0_confc *confc, const struct m0_confx_obj *flat)
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY("confc=%p", confc);
-	M0_RETURN(m0_conf_obj_find(&confc->cc_cache, &flat->o_id, &obj) ?:
-		  object_enrich(obj, flat, confc));
+	M0_RETURN(m0_conf_obj_find(&confc->cc_cache, m0_conf_objx_fid(flat),
+				   &obj) ?: object_enrich(obj, flat, confc));
 }
 
 /** Adds objects, described by a configuration string, to the cache. */
@@ -1257,7 +1257,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 	for (i = 0; i < resp->fr_data.cx_nr; ++i) {
 		flat = &resp->fr_data.cx_objs[i];
 
-		if (!m0_fid_is_set(&flat->o_id)) {
+		if (!m0_conf_fid_is_valid(m0_conf_objx_fid(flat))) {
 			M0_LOG(M0_ERROR, "Invalid m0_confx_obj received");
 			rc = -EPROTO;
 			break;

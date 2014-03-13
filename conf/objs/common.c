@@ -292,6 +292,6 @@ M0_INTERNAL void arrfid_free(struct arr_fid *arr)
 M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
 			      const struct m0_conf_obj *src)
 {
-	dest->o_id          = src->co_id;
-	dest->o_conf.u_type = m0_conf_obj_tid(src);
+	dest->xo_u.u_header.ch_id = src->co_id;
+	dest->xo_type = m0_conf_obj_tid(src);
 }

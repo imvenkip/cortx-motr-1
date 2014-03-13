@@ -50,32 +50,41 @@ struct arr_fid {
 
 /* Note that m0_confx_dir does not exist. */
 
+/** Common header of all confx objects. */
+struct m0_confx_header {
+	struct m0_fid ch_id;
+} M0_XCA_RECORD;
+
 struct m0_confx_profile {
+	struct m0_confx_header xp_header;
 	/* Name of profile's filesystem. */
-	struct m0_fid xp_filesystem;
+	struct m0_fid          xp_filesystem;
 } M0_XCA_RECORD;
 
 struct m0_confx_filesystem {
+	struct m0_confx_header xf_header;
 	/* Rood fid. */
-	struct m0_fid  xf_rootfid;
+	struct m0_fid          xf_rootfid;
 	/* Filesystem parameters. */
-	struct arr_buf xf_params;
+	struct arr_buf         xf_params;
 	/* Services of this filesystem. */
-	struct arr_fid xf_services;
+	struct arr_fid         xf_services;
 } M0_XCA_RECORD;
 
 struct m0_confx_service {
+	struct m0_confx_header xs_header;
 	/* Service type.  See m0_conf_service_type. */
-	uint32_t       xs_type;
+	uint32_t               xs_type;
 	/* End-points from which this service is reachable. */
-	struct arr_buf xs_endpoints;
+	struct arr_buf         xs_endpoints;
 	/* Hosting node. */
-	struct m0_fid  xs_node;
+	struct m0_fid          xs_node;
 } M0_XCA_RECORD;
 
 struct m0_confx_node {
+	struct m0_confx_header xn_header;
 	/* Memory size in MB. */
-	uint32_t       xn_memsize;
+	uint32_t               xn_memsize;
 	/* Number of processors. */
 	uint32_t       xn_nr_cpu;
 	/* Last known state.  See m0_cfg_state_bit. */
@@ -91,36 +100,39 @@ struct m0_confx_node {
 } M0_XCA_RECORD;
 
 struct m0_confx_nic {
+	struct m0_confx_header xi_header;
 	/* Type of network interface.  See m0_cfg_nic_type. */
-	uint32_t      xi_iface;
+	uint32_t               xi_iface;
 	/* Maximum transmission unit. */
-	uint32_t      xi_mtu;
+	uint32_t               xi_mtu;
 	/* Speed in Mb/sec. */
-	uint64_t      xi_speed;
+	uint64_t               xi_speed;
 	/* Filename in host OS. */
-	struct m0_buf xi_filename;
+	struct m0_buf          xi_filename;
 	/* Last known state.  See m0_cfg_state_bit. */
-	uint64_t      xi_last_state;
+	uint64_t               xi_last_state;
 } M0_XCA_RECORD;
 
 struct m0_confx_sdev {
+	struct m0_confx_header xd_header;
 	/* Interface type.  See m0_cfg_storage_device_interface_type. */
-	uint32_t       xd_iface;
+	uint32_t               xd_iface;
 	/* Media type.  See m0_cfg_storage_device_media_type. */
-	uint32_t       xd_media;
+	uint32_t               xd_media;
 	/* Size in bytes. */
-	uint64_t       xd_size;
+	uint64_t               xd_size;
 	/* Last known state.  See m0_cfg_state_bit. */
-	uint64_t       xd_last_state;
+	uint64_t               xd_last_state;
 	/* Property flags.  See m0_cfg_flag_bit. */
-	uint64_t       xd_flags;
+	uint64_t               xd_flags;
 	/* Filename in host OS. */
-	struct m0_buf  xd_filename;
+	struct m0_buf          xd_filename;
 } M0_XCA_RECORD;
 
-struct m0_confx_u {
-	uint32_t u_type; /* see m0_conf_objtype for values */
+struct m0_confx_obj {
+	uint32_t xo_type; /* see m0_conf_objtype for values */
 	union {
+		struct m0_confx_header     u_header;
 		/*
 		 * Note that there is no such thing as `m0_confx_dir'.
 		 * One-to-many relations are represented by a list of
@@ -132,14 +144,8 @@ struct m0_confx_u {
 		struct m0_confx_node       u_node       M0_XCA_TAG("4");
 		struct m0_confx_nic        u_nic        M0_XCA_TAG("5");
 		struct m0_confx_sdev       u_sdev       M0_XCA_TAG("6");
-	} u;
+	} xo_u;
 } M0_XCA_UNION;
-
-/** Configuration object descriptor. */
-struct m0_confx_obj {
-	struct m0_fid     o_id;   /*< Object identifier. */
-	struct m0_confx_u o_conf; /*< Configuration data. */
-} M0_XCA_RECORD;
 
 /** Encoded configuration --- a sequence of m0_confx_objs. */
 struct m0_confx {

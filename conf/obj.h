@@ -29,6 +29,8 @@
 #include "conf/schema.h"  /* m0_conf_service_type */
 
 struct m0_conf_obj_ops;
+struct m0_confx_obj;
+struct m0_xcode_type;
 
 /**
  * @page conf-fspec-obj Configuration Objects
@@ -229,11 +231,16 @@ struct m0_conf_obj {
 };
 
 struct m0_conf_obj_type {
-	const struct m0_fid_type cot_ftype;
-	enum m0_conf_objtype     cot_id;
-	struct m0_conf_obj    *(*cot_ctor)(void);
-	const char              *cot_table_name;
-	uint64_t                 cot_magic;
+	const struct m0_fid_type    cot_ftype;
+	enum m0_conf_objtype        cot_id;
+	struct m0_conf_obj       *(*cot_ctor)(void);
+	const char                 *cot_table_name;
+	uint64_t                    cot_magic;
+	/**
+	 * xcode type of m0_confx_foo. Double indirect, because m0_confx_foo_xc
+	 * is not a constant (its address is).
+	 */
+	struct m0_xcode_type      **cot_xt;
 };
 
 void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype);
@@ -243,6 +250,9 @@ enum m0_conf_objtype           m0_conf_obj_tid (const struct m0_conf_obj *obj);
 enum m0_conf_objtype           m0_conf_fid_tid (const struct m0_fid *id);
 const struct m0_conf_obj_type *m0_conf_obj_type(const struct m0_conf_obj *obj);
 const struct m0_conf_obj_type *m0_conf_fid_type(const struct m0_fid *id);
+const struct m0_fid           *m0_conf_objx_fid(const struct m0_confx_obj *obj);
+const struct m0_conf_obj_type *
+m0_conf_objx_type(const struct m0_confx_obj *obj);
 
 bool m0_conf_fid_is_valid(const struct m0_fid *fid);
 

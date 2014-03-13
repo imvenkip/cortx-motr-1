@@ -19,8 +19,9 @@
  */
 
 #include "conf/objs/common.h"
+#include "conf/onwire_xc.h" /* m0_confx_node_xc */
 #include "lib/arith.h"      /* M0_CNT_INC */
-#include "mero/magic.h"  /* M0_CONF_NODE_MAGIC */
+#include "mero/magic.h"     /* M0_CONF_NODE_MAGIC */
 
 static bool node_check(const void *bob)
 {
@@ -54,7 +55,7 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	int                         rc;
 	size_t                      i;
 	struct m0_conf_node        *d = M0_CONF_CAST(dest, m0_conf_node);
-	const struct m0_confx_node *s = FLAT_OBJ(src, node);
+	const struct m0_confx_node *s = &src->xo_u.u_node;
 	struct subdir {
 		struct m0_conf_dir           **pptr;
 		const struct m0_conf_obj_type *children_type;
@@ -76,7 +77,7 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	for (i = 0; i < ARRAY_SIZE(subdirs); ++i) {
 		struct subdir *s = &subdirs[i];
 
-		rc = dir_new(cache, &src->o_id, s->relfid, s->children_type,
+		rc = dir_new(cache, &dest->co_id, s->relfid, s->children_type,
 			     s->children_ids, s->pptr);
 		if (rc != 0)
 			return rc;
@@ -92,7 +93,7 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	int                   rc;
 	struct m0_conf_node  *s = M0_CONF_CAST(src, m0_conf_node);
-	struct m0_confx_node *d = &dest->o_conf.u.u_node;
+	struct m0_confx_node *d = &dest->xo_u.u_node;
 
 	confx_encode(dest, src);
 	d->xn_memsize    = s->cn_memsize;
@@ -115,7 +116,7 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool
 node_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_node *xobj = &flat->o_conf.u.u_node;
+	const struct m0_confx_node *xobj = &flat->xo_u.u_node;
 	const struct m0_conf_node  *obj = M0_CONF_CAST(cached, m0_conf_node);
 
 	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
@@ -183,5 +184,6 @@ const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 	.cot_id         = M0_CO_NODE,
 	.cot_ctor       = &node_create,
 	.cot_table_name = "node",
+	.cot_xt        = &m0_confx_node_xc,
 	.cot_magic      = M0_CONF_NODE_MAGIC
 };

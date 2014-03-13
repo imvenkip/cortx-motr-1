@@ -19,7 +19,8 @@
  */
 
 #include "conf/objs/common.h"
-#include "mero/magic.h" /* M0_CONF_FILESYSTEM_MAGIC */
+#include "conf/onwire_xc.h" /* m0_confx_filesystem_xc */
+#include "mero/magic.h"     /* M0_CONF_FILESYSTEM_MAGIC */
 
 static bool filesystem_check(const void *bob)
 {
@@ -52,14 +53,14 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 {
 	int rc;
 	struct m0_conf_filesystem *d = M0_CONF_CAST(dest, m0_conf_filesystem);
-	const struct m0_confx_filesystem *s = FLAT_OBJ(src, filesystem);
+	const struct m0_confx_filesystem *s = &src->xo_u.u_filesystem;
 
 	d->cf_rootfid = s->xf_rootfid;
 	rc = strings_from_arrbuf(&d->cf_params, &s->xf_params);
 	if (rc != 0)
 		return rc;
 
-	rc = dir_new(cache, &src->o_id, &M0_CONF_FILESYSTEM_SERVICES_FID,
+	rc = dir_new(cache, &dest->co_id, &M0_CONF_FILESYSTEM_SERVICES_FID,
 		     &M0_CONF_SERVICE_TYPE, &s->xf_services, &d->cf_services);
 	if (rc == 0) {
 		child_adopt(dest, &d->cf_services->cd_obj);
@@ -76,7 +77,7 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	int                         rc;
 	struct m0_conf_filesystem  *s = M0_CONF_CAST(src, m0_conf_filesystem);
-	struct m0_confx_filesystem *d = &dest->o_conf.u.u_filesystem;
+	struct m0_confx_filesystem *d = &dest->xo_u.u_filesystem;
 
 	confx_encode(dest, src);
 	d->xf_rootfid = s->cf_rootfid;
@@ -94,7 +95,7 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool filesystem_match(const struct m0_conf_obj *cached,
 			     const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_filesystem *xobj = &flat->o_conf.u.u_filesystem;
+	const struct m0_confx_filesystem *xobj = &flat->xo_u.u_filesystem;
 	const struct m0_conf_filesystem  *obj =
 		M0_CONF_CAST(cached, m0_conf_filesystem);
 
@@ -160,5 +161,6 @@ const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
 	.cot_id         = M0_CO_FILESYSTEM,
 	.cot_ctor       = &filesystem_create,
 	.cot_table_name = "filesystem",
+	.cot_xt         = &m0_confx_filesystem_xc,
 	.cot_magic      = M0_CONF_FILESYSTEM_MAGIC
 };

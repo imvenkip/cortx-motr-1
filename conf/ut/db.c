@@ -75,19 +75,21 @@ static const struct m0_fid fids[NR] = {
 
 static void profile_check(const struct m0_confx_obj *xobj)
 {
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_PROFILE_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[PROFILE]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
+		     &M0_CONF_PROFILE_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[PROFILE]));
 
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_conf.u.u_profile.xp_filesystem,
+	M0_UT_ASSERT(m0_fid_eq(&xobj->xo_u.u_profile.xp_filesystem,
 			       &fids[FILESYSTEM]));
 }
 
 static void filesystem_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_filesystem *x = &xobj->o_conf.u.u_filesystem;
+	const struct m0_confx_filesystem *x = &xobj->xo_u.u_filesystem;
 
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_FILESYSTEM_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[FILESYSTEM]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
+				      &M0_CONF_FILESYSTEM_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[FILESYSTEM]));
 
 	M0_UT_ASSERT(x->xf_rootfid.f_container == 11);
 	M0_UT_ASSERT(x->xf_rootfid.f_key == 22);
@@ -104,10 +106,11 @@ static void filesystem_check(const struct m0_confx_obj *xobj)
 
 static void md_service_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_service *x = &xobj->o_conf.u.u_service;
+	const struct m0_confx_service *x = &xobj->xo_u.u_service;
 
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_SERVICE_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[MDS]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
+		     &M0_CONF_SERVICE_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[MDS]));
 
 	M0_UT_ASSERT(x->xs_type == 1);
 	M0_UT_ASSERT(x->xs_endpoints.ab_count == 1);
@@ -117,10 +120,10 @@ static void md_service_check(const struct m0_confx_obj *xobj)
 
 static void io_service_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_service *x = &xobj->o_conf.u.u_service;
+	const struct m0_confx_service *x = &xobj->xo_u.u_service;
 
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_SERVICE_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[IOS]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) == &M0_CONF_SERVICE_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[IOS]));
 
 	M0_UT_ASSERT(x->xs_type == 2);
 	M0_UT_ASSERT(x->xs_endpoints.ab_count == 3);
@@ -132,10 +135,11 @@ static void io_service_check(const struct m0_confx_obj *xobj)
 
 static void node_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_node *x = &xobj->o_conf.u.u_node;
+	const struct m0_confx_node *x = &xobj->xo_u.u_node;
 
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_NODE_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[N]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
+		     &M0_CONF_NODE_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[N]));
 
 	M0_UT_ASSERT(x->xn_memsize == 8000);
 	M0_UT_ASSERT(x->xn_nr_cpu == 2);
@@ -152,10 +156,11 @@ static void node_check(const struct m0_confx_obj *xobj)
 
 static void nic_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_nic *x = &xobj->o_conf.u.u_nic;
+	const struct m0_confx_nic *x = &xobj->xo_u.u_nic;
 
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_NIC_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[NIC0]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
+		     &M0_CONF_NIC_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[NIC0]));
 
 	M0_UT_ASSERT(x->xi_iface == 5);
 	M0_UT_ASSERT(x->xi_mtu == 8192);
@@ -166,10 +171,11 @@ static void nic_check(const struct m0_confx_obj *xobj)
 
 static void sdev_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_sdev *x = &xobj->o_conf.u.u_sdev;
+	const struct m0_confx_sdev *x = &xobj->xo_u.u_sdev;
 
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_SDEV_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[SDEV0]));
+	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
+		     &M0_CONF_SDEV_TYPE);
+	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[SDEV0]));
 
 	M0_UT_ASSERT(x->xd_iface == 4);
 	M0_UT_ASSERT(x->xd_media == 1);
@@ -292,9 +298,11 @@ void test_confdb(void)
 	 * @dec can be re-ordered w.r.t. to @enc.
 	 */
 	for (hit = 0, i = 0; i < dec->cx_nr; ++i) {
+		struct m0_confx_obj *o = &dec->cx_objs[i];
+
 		for (j = 0; j < ARRAY_SIZE(tests); ++j) {
-			if (m0_fid_eq(&dec->cx_objs[i].o_id, tests[j].fid)) {
-				tests[j].check(&dec->cx_objs[i]);
+			if (m0_fid_eq(m0_conf_objx_fid(o), tests[j].fid)) {
+				tests[j].check(o);
 				hit++;
 			}
 		}

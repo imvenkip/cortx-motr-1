@@ -47,167 +47,55 @@ _conf_xcode_alloc(struct m0_xcode_cursor *ctx M0_UNUSED, size_t nob)
 	return m0_alloc(nob);
 }
 
-static enum m0_conf_objtype xobj_type(const struct m0_confx_obj *xobj)
+static void confx_to_xcode_obj(struct m0_confx_obj *xobj,
+			       struct m0_xcode_obj *out, bool allocated)
 {
-	uint32_t t = xobj->o_conf.u_type;
-
-	M0_CASSERT(M0_CO_DIR == 0);
-	M0_POST(t < M0_CO_NR && t != M0_CO_DIR);
-	return t;
-}
-
-static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
-			      struct m0_xcode_obj *out, bool decode)
-{
-	M0_PRE(xobj != NULL && out != NULL);
-
-	switch(xobj_type(xobj)) {
-#define _CASE(type, abbrev)                                                         \
-	case type:                                                                  \
-		*out =  M0_XCODE_OBJ(m0_confx_ ## abbrev ## _xc,                    \
-				     decode ? NULL : &xobj->o_conf.u.u_ ## abbrev); \
-		break
-
-	_CASE(M0_CO_PROFILE,    profile);
-	_CASE(M0_CO_FILESYSTEM, filesystem);
-	_CASE(M0_CO_SERVICE,    service);
-	_CASE(M0_CO_NODE,       node);
-	_CASE(M0_CO_NIC,        nic);
-	_CASE(M0_CO_SDEV,       sdev);
-#undef _CASE
-	case M0_CO_DIR:
-	default:
-		M0_RETERR(-EINVAL, "Invalid object type: %u", xobj_type(xobj));
-	}
-
-	M0_RETURN(0);
+	*out = M0_XCODE_OBJ(m0_confx_obj_xc, allocated ? xobj : NULL);
 }
 
 /* Note: m0_xcode_ctx_init() doesn't allow `xobj' to be const. Sigh. */
-static int
-xcode_ctx_init(struct m0_xcode_ctx *ctx, struct m0_confx_obj *xobj, bool decode)
+static void
+xcode_ctx_init(struct m0_xcode_ctx *ctx, struct m0_confx_obj *xobj,
+	       bool allocated)
 {
 	struct m0_xcode_obj obj;
 
 	M0_ENTRY();
 
-	confx_to_xcode_obj(xobj, &obj, decode);
+	confx_to_xcode_obj(xobj, &obj, allocated);
 	m0_xcode_ctx_init(ctx, &obj);
-	if (decode)
+	if (!allocated)
 		ctx->xcx_alloc = _conf_xcode_alloc;
 
-	M0_RETURN(0);
+	M0_LEAVE();
 }
 
-static int confx_obj_measure(struct m0_confx_obj *xobj, m0_bcount_t *result)
+static int confx_obj_measure(struct m0_confx_obj *xobj)
 {
 	struct m0_xcode_ctx ctx;
-	int                 rc;
 
 	M0_ENTRY();
-
-	rc = xcode_ctx_init(&ctx, xobj, false);
-	if (rc != 0)
-		M0_RETURN(rc);
-
-	rc = m0_xcode_length(&ctx);
-	if (rc < 0)
-		M0_RETURN(rc);
-	M0_ASSERT(rc != 0); /* XXX How can we be so sure? */
-
-	*result = rc;
-	M0_RETURN(0);
+	xcode_ctx_init(&ctx, xobj, true);
+	M0_RETURN(m0_xcode_length(&ctx));
 }
 
-/* ------------------------------------------------------------------
- * confdb_key, confdb_obj
- * ------------------------------------------------------------------ */
-
-enum {
-	CONFDB_SRV_EP_MAX = 16,
-	CONFDB_FS_MAX     = 16,
-	CONFDB_NICS_MAX   = 16,
-	CONFDB_SDEVS_MAX  = 16,
-	CONFDB_PART_MAX   = 16,
-	CONFDB_NAME_LEN   = 256,
-
-	/* XXX FIXME: very inaccurate estimations */
-	CONFDB_REC_MAX    = sizeof(struct m0_confx_obj) + CONFDB_NAME_LEN * (
-		CONFDB_SRV_EP_MAX + CONFDB_FS_MAX + CONFDB_NICS_MAX +
-		CONFDB_SDEVS_MAX + CONFDB_PART_MAX)
-};
-
-struct confdb_key {
-	struct m0_fid cdk_id;
-};
-
-static int confdb_key_cmp(const void *key0, const void *key1)
-{
-	return m0_fid_cmp(key0, key1);
-}
 
 static m0_bcount_t confdb_ksize(const void *key)
 {
-	return sizeof(struct confdb_key);
+	return sizeof(struct m0_fid);
 }
 
 static m0_bcount_t confdb_vsize(const void *val)
 {
-	return sizeof(struct m0_confx_u);
+	return sizeof(struct m0_confx_obj);
 }
 
 static const struct m0_be_btree_kv_ops confdb_ops = {
-	.ko_ksize   = confdb_ksize,
-	.ko_vsize   = confdb_vsize,
-	.ko_compare = confdb_key_cmp
+	.ko_ksize   = &confdb_ksize,
+	.ko_vsize   = &confdb_vsize,
+	.ko_compare = (void *)&m0_fid_cmp
 };
 
-/**
- * Database representation of a configuration object.
- *
- * confdb_obj can be stored in a database.
- */
-struct confdb_obj {
-	struct m0_fid do_key; /*< Object identifier. */
-	struct m0_buf do_rec; /*< Object fields. */
-};
-
-static void confx_to_dbkey(struct m0_confx_obj *src, struct confdb_key *key)
-{
-	key->cdk_id = src->o_id;
-}
-
-/**
- * Encodes m0_confx_obj into the corresponding database representation.
- *
- * If the call succeeds, the user is responsible for freeing allocated memory:
- * @code
- *         m0_buf_free(&dest->do_rec);
- * @endcode
- *
- * @note  xcode API doesn't let `src' to be const.
- */
-static void confx_to_db(struct m0_confx_obj *src, struct confdb_key *key,
-			struct confdb_obj *dest)
-{
-	M0_ENTRY();
-
-	dest->do_key = key->cdk_id;
-	m0_buf_init(&dest->do_rec, &src->o_conf, sizeof(struct m0_confx_u));
-}
-
-/**
- * Decodes m0_confx_obj from its database representation.
- *
- * @note  XXX User is responsible for freeing `dest' array with
- *        m0_confx_free().
- */
-static void confx_from_db(struct m0_confx_obj *dest, struct confdb_obj *src)
-{
-	M0_ENTRY();
-	dest->o_id = src->do_key;
-	dest->o_conf = *(struct m0_confx_u *)src->do_rec.b_addr;
-}
 
 /* ------------------------------------------------------------------
  * Tables
@@ -230,7 +118,7 @@ static void confdb_table_fini(struct m0_be_seg *seg)
 static int confdb_table_init(struct m0_be_seg *seg, struct m0_be_btree **btree,
 			     struct m0_be_tx *tx)
 {
-	int rc = 0;
+	int rc;
 
 	M0_ENTRY();
 	M0_BE_ALLOC_PTR_SYNC(*btree, seg, tx);
@@ -250,22 +138,20 @@ static int confdb_table_init(struct m0_be_seg *seg, struct m0_be_btree **btree,
 /* ------------------------------------------------------------------
  * Database operations
  * ------------------------------------------------------------------ */
-static int confx_obj_dup(struct m0_confx_obj *dest, struct m0_confx_obj *src,
+static int confx_obj_dup(struct m0_confx_obj **dest, struct m0_confx_obj *src,
 			 struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	struct m0_xcode_obj    src_obj;
-	struct m0_xcode_obj    dest_obj;
-	int                    rc;
+	struct m0_xcode_obj src_obj;
+	struct m0_xcode_obj dest_obj;
+	int                 rc = 0;
 
-	dest->o_id = src->o_id;
-	dest->o_conf.u_type = src->o_conf.u_type;
-	rc = confx_to_xcode_obj(dest, &dest_obj, false) ?:
-		confx_to_xcode_obj(src, &src_obj, false);
+	confx_to_xcode_obj(src, &dest_obj, false);
+	confx_to_xcode_obj(src, &src_obj, true);
 	if (M0_FI_ENABLED("ut_confx_obj_dup_failure"))
 		rc = -EINVAL;
 	if (rc == 0)
 		rc = m0_xcode_be_dup(&dest_obj, &src_obj, seg, tx);
-
+	*dest = dest_obj.xo_ptr;
 	return rc;
 }
 
@@ -273,12 +159,9 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 					const struct m0_confx *conf,
 					struct m0_be_tx_credit *accum)
 {
-	struct m0_be_btree   btree = { .bb_seg = seg };
-	m0_bcount_t          len;
-	m0_bcount_t          ksize;
-	struct m0_confx_obj *obj;
-	int                  rc;
-	int                  i;
+	struct m0_be_btree btree = { .bb_seg = seg };
+	int                rc = 0;
+	int                i;
 
 	M0_ENTRY();
 	M0_BE_ALLOC_CREDIT_PTR(&btree, seg, accum);
@@ -286,16 +169,18 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 	m0_be_btree_create_credit(&btree, 1, accum);
 
 	for (i = 0; i < conf->cx_nr; ++i) {
+		struct m0_confx_obj *obj;
+
 		obj = &conf->cx_objs[i];
-		rc = confx_obj_measure(obj, &len);
-		if (rc != 0)
-			M0_RETURN(rc);
-		len += sizeof(obj->o_conf.u_type);
-		ksize = sizeof(struct confdb_key);
-		m0_be_btree_insert_credit(&btree, 1, ksize, len, accum);
+		rc = confx_obj_measure(obj);
+		if (rc < 0)
+			break;
+		m0_be_btree_insert_credit(&btree, 1, sizeof(struct m0_fid),
+					  rc, accum);
+		rc = 0;
 	}
 
-	M0_RETURN(0);
+	M0_RETURN(rc);
 }
 
 M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
@@ -342,45 +227,36 @@ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
 M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 				 const struct m0_confx *conf)
 {
-	struct m0_be_btree  *btree;
-	struct m0_confx_obj *confx_objs;
-	struct confdb_key    db_key;
-	struct confdb_obj    db_obj;
-	m0_bcount_t          nr_objs;
-	int                  i;
-	int                  rc;
+	struct m0_be_btree *btree;
+	int                 i;
+	int                 rc;
 
 	M0_ENTRY();
 	M0_PRE(conf->cx_nr > 0);
 
-	M0_ALLOC_ARR(confx_objs, conf->cx_nr);
-	if (confx_objs == NULL)
-		return -ENOMEM;
 	rc = confdb_table_init(seg, &btree, tx);
-	if (rc != 0) {
-		m0_free(confx_objs);
+	if (rc != 0)
 		return rc;
-	}
 	for (i = 0; i < conf->cx_nr && rc == 0; ++i) {
-		rc = confx_obj_dup(&confx_objs[i], &conf->cx_objs[i], seg, tx);
+		struct m0_confx_obj *obj;
+		struct m0_buf        key;
+		struct m0_buf        val;
+
+		rc = confx_obj_dup(&obj, &conf->cx_objs[i], seg, tx);
 		if (rc != 0)
 			break;
-		M0_SET0(&db_obj);
-		confx_to_dbkey(&confx_objs[i], &db_key);
-		confx_to_db(&confx_objs[i], &db_key, &db_obj);
-		M0_BE_OP_SYNC(op, m0_be_btree_insert(btree, tx, &op,
-						 &M0_FID_BUF(&db_obj.do_key),
-						 &db_obj.do_rec));
-	}
-	if (rc == 0) {
-		rc = confdb_objs_count(btree, &nr_objs);
-		M0_ASSERT(rc == 0);
+		M0_ASSERT(obj != NULL);
+		/* discard const */
+		key = M0_FID_BUF((struct m0_fid *)m0_conf_objx_fid(obj));
+		val = M0_BUF_INIT(sizeof *obj, obj);
+		rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_insert(btree, tx,
+							      &op, &key, &val),
+				       bo_u.u_btree.t_rc);
 	}
 	if (rc !=0) {
 		confdb_table_fini(seg);
 		m0_confdb_destroy(seg, tx);
 	}
-	m0_free(confx_objs);
 	M0_RETURN(rc);
 }
 
@@ -428,7 +304,6 @@ static void confx_fill(struct m0_confx *dest, struct m0_be_btree *btree)
 	struct m0_be_btree_cursor bcur;
 	size_t                    i; /* index in dest->cx_objs[] */
 	int                       rc;
-	struct m0_buf             keybuf;
 
 	M0_ENTRY();
 	M0_PRE(dest->cx_nr > 0);
@@ -436,19 +311,21 @@ static void confx_fill(struct m0_confx *dest, struct m0_be_btree *btree)
 	m0_be_btree_cursor_init(&bcur, btree);
 	for (i = 0, rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
 	     rc = m0_be_btree_cursor_next_sync(&bcur), ++i) {
-		struct confdb_obj dbobj;
+		struct m0_buf key;
+		struct m0_buf val;
 
-		m0_be_btree_cursor_kv_get(&bcur, &keybuf, &dbobj.do_rec);
+		m0_be_btree_cursor_kv_get(&bcur, &key, &val);
 		M0_ASSERT(i < dest->cx_nr);
 		/**
 		 * @todo check validity of key and record addresses and
-		 * sizes. Specifically, check that keybuf.b_addr points to an
+		 * sizes. Specifically, check that val.b_addr points to an
 		 * allocated region in a segment with appropriate size and
 		 * alignment. Such checks should be done generally by (not
 		 * existing) beobj interface.
+		 *
+		 * @todo also check that key (fid) matches m0_conf_objx_fid().
 		 */
-		dbobj.do_key = *(struct m0_fid *)keybuf.b_addr;
-		confx_from_db(&dest->cx_objs[i], &dbobj);
+		dest->cx_objs[i] = *(struct m0_confx_obj *)val.b_addr;
 	}
 	m0_be_btree_cursor_fini(&bcur);
 	/** @todo handle iteration errors. */

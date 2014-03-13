@@ -142,7 +142,7 @@ void test_obj_fill(void)
 	for (i = 0; i < enc->cx_nr; ++i) {
 		struct m0_confx_obj *xobj = &enc->cx_objs[i];
 
-		rc = m0_conf_obj_find(&g_cache, &xobj->o_id, &obj) ?:
+		rc = m0_conf_obj_find(&g_cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, &g_cache);
 		M0_UT_ASSERT(rc == 0);
 	}
