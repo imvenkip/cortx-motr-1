@@ -107,10 +107,22 @@ static void uint128_mul_ut(void)
 	uint128_mul_check1(UINT32_MAX + 2ul, UINT32_MAX, &cmax64);
 }
 
+static void test_forall_exists(void)
+{
+	const char s[] = "0123456789";
+
+	M0_UT_ASSERT(m0_forall(i, sizeof s, s[i] != 'a'));
+	M0_UT_ASSERT(m0_exists(i, sizeof s, s[i] == '0'));
+	M0_UT_ASSERT(m0_exists(i, sizeof s, s[i] == '5'));
+	M0_UT_ASSERT(m0_exists(i, sizeof s, s[i] == '9'));
+	M0_UT_ASSERT(!m0_exists(i, sizeof s, s[i] == 'a'));
+}
+
 void m0_test_misc(void)
 {
 	uint128_add_ut();
 	uint128_mul_ut();
+	test_forall_exists();
 }
 
 /*

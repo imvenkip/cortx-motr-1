@@ -81,22 +81,36 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
  * @see m0_tlist_forall(), m0_tl_forall(), m0_list_forall().
  * @see m0_list_entry_forall().
  */
-#define m0_forall(var, nr, ...)					\
-({								\
-	unsigned __nr = (nr);					\
-	unsigned var;						\
+#define m0_forall(var, nr, ...)                                 \
+({                                                              \
+	unsigned __nr = (nr);                                   \
+	unsigned var;                                           \
 								\
-	for (var = 0; var < __nr && ({ __VA_ARGS__ ; }); ++var)	\
-		;						\
-	var == __nr;						\
+	for (var = 0; var < __nr && ({ __VA_ARGS__ ; }); ++var) \
+		;                                               \
+	var == __nr;                                            \
 })
+
+/**
+ * Returns a disjunction (logical OR) of an expression evaluated over a range.
+ *
+ * @code
+ * bool haystack_contains(int needle)
+ * {
+ *         return m0_exists(i, ARRAY_SIZE(haystack), haystack[i] == needle);
+ * }
+ * @endcode
+ *
+ * @see m0_forall()
+ */
+#define m0_exists(var, nr, expr) !m0_forall(var, (nr), !(expr))
 
 /**
    Evaluates to true iff x is present in set.
 
    e.g. M0_IN(session->s_state, (M0_RPC_SESSION_IDLE,
-                                 M0_RPC_SESSION_BUSY,
-                                 M0_RPC_SESSION_TERMINATING))
+				 M0_RPC_SESSION_BUSY,
+				 M0_RPC_SESSION_TERMINATING))
 
    Parentheses around "set" members are mandatory.
  */
