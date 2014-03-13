@@ -212,7 +212,8 @@ static int mgmt_strarg_parse(int *out_nr, char ***out, char *in, char sep)
 	for (ptr = in; *ptr != 0; ++ptr) {
 		if (*ptr == sep) {
 			if (ptr == in || ptr[-1] == sep)
-				M0_RETERR(-EINVAL, "consecutive separators");
+				return M0_ERRV(-EINVAL, "consecutive "
+					       "separators");
 			++i;
 		}
 	}
@@ -280,7 +281,7 @@ static int mgmt_svc_add(struct m0_mgmt_node_conf *node, char *name, char *args,
 static int mgmt_conf_strarg_dup(char **out, char *val)
 {
 	if (val == NULL)
-		M0_RETERR(-EINVAL, "missing required value");
+		return M0_ERRV(-EINVAL, "missing required value");
 	*out = m0_strdup(val);
 	return (*out == NULL) ? -ENOMEM : 0;
 }
@@ -706,9 +707,9 @@ M0_INTERNAL int m0_mgmt_conf_init(struct m0_mgmt_conf *conf,
 		genders = MGMT_CONF_DEFAULT_GENDERS;
 	rc = stat(genders, &sb);
 	if (rc < 0)
-		M0_RETERR(-errno, "%s", genders);
+		return M0_ERRV(-errno, "%s", genders);
 	if (!S_ISREG(sb.st_mode))
-		M0_RETERR(-EISDIR, "%s", genders);
+		return M0_ERRV(-EISDIR, "%s", genders);
 
 	rc = gethostname(hostname, sizeof hostname);
 	if (rc < 0)

@@ -79,7 +79,8 @@ static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
 #undef _CASE
 	case M0_CO_DIR:
 	default:
-		M0_RETERR(-EINVAL, "Invalid object type: %u", xobj_type(xobj));
+		return M0_ERRV(-EINVAL, "Invalid object type: %u",
+			       xobj_type(xobj));
 	}
 
 	return M0_RC(0);

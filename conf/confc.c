@@ -1231,8 +1231,9 @@ static int object_enrich(struct m0_conf_obj *dest,
 
 	if (!m0_conf_obj_match(dest, src))
 		/* XXX TODO: ADDB */
-		M0_RETERR(-EPROTO,
-			  "Conflict of incoming and cached configuration data");
+		return M0_ERRV(-EPROTO,
+			       "Conflict of incoming and cached configuration "
+			       "data");
 
 	if (dest->co_status == M0_CS_READY)
 		return M0_RC(0); /* do nothing */

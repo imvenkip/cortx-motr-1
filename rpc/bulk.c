@@ -100,7 +100,7 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 
 	rc = m0_0vec_init(&rbuf->bb_zerovec, segs_nr);
 	if (rc != 0)
-		M0_RETERR(rc, "bulk_buf: Zero vector initialization");
+		return M0_ERRV(rc, "bulk_buf: Zero vector initialization");
 
 	rbuf->bb_flags = 0;
 	if (nb == NULL) {
@@ -124,7 +124,7 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 			rc = m0_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
 			if (rc != 0) {
 				m0_0vec_fini(&rbuf->bb_zerovec);
-				M0_RETERR(rc, "Addition of cbuf");
+				return M0_ERRV(rc, "Addition of cbuf");
 			}
 		}
 	}
@@ -266,7 +266,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	M0_PRE(out != NULL);
 
 	if (segs_nr > m0_net_domain_get_max_buffer_segments(netdom))
-		M0_RETERR(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
+		return M0_ERRV(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
 
 	RPC_ALLOC_PTR(buf, BULK_BUF_ADD, &m0_rpc_addb_ctx);
 	if (buf == NULL)
@@ -318,7 +318,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 	rbulk = rbuf->bb_rbulk;
 	rc = m0_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
 	if (rc != 0)
-		M0_RETERR(rc, "Addition of cbuf");
+		return M0_ERRV(rc, "Addition of cbuf");
 
 	rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
 	M0_POST(rpc_bulk_buf_invariant(rbuf));

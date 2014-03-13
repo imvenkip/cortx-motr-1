@@ -54,7 +54,7 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
 	if (sctx->rsx_log_file == NULL)
-		M0_RETERR(errno, "Open of error log file");
+		return M0_ERRV(errno, "Open of error log file");
 
 	/*
 	 * Start rpc server.

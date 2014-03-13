@@ -139,7 +139,7 @@ M0_INTERNAL int m0_dtm_update_build(struct m0_dtm_update *update,
 	if (result == 0) {
 		if (m0_tl_exists(oper, scan, &oper->oprt_op.op_ups,
 				 scan->upd_label == updd->udd_data.da_label))
-			M0_RETERR(-EPROTO, "%i", updd->udd_data.da_label);
+			return M0_ERRV(-EPROTO, "%i", updd->udd_data.da_label);
 		m0_dtm_update_init(update, history, oper, &updd->udd_data);
 		result = history->h_ops->hio_update(history, updd->udd_utype,
 						    update);

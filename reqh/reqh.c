@@ -341,7 +341,7 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 #ifndef __KERNEL__
 	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
 	if (rc != 0)
-		M0_RETERR(rc, "fol not found in BE");
+		return M0_ERRV(rc, "fol not found in BE");
 	m0_fol_init(reqh->rh_fol, seg);
 	reqh->rh_fol->f_reqh = reqh;
 #endif

@@ -669,7 +669,8 @@ static int mgmt_svc_rsto_service_allocate(struct m0_reqh_service **service,
 
 	M0_ALLOC_PTR(svc);
 	if (svc == NULL)
-		M0_RETERR(-ENOMEM, "Unable to allocate memory for MGMT svc");
+		return M0_ERRV(-ENOMEM, "Unable to allocate memory for "
+			       "MGMT svc");
 
 	*service = &svc->ms_reqhs;
 	(*service)->rs_type = stype;

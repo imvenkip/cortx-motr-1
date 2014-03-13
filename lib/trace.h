@@ -192,7 +192,7 @@
 #define M0_ERRV(rc, fmt, ...) ({                                 \
 	typeof(rc) __rc = (rc);                                  \
 	M0_ASSERT(__rc != 0);                                    \
-	M0_LOG(M0_ERROR, "< rc=%d", fmt, __rc, ## __VA_ARGS__ ); \
+	M0_LOG(M0_ERROR, "< rc=%d " fmt, __rc, ## __VA_ARGS__ ); \
 	__rc;                                                    \
 })
 

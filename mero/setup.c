@@ -2143,13 +2143,14 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 		return M0_ERR(rc);
 
 	if (genders != NULL && !use_genders)
-		M0_RETERR(-EPROTO, "-f genders file specified without -g");
+		return M0_ERRV(-EPROTO, "-f genders file specified without -g");
 	/**
 	 * @todo allow bootstrap via genders and confd afterward, but currently
 	 * confd is only used for bootstrap, thus a conflict if both present.
 	 */
 	if (use_genders && profile != NULL)
-		M0_RETERR(-EPROTO, "genders use conflicts with confd profile");
+		return M0_ERRV(-EPROTO, "genders use conflicts with "
+			       "confd profile");
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
 		bool global_daemonize = cctx->cc_daemon;
@@ -2163,9 +2164,9 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 		cctx->cc_daemon |= global_daemonize;
 	}
 	if ((confd_addr == NULL) != (profile == NULL))
-		M0_RETERR(-EPROTO, "%s is not specified",
-			  (char *)(profile == NULL ? "configuration profile" :
-				   "confd address"));
+		return M0_ERRV(-EPROTO, "%s is not specified",
+			       (char *)(profile == NULL ?
+			       "configuration profile" : "confd address"));
 	if (confd_addr != NULL) {
 		struct cs_args *args = &cctx->cc_args;
 

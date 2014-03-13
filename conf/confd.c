@@ -544,8 +544,9 @@ static int confd_allocate(struct m0_reqh_service **service,
 	M0_PRE(stype == &m0_confd_stype);
 
 	if (rctx == NULL || rctx->rc_confdb == NULL || *rctx->rc_confdb == '\0')
-		M0_RETERR(-EPROTO,
-			  "Path to the configuration database is not provided");
+		return M0_ERRV(-EPROTO,
+			       "Path to the configuration database is not "
+			       "provided");
 
 	M0_ALLOC_PTR_ADDB(confd, &m0_addb_gmc, M0_CONF_ADDB_LOC_CONFD_ALLOCATE,
 	                  &m0_conf_mod_ctx);

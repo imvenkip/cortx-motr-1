@@ -444,7 +444,7 @@ static int addb_monitor_stats_fop_send(struct m0_stats_update_fop *fop_data,
 
 	M0_ALLOC_PTR(stats_update_fop);
 	if (stats_update_fop == NULL)
-		M0_RETERR(-ENOMEM, "stats update fop");
+		return M0_ERRV(-ENOMEM, "stats update fop");
 
 	m0_fop_init(stats_update_fop, &m0_fop_stats_update_fopt,
 		    (void *) fop_data, addb_monitor_stats_fop_release);

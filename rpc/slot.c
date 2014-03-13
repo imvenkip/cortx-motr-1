@@ -845,7 +845,7 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 
 	sref = &item->ri_slot_refs[0];
 	if (sref->sr_ow.osr_session_id > SESSION_ID_MAX)
-		M0_RETERR(-EINVAL, "rpc_session_id");
+		return M0_ERRV(-EINVAL, "rpc_session_id");
 
 	conn = m0_rpc_machine_find_conn(machine, item);
 	if (conn == NULL)

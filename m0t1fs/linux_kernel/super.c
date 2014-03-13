@@ -271,13 +271,15 @@ static bool is_empty(const char *s)
 static int mount_opts_validate(const struct mount_opts *mops)
 {
 	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
-		M0_RETERR(-EINVAL, "Configuration source is not specified");
+		return M0_ERRV(-EINVAL, "Configuration source is not "
+			       "specified");
 
 	if (is_empty(mops->mo_profile))
-		M0_RETERR(-EINVAL, "Mandatory parameter is missing: profile");
+		return M0_ERRV(-EINVAL, "Mandatory parameter is missing: "
+			       "profile");
 
 	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 3))
-		M0_RETERR(-EINVAL, "fid_start must be greater than 3");
+		return M0_ERRV(-EINVAL, "fid_start must be greater than 3");
 
 	return M0_RC(0);
 }
@@ -333,12 +335,12 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 				 *op != '\0');
 
 			if (depth > 0)
-				M0_RETERR(-EPROTO, "Unexpected EOF");
+				return M0_ERRV(-EPROTO, "Unexpected EOF");
 
 			if (rc < 0) {
 				M0_ASSERT(rc == -EPROTO);
-				M0_RETERR(rc, "Configuration string is "
-					  "too nested");
+				return M0_ERRV(rc, "Configuration string is "
+					       "too nested");
 			}
 
 			dest->mo_local_conf = kstrdup(start, GFP_KERNEL);
@@ -350,7 +352,7 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 			break;
 		}
 		default:
-			M0_RETERR(-EINVAL, "Unsupported option: %s", op);
+			return M0_ERRV(-EINVAL, "Unsupported option: %s", op);
 		}
 	}
 out:
@@ -384,8 +386,9 @@ static int fs_params_validate(const struct fs_params *params)
 	/* Need to test with unit size that is not multiple of page size.
 	 * Until then --- don't allow. */
 	if ((params->fs_unit_size & (PAGE_CACHE_SIZE - 1)) != 0)
-		M0_RETERR(-EINVAL,
-			  "Unit size must be a multiple of PAGE_CACHE_SIZE");
+		return M0_ERRV(-EINVAL,
+			       "Unit size must be a multiple of "
+			       "PAGE_CACHE_SIZE");
 	return M0_RC(0);
 }
 
@@ -434,7 +437,8 @@ static int fs_params_parse(struct fs_params *dest, const char **src)
 		}
 
 		if (rc != 0)
-			M0_RETERR(rc, "Invalid filesystem parameter: %s", *src);
+			return M0_ERRV(rc, "Invalid filesystem parameter: %s",
+				       *src);
 	}
 end:
 	if (dest->fs_nr_data_units == 0)

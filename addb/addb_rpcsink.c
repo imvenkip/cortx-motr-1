@@ -840,7 +840,7 @@ m0_addb_mc_configure_rpc_sink(struct m0_addb_mc     *mc,
 	M0_ALLOC_PTR(rsink);
 rsink_allocation_failed:
 	if (rsink == NULL)
-		M0_RETERR(-ENOMEM, "m0_addb_mc_configure_rpc_sink()");
+		return M0_ERRV(-ENOMEM, "m0_addb_mc_configure_rpc_sink()");
 
 	if (M0_FI_ENABLED("addb_ts_init_failed"))
 		{ rc = -1; goto addb_ts_init_failed; }
@@ -848,7 +848,7 @@ rsink_allocation_failed:
 addb_ts_init_failed:
 	if (rc != 0) {
 		m0_free(rsink);
-		M0_RETERR(rc, "m0_addb_mc_configure_rpc_sink()");
+		return M0_ERRV(rc, "m0_addb_mc_configure_rpc_sink()");
 	}
 
 	m0_ref_init(&rsink->rs_ref, 1, rpcsink_release);
@@ -886,7 +886,7 @@ item_source_registration_skipped:
 item_source_registration_failed:
 	mc->am_sink = NULL;
 	m0_ref_put(&rsink->rs_ref);
-	M0_RETERR(rc, "m0_addb_mc_configure_rpc_sink()");
+	return M0_ERRV(rc, "m0_addb_mc_configure_rpc_sink()");
 }
 
 M0_INTERNAL bool m0_addb_mc_has_rpc_sink(struct m0_addb_mc *mc)
@@ -908,12 +908,12 @@ M0_INTERNAL int m0_addb_mc_rpc_sink_source_add(struct m0_addb_mc  *mc,
 
 	M0_ALLOC_PTR(rpcsink_item_source);
 	if (rpcsink_item_source == NULL)
-		M0_RETERR(-ENOMEM, "m0_addb_mc_rpc_sink_source_add");
+		return M0_ERRV(-ENOMEM, "m0_addb_mc_rpc_sink_source_add");
 
 	rc = rpcsink_item_source_init(rpcsink_from_mc(mc), rpcsink_item_source);
 	if (rc != 0) {
 		m0_free(rpcsink_item_source);
-		M0_RETERR(rc, "m0_addb_mc_rpc_sink_source_add");
+		return M0_ERRV(rc, "m0_addb_mc_rpc_sink_source_add");
 	}
 
 	m0_rpc_item_source_register(conn, &rpcsink_item_source->ris_source);

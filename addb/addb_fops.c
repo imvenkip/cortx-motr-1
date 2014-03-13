@@ -85,12 +85,12 @@ M0_INTERNAL int m0_addb_rpc_sink_fop_init(struct rpcsink_fop *rsfop,
 
 	M0_ALLOC_PTR(fop_recs);
 	if (fop_recs == NULL)
-		M0_RETERR(-ENOMEM, "m0_addb_rpc_sink_fop_init");
+		return M0_ERRV(-ENOMEM, "m0_addb_rpc_sink_fop_init");
 
 	M0_ALLOC_ARR(fop_recs->arsf_recs, nrecs);
 	if (fop_recs->arsf_recs == NULL) {
 		m0_free(fop_recs);
-		M0_RETERR(-ENOMEM, "m0_addb_rpc_sink_fop_init");
+		return M0_ERRV(-ENOMEM, "m0_addb_rpc_sink_fop_init");
 	}
 	fop_recs->arsf_nr = nrecs;
 

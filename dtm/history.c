@@ -252,7 +252,7 @@ M0_INTERNAL int m0_dtm_history_unpack(struct m0_dtm *dtm,
 
 	htype = m0_dtm_history_type_find(dtm, id->hid_htype);
 	if (htype == NULL)
-		M0_RETERR(-EPROTO, "%i", id->hid_htype);
+		return M0_ERRV(-EPROTO, "%i", id->hid_htype);
 
 	/* !m0_cookie_is_null() && */
 	*out = m0_cookie_of(&id->hid_receiver, struct m0_dtm_history, h_gen);
@@ -397,7 +397,7 @@ M0_INTERNAL int m0_dtm_controlh_update(struct m0_dtm_history *history,
 	else if (id == H_CLOSE)
 		update->upd_ops = &ch_close_ops;
 	else
-		M0_RETERR(-EPROTO, "%i", id);
+		return M0_ERRV(-EPROTO, "%i", id);
 	return 0;
 }
 

@@ -761,7 +761,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 		rc = -ENOMEM;
 		conn_failed(conn, rc);
 		m0_rpc_machine_unlock(machine);
-		M0_RETERR(rc, "conn_terminate_fop: Memory Allocation");
+		return M0_ERRV(rc, "conn_terminate_fop: Memory Allocation");
 	}
 	if (conn_state(conn) == M0_RPC_CONN_TERMINATING) {
 		m0_fop_put(fop);

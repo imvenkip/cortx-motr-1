@@ -262,7 +262,7 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 				     M0_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, M0_SEG_SHIFT);
 	if (rc != 0)
-		M0_RETERR(rc, "net_buf_pool: Initialization");
+		return M0_ERRV(rc, "net_buf_pool: Initialization");
 
 	m0_net_buffer_pool_lock(app_pool);
 	rc = m0_net_buffer_pool_provision(app_pool, bufs_nr);
