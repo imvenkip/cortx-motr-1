@@ -13,5 +13,4 @@ m0mero_objects += \
                   conf/objs/service.o \
                   conf/objs/node.o \
                   conf/objs/nic.o \
-                  conf/objs/sdev.o \
-                  conf/objs/partition.o
+                  conf/objs/sdev.o

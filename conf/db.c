@@ -74,7 +74,6 @@ static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
 	_CASE(M0_CO_NODE,       node);
 	_CASE(M0_CO_NIC,        nic);
 	_CASE(M0_CO_SDEV,       sdev);
-	_CASE(M0_CO_PARTITION,  partition);
 #undef _CASE
 	case M0_CO_DIR:
 	default:

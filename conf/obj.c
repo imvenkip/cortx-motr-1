@@ -336,7 +336,7 @@
  * configuration query, it produces a string with textual
  * representation of results of this query.  Sequences in such
  * representations (e.g., a list of filesystem parameters, a list of
- * partitions) should be sorted, otherwise two semantically equivalent
+ * network interfaces) should be sorted, otherwise two semantically equivalent
  * sequences may have differing representations ("[a,b]" != "[b,a]").
  *
  * <hr> <!------------------------------------------------------------>
@@ -468,7 +468,6 @@ M0_INTERNAL int m0_conf_obj_init(void)
 	m0_conf_obj_type_register(&M0_CONF_NODE_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_NIC_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_SDEV_TYPE);
-	m0_conf_obj_type_register(&M0_CONF_PARTITION_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_DIR_TYPE);
 	m0_fid_type_register(&M0_CONF_RELFID_TYPE);
 	return 0;
@@ -482,7 +481,6 @@ M0_INTERNAL void m0_conf_obj_fini(void)
 	m0_conf_obj_type_unregister(&M0_CONF_NODE_TYPE);
 	m0_conf_obj_type_unregister(&M0_CONF_NIC_TYPE);
 	m0_conf_obj_type_unregister(&M0_CONF_SDEV_TYPE);
-	m0_conf_obj_type_unregister(&M0_CONF_PARTITION_TYPE);
 	m0_conf_obj_type_unregister(&M0_CONF_DIR_TYPE);
 	m0_fid_type_unregister(&M0_CONF_RELFID_TYPE);
 }

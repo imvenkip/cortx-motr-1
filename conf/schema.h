@@ -142,37 +142,6 @@ enum m0_cfg_storage_device_media_type {
 	M0_CFG_DEVICE_MEDIA_ROM
 };
 
-
-/**
-   Mero partition types.
-*/
-enum m0_cfg_storage_device_partition_type {
-	/** RAW partition. Used as raw device.  */
-	M0_CFG_PARTITION_TYPE_RAW = 0,
-
-	/** ext2 fs partition   */
-	M0_CFG_PARTITION_TYPE_EXT2,
-
-	/** ext3 fs partition   */
-	M0_CFG_PARTITION_TYPE_EXT3,
-
-	/** ext4 fs partition   */
-	M0_CFG_PARTITION_TYPE_EXT4,
-
-	/** xfs fs partition    */
-	M0_CFG_PARTITION_TYPE_XFS,
-
-	/** jfs fs partition    */
-	M0_CFG_PARTITION_TYPE_JFS,
-
-	/** reiser fs partition */
-	M0_CFG_PARTITION_TYPE_REISERFS,
-
-	/** btrfs fs partition  */
-	M0_CFG_PARTITION_TYPE_BTRFS,
-};
-
-
 enum {
 	/** maximum number of params */
 	M0_CFG_PARAM_LEN = 128

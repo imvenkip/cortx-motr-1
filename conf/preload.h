@@ -55,7 +55,7 @@ struct m0_confx;
  * The acceptable TAGs are enumerated in struct m0_confx_u.
  *
  * The order of fields within an object descriptor should correspond
- * to their order in the corresponding m0_confx_{profile..partition}
+ * to their order in the corresponding m0_confx_{profile..sdev}
  * structure.
  *
  * Object relations are expressed via object ids.  Directory objects

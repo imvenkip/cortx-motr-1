@@ -52,8 +52,7 @@ struct m0_conf_obj_ops;
  * - m0_conf_service,
  * - m0_conf_node,
  * - m0_conf_nic,
- * - m0_conf_sdev,
- * - m0_conf_partition.
+ * - m0_conf_sdev.
  *
  * Some attributes are applicable to any type of configuration object.
  * Such common attributes are put together into m0_conf_obj structure,
@@ -131,7 +130,6 @@ enum m0_conf_objtype {
 	M0_CO_NODE,       /* 4 */
 	M0_CO_NIC,        /* 5 */
 	M0_CO_SDEV,       /* 6 */
-	M0_CO_PARTITION,  /* 7 */
 	M0_CO_NR
 };
 
@@ -335,7 +333,6 @@ struct m0_conf_nic {
 /** Storage device. */
 struct m0_conf_sdev {
 	struct m0_conf_obj  sd_obj;
-	struct m0_conf_dir *sd_partitions;
 /* configuration data (for the application) */
 	uint32_t            sd_iface;
 	uint32_t            sd_media;
@@ -345,16 +342,6 @@ struct m0_conf_sdev {
 	const char         *sd_filename;
 };
 
-/** Storage device partition. */
-struct m0_conf_partition {
-	struct m0_conf_obj pa_obj;
-/* configuration data (for the application) */
-	uint64_t           pa_start;
-	uint64_t           pa_size;
-	uint32_t           pa_index;
-	uint32_t           pa_type;
-	const char        *pa_filename;
-};
 
 /* ------------------------------------------------------------------
  * Cast
@@ -381,7 +368,6 @@ struct m0_conf_partition {
 #define m0_conf_node_cast_field       cn_obj
 #define m0_conf_nic_cast_field        ni_obj
 #define m0_conf_sdev_cast_field       sd_obj
-#define m0_conf_partition_cast_field  pa_obj
 
 extern const struct m0_bob_type m0_conf_dir_bob;
 extern const struct m0_bob_type m0_conf_profile_bob;
@@ -390,7 +376,6 @@ extern const struct m0_bob_type m0_conf_service_bob;
 extern const struct m0_bob_type m0_conf_node_bob;
 extern const struct m0_bob_type m0_conf_nic_bob;
 extern const struct m0_bob_type m0_conf_sdev_bob;
-extern const struct m0_bob_type m0_conf_partition_bob;
 
 /* relation fids */
 
@@ -399,7 +384,6 @@ extern const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID;
 extern const struct m0_fid M0_CONF_SERVICE_NODE_FID;
 extern const struct m0_fid M0_CONF_NODE_NICS_FID;
 extern const struct m0_fid M0_CONF_NODE_SDEVS_FID;
-extern const struct m0_fid M0_CONF_SDEV_PARTITIONS_FID;
 extern const struct m0_fid_type M0_CONF_RELFID_TYPE;
 
 extern const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE;
@@ -408,7 +392,6 @@ extern const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE;
 extern const struct m0_conf_obj_type M0_CONF_NODE_TYPE;
 extern const struct m0_conf_obj_type M0_CONF_NIC_TYPE;
 extern const struct m0_conf_obj_type M0_CONF_SDEV_TYPE;
-extern const struct m0_conf_obj_type M0_CONF_PARTITION_TYPE;
 extern const struct m0_conf_obj_type M0_CONF_DIR_TYPE;
 
 /**

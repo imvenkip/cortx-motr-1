@@ -48,7 +48,6 @@ static struct m0_be_seg       *seg;
  * node     (N)        (1, 4)
  * nic     (nic0)      (1, 5)
  * sdev    (sdev0)     (1, 6)
- * partition (part0)   (1, 7)
  *
  * ---------------------------------------------------------------- */
 
@@ -60,7 +59,6 @@ enum {
 	N,
 	NIC0,
 	SDEV0,
-	PART0,
 
 	NR
 };
@@ -73,7 +71,6 @@ static const struct m0_fid fids[NR] = {
 	[N]          = M0_FID_TINIT('n', 1, 4),
 	[NIC0]       = M0_FID_TINIT('i', 1, 5),
 	[SDEV0]      = M0_FID_TINIT('d', 1, 6),
-	[PART0]      = M0_FID_TINIT('P', 1, 7)
 };
 
 static void profile_check(const struct m0_confx_obj *xobj)
@@ -180,22 +177,6 @@ static void sdev_check(const struct m0_confx_obj *xobj)
 	M0_UT_ASSERT(x->xd_last_state == 3);
 	M0_UT_ASSERT(x->xd_flags == 4);
 	M0_UT_ASSERT(m0_buf_eq(&x->xd_filename, &_BUF("/dev/sdev0")));
-	M0_UT_ASSERT(x->xd_partitions.af_count == 1);
-	M0_UT_ASSERT(m0_fid_eq(&x->xd_partitions.af_elems[0], &fids[PART0]));
-}
-
-static void partition_check(const struct m0_confx_obj *xobj)
-{
-	const struct m0_confx_partition *x = &xobj->o_conf.u.u_partition;
-
-	M0_UT_ASSERT(m0_conf_fid_type(&xobj->o_id) == &M0_CONF_PARTITION_TYPE);
-	M0_UT_ASSERT(m0_fid_eq(&xobj->o_id, &fids[PART0]));
-
-	M0_UT_ASSERT(x->xa_start == 0);
-	M0_UT_ASSERT(x->xa_size == 596000000000);
-	M0_UT_ASSERT(x->xa_index == 0);
-	M0_UT_ASSERT(x->xa_type == 7);
-	M0_UT_ASSERT(m0_buf_eq(&x->xa_file, &_BUF("/dev/sda1")));
 }
 
 static void cleanup(void)
@@ -266,8 +247,7 @@ void test_confdb(void)
 		{ &fids[IOS],        &io_service_check  },
 		{ &fids[N],          &node_check        },
 		{ &fids[NIC0],       &nic_check         },
-		{ &fids[SDEV0],      &sdev_check        },
-		{ &fids[PART0],      &partition_check   }
+		{ &fids[SDEV0],      &sdev_check        }
 	};
 
 	cleanup();
@@ -282,7 +262,7 @@ void test_confdb(void)
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(enc->cx_nr == 8);
+	M0_UT_ASSERT(enc->cx_nr == 7);
 
 	conf_ut_db_init();
 

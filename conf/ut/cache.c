@@ -136,7 +136,7 @@ void test_obj_fill(void)
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-        M0_UT_ASSERT(enc->cx_nr == 8); /* "conf_xc.txt" describes 8 objects */
+        M0_UT_ASSERT(enc->cx_nr == 7); /* "conf_xc.txt" describes 8 objects */
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {

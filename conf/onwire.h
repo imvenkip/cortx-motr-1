@@ -116,21 +116,6 @@ struct m0_confx_sdev {
 	uint64_t       xd_flags;
 	/* Filename in host OS. */
 	struct m0_buf  xd_filename;
-	/* Partitions of this storage device. */
-	struct arr_fid xd_partitions;
-} M0_XCA_RECORD;
-
-struct m0_confx_partition {
-	/* Start offset in bytes. */
-	uint64_t      xa_start;
-	/* Size in bytes. */
-	uint64_t      xa_size;
-	/* Partition index. */
-	uint32_t      xa_index;
-	/* Partition type.  See m0_cfg_storage_device_partition_type. */
-	uint32_t      xa_type;
-	/* Filename in host OS. */
-	struct m0_buf xa_file;
 } M0_XCA_RECORD;
 
 struct m0_confx_u {
@@ -147,7 +132,6 @@ struct m0_confx_u {
 		struct m0_confx_node       u_node       M0_XCA_TAG("4");
 		struct m0_confx_nic        u_nic        M0_XCA_TAG("5");
 		struct m0_confx_sdev       u_sdev       M0_XCA_TAG("6");
-		struct m0_confx_partition  u_partition  M0_XCA_TAG("7");
 	} u;
 } M0_XCA_UNION;
 

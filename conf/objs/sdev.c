@@ -30,22 +30,16 @@ static bool sdev_check(const void *bob)
 
 	return  m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
 		ergo(self_obj->co_mounted, /* check relations */
-		     parent_check(self_obj) &&
-		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->sd_partitions, cd_obj),
-				 &M0_CONF_DIR_TYPE));
+		     parent_check(self_obj));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
 
 M0_CONF__INVARIANT_DEFINE(sdev_invariant, m0_conf_sdev);
 
-const struct m0_fid M0_CONF_SDEV_PARTITIONS_FID = M0_FID_TINIT('/', 0, 6);
-
 static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		       struct m0_conf_cache *cache)
 {
-	int                         rc;
 	struct m0_conf_sdev        *d = M0_CONF_CAST(dest, m0_conf_sdev);
 	const struct m0_confx_sdev *s = FLAT_OBJ(src, sdev);
 
@@ -59,15 +53,8 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	if (d->sd_filename == NULL)
 		return -ENOMEM;
 
-	rc = dir_new(cache, &src->o_id, &M0_CONF_SDEV_PARTITIONS_FID,
-		     &M0_CONF_PARTITION_TYPE, &s->xd_partitions,
-		     &d->sd_partitions);
-	if (rc == 0) {
-		child_adopt(dest, &d->sd_partitions->cd_obj);
-		dest->co_mounted = true;
-	} else
-		m0_free(&d->sd_filename);
-	return rc;
+	dest->co_mounted = true;
+	return 0;
 }
 
 static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
