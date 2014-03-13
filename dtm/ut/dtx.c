@@ -370,8 +370,8 @@ static void init4(void)
 			m0_dtm_oper_done(loper, &remote_local[i].lre_rem);
 		}
 	}
-	M0_UT_ASSERT(m0_forall(i, OPER_NR,
-			 op_state(&oper_local[i].oprt_op, M0_DOS_VOLATILE)));
+	M0_UT_ASSERT(m0_forall(i, OPER_NR, op_state(&oper_local[i].oprt_op,
+						    M0_DOS_VOLATILE)));
 /*
 	for (i = 0; i < OPER_NR; ++i) {
 		M0_LOG(M0_FATAL, "l%i", i);

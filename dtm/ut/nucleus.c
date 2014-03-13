@@ -226,13 +226,15 @@ static void op_add(void)
 	for (i = 0; i < OP_NR; ++i) {
 		ctx_op_add(i);
 		M0_UT_ASSERT(m0_forall(k, OP_NR,
-			       op_state(&cc.c_op[k],
-				 (k <  i ? M0_DOS_INPROGRESS :
-				  k == i ? M0_DOS_PREPARE : M0_DOS_LIMBO))));
+				       op_state(&cc.c_op[k],
+						(k <  i ? M0_DOS_INPROGRESS :
+						 k == i ? M0_DOS_PREPARE :
+						 M0_DOS_LIMBO))));
 		m0_dtm_op_prepared(&cc.c_op[i]);
 		M0_UT_ASSERT(m0_forall(k, OP_NR,
-			       op_state(&cc.c_op[k],
-				 (k <= i ? M0_DOS_INPROGRESS : M0_DOS_LIMBO))));
+				       op_state(&cc.c_op[k],
+						(k <= i ? M0_DOS_INPROGRESS :
+						 M0_DOS_LIMBO))));
 	}
 	for (i = 0; i < OP_NR * UP_NR; ++i)
 		M0_UT_ASSERT(cc.c_up[i].up_ver != 0 &&

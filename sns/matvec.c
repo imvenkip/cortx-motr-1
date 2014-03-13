@@ -379,16 +379,14 @@ M0_INTERNAL void m0_identity_matrix_fill(struct m0_matrix *identity_mat)
 M0_INTERNAL bool m0_matrix_is_init(const struct m0_matrix *mat)
 {
 	return mat != NULL && mat->m_matrix != NULL && mat->m_width > 0 &&
-			mat->m_height > 0;
+		mat->m_height > 0;
 }
 
 M0_INTERNAL bool m0_matrix_is_null(const struct m0_matrix *mat)
 {
-	return m0_forall (i, mat->m_height, m0_forall (j, mat->m_width,
-					               *m0_matrix_elem_get(mat,
-									   i,
-									   j) ==
-						       0));
+	return m0_forall(i, mat->m_height,
+			 m0_forall(j, mat->m_width,
+				   *m0_matrix_elem_get(mat, i, j) == 0));
 }
 
 M0_INTERNAL void m0_matrix_row_copy(struct m0_matrix *des,

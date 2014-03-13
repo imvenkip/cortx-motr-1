@@ -90,7 +90,7 @@ static bool htable_invariant(const struct m0_htable *htable)
 		htable->h_buckets   != NULL &&
 		m0_forall(i, htable->h_bucket_nr,
 			  hbucket_invariant(htable->h_descr,
-				  &htable->h_buckets[i], htable));
+					    &htable->h_buckets[i], htable));
 }
 
 M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,

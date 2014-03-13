@@ -715,12 +715,10 @@ M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom)
 	M0_PRE(layout_tlist_is_empty(&dom->ld_layout_list));
 
 	/* Verify that all the layout types are unregistered. */
-	M0_PRE(m0_forall(i, ARRAY_SIZE(dom->ld_type),
-	       dom->ld_type[i] == NULL));
+	M0_PRE(m0_forall(i, ARRAY_SIZE(dom->ld_type), dom->ld_type[i] == NULL));
 
 	/* Verify that all the enum types are unregistered. */
-	M0_PRE(m0_forall(i, ARRAY_SIZE(dom->ld_enum),
-	       dom->ld_enum[i] == NULL));
+	M0_PRE(m0_forall(i, ARRAY_SIZE(dom->ld_enum), dom->ld_enum[i] == NULL));
 
 	m0_mutex_fini(&dom->ld_lock);
 	layout_tlist_fini(&dom->ld_layout_list);
