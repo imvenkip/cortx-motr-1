@@ -94,8 +94,8 @@ static void windup_incoming_complete(struct m0_rm_incoming *in,
 static void windup_incoming_conflict(struct m0_rm_incoming *in);
 static int cached_credits_hold       (struct m0_rm_incoming *in);
 static void cached_credits_clear     (struct m0_rm_owner *owner);
-static bool owner_is_idle	    (struct m0_rm_owner *o);
-static bool incoming_is_complete    (struct m0_rm_incoming *in);
+static bool owner_is_idle	    (const struct m0_rm_owner *o);
+static bool incoming_is_complete    (const struct m0_rm_incoming *in);
 static int remnant_credit_get	    (const struct m0_rm_credit *src,
 				     const struct m0_rm_credit *diff,
 				     struct m0_rm_credit **remnant_credit);
@@ -684,11 +684,12 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 }
 M0_EXPORTED(m0_rm_owner_selfadd);
 
-static bool owner_is_idle(struct m0_rm_owner *o)
+static bool owner_is_idle(const struct m0_rm_owner *o)
 {
-	return m0_forall(i, ARRAY_SIZE(o->ro_incoming),
-		 m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
-			   m0_rm_ur_tlist_is_empty(&o->ro_incoming[i][j]))) &&
+	return  m0_forall(i, ARRAY_SIZE(o->ro_incoming),
+			  m0_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
+				    m0_rm_ur_tlist_is_empty(
+					    &o->ro_incoming[i][j]))) &&
 		m0_forall(k, ARRAY_SIZE(o->ro_outgoing),
 			  m0_rm_ur_tlist_is_empty(&o->ro_outgoing[k]));
 }
@@ -1776,7 +1777,7 @@ static void incoming_check(struct m0_rm_incoming *in)
  * Checks if there are outstanding "outgoing requests" for this incoming
  * requests.
  */
-static bool incoming_is_complete(struct m0_rm_incoming *in)
+static bool incoming_is_complete(const struct m0_rm_incoming *in)
 {
 	return incoming_pin_nr(in, M0_RPF_TRACK) == 0;
 }
