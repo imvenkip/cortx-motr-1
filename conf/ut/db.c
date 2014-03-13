@@ -252,19 +252,22 @@ void test_confdb(void)
 	struct m0_be_tx_credit  accum = {};
 	struct m0_be_tx         tx = {};
 	int                     i;
+	int                     j;
+	int                     hit;
 	int                     rc;
 	char                    buf[4096] = {0};
 	struct {
+		const struct m0_fid *fid;
 		void (*check)(const struct m0_confx_obj *xobj);
 	} tests[] = {
-		{ profile_check      },
-		{ &filesystem_check  },
-		{ &md_service_check  },
-		{ &io_service_check  },
-		{ &node_check        },
-		{ &nic_check         },
-		{ &sdev_check        },
-		{ &partition_check   }
+		{ &fids[PROFILE],    &profile_check     },
+		{ &fids[FILESYSTEM], &filesystem_check  },
+		{ &fids[MDS],        &md_service_check  },
+		{ &fids[IOS],        &io_service_check  },
+		{ &fids[N],          &node_check        },
+		{ &fids[NIC0],       &nic_check         },
+		{ &fids[SDEV0],      &sdev_check        },
+		{ &fids[PART0],      &partition_check   }
 	};
 
 	cleanup();
@@ -288,10 +291,10 @@ void test_confdb(void)
 	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fi_enable("confdb_tables_init", "ut_confdb_create_failure");
+	m0_fi_enable("confdb_table_init", "ut_confdb_create_failure");
 	rc = m0_confdb_create(seg, &tx, enc);
 	M0_UT_ASSERT(rc < 0);
-	m0_fi_disable("confdb_tables_init", "ut_confdb_create_failure");
+	m0_fi_disable("confdb_table_init", "ut_confdb_create_failure");
 
 	m0_fi_enable("confx_obj_dup", "ut_confx_obj_dup_failure");
 	rc = m0_confdb_create(seg, &tx, enc);
@@ -305,8 +308,18 @@ void test_confdb(void)
 	rc = m0_confdb_read(seg, &dec);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(enc->cx_nr == ARRAY_SIZE(tests));
-	for (i = 0; i < ARRAY_SIZE(tests); ++i)
-		tests[i].check(&dec->cx_objs[i]);
+	/*
+	 * @dec can be re-ordered w.r.t. to @enc.
+	 */
+	for (hit = 0, i = 0; i < dec->cx_nr; ++i) {
+		for (j = 0; j < ARRAY_SIZE(tests); ++j) {
+			if (m0_fid_eq(&dec->cx_objs[i].o_id, tests[j].fid)) {
+				tests[j].check(&dec->cx_objs[i]);
+				hit++;
+			}
+		}
+	}
+	M0_UT_ASSERT(hit == ARRAY_SIZE(tests));
 	m0_confx_free(enc);
 	m0_confdb_fini(seg);
 	M0_SET0(&accum);
