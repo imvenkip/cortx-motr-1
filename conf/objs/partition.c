@@ -26,7 +26,7 @@ static bool partition_check(const void *bob)
 	const struct m0_conf_partition *self = bob;
 	const struct m0_conf_obj       *self_obj = &self->pa_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_PARTITION);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PARTITION_TYPE);
 
 	return m0_conf_obj_is_stub(self_obj) == (self->pa_filename == NULL) &&
 		ergo(self_obj->co_mounted, parent_check(self_obj));

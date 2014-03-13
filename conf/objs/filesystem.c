@@ -26,7 +26,7 @@ static bool filesystem_check(const void *bob)
 	const struct m0_conf_filesystem *self = bob;
 	const struct m0_conf_obj        *self_obj = &self->cf_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_FILESYSTEM);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_FILESYSTEM_TYPE);
 
 	return ergo(m0_conf_obj_is_stub(self_obj),
 		    _0C(self->cf_params == NULL)) &&

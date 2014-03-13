@@ -27,7 +27,7 @@ static bool node_check(const void *bob)
 	const struct m0_conf_node *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->cn_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_NODE);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_NODE_TYPE);
 
 	return /* The notion of parent is not applicable to a node,
 		* since a node may host (be a child of) several services. */

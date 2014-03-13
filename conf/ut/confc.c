@@ -149,7 +149,7 @@ static void sync_open_test(struct m0_conf_obj *svc_dir)
 	struct m0_conf_service *svc;
 	int                     rc;
 
-	M0_PRE(m0_conf_obj_tid(svc_dir) == M0_CO_DIR);
+	M0_PRE(m0_conf_obj_type(svc_dir) == &M0_CONF_DIR_TYPE);
 
 	rc = m0_confc_open_sync(&obj, svc_dir, M0_FID_TINIT('s', 5, 5));
 	M0_UT_ASSERT(rc == -ENOENT);

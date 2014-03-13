@@ -75,12 +75,12 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 
 	M0_ASSERT(equi(child->co_parent == NULL,
 		       !child->co_mounted ||
-		       m0_conf_obj_tid(child) == M0_CO_NODE));
+		       m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE));
 	M0_ASSERT(ergo(child->co_mounted, child->co_parent != NULL ||
-		       m0_conf_obj_tid(child) == M0_CO_NODE));
+		       m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE));
 	M0_ASSERT(child->co_cache == parent->co_cache);
 
-	if (m0_conf_obj_tid(child) == M0_CO_NODE)
+	if (m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE)
 		M0_ASSERT(child->co_parent == NULL);
 	else
 		child->co_parent = parent;

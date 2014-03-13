@@ -26,7 +26,7 @@ static bool service_check(const void *bob)
 	const struct m0_conf_service *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cs_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_SERVICE);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SERVICE_TYPE);
 
 	return ergo(self_obj->co_status == M0_CS_READY,
 		    M0_IN(self->cs_type,

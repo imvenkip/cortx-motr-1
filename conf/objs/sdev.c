@@ -26,7 +26,7 @@ static bool sdev_check(const void *bob)
 	const struct m0_conf_sdev *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->sd_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_SDEV);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SDEV_TYPE);
 
 	return  m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
 		ergo(self_obj->co_mounted, /* check relations */
