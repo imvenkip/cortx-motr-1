@@ -364,11 +364,6 @@ m0_conf_obj_type_next(const struct m0_conf_obj_type *otype)
 	return NULL;
 }
 
-enum m0_conf_objtype m0_conf_obj_tid(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj)->cot_id;
-}
-
 const struct m0_conf_obj_type *m0_conf_obj_type(const struct m0_conf_obj *obj)
 {
 	return m0_conf_fid_type(&obj->co_id);

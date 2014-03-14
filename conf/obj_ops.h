@@ -226,7 +226,7 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
  * @pre   `src' is valid
  * @pre   m0_mutex_is_locked(cache->ca_lock)
  * @pre   m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0
- * @pre   m0_conf_obj_tid(dest) == src->o_conf.u_type
+ * @pre   m0_conf_obj_type(dest) == m0_conf_objx_type(src)
  * @pre   m0_fid_eq(&dest->co_id, &src->o_id)
  *
  * @post  m0_conf_obj_invariant(dest)
