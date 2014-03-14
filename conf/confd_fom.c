@@ -49,7 +49,7 @@ static void conf_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static int conf_fetch_tick(struct m0_fom *fom);
 static int conf_update_tick(struct m0_fom *fom);
-static int confx_populate(struct m0_confx *dest, const struct objid *origin,
+static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 			  const struct arr_fid *path,
 			  struct m0_conf_cache *cache);
 
@@ -238,7 +238,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 	M0_RETURN(rc);
 }
 
-static int confx_populate(struct m0_confx *dest, const struct objid *origin,
+static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 			  const struct arr_fid *path,
 			  struct m0_conf_cache *cache)
 {
@@ -251,8 +251,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 
 	M0_SET0(dest);
 
-	rc = m0_conf_obj_find(cache, &origin->oi_id, &org) ?:
-		readiness_check(org);
+	rc = m0_conf_obj_find(cache, origin, &org) ?: readiness_check(org);
 	if (rc != 0)
 		M0_RETURN(rc);
 

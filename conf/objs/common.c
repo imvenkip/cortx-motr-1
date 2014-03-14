@@ -75,12 +75,12 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 
 	M0_ASSERT(equi(child->co_parent == NULL,
 		       !child->co_mounted ||
-		       m0_conf_obj_tid(child) == M0_CO_NODE));
+		       m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE));
 	M0_ASSERT(ergo(child->co_mounted, child->co_parent != NULL ||
-		       m0_conf_obj_tid(child) == M0_CO_NODE));
+		       m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE));
 	M0_ASSERT(child->co_cache == parent->co_cache);
 
-	if (m0_conf_obj_tid(child) == M0_CO_NODE)
+	if (m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE)
 		M0_ASSERT(child->co_parent == NULL);
 	else
 		child->co_parent = parent;
@@ -292,6 +292,6 @@ M0_INTERNAL void arrfid_free(struct arr_fid *arr)
 M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
 			      const struct m0_conf_obj *src)
 {
-	dest->o_id          = src->co_id;
-	dest->o_conf.u_type = m0_conf_obj_tid(src);
+	dest->xo_u.u_header.ch_id = src->co_id;
+	dest->xo_type = m0_conf_obj_tid(src);
 }

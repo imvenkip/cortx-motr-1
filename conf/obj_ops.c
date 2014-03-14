@@ -203,8 +203,8 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 	M0_PRE(m0_conf_obj_invariant(dest));
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
-	M0_PRE(m0_conf_obj_tid(dest) == src->o_conf.u_type);
-	M0_PRE(m0_fid_eq(&dest->co_id, &src->o_id));
+	M0_PRE(m0_conf_obj_type(dest) == m0_conf_objx_type(src));
+	M0_PRE(m0_fid_eq(&dest->co_id, m0_conf_objx_fid(src)));
 	M0_PRE(confx_obj_is_valid(src));
 
 	rc = dest->co_ops->coo_decode(dest, src, cache);
@@ -223,10 +223,20 @@ M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
 	M0_PRE(m0_conf_obj_invariant(cached));
 	M0_PRE(confx_obj_is_valid(flat));
 
-	return m0_conf_obj_tid(cached) == flat->o_conf.u_type &&
-		m0_fid_eq(&cached->co_id, &flat->o_id) &&
+	return m0_conf_obj_type(cached) == m0_conf_objx_type(flat) &&
+		m0_fid_eq(&cached->co_id, m0_conf_objx_fid(flat)) &&
 		(m0_conf_obj_is_stub(cached) ||
 		 cached->co_ops->coo_match(cached, flat));
+}
+
+const struct m0_fid *m0_conf_objx_fid(const struct m0_confx_obj *obj)
+{
+	return &obj->xo_u.u_header.ch_id;
+}
+
+const struct m0_conf_obj_type *m0_conf_objx_type(const struct m0_confx_obj *obj)
+{
+	return m0_conf_fid_type(m0_conf_objx_fid(obj));
 }
 
 /** @} conf_dlspec_objops */

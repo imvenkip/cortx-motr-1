@@ -35,12 +35,14 @@ static bool dir_check(const void *bob)
 	const struct m0_conf_obj *self_obj = &self->cd_obj;
 	const struct m0_conf_obj *parent = self_obj->co_parent;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_DIR);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_DIR_TYPE);
 
 	return ergo(self_obj->co_mounted, /* check relations */
 		 _0C(parent->co_mounted && parent->co_status == M0_CS_READY) &&
-		 _0C(M0_IN(m0_conf_obj_tid(parent),
-			   (M0_CO_FILESYSTEM, M0_CO_NODE, M0_CO_SDEV))) &&
+		 _0C(M0_IN(m0_conf_obj_type(parent),
+			   (&M0_CONF_FILESYSTEM_TYPE,
+			    &M0_CONF_NODE_TYPE,
+			    &M0_CONF_SDEV_TYPE))) &&
 		 ergo(self_obj->co_status == M0_CS_READY,
 			 m0_tl_forall(m0_conf_dir, child, &self->cd_items,
 				      child_check(self_obj, child,

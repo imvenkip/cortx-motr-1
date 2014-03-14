@@ -136,13 +136,13 @@ void test_obj_fill(void)
 
 	rc = m0_confstr_parse(buf, &enc);
 	M0_UT_ASSERT(rc == 0);
-        M0_UT_ASSERT(enc->cx_nr == 8); /* "conf_xc.txt" describes 8 objects */
+        M0_UT_ASSERT(enc->cx_nr == 7); /* "conf_xc.txt" describes 7 objects */
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {
 		struct m0_confx_obj *xobj = &enc->cx_objs[i];
 
-		rc = m0_conf_obj_find(&g_cache, &xobj->o_id, &obj) ?:
+		rc = m0_conf_obj_find(&g_cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, &g_cache);
 		M0_UT_ASSERT(rc == 0);
 	}

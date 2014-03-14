@@ -19,35 +19,30 @@
  */
 
 #include "conf/objs/common.h"
-#include "mero/magic.h" /* M0_CONF_SDEV_MAGIC */
+#include "conf/onwire_xc.h" /* m0_confx_sdev_xc */
+#include "mero/magic.h"     /* M0_CONF_SDEV_MAGIC */
 
 static bool sdev_check(const void *bob)
 {
 	const struct m0_conf_sdev *self = bob;
 	const struct m0_conf_obj  *self_obj = &self->sd_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_SDEV);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SDEV_TYPE);
 
 	return  m0_conf_obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
 		ergo(self_obj->co_mounted, /* check relations */
-		     parent_check(self_obj) &&
-		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->sd_partitions, cd_obj),
-				 &M0_CONF_DIR_TYPE));
+		     parent_check(self_obj));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
 
 M0_CONF__INVARIANT_DEFINE(sdev_invariant, m0_conf_sdev);
 
-const struct m0_fid M0_CONF_SDEV_PARTITIONS_FID = M0_FID_TINIT('/', 0, 6);
-
 static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		       struct m0_conf_cache *cache)
 {
-	int                         rc;
 	struct m0_conf_sdev        *d = M0_CONF_CAST(dest, m0_conf_sdev);
-	const struct m0_confx_sdev *s = FLAT_OBJ(src, sdev);
+	const struct m0_confx_sdev *s = &src->xo_u.u_sdev;
 
 	d->sd_iface      = s->xd_iface;
 	d->sd_media      = s->xd_media;
@@ -59,15 +54,8 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	if (d->sd_filename == NULL)
 		return -ENOMEM;
 
-	rc = dir_new(cache, &src->o_id, &M0_CONF_SDEV_PARTITIONS_FID,
-		     &M0_CONF_PARTITION_TYPE, &s->xd_partitions,
-		     &d->sd_partitions);
-	if (rc == 0) {
-		child_adopt(dest, &d->sd_partitions->cd_obj);
-		dest->co_mounted = true;
-	} else
-		m0_free(&d->sd_filename);
-	return rc;
+	dest->co_mounted = true;
+	return 0;
 }
 
 static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
@@ -80,7 +68,7 @@ static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool
 sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_sdev *xobj = &flat->o_conf.u.u_sdev;
+	const struct m0_confx_sdev *xobj = &flat->xo_u.u_sdev;
 	const struct m0_conf_sdev  *obj = M0_CONF_CAST(cached, m0_conf_sdev);
 
 	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
@@ -141,5 +129,6 @@ const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 	.cot_id         = M0_CO_SDEV,
 	.cot_ctor       = &sdev_create,
 	.cot_table_name = "sdev",
+	.cot_xt         = &m0_confx_sdev_xc,
 	.cot_magic      = M0_CONF_SDEV_MAGIC
 };

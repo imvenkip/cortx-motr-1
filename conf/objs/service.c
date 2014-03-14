@@ -19,14 +19,15 @@
  */
 
 #include "conf/objs/common.h"
-#include "mero/magic.h" /* M0_CONF_SERVICE_MAGIC */
+#include "conf/onwire_xc.h" /* m0_confx_service_xc */
+#include "mero/magic.h"     /* M0_CONF_SERVICE_MAGIC */
 
 static bool service_check(const void *bob)
 {
 	const struct m0_conf_service *self = bob;
 	const struct m0_conf_obj     *self_obj = &self->cs_obj;
 
-	M0_PRE(m0_conf_obj_tid(self_obj) == M0_CO_SERVICE);
+	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_SERVICE_TYPE);
 
 	return ergo(self_obj->co_status == M0_CS_READY,
 		    M0_IN(self->cs_type,
@@ -51,7 +52,7 @@ static int service_decode(struct m0_conf_obj *dest,
 	int                            rc;
 	struct m0_conf_obj            *child;
 	struct m0_conf_service        *d = M0_CONF_CAST(dest, m0_conf_service);
-	const struct m0_confx_service *s = FLAT_OBJ(src, service);
+	const struct m0_confx_service *s = &src->xo_u.u_service;
 
 	d->cs_type = s->xs_type;
 
@@ -71,7 +72,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	int                      rc;
 	struct m0_conf_service  *s = M0_CONF_CAST(src, m0_conf_service);
-	struct m0_confx_service *d = &dest->o_conf.u.u_service;
+	struct m0_confx_service *d = &dest->xo_u.u_service;
 
 	confx_encode(dest, src);
 	d->xs_type = s->cs_type;
@@ -87,7 +88,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool
 service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_service *xobj = &flat->o_conf.u.u_service;
+	const struct m0_confx_service *xobj = &flat->xo_u.u_service;
 	const struct m0_conf_service  *obj = M0_CONF_CAST(cached,
 							  m0_conf_service);
 	return obj->cs_type == xobj->xs_type &&
@@ -150,5 +151,6 @@ const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_id         = M0_CO_SERVICE,
 	.cot_ctor       = &service_create,
 	.cot_table_name = "service",
+	.cot_xt         = &m0_confx_service_xc,
 	.cot_magic      = M0_CONF_SERVICE_MAGIC
 };

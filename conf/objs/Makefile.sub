@@ -8,5 +8,4 @@ mero_libmero_la_SOURCES += \
                            conf/objs/service.c \
                            conf/objs/node.c \
                            conf/objs/nic.c \
-                           conf/objs/sdev.c \
-                           conf/objs/partition.c
+                           conf/objs/sdev.c

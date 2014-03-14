@@ -523,7 +523,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 		struct m0_conf_obj        *obj;
 		const struct m0_confx_obj *xobj = &enc->cx_objs[i];
 
-		rc = m0_conf_obj_find(cache, &xobj->o_id, &obj) ?:
+		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, cache);
 	}
 
