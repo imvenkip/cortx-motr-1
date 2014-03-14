@@ -676,26 +676,26 @@ main()
 	STATS='(0x7300000000000001, 4)'
 	NODE='(0x6e00000000000001, 0)'
 	IOS_NAMES='(0x7300000000000003, 1)'
-	IOS_OBJS="{3| (($IOS_NAMES), 2, [1: $MDS_ENDPOINT], $NODE)}"
+	IOS_OBJS="{0x73| (($IOS_NAMES), 2, [1: $MDS_ENDPOINT], $NODE)}"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
 		IOS_NAME="(0x7300000000000003, $(((i+1) / 2)))"
 		IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-		IOS_OBJ="{3| (($IOS_NAME), 2, [1: \"${SERVICES[$i]}\"], $NODE)}"
+		IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: \"${SERVICES[$i]}\"],$NODE)}"
 		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
 	done
 
 	CONF="`cat <<EOF
 [$((SERVICES_NR + 5)):
-  {1| (($PROF), $FS)},
-  {2| (($FS), (11, 22),
+  {0x70| (($PROF), $FS)},
+  {0x66| (($FS), (11, 22),
               [4: "pool_width=$POOL_WIDTH",
                   "nr_data_units=$NR_DATA",
 		  "nr_parity_units=$NR_PARITY",
                   "unit_size=$UNIT_SIZE"],
               [$((SERVICES_NR + 3)): $MDS, $RM, $STATS, $IOS_NAMES])},
-  {3| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
-  {3| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
-  {3| (($STATS), 5, [1: $STATS_ENDPOINT], $NODE)},
+  {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
+  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
+  {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], $NODE)},
   $IOS_OBJS]
 EOF`"
 

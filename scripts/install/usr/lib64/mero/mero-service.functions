@@ -314,21 +314,21 @@ m0_build_local_conf()
         local ios_name="(3, $((ios_idx++)))"
         ios_num=$(($ios_num+1))
         ios_names="$ios_names${ios_names:+, }$ios_name"
-        ios_objs="$ios_objs${ios_objs:+, }{3| (($ios_name), 2, [1: \"$ios_ep\"], $node)}"
+        ios_objs="$ios_objs${ios_objs:+, }{0x73| (($ios_name), 2, [1: \"$ios_ep\"], $node)}"
     done
 
     local_conf=$(cat <<CONF_END
 [$((ios_num + 5)):
-  {1| (($prof), $fs)},
-  {2| (($fs), (11, 22),
+  {0x70| (($prof), $fs)},
+  {0x66| (($fs), (11, 22),
               [4: "pool_width=$pool_width",
                   "nr_data_units=$data_units",
                   "nr_parity_units=$parity_units",
                   "unit_size=$unit_size"],
               [$((ios_num + 3)): $mds, $rm, $stats, $ios_names])},
-  {3| (($mds), 1, [1: "$mds_ep"], $node)},
-  {3| (($rm), 4, [1: "$rms_ep"], $node)},
-  {3| (($stats), 5, [1: "$stats_ep"], $node)},
+  {0x73| (($mds), 1, [1: "$mds_ep"], $node)},
+  {0x73| (($rm), 4, [1: "$rms_ep"], $node)},
+  {0x73| (($stats), 5, [1: "$stats_ep"], $node)},
   $ios_objs]
 CONF_END
 )

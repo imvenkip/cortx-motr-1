@@ -293,5 +293,5 @@ M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
 			      const struct m0_conf_obj *src)
 {
 	dest->xo_u.u_header.ch_id = src->co_id;
-	dest->xo_type = m0_conf_obj_tid(src);
+	dest->xo_type = m0_conf_obj_type(src)->cot_ftype.ft_id;
 }

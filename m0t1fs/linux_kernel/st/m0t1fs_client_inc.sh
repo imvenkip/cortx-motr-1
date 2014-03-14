@@ -43,7 +43,7 @@ mount_m0t1fs()
 	    fi
 
 	    local ep=\"${server_nid}:${EP[$i]}\"
-	    IOS_OBJ="{3| (($IOS_NAME), 2, [1: $ep], $NODE)}"
+	    IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $ep], $NODE)}"
 	    if ((i == 1)); then
 	        IOS_OBJS="$IOS_OBJ"
 	    else
@@ -53,15 +53,15 @@ mount_m0t1fs()
 
 	local CONF="`cat <<EOF
 [$((${#EP[*]} + 3)):
-  {1| (($PROF), $FS)},
-  {2| (($FS), (11, 22),
+  {0x70| (($PROF), $FS)},
+  {0x66| (($FS), (11, 22),
 	      [4: "pool_width=$P",
 		  "nr_data_units=$N",
 		  "nr_parity_units=$K",
 		  "unit_size=$unit_size"],
 	      [$((${#EP[*]} + 1)): $MDS, $RM, $IOS_NAMES])},
-  {3| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
-  {3| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
+  {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
+  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
   $IOS_OBJS]
 EOF`"
 

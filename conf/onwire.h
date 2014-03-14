@@ -141,12 +141,12 @@ struct m0_confx_obj {
 		 * One-to-many relations are represented by a list of
 		 * identifiers --- `arr_fid'.
 		 */
-		struct m0_confx_profile    u_profile    M0_XCA_TAG("1");
-		struct m0_confx_filesystem u_filesystem M0_XCA_TAG("2");
-		struct m0_confx_service    u_service    M0_XCA_TAG("3");
-		struct m0_confx_node       u_node       M0_XCA_TAG("4");
-		struct m0_confx_nic        u_nic        M0_XCA_TAG("5");
-		struct m0_confx_sdev       u_sdev       M0_XCA_TAG("6");
+		struct m0_confx_profile    u_profile    M0_XCA_TAG("0x70");
+		struct m0_confx_filesystem u_filesystem M0_XCA_TAG("0x66");
+		struct m0_confx_service    u_service    M0_XCA_TAG("0x73");
+		struct m0_confx_node       u_node       M0_XCA_TAG("0x6e");
+		struct m0_confx_nic        u_nic        M0_XCA_TAG("0x69");
+		struct m0_confx_sdev       u_sdev       M0_XCA_TAG("0x64");
 	} xo_u;
 } M0_XCA_UNION;
 
