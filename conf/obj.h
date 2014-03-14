@@ -45,8 +45,8 @@ struct m0_xcode_type;
  * @section conf-fspec-obj-data Data Structures
  *
  * There are different kinds of configuration data: configuration of
- * filesystems, services, nodes, storage devices, etc.  Configuration
- * data is contained in configuration objects of which there are 8
+ * filesystems, services, nodes, storage devices, etc.  Configuration data is
+ * contained in configuration objects of which there are following predefined
  * types:
  * - m0_conf_dir (a container for configuration objects),
  * - m0_conf_profile,
