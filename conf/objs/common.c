@@ -21,12 +21,6 @@
 #include "conf/objs/common.h"
 #include "conf/cache.h"
 
-static bool mounted_as(const struct m0_conf_obj *obj,
-		       const struct m0_conf_obj_type *type)
-{
-	return m0_conf_obj_type(obj) == type;
-}
-
 M0_INTERNAL void
 child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
