@@ -24,7 +24,7 @@
 static bool mounted_as(const struct m0_conf_obj *obj,
 		       const struct m0_conf_obj_type *type)
 {
-	return obj->co_mounted && m0_conf_obj_type(obj) == type;
+	return m0_conf_obj_type(obj) == type;
 }
 
 M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj)
@@ -34,11 +34,11 @@ M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj)
 	const struct m0_conf_obj_type *actual =
 		parent == NULL ? NULL : m0_conf_obj_type(parent);
 
-	M0_PRE(obj->co_mounted && otype != actual);
+	M0_PRE(otype != actual);
 
 	return M0_IN(otype, (&M0_CONF_PROFILE_TYPE, &M0_CONF_NODE_TYPE)) ?
 		parent == NULL :
-		parent != NULL && parent->co_mounted &&
+		parent != NULL &&
 		parent->co_status == M0_CS_READY &&
 		(otype == &M0_CONF_DIR_TYPE) == M0_IN(actual,
 						      (&M0_CONF_FILESYSTEM_TYPE,
@@ -54,8 +54,6 @@ M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 			     const struct m0_conf_obj *child,
 			     const struct m0_conf_obj_type *child_type)
 {
-	M0_PRE(obj->co_mounted);
-
 	/* Profile is a topmost object, it cannot be a child. */
 	M0_ASSERT(child == NULL ||
 		  m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
@@ -72,20 +70,12 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
 	/* Profile cannot be a child, because it is the topmost object. */
 	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
-
-	M0_ASSERT(equi(child->co_parent == NULL,
-		       !child->co_mounted ||
-		       m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE));
-	M0_ASSERT(ergo(child->co_mounted, child->co_parent != NULL ||
-		       m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE));
 	M0_ASSERT(child->co_cache == parent->co_cache);
 
 	if (m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE)
 		M0_ASSERT(child->co_parent == NULL);
 	else
 		child->co_parent = parent;
-
-	child->co_mounted = true;
 }
 
 /**

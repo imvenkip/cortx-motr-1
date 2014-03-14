@@ -33,12 +33,8 @@ static bool profile_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_PROFILE_TYPE);
 
-	return  /* profile is the topmost object of a DAG */
-		self_obj->co_parent == NULL &&
-		ergo(self_obj->co_mounted,
-		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->cp_filesystem, cf_obj),
-				 &M0_CONF_FILESYSTEM_TYPE));
+	/* profile is the topmost object of a DAG */
+	return self_obj->co_parent == NULL;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
@@ -57,7 +53,6 @@ static int profile_decode(struct m0_conf_obj *dest,
 	if (rc == 0) {
 		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
 		child_adopt(dest, child);
-		dest->co_mounted = true;
 	}
 	return rc;
 }

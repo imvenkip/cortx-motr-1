@@ -90,10 +90,6 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 static void _obj_del(struct m0_conf_obj *obj)
 {
 	m0_conf_cache_tlist_del(obj);
-
-	/* Don't let concrete invariants check relations. */
-	obj->co_mounted = false;
-
 	m0_conf_obj_delete(obj);
 }
 

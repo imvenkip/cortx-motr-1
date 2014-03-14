@@ -30,14 +30,7 @@ static bool filesystem_check(const void *bob)
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_FILESYSTEM_TYPE);
 
 	return ergo(m0_conf_obj_is_stub(self_obj),
-		    _0C(self->cf_params == NULL)) &&
-		ergo(self_obj->co_mounted,
-		     _0C(parent_check(self_obj)) &&
-		     _0C(M0_CONF_CAST(self_obj->co_parent,
-				      m0_conf_profile)->cp_filesystem == self)&&
-		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->cf_services, cd_obj),
-				 &M0_CONF_DIR_TYPE));
+		    _0C(self->cf_params == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
@@ -64,7 +57,6 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 		     &M0_CONF_SERVICE_TYPE, &s->xf_services, &d->cf_services);
 	if (rc == 0) {
 		child_adopt(dest, &d->cf_services->cd_obj);
-		dest->co_mounted = true;
 	} else {
 		strings_free(d->cf_params);
 		d->cf_params = NULL; /* make invariant happy */

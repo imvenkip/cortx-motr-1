@@ -61,9 +61,7 @@ static bool _generic_obj_invariant(const void *bob)
 		m0_conf_fid_is_valid(&obj->co_id) &&
 		M0_IN(obj->co_status,
 		      (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY)) &&
-		ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0) &&
-		ergo(obj->co_mounted, m0_conf_cache_tlist_contains(
-			     &obj->co_cache->ca_registry, obj));
+		ergo(m0_conf_obj_is_stub(obj), obj->co_nrefs == 0);
 }
 
 static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
@@ -101,7 +99,6 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 	m0_conf_obj_bob_init(obj);
 	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
 	M0_ASSERT(obj->co_con_magic == type->cot_magic);
-	M0_ASSERT(!obj->co_mounted);
 
 	M0_POST(m0_conf_obj_invariant(obj));
 	return obj;
@@ -149,7 +146,6 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(obj->co_nrefs == 0);
 	M0_PRE(obj->co_status != M0_CS_LOADING);
-	M0_PRE(!obj->co_mounted || m0_mutex_is_locked(obj->co_cache->ca_lock));
 
 	/* Finalise generic fields. */
 	m0_conf_obj_bob_fini(obj);
@@ -210,7 +206,6 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 	rc = dest->co_ops->coo_decode(dest, src, cache);
 	dest->co_status = rc == 0 ? M0_CS_READY : M0_CS_MISSING;
 
-	M0_POST(ergo(rc == 0, dest->co_mounted));
 	M0_POST(m0_mutex_is_locked(cache->ca_lock));
 	M0_POST(ergo(rc == 0, m0_conf_obj_invariant(dest)));
 	M0_LEAVE("retval=%d", rc);

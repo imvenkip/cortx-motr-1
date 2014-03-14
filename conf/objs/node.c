@@ -32,14 +32,7 @@ static bool node_check(const void *bob)
 
 	return /* The notion of parent is not applicable to a node,
 		* since a node may host (be a child of) several services. */
-		self_obj->co_parent == NULL &&
-		ergo(self_obj->co_mounted, /* check relations */
-		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->cn_nics, cd_obj),
-				 &M0_CONF_DIR_TYPE) &&
-		     child_check(self_obj,
-				 M0_MEMBER_PTR(self->cn_sdevs, cd_obj),
-				 &M0_CONF_DIR_TYPE));
+		self_obj->co_parent == NULL;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_node, M0_CONF_NODE_MAGIC, node_check);
@@ -84,8 +77,6 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 
 		child_adopt(dest, &(*subdirs[i].pptr)->cd_obj);
 	}
-	dest->co_mounted = true;
-
 	return 0;
 }
 

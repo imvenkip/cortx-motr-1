@@ -29,8 +29,7 @@ static bool nic_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_NIC_TYPE);
 
-	return m0_conf_obj_is_stub(self_obj) == (self->ni_filename == NULL) &&
-		ergo(self_obj->co_mounted, parent_check(self_obj));
+	return m0_conf_obj_is_stub(self_obj) == (self->ni_filename == NULL);
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_nic, M0_CONF_NIC_MAGIC, nic_check);

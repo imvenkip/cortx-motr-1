@@ -32,11 +32,7 @@ static bool service_check(const void *bob)
 	return ergo(self_obj->co_status == M0_CS_READY,
 		    M0_IN(self->cs_type,
 			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM,
-			   M0_CST_SS))) &&
-		ergo(self_obj->co_mounted, /* check relations */
-		     parent_check(self_obj) &&
-		     child_check(self_obj, M0_MEMBER_PTR(self->cs_node, cn_obj),
-				 &M0_CONF_NODE_TYPE));
+			   M0_CST_SS)));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_service, M0_CONF_SERVICE_MAGIC, service_check);
@@ -62,7 +58,6 @@ static int service_decode(struct m0_conf_obj *dest,
 
 	d->cs_node = M0_CONF_CAST(child, m0_conf_node);
 	child_adopt(dest, child);
-	dest->co_mounted = true;
 
 	return strings_from_arrbuf(&d->cs_endpoints, &s->xs_endpoints);
 }

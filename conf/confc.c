@@ -411,8 +411,6 @@ static int confc_cache_create(struct m0_confc *confc,
 	rc = m0_conf_obj_find(&confc->cc_cache, profile, &confc->cc_root);
 	if (rc != 0)
 		M0_RETURN(rc);
-	confc->cc_root->co_mounted = true;
-
 	if (not_empty(local_conf)) {
 		rc = confc_cache_preload(confc, local_conf);
 		if (rc == 0 && confc->cc_root->co_status != M0_CS_READY) {
@@ -502,7 +500,7 @@ M0_INTERNAL struct m0_confc *m0_confc_from_obj(const struct m0_conf_obj *obj)
 static bool _confc_check(const void *bob)
 {
 	const struct m0_confc *confc = bob;
-	return confc->cc_root->co_mounted && confc->cc_group != NULL;
+	return confc->cc_group != NULL;
 }
 
 /* ------------------------------------------------------------------

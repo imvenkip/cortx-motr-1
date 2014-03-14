@@ -199,21 +199,6 @@ struct m0_conf_obj {
 	 * (see M0_CONF_CAST()).
 	 */
 	uint64_t                      co_con_magic;
-
-	/**
-	 * Whether the object has been inserted into the DAG.
-	 *
-	 * @todo XXX Property (to be verified):
-	 * ergo(obj->co_mounted,
-	 *      parent_check(obj) && (m0_conf_obj_is_stub(obj) ||
-	 *                            children_check(obj))),
-	 * where
-	 *   children_check(obj) verifies that `obj' has established
-	 *   relations with its children.
-	 *
-	 * @see @ref conf-lspec-comps
-	 */
-	bool                          co_mounted;
 };
 
 struct m0_conf_obj_type {

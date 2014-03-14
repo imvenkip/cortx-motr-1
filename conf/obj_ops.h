@@ -164,8 +164,7 @@ struct m0_conf_obj_ops {
  * into configuration cache.
  *
  * @pre   cache != NULL && m0_fid_is_set(id)
- * @post  ergo(retval != NULL,
- *             !retval->co_mounted && retval->co_status == M0_CS_MISSING)
+ * @post  ergo(retval != NULL, retval->co_status == M0_CS_MISSING)
  */
 M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 						   const struct m0_fid *id);
@@ -186,7 +185,6 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
  * Finalises and frees configuration object.
  *
  * @pre  obj->co_nrefs == 0 && obj->co_status != M0_CS_LOADING
- * @pre  !obj->co_mounted || m0_mutex_is_locked(obj->co_cache->ca_lock)
  */
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj);
 
@@ -232,7 +230,6 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
  * @post  m0_conf_obj_invariant(dest)
  * @post  m0_mutex_is_locked(cache->ca_lock)
  * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
- * @post  ergo(retval == 0, dest->co_mounted)
  */
 M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 				 const struct m0_confx_obj *src,
@@ -245,7 +242,6 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
  * Note, that the caller is responsible for passing valid m0_confx_obj
  * via `flat' parameter.
  *
- * @pre  cached->co_mounted
  * @pre  `flat' is valid
  */
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,
