@@ -23,6 +23,7 @@
 #define __MERO_BE_TX_H__
 
 #include "lib/misc.h"		/* M0_BITS */
+#include "lib/buf.h"		/* m0_buf */
 
 #include "sm/sm.h"		/* m0_sm */
 
@@ -276,7 +277,7 @@ typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
 struct m0_be_tx {
 	struct m0_sm           t_sm;
 
-	/** Transaction identifier, assigned by the user. */
+	/** Transaction identifier, assigned by the engine. */
 	uint64_t               t_id;
 	struct m0_be_engine   *t_engine;
 
@@ -332,13 +333,19 @@ struct m0_be_tx {
 	 */
 	uint64_t               t_lsn;
 	/**
-	 * Size (in bytes) of "payload area" in the transaction log header,
-	 * reserved for user.
+	 * Payload area.
 	 *
-	 * User should directly set this field, while the transaction is in
-	 * ACTIVE state.
+	 * - memory for the payload area is managed by the transaction. It is
+	 *   allocated when transaction opens and it is deallocated inside
+	 *   m0_be_tx_fini();
+	 * - user should call m0_be_tx_payload_prep() at M0_BTS_PREPARE state
+	 *   to accumulate payload area size.
+	 *
+	 * @todo Don't allocate m0_be_tx::t_payload separately.
+	 *	 Use m0_be_tx_group preallocated payload area.
+	 * @todo Use m0_be_tx::t_filler callback to fill m0_be_tx::t_payload.
 	 */
-	m0_bcount_t            t_payload_size;
+	struct m0_buf	       t_payload;
 	struct m0_sm_ast       t_ast_active;
 	struct m0_sm_ast       t_ast_failed;
 	struct m0_sm_ast       t_ast_grouped;
@@ -373,6 +380,15 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
 			       const struct m0_be_tx_credit *credit);
+
+/**
+ * Accumulate transaction payload size.
+ * This function will add size to the number of bytes
+ * which will be allocated for the payload area.
+ *
+ * @see m0_be_tx::t_payload
+ */
+M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size);
 
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
 

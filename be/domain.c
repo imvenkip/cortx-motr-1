@@ -253,6 +253,12 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
 	seg_tlist_fini(&dom->bd_seg_list);
 }
 
+M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
+						  uint64_t id)
+{
+	return m0_be_engine__tx_find(m0_be_domain_engine(dom), id);
+}
+
 M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
 {
 	return &dom->bd_engine;

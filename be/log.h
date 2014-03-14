@@ -107,7 +107,8 @@ M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 				   struct m0_be_tx_credit *reserved);
 
 M0_INTERNAL int m0_be_log_reserve_tx(struct m0_be_log *log,
-				     struct m0_be_tx_credit *prepared);
+				     struct m0_be_tx_credit *prepared,
+				     m0_bcount_t payload_size);
 
 M0_INTERNAL void m0_be_log_fake_io(struct m0_be_log *log,
 				   struct m0_be_tx_credit *reserved);

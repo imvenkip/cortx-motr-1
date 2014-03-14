@@ -32,6 +32,8 @@
  * @{
  */
 
+struct m0_be_tx;
+
 struct m0_be_domain_cfg {
 	struct m0_be_engine_cfg bc_engine;
 	m0_bcount_t             bc_seg0_size;
@@ -51,6 +53,9 @@ M0_INTERNAL int m0_be_domain_start(struct m0_be_domain *dom,
 M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom);
 
 M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
+
+M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
+						  uint64_t id);
 
 M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom);
 M0_INTERNAL

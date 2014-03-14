@@ -68,6 +68,7 @@ struct m0_be_tx_group {
 	struct m0_be_tx_credit	   tg_used;
 	struct m0_be_tx_credit	   tg_size;
 	struct m0_be_tx_credit	   tg_log_reserved;
+	m0_bcount_t		   tg_payload_prepared;
 	/** Maximum acceptable number of transactions in the group. */
 	size_t			   tg_tx_nr_max;
 	/**

@@ -43,7 +43,8 @@ static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,
 static void group_io_fini(struct m0_be_group_ondisk *g);
 
 M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
-				     const struct m0_be_tx_credit *prepared)
+				     const struct m0_be_tx_credit *prepared,
+				     m0_bcount_t payload_size)
 {
 	*io_tx = *prepared;
 
@@ -57,21 +58,23 @@ M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
 			    prepared->tc_reg_nr);
 	m0_be_tx_credit_add(io_tx,
 		    &M0_BE_TX_CREDIT_TYPE(struct tx_group_commit_block));
+	m0_be_tx_credit_add(io_tx, &M0_BE_TX_CREDIT(1, payload_size));
 }
 
 M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
 					size_t tx_nr_max,
-					const struct m0_be_tx_credit *prepared)
+					const struct m0_be_tx_credit *prepared,
+					m0_bcount_t payload_size)
 {
 	struct m0_be_tx_credit io_tx;
 	M0_PRE(tx_nr_max > 0);
 
 	M0_SET0(io_group);
 
-	be_log_io_credit_tx(&io_tx, prepared);
+	be_log_io_credit_tx(&io_tx, prepared, payload_size);
 	m0_be_tx_credit_add(io_group, &io_tx);
 
-	be_log_io_credit_tx(&io_tx, &M0_BE_TX_CREDIT(0, 0));
+	be_log_io_credit_tx(&io_tx, &M0_BE_TX_CREDIT(0, 0), 0);
 	m0_be_tx_credit_mac(io_group, &io_tx, tx_nr_max - 1);
 }
 
@@ -100,7 +103,7 @@ M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 	if (go->go_reg == NULL)
 		goto err_entry;
 
-	be_log_io_credit_group(&cr_logrec, tx_nr_max, size_max);
+	be_log_io_credit_group(&cr_logrec, tx_nr_max, size_max, 0);
 	m0_be_log_cblock_credit(&cr_commit_block,
 				sizeof(struct tx_group_commit_block));
 	m0_be_tx_credit_sub(&cr_logrec, &cr_commit_block);
@@ -153,16 +156,19 @@ M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go)
 M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
 					     struct m0_be_tx_group *group,
 					     struct m0_be_tx_credit *reserved,
+					     m0_bcount_t *payload_size,
 					     size_t *tx_nr)
 {
 	struct m0_be_tx_credit tx_prepared;
 	struct m0_be_tx       *tx;
 
+	*payload_size = 0;
 	*tx_nr = 0;
 	M0_SET0(reserved);
 	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
 		m0_be_reg_area_prepared(m0_be_tx__reg_area(tx), &tx_prepared);
 		m0_be_tx_credit_add(reserved, &tx_prepared);
+		*payload_size += tx->t_payload.b_nob;
 		++*tx_nr;
 	} M0_BE_TX_GROUP_TX_ENDFOR;
 }
@@ -173,10 +179,12 @@ M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
 						*io_reserved)
 {
 	struct m0_be_tx_credit reserved = {};
+	m0_bcount_t	       payload_size;
 	size_t		       tx_nr;
 
-	m0_be_group_ondisk_reserved(go, group, &reserved, &tx_nr);
-	be_log_io_credit_group(io_reserved, tx_nr, &reserved);
+	m0_be_group_ondisk_reserved(go, group, &reserved,
+				    &payload_size, &tx_nr);
+	be_log_io_credit_group(io_reserved, tx_nr, &reserved, payload_size);
 }
 
 M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
@@ -188,12 +196,13 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	struct m0_be_tx_credit   io_cr;
 	struct m0_be_reg_d      *rd;
 	struct m0_be_tx         *tx;
+	m0_bcount_t		 payload_size;
 	int                      i;
 	uint64_t                 tx_nr;
 	uint64_t                 reg_nr;
 
 
-	m0_be_group_ondisk_reserved(go, group, &reg_cr, &tx_nr);
+	m0_be_group_ondisk_reserved(go, group, &reg_cr, &payload_size, &tx_nr);
 	m0_be_group_ondisk_io_reserved(go, group, &io_cr);
 	m0_be_log_store_io_init(&lsi, &log->lg_store, &go->go_io_log,
 			       &go->go_io_log_cblock, io_cr.tc_reg_size);
@@ -229,6 +238,15 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	M0_BE_REG_AREA_FORALL(&go->go_area, rd) {
 		m0_be_log_store_io_add(&lsi, rd->rd_buf, rd->rd_reg.br_size);
 	}
+	/* add payload */
+	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
+		payload_size = tx->t_payload.b_nob;
+		if (payload_size > 0) {
+			m0_be_log_store_io_add(&lsi, tx->t_payload.b_addr,
+					       payload_size);
+		}
+	} M0_BE_TX_GROUP_TX_ENDFOR;
+
 	m0_be_log_store_io_add_cblock(&lsi, &go->go_cblock,
 				     sizeof(go->go_cblock));
 	m0_be_log_store_io_sort(&lsi);

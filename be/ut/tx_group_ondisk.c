@@ -100,7 +100,7 @@ static int be_ut_group_ondisk_reserve(void)
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		rc = m0_be_log_reserve_tx(&but_group_ondisk_log,
 					  &M0_BE_TX_CREDIT(i + 1,
-							   10 * (i + 1)));
+							   10 * (i + 1)), 0);
 		if (rc != 0)
 			return i;
 		grp_tlist_add(&but_group_ondisk_gr.tg_txs,

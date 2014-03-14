@@ -87,6 +87,7 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		egr_tlink_init(&en->eng_group[0]);
 	}
 	en->eng_group_closed = false;
+	en->eng_tx_id_next = 0;
 
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_init(&en->eng_txs[i]), true));
@@ -151,6 +152,11 @@ static bool be_engine_invariant(struct m0_be_engine *en)
 	return true; /* XXX TODO */
 }
 
+static uint64_t be_engine_tx_id_allocate(struct m0_be_engine *en)
+{
+	return en->eng_tx_id_next++;
+}
+
 static struct m0_be_tx *be_engine_tx_peek(struct m0_be_engine *en,
 					  enum m0_be_tx_state state)
 {
@@ -186,8 +192,8 @@ static void be_engine_got_tx_open(struct m0_be_engine *en)
 			       BETXCR_P(&en->eng_cfg->bec_tx_size_max));
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
-			rc = m0_be_log_reserve_tx(&en->eng_log,
-						  &tx->t_prepared);
+			rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared,
+						  tx->t_payload.b_nob);
 			if (rc == 0) {
 				tx->t_log_reserved = true;
 				be_engine_tx_state_post(en, tx, M0_BTS_ACTIVE);
@@ -317,6 +323,9 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	etx_tlist_add_tail(&en->eng_txs[state], tx);
 
 	switch (state) {
+	case M0_BTS_PREPARE:
+		tx->t_id = be_engine_tx_id_allocate(en);
+		break;
 	case M0_BTS_OPENING:
 		be_engine_got_tx_open(en);
 		break;
@@ -435,6 +444,36 @@ M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log)
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
+}
+
+M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
+						   uint64_t id)
+{
+	struct m0_be_tx *tx = NULL;
+	size_t		 i;
+	bool		 found = false;
+
+	be_engine_lock(en);
+	M0_PRE(be_engine_invariant(en));
+
+	for (i = 0; i < ARRAY_SIZE(en->eng_txs); ++i) {
+		m0_tl_for(etx, &en->eng_txs[i], tx) {
+			if (tx->t_id == id) {
+				found = true;
+				break;
+			}
+		} m0_tl_endfor;
+		if (found)
+			break;
+	}
+
+	M0_POST(be_engine_invariant(en));
+	be_engine_unlock(en);
+
+	if (tx != NULL)
+		m0_be_tx_get(tx);
+
+	return tx;
 }
 
 /** @} end of be group */

@@ -124,8 +124,9 @@ M0_INTERNAL void m0_be_log_fake_io(struct m0_be_log *log,
 	m0_be_log_store_pos_advance(&log->lg_store, reserved->tc_reg_size);
 }
 
-M0_INTERNAL int
-m0_be_log_reserve_tx(struct m0_be_log *log, struct m0_be_tx_credit *prepared)
+M0_INTERNAL int m0_be_log_reserve_tx(struct m0_be_log *log,
+				     struct m0_be_tx_credit *prepared,
+				     m0_bcount_t payload_size)
 {
 	struct m0_be_tx_credit io_tx;
 	int                    rc;
@@ -133,7 +134,7 @@ m0_be_log_reserve_tx(struct m0_be_log *log, struct m0_be_tx_credit *prepared)
 	M0_ENTRY();
 	M0_PRE(m0_be_log__invariant(log));
 
-	be_log_io_credit_tx(&io_tx, prepared);
+	be_log_io_credit_tx(&io_tx, prepared, payload_size);
 	rc = m0_be_log_store_reserve(&log->lg_store, io_tx.tc_reg_size);
 
 	M0_POST(m0_be_log__invariant(log));

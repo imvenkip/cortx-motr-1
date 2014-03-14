@@ -162,6 +162,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 
 	M0_SET0(&gr->tg_used);
 	M0_SET0(&gr->tg_log_reserved);
+	gr->tg_payload_prepared = 0;
 	m0_be_group_ondisk_reset(&gr->tg_od);
 	m0_be_tx_group_fom_reset(&gr->tg_fom);
 }
@@ -174,10 +175,11 @@ M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				     struct m0_reqh *reqh)
 {
 	*gr = (struct m0_be_tx_group) {
-		.tg_size      = *size_max,
-		.tg_tx_nr_max = tx_nr_max,
-		.tg_log       = log,
-		.tg_engine    = en,
+		.tg_size	     = *size_max,
+		.tg_payload_prepared = 0,
+		.tg_tx_nr_max	     = tx_nr_max,
+		.tg_log		     = log,
+		.tg_engine	     = en,
 	};
 	grp_tlist_init(&gr->tg_txs);
 	m0_be_tx_group_fom_init(&gr->tg_fom, gr, reqh);
@@ -214,7 +216,8 @@ m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 	if (m0_be_tx_credit_le(&group_used, &gr->tg_size) &&
 	    m0_be_tx_group_size(gr) < gr->tg_tx_nr_max) {
 		grp_tlink_init_at(tx, &gr->tg_txs);
-		gr->tg_used = group_used;
+		gr->tg_used		 = group_used;
+		gr->tg_payload_prepared += tx->t_payload.b_nob;
 		M0_CNT_INC(gr->tg_nr_unstable);
 		rc = 0;
 	} else {
@@ -266,11 +269,13 @@ M0_INTERNAL size_t m0_be_tx_group_size(struct m0_be_tx_group *gr)
 }
 
 static bool be_tx_group_empty_handle(struct m0_be_tx_group *gr,
-				     struct m0_be_op *op)
+				     struct m0_be_op *op,
+				     bool check_payload)
 {
 	struct m0_be_tx_credit zero = {};
 
-	if (m0_be_tx_credit_eq(&gr->tg_used, &zero)) {
+	if (m0_be_tx_credit_eq(&gr->tg_used, &zero) &&
+	    ergo(check_payload, gr->tg_payload_prepared == 0)) {
 		m0_be_op_state_set(op, M0_BOS_ACTIVE);
 		m0_be_op_state_set(op, M0_BOS_SUCCESS);
 		return true;
@@ -303,7 +308,7 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 	/** XXX FIXME move somewhere else */
 	m0_be_group_ondisk_io_reserved(&gr->tg_od, gr, &gr->tg_log_reserved);
 
-	if (be_tx_group_empty_handle(gr, op)) {
+	if (be_tx_group_empty_handle(gr, op, true)) {
 		m0_be_log_fake_io(gr->tg_log, &gr->tg_log_reserved);
 		return;
 	}
@@ -321,7 +326,7 @@ M0_INTERNAL void m0_be_tx_group__log(struct m0_be_tx_group *gr,
 M0_INTERNAL void m0_be_tx_group__place(struct m0_be_tx_group *gr,
 				       struct m0_be_op *op)
 {
-	if (be_tx_group_empty_handle(gr, op))
+	if (be_tx_group_empty_handle(gr, op, false))
 		return;
 
 	m0_be_io_launch(&gr->tg_od.go_io_seg, op);

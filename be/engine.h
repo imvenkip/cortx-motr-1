@@ -81,6 +81,7 @@ struct m0_be_engine {
 	 * Remove it when add multiple groups support.
 	 */
 	bool			   eng_group_closed;
+	uint64_t		   eng_tx_id_next;
 };
 
 M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en);
@@ -111,6 +112,8 @@ M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
 
 M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log);
 
+M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
+						   uint64_t id);
 
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */

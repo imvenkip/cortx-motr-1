@@ -158,6 +158,10 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
 {
 }
 
+M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size)
+{
+}
+
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 {
 	tx->t_sm.sm_state = M0_BTS_ACTIVE;

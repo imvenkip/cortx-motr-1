@@ -88,11 +88,13 @@ struct m0_be_group_ondisk {
 };
 
 M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
-				     const struct m0_be_tx_credit *prepared);
+				     const struct m0_be_tx_credit *prepared,
+				     m0_bcount_t payload_size);
 
 M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
 					size_t tx_nr_max,
-					const struct m0_be_tx_credit *prepared);
+					const struct m0_be_tx_credit *prepared,
+					m0_bcount_t payload_size);
 
 M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 					struct m0_stob *log_stob,
@@ -106,6 +108,7 @@ M0_INTERNAL void m0_be_group_ondisk_reset(struct m0_be_group_ondisk *go);
 M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
 					     struct m0_be_tx_group *group,
 					     struct m0_be_tx_credit *reserved,
+					     m0_bcount_t *payload_size,
 					     size_t *tx_nr);
 
 M0_INTERNAL void m0_be_group_ondisk_io_reserved(struct m0_be_group_ondisk *go,
