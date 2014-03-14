@@ -132,8 +132,8 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 	};
 	static const char *fmt[M0_XAT_NR] = {
 		[M0_XAT_VOID] = " %0c %n",
-		[M0_XAT_U8]   = " %u %n",
-		[M0_XAT_U32]  = " %u %n",
+		[M0_XAT_U8]   = " %i %n",
+		[M0_XAT_U32]  = " %i %n",
 		[M0_XAT_U64]  = " %li %n"
 	};
 
