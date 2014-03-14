@@ -247,7 +247,6 @@ void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype);
 void m0_conf_obj_type_unregister(const struct m0_conf_obj_type *otype);
 
 enum m0_conf_objtype           m0_conf_obj_tid (const struct m0_conf_obj *obj);
-enum m0_conf_objtype           m0_conf_fid_tid (const struct m0_fid *id);
 const struct m0_conf_obj_type *m0_conf_obj_type(const struct m0_conf_obj *obj);
 const struct m0_conf_obj_type *m0_conf_fid_type(const struct m0_fid *id);
 const struct m0_fid           *m0_conf_objx_fid(const struct m0_confx_obj *obj);
