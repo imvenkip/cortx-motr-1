@@ -370,6 +370,19 @@ M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)
 	return m0_alloc(nob);
 }
 
+/**
+ * Frees xcode object and its sub-objects.
+ *
+ * Descends through sub-objects tree, freeing memory allocated during tree
+ * construction. The same algorithm (allocp()) is used to determine what to
+ * allocate and what to free.
+ *
+ * Actions are done in post-order: the parent is freed after all children are
+ * done with.
+ *
+ * This is the only xcode function that has to deal with partially constructed
+ * objects.
+ */
 M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 {
 	struct m0_xcode_cursor it;
@@ -377,24 +390,40 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
 	m0_xcode_cursor_init(&it, obj);
 
 	while (m0_xcode_next(&it) > 0) {
-		struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(&it);
-		size_t                        nob = 0;
+		struct m0_xcode_cursor_frame *top    = m0_xcode_cursor_top(&it);
+		size_t                        nob    = 0;
+		struct m0_xcode_cursor_frame *prev   = top -1;
+		struct m0_xcode_obj          *par    = &prev->s_obj;
+		bool                          arrayp = at_array(&it, prev, par);
 		void                        **slot;
 
 		if (top->s_flag == M0_XCODE_CURSOR_POST) {
-			struct m0_xcode_cursor_frame *prev =  top -1;
-			struct m0_xcode_obj          *par  = &prev->s_obj;
-
 			slot = allocp(&it, &nob);
 			if (top->s_datum != 0) {
 				m0_free((void *) top->s_datum);
 				top->s_datum = 0;
 			}
-
-			if (at_array(&it, prev, par))
+			if (arrayp)
+				/*
+				 * Store the address of allocated array in the
+				 * parent stack frame.
+				 */
 				prev->s_datum = (uint64_t)*slot;
 			else if (nob != 0)
 				m0_free(*slot);
+		} else if (top->s_flag == M0_XCODE_CURSOR_PRE) {
+			/*
+			 * Deal with partially constructed objects.
+			 */
+			if (top->s_obj.xo_ptr == NULL) {
+				if (arrayp)
+					/*
+					 * If array allocation failed, skip the
+					 * array entirely.
+					 */
+					--it.xcu_depth;
+				m0_xcode_skip(&it);
+			}
 		}
 	}
 }
