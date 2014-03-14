@@ -89,7 +89,6 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
  * @param grp This group is used for sliding window BE transactions.
  */
 M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp);
-M0_INTERNAL void m0_cm_sw_store_fini(struct m0_cm *cm);
 
 /**
  * Prepares sliding window persistent store for this copy machine.

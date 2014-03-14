@@ -252,12 +252,12 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				M0_LOG(M0_DEBUG, "trigger: prepare init wait");
 				break;
 			case TPH_PREPARE_DONE:
-				enum me_be_tx_state state = m0_be_tx_state(tx);
 				tx = &cm->cm_sw_update.swu_tx;
-				if (M0_IN(state, (M0_BTS_FAILED, M0_BTS_DONE))) {
+				if (M0_IN(m0_be_tx_state(tx), (M0_BTS_FAILED,
+							       M0_BTS_DONE))) {
 					rc = tx->t_sm.sm_rc;
 					m0_cm_prepare_sw_store_fini(cm);
-					if (state == M0_BTS_FAILED)
+					if (m0_be_tx_state(tx) == M0_BTS_FAILED)
 						goto fail;
 				}
 				if (m0_be_tx_state(tx) != M0_BTS_PREPARE &&
