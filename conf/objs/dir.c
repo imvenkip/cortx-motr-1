@@ -220,7 +220,6 @@ const struct m0_conf_obj_type M0_CONF_DIR_TYPE = {
 		.ft_id   = 'D',
 		.ft_name = "configuration directory"
 	},
-	.cot_id    = M0_CO_DIR,
 	.cot_ctor  = &dir_create,
 	.cot_magic = M0_CONF_DIR_MAGIC
 };

@@ -25,7 +25,7 @@
 #include "conf/db.h"
 #include "conf/onwire.h"     /* m0_confx_obj, m0_confx */
 #include "conf/onwire_xc.h"
-#include "conf/obj.h"        /* m0_conf_objtype */
+#include "conf/obj.h"
 #include "xcode/xcode.h"
 #include "db/db.h"
 #include "be/btree.h"

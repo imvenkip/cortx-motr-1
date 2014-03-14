@@ -130,7 +130,7 @@ struct m0_confx_sdev {
 } M0_XCA_RECORD;
 
 struct m0_confx_obj {
-	uint32_t xo_type; /* see m0_conf_objtype for values */
+	uint32_t xo_type; /* see m0_fid_type::ft_id for values */
 	union {
 		/**
 		 * Allows to access the header of concrete m0_confx_* objects.

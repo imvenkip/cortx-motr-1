@@ -181,7 +181,6 @@ const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 		.ft_id   = 'n',
 		.ft_name = "node"
 	},
-	.cot_id         = M0_CO_NODE,
 	.cot_ctor       = &node_create,
 	.cot_table_name = "node",
 	.cot_xt        = &m0_confx_node_xc,

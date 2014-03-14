@@ -63,8 +63,6 @@ struct m0_xcode_type;
  * <hr> <!------------------------------------------------------------>
  * @section conf-fspec-obj-enum Enumerations
  *
- * - m0_conf_objtype --- numeric tag that corresponds to a type of
- *   concrete configuration objects.
  * - m0_conf_status --- readiness of object's configuration data.
  *
  * @subsection conf-fspec-obj-enum-status Configuration Object Status
@@ -122,18 +120,6 @@ struct m0_xcode_type;
  *
  * @{
  */
-
-/** Type of configuration object. */
-enum m0_conf_objtype {
-	M0_CO_DIR,        /* 0 */
-	M0_CO_PROFILE,    /* 1 */
-	M0_CO_FILESYSTEM, /* 2 */
-	M0_CO_SERVICE,    /* 3 */
-	M0_CO_NODE,       /* 4 */
-	M0_CO_NIC,        /* 5 */
-	M0_CO_SDEV,       /* 6 */
-	M0_CO_NR
-};
 
 /**
  * Status of configuration object.
@@ -232,7 +218,6 @@ struct m0_conf_obj {
 
 struct m0_conf_obj_type {
 	const struct m0_fid_type    cot_ftype;
-	enum m0_conf_objtype        cot_id;
 	struct m0_conf_obj       *(*cot_ctor)(void);
 	const char                 *cot_table_name;
 	uint64_t                    cot_magic;

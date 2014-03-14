@@ -133,7 +133,6 @@ const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 		.ft_id   = 'p',
 		.ft_name = "configuration profile"
 	},
-	.cot_id         = M0_CO_PROFILE,
 	.cot_ctor       = &profile_create,
 	.cot_table_name = "profile",
 	.cot_xt         = &m0_confx_profile_xc,
