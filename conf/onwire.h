@@ -132,6 +132,9 @@ struct m0_confx_sdev {
 struct m0_confx_obj {
 	uint32_t xo_type; /* see m0_conf_objtype for values */
 	union {
+		/**
+		 * Allows to access the header of concrete m0_confx_* objects.
+		 */
 		struct m0_confx_header     u_header;
 		/*
 		 * Note that there is no such thing as `m0_confx_dir'.
