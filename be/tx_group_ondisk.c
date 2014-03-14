@@ -161,7 +161,7 @@ M0_INTERNAL void m0_be_group_ondisk_reserved(struct m0_be_group_ondisk *go,
 	*tx_nr = 0;
 	M0_SET0(reserved);
 	M0_BE_TX_GROUP_TX_FORALL(group, tx) {
-		m0_be_reg_area_prepared(&tx->t_reg_area, &tx_prepared);
+		m0_be_reg_area_prepared(m0_be_tx__reg_area(tx), &tx_prepared);
 		m0_be_tx_credit_add(reserved, &tx_prepared);
 		++*tx_nr;
 	} M0_BE_TX_GROUP_TX_ENDFOR;
