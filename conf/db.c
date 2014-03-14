@@ -109,9 +109,11 @@ static int confdb_table_init(struct m0_be_seg *seg, struct m0_be_btree **btree,
 	int rc;
 
 	M0_ENTRY();
+
 	M0_BE_ALLOC_PTR_SYNC(*btree, seg, tx);
 	m0_be_btree_init(*btree, seg, &confdb_ops);
 	M0_BE_OP_SYNC(op, m0_be_btree_create(*btree, tx, &op));
+
 	rc = m0_be_seg_dict_insert(seg, tx, btree_name, *btree);
 	if (rc == 0 && M0_FI_ENABLED("ut_confdb_create_failure"))
 		rc = -EINVAL;
