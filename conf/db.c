@@ -36,6 +36,7 @@
 #include "lib/misc.h"        /* M0_SET0 */
 
 static int confdb_objs_count(struct m0_be_btree *btree, size_t *result);
+static void confdb_table_fini(struct m0_be_seg *seg);
 
 /* ------------------------------------------------------------------
  * xcoding: m0_confx_obj <--> raw buffer
