@@ -470,7 +470,7 @@ static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
 		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_PREPARE,
-					  M0_CMS_FINI)
+					  M0_CMS_READY, M0_CMS_FINI)
 	},
 	[M0_CMS_PREPARE] = {
 		.sd_flags	= 0,
@@ -762,13 +762,17 @@ M0_INTERNAL int m0_cm_prepare_sw_store_commit(struct m0_cm *cm)
 	return rc;
 }
 
+M0_INTERNAL void m0_cm_prepare_sw_store_fini(struct m0_cm *cm)
+{
+	m0_cm_sw_store_fini(cm);
+}
+
 M0_INTERNAL int m0_cm_prepare_done(struct m0_cm *cm)
 {
 	int             rc;
 	struct m0_cm_sw sw;
 
 	m0_cm_lock(cm);
-	m0_cm_sw_store_fini(cm);
 	rc = m0_cm_sw_store_load(cm, &sw);
 	if (rc == 0)
 		cm->cm_last_saved_sw_hi = sw.sw_lo;
@@ -794,7 +798,7 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(cm->cm_type != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(m0_cm_state_get(cm) == M0_CMS_PREPARE);
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_PREPARE)));
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm->cm_ready_fops_recvd = 0;

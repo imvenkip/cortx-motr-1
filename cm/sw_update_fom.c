@@ -232,13 +232,15 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 					     &tx->tx_betx_cred);
         }
 
-        if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE) {
+        if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE)
                 m0_dtx_open(tx);
-                return M0_FSO_AGAIN;
-        } else if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
+	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_FAILED)
+		M0_RETURN(tx->tx_betx.t_sm.sm_rc);
+        if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
                 m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
                 return M0_FSO_WAIT;
-        }
+        } else
+		m0_dtx_opened(tx);
 
 	M0_BE_FREE_PTR_SYNC(sw, seg, &tx->tx_betx);
 	m0_be_seg_dict_delete(seg, &tx->tx_betx, cm_sw_name);
@@ -305,6 +307,7 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 {
 	struct m0_fom *fom = &cm->cm_sw_update.swu_fom;
 
+	cm->cm_sw_update.swu_is_complete = false;
 	m0_fom_init(fom, &cm_sw_update_fom_type, &cm_sw_update_fom_ops, NULL,
 		    NULL, cm->cm_service.rs_reqh, cm->cm_service.rs_type);
 	m0_fom_queue(fom, cm->cm_service.rs_reqh);

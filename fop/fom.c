@@ -1123,8 +1123,9 @@ void m0_fom_fini(struct m0_fom *fom)
 				M0_FOM_ADDB_CTX_VEC(fom));
 		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
 				M0_FOM_ADDB_CTX_VEC(fom));
-		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
 	}
+	if (fom->fo_sm_state_stats.asc_data != NULL)
+		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
 	if (fom->fo_sm_phase_stats.asc_data != NULL) {
 		m0_free(fom->fo_sm_phase_stats.asc_data);
 		m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);

@@ -138,18 +138,19 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp)
 	char                   cm_sw_name[80];
 	int                    rc;
 
+	M0_SET0(tx);
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
 	if (rc == 0)
 		return rc;
 
-	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(sw, seg, &cred);
 	m0_be_seg_dict_insert_credit(seg, cm_sw_name, &cred);
 	m0_be_tx_prep(tx, &cred);
 	m0_be_tx_open(tx);
-	return 0;
+	M0_ASSERT(tx->t_sm.sm_rc == 0);
+	return rc;
 }
 
 M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm)

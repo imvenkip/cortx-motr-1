@@ -18,7 +18,7 @@ sns_repair_test()
 	local N=3
 	local K=3
 	local P=9
-	local stride=20
+	local stride=32
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
@@ -34,26 +34,27 @@ sns_repair_test()
 		return 1
 	}
 
-	dd if=/dev/urandom bs=$unit_size count=50 \
-	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
-		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
-	}
 
-	dd if=/dev/urandom bs=$unit_size count=50 \
-	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
-		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
-	}
+#	dd if=/dev/urandom bs=$unit_size count=50 \
+#	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+#		echo "Failed: dd failed.."
+#		unmount_and_clean &>> $MERO_TEST_LOGFILE
+#		return 1
+#	}
+#
+#	dd if=/dev/urandom bs=$unit_size count=50 \
+#	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+#		echo "Failed: dd failed.."
+#		unmount_and_clean &>> $MERO_TEST_LOGFILE
+#		return 1
+#	}
 
 	for ((i=1; i < ${#EP[*]}; i++)) ; do
 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
 	done
 
 ####### Set Failure device
-	pool_mach_set_failure $fail_device1 $fail_device2
+	pool_mach_set_failure $fail_device1
 	if [ $? -ne "0" ]
 	then
 		return $?
@@ -66,12 +67,30 @@ sns_repair_test()
 	fi
 ####### Query device state
 
-	pool_mach_query $fail_device1 $fail_device2
+	pool_mach_query $fail_device1
 	if [ $? -ne "0" ]
 	then
 		return $?
 	fi
 
+	pool_mach_set_failure $fail_device2
+	if [ $? -ne "0" ]
+	then
+		return $?
+	fi
+
+	sns_repair
+	if [ $? -ne "0" ]
+	then
+		return $?
+	fi
+####### Query device state
+
+	pool_mach_query $fail_device2
+	if [ $? -ne "0" ]
+	then
+		return $?
+	fi
 	pool_mach_set_failure $fail_device3
 	if [ $? -ne "0" ]
 	then

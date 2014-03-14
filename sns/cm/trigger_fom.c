@@ -82,7 +82,7 @@ enum trigger_phases {
 static struct m0_sm_state_descr trigger_phases[] = {
 	[TPH_PREPARE_INIT] = {
 		.sd_name      = "Initialise local sw store",
-		.sd_allowed   = M0_BITS(TPH_PREPARE_WAIT, TPH_FINI)
+		.sd_allowed   = M0_BITS(TPH_PREPARE_WAIT, TPH_READY, TPH_FINI)
 	},
 	[TPH_PREPARE_WAIT] = {
 		.sd_name      = "Wait till sw store is initialised",
@@ -221,9 +221,12 @@ static int trigger_fom_tick(struct m0_fom *fom)
 				if (rc != 0)
 					goto fail;
 				rc = m0_cm_prepare_sw_store_init(cm, grp);
-				if (rc != 0)
+				if (rc != 0 && rc != -ENOENT)
 					goto fail;
-				m0_fom_phase_set(fom, TPH_PREPARE_WAIT);
+				if (rc == -ENOENT)
+					m0_fom_phase_set(fom, TPH_PREPARE_WAIT);
+				else
+					m0_fom_phase_set(fom, TPH_PREPARE_DONE);
 				rc = M0_FSO_AGAIN;
 				M0_LOG(M0_DEBUG, "got trigger: prepare init");
 				break;
@@ -233,37 +236,46 @@ static int trigger_fom_tick(struct m0_fom *fom)
 					rc = tx->t_sm.sm_rc;
 					goto fail;
 				}
-				else if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
+				if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
 					m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
 							&fom->fo_cb);
 					rc = M0_FSO_WAIT;
 					break;
-				} else {
+				}
+				if (m0_be_tx_state(tx) == M0_BTS_ACTIVE){
 					rc = m0_cm_prepare_sw_store_commit(cm);
 					if (rc != 0)
 						goto fail;
+					m0_fom_phase_set(fom, TPH_PREPARE_DONE);
+					rc = M0_FSO_AGAIN;
 				}
-				m0_fom_phase_set(fom, TPH_PREPARE_DONE);
-				rc = M0_FSO_AGAIN;
 				M0_LOG(M0_DEBUG, "trigger: prepare init wait");
 				break;
 			case TPH_PREPARE_DONE:
+				enum me_be_tx_state state = m0_be_tx_state(tx);
 				tx = &cm->cm_sw_update.swu_tx;
-				if (m0_be_tx_state(tx) == M0_BTS_DONE) {
-					rc = m0_cm_prepare_done(cm);
-					if (rc != 0)
+				if (M0_IN(state, (M0_BTS_FAILED, M0_BTS_DONE))) {
+					rc = tx->t_sm.sm_rc;
+					m0_cm_prepare_sw_store_fini(cm);
+					if (state == M0_BTS_FAILED)
 						goto fail;
-					m0_mutex_lock(&cm->cm_wait_mutex);
-					m0_fom_wait_on(fom, &cm->cm_ready_wait,
-							&fom->fo_cb);
-					m0_mutex_unlock(&cm->cm_wait_mutex);
-					m0_fom_phase_set(fom, TPH_READY);
+				}
+				if (m0_be_tx_state(tx) != M0_BTS_PREPARE &&
+				    m0_be_tx_state(tx) != M0_BTS_DONE) {
+					m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
+						       &fom->fo_cb);
 					rc = M0_FSO_WAIT;
 					break;
 				}
 
-				m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
-					       &fom->fo_cb);
+				rc = m0_cm_prepare_done(cm);
+				if (rc != 0)
+					goto fail;
+				m0_mutex_lock(&cm->cm_wait_mutex);
+				m0_fom_wait_on(fom, &cm->cm_ready_wait,
+						&fom->fo_cb);
+				m0_mutex_unlock(&cm->cm_wait_mutex);
+				m0_fom_phase_set(fom, TPH_READY);
 
 				rc = M0_FSO_WAIT;
 				M0_LOG(M0_DEBUG, "trigger: prepare done");
