@@ -478,9 +478,9 @@ M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
 		*dest = m0_xcode_cursor_top(&dit)->s_obj;
 	}
 
-	M0_POST(ergo(result == 0, m0_xcode_cmp(&dit.xcu_stack[0].s_obj, &sit.xcu_stack[0].s_obj) == 0));
+	M0_POST(ergo(result == 0, m0_xcode_cmp(&dit.xcu_stack[0].s_obj,
+					       &sit.xcu_stack[0].s_obj) == 0));
 	return result;
-
 }
 
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
