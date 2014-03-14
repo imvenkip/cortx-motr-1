@@ -109,18 +109,6 @@ M0_INTERNAL void m0_be_log_commit(struct m0_be_log *log,
 	m0_be_io_launch(&group->tg_od.go_io_log_cblock, op);
 }
 
-/*
-M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
-				   struct m0_be_group_ondisk *group)
-{
-	struct m0_be_tx_credit reserved;
-	size_t		       tx_nr;
-
-	m0_be_group_ondisk_reserved(&group->gr_od, group, &reserved, &tx_nr);
-	m0_be_log_store_discard(&log->lg_store, reserved.tx_reg_size);
-}
-*/
-
 M0_INTERNAL void m0_be_log_discard(struct m0_be_log *log,
 				   struct m0_be_tx_credit *reserved)
 {
