@@ -27,29 +27,6 @@ static bool mounted_as(const struct m0_conf_obj *obj,
 	return m0_conf_obj_type(obj) == type;
 }
 
-M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj)
-{
-	const struct m0_conf_obj      *parent = obj->co_parent;
-	const struct m0_conf_obj_type *otype = m0_conf_obj_type(obj);
-	const struct m0_conf_obj_type *actual =
-		parent == NULL ? NULL : m0_conf_obj_type(parent);
-
-	M0_PRE(otype != actual);
-
-	return M0_IN(otype, (&M0_CONF_PROFILE_TYPE, &M0_CONF_NODE_TYPE)) ?
-		parent == NULL :
-		parent != NULL &&
-		parent->co_status == M0_CS_READY &&
-		(otype == &M0_CONF_DIR_TYPE) == M0_IN(actual,
-						      (&M0_CONF_FILESYSTEM_TYPE,
-						       &M0_CONF_NODE_TYPE,
-						       &M0_CONF_SDEV_TYPE)) &&
-		ergo(actual == &M0_CONF_DIR_TYPE,
-		     /* Parent is a directory. Ensure that it may
-		      * contain objects of given type. */
-		     M0_CONF_CAST(parent, m0_conf_dir)->cd_item_type == otype);
-}
-
 M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 			     const struct m0_conf_obj *child,
 			     const struct m0_conf_obj_type *child_type)

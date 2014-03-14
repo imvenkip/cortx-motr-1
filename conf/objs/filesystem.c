@@ -29,8 +29,8 @@ static bool filesystem_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_FILESYSTEM_TYPE);
 
-	return ergo(m0_conf_obj_is_stub(self_obj),
-		    _0C(self->cf_params == NULL));
+	return _0C(ergo(m0_conf_obj_is_stub(self_obj),
+			self->cf_params == NULL));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,

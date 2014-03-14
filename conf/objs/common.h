@@ -54,8 +54,6 @@ static bool name(const struct m0_conf_obj *obj)				\
 }									\
 struct __ ## abbrev ## _semicolon_catcher
 
-M0_INTERNAL bool parent_check(const struct m0_conf_obj *obj);
-
 M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
 			     const struct m0_conf_obj *child,
 			     const struct m0_conf_obj_type *child_type);
