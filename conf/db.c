@@ -103,18 +103,6 @@ static const struct m0_be_btree_kv_ops confdb_ops = {
 
 static const char btree_name[] = "conf";
 
-static void confdb_table_fini(struct m0_be_seg *seg)
-{
-	int                 rc;
-	struct m0_be_btree *btree;
-
-	M0_ENTRY();
-	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
-	if (rc == 0)
-		m0_be_btree_fini(btree);
-	M0_LEAVE();
-}
-
 static int confdb_table_init(struct m0_be_seg *seg, struct m0_be_btree **btree,
 			     struct m0_be_tx *tx)
 {
@@ -133,6 +121,18 @@ static int confdb_table_init(struct m0_be_seg *seg, struct m0_be_btree **btree,
 	}
 
 	M0_RETURN(rc);
+}
+
+static void confdb_table_fini(struct m0_be_seg *seg)
+{
+	int                 rc;
+	struct m0_be_btree *btree;
+
+	M0_ENTRY();
+	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
+	if (rc == 0)
+		m0_be_btree_fini(btree);
+	M0_LEAVE();
 }
 
 /* ------------------------------------------------------------------
