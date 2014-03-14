@@ -27,21 +27,6 @@ static bool mounted_as(const struct m0_conf_obj *obj,
 	return m0_conf_obj_type(obj) == type;
 }
 
-M0_INTERNAL bool child_check(const struct m0_conf_obj *obj,
-			     const struct m0_conf_obj *child,
-			     const struct m0_conf_obj_type *child_type)
-{
-	/* Profile is a topmost object, it cannot be a child. */
-	M0_ASSERT(child == NULL ||
-		  m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
-
-	return ergo(obj->co_status == M0_CS_READY,
-		    _0C(mounted_as(child, child_type)) &&
-		    _0C(child->co_parent ==
-			(m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE ?
-			 NULL : obj)));
-}
-
 M0_INTERNAL void
 child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
