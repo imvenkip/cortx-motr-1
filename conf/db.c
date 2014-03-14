@@ -54,9 +54,8 @@ static void confx_to_xcode_obj(struct m0_confx_obj *xobj,
 }
 
 /* Note: m0_xcode_ctx_init() doesn't allow `xobj' to be const. Sigh. */
-static void
-xcode_ctx_init(struct m0_xcode_ctx *ctx, struct m0_confx_obj *xobj,
-	       bool allocated)
+static void xcode_ctx_init(struct m0_xcode_ctx *ctx, struct m0_confx_obj *xobj,
+			   bool allocated)
 {
 	struct m0_xcode_obj obj;
 
