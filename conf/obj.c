@@ -337,7 +337,7 @@ void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 
 	M0_POST(m0_forall(i, ARRAY_SIZE(obj_types),
 	  ergo(obj_types[i] != NULL,
-	       obj_types[i]->cot_magic == otype->cot_magic) == (i == id)));
+	       (obj_types[i]->cot_magic == otype->cot_magic) == (i == id))));
 }
 
 void m0_conf_obj_type_unregister(const struct m0_conf_obj_type *otype)
