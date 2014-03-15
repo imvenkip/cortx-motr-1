@@ -32,7 +32,7 @@ static bool node_check(const void *bob)
 
 	return /* The notion of parent is not applicable to a node,
 		* since a node may host (be a child of) several services. */
-		self_obj->co_parent == NULL;
+		self_obj->co_parent == self_obj;
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_node, M0_CONF_NODE_MAGIC, node_check);
@@ -163,6 +163,7 @@ static struct m0_conf_obj *node_create(void)
 	m0_conf_node_bob_init(x);
 
 	ret = &x->cn_obj;
+	ret->co_parent = ret;
 	ret->co_ops = &node_ops;
 	return ret;
 }

@@ -28,9 +28,7 @@ child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 	M0_PRE(m0_conf_obj_type(child) != &M0_CONF_PROFILE_TYPE);
 	M0_ASSERT(child->co_cache == parent->co_cache);
 
-	if (m0_conf_obj_type(child) == &M0_CONF_NODE_TYPE)
-		M0_ASSERT(child->co_parent == NULL);
-	else
+	if (child->co_parent != child)
 		child->co_parent = parent;
 }
 

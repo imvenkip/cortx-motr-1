@@ -151,8 +151,8 @@ struct m0_conf_obj {
 	/**
 	 * Pointer to the parent object.
 	 *
-	 * The value is NULL for objects that may have several parents
-         * (e.g., m0_conf_node).
+	 * For objects that may have several parents (e.g., m0_conf_node) this
+         * points to the object itself.
 	 */
 	struct m0_conf_obj           *co_parent;
 
@@ -283,8 +283,9 @@ struct m0_conf_service {
 
 struct m0_conf_node {
 	/*
-	 * Note that ->cn_obj.co_parent == NULL: a node can host
-	 * several services, so there may be no single parent.
+	 * Note that a node can host several services, so there may be no single
+	 * parent. This is indicated by setting ->co_parent to point to the
+	 * object itself.
 	 */
 	struct m0_conf_obj  cn_obj;
 	struct m0_conf_dir *cn_nics;

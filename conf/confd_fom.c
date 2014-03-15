@@ -215,7 +215,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 	}
 
 	/* Handle final object. */
-	if (cur->co_parent != NULL &&
+	if (cur->co_parent != NULL && cur->co_parent != cur &&
 	    m0_conf_obj_type(cur->co_parent) == &M0_CONF_DIR_TYPE)
 		/* Include siblings into the resulting set. */
 		cur = cur->co_parent;
