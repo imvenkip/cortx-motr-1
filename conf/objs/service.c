@@ -41,6 +41,9 @@ M0_CONF__INVARIANT_DEFINE(service_invariant, m0_conf_service);
 
 const struct m0_fid M0_CONF_SERVICE_NODE_FID = M0_FID_TINIT('/', 0, 2);
 
+#define XCAST(xobj) ((struct m0_confx_service *)(&(xobj)->xo_u))
+M0_BASSERT(offsetof(struct m0_confx_service, xs_header) == 0);
+
 static int service_decode(struct m0_conf_obj *dest,
 			  const struct m0_confx_obj *src,
 			  struct m0_conf_cache *cache)
@@ -48,7 +51,7 @@ static int service_decode(struct m0_conf_obj *dest,
 	int                            rc;
 	struct m0_conf_obj            *child;
 	struct m0_conf_service        *d = M0_CONF_CAST(dest, m0_conf_service);
-	const struct m0_confx_service *s = &src->xo_u.u_service;
+	const struct m0_confx_service *s = XCAST(src);
 
 	d->cs_type = s->xs_type;
 
@@ -67,7 +70,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	int                      rc;
 	struct m0_conf_service  *s = M0_CONF_CAST(src, m0_conf_service);
-	struct m0_confx_service *d = &dest->xo_u.u_service;
+	struct m0_confx_service *d = XCAST(dest);
 
 	confx_encode(dest, src);
 	d->xs_type = s->cs_type;
@@ -83,7 +86,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool
 service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_service *xobj = &flat->xo_u.u_service;
+	const struct m0_confx_service *xobj = XCAST(flat);
 	const struct m0_conf_service  *obj = M0_CONF_CAST(cached,
 							  m0_conf_service);
 	return obj->cs_type == xobj->xs_type &&
@@ -146,5 +149,9 @@ const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_ctor       = &service_create,
 	.cot_table_name = "service",
 	.cot_xt         = &m0_confx_service_xc,
+	.cot_branch     = "u_service",
+	.cot_xc_init    = &m0_xc_m0_confx_service_struct_init,
 	.cot_magic      = M0_CONF_SERVICE_MAGIC
 };
+
+#undef XCAST

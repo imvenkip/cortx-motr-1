@@ -1228,7 +1228,7 @@ static int confc_cache_preload(struct m0_confc *confc, const char *local_conf)
 	rc = m0_confstr_parse(local_conf, &enc);
 	if (rc == 0) {
 		for (i = 0; i < enc->cx_nr && rc == 0; ++i)
-			rc = cached_obj_update(confc, &enc->cx_objs[i]);
+			rc = cached_obj_update(confc, M0_CONFX_AT(enc, i));
 		m0_confx_free(enc);
 	}
 	M0_RETURN(rc);
@@ -1253,7 +1253,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 
 	confc_lock(confc);
 	for (i = 0; i < resp->fr_data.cx_nr; ++i) {
-		flat = &resp->fr_data.cx_objs[i];
+		flat = M0_CONFX_AT(&resp->fr_data, i);
 
 		if (!m0_conf_fid_is_valid(m0_conf_objx_fid(flat))) {
 			M0_LOG(M0_ERROR, "Invalid m0_confx_obj received");

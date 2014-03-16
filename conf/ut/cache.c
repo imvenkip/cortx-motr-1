@@ -140,7 +140,7 @@ void test_obj_fill(void)
 
 	m0_mutex_lock(&g_lock);
 	for (i = 0; i < enc->cx_nr; ++i) {
-		struct m0_confx_obj *xobj = &enc->cx_objs[i];
+		struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
 
 		rc = m0_conf_obj_find(&g_cache, m0_conf_objx_fid(xobj), &obj) ?:
 			m0_conf_obj_fill(obj, xobj, &g_cache);

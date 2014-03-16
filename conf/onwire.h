@@ -130,31 +130,49 @@ struct m0_confx_sdev {
 } M0_XCA_RECORD;
 
 struct m0_confx_obj {
-	uint32_t xo_type; /* see m0_fid_type::ft_id for values */
+	uint64_t xo_type; /* see m0_fid_type::ft_id for values */
 	union {
 		/**
 		 * Allows to access the header of concrete m0_confx_* objects.
 		 */
 		struct m0_confx_header     u_header;
-		/*
-		 * Note that there is no such thing as `m0_confx_dir'.
-		 * One-to-many relations are represented by a list of
-		 * identifiers --- `arr_fid'.
-		 */
-		struct m0_confx_profile    u_profile    M0_XCA_TAG("0x70");
-		struct m0_confx_filesystem u_filesystem M0_XCA_TAG("0x66");
-		struct m0_confx_service    u_service    M0_XCA_TAG("0x73");
-		struct m0_confx_node       u_node       M0_XCA_TAG("0x6e");
-		struct m0_confx_nic        u_nic        M0_XCA_TAG("0x69");
-		struct m0_confx_sdev       u_sdev       M0_XCA_TAG("0x64");
 	} xo_u;
-} M0_XCA_UNION;
+};
+
+/**
+ * xcode type of the union above.
+ *
+ * This type is build dynamically, when new conf object types are
+ * registered. See m0_obj_type_register().
+ */
+M0_EXTERN struct m0_xcode_type *m0_confx_obj_xc;
+M0_INTERNAL void m0_xc_m0_confx_obj_struct_init(void);
+M0_INTERNAL void m0_xc_m0_confx_obj_struct_fini(void);
 
 /** Encoded configuration --- a sequence of m0_confx_objs. */
 struct m0_confx {
 	uint32_t             cx_nr;
-	struct m0_confx_obj *cx_objs;
+	/**
+	 * Objects in the configuration.
+	 *
+	 * @note Do not access this field directly, because actual in-memory
+	 * size of object is larger than sizeof(struct m0_confx_obj). Use
+	 * M0_CONFX_AT() instead.
+	 */
+	struct m0_confx_obj *cx__objs;
 } M0_XCA_SEQUENCE;
+
+#define M0_CONFX_AT(cx, idx)					\
+({								\
+	typeof(cx)   __cx  = (cx);				\
+	uint32_t     __idx = (idx);				\
+	M0_ASSERT(__idx <= __cx->cx_nr);			\
+	(typeof(&(cx)->cx__objs[0]))(((char *)__cx->cx__objs) +	\
+				    __idx * m0_confx_sizeof());	\
+})
+
+M0_INTERNAL size_t m0_confx_sizeof(void);
+
 
 /* ------------------------------------------------------------------
  * Configuration fops

@@ -22,6 +22,9 @@
 #include "conf/onwire_xc.h" /* m0_confx_nic_xc */
 #include "mero/magic.h"     /* M0_CONF_NIC_MAGIC */
 
+#define XCAST(xobj) ((struct m0_confx_nic *)(&(xobj)->xo_u))
+M0_BASSERT(offsetof(struct m0_confx_nic, xi_header) == 0);
+
 static bool nic_check(const void *bob)
 {
 	const struct m0_conf_nic *self = bob;
@@ -40,7 +43,7 @@ static int nic_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		      struct m0_conf_cache *cache M0_UNUSED)
 {
 	struct m0_conf_nic        *d = M0_CONF_CAST(dest, m0_conf_nic);
-	const struct m0_confx_nic *s = &src->xo_u.u_nic;
+	const struct m0_confx_nic *s = XCAST(src);
 
 	d->ni_iface      = s->xi_iface;
 	d->ni_mtu        = s->xi_mtu;
@@ -61,7 +64,7 @@ static int nic_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool
 nic_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_nic *xobj = &flat->xo_u.u_nic;
+	const struct m0_confx_nic *xobj = XCAST(flat);
 	const struct m0_conf_nic  *obj = M0_CONF_CAST(cached, m0_conf_nic);
 
 	return  obj->ni_iface      == xobj->xi_iface      &&
@@ -120,5 +123,9 @@ const struct m0_conf_obj_type M0_CONF_NIC_TYPE = {
 	.cot_ctor       = &nic_create,
 	.cot_table_name = "nic",
 	.cot_xt         = &m0_confx_nic_xc,
+	.cot_branch     = "u_nic",
+	.cot_xc_init    = &m0_xc_m0_confx_nic_struct_init,
 	.cot_magic      = M0_CONF_NIC_MAGIC
 };
+
+#undef XCAST

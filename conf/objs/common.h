@@ -28,14 +28,6 @@
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
 #include "lib/misc.h"     /* M0_IN */
 
-#define FLAT_OBJ(ptr, abbrev)                            \
-({                                                       \
-	const struct m0_confx_obj        *__ptr = (ptr); \
-	const struct m0_confx_ ## abbrev *__emb =        \
-		&__ptr->o_conf.u.u_ ## abbrev;           \
-	__emb;                                           \
-})
-
 #define M0_CONF__BOB_DEFINE(type, magic, check)                               \
 const struct m0_bob_type type ## _bob = {                                     \
 	.bt_name         = #type,                                             \

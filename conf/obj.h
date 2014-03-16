@@ -211,6 +211,12 @@ struct m0_conf_obj_type {
 	 * is not a constant (its address is).
 	 */
 	struct m0_xcode_type      **cot_xt;
+	/**
+	 * Name of the field in m0_confx_obj_xc union. This union xcode type is
+	 * dynamically built as new conf object types are registered.
+	 */
+	const char                 *cot_branch;
+	void                      (*cot_xc_init)(void);
 };
 
 void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype);
@@ -230,6 +236,9 @@ bool m0_conf_fid_is_valid(const struct m0_fid *fid);
  * @pre M0_IN(obj->co_status, (M0_CS_MISSING, M0_CS_LOADING, M0_CS_READY))
  */
 M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
+
+enum { M0_CONF_OBJ_TYPE_MAX = 256 };
+
 
 /* ------------------------------------------------------------------
  * Concrete configuration objects

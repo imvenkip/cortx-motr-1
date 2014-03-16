@@ -22,6 +22,9 @@
 #include "conf/onwire_xc.h" /* m0_confx_filesystem_xc */
 #include "mero/magic.h"     /* M0_CONF_FILESYSTEM_MAGIC */
 
+#define XCAST(xobj) ((struct m0_confx_filesystem *)(&(xobj)->xo_u))
+M0_BASSERT(offsetof(struct m0_confx_filesystem, xf_header) == 0);
+
 static bool filesystem_check(const void *bob)
 {
 	const struct m0_conf_filesystem *self = bob;
@@ -46,7 +49,7 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 {
 	int rc;
 	struct m0_conf_filesystem *d = M0_CONF_CAST(dest, m0_conf_filesystem);
-	const struct m0_confx_filesystem *s = &src->xo_u.u_filesystem;
+	const struct m0_confx_filesystem *s = XCAST(src);
 
 	d->cf_rootfid = s->xf_rootfid;
 	rc = strings_from_arrbuf(&d->cf_params, &s->xf_params);
@@ -69,7 +72,7 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	int                         rc;
 	struct m0_conf_filesystem  *s = M0_CONF_CAST(src, m0_conf_filesystem);
-	struct m0_confx_filesystem *d = &dest->xo_u.u_filesystem;
+	struct m0_confx_filesystem *d = XCAST(dest);
 
 	confx_encode(dest, src);
 	d->xf_rootfid = s->cf_rootfid;
@@ -87,7 +90,7 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 static bool filesystem_match(const struct m0_conf_obj *cached,
 			     const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_filesystem *xobj = &flat->xo_u.u_filesystem;
+	const struct m0_confx_filesystem *xobj = XCAST(flat);
 	const struct m0_conf_filesystem  *obj =
 		M0_CONF_CAST(cached, m0_conf_filesystem);
 
@@ -153,5 +156,9 @@ const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
 	.cot_ctor       = &filesystem_create,
 	.cot_table_name = "filesystem",
 	.cot_xt         = &m0_confx_filesystem_xc,
+	.cot_branch     = "u_filesystem",
+	.cot_xc_init    = &m0_xc_m0_confx_filesystem_struct_init,
 	.cot_magic      = M0_CONF_FILESYSTEM_MAGIC
 };
+
+#undef XCAST

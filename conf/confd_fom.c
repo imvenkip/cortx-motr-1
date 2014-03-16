@@ -133,7 +133,7 @@ static int conf_fetch_tick(struct m0_fom *fom)
 			    &confd->d_cache);
 	m0_mutex_unlock(&confd->d_lock);
 	if (rc != 0)
-		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx_objs == NULL);
+		M0_ASSERT(r->fr_data.cx_nr == 0 && r->fr_data.cx__objs == NULL);
 	r->fr_rc = rc;
 	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 	return M0_FSO_AGAIN;
@@ -162,7 +162,7 @@ _encode(size_t *n, struct m0_confx *enc, const struct m0_conf_obj *obj)
 	M0_PRE(m0_conf_obj_invariant(obj) && obj->co_status == M0_CS_READY);
 
 	M0_CNT_DEC(*n);
-	rc = obj->co_ops->coo_encode(&enc->cx_objs[enc->cx_nr], obj);
+	rc = obj->co_ops->coo_encode(M0_CONFX_AT(enc, enc->cx_nr), obj);
 	if (rc == 0)
 		++enc->cx_nr;
 	return rc;
@@ -245,6 +245,7 @@ static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 	struct m0_conf_obj *org;
 	int                 rc;
 	size_t              nr = 0;
+	char               *data;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
@@ -259,9 +260,10 @@ static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 	if (rc != 0 || nr == 0)
 		M0_RETURN(rc);
 
-	M0_ALLOC_ARR(dest->cx_objs, nr);
-	if (dest->cx_objs == NULL)
+	M0_ALLOC_ARR(data, nr * m0_confx_sizeof());
+	if (data == NULL)
 		M0_RETURN(-ENOMEM);
+	dest->cx__objs = (void *)data;
 
 	M0_LOG(M0_DEBUG, "Will encode %zu configuration object%s", nr,
 	       (char *)(nr > 1 ? "s" : ""));

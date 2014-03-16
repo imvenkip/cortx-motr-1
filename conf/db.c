@@ -38,9 +38,25 @@
 static int confdb_objs_count(struct m0_be_btree *btree, size_t *result);
 static void confdb_table_fini(struct m0_be_seg *seg);
 
-/* ------------------------------------------------------------------
- * xcoding: m0_confx_obj <--> raw buffer
- * ------------------------------------------------------------------ */
+struct __pack {
+	struct m0_xcode_type  _p_xt;
+	struct m0_xcode_field _p_field[M0_CONF_OBJ_TYPE_MAX];
+} conx_obj;
+
+M0_BASSERT(&conx_obj._p_xt.xct_child[0] == &conx_obj._p_field[0]);
+
+M0_INTERNAL struct m0_xcode_type *m0_confx_obj_xc = &conx_obj._p_xt;
+
+M0_INTERNAL void m0_xc_m0_confx_obj_struct_init(void)
+{}
+
+M0_INTERNAL void m0_xc_m0_confx_obj_struct_fini(void)
+{}
+
+M0_INTERNAL size_t m0_confx_sizeof(void)
+{
+	return m0_confx_obj_xc->xct_sizeof;
+}
 
 static void *
 _conf_xcode_alloc(struct m0_xcode_cursor *ctx M0_UNUSED, size_t nob)
@@ -87,7 +103,7 @@ static m0_bcount_t confdb_ksize(const void *key)
 
 static m0_bcount_t confdb_vsize(const void *val)
 {
-	return sizeof(struct m0_confx_obj);
+	return m0_confx_sizeof();
 }
 
 static const struct m0_be_btree_kv_ops confdb_ops = {
@@ -173,7 +189,7 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 	for (i = 0; i < conf->cx_nr; ++i) {
 		struct m0_confx_obj *obj;
 
-		obj = &conf->cx_objs[i];
+		obj = M0_CONFX_AT(conf, i);
 		rc = confx_obj_measure(obj);
 		if (rc < 0)
 			break;
@@ -244,13 +260,13 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		struct m0_buf        key;
 		struct m0_buf        val;
 
-		rc = confx_obj_dup(&obj, &conf->cx_objs[i], seg, tx);
+		rc = confx_obj_dup(&obj, M0_CONFX_AT(conf, i), seg, tx);
 		if (rc != 0)
 			break;
 		M0_ASSERT(obj != NULL);
 		/* discard const */
 		key = M0_FID_BUF((struct m0_fid *)m0_conf_objx_fid(obj));
-		val = M0_BUF_INIT(sizeof *obj, obj);
+		val = M0_BUF_INIT(m0_confx_sizeof(), obj);
 		rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_insert(btree, tx,
 							      &op, &key, &val),
 				       bo_u.u_btree.t_rc);
@@ -284,6 +300,7 @@ static int confdb_objs_count(struct m0_be_btree *btree, size_t *result)
 static struct m0_confx *confx_alloc(size_t nr_objs)
 {
 	struct m0_confx *ret;
+	void            *data;
 
 	M0_PRE(nr_objs > 0);
 
@@ -291,12 +308,12 @@ static struct m0_confx *confx_alloc(size_t nr_objs)
 	if (ret == NULL)
 		return NULL;
 
-	M0_ALLOC_ARR(ret->cx_objs, nr_objs);
-	if (ret->cx_objs == NULL) {
+	M0_ALLOC_ARR(data, nr_objs * m0_confx_sizeof());
+	if (data == NULL) {
 		m0_free(ret);
 		return NULL;
 	}
-
+	ret->cx__objs = data;
 	ret->cx_nr = nr_objs;
 	return ret;
 }
@@ -304,7 +321,7 @@ static struct m0_confx *confx_alloc(size_t nr_objs)
 static void confx_fill(struct m0_confx *dest, struct m0_be_btree *btree)
 {
 	struct m0_be_btree_cursor bcur;
-	size_t                    i; /* index in dest->cx_objs[] */
+	size_t                    i; /* index in dest->cx__objs[] */
 	int                       rc;
 
 	M0_ENTRY();
@@ -327,7 +344,7 @@ static void confx_fill(struct m0_confx *dest, struct m0_be_btree *btree)
 		 *
 		 * @todo also check that key (fid) matches m0_conf_objx_fid().
 		 */
-		dest->cx_objs[i] = *(struct m0_confx_obj *)val.b_addr;
+		memcpy(M0_CONFX_AT(dest, i), val.b_addr, val.b_nob);
 	}
 	m0_be_btree_cursor_fini(&bcur);
 	/** @todo handle iteration errors. */

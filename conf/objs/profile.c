@@ -26,6 +26,9 @@
 
 const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID = M0_FID_TINIT('/', 0, 1);
 
+#define XCAST(xobj) ((struct m0_confx_profile *)(&(xobj)->xo_u))
+M0_BASSERT(offsetof(struct m0_confx_profile, xp_header) == 0);
+
 static bool profile_check(const void *bob)
 {
 	const struct m0_conf_profile *self = bob;
@@ -49,7 +52,7 @@ static int profile_decode(struct m0_conf_obj *dest,
 	struct m0_conf_obj     *child;
 	struct m0_conf_profile *d = M0_CONF_CAST(dest, m0_conf_profile);
 
-	rc = m0_conf_obj_find(cache, &src->xo_u.u_profile.xp_filesystem, &child);
+	rc = m0_conf_obj_find(cache, &XCAST(src)->xp_filesystem, &child);
 	if (rc == 0) {
 		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
 		child_adopt(dest, child);
@@ -63,14 +66,14 @@ profile_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
 
 	confx_encode(dest, src);
-	dest->xo_u.u_profile.xp_filesystem = s->cp_filesystem->cf_obj.co_id;
+	XCAST(dest)->xp_filesystem = s->cp_filesystem->cf_obj.co_id;
 	return 0;
 }
 
 static bool
 profile_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_profile   *xobj = &flat->xo_u.u_profile;
+	const struct m0_confx_profile   *xobj = XCAST(flat);
 	const struct m0_conf_filesystem *child =
 		M0_CONF_CAST(cached, m0_conf_profile)->cp_filesystem;
 
@@ -131,5 +134,9 @@ const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 	.cot_ctor       = &profile_create,
 	.cot_table_name = "profile",
 	.cot_xt         = &m0_confx_profile_xc,
+	.cot_branch     = "u_profile",
+	.cot_xc_init    = &m0_xc_m0_confx_profile_struct_init,
 	.cot_magic      = M0_CONF_PROFILE_MAGIC
 };
+
+#undef XCAST

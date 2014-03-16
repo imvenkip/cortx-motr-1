@@ -18,8 +18,11 @@
  * Original creation date: 03-Feb-2012
  */
 
-#include "lib/misc.h"  /* M0_IN */
+#include "lib/misc.h"               /* M0_IN */
+#include "xcode/xcode.h"            /* m0_xcode_union_add, M0_CONF_TYPE_MAX */
 #include "conf/obj.h"
+#include "conf/onwire.h"            /* m0_confx_obj_xc */
+#include "conf/onwire_xc.h"         /* m0_confx_header_xc */
 
 /**
  * @page conf DLD of configuration caching
@@ -325,6 +328,11 @@ M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj)
 
 static const struct m0_conf_obj_type *obj_types[256];
 
+M0_BASSERT(M0_CONF_OBJ_TYPE_MAX <= ARRAY_SIZE(obj_types));
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 {
 	uint8_t id = otype->cot_ftype.ft_id;
@@ -335,6 +343,15 @@ void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 	m0_fid_type_register(&otype->cot_ftype);
 	obj_types[id] = otype;
 
+	if (otype->cot_xt != NULL) {
+		otype->cot_xc_init();
+		/* onwire representation must start with the header. */
+		M0_PRE((*otype->cot_xt)->xct_child[0].xf_type ==
+		       m0_confx_header_xc);
+
+		m0_xcode_union_add(m0_confx_obj_xc, otype->cot_branch,
+				   *otype->cot_xt, id);
+	}
 	M0_POST(m0_forall(i, ARRAY_SIZE(obj_types),
 	  ergo(obj_types[i] != NULL,
 	       (obj_types[i]->cot_magic == otype->cot_magic) == (i == id))));
@@ -385,6 +402,8 @@ bool m0_conf_fid_is_valid(const struct m0_fid *fid)
 
 M0_INTERNAL int m0_conf_obj_init(void)
 {
+	m0_xcode_union_init(m0_confx_obj_xc, "m0_confx_obj",
+			    "xo_type", M0_CONF_OBJ_TYPE_MAX);
 	m0_conf_obj_type_register(&M0_CONF_PROFILE_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_FILESYSTEM_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_SERVICE_TYPE);
@@ -392,6 +411,7 @@ M0_INTERNAL int m0_conf_obj_init(void)
 	m0_conf_obj_type_register(&M0_CONF_NIC_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_SDEV_TYPE);
 	m0_conf_obj_type_register(&M0_CONF_DIR_TYPE);
+	m0_xcode_union_close(m0_confx_obj_xc);
 	m0_fid_type_register(&M0_CONF_RELFID_TYPE);
 	return 0;
 }

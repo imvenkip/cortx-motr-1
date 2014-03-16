@@ -73,19 +73,21 @@ static const struct m0_fid fids[NR] = {
 	[SDEV0]      = M0_FID_TINIT('d', 1, 6),
 };
 
+#define XCAST(xobj, type) ((struct type *)(&(xobj)->xo_u))
+
 static void profile_check(const struct m0_confx_obj *xobj)
 {
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
 		     &M0_CONF_PROFILE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[PROFILE]));
 
-	M0_UT_ASSERT(m0_fid_eq(&xobj->xo_u.u_profile.xp_filesystem,
+	M0_UT_ASSERT(m0_fid_eq(&XCAST(xobj, m0_confx_profile)->xp_filesystem,
 			       &fids[FILESYSTEM]));
 }
 
 static void filesystem_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_filesystem *x = &xobj->xo_u.u_filesystem;
+	const struct m0_confx_filesystem *x = XCAST(xobj, m0_confx_filesystem);
 
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
 				      &M0_CONF_FILESYSTEM_TYPE);
@@ -106,7 +108,7 @@ static void filesystem_check(const struct m0_confx_obj *xobj)
 
 static void md_service_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_service *x = &xobj->xo_u.u_service;
+	const struct m0_confx_service *x = XCAST(xobj, m0_confx_service);
 
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
 		     &M0_CONF_SERVICE_TYPE);
@@ -120,7 +122,7 @@ static void md_service_check(const struct m0_confx_obj *xobj)
 
 static void io_service_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_service *x = &xobj->xo_u.u_service;
+	const struct m0_confx_service *x = XCAST(xobj, m0_confx_service);
 
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) == &M0_CONF_SERVICE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj), &fids[IOS]));
@@ -135,7 +137,7 @@ static void io_service_check(const struct m0_confx_obj *xobj)
 
 static void node_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_node *x = &xobj->xo_u.u_node;
+	const struct m0_confx_node *x = XCAST(xobj, m0_confx_node);
 
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
 		     &M0_CONF_NODE_TYPE);
@@ -156,7 +158,7 @@ static void node_check(const struct m0_confx_obj *xobj)
 
 static void nic_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_nic *x = &xobj->xo_u.u_nic;
+	const struct m0_confx_nic *x = XCAST(xobj, m0_confx_nic);
 
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
 		     &M0_CONF_NIC_TYPE);
@@ -171,7 +173,7 @@ static void nic_check(const struct m0_confx_obj *xobj)
 
 static void sdev_check(const struct m0_confx_obj *xobj)
 {
-	const struct m0_confx_sdev *x = &xobj->xo_u.u_sdev;
+	const struct m0_confx_sdev *x = XCAST(xobj, m0_confx_sdev);
 
 	M0_UT_ASSERT(m0_conf_fid_type(m0_conf_objx_fid(xobj)) ==
 		     &M0_CONF_SDEV_TYPE);
@@ -298,7 +300,7 @@ void test_confdb(void)
 	 * @dec can be re-ordered w.r.t. to @enc.
 	 */
 	for (hit = 0, i = 0; i < dec->cx_nr; ++i) {
-		struct m0_confx_obj *o = &dec->cx_objs[i];
+		struct m0_confx_obj *o = M0_CONFX_AT(dec, i);
 
 		for (j = 0; j < ARRAY_SIZE(tests); ++j) {
 			if (m0_fid_eq(m0_conf_objx_fid(o), tests[j].fid)) {
