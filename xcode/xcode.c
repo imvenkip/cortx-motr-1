@@ -23,6 +23,7 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/arith.h"                          /* m0_align, max_check */
 #include "be/op.h"
 #include "be/alloc.h"
 #include "xcode/xcode.h"
@@ -86,6 +87,17 @@ M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 			_0C(i == 0 || offset +
 			    xt->xct_child[prev].xf_type->xct_sizeof <=
 			    f->xf_offset) &&
+			/* field names are unique */
+			m0_forall(j, xt->xct_nr,
+				  !strcmp(f->xf_name,
+					  xt->xct_child[j].xf_name) ==
+				  (i == j)) &&
+			/* union tags are unique. */
+			_0C(ergo(xt->xct_aggr == M0_XA_UNION && i > 0,
+			     m0_forall(j, xt->xct_nr,
+				ergo(j > 0,
+				     (f->xf_tag == xt->xct_child[j].xf_tag) ==
+				     (i == j))))) &&
 			/* update the previous field offset: for UNION all
 			   branches follow the first field. */
 			_0C(ergo(i == 0 || xt->xct_aggr != M0_XA_UNION,
@@ -656,6 +668,73 @@ M0_INTERNAL void m0_xcode_bob_type_init(struct m0_bob_type *bt,
 M0_INTERNAL void *m0_xcode_ctx_top(const struct m0_xcode_ctx *ctx)
 {
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
+}
+
+void m0_xcode_union_init(struct m0_xcode_type *un, const char *name,
+			 const char *discriminator, size_t maxbranches)
+{
+	*un = (typeof(*un)) {
+		.xct_aggr  = M0_XA_UNION,
+		.xct_name  = name,
+		.xct_nr    = maxbranches + 1
+	};
+	/* Cannot put this in the initialiser above, because
+	   m0_xcode_type::xct_child[] is declared to have 0 elements. */
+	un->xct_child[0] = (struct m0_xcode_field) {
+		.xf_name = discriminator,
+		.xf_type = &M0_XT_U64
+	};
+}
+
+void m0_xcode_union_add(struct m0_xcode_type *un, const char *name,
+			const struct m0_xcode_type *xt, uint64_t tag)
+{
+	int                    i;
+	struct m0_xcode_field *f;
+
+	M0_PRE(un->xct_aggr == M0_XA_UNION);
+	M0_PRE(un->xct_child[0].xf_name != NULL);
+	M0_PRE(un->xct_child[0].xf_type != NULL);
+
+	for (i = 1; i < un->xct_nr; ++i) {
+		f = &un->xct_child[i];
+		if (f->xf_name == NULL)
+			break;
+	}
+	M0_ASSERT(i < un->xct_nr);
+	*f = (typeof(*f)) {
+		.xf_name   = name,
+		.xf_type   = xt,
+		.xf_tag    = tag,
+		.xf_offset = un->xct_child[0].xf_type->xct_sizeof
+	};
+}
+
+void m0_xcode_union_close(struct m0_xcode_type *un)
+{
+	int                    i;
+	struct m0_xcode_field *f;
+	size_t                 maxsize = 0;
+
+	M0_PRE(un->xct_aggr = M0_XA_UNION);
+
+	for (i = 1; i < un->xct_nr; ++i) {
+		f = &un->xct_child[i];
+		if (f->xf_name != NULL)
+			/*
+			 * If we ever maintain ->xct_alignof, it can be used to
+			 * calculate padding between the discriminator and union
+			 * branches.
+			 */
+			maxsize = max_check(maxsize, f->xf_type->xct_sizeof);
+		else
+			break;
+	}
+	M0_ASSERT(i < un->xct_nr);
+	un->xct_nr = i;
+	un->xct_sizeof = m0_align(un->xct_child[0].xf_type->xct_sizeof +
+				  maxsize, 16);
+	M0_POST(m0_xcode_type_invariant(un));
 }
 
 void m0_xc_u8_init(void)
