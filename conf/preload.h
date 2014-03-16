@@ -52,65 +52,6 @@ struct m0_confx;
  * The format of configuration string corresponds to the format of
  * string argument of m0_xcode_read() function.
  *
- * The acceptable TAGs are enumerated in struct m0_confx_u.
- *
- * The order of fields within an object descriptor should correspond
- * to their order in the corresponding m0_confx_{profile..sdev}
- * structure.
- *
- * Object relations are expressed via object ids.  Directory objects
- * (m0_conf_dir) are not included in a configuration string --- they
- * are created dynamically by a configuration module.
- *
- * E.g., the following configuration string
- *
-@verbatim
-[2:
- ((0, 1), {1| (0, 2)}),
- ((0, 2), {2|
-         ((11, 22),
-          [4: "pool_width=3", "nr_data_units=1", "nr_parity_units=1",
-              "unit_size=4096"],
-          [0])})]
-@endverbatim
- *
- * describes two m0_confx_objs:
- *
- * @code
- * struct m0_confx_obj a = {
- *         .o_id = { 0, 1 },
- *         .o_conf = {
- *                 .u_type = M0_CO_PROFILE,
- *                 .u.u_profile = {
- *                         .xp_filesystem = { 0, 2 }
- *                 }
- *         }
- * };
- *
- * struct m0_confx_obj b = {
- *         .o_id = { 0, 2 },
- *         .o_conf = {
- *                 .u_type = M0_CO_FILESYSTEM,
- *                 .u.u_filesystem = {
- *                         .xp_rootfid = {
- *                                 .f_container = 11,
- *                                 .f_key = 22
- *                         },
- *                         .xp_params = {
- *                                 .an_count = 4,
- *                                 .an_elems = {
- *                                         M0_BUF_INITS("pool_width=3"),
- *                                         M0_BUF_INITS("nr_data_units=1"),
- *                                         M0_BUF_INITS("nr_parity_units=1"),
- *                                         M0_BUF_INITS("unit_size=4096")
- *                                 }
- *                         },
- *                         .xp_services = { .ab_count = 0, .ab_elems = NULL }
- *                 }
- *         }
- * };
- * @endcode
- *
  * <!---------------------------------------------------------------->
  * @subsection conf-fspec-preload-string-examples Examples
  *
