@@ -1,4 +1,5 @@
 m0mero_objects += \
+                  conf/db.o \
                   conf/cache.o \
                   conf/confc.o \
                   conf/fop.o \
