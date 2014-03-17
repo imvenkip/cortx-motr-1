@@ -149,7 +149,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp)
 	m0_be_seg_dict_insert_credit(seg, cm_sw_name, &cred);
 	m0_be_tx_prep(tx, &cred);
 	m0_be_tx_open(tx);
-	M0_ASSERT(tx->t_sm.sm_rc == 0);
+	M0_POST(tx->t_sm.sm_rc == 0);
 	return rc;
 }
 
