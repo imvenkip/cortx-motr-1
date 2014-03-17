@@ -161,6 +161,7 @@
        PREPARE -> READY [label="Initialisation complete.Broadcast READY fop"]
        PREPARE -> FAIL [label="Sliding window initialisation error"]
        IDLE -> FAIL [label="Timed out or self destruct"]
+       IDLE -> READY [label="sns repair re-start, continue from existing sliding window"]
        READY -> ACTIVE [label="All READY fops received"]
        READY -> FAIL [label="Timed out waiting for READY fops"]
        ACTIVE -> FAIL [label="Operation failure"]

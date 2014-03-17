@@ -14,7 +14,7 @@ sns_repair_test()
 	local rc=0
 	local fail_device1=1
 	local fail_device2=3
-	local fail_device3=7
+	local fail_device3=9
 	local N=3
 	local K=3
 	local P=9
@@ -35,19 +35,19 @@ sns_repair_test()
 	}
 
 
-#	dd if=/dev/urandom bs=$unit_size count=50 \
-#	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
-#		echo "Failed: dd failed.."
-#		unmount_and_clean &>> $MERO_TEST_LOGFILE
-#		return 1
-#	}
-#
-#	dd if=/dev/urandom bs=$unit_size count=50 \
-#	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
-#		echo "Failed: dd failed.."
-#		unmount_and_clean &>> $MERO_TEST_LOGFILE
-#		return 1
-#	}
+	dd if=/dev/urandom bs=$unit_size count=50 \
+	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+		echo "Failed: dd failed.."
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return 1
+	}
+
+	dd if=/dev/urandom bs=$unit_size count=50 \
+	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+		echo "Failed: dd failed.."
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return 1
+	}
 
 	for ((i=1; i < ${#EP[*]}; i++)) ; do
 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
