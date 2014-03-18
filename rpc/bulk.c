@@ -131,7 +131,7 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 
 	rpcbulk_tlink_init(rbuf);
 	rbuf->bb_magic = M0_RPC_BULK_BUF_MAGIC;
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void buf_bulk_cb(const struct m0_net_buffer_event *evt)
@@ -325,7 +325,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_POST(rpc_bulk_invariant(rbulk));
 	m0_mutex_unlock(&rbulk->rb_mutex);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_bulk_buf_databuf_add);
 
@@ -422,7 +422,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 	M0_POST(rpc_bulk_invariant(rbulk));
 	m0_mutex_unlock(&rbulk->rb_mutex);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 cleanup:
 	RPC_ADDB_FUNCFAIL(rc, BULK_RPC_BULK_OP, &m0_rpc_addb_ctx);
 	M0_ASSERT(rc != 0);

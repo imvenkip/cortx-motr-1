@@ -230,7 +230,7 @@ static int confx_from_db(struct m0_confx_obj *dest, enum m0_conf_objtype type,
 	if (rc == 0)
 		dest->o_conf = *(struct m0_confx_u *)src->do_rec.b_addr;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -298,7 +298,7 @@ confdb_tables_init(struct m0_be_seg *seg, struct m0_be_btree *btrees[],
 		m0_confdb_destroy(seg, tx);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -376,7 +376,7 @@ M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
 		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
@@ -404,7 +404,7 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
 			return M0_ERR(rc);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
@@ -454,7 +454,7 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		m0_confdb_destroy(seg, tx);
 	}
 	m0_free(confx_objs);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* XXX FIXME: Other functions receive both `tables' and the number of tables.
@@ -482,7 +482,7 @@ confdb_objs_count(struct m0_be_btree *btrees[], size_t *result)
 		rc = 0;
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static struct m0_confx *confx_alloc(size_t nr_objs)
@@ -549,7 +549,7 @@ out:
 		confx_free(dest);
 		M0_SET0(dest);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
@@ -588,7 +588,7 @@ M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 		*out = NULL;
 	}
 out:
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

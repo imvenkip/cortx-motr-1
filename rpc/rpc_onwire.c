@@ -41,14 +41,14 @@ M0_INTERNAL int m0_rpc_item_header_encdec(struct m0_rpc_item_onwire_header *ioh,
 					  enum m0_xcode_what what)
 {
 	M0_ENTRY("item header: %p", ioh);
-	return M0_RCN(m0_xcode_encdec(&ITEM_HEAD_XCODE_OBJ(ioh), cur, what));
+	return M0_RC(m0_xcode_encdec(&ITEM_HEAD_XCODE_OBJ(ioh), cur, what));
 }
 
 static int slot_ref_encdec(struct m0_rpc_onwire_slot_ref *osr,
 			   struct m0_bufvec_cursor       *cur,
 			   enum m0_xcode_what             what)
 {
-	return M0_RCN(m0_xcode_encdec(&SLOT_REF_XCODE_OBJ(osr), cur, what));
+	return M0_RC(m0_xcode_encdec(&SLOT_REF_XCODE_OBJ(osr), cur, what));
 }
 
 
@@ -69,7 +69,7 @@ M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
 		if (rc != 0)
 			break;
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #undef SLOT_REF_XCODE_OBJ

@@ -1126,7 +1126,7 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 	}
 
 	*out = cob;
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
@@ -1353,7 +1353,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 	}
 
 	m0_be_btree_cursor_fini(&cursor);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 
@@ -1454,7 +1454,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
 out:
 	COB_FUNC_FAIL(CREATE, rc);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)

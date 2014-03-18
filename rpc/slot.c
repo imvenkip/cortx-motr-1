@@ -495,7 +495,7 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
 		misordered_item_received(slot, item);
 	}
 	M0_POST(m0_rpc_slot_invariant(slot));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void duplicate_item_received(struct m0_rpc_slot *slot,
@@ -887,7 +887,7 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	M0_ASSERT(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
 	rc = associate_session_and_slot(item, machine);
 	if (rc == 0)
-		return M0_RCN(m0_rpc_slot_item_received(item));
+		return M0_RC(m0_rpc_slot_item_received(item));
 
 	if (m0_rpc_item_is_conn_establish(item)) {
 		m0_rpc_item_dispatch(item);
@@ -904,7 +904,7 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	 * reference will be dropped in packet_received(), resulting
 	 * in the item getting deallocated.
 	 */
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)

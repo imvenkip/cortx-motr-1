@@ -504,7 +504,7 @@ static int balloc_group_write(struct m0_balloc            *bal,
 out:
 	m0_be_tx_fini(&tx);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
@@ -525,7 +525,7 @@ static int balloc_groups_write(struct m0_balloc *bal, struct m0_sm_group *grp)
 	for (i = 0; rc == 0 && i < sb->bsb_groupcount; i++)
 		rc = balloc_group_write(bal, i, grp);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -555,7 +555,7 @@ static int balloc_format(struct m0_balloc *bal,
 
 	rc = balloc_groups_write(bal, grp);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void balloc_gi_sync_credit(const struct m0_balloc *cb,
@@ -589,7 +589,7 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 
 	gi->bgi_state &= ~M0_BALLOC_GROUP_INFO_DIRTY;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 
@@ -668,7 +668,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		rc = balloc_format(bal, &req, grp);
 		if (rc != 0)
 			balloc_fini_internal(bal);
-		return M0_RCN(rc);
+		return M0_RC(rc);
 	}
 
 	if (bal->cb_sb.bsb_blocksize != 1 << bshift) {
@@ -701,7 +701,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 out:
 	if (rc != 0)
 		balloc_fini_internal(bal);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 enum m0_balloc_allocation_status {
@@ -756,7 +756,7 @@ static int balloc_init_ac(struct m0_balloc_allocation_context *bac,
 	M0_SET0(&bac->bac_best);
 	M0_SET0(&bac->bac_final);
 
-	return 0;
+	return M0_RC(0);
 }
 
 
@@ -926,7 +926,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	if (rc != 0)
 		m0_balloc_release_extents(grp);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #if 0
@@ -1165,7 +1165,7 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 	balloc_sb_sync(mero, tx);
 	rc = balloc_gi_sync(mero, tx, grp);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int balloc_free_db_update(struct m0_balloc *mero,
@@ -1349,7 +1349,7 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 	balloc_sb_sync(mero, tx);
 	rc = balloc_gi_sync(mero, tx, grp);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #if 0
@@ -1633,7 +1633,7 @@ static int balloc_wild_scan_group(struct m0_balloc_allocation_context *bac,
 	}
 
 	rc = balloc_check_limits(bac, grp, 1);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -1908,7 +1908,7 @@ int balloc_allocate_internal(struct m0_balloc *ctx,
 		}
 	}
 out:
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
@@ -2105,7 +2105,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 	rc = balloc_init_internal(mero, db, grp, bshift, container_size,
 				     blocks_per_group, res_groups);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void balloc_fini(struct m0_ad_balloc *ballroom)

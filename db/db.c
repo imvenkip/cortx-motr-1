@@ -337,7 +337,7 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 	m0_db_tx_commit(&tx_);
 
 
-        return M0_RCN(rc);
+        return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_table_fini(struct m0_table *table)
@@ -439,7 +439,7 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
                 m0_be_tx_fini(tx);
 	m0_sm_group_unlock(grp);
 
-        return M0_RCN(rc);
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)

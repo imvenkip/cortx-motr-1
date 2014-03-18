@@ -327,7 +327,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	default:
 		break;
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -476,7 +476,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		m0_rm_incoming_fini(in);
 	in->rin_want.cr_group_id = rfom->rf_in.ri_group_id;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -514,7 +514,7 @@ static int request_pre_process(struct m0_fom *fom,
 	 */
 	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
 			 FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
-	return M0_RCN(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT
+	return M0_RC(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT
 			: M0_FSO_AGAIN);
 }
 
@@ -574,7 +574,7 @@ static int request_fom_tick(struct m0_fom           *fom,
 			break;
 		}
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -632,7 +632,7 @@ static int cancel_process(struct m0_fom *fom)
 	reply_err_set(FRT_CANCEL, fom, rc);
 	rc = M0_FSO_AGAIN;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int cancel_fom_tick(struct m0_fom *fom)

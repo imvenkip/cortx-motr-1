@@ -1354,7 +1354,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 	if (layout != NULL)
 		m0_layout_put(layout); /* dual to m0_layout_find() */
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop_statfs_rep **rep)

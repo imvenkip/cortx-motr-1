@@ -124,7 +124,7 @@ out:
 		m0_free(fom);
 		*m = NULL;
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 const struct m0_fom_ops m0_rpc_fom_conn_establish_ops = {

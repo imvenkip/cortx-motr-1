@@ -90,7 +90,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 			item->ri_nr_sent_max = 1;
 	}
 	rc = m0_rpc__post_locked(item, NULL);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL uint64_t m0_rpc_id_generate(void)
@@ -130,7 +130,7 @@ M0_INTERNAL int m0_rpc_item_dispatch(struct m0_rpc_item *item)
 		 */
 		rc = m0_reqh_fop_handle(item->ri_rmachine->rm_reqh,
 					m0_rpc_item_to_fop(item));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

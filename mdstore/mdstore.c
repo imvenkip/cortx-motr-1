@@ -901,7 +901,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 	flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
 	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
 out:
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #define MDSTORE_PATH_MAX 1024

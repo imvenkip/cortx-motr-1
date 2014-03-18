@@ -194,7 +194,7 @@ wait:
 	M0_LOG(M0_DEBUG, "Now pump is idle. WAIT");
 out:
 	m0_cm_unlock(cm);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int cpp_wait(struct m0_cm_cp_pump *cp_pump)

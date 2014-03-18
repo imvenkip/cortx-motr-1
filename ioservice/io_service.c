@@ -659,7 +659,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh *reqh,
 		M0_LOG(M0_ERROR, "Ios could not connect to mds %s: rc = %d",
 				 srv_ep_addr, rc);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* Assumes that reqh->rh_rwlock is locked for writing. */
@@ -711,7 +711,7 @@ M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
 		M0_ASSERT(rc == 0);
 		rc = m0_ios_mds_conn_init(reqh, *out);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -879,7 +879,7 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	}
 
 	m0_fop_put(req);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int _rpc_post(struct m0_fop                *fop,
@@ -1117,7 +1117,7 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
 	M0_LOG(M0_DEBUG, "ios getlayout for %llu sent: rc %d",
 			 (unsigned long long)lid, rc);
 	m0_fop_put(req);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -428,7 +428,7 @@ static int confc_cache_create(struct m0_confc *confc,
 			rc = -ENODATA;
 		}
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
@@ -473,7 +473,7 @@ err:
 	m0_conf_cache_fini(&confc->cc_cache);
 	m0_mutex_fini(&confc->cc_lock);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
@@ -661,7 +661,7 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
 	if (rc == 0)
 		*result = m0_confc_ctx_result(&w->w_ctx);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -709,7 +709,7 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 	sm_waiter_fini(&w);
 
 	M0_POST(ergo(rc == 0, (*result)->co_status == M0_CS_READY));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
@@ -1151,7 +1151,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			M0_LEAVE("retval=M0_CS_MISSING");
 			return M0_CS_MISSING;
 		}
-		return M0_RCN(rc);
+		return M0_RC(rc);
 
 	case M0_CS_LOADING:
 		if (ctx->fc_mach.sm_state == S_FAILURE) {
@@ -1242,7 +1242,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 	M0_ASSERT(dest->co_status == (rc == 0 ? M0_CS_READY : M0_CS_MISSING));
 	m0_chan_broadcast(&dest->co_chan);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int
@@ -1251,7 +1251,7 @@ cached_obj_update(struct m0_confc *confc, const struct m0_confx_obj *flat)
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY("confc=%p", confc);
-	return M0_RCN(m0_conf_obj_find(&confc->cc_cache, flat->o_conf.u_type,
+	return M0_RC(m0_conf_obj_find(&confc->cc_cache, flat->o_conf.u_type,
 				   &flat->o_id, &obj) ?:
 		  object_enrich(obj, flat, confc));
 }
@@ -1272,7 +1272,7 @@ static int confc_cache_preload(struct m0_confc *confc, const char *local_conf)
 			rc = cached_obj_update(confc, &enc->cx_objs[i]);
 		m0_confx_free(enc);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1307,7 +1307,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 			break;
 	}
 	confc_unlock(confc);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------

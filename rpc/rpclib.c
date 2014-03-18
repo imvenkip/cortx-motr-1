@@ -124,7 +124,7 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 	if (rc != 0)
 		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
@@ -199,7 +199,7 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	m0_reqh_fini(&cctx->rcx_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	return M0_RCN(rc0 ?: rc1);
+	return M0_RC(rc0 ?: rc1);
 }
 
 int m0_rpc_client_call(struct m0_fop                *fop,
@@ -224,7 +224,7 @@ int m0_rpc_client_call(struct m0_fop                *fop,
 		m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
 		m0_rpc_item_generic_reply_rc(item->ri_reply);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_client_call);
 

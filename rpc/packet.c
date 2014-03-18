@@ -204,7 +204,7 @@ M0_INTERNAL int m0_rpc_packet_encode(struct m0_rpc_packet *p,
 	m0_bufvec_cursor_init(&cur, bufvec);
 	M0_ASSERT(M0_IS_8ALIGNED(m0_bufvec_cursor_addr(&cur)));
 
-	return M0_RCN(m0_rpc_packet_encode_using_cursor(p, &cur));
+	return M0_RC(m0_rpc_packet_encode_using_cursor(p, &cur));
 }
 
 M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
@@ -230,7 +230,7 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 	end_of_bufvec = m0_bufvec_cursor_align(cursor, 8);
 	M0_ASSERT(end_of_bufvec ||
 		  M0_IS_8ALIGNED(m0_bufvec_cursor_addr(cursor)));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
@@ -239,7 +239,7 @@ static int packet_header_encdec(struct m0_rpc_packet_onwire_header *ph,
 
 {
 	M0_ENTRY();
-	return M0_RCN(m0_xcode_encdec(&PACKHD_XCODE_OBJ(ph), cursor, what));
+	return M0_RC(m0_xcode_encdec(&PACKHD_XCODE_OBJ(ph), cursor, what));
 }
 
 static int item_encode(struct m0_rpc_item       *item,
@@ -277,7 +277,7 @@ static int item_encode(struct m0_rpc_item       *item,
 	if (rc == 0)
 		rc = item->ri_type->rit_ops->rito_encode(item->ri_type,
 							 item, cursor);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_rpc_packet_decode(struct m0_rpc_packet *p,
@@ -300,7 +300,7 @@ M0_INTERNAL int m0_rpc_packet_decode(struct m0_rpc_packet *p,
 	rc = m0_rpc_packet_decode_using_cursor(p, &cursor, len);
 	M0_ASSERT(ergo(rc == 0, m0_bufvec_cursor_move(&cursor, 0) ||
 		       M0_IS_8ALIGNED(m0_bufvec_cursor_addr(&cursor))));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,

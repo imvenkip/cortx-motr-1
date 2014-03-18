@@ -427,7 +427,7 @@ static int m0t1fs_layout_init(void)
 			m0_layout_domain_fini(&m0t1fs_globals.g_layout_dom);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void m0t1fs_layout_fini(void)
@@ -453,12 +453,12 @@ static int m0t1fs_service_start(const char *sname)
 		return M0_ERR(-EINVAL);
 	rc = m0_reqh_service_allocate(&service, stype, NULL);
 	if (rc != 0)
-		return M0_RCN(rc);
+		return M0_RC(rc);
 	m0_uuid_generate(&uuid);
 	m0_reqh_service_init(service, reqh, &uuid);
 	rc = m0_reqh_service_start(service);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int m0t1fs_reqh_services_start(void)
@@ -471,10 +471,10 @@ static int m0t1fs_reqh_services_start(void)
 	rc = m0t1fs_service_start("rmservice");
 	if (rc)
 		goto err;
-	return M0_RCN(rc);
+	return M0_RC(rc);
 err:
 	m0t1fs_reqh_services_stop();
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void m0t1fs_reqh_services_stop(void)

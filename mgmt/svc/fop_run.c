@@ -297,7 +297,7 @@ static int mgmt_fop_run_fo_tick(struct m0_fom *fom)
 		M0_ASSERT(m0_fom_phase(fom) < MGMT_FOP_RUN_PHASE_FINI);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void mgmt_fop_run_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

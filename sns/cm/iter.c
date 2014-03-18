@@ -196,7 +196,7 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
                 M0_CNT_INC(it->si_total_files);
         }
 
-        return M0_RCN(rc);
+        return M0_RC(rc);
 }
 
 /**
@@ -237,7 +237,7 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 
 	rc = m0_cob_ns_iter_next(&it->si_cns_it, fid_next);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void get_attr_callback(void *arg, int rc)
@@ -335,7 +335,7 @@ static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
                 it->si_fc.sfc_sa.sa_unit = 0;
                 iter_phase_set(it, ITPH_GROUP_NEXT);
         }
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /** Fetches the layout for GOB. */
@@ -423,7 +423,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	}
 
 	iter_phase_set(it, ITPH_FID_ATTR_FETCH);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
@@ -559,7 +559,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 
 	iter_phase_set(it, ITPH_FID_NEXT);
 out:
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int iter_group_next_wait(struct m0_sns_cm_iter *it)
@@ -695,7 +695,7 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -744,7 +744,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -796,7 +796,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 	if (rc == -ENODATA)
 		iter_phase_set(it, ITPH_IDLE);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {

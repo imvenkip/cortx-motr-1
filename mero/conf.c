@@ -163,7 +163,7 @@ confc_fini:
 	m0_confc_fini(&confc);
 end:
 	ast_thread_fini();
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -230,7 +230,7 @@ net_dom:
 	m0_net_domain_fini(&client_net_dom);
 xprt:
 	m0_net_xprt_fini(xprt);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,

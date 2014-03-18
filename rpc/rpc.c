@@ -65,7 +65,7 @@ M0_INTERNAL int m0_rpc_init(void)
 		m0_rpc_service_register() ?:
 		m0_rpc_session_module_init();
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_rpc_fini(void)
@@ -103,7 +103,7 @@ M0_INTERNAL int m0_rpc_post_slot(struct m0_rpc_item *item,
 	rc = m0_rpc__post_locked(item, slot);
 	m0_rpc_machine_unlock(machine);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_post);
 
@@ -134,7 +134,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
 	} else {
 		m0_rpc_slot_item_add(slot, item);
 	}
-	return M0_RCN(item->ri_error);
+	return M0_RC(item->ri_error);
 }
 
 int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
@@ -226,7 +226,7 @@ M0_INTERNAL int m0_rpc_reply_timedwait(struct m0_clink *clink,
 	M0_PRE(m0_clink_is_armed(clink));
 
 	rc = m0_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_reply_timedwait);
 
@@ -268,7 +268,7 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 	rc = m0_net_buffer_pool_provision(app_pool, bufs_nr);
 	m0_net_buffer_pool_unlock(app_pool);
 
-	return M0_RCN(rc == bufs_nr ? 0 : -ENOMEM);
+	return M0_RC(rc == bufs_nr ? 0 : -ENOMEM);
 }
 M0_EXPORTED(m0_rpc_net_buffer_pool_setup);
 

@@ -427,7 +427,7 @@ M0_INTERNAL int m0_be_engine_start(struct m0_be_engine *en)
 
 	M0_POST(be_engine_invariant(en));
 	be_engine_unlock(en);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)

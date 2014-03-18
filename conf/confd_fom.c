@@ -234,7 +234,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 		rc = apply(n, enc, cur);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int confx_populate(struct m0_confx *dest, const struct objid *origin,
@@ -257,7 +257,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 
 	rc = confd_path_walk(org, path, _count, &nr, NULL);
 	if (rc != 0 || nr == 0)
-		return M0_RCN(rc);
+		return M0_RC(rc);
 
 	M0_ALLOC_ARR(dest->cx_objs, nr);
 	if (dest->cx_objs == NULL)
@@ -270,7 +270,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 		M0_ASSERT(nr == 0);
 	else
 		m0_confx_free(dest);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /** @} confd_dlspec */

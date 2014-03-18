@@ -76,7 +76,7 @@ M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 		m0_free(sns_cm);
 
 	M0_LOG(M0_DEBUG, "sns_cm: %p service: %p", sns_cm, *service);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void addb_init()

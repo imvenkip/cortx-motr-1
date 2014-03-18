@@ -582,7 +582,7 @@ M0_INTERNAL int m0_mgmt_node_get(struct m0_mgmt_conf      *conf,
 			     conf->mc_private->mcp_genders, nodename);
 	if (rc < 0)
 		m0_mgmt_node_free(node);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_mgmt_node_free(struct m0_mgmt_node_conf *node)
@@ -619,7 +619,7 @@ M0_INTERNAL int m0_mgmt_client_get(struct m0_mgmt_conf        *conf,
 			     conf->mc_private->mcp_nodename);
 	if (rc < 0)
 		m0_mgmt_client_free(clnt);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_mgmt_client_free(struct m0_mgmt_client_conf *clnt)
@@ -729,7 +729,7 @@ M0_INTERNAL int m0_mgmt_conf_init(struct m0_mgmt_conf *conf,
 		return M0_ERR(-ENOMEM);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_mgmt_conf_fini(struct m0_mgmt_conf *conf)

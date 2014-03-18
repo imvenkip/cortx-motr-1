@@ -149,7 +149,7 @@ m0_be_log_reserve_tx(struct m0_be_log *log, struct m0_be_tx_credit *prepared)
 	rc = m0_be_log_store_reserve(&log->lg_store, io_tx.tc_reg_size);
 
 	M0_POST(m0_be_log__invariant(log));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /** @} end of be group */

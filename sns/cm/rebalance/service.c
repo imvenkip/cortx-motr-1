@@ -99,7 +99,7 @@ static int rebalance_svc_allocate(struct m0_reqh_service **service,
 	rc = m0_sns_cm_svc_allocate(service, stype, rctx, &rebalance_svc_ops,
 				    &sns_rebalance_ops);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int rebalance_svc_start(struct m0_reqh_service *service)

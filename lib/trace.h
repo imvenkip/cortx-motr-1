@@ -170,12 +170,6 @@
 #define M0_LEAVE(...) M0_LOG(M0_CALL, "< " __VA_ARGS__)
 
 #define M0_RC(rc) ({                                     \
-	typeof(rc) __rc = (rc);                          \
-	M0_LOG(M0_CALL, "< rc=%d", __rc);                \
-	__rc;                                            \
-})
-
-#define M0_RCN(rc) ({                                     \
 	typeof(rc) __rc = (rc);                           \
 	(__rc == 0) ? M0_LOG(M0_CALL, "< rc=%d", __rc) :  \
 		M0_LOG(M0_NOTICE, "< rc=%d", __rc);       \

@@ -502,7 +502,7 @@ static int file_read(const char *path, char *dest, size_t sz)
 		dest[n] = '\0';
 
 	fclose(f);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
@@ -529,7 +529,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 	}
 
 	m0_confx_free(enc);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /** Allocates and initialises confd service. */
@@ -569,7 +569,7 @@ static int confd_allocate(struct m0_reqh_service **service,
 		m0_mutex_fini(&confd->d_lock);
 		m0_free(confd);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /** Finalises and deallocates confd service. */

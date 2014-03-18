@@ -169,7 +169,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	m0_thread_join(&machine->rm_worker);
 err:
 	__rpc_machine_fini(machine);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_machine_init);
 
@@ -416,7 +416,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 		m0_net_tm_fini(tm);
 		return M0_ERRV(rc, "TM start");
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void rpc_tm_cleanup(struct m0_rpc_machine *machine)

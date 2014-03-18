@@ -54,7 +54,7 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out)
 		m0_confx_free(*out);
 		*out = NULL;
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

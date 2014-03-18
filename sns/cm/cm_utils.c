@@ -159,7 +159,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 		m0_cob_put(cob);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,

@@ -305,7 +305,7 @@ M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
 		reqh->rh_fol = NULL;
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_reqh_fol_destroy(struct m0_reqh *reqh)
@@ -440,7 +440,7 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
 			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 #else
 	return 0;
 #endif
@@ -575,7 +575,7 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
         }
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-	return M0_RCN(result);
+	return M0_RC(result);
 }
 
 M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)

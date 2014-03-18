@@ -89,7 +89,7 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 	else
 		m0_fop_put(fop);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 const struct m0_fop_type_ops m0_rpc_fop_noop_ops = {

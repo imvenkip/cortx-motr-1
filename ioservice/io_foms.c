@@ -1190,7 +1190,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_LOG(M0_DEBUG, "FOM created : operation=%s, desc=%d.",
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
 
-        return M0_RCN(rc);
+        return M0_RC(rc);
 }
 
 /**
@@ -1230,7 +1230,7 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 			rc = -EIO;
 		}
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int io_prepare(struct m0_fom *fom)

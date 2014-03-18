@@ -389,7 +389,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
 
 	m0_be_tx_fini(&tx);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
@@ -459,7 +459,7 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
 		m0_stob_get(adom->ad_bstore);
 		m0_be_emap_init(&adom->ad_adata, be_seg);
 	}
-	return M0_RCN(result);
+	return M0_RC(result);
 }
 
 static int ad_incache_init(struct m0_stob_domain *dom,
@@ -1300,7 +1300,7 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_op_fini(&it.ec_op);
 	m0_be_emap_close(&it);
 
-	return M0_RCN(result ?: rc);
+	return M0_RC(result ?: rc);
 }
 
 static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
@@ -1495,7 +1495,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		}
 	}
 	ad_wext_fini(&head);
-	return M0_RCN(result);
+	return M0_RC(result);
 }
 
 static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
@@ -1617,7 +1617,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 	}
 	if (!wentout)
 		ad_stob_io_release(aio);
-	return M0_RCN(result);
+	return M0_RC(result);
 }
 
 /**
@@ -1688,7 +1688,7 @@ M0_INTERNAL int m0_ad_stobs_init(void)
 	int rc;
 	M0_ENTRY();
 	rc = M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_init);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_ad_stobs_fini(void)

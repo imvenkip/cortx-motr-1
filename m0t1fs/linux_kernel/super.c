@@ -147,7 +147,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	}
 	m0t1fs_fs_unlock(csb);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* ----------------------------------------------------------------
@@ -360,7 +360,7 @@ out:
 	 * If there is an error, the allocated memory will be freed by
 	 * mount_opts_fini(), called by m0t1fs_fill_super().
 	 */
-	return M0_RCN(rc ?: mount_opts_validate(dest));
+	return M0_RC(rc ?: mount_opts_validate(dest));
 }
 
 /* ----------------------------------------------------------------
@@ -460,7 +460,7 @@ end:
 		       " nr_parity_units (K) = %u, unit_size = %u",
 		       dest->fs_pool_width, dest->fs_nr_data_units,
 		       dest->fs_nr_parity_units, dest->fs_unit_size);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* ----------------------------------------------------------------
@@ -519,7 +519,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 		m0t1fs_service_context_fini(ctx);
 		m0_free(ctx);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void disconnect_from_services(struct m0t1fs_sb *csb)
@@ -835,7 +835,7 @@ static int m0t1fs_layout_build(const uint64_t         layout_id,
 	if (rc == 0)
 		*layout = m0_pdl_to_layout(pdlayout);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
@@ -863,7 +863,7 @@ static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
 	if (rc == 0)
 		*lay_enum = &lle->lle_base;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int
@@ -901,7 +901,7 @@ try_again:
 		if (rc != -ENOENT) {
 			M0_LOG(M0_ERROR, "lid %lld layout lookup error: %d",
 					 (unsigned long long)unique_lid, rc);
-			return M0_RCN(rc);
+			return M0_RC(rc);
 		}
 		M0_LOG(M0_DEBUG, "lid %llu not found. It's a unique lid",
 				  (unsigned long long)unique_lid);
@@ -939,7 +939,7 @@ try_again:
 			m0_layout_enum_fini(layout_enum);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
@@ -1037,7 +1037,7 @@ err_disconnect:
 
 end:
 	m0_confc_fini(&confc);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
@@ -1139,7 +1139,7 @@ sb_fini:
 end:
 	sb->s_fs_info = NULL;
 	M0_ASSERT(rc != 0);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /** Implementation of file_system_type::get_sb() interface. */
@@ -1149,7 +1149,7 @@ M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype, int flags,
 {
 	M0_ENTRY("flags: 0x%x, devname: %s, data: %s", flags, devname,
 		 (char *)data);
-	return M0_RCN(get_sb_nodev(fstype, flags, data, m0t1fs_fill_super,
+	return M0_RC(get_sb_nodev(fstype, flags, data, m0t1fs_fill_super,
 				   mnt));
 }
 

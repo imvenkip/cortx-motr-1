@@ -315,7 +315,7 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
 	if (xprt == NULL)
 		return M0_ERR(-EINVAL);
 
-	return M0_RCN(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE
+	return M0_RC(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE
 			: 0);
 }
 
@@ -869,7 +869,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 
 	if (rc != 0)
 		m0_free(adstob);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -910,7 +910,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 		rc = cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, db, NULL);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1035,7 +1035,7 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 out:
 	m0_free(objpath);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1082,7 +1082,7 @@ static int __service_init(const char *name, struct m0_reqh_context *rctx,
 		m0_reqh_service_fini(service);
 
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 
 }
 
@@ -1125,7 +1125,7 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		m0_reqh_services_terminate(&rctx->rc_reqh);
 #endif
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1175,7 +1175,7 @@ static int cs_services_init(struct m0_mero *cctx)
 #endif
 	} m0_tl_endfor;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1239,7 +1239,7 @@ static int cs_net_domains_init(struct m0_mero *cctx)
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1323,7 +1323,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 	m0_linux_stob_setup(sdom, false);
 	rc = m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
 				   &addb_stob->cas_stob);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1458,7 +1458,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	}
 
 	rctx->rc_state = RC_INITIALISED;
-	return M0_RCN(rc);
+	return M0_RC(rc);
 
 cleanup_addb_stob:
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
@@ -1849,7 +1849,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 				 "Use -w to provide a valid integer");
 		return M0_ERR(-EINVAL);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -2124,7 +2124,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			);
 #undef _RETURN_EINVAL_UNLESS
 
-	return M0_RCN(result ?: rc);
+	return M0_RC(result ?: rc);
 }
 
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
@@ -2179,7 +2179,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	}
 	if (rc == 0 && use_genders)
 		rc = -EINVAL;
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)

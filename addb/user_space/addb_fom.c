@@ -131,7 +131,7 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Phase not defined");
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void addb_fom_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

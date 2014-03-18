@@ -186,7 +186,7 @@ static int addb_mon_rpc_client_connect(struct m0_rpc_conn    *conn,
 				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)

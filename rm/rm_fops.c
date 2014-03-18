@@ -118,7 +118,7 @@ static int rm_out_create(struct rm_out           **out,
 	}
 	*out = outreq;
 out:
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -201,7 +201,7 @@ static int borrow_fop_fill(struct rm_out         *outreq,
 			M0_COOKIE_NULL;
 		bfop->bo_group_id = credit->cr_group_id;
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int revoke_fop_fill(struct rm_out         *outreq,
@@ -223,7 +223,7 @@ static int revoke_fop_fill(struct rm_out         *outreq,
 	if (rc == 0)
 		rfop->fr_loan.lo_cookie = loan->rl_cookie;
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int cancel_fop_fill(struct rm_out     *outreq,
@@ -245,7 +245,7 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 		cfop->fc_loan.lo_cookie = loan->rl_cookie;
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void outgoing_queue(enum m0_rm_outgoing_type  otype,
@@ -335,7 +335,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	outgoing_queue(otype, credit->cr_owner, outreq, in, other);
 
 out:
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)

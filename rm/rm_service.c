@@ -114,7 +114,7 @@ M0_INTERNAL int m0_rms_register(void)
 	 * manager.
 	 */
 
-	return M0_RCN(m0_rm_fop_init());
+	return M0_RC(m0_rm_fop_init());
 }
 
 /**
@@ -321,7 +321,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 		*out = owner;
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 
 err_credit:
 	m0_rm_credit_fini(ow_cr);

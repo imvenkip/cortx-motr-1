@@ -57,7 +57,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 		.bh_addr = addr,
 		.bh_size = size,
 	};
-	return M0_RCN(m0_be_io_single(seg->bs_stob, SIO_WRITE,
+	return M0_RC(m0_be_io_single(seg->bs_stob, SIO_WRITE,
 				      &hdr, M0_BE_SEG_HEADER_OFFSET,
 				      sizeof hdr));
 }
@@ -139,7 +139,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	} else {
 		munmap(hdr.bh_addr, hdr.bh_size);
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)

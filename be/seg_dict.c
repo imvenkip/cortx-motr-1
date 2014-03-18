@@ -149,7 +149,7 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 	struct m0_buf       val  = M0_BUF_INIT(dict_vsize(*out), out);
 
 	M0_ENTRY("seg=%p name='%s'", seg, name);
-	return M0_RCN(M0_BE_OP_SYNC_RET(op,
+	return M0_RC(M0_BE_OP_SYNC_RET(op,
 				        m0_be_btree_lookup(tree, &op, &key,
 							   &val),
 				        bo_u.u_btree.t_rc));
@@ -173,7 +173,7 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 		bo_u.u_btree.t_rc);
 
 	M0_POST(m0_be_seg__invariant(seg));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
@@ -191,7 +191,7 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
 			       bo_u.u_btree.t_rc);
 
 	M0_POST(m0_be_seg__invariant(seg));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_seg_dict_create(struct m0_be_seg *seg,
@@ -251,7 +251,7 @@ M0_INTERNAL int m0_be_seg_dict_create_grp(struct m0_be_seg   *seg,
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 /* XXX
@@ -294,7 +294,7 @@ M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg   *seg,
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 #undef BUF_INIT_STR

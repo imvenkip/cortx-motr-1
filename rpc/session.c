@@ -296,7 +296,7 @@ M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
 
 	m0_rpc_machine_unlock(machine);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_session_init);
 
@@ -334,7 +334,7 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
 		__session_fini(session);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 static int slot_table_alloc_and_init(struct m0_rpc_session *session)
@@ -462,7 +462,7 @@ M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	m0_rpc_machine_unlock(machine);
 
-	return M0_RCN(rc ?: session->s_sm.sm_rc);
+	return M0_RC(rc ?: session->s_sm.sm_rc);
 }
 M0_EXPORTED(m0_rpc_session_timedwait);
 
@@ -482,7 +482,7 @@ M0_INTERNAL int m0_rpc_session_create(struct m0_rpc_session *session,
 			m0_rpc_session_fini(session);
 	}
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
@@ -501,7 +501,7 @@ M0_INTERNAL int m0_rpc_session_establish_sync(struct m0_rpc_session *session,
 
 	M0_ASSERT(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
 						 M0_RPC_SESSION_FAILED)));
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_session_establish_sync);
 
@@ -575,7 +575,7 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	m0_rpc_machine_unlock(machine);
 
 	/* see m0_rpc_session_establish_reply_received() */
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_session_establish);
 
@@ -690,7 +690,7 @@ int m0_rpc_session_destroy(struct m0_rpc_session *session,
 	rc = m0_rpc_session_terminate_sync(session, abs_timeout);
 	m0_rpc_session_fini(session);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_session_destroy);
 
@@ -719,7 +719,7 @@ M0_INTERNAL int m0_rpc_session_terminate_sync(struct m0_rpc_session *session,
 				(M0_RPC_SESSION_TERMINATED,
 				 M0_RPC_SESSION_FAILED)));
 	}
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_session_terminate_sync);
 
@@ -781,7 +781,7 @@ out_unlock:
 
 	m0_rpc_machine_unlock(machine);
 
-	return M0_RCN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_session_terminate);
 /*
