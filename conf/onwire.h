@@ -143,7 +143,7 @@ struct m0_confx_obj {
  * xcode type of the union above.
  *
  * This type is build dynamically, when new conf object types are
- * registered. See m0_obj_type_register().
+ * registered. See m0_conf_obj_type_register().
  */
 M0_EXTERN struct m0_xcode_type *m0_confx_obj_xc;
 M0_INTERNAL void m0_xc_m0_confx_obj_struct_init(void);
@@ -162,6 +162,7 @@ struct m0_confx {
 	struct m0_confx_obj *cx__objs;
 } M0_XCA_SEQUENCE;
 
+/** Returns specific element of m0_confx::cx__objs. */
 #define M0_CONFX_AT(cx, idx)					\
 ({								\
 	typeof(cx)   __cx  = (cx);				\
@@ -172,7 +173,6 @@ struct m0_confx {
 })
 
 M0_INTERNAL size_t m0_confx_sizeof(void);
-
 
 /* ------------------------------------------------------------------
  * Configuration fops
