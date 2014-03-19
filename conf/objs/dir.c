@@ -29,17 +29,7 @@ M0_TL_DESCR_DEFINE(m0_conf_dir, "m0_conf_dir::cd_items", M0_INTERNAL,
 		   M0_CONF_OBJ_MAGIC, M0_CONF_DIR_MAGIC);
 M0_TL_DEFINE(m0_conf_dir, M0_INTERNAL, struct m0_conf_obj);
 
-static bool dir_check(const void *bob)
-{
-	const struct m0_conf_dir *self = bob;
-	const struct m0_conf_obj *self_obj = &self->cd_obj;
-
-	M0_PRE(m0_conf_obj_type(self_obj) == &M0_CONF_DIR_TYPE);
-
-	return true;
-}
-
-M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, dir_check);
+M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, NULL);
 
 M0_CONF__INVARIANT_DEFINE(dir_invariant, m0_conf_dir);
 
