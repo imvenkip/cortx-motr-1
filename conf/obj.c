@@ -330,9 +330,6 @@ static const struct m0_conf_obj_type *obj_types[256];
 
 M0_BASSERT(M0_CONF_OBJ_TYPE_MAX <= ARRAY_SIZE(obj_types));
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
-#include "lib/trace.h"
-
 void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 {
 	uint8_t id = otype->cot_ftype.ft_id;
