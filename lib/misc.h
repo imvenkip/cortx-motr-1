@@ -103,7 +103,7 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
  *
  * @see m0_forall()
  */
-#define m0_exists(var, nr, expr) !m0_forall(var, (nr), !(expr))
+#define m0_exists(var, nr, ...) !m0_forall(var, (nr), !(__VA_ARGS__))
 
 /**
    Evaluates to true iff x is present in set.
