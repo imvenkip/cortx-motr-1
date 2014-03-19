@@ -262,7 +262,7 @@ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
 
 	FOP_ALLOC_PTR(sum_rec, FOM_RATE_MON_INIT, &m0_fop_addb_ctx);
 	if (sum_rec == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,

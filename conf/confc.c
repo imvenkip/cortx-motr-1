@@ -411,7 +411,7 @@ static int confc_cache_create(struct m0_confc *confc,
 	rc = m0_conf_obj_find(&confc->cc_cache, M0_CO_PROFILE, profile,
 			      &confc->cc_root);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	confc->cc_root->co_mounted = true;
 
 	if (not_empty(local_conf)) {
@@ -686,7 +686,7 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 
 	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
 
 	ast_state_set(&ctx->fc_ast, S_CHECK);
@@ -754,7 +754,7 @@ path_copy(const struct m0_buf *src, struct m0_buf *dest, size_t dest_sz)
 err:
 	for (; i > 0; --i)
 		m0_buf_free(&dest[i - 1]);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -1133,7 +1133,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 
 	case M0_CS_MISSING:
 		if (!confc_is_online(ctx->fc_confc))
-			return M0_ERR(-ENOENT);
+			return M0_RC(-ENOENT);
 		obj->co_status = M0_CS_LOADING;
 
 		if (obj->co_type == M0_CO_DIR) {
@@ -1231,7 +1231,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 
 	if (!m0_conf_obj_match(dest, src))
 		/* XXX TODO: ADDB */
-		return M0_ERRV(-EPROTO,
+		return M0_ERR(-EPROTO,
 			       "Conflict of incoming and cached configuration "
 			       "data");
 
@@ -1463,7 +1463,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 
 	p = confc_fop_alloc(ctx);
 	if (p == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	/* Setup rpc item. */
 	item = &p->cf_fop.f_item;

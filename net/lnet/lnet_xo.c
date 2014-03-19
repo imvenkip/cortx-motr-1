@@ -110,7 +110,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	M0_PRE(xprt == &m0_net_lnet_xprt);
 	NLX_ALLOC_ALIGNED_PTR_ADDB(dp, &dom->nd_addb_ctx, C_DOM_INIT);
 	if (dp == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	dom->nd_xprt_private = dp;
 	dp->xd_dom = dom;
 

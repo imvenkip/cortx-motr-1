@@ -173,7 +173,7 @@ M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 
 	if (M0_FI_ENABLED("fake_error")) {
 		m0_mutex_unlock(&dom->nd_mutex);
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 	}
 	m0_mutex_init(&tm->ntm_mutex);
 	tm->ntm_callback_counter = 0;

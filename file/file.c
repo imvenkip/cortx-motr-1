@@ -303,7 +303,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
 
 	RM_ALLOC_PTR(fl, FILE_ALLOC, &m0_rm_addb_ctx);
 	if (fl == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	rc = file_lock_encdec(fl, cur, M0_XCODE_DECODE);
 	if (rc == 0) {

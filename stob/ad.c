@@ -1238,7 +1238,7 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_op_fini(&it.ec_op);
 
 	if (result != 0)
-		return M0_ERR(result);
+		return M0_RC(result);
 	/*
 	 * Insert a new segment into extent map, overwriting parts of the map.
 	 *
@@ -1577,7 +1577,7 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 
 	result = ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
 	if (result != 0)
-		return M0_ERR(result);
+		return M0_RC(result);
 
 	back->si_opcode	      = io->si_opcode;
 	back->si_flags	      = io->si_flags;

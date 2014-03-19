@@ -292,11 +292,11 @@ M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
 
 	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
 	if (rc == 0)
-		return M0_ERR(-EEXIST);
+		return M0_RC(-EEXIST);
 
 	reqh->rh_fol = fol_alloc(seg);
 	if (reqh->rh_fol == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0_fol_init(reqh->rh_fol, seg);
 	rc = fol_create(reqh->rh_fol, seg);
@@ -341,7 +341,7 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 #ifndef __KERNEL__
 	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
 	if (rc != 0)
-		return M0_ERRV(rc, "fol not found in BE");
+		return M0_ERR(rc, "fol not found in BE");
 	m0_fol_init(reqh->rh_fol, seg);
 	reqh->rh_fol->f_reqh = reqh;
 #endif
@@ -432,7 +432,7 @@ m0_reqh_addb_mc_config(struct m0_reqh *reqh, struct m0_stob *stob)
 					    addb_stob_size,
 					    addb_stob_timeout);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
 	if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
@@ -560,7 +560,7 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	if (rc != 0) {
 		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, &reqh->rh_addb_ctx);
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
-		return M0_ERR(-ESHUTDOWN);
+		return M0_RC(-ESHUTDOWN);
 	}
 
 	M0_ASSERT(fop->f_type != NULL);

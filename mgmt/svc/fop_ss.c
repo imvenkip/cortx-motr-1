@@ -288,7 +288,7 @@ static int mgmt_fop_ss_fto_create(struct m0_fop *fop, struct m0_fom **out,
  failed:
 	if (ssfom != NULL)
 		m0_free(ssfom);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 static const struct m0_fom_type_ops mgmt_fop_ss_fom_type_ops = {

@@ -264,7 +264,7 @@ M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain        *dom,
 	rc = M0_THREAD_INIT(&rt->rt_worker, struct m0_rm_resource_type *, NULL,
 			    &credit_processor, rt, "RM RT agent");
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	m0_mutex_lock(&dom->rd_lock);
 	dom->rd_types[rt->rt_id] = rt;
@@ -1088,7 +1088,7 @@ static int remote_find(struct m0_rm_remote          **rem,
 			rc = m0_rm_reverse_session_get(rem_in, other);
 			if (rc != 0) {
 				m0_free(other);
-				return M0_ERR(-ENOMEM);
+				return M0_RC(-ENOMEM);
 			}
 			other->rem_state = REM_SERVICE_LOCATED;
 			other->rem_cookie = *cookie;
@@ -1845,7 +1845,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 				rc = pin_add(in, r, M0_RPF_PROTECT);
 			rc = rc ?: credit_diff(rest, r);
 			if (rc != 0)
-				return M0_ERR(rc);
+				return M0_RC(rc);
 		} m0_tl_endfor;
 	}
 
@@ -1864,14 +1864,14 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (!group_mismatch) {
 				rc = credit_diff(rest, r);
 				if (rc != 0)
-					return M0_ERR(rc);
+					return M0_RC(rc);
 				if (!credit_is_empty(rest))
 					continue;
 				else
 					break;
 			} else if (group_mismatch &&
 				   !(in->rin_flags & RIF_MAY_REVOKE))
-				return M0_ERR(-EREMOTE);
+				return M0_RC(-EREMOTE);
 
 			loan = bob_of(r, struct m0_rm_loan, rl_credit,
 				      &loan_bob);
@@ -1893,7 +1893,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (rc != 0) {
 				RM_ADDB_FUNCFAIL(rc, REVOKE_FAIL,
 						 &m0_rm_addb_ctx);
-				return M0_ERR(rc);
+				return M0_RC(rc);
 			}
 		} m0_tl_endfor;
 	}
@@ -1907,7 +1907,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (!(in->rin_flags & RIF_MAY_BORROW)) {
 				RM_ADDB_FUNCFAIL(-EREMOTE, BORROW_FAIL,
 						 &m0_rm_addb_ctx);
-				return M0_ERR(-EREMOTE);
+				return M0_RC(-EREMOTE);
 			}
 			wait++;
 			rc = borrow_send(in, rest);
@@ -2589,7 +2589,7 @@ int pin_add(struct m0_rm_incoming *in,
 		m0_rm_pin_bob_init(pin);
 		return M0_RC(0);
 	} else
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 }
 
 /** @} end of pin group */

@@ -317,15 +317,15 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 
 	rc = packet_header_encdec(&poh, cursor, M0_XCODE_DECODE);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	if (poh.poh_version != M0_RPC_VERSION_1 || poh.poh_nr_items == 0 ||
 	    poh.poh_magic != M0_RPC_PACKET_HEAD_MAGIC)
-		return M0_ERR(-EPROTO);
+		return M0_RC(-EPROTO);
 
 	for (i = 0; i < poh.poh_nr_items; ++i) {
 		rc = item_decode(cursor, &item);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 		m0_rpc_packet_add_item(p, item);
 		m0_rpc_item_put(item);
 		item = NULL;
@@ -348,7 +348,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 
 	rc = m0_rpc_item_header_encdec(&ioh, cursor, M0_XCODE_DECODE);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	if (ioh.ioh_magic != M0_RPC_ITEM_MAGIC)
 		return -EPROTO;
@@ -357,14 +357,14 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 
 	item_type = m0_rpc_item_type_lookup(ioh.ioh_opcode);
 	if (item_type == NULL)
-		return M0_ERR(-EPROTO);
+		return M0_RC(-EPROTO);
 
 	M0_ASSERT(item_type->rit_ops != NULL &&
 		  item_type->rit_ops->rito_decode != NULL);
 
 	rc = item_type->rit_ops->rito_decode(item_type, item_out, cursor);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	(*item_out)->ri_ha_epoch = ioh.ioh_ha_epoch;
 	(*item_out)->ri_flags    = ioh.ioh_flags;

@@ -143,7 +143,7 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
 	 */
 	fop = m0_fop_alloc(&m0_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -591,7 +591,7 @@ M0_INTERNAL int m0_rpc_slot_reply_received(struct m0_rpc_slot *slot,
 		 *     When control reaches this point during testing it might
 		 *     be because of a possible bug. So assert.
 		 */
-		return M0_ERR(-EPROTO);
+		return M0_RC(-EPROTO);
 	}
 	rc = __slot_reply_received(slot, req, reply);
 	if (rc == 0)
@@ -845,15 +845,15 @@ static int associate_session_and_slot(struct m0_rpc_item    *item,
 
 	sref = &item->ri_slot_refs[0];
 	if (sref->sr_ow.osr_session_id > SESSION_ID_MAX)
-		return M0_ERRV(-EINVAL, "rpc_session_id");
+		return M0_ERR(-EINVAL, "rpc_session_id");
 
 	conn = m0_rpc_machine_find_conn(machine, item);
 	if (conn == NULL)
-		return M0_ERR(-ENOENT);
+		return M0_RC(-ENOENT);
 
 	session = m0_rpc_session_search(conn, sref->sr_ow.osr_session_id);
 	if (session == NULL || sref->sr_ow.osr_slot_id >= session->s_nr_slots)
-		return M0_ERR(-ENOENT);
+		return M0_RC(-ENOENT);
 
 	slot = session->s_slot_table[sref->sr_ow.osr_slot_id];
 	/* XXX Check generation of slot */

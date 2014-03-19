@@ -271,15 +271,15 @@ static bool is_empty(const char *s)
 static int mount_opts_validate(const struct mount_opts *mops)
 {
 	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
-		return M0_ERRV(-EINVAL, "Configuration source is not "
+		return M0_ERR(-EINVAL, "Configuration source is not "
 			       "specified");
 
 	if (is_empty(mops->mo_profile))
-		return M0_ERRV(-EINVAL, "Mandatory parameter is missing: "
+		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
 			       "profile");
 
 	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 3))
-		return M0_ERRV(-EINVAL, "fid_start must be greater than 3");
+		return M0_ERR(-EINVAL, "fid_start must be greater than 3");
 
 	return M0_RC(0);
 }
@@ -293,7 +293,7 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 	M0_ENTRY();
 
 	if (options == NULL)
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
@@ -335,24 +335,24 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 				 *op != '\0');
 
 			if (depth > 0)
-				return M0_ERRV(-EPROTO, "Unexpected EOF");
+				return M0_ERR(-EPROTO, "Unexpected EOF");
 
 			if (rc < 0) {
 				M0_ASSERT(rc == -EPROTO);
-				return M0_ERRV(rc, "Configuration string is "
+				return M0_ERR(rc, "Configuration string is "
 					       "too nested");
 			}
 
 			dest->mo_local_conf = kstrdup(start, GFP_KERNEL);
 			if (dest->mo_local_conf == NULL)
-				return M0_ERR(-ENOMEM);
+				return M0_RC(-ENOMEM);
 
 			M0_LOG(M0_INFO, "local_conf: `%s'",
 			       dest->mo_local_conf);
 			break;
 		}
 		default:
-			return M0_ERRV(-EINVAL, "Unsupported option: %s", op);
+			return M0_ERR(-EINVAL, "Unsupported option: %s", op);
 		}
 	}
 out:
@@ -386,7 +386,7 @@ static int fs_params_validate(const struct fs_params *params)
 	/* Need to test with unit size that is not multiple of page size.
 	 * Until then --- don't allow. */
 	if ((params->fs_unit_size & (PAGE_CACHE_SIZE - 1)) != 0)
-		return M0_ERRV(-EINVAL,
+		return M0_ERR(-EINVAL,
 			       "Unit size must be a multiple of "
 			       "PAGE_CACHE_SIZE");
 	return M0_RC(0);
@@ -437,7 +437,7 @@ static int fs_params_parse(struct fs_params *dest, const char **src)
 		}
 
 		if (rc != 0)
-			return M0_ERRV(rc, "Invalid filesystem parameter: %s",
+			return M0_ERR(rc, "Invalid filesystem parameter: %s",
 				       *src);
 	}
 end:
@@ -503,7 +503,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 
 	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0t1fs_service_context_init(ctx, csb, type);
 	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session,
@@ -564,7 +564,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 
 	rc = m0_confc_open_sync(&dir, fs, M0_BUF_INITS("services"));
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	*nr_ios = 0;
 
@@ -599,7 +599,7 @@ out:
 		rc = rc ?: -EINVAL;
 		disconnect_from_services(csb);
 	}
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 static int configure_addb_rpc_sink(struct m0_addb_mc *addb_mc)
@@ -755,7 +755,7 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
 	    2 * fs_params->fs_nr_parity_units ||
 	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	/* 1 for MD, 1 for RM, the rest are data containers. */
 	nr_data_containers = csb->csb_nr_containers - 2;
@@ -975,7 +975,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 			   mops->mo_confd, &m0t1fs_globals.g_rpc_machine,
 			   mops->mo_local_conf);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = m0_confc_open_sync(&fs, confc.cc_root, M0_BUF_INITS("filesystem"));
 	if (rc != 0)
@@ -1063,7 +1063,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	rc = m0t1fs_mds_statfs(csb, &rep);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	sb->s_magic = rep->f_type;
 	csb->csb_namelen = rep->f_namelen;
@@ -1075,12 +1075,12 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
 	if (IS_ERR(root_inode))
-		return M0_ERR((int)PTR_ERR(root_inode));
+		return M0_RC((int)PTR_ERR(root_inode));
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 	return M0_RC(0);
 }

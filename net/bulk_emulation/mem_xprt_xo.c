@@ -204,7 +204,7 @@ static int mem_xo_dom_init(struct m0_net_xprt *xprt,
 	} else {
 		M0_ALLOC_PTR(dp);
 		if (dp == NULL) {
-			return M0_ERR(-ENOMEM);
+			return M0_RC(-ENOMEM);
 		}
 		dom->nd_xprt_private = dp;
 	}

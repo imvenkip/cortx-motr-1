@@ -114,7 +114,7 @@ static int txs_allocate(struct m0_reqh_service **service,
 
 	M0_ALLOC_PTR(s);
 	if (s == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	*service = &s->ts_reqh;
 	(*service)->rs_ops = &txs_ops;

@@ -847,7 +847,7 @@ out_end:
 		rc = ENOENT;
 out:
 	MDSTORE_FUNC_FAIL(READDIR, rc);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,

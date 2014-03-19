@@ -285,11 +285,11 @@ static int iter_fid_attr_fetch(struct m0_sns_cm_iter *it)
 				      &it->si_fc.sfc_cob_attr,
 				      &get_attr_callback, it);
 	if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
-		return M0_ERR(-ENODATA);
+		return M0_RC(-ENODATA);
 
 	iter_phase_set(it, ITPH_FID_ATTR_FETCH_WAIT);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	return M0_RC(M0_FSO_WAIT);
 }
 
@@ -370,11 +370,11 @@ static int iter_fid_layout_fetch(struct m0_sns_cm_iter *it)
                                          &get_layout_callback, it);
 
 	if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
-		return M0_ERR(-ENODATA);
+		return M0_RC(-ENODATA);
 
 	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	return M0_RC(M0_FSO_WAIT);
 }
 
@@ -395,7 +395,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 			     m0_fid_eq(&fid_next, &M0_COB_SLASH_FID)));
 
 	if (rc == -ENOENT)
-		return M0_ERR(-ENODATA);
+		return M0_RC(-ENODATA);
 	if (rc == 0) {
 		/* Save next GOB fid in the iterator. */
 		*fid = fid_next;
@@ -495,7 +495,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 		       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-		return M0_ERR(-ENOSPC);
+		return M0_RC(-ENOSPC);
 	}
 	rc = m0_cm_aggr_group_alloc(cm, &agid, has_incoming, &ag);
 
@@ -684,12 +684,12 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 		rc = m0_sns_repair_data_map(cm->cm_pm, gfid, pl, group,
 					    ag_cp_idx, &ag_cp_idx);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 	}
 	rc = m0_sns_cm_cp_setup(scp, &sfc->sfc_cob_fid, stob_offset,
 				cp_data_seg_nr, ~0, ag_cp_idx);
 	if (rc < 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = M0_FSO_AGAIN;
 out:

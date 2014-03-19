@@ -361,7 +361,7 @@ static int m0t1fs_addb_mon_total_io_size_init(void)
 					     sizeof (uint64_t);
 	M0_ALLOC_PTR(sum_rec);
 	if (sum_rec == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0_addb_monitor_init(&m0t1fs_globals.g_addb_mon_rw_io_size,
 			     &m0t1fs_addb_mon_rw_io_ops);
@@ -450,7 +450,7 @@ static int m0t1fs_service_start(const char *sname)
 
 	stype = m0_reqh_service_type_find(sname);
 	if (stype == NULL)
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 	rc = m0_reqh_service_allocate(&service, stype, NULL);
 	if (rc != 0)
 		return M0_RC(rc);

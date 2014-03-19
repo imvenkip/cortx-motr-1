@@ -342,7 +342,7 @@ static int mgmt_run_fom_create(struct m0_reqh_service *service,
 	M0_PRE(out != NULL);
 
 	if (M0_FI_ENABLED("-ECANCELED"))
-		return M0_ERR(-ECANCELED);
+		return M0_RC(-ECANCELED);
 
 	rc = -ENOMEM;
 	MGMT_ALLOC_PTR(sffom, FOP_RUN_FTOC_1);
@@ -365,7 +365,7 @@ static int mgmt_run_fom_create(struct m0_reqh_service *service,
 	return M0_RC(0);
 
  failed:
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 /** @todo support this method when run FOP supported */

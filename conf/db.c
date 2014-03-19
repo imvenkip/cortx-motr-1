@@ -79,7 +79,7 @@ static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
 #undef _CASE
 	case M0_CO_DIR:
 	default:
-		return M0_ERRV(-EINVAL, "Invalid object type: %u",
+		return M0_ERR(-EINVAL, "Invalid object type: %u",
 			       xobj_type(xobj));
 	}
 
@@ -111,11 +111,11 @@ static int confx_obj_measure(struct m0_confx_obj *xobj, m0_bcount_t *result)
 
 	rc = xcode_ctx_init(&ctx, xobj, false);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = m0_xcode_length(&ctx);
 	if (rc < 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	M0_ASSERT(rc != 0); /* XXX How can we be so sure? */
 
 	*result = rc;
@@ -349,7 +349,7 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 		M0_ASSERT(IS_IN_ARRAY(xobj_type(obj), table_names));
 		rc = confx_obj_measure(obj, &len);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 		len += sizeof(obj->o_conf.u_type);
 		ksize = sizeof(struct confdb_key);
 		m0_be_btree_insert_credit(&btree, 1, ksize, len, accum);
@@ -371,7 +371,7 @@ M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
 		rc = m0_be_seg_dict_lookup(seg, table_names[i],
 					   (void **)&btree);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 		m0_be_btree_destroy_credit(btree, 1, accum);
 		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
 	}
@@ -396,12 +396,12 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
 		rc = m0_be_seg_dict_lookup(seg, table_names[i],
 					   (void **)&btree);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
 		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
 		rc = m0_be_seg_dict_delete(seg, tx, table_names[i]);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 	}
 
 	return M0_RC(rc);

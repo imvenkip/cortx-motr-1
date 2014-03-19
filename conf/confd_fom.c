@@ -89,7 +89,7 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(m);
 	if (m == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_CONF_FETCH_OPCODE:
@@ -100,12 +100,12 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		break;
 	default:
 		m0_free(m);
-		return M0_ERR(-EOPNOTSUPP);
+		return M0_RC(-EOPNOTSUPP);
 	}
 	rep_fop = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
 	if (rep_fop == NULL) {
 		m0_free(m);
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop,
 	            reqh, fop->f_type->ft_fom_type.ft_rstype);
@@ -205,13 +205,13 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 		if (cur->co_type != M0_CO_DIR) {
 			rc = apply(n, enc, cur);
 			if (rc != 0)
-				return M0_ERR(rc);
+				return M0_RC(rc);
 		}
 
 		rc = cur->co_ops->coo_lookup(cur, &path->ab_elems[i], &cur) ?:
 			readiness_check(cur);
 		if (rc != 0)
-			return M0_ERR(rc);
+			return M0_RC(rc);
 	}
 
 	/* Handle final object. */
@@ -227,7 +227,7 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_buf *path,
 
 			rc = apply(n, enc, entry);
 			if (rc != 0)
-				return M0_ERR(rc);
+				return M0_RC(rc);
 		}
 		m0_conf_obj_put(cur);
 	} else {
@@ -253,7 +253,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 	rc = m0_conf_obj_find(cache, origin->oi_type, &origin->oi_id, &org) ?:
 		readiness_check(org);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = confd_path_walk(org, path, _count, &nr, NULL);
 	if (rc != 0 || nr == 0)
@@ -261,7 +261,7 @@ static int confx_populate(struct m0_confx *dest, const struct objid *origin,
 
 	M0_ALLOC_ARR(dest->cx_objs, nr);
 	if (dest->cx_objs == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	M0_LOG(M0_DEBUG, "Will encode %zu configuration object%s", nr,
 	       (char *)(nr > 1 ? "s" : ""));

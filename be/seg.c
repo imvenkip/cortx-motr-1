@@ -122,13 +122,13 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	/* XXX check for magic */
 
 	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ|PROT_WRITE,
 		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 	if (p != hdr.bh_addr)
-		return M0_ERR(-errno);
+		return M0_RC(-errno);
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ, hdr.bh_addr, 0,
 			     hdr.bh_size);

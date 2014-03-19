@@ -287,7 +287,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_rpcchan = rpc_chan_get(machine, ep, max_rpcs_in_flight);
 	if (conn->c_rpcchan == NULL) {
 		M0_SET0(conn);
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 
 	conn->c_rpc_machine = machine;
@@ -320,12 +320,12 @@ static int session_zero_attach(struct m0_rpc_conn *conn)
 
 	RPC_ALLOC_PTR(session, CONN_SESSION_ZERO_ATTACH, &m0_rpc_addb_ctx);
 	if (session == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	rc = m0_rpc_session_init_locked(session, conn, 10 /* NR_SLOTS */);
 	if (rc != 0) {
 		m0_free(session);
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	}
 
 	session->s_session_id = SESSION_ID_0;
@@ -552,7 +552,7 @@ M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,
 		 (unsigned long long)max_rpcs_in_flight);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	rc = m0_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
 	if (rc == 0) {
@@ -572,7 +572,7 @@ M0_INTERNAL int m0_rpc_conn_establish_sync(struct m0_rpc_conn *conn,
 
 	rc = m0_rpc_conn_establish(conn, abs_timeout);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_ACTIVE,
 						 M0_RPC_CONN_FAILED),
@@ -596,7 +596,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 	M0_PRE(conn != NULL && conn->c_rpc_machine != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	machine = conn->c_rpc_machine;
 
@@ -605,7 +605,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 		m0_rpc_machine_lock(machine);
 		conn_failed(conn, -ENOMEM);
 		m0_rpc_machine_unlock(machine);
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 
 	m0_rpc_machine_lock(machine);
@@ -721,7 +721,7 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 
 	rc = m0_rpc_conn_terminate(conn, abs_timeout);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_TERMINATED,
 						 M0_RPC_CONN_FAILED),
@@ -761,7 +761,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 		rc = -ENOMEM;
 		conn_failed(conn, rc);
 		m0_rpc_machine_unlock(machine);
-		return M0_ERRV(rc, "conn_terminate_fop: Memory Allocation");
+		return M0_ERR(rc, "conn_terminate_fop: Memory Allocation");
 	}
 	if (conn_state(conn) == M0_RPC_CONN_TERMINATING) {
 		m0_fop_put(fop);

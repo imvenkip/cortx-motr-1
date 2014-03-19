@@ -117,7 +117,7 @@ log_fini:
 	m0_free(en->eng_group);
 err:
 	M0_ASSERT(rc != 0);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)

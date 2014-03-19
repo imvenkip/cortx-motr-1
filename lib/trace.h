@@ -176,14 +176,7 @@
 	__rc;                                             \
 })
 
-#define M0_ERR(rc) ({                                     \
-	typeof(rc) __rc = (rc);                           \
-	M0_ASSERT(__rc != 0);                             \
-	M0_LOG(M0_ERROR, "< rc=%d", __rc);                \
-	__rc;                                             \
-})
-
-#define M0_ERRV(rc, fmt, ...) ({                                 \
+#define M0_ERR(rc, fmt, ...) ({                                 \
 	typeof(rc) __rc = (rc);                                  \
 	M0_ASSERT(__rc != 0);                                    \
 	M0_LOG(M0_ERROR, "< rc=%d " fmt, __rc, ## __VA_ARGS__ ); \

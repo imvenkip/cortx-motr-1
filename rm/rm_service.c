@@ -143,7 +143,7 @@ static int rms_allocate(struct m0_reqh_service      **service,
 
 	RM_ALLOC_PTR(rms, SERVICE_ALLOC, &m0_rm_addb_ctx);
 	if (rms == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0_reqh_rm_service_bob_init(rms);
 
@@ -332,7 +332,7 @@ err_resource:
 	m0_rm_resource_del(resource);
 
 
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 static void rms_stats_post_addb(struct m0_reqh_service *service)

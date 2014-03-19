@@ -63,7 +63,7 @@ M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 
 	M0_ALLOC_PTR(sns_cm);
 	if (sns_cm == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	cm = &sns_cm->sc_base;
 

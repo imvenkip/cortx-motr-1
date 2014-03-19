@@ -309,7 +309,7 @@ static int addb_ts_extend(struct m0_addb_ts *ts, uint32_t npages)
 	M0_PRE(npages > 0);
 
 	if (npages + ADDB_TS_CUR_PAGES(ts) > ts->at_max_pages)
-		return M0_ERRV(-E2BIG, "TS reached max size limit "
+		return M0_ERR(-E2BIG, "TS reached max size limit "
 			       "(%d + %d > %d)", npages, ADDB_TS_CUR_PAGES(ts),
 			       ts->at_max_pages);
 
@@ -380,7 +380,7 @@ static int addb_ts_init(struct m0_addb_ts *ts, uint32_t npages_init,
 
 	rc = m0_bufvec_alloc(&ts->at_pages, npages_init, pgsize);
 	if (rc != 0)
-		return M0_ERRV(rc, "Transient store pages init");
+		return M0_ERR(rc, "Transient store pages init");
 
 	bits_per_page = pgsize / WORD_SIZE;
 

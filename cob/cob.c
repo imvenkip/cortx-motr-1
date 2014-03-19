@@ -1101,28 +1101,28 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 	/* Get cob memory. */
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	cob->co_oikey = *oikey;
 	rc = cob_oi_lookup(cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_oi_lookup() failed with %d", rc);
 		m0_cob_put(cob);
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	}
 
 	rc = cob_ns_lookup(cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_ns_lookup() failed with %d", rc);
 		m0_cob_put(cob);
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	}
 
 	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cob_get_fabomg() failed with %d", rc);
 		m0_cob_put(cob);
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	}
 
 	*out = cob;

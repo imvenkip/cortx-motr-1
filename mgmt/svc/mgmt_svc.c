@@ -579,10 +579,10 @@ static int mgmt_svc_rso_start(struct m0_reqh_service *service)
 	reqh = service->rs_reqh;
 	if (m0_reqh_state_get(reqh) != M0_REQH_ST_MGMT_STARTED ||
 	    reqh->rh_mgmt_svc != service)
-		return M0_ERR(-EPROTO);
+		return M0_RC(-EPROTO);
 
 	if (M0_FI_ENABLED("-ECANCELED"))
-		return M0_ERR(-ECANCELED);
+		return M0_RC(-ECANCELED);
 
 	the_mgmt_svc = svc; /* UT */
 	return 0;
@@ -636,12 +636,12 @@ static int mgmt_svc_rso_fop_accept(struct m0_reqh_service *service,
 	M0_PRE(fop != NULL);
 
 	if (m0_reqh_service_state_get(service) != M0_RST_STARTED)
-		return M0_ERR(-ESHUTDOWN);
+		return M0_RC(-ESHUTDOWN);
 
 	if (fop->f_type == &m0_fop_mgmt_service_state_req_fopt)
 		return 0;
 
-	return M0_ERR(-ESHUTDOWN);
+	return M0_RC(-ESHUTDOWN);
 }
 
 static const struct m0_reqh_service_ops mgmt_service_ops = {
@@ -669,7 +669,7 @@ static int mgmt_svc_rsto_service_allocate(struct m0_reqh_service **service,
 
 	M0_ALLOC_PTR(svc);
 	if (svc == NULL)
-		return M0_ERRV(-ENOMEM, "Unable to allocate memory for "
+		return M0_ERR(-ENOMEM, "Unable to allocate memory for "
 			       "MGMT svc");
 
 	*service = &svc->ms_reqhs;

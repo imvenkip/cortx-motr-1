@@ -218,7 +218,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	if (M0_FI_ENABLED("fom_alloc_failure"))
 		m0_free0(&rqfom);
 	if (rqfom == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	switch (type) {
 	case FRT_BORROW:
@@ -241,7 +241,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	reply_fop = m0_fop_alloc(fopt, NULL);
 	if (reply_fop == NULL) {
 		m0_free(rqfom);
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
@@ -382,7 +382,7 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
 				     &m0_rm_addb_ctx);
 			if (remote->rem_session == NULL)
-				return M0_ERR(-ENOMEM);
+				return M0_RC(-ENOMEM);
 			m0_rpc_service_reverse_session_get(
 				service, &fom->fo_fop->f_item,
 				remote->rem_session);
@@ -465,7 +465,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 					    &basefop->rrq_owner.ow_resource);
 		if (rc != 0) {
 			m0_free(owner);
-			return M0_ERR(rc);
+			return M0_RC(rc);
 		}
 	}
 

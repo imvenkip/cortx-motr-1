@@ -67,7 +67,7 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 		m0_conf_cache_tlist_add(&cache->ca_registry, obj);
 		return M0_RC(0);
 	}
-	return M0_ERR(-EEXIST);
+	return M0_RC(-EEXIST);
 }
 
 M0_INTERNAL struct m0_conf_obj *

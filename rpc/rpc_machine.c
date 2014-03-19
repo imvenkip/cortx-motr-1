@@ -143,7 +143,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	M0_PRE(receive_pool != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return M0_ERR(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	M0_SET0(machine);
 	machine->rm_reqh	  = reqh;
@@ -151,7 +151,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 
 	rc = __rpc_machine_init(machine);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
@@ -214,7 +214,7 @@ cntr_fini:
 	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
 out_fini:
 	m0_addb_ctx_fini(&machine->rm_addb_ctx);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 static void __rpc_machine_fini(struct m0_rpc_machine *machine)
@@ -381,7 +381,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 
 	rc = m0_net_tm_init(tm, net_dom, addb_mc, &machine->rm_addb_ctx);
 	if (rc < 0)
-		return M0_ERRV(rc, "TM initialization");
+		return M0_ERR(rc, "TM initialization");
 
 	rc = m0_net_tm_pool_attach(tm, pool, &rpc_buf_recv_cb,
 				   m0_rpc_max_msg_size(net_dom, msg_size),
@@ -389,7 +389,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 				   qlen);
 	if (rc < 0) {
 		m0_net_tm_fini(tm);
-		return M0_ERRV(rc, "m0_net_tm_pool_attach");
+		return M0_ERR(rc, "m0_net_tm_pool_attach");
 	}
 
 	m0_net_tm_colour_set(tm, colour);
@@ -414,7 +414,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 		 */
 		rc = -ENETUNREACH;
 		m0_net_tm_fini(tm);
-		return M0_ERRV(rc, "TM start");
+		return M0_ERR(rc, "TM start");
 	}
 	return M0_RC(rc);
 }
@@ -674,7 +674,7 @@ static int rpc_chan_create(struct m0_rpc_chan **chan,
 			  &m0_addb_proc_ctx, &machine->rm_addb_ctx);
 	if (ch == NULL) {
 		*chan = NULL;
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 
 	ch->rc_rpc_machine = machine;

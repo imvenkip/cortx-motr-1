@@ -45,7 +45,7 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_confx **out)
 
 	M0_ALLOC_PTR(*out);
 	if (*out == NULL)
-		return M0_ERR(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	rc = m0_xcode_read(&M0_XCODE_OBJ(m0_confx_xc, *out), s);
 	if (rc != 0) {

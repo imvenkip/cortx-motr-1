@@ -309,7 +309,7 @@ static bool file_checksum_check(bool (*checksum)(const void *data,
 		blk_data = m0_bufvec_cursor_addr(&data_cur);
 		if (!checksum(blk_data, di->d_bsize,
 			      cksum + current_pos(di, i)))
-			return M0_ERR(false);
+			return M0_RC(false);
 		m0_bufvec_cursor_move(&data_cur, di->d_bsize);
 	}
 
@@ -354,7 +354,7 @@ static bool t10_ref_tag_check(const struct m0_io_indexvec *io_info,
 				      io_info->ci_iosegs[i].ci_count) {
 			M0_LOG(M0_ERROR,"Segment no: %d TAG value is %d \n", i,
 					(int)cksum[cur_pos]);
-			return M0_ERR(false);
+			return M0_RC(false);
 		}
 	}
 

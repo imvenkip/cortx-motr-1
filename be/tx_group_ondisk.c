@@ -124,7 +124,7 @@ err_reg:
 err_entry:
 	m0_free(go->go_entry);
 err:
-	return M0_ERR(-ENOMEM);
+	return M0_RC(-ENOMEM);
 }
 
 M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go)

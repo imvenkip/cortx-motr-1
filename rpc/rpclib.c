@@ -54,7 +54,7 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
 	if (sctx->rsx_log_file == NULL)
-		return M0_ERRV(errno, "Open of error log file");
+		return M0_ERR(errno, "Open of error log file");
 
 	/*
 	 * Start rpc server.
@@ -78,7 +78,7 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	m0_cs_fini(&sctx->rsx_mero_ctx);
 fclose:
 	fclose(sctx->rsx_log_file);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx)
@@ -112,13 +112,13 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 
 	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, remote_addr);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = m0_rpc_conn_create(conn, ep, rpc_mach, max_rpcs_in_flight,
 				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
 	rc = m0_rpc_session_create(session, conn, nr_slots, M0_TIME_NEVER);
 	if (rc != 0)
@@ -175,7 +175,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 err:
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_client_start);
 

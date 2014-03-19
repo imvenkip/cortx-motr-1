@@ -198,7 +198,7 @@ err_ep:
 	m0_free(revc->rcf_rem_ep);
 err_revc:
 	m0_free(revc);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
