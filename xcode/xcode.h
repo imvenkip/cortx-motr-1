@@ -719,12 +719,49 @@ M0_INTERNAL int m0_xcode_find(struct m0_xcode_obj *obj,
 
 M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
 
+/**
+ * Starts construction of a "dynamic union".
+ *
+ * With the help of m0_xcode_union_init(), m0_xcode_union_add() and
+ * m0_xcode_union_close() a discriminated union type (M0_XA_UNION) can be
+ * constructed at run-time. A use case is a situation where branches of the
+ * union are defined in separate modules. With dynamic union, new branches can
+ * be added without modifying central code.
+ *
+ * After a call to m0_xcode_union_init(), new branches are added with
+ * m0_xcode_union_add(). When all branches are added, m0_xcode_union_close()
+ * completes the construction of union xcode type. The result can be used as a
+ * usual xcode type.
+ *
+ * The implementation is deliberately simplistic to avoid issues with sizeof and
+ * alignment calculations. Union discriminator is always M0_XT_U64.
+ *
+ * @param un - xcode type to be initialised. The user has to allocate this
+ *             together with at least @maxbranches m0_xcode_field instances. See
+ *             conf/db.c:conx_obj for example.
+ *
+ * @praam name - xcode type name, assigned to un->xct_name
+ * @param discriminator - the name of the first field
+ * @param maxbranch - maximal number of branches that can be added
+ *
+ * @see m0_xcode_union_add(), m0_xcode_union_close()
+ */
 M0_INTERNAL void m0_xcode_union_init (struct m0_xcode_type *un, const char *name,
 				      const char *discriminator,
 				      size_t maxbranches);
+/**
+ * Adds another branch to the dynamic union.
+ *
+ * @see m0_xcode_union_init(), m0_xcode_union_close()
+ */
 M0_INTERNAL void m0_xcode_union_add  (struct m0_xcode_type *un, const char *name,
 				      const struct m0_xcode_type *xt,
 				      uint64_t tag);
+/**
+ * Completes construction of dynamic union, calculates sizeof.
+ *
+ * @see m0_xcode_union_init(), m0_xcode_union_add()
+ */
 M0_INTERNAL void m0_xcode_union_close(struct m0_xcode_type *un);
 
 extern const struct m0_xcode_type M0_XT_VOID;
