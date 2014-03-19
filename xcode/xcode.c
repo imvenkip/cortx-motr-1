@@ -670,8 +670,9 @@ M0_INTERNAL void *m0_xcode_ctx_top(const struct m0_xcode_ctx *ctx)
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }
 
-void m0_xcode_union_init(struct m0_xcode_type *un, const char *name,
-			 const char *discriminator, size_t maxbranches)
+M0_INTERNAL void m0_xcode_union_init(struct m0_xcode_type *un, const char *name,
+				     const char *discriminator,
+				     size_t maxbranches)
 {
 	*un = (typeof(*un)) {
 		.xct_aggr  = M0_XA_UNION,
@@ -686,8 +687,9 @@ void m0_xcode_union_init(struct m0_xcode_type *un, const char *name,
 	};
 }
 
-void m0_xcode_union_add(struct m0_xcode_type *un, const char *name,
-			const struct m0_xcode_type *xt, uint64_t tag)
+M0_INTERNAL void m0_xcode_union_add(struct m0_xcode_type *un, const char *name,
+				    const struct m0_xcode_type *xt,
+				    uint64_t tag)
 {
 	int                    i;
 	struct m0_xcode_field *f;
@@ -710,7 +712,7 @@ void m0_xcode_union_add(struct m0_xcode_type *un, const char *name,
 	};
 }
 
-void m0_xcode_union_close(struct m0_xcode_type *un)
+M0_INTERNAL void m0_xcode_union_close(struct m0_xcode_type *un)
 {
 	int                    i;
 	struct m0_xcode_field *f;

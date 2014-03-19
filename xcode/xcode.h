@@ -719,11 +719,13 @@ M0_INTERNAL int m0_xcode_find(struct m0_xcode_obj *obj,
 
 M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
 
-void m0_xcode_union_init (struct m0_xcode_type *un, const char *name,
-			  const char *discriminator, size_t maxbranches);
-void m0_xcode_union_add  (struct m0_xcode_type *un, const char *name,
-			  const struct m0_xcode_type *xt, uint64_t tag);
-void m0_xcode_union_close(struct m0_xcode_type *un);
+M0_INTERNAL void m0_xcode_union_init (struct m0_xcode_type *un, const char *name,
+				      const char *discriminator,
+				      size_t maxbranches);
+M0_INTERNAL void m0_xcode_union_add  (struct m0_xcode_type *un, const char *name,
+				      const struct m0_xcode_type *xt,
+				      uint64_t tag);
+M0_INTERNAL void m0_xcode_union_close(struct m0_xcode_type *un);
 
 extern const struct m0_xcode_type M0_XT_VOID;
 extern const struct m0_xcode_type M0_XT_U8;
