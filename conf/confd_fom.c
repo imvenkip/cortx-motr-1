@@ -263,6 +263,7 @@ static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 	M0_ALLOC_ARR(data, nr * m0_confx_sizeof());
 	if (data == NULL)
 		M0_RETURN(-ENOMEM);
+	/* "data" is freed by m0_confx_free(dest). */
 	dest->cx__objs = (void *)data;
 
 	M0_LOG(M0_DEBUG, "Will encode %zu configuration object%s", nr,
