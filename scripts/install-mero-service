@@ -104,6 +104,7 @@ install_files()
     local file='scripts/install/etc/sysconfig/mero'
 
     run "$cmd $(pwd)/$file $dir"
+    /bin/sed -i -e "s%#MERO_DEVEL_WORKDIR_PATH=.*$%MERO_DEVEL_WORKDIR_PATH=$(pwd)%" /etc/sysconfig/mero
 
     dir='/etc/init'
     for file in 'scripts/install/etc/init/mero.conf' \
