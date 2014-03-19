@@ -121,7 +121,6 @@ const struct m0_conf_obj_type M0_CONF_NIC_TYPE = {
 		.ft_name = "nic"
 	},
 	.cot_create     = &nic_create,
-	.cot_table_name = "nic",
 	.cot_xt         = &m0_confx_nic_xc,
 	.cot_branch     = "u_nic",
 	.cot_xc_init    = &m0_xc_m0_confx_nic_struct_init,

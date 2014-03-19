@@ -154,7 +154,6 @@ const struct m0_conf_obj_type M0_CONF_FILESYSTEM_TYPE = {
 		.ft_name = "configuration file-system"
 	},
 	.cot_create     = &filesystem_create,
-	.cot_table_name = "filesystem",
 	.cot_xt         = &m0_confx_filesystem_xc,
 	.cot_branch     = "u_filesystem",
 	.cot_xc_init    = &m0_xc_m0_confx_filesystem_struct_init,
