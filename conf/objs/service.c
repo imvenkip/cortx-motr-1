@@ -146,7 +146,7 @@ const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 		.ft_id   = 's',
 		.ft_name = "service"
 	},
-	.cot_ctor       = &service_create,
+	.cot_create     = &service_create,
 	.cot_table_name = "service",
 	.cot_xt         = &m0_confx_service_xc,
 	.cot_branch     = "u_service",

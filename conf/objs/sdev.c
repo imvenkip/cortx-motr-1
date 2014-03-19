@@ -125,7 +125,7 @@ const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 		.ft_id   = 'd',
 		.ft_name = "storage device"
 	},
-	.cot_ctor       = &sdev_create,
+	.cot_create     = &sdev_create,
 	.cot_table_name = "sdev",
 	.cot_xt         = &m0_confx_sdev_xc,
 	.cot_branch     = "u_sdev",

@@ -203,7 +203,7 @@ struct m0_conf_obj {
 
 struct m0_conf_obj_type {
 	const struct m0_fid_type    cot_ftype;
-	struct m0_conf_obj       *(*cot_ctor)(void);
+	struct m0_conf_obj       *(*cot_create)(void);
 	const char                 *cot_table_name;
 	uint64_t                    cot_magic;
 	/**

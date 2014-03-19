@@ -80,10 +80,10 @@ M0_INTERNAL struct m0_conf_obj *m0_conf_obj_create(struct m0_conf_cache *cache,
 	const struct m0_conf_obj_type *type = m0_conf_fid_type(id);
 
 	M0_PRE(cache != NULL && m0_fid_is_set(id));
-	M0_PRE(type->cot_ctor != NULL);
+	M0_PRE(type->cot_create != NULL);
 
 	/* Allocate concrete object; initialise concrete fields. */
-	obj = type->cot_ctor();
+	obj = type->cot_create();
 	if (obj == NULL)
 		return NULL;
 
