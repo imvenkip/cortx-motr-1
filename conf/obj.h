@@ -152,7 +152,7 @@ struct m0_conf_obj {
 	 * Pointer to the parent object.
 	 *
 	 * For objects that may have several parents (e.g., m0_conf_node) this
-         * points to the object itself.
+	 * points to the object itself.
 	 */
 	struct m0_conf_obj           *co_parent;
 
