@@ -342,7 +342,7 @@ void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 
 	if (otype->cot_xt != NULL) {
 		otype->cot_xc_init();
-		/* onwire representation must start with the header. */
+		/* Onwire representation must start with the header. */
 		M0_PRE((*otype->cot_xt)->xct_child[0].xf_type ==
 		       m0_confx_header_xc);
 
