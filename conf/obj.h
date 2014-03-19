@@ -237,7 +237,6 @@ bool m0_conf_fid_is_valid(const struct m0_fid *fid);
 M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
 
 enum { M0_CONF_OBJ_TYPE_MAX = 256 };
-
 
 /* ------------------------------------------------------------------
  * Concrete configuration objects
