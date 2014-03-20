@@ -602,6 +602,33 @@ M0_INTERNAL int m0_xcode_subobj(struct m0_xcode_obj *subobj,
 	return result;
 }
 
+M0_INTERNAL uint64_t m0_xcode_atom(const struct m0_xcode_obj *obj)
+{
+	const struct m0_xcode_type  *xt  = obj->xo_type;
+	void                        *ptr = obj->xo_ptr;
+	uint64_t                     val;
+
+	M0_PRE(xt->xct_aggr == M0_XA_ATOM);
+
+	switch (xt->xct_atype) {
+	case M0_XAT_U8:
+		val = *(uint8_t *)ptr;
+		break;
+	case M0_XAT_U32:
+		val = *(uint32_t *)ptr;
+		break;
+	case M0_XAT_U64:
+		val = *(uint64_t *)ptr;
+		break;
+	case M0_XAT_VOID:
+	default:
+		M0_IMPOSSIBLE("value of void");
+		val = 0;
+		break;
+	}
+	return val;
+}
+
 M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 {
 	const struct m0_xcode_type  *xt = obj->xo_type;
@@ -616,14 +643,14 @@ M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 		tag = f->xf_tag;
 		break;
 	case M0_XAT_U8:
-		tag = *M0_XCODE_VAL(obj, 0, 0, uint8_t);
-		break;
 	case M0_XAT_U32:
-		tag = *M0_XCODE_VAL(obj, 0, 0, uint32_t);
+	case M0_XAT_U64: {
+		struct m0_xcode_obj subobj;
+
+		m0_xcode_subobj(&subobj, obj, 0, 0);
+		tag = m0_xcode_atom(&subobj);
 		break;
-	case M0_XAT_U64:
-		tag = *M0_XCODE_VAL(obj, 0, 0, uint64_t);
-		break;
+	}
 	default:
 		M0_IMPOSSIBLE("atype");
 		tag = 0;

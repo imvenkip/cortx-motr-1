@@ -638,6 +638,18 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  * m0_xcode_free().
  */
 M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
+
+/**
+ * Prints an xcode object to a string.
+ *
+ * This function is (almost) the inverse of m0_xcode_read().
+ *
+ * @note No attempt at pretty-printing is done. All atomic values are output in
+ * hexadecimal, bytes arrays are not treated specially, etc. Its main intended
+ * use is logging and debugging.
+ */
+M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
+			       char *str, int nr);
 M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj);
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1);
@@ -674,6 +686,11 @@ M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
  */
 M0_INTERNAL void *m0_xcode_addr(const struct m0_xcode_obj *obj, int fieldno,
 				uint64_t elno);
+
+/**
+ * Returns the value of the given atomic field.
+ */
+M0_INTERNAL uint64_t m0_xcode_atom(const struct m0_xcode_obj *obj);
 
 /**
    Helper macro to return field value cast to a given type.

@@ -107,29 +107,46 @@ static int char_check(const char **str, char ch)
 	return result;
 }
 
+static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
+	               /* NONE  PRE   IN POST */
+	[M0_XA_RECORD]   = { 0, '(',   0, ')' },
+	[M0_XA_UNION]    = { 0, '{',   0, '}' },
+	[M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
+	[M0_XA_TYPEDEF]  = { 0,   0,   0,   0 },
+	[M0_XA_OPAQUE]   = { 0,   0,   0,   0 },
+	[M0_XA_ATOM]     = { 0,   0,   0,   0 }
+};
+
+static const char punctuation[M0_XA_NR][3] = {
+    	                /* 1st  2nd later */
+	[M0_XA_RECORD]   = { 0, ',', ',' },
+	[M0_XA_UNION]    = { 0, '|',  0  },
+	[M0_XA_SEQUENCE] = { 0, ':', ',' },
+	[M0_XA_TYPEDEF]  = { 0,  0,   0  },
+	[M0_XA_OPAQUE]   = { 0,  0,   0  },
+	[M0_XA_ATOM]     = { 0,  0,   0  }
+};
+
+static char punctchar(struct m0_xcode_cursor *it)
+{
+	struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(it);
+	struct m0_xcode_cursor_frame *pre = top - 1;
+	enum m0_xcode_aggr            par;
+	int                           order;
+
+	if (it->xcu_depth > 0) {
+		order = min64(pre->s_datum++, ARRAY_SIZE(punctuation[0]) - 1);
+		par   = pre->s_obj.xo_type->xct_aggr;
+		return punctuation[par][order];
+	} else
+		return 0;
+}
+
 M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 {
 	struct m0_xcode_cursor it;
 	int                    result;
 
-	static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
-		               /* NONE  PRE   IN POST */
-		[M0_XA_RECORD]   = { 0, '(',   0, ')' },
-		[M0_XA_UNION]    = { 0, '{',   0, '}' },
-		[M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
-		[M0_XA_TYPEDEF]  = { 0,   0,   0,   0 },
-		[M0_XA_OPAQUE]   = { 0,   0,   0,   0 },
-		[M0_XA_ATOM]     = { 0,   0,   0,   0 }
-	};
-	static const char punctuation[M0_XA_NR][3] = {
-		                /* 1st  2nd later */
-		[M0_XA_RECORD]   = { 0, ',', ',' },
-		[M0_XA_UNION]    = { 0, '|',  0  },
-		[M0_XA_SEQUENCE] = { 0, ':', ',' },
-		[M0_XA_TYPEDEF]  = { 0,  0,   0  },
-		[M0_XA_OPAQUE]   = { 0,  0,   0  },
-		[M0_XA_ATOM]     = { 0,  0,   0  }
-	};
 	static const char *fmt[M0_XAT_NR] = {
 		[M0_XAT_VOID] = " %0c %n",
 		[M0_XAT_U8]   = " %i %n",
@@ -155,19 +172,9 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 			result = m0_xcode_alloc_obj(&it, m0_xcode_alloc);
 			if (result != 0)
 				return result;
-			if (it.xcu_depth > 0) {
-				int                           order;
-				enum m0_xcode_aggr            par;
-				struct m0_xcode_cursor_frame *pre = top - 1;
-
-				order = min64(pre->s_datum++,
-					      ARRAY_SIZE(punctuation[0]) - 1);
-				par = pre->s_obj.xo_type->xct_aggr;
-				result = char_check(&str,
-						    punctuation[par][order]);
-				if (result != 0)
-					return result;
-			}
+			result = char_check(&str, punctchar(&it));
+			if (result != 0)
+				return result;
 			if (m0_xcode_is_byte_array(xt) && *str == '"') {
 				/* string literal */
 				result = string_literal(cur, ++str);
@@ -209,6 +216,39 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 		}
 	}
 	return *str == 0 ? 0 : -EINVAL;
+}
+
+M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
+			       char *str, int nr)
+{
+	struct m0_xcode_cursor it;
+	int                    result;
+	int                    nob = 0;
+
+	m0_xcode_cursor_init(&it, obj);
+
+#define P(...)								\
+	({ nob += snprintf(str + nob, max64(nr - nob, 0), __VA_ARGS__); })
+#define PCHAR(ch) ({ char _ch = (ch); if (_ch != 0) P("%c", _ch); })
+
+	while ((result = m0_xcode_next(&it)) > 0) {
+		struct m0_xcode_cursor_frame *top  = m0_xcode_cursor_top(&it);
+		struct m0_xcode_obj          *cur  = &top->s_obj;
+		enum m0_xcode_cursor_flag     flag = top->s_flag;
+		const struct m0_xcode_type   *xt   = cur->xo_type;
+		enum m0_xcode_aggr            aggr = xt->xct_aggr;
+
+		if (flag == M0_XCODE_CURSOR_PRE)
+			PCHAR(punctchar(&it));
+
+		PCHAR(structure[aggr][flag]);
+
+		if (flag == M0_XCODE_CURSOR_PRE && aggr == M0_XA_ATOM)
+			P("%lx", (unsigned long)m0_xcode_atom(cur));
+	}
+	return result ?: nob;
+#undef PCHAR
+#undef P
 }
 
 /** @} end of xcode group */

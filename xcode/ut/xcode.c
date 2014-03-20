@@ -20,6 +20,7 @@
 
 #ifndef __KERNEL__
 #include <stdio.h>                          /* printf */
+#include <ctype.h>                          /* isspace */
 #endif
 
 #include "lib/memory.h"
@@ -702,8 +703,48 @@ static void xcode_read_test(void)
 		.t_def  = 4,
 		.t_un   = { .u_tag = 1, .u = { .u_x = 42 }},
 		.t_opaq = { .o_32 = T.t_opaq.o_32 }}, sizeof T) == 0);
-
 }
+
+#ifndef __KERNEL__
+static void xcode_print_test(void)
+{
+	char buf[300];
+	const char *s0;
+	const char *s1;
+	int         rc;
+	char        data[] = { 1, 2, 3, 4 };
+	uint64_t    o64    = 7;
+	struct top  T = (struct top){
+		.t_foo  = { 1, 2 },
+		.t_flag = 8,
+		.t_v    = { .v_nr = 4, .v_data = data },
+		.t_def  = 4,
+		.t_un   = { .u_tag = 1, .u = { .u_x = 42 }},
+		.t_opaq = { .o_64 = &o64 }
+	};
+
+	rc = m0_xcode_print(OBJ(&xut_top.xt, &T), buf, ARRAY_SIZE(buf));
+	M0_UT_ASSERT(rc == strlen(buf));
+	for (s0 = buf, s1 = ""
+		     "((1, 2),"
+		     " 8,"
+		     " [4: 1, 2, 3, 4],"
+		     " 4,"
+		     " {1| 2a},"
+		     " 7)"; *s0 != 0 && *s1 != 0; ++s0, ++s1) {
+		while (isspace(*s0))
+			++s0;
+		while (isspace(*s1))
+			++s1;
+		M0_UT_ASSERT(*s0 == *s1);
+	}
+	M0_UT_ASSERT(*s0 == 0);
+	M0_UT_ASSERT(*s1 == 0);
+
+	rc = m0_xcode_print(OBJ(&xut_top.xt, &T), NULL, 0);
+	M0_UT_ASSERT(rc == strlen(buf));
+}
+#endif
 
 static void xcode_find_test(void)
 {
@@ -743,6 +784,9 @@ const struct m0_test_suite xcode_ut = {
                 { "xcode-nonstandard", xcode_nonstandard_test },
                 { "xcode-cmp",    xcode_cmp_test },
 		{ "xcode-read",   xcode_read_test },
+#ifndef __KERNEL__
+		{ "xcode-print",  xcode_print_test },
+#endif
 		{ "xcode-find",   xcode_find_test },
                 { NULL, NULL }
         }
