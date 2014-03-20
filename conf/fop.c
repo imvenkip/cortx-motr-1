@@ -98,7 +98,7 @@ M0_INTERNAL int m0_confx_types_init(void)
 {
 	M0_ENTRY();
 	m0_xc_onwire_init();
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_confx_types_fini(void)

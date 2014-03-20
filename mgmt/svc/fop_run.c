@@ -297,7 +297,7 @@ static int mgmt_fop_run_fo_tick(struct m0_fom *fom)
 		M0_ASSERT(m0_fom_phase(fom) < MGMT_FOP_RUN_PHASE_FINI);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void mgmt_fop_run_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -342,7 +342,7 @@ static int mgmt_run_fom_create(struct m0_reqh_service *service,
 	M0_PRE(out != NULL);
 
 	if (M0_FI_ENABLED("-ECANCELED"))
-		M0_RETURN(-ECANCELED);
+		return M0_RC(-ECANCELED);
 
 	rc = -ENOMEM;
 	MGMT_ALLOC_PTR(sffom, FOP_RUN_FTOC_1);
@@ -362,10 +362,10 @@ static int mgmt_run_fom_create(struct m0_reqh_service *service,
 	m0_atomic64_inc(&mgmt_svc->ms_run_foms);
 
 	*out = &sffom->sf_m0fom;
-	M0_RETURN(0);
+	return M0_RC(0);
 
  failed:
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /** @todo support this method when run FOP supported */

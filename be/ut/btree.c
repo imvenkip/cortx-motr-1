@@ -122,7 +122,7 @@ btree_insert(struct m0_be_btree *t, struct m0_buf *k, struct m0_buf *v)
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int
@@ -153,7 +153,7 @@ btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v)
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int
@@ -179,7 +179,7 @@ btree_delete(struct m0_be_btree *t, struct m0_buf *k)
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void shuffle_array(int a[], size_t n)

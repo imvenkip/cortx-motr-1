@@ -146,7 +146,7 @@ static int packet_ready(struct m0_rpc_packet *p)
 	if (rc != 0)
 		goto out_fini;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 
 out_fini:
 	rpc_buffer_fini(rpcbuf);
@@ -161,7 +161,7 @@ out:
 	m0_rpc_packet_fini(p);
 	m0_free(p);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -202,7 +202,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	rpc_buffer_bob_init(rpcbuf);
 
 out:
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -238,7 +238,7 @@ static int net_buffer_allocate(struct m0_net_buffer *netbuf,
 		m0_bufvec_free_aligned(&netbuf->nb_buffer, M0_SEG_SHIFT);
 	}
 out:
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -325,7 +325,7 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	machine = rpc_buffer__rmachine(rpcbuf);
 	rc = m0_net_buffer_add(netbuf, &machine->rm_tm);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)

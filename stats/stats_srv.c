@@ -278,7 +278,7 @@ static int stats_svc_rsto_service_allocate(struct m0_reqh_service      **srv,
 
 	M0_ALLOC_PTR(svc);
 	if (svc == NULL)
-		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
+		return M0_ERR(-ENOMEM, "Failed to allocate memory.");
 
 	*srv = &svc->ss_reqhs;
 	(*srv)->rs_type = stype;
@@ -394,7 +394,7 @@ static int stats_sum_copy(struct m0_stats_sum *s, struct m0_stats_sum *d)
 	if (d->ss_data.au64s_nr == 0) {
 		M0_ALLOC_ARR(d->ss_data.au64s_data, s->ss_data.au64s_nr);
 		if (d->ss_data.au64s_data == NULL)
-			M0_RETERR(-ENOMEM, "Failed to allocate memory.");
+			return M0_ERR(-ENOMEM, "Failed to allocate memory.");
 	}
 
 	d->ss_id = s->ss_id;
@@ -419,7 +419,7 @@ static int stats_add(struct m0_tl *stats_list, struct m0_stats_sum *sum)
 
 	M0_ALLOC_PTR(new_stats);
 	if (new_stats == NULL)
-		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
+		return M0_ERR(-ENOMEM, "Failed to allocate memory.");
 
 	new_stats->s_magic = M0_STATS_MAGIC;
 	rc = stats_sum_copy(sum, &new_stats->s_sum);
@@ -478,7 +478,7 @@ static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(stats_ufom);
 	if (stats_ufom == NULL)
-		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
+		return M0_ERR(-ENOMEM, "Failed to allocate memory.");
 
 	fom = &stats_ufom->suf_fom;
 	m0_fom_init(fom, &(fop->f_type->ft_fom_type), &stats_update_fom_ops,
@@ -662,7 +662,7 @@ static int stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(stats_qfom);
 	if (stats_qfom == NULL)
-		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
+		return M0_ERR(-ENOMEM, "Failed to allocate memory.");
 
 	M0_ALLOC_PTR(qrep_fop);
 	if (qrep_fop == NULL) {
@@ -703,7 +703,7 @@ free_qrep_fop:
 free_qfom:
 	m0_free(stats_qfom);
 
-	M0_RETERR(rc, "Failed to create query FOM");
+	return M0_ERR(rc, "Failed to create query FOM");
 }
 
 /**

@@ -106,7 +106,7 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		len = m0_xcode_length(&ctx);
 		rc = m0_bufvec_alloc(&bv, 1, len + 1);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_RC(rc);
 		m0_bufvec_cursor_init(&cur, &bv);
 		/**
 		 * @todo When encode/decode methods of addb rpc items are
@@ -117,7 +117,7 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		rc = addb_rec_seq_enc(addb_fop, &cur, m0_addb_rpc_sink_fop_xc);
 		if (rc != 0) {
 			m0_bufvec_free(&bv);
-			M0_RETURN(rc);
+			return M0_RC(rc);
 		}
 		M0_ASSERT(cur.bc_vc.vc_seg == 0 && cur.bc_vc.vc_offset == len);
 		m0_bufvec_cursor_init(&cur, &bv);
@@ -131,7 +131,7 @@ static int addb_fom_fo_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Phase not defined");
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void addb_fom_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -158,7 +158,7 @@ static int addb_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(addb_fom);
 	if (addb_fom == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	fom = &addb_fom->af_fom;
 
@@ -167,7 +167,7 @@ static int addb_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_PRE(m0_fom_phase(fom) == ADDB_FOM_PHASE_INIT);
 	*out = fom;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /** @} end group addb_pvt */

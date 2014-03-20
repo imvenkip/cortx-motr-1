@@ -309,13 +309,14 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
 	M0_PRE(cctx != NULL);
 
 	if (ep == NULL || xprt_name == NULL)
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
-	M0_RETURN(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE : 0);
+	return M0_RC(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE
+			: 0);
 }
 
 M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
@@ -809,10 +810,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	M0_ENTRY("cid=%d path=%s", (int)cid, f_path);
 
 	M0_ALLOC_PTR(adstob);
-	if (adstob == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
-		M0_RETURN(-ENOMEM);
-	}
+	if (adstob == NULL)
+		return M0_ERR(-ENOMEM, "adstob object allocation failed");
 
 	bstob = &adstob->as_stob_back;
 	bstob_id = &adstob->as_id_back;
@@ -870,7 +869,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 
 	if (rc != 0)
 		m0_free(adstob);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -911,7 +910,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 		rc = cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, db, NULL);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1009,12 +1008,12 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 	else if (strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
 		stob->s_stype = M0_AD_STOB;
 	else
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	slen = strlen(stob_path);
 	M0_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
 	if (objpath == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	sprintf(objpath, "%s%s", stob_path, objdir);
 
@@ -1036,7 +1035,7 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 out:
 	m0_free(objpath);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1066,11 +1065,11 @@ static int __service_init(const char *name, struct m0_reqh_context *rctx,
 
 	stype = m0_reqh_service_type_find(name);
 	if (stype == NULL)
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	rc = m0_reqh_service_allocate(&service, stype, rctx);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	m0_reqh_service_init(service, reqh, uuid);
 
@@ -1083,7 +1082,7 @@ static int __service_init(const char *name, struct m0_reqh_context *rctx,
 		m0_reqh_service_fini(service);
 
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
-	M0_RETURN(rc);
+	return M0_RC(rc);
 
 }
 
@@ -1126,7 +1125,7 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		m0_reqh_services_terminate(&rctx->rc_reqh);
 #endif
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1176,7 +1175,7 @@ static int cs_services_init(struct m0_mero *cctx)
 #endif
 	} m0_tl_endfor;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1210,7 +1209,7 @@ static int cs_net_domains_init(struct m0_mero *cctx)
 			xprt = cs_xprt_lookup(ep->ex_xprt, xprts, xprts_nr);
 			if (xprt == NULL) {
 				M0_LOG(M0_ERROR, "endpoint_init_fail");
-				M0_RETURN(-EINVAL);
+				return M0_RC(-EINVAL);
 			}
 
 			ndom = m0_cs_net_domain_locate(cctx, ep->ex_xprt);
@@ -1219,20 +1218,20 @@ static int cs_net_domains_init(struct m0_mero *cctx)
 
 			rc = m0_net_xprt_init(xprt);
 			if (rc != 0)
-				M0_RETURN(rc);
+				return M0_RC(rc);
 
 			M0_ALLOC_PTR(ndom);
 			if (ndom == NULL) {
 				M0_LOG(M0_ERROR, "malloc failed");
 				m0_net_xprt_fini(xprt);
-				M0_RETURN(-ENOMEM);
+				return M0_RC(-ENOMEM);
 			}
 			/** @todo replace m0_addb_proc_ctx */
 			rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
 			if (rc != 0) {
 				m0_free(ndom);
 				m0_net_xprt_fini(xprt);
-				M0_RETURN(rc);
+				return M0_RC(rc);
 			}
 
 			m0_net_domain_bob_init(ndom);
@@ -1240,7 +1239,7 @@ static int cs_net_domains_init(struct m0_mero *cctx)
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1318,13 +1317,13 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 	rc = cs_storage_init(stype, rctx->rc_addb_stpath,
 			     &addb_stob->cas_stobs, rctx->rc_beseg);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
 	m0_linux_stob_setup(sdom, false);
 	rc = m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
 				   &addb_stob->cas_stob);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1459,7 +1458,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	}
 
 	rctx->rc_state = RC_INITIALISED;
-	M0_RETURN(rc);
+	return M0_RC(rc);
 
 cleanup_addb_stob:
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
@@ -1475,7 +1474,7 @@ reqh_fini:
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
 	M0_ASSERT(rc != 0);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1787,7 +1786,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		if (!reqh_ctx_args_are_valid(rctx)) {
 			M0_LOG(M0_ERROR, "Missing or Invalid parameters");
-			M0_RETURN(-EINVAL);
+			return M0_RC(-EINVAL);
 		}
 
 		if (rctx->rc_recv_queue_min_length <
@@ -1801,7 +1800,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 		if (!stype_is_valid(rctx->rc_stype)) {
 			M0_LOG(M0_ERROR, "storage_init_fail");
 			cs_stob_types_list(cctx->cc_outfile);
-			M0_RETURN(-EINVAL);
+			return M0_RC(-EINVAL);
 		}
 		/*
 		   Check if all the given end points in a reqh context are
@@ -1809,7 +1808,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 		 */
 		if (cs_eps_tlist_is_empty(&rctx->rc_eps)) {
 			M0_LOG(M0_ERROR, "Endpoint missing");
-			M0_RETURN(-EINVAL);
+			return M0_RC(-EINVAL);
 		}
 
 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
@@ -1819,7 +1818,7 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 			if (rc != 0) {
 				M0_LOG(M0_ERROR, "endpoint_init_fail: %s: %d",
 						 ep->ex_endpoint, rc);
-				M0_RETURN(rc);
+				return M0_RC(rc);
 			}
 		} m0_tl_endfor;
 
@@ -1829,18 +1828,18 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 		 */
 		if (rctx->rc_nr_services == 0) {
 			M0_LOG(M0_ERROR, "No Service specified");
-			M0_RETURN(-EINVAL);
+			return M0_RC(-EINVAL);
 		}
 
 		for (i = 0; i < rctx->rc_nr_services; ++i) {
 			sname = rctx->rc_services[i];
 			if (!m0_reqh_service_is_registered(sname)) {
 				M0_LOG(M0_ERROR, "service_init_fail %s", sname);
-				M0_RETURN(-ENOENT);
+				return M0_RC(-ENOENT);
 			}
 			if (service_is_duplicate(rctx, sname)) {
 				M0_LOG(M0_ERROR, "service_init_fail %s", sname);
-				M0_RETURN(-EEXIST);
+				return M0_RC(-EEXIST);
 			}
 		}
 	} m0_tl_endfor;
@@ -1848,9 +1847,9 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
 	if (cctx->cc_pool_width <= 0) {
 		M0_LOG(M0_ERROR, "Invalid pool width.\n"
 				 "Use -w to provide a valid integer");
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1931,7 +1930,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 	M0_PRE(cctx != NULL);
 
 	if (argc <= 1)
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
 #define _RETURN_EINVAL_UNLESS(rctx)   \
 	do {                          \
@@ -2125,7 +2124,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			);
 #undef _RETURN_EINVAL_UNLESS
 
-	M0_RETURN(result ?: rc);
+	return M0_RC(result ?: rc);
 }
 
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
@@ -2141,45 +2140,46 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	rc = _args_parse(cctx, argc, argv, &confd_addr, &profile,
 			 &genders, &use_genders);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	if (genders != NULL && !use_genders)
-		M0_RETERR(-EPROTO, "-f genders file specified without -g");
+		return M0_ERR(-EPROTO, "-f genders file specified without -g");
 	/**
 	 * @todo allow bootstrap via genders and confd afterward, but currently
 	 * confd is only used for bootstrap, thus a conflict if both present.
 	 */
 	if (use_genders && profile != NULL)
-		M0_RETERR(-EPROTO, "genders use conflicts with confd profile");
+		return M0_ERR(-EPROTO, "genders use conflicts with "
+			       "confd profile");
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
 		bool global_daemonize = cctx->cc_daemon;
 
 		rc = cs_genders_to_args(args, argv[0], genders);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_RC(rc);
 
 		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
 				 NULL, NULL, NULL, &use_genders);
 		cctx->cc_daemon |= global_daemonize;
 	}
 	if ((confd_addr == NULL) != (profile == NULL))
-		M0_RETERR(-EPROTO, "%s is not specified",
-			  (char *)(profile == NULL ? "configuration profile" :
-				   "confd address"));
+		return M0_ERR(-EPROTO, "%s is not specified",
+			       (char *)(profile == NULL ?
+			       "configuration profile" : "confd address"));
 	if (confd_addr != NULL) {
 		struct cs_args *args = &cctx->cc_args;
 
 		rc = cs_conf_to_args(args, confd_addr, profile);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_RC(rc);
 
 		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
 				 NULL, NULL, NULL, &use_genders);
 	}
 	if (rc == 0 && use_genders)
 		rc = -EINVAL;
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)

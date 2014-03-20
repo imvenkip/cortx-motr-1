@@ -147,7 +147,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	}
 	m0t1fs_fs_unlock(csb);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /* ----------------------------------------------------------------
@@ -271,15 +271,17 @@ static bool is_empty(const char *s)
 static int mount_opts_validate(const struct mount_opts *mops)
 {
 	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
-		M0_RETERR(-EINVAL, "Configuration source is not specified");
+		return M0_ERR(-EINVAL, "Configuration source is not "
+			       "specified");
 
 	if (is_empty(mops->mo_profile))
-		M0_RETERR(-EINVAL, "Mandatory parameter is missing: profile");
+		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
+			       "profile");
 
 	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 3))
-		M0_RETERR(-EINVAL, "fid_start must be greater than 3");
+		return M0_ERR(-EINVAL, "fid_start must be greater than 3");
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int mount_opts_parse(char *options, struct mount_opts *dest)
@@ -291,7 +293,7 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 	M0_ENTRY();
 
 	if (options == NULL)
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
@@ -333,24 +335,24 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 				 *op != '\0');
 
 			if (depth > 0)
-				M0_RETERR(-EPROTO, "Unexpected EOF");
+				return M0_ERR(-EPROTO, "Unexpected EOF");
 
 			if (rc < 0) {
 				M0_ASSERT(rc == -EPROTO);
-				M0_RETERR(rc, "Configuration string is "
-					  "too nested");
+				return M0_ERR(rc, "Configuration string is "
+					       "too nested");
 			}
 
 			dest->mo_local_conf = kstrdup(start, GFP_KERNEL);
 			if (dest->mo_local_conf == NULL)
-				M0_RETURN(-ENOMEM);
+				return M0_RC(-ENOMEM);
 
 			M0_LOG(M0_INFO, "local_conf: `%s'",
 			       dest->mo_local_conf);
 			break;
 		}
 		default:
-			M0_RETERR(-EINVAL, "Unsupported option: %s", op);
+			return M0_ERR(-EINVAL, "Unsupported option: %s", op);
 		}
 	}
 out:
@@ -358,7 +360,7 @@ out:
 	 * If there is an error, the allocated memory will be freed by
 	 * mount_opts_fini(), called by m0t1fs_fill_super().
 	 */
-	M0_RETURN(rc ?: mount_opts_validate(dest));
+	return M0_RC(rc ?: mount_opts_validate(dest));
 }
 
 /* ----------------------------------------------------------------
@@ -384,9 +386,10 @@ static int fs_params_validate(const struct fs_params *params)
 	/* Need to test with unit size that is not multiple of page size.
 	 * Until then --- don't allow. */
 	if ((params->fs_unit_size & (PAGE_CACHE_SIZE - 1)) != 0)
-		M0_RETERR(-EINVAL,
-			  "Unit size must be a multiple of PAGE_CACHE_SIZE");
-	M0_RETURN(0);
+		return M0_ERR(-EINVAL,
+			       "Unit size must be a multiple of "
+			       "PAGE_CACHE_SIZE");
+	return M0_RC(0);
 }
 
 static int fs_params_parse(struct fs_params *dest, const char **src)
@@ -434,7 +437,8 @@ static int fs_params_parse(struct fs_params *dest, const char **src)
 		}
 
 		if (rc != 0)
-			M0_RETERR(rc, "Invalid filesystem parameter: %s", *src);
+			return M0_ERR(rc, "Invalid filesystem parameter: %s",
+				       *src);
 	}
 end:
 	if (dest->fs_nr_data_units == 0)
@@ -456,7 +460,7 @@ end:
 		       " nr_parity_units (K) = %u, unit_size = %u",
 		       dest->fs_pool_width, dest->fs_nr_data_units,
 		       dest->fs_nr_parity_units, dest->fs_unit_size);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /* ----------------------------------------------------------------
@@ -499,7 +503,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 
 	M0_ALLOC_PTR(ctx);
 	if (ctx == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0t1fs_service_context_init(ctx, csb, type);
 	rc = m0_rpc_client_connect(&ctx->sc_conn, &ctx->sc_session,
@@ -514,7 +518,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 		m0t1fs_service_context_fini(ctx);
 		m0_free(ctx);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void disconnect_from_services(struct m0t1fs_sb *csb)
@@ -559,7 +563,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 
 	rc = m0_confc_open_sync(&dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	*nr_ios = 0;
 
@@ -594,7 +598,7 @@ out:
 		rc = rc ?: -EINVAL;
 		disconnect_from_services(csb);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int configure_addb_rpc_sink(struct m0_addb_mc *addb_mc)
@@ -750,7 +754,7 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
 	    2 * fs_params->fs_nr_parity_units ||
 	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 
 	/* 1 for MD, 1 for RM, the rest are data containers. */
 	nr_data_containers = csb->csb_nr_containers - 2;
@@ -793,7 +797,7 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 		}
 	} m0_tl_endfor;
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /* ----------------------------------------------------------------
@@ -830,7 +834,7 @@ static int m0t1fs_layout_build(const uint64_t         layout_id,
 	if (rc == 0)
 		*layout = m0_pdl_to_layout(pdlayout);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
@@ -858,7 +862,7 @@ static int m0t1fs_cob_id_enum_build(const uint32_t pool_width,
 	if (rc == 0)
 		*lay_enum = &lle->lle_base;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int
@@ -896,7 +900,7 @@ try_again:
 		if (rc != -ENOENT) {
 			M0_LOG(M0_ERROR, "lid %lld layout lookup error: %d",
 					 (unsigned long long)unique_lid, rc);
-			M0_RETURN(rc);
+			return M0_RC(rc);
 		}
 		M0_LOG(M0_DEBUG, "lid %llu not found. It's a unique lid",
 				  (unsigned long long)unique_lid);
@@ -934,7 +938,7 @@ try_again:
 			m0_layout_enum_fini(layout_enum);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
@@ -969,19 +973,19 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_fid_sscanf(mops->mo_profile, &prof_fid);
 	if (rc != 0) {
 		M0_LOG(M0_FATAL, "Cannot parse profile `%s'", mops->mo_profile);
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	}
 
 	if (!m0_conf_fid_is_valid(&prof_fid) ||
 	    m0_conf_fid_type(&prof_fid) != &M0_CONF_PROFILE_TYPE) {
 		M0_LOG(M0_FATAL, "Wrong profile fid "FID_F, FID_P(&prof_fid));
-		M0_RETURN(-EINVAL);
+		return M0_RC(-EINVAL);
 	}
 	rc = m0_confc_init(&confc, &csb->csb_iogroup, &prof_fid,
 			   mops->mo_confd, &m0t1fs_globals.g_rpc_machine,
 			   mops->mo_local_conf);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	rc = m0_confc_open_sync(&fs, confc.cc_root,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
@@ -1044,7 +1048,7 @@ err_disconnect:
 
 end:
 	m0_confc_fini(&confc);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
@@ -1070,7 +1074,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	rc = m0t1fs_mds_statfs(csb, &rep);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	sb->s_magic = rep->f_type;
 	csb->csb_namelen = rep->f_namelen;
@@ -1082,14 +1086,14 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
 	if (IS_ERR(root_inode))
-		M0_RETURN((int)PTR_ERR(root_inode));
+		return M0_RC((int)PTR_ERR(root_inode));
 
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int m0t1fs_fill_super(struct super_block *sb, void *data,
@@ -1133,7 +1137,7 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	io_bob_tlists_init();
 	M0_SET0(&iommstats);
 
-	M0_RETURN(0);
+	return M0_RC(0);
 
 m0t1fs_teardown:
 	m0t1fs_teardown(csb);
@@ -1146,7 +1150,7 @@ sb_fini:
 end:
 	sb->s_fs_info = NULL;
 	M0_ASSERT(rc != 0);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /** Implementation of file_system_type::get_sb() interface. */
@@ -1156,7 +1160,8 @@ M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype, int flags,
 {
 	M0_ENTRY("flags: 0x%x, devname: %s, data: %s", flags, devname,
 		 (char *)data);
-	M0_RETURN(get_sb_nodev(fstype, flags, data, m0t1fs_fill_super, mnt));
+	return M0_RC(get_sb_nodev(fstype, flags, data, m0t1fs_fill_super,
+				   mnt));
 }
 
 /** Implementation of file_system_type::kill_sb() interface. */

@@ -1274,7 +1274,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 				        &cksum_data);
 		i++;
 	} m0_tl_endfor;
-	M0_RETURN(0);
+	return M0_RC(0);
 
 cleanup:
 	while(i != 0) {

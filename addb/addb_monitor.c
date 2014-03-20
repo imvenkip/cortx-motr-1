@@ -181,12 +181,12 @@ static int addb_mon_rpc_client_connect(struct m0_rpc_conn    *conn,
 
 	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, remote_addr);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	rc = m0_rpc_conn_create(conn, ep, rpc_mach, max_rpcs_in_flight,
 				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)
@@ -211,7 +211,7 @@ M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)
 	STATS_ALLOC_PTR(mon_ctx->amc_stats_conn, &m0_addb_monitors_mod_ctx,
 			SVC_CONN_ESTABLISH_1);
 	if (mon_ctx->amc_stats_conn == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	rc = addb_mon_rpc_client_connect(mon_ctx->amc_stats_conn,
 					 rmach,
 					 stats_svc_ep,
@@ -221,7 +221,7 @@ M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)
 		STATS_ADDB_FUNCFAIL(rc, SVC_CONN_ESTABLISH_2,
 				    &m0_addb_monitors_mod_ctx);
 		m0_free(mon_ctx->amc_stats_conn);
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	}
 	mon_ctx->amc_stats_ep = stats_svc_ep;
 	return rc;
@@ -444,7 +444,7 @@ static int addb_monitor_stats_fop_send(struct m0_stats_update_fop *fop_data,
 
 	M0_ALLOC_PTR(stats_update_fop);
 	if (stats_update_fop == NULL)
-		M0_RETERR(-ENOMEM, "stats update fop");
+		return M0_ERR(-ENOMEM, "stats update fop");
 
 	m0_fop_init(stats_update_fop, &m0_fop_stats_update_fopt,
 		    (void *) fop_data, addb_monitor_stats_fop_release);

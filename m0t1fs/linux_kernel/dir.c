@@ -290,7 +290,7 @@ static int m0t1fs_create(struct inode     *dir,
 	/* new_inode() will call m0t1fs_alloc_inode() using super_operations */
 	inode = new_inode(sb);
 	if (inode == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	ci = M0T1FS_I(inode);
 	m0t1fs_fs_lock(csb);
 	m0t1fs_fid_alloc(csb, &ci->ci_fid);
@@ -1305,7 +1305,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 	if (op == M0_LAYOUT_OP_ADD || op == M0_LAYOUT_OP_DELETE) {
 		layout = m0_layout_find(ldom, lid);
 		if (layout == NULL)
-			M0_RETURN(-ENOENT);
+			return M0_RC(-ENOENT);
 	}
 
 	mo.mo_layout_op   = op;
@@ -1354,7 +1354,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 	if (layout != NULL)
 		m0_layout_put(layout); /* dual to m0_layout_find() */
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop_statfs_rep **rep)

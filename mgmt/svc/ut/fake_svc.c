@@ -54,13 +54,13 @@ static unsigned long mgmt_svc_ut_timer_callback(unsigned long data)
 	svc = (struct mgmt_svc_ut_svc *)asc->sac_service;
 	if (svc->msus_timer_ticked) {
 		M0_LOG(M0_DEBUG, "timer already ticked");
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 	svc->msus_timer_ticked = true;
 	asc->sac_rc = mgmt_svc_ut_start_async_result;
 	m0_fom_wakeup(asc->sac_fom);
 	++mgmt_svc_ut_start_timer_called;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int mgmt_svc_ut_start_async_rc;
@@ -79,13 +79,13 @@ static int mgmt_svc_ut_rso_start_async(struct m0_reqh_service_start_async_ctx
 	M0_UT_ASSERT(asc->sac_service == &mgmt_svc_ut_fake_svc->msus_reqhs);
 	++mgmt_svc_ut_rso_start_async_called;
 	if (mgmt_svc_ut_start_async_rc != 0)
-		M0_RETURN(mgmt_svc_ut_start_async_rc);
+		return M0_RC(mgmt_svc_ut_start_async_rc);
 	rc = m0_timer_init(&svc->msus_timer, M0_TIMER_HARD, NULL,
 			   mgmt_svc_ut_timer_callback, (unsigned long)asc);
 	M0_UT_ASSERT(rc == 0);
 	m0_timer_start(&svc->msus_timer, m0_time_from_now(0, 5000000)); /* 5ms */
 	svc->msus_used_timer = true;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void mgmt_svc_ut_svc_rso_prepare_to_stop(struct m0_reqh_service *service)

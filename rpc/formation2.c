@@ -676,7 +676,7 @@ static int frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 
 	p->rp_frm = frm;
 	/* See packet_ready() in rpc/frmops.c */
-	M0_RETURN(frm->f_ops->fo_packet_ready(p));
+	return M0_RC(frm->f_ops->fo_packet_ready(p));
 }
 
 M0_INTERNAL void m0_rpc_frm_run_formation(struct m0_rpc_frm *frm)

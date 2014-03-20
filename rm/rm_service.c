@@ -114,7 +114,7 @@ M0_INTERNAL int m0_rms_register(void)
 	 * manager.
 	 */
 
-	M0_RETURN(m0_rm_fop_init());
+	return M0_RC(m0_rm_fop_init());
 }
 
 /**
@@ -143,14 +143,14 @@ static int rms_allocate(struct m0_reqh_service      **service,
 
 	RM_ALLOC_PTR(rms, SERVICE_ALLOC, &m0_rm_addb_ctx);
 	if (rms == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	m0_reqh_rm_service_bob_init(rms);
 
 	*service = &rms->rms_svc;
 	(*service)->rs_ops = &rms_ops;
 	rmsvc_owner_tlist_init(&rms->rms_owners);
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void rms_fini(struct m0_reqh_service *service)
@@ -182,7 +182,7 @@ static int rms_start(struct m0_reqh_service *service)
 	/** Register various resource types */
 	m0_file_lock_type_register(&rms->rms_dom);
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void rms_stop(struct m0_reqh_service *service)
@@ -321,7 +321,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 		*out = owner;
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 
 err_credit:
 	m0_rm_credit_fini(ow_cr);
@@ -332,7 +332,7 @@ err_resource:
 	m0_rm_resource_del(resource);
 
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void rms_stats_post_addb(struct m0_reqh_service *service)

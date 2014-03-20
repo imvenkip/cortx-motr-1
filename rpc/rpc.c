@@ -64,7 +64,7 @@ M0_INTERNAL int m0_rpc_init(void)
 		m0_rpc_service_register() ?:
 		m0_rpc_session_module_init();
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_rpc_fini(void)
@@ -96,7 +96,7 @@ M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 	rc = m0_rpc__post_locked(item);
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_post);
 
@@ -129,7 +129,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 
 	m0_rpc_item_send(item);
 
-	M0_RETURN(item->ri_error);
+	return M0_RC(item->ri_error);
 }
 
 int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
@@ -163,7 +163,7 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
 	m0_rpc_item_send_reply(request, reply);
 	m0_rpc_machine_unlock(machine);
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 M0_EXPORTED(m0_rpc_reply_post);
 
@@ -181,7 +181,7 @@ M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
 	m0_rpc_oneway_item_post_locked(conn, item);
 	m0_rpc_machine_unlock(machine);
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
@@ -211,7 +211,7 @@ M0_INTERNAL int m0_rpc_reply_timedwait(struct m0_clink *clink,
 	M0_PRE(m0_clink_is_armed(clink));
 
 	rc = m0_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_reply_timedwait);
 
@@ -247,13 +247,13 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 				     M0_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, M0_SEG_SHIFT);
 	if (rc != 0)
-		M0_RETERR(rc, "net_buf_pool: Initialization");
+		return M0_ERR(rc, "net_buf_pool: Initialization");
 
 	m0_net_buffer_pool_lock(app_pool);
 	rc = m0_net_buffer_pool_provision(app_pool, bufs_nr);
 	m0_net_buffer_pool_unlock(app_pool);
 
-	M0_RETURN(rc == bufs_nr ? 0 : -ENOMEM);
+	return M0_RC(rc == bufs_nr ? 0 : -ENOMEM);
 }
 M0_EXPORTED(m0_rpc_net_buffer_pool_setup);
 

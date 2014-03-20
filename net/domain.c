@@ -79,7 +79,7 @@ M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
 		NET_ADDB_FUNCFAIL(rc, DOM_INIT, ctx);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom)

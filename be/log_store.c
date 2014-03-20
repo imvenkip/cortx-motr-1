@@ -128,7 +128,7 @@ M0_INTERNAL int m0_be_log_store_reserve(struct m0_be_log_store *ls,
 	}
 	M0_POST(m0_be_log_store__invariant(ls));
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_log_store_discard(struct m0_be_log_store *ls,

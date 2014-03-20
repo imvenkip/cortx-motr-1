@@ -410,7 +410,7 @@ static int confc_cache_create(struct m0_confc *confc,
 	/* Create a stub for root object. */
 	rc = m0_conf_obj_find(&confc->cc_cache, profile, &confc->cc_root);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	if (not_empty(local_conf)) {
 		rc = confc_cache_preload(confc, local_conf);
 		if (rc == 0 && confc->cc_root->co_status != M0_CS_READY) {
@@ -425,7 +425,7 @@ static int confc_cache_create(struct m0_confc *confc,
 			rc = -ENODATA;
 		}
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
@@ -464,14 +464,14 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 
 		M0_POST(not_empty(confd_addr) == confc_is_online(confc));
 		M0_POST(confc_invariant(confc));
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 err:
 	confc->cc_root = NULL;
 	m0_conf_cache_fini(&confc->cc_cache);
 	m0_mutex_fini(&confc->cc_lock);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
@@ -653,7 +653,7 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
 	if (rc == 0)
 		*result = m0_confc_ctx_result(&w->w_ctx);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -678,11 +678,11 @@ M0_INTERNAL int m0_confc__open(struct m0_confc_ctx *ctx,
 
 	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
 
 	ast_state_set(&ctx->fc_ast, S_CHECK);
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
@@ -701,7 +701,7 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 	sm_waiter_fini(&w);
 
 	M0_POST(ergo(rc == 0, (*result)->co_status == M0_CS_READY));
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
@@ -733,10 +733,10 @@ path_copy(const struct m0_fid *src, struct m0_fid *dest, size_t dest_sz)
 		dest[i] = src[i];
 
 	if (i == dest_sz)
-		M0_RETURN(-E2BIG);
+		return M0_RC(-E2BIG);
 	dest[i] = (struct m0_fid)M0_FID0; /* terminate the path */
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /* ------------------------------------------------------------------
@@ -1094,7 +1094,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 
 	case M0_CS_MISSING:
 		if (!confc_is_online(ctx->fc_confc))
-			M0_RETURN(-ENOENT);
+			return M0_RC(-ENOENT);
 		obj->co_status = M0_CS_LOADING;
 
 		if (m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE) {
@@ -1112,7 +1112,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			M0_LEAVE("retval=M0_CS_MISSING");
 			return M0_CS_MISSING;
 		}
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	case M0_CS_LOADING:
 		if (ctx->fc_mach.sm_state == S_FAILURE) {
@@ -1192,17 +1192,18 @@ static int object_enrich(struct m0_conf_obj *dest,
 
 	if (!m0_conf_obj_match(dest, src))
 		/* XXX TODO: ADDB */
-		M0_RETERR(-EPROTO,
-			  "Conflict of incoming and cached configuration data");
+		return M0_ERR(-EPROTO,
+			       "Conflict of incoming and cached configuration "
+			       "data");
 
 	if (dest->co_status == M0_CS_READY)
-		M0_RETURN(0); /* do nothing */
+		return M0_RC(0); /* do nothing */
 
 	rc = m0_conf_obj_fill(dest, src, &confc->cc_cache);
 	M0_ASSERT(dest->co_status == (rc == 0 ? M0_CS_READY : M0_CS_MISSING));
 	m0_chan_broadcast(&dest->co_chan);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int
@@ -1211,7 +1212,7 @@ cached_obj_update(struct m0_confc *confc, const struct m0_confx_obj *flat)
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY("confc=%p", confc);
-	M0_RETURN(m0_conf_obj_find(&confc->cc_cache, m0_conf_objx_fid(flat),
+	return M0_RC(m0_conf_obj_find(&confc->cc_cache, m0_conf_objx_fid(flat),
 				   &obj) ?: object_enrich(obj, flat, confc));
 }
 
@@ -1231,7 +1232,7 @@ static int confc_cache_preload(struct m0_confc *confc, const char *local_conf)
 			rc = cached_obj_update(confc, M0_CONFX_AT(enc, i));
 		m0_confx_free(enc);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -1266,7 +1267,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 			break;
 	}
 	confc_unlock(confc);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /* ------------------------------------------------------------------
@@ -1292,7 +1293,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
 				   rpc_mach, confd_addr, MAX_RPCS_IN_FLIGHT);
 	M0_POST((rc == 0) == confc_is_online(confc));
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void disconnect_from_confd(struct m0_confc *confc)
@@ -1418,7 +1419,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 
 	p = confc_fop_alloc(ctx);
 	if (p == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	/* Setup rpc item. */
 	item = &p->cf_fop.f_item;
@@ -1437,7 +1438,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 	ctx->fc_rpc_item = item;
 
 	M0_POST(ctx_invariant(ctx));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static bool request_check(const struct m0_confc_ctx *ctx)

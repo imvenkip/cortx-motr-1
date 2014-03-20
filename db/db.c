@@ -321,7 +321,7 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 		tree = (struct m0_be_btree*)p;
 		m0_be_btree_init(tree, seg, ops);
                 table->t_i.i_tree = p;
-                M0_RETURN(0);
+                return M0_RC(0);
         }
 
 	rc = m0_db_tx_init(&tx_, env, 0);
@@ -342,7 +342,7 @@ M0_INTERNAL int m0_table_init(struct m0_table *table, struct m0_dbenv *env,
 	m0_db_tx_commit(&tx_);
 
 
-        M0_RETURN(rc);
+        return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_table_fini(struct m0_table *table)
@@ -444,7 +444,7 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
                 m0_be_tx_fini(tx);
 	m0_sm_group_unlock(grp);
 
-        M0_RETURN(rc);
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)
@@ -461,7 +461,7 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)
         m0_be_tx_fini(tx);
 	m0_sm_group_unlock(grp);
 
-        M0_RETURN(0);
+        return M0_RC(0);
 }
 
 M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)

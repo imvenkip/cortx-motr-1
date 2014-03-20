@@ -169,21 +169,19 @@
 #define M0_ENTRY(...) M0_LOG(M0_CALL, "> " __VA_ARGS__)
 #define M0_LEAVE(...) M0_LOG(M0_CALL, "< " __VA_ARGS__)
 
-#define M0_RETURN(rc)                                    \
-do {                                                     \
-	typeof(rc) __rc = (rc);                          \
-	(__rc >= 0) ? M0_LOG(M0_CALL, "< rc=%d", __rc) : \
-		M0_LOG(M0_NOTICE, "< rc=%d", __rc);      \
-	return __rc;                                     \
-} while (0)
+#define M0_RC(rc) ({                                     \
+	typeof(rc) __rc = (rc);                           \
+	(__rc >= 0) ? M0_LOG(M0_CALL, "< rc=%d", __rc) :  \
+		M0_LOG(M0_NOTICE, "< rc=%d", __rc);       \
+	__rc;                                             \
+})
 
-#define M0_RETERR(rc, fmt, ...)                                  \
-do {                                                             \
+#define M0_ERR(rc, fmt, ...) ({                                 \
 	typeof(rc) __rc = (rc);                                  \
 	M0_ASSERT(__rc != 0);                                    \
-	M0_LOG(M0_ERROR, "<! rc=%d " fmt, __rc, ## __VA_ARGS__); \
-	return __rc;                                             \
-} while (0)
+	M0_LOG(M0_ERROR, "<! rc=%d " fmt, __rc, ## __VA_ARGS__ ); \
+	__rc;                                                    \
+})
 
 M0_INTERNAL int m0_trace_init(void);
 M0_INTERNAL void m0_trace_fini(void);

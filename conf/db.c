@@ -92,9 +92,8 @@ static int confx_obj_measure(struct m0_confx_obj *xobj)
 
 	M0_ENTRY();
 	xcode_ctx_init(&ctx, xobj, true);
-	M0_RETURN(m0_xcode_length(&ctx));
+	return M0_RC(m0_xcode_length(&ctx));
 }
-
 
 static m0_bcount_t confdb_ksize(const void *key)
 {
@@ -112,7 +111,6 @@ static const struct m0_be_btree_kv_ops confdb_ops = {
 	.ko_compare = (void *)&m0_fid_cmp
 };
 
-
 /* ------------------------------------------------------------------
  * Tables
  * ------------------------------------------------------------------ */
@@ -138,7 +136,7 @@ static int confdb_table_init(struct m0_be_seg *seg, struct m0_be_btree **btree,
 		m0_confdb_destroy(seg, tx);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void confdb_table_fini(struct m0_be_seg *seg)
@@ -198,7 +196,7 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 		rc = 0;
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
@@ -213,7 +211,7 @@ M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
 		m0_be_btree_destroy_credit(btree, 1, accum);
 		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
@@ -234,7 +232,7 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
 		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
 		rc = m0_be_seg_dict_delete(seg, tx, btree_name);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
@@ -275,7 +273,7 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		confdb_table_fini(seg);
 		m0_confdb_destroy(seg, tx);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int confdb_objs_count(struct m0_be_btree *btree, size_t *result)
@@ -294,7 +292,7 @@ static int confdb_objs_count(struct m0_be_btree *btree, size_t *result)
 	/* Check for normal iteration completion. */
 	if (rc == -ENOENT)
 		rc = 0;
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static struct m0_confx *confx_alloc(size_t nr_objs)
@@ -380,7 +378,7 @@ M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 
 	confx_fill(*out, btree);
 out:
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

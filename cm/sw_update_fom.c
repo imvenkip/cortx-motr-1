@@ -235,7 +235,7 @@ static int swu_complete(struct m0_cm_sw_update *swu)
         if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_PREPARE)
                 m0_dtx_open(tx);
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_FAILED)
-		M0_RETURN(tx->tx_betx.t_sm.sm_rc);
+		return M0_RC(tx->tx_betx.t_sm.sm_rc);
         if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_OPENING) {
                 m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
                 return M0_FSO_WAIT;

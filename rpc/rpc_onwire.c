@@ -41,7 +41,7 @@ M0_INTERNAL int m0_rpc_item_header1_encdec(struct m0_rpc_item_header1 *ioh,
 					   enum m0_xcode_what          what)
 {
 	M0_ENTRY("item header1: %p", ioh);
-	M0_RETURN(m0_xcode_encdec(&ITEM_HEAD1_XCODE_OBJ(ioh), cur, what));
+	return M0_RC(m0_xcode_encdec(&ITEM_HEAD1_XCODE_OBJ(ioh), cur, what));
 }
 
 M0_INTERNAL int m0_rpc_item_header2_encdec(struct m0_rpc_item_header2 *ioh,
@@ -49,7 +49,7 @@ M0_INTERNAL int m0_rpc_item_header2_encdec(struct m0_rpc_item_header2 *ioh,
 					   enum m0_xcode_what          what)
 {
 	M0_ENTRY("item header2: %p", ioh);
-	M0_RETURN(m0_xcode_encdec(&ITEM_HEAD2_XCODE_OBJ(ioh), cur, what));
+	return M0_RC(m0_xcode_encdec(&ITEM_HEAD2_XCODE_OBJ(ioh), cur, what));
 }
 
 

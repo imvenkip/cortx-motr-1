@@ -218,7 +218,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	if (M0_FI_ENABLED("fom_alloc_failure"))
 		m0_free0(&rqfom);
 	if (rqfom == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	switch (type) {
 	case FRT_BORROW:
@@ -241,7 +241,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	reply_fop = m0_fop_alloc(fopt, NULL);
 	if (reply_fop == NULL) {
 		m0_free(rqfom);
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
@@ -255,7 +255,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 	 */
 	m0_fop_put(reply_fop);
 	*out = &rqfom->rf_fom;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /*
@@ -327,7 +327,7 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
 	default:
 		break;
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -382,7 +382,7 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
 				     &m0_rm_addb_ctx);
 			if (remote->rem_session == NULL)
-				M0_RETURN(-ENOMEM);
+				return M0_RC(-ENOMEM);
 			m0_rpc_service_reverse_session_get(
 				service, &fom->fo_fop->f_item,
 				remote->rem_session);
@@ -391,7 +391,7 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 					  &remote->rem_rev_sess_clink);
 		}
 	}
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 /*
@@ -465,7 +465,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 					    &basefop->rrq_owner.ow_resource);
 		if (rc != 0) {
 			m0_free(owner);
-			M0_RETURN(rc);
+			return M0_RC(rc);
 		}
 	}
 
@@ -476,7 +476,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
 		m0_rm_incoming_fini(in);
 	in->rin_want.cr_group_id = rfom->rf_in.ri_group_id;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /*
@@ -514,7 +514,8 @@ static int request_pre_process(struct m0_fom *fom,
 	 */
 	m0_fom_phase_set(fom, incoming_state(in) == RI_WAIT ?
 			 FOPH_RM_REQ_WAIT : FOPH_RM_REQ_FINISH);
-	M0_RETURN(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT : M0_FSO_AGAIN);
+	return M0_RC(incoming_state(in) == RI_WAIT ? M0_FSO_WAIT
+			: M0_FSO_AGAIN);
 }
 
 static int request_post_process(struct m0_fom *fom)
@@ -541,7 +542,7 @@ static int request_post_process(struct m0_fom *fom)
 	reply_err_set(in->rin_type, fom, rc);
 	m0_rm_incoming_fini(in);
 
-	M0_RETURN(M0_FSO_AGAIN);
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static int request_fom_tick(struct m0_fom           *fom,
@@ -573,7 +574,7 @@ static int request_fom_tick(struct m0_fom           *fom,
 			break;
 		}
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -631,7 +632,7 @@ static int cancel_process(struct m0_fom *fom)
 	reply_err_set(FRT_CANCEL, fom, rc);
 	rc = M0_FSO_AGAIN;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int cancel_fom_tick(struct m0_fom *fom)

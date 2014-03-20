@@ -89,7 +89,7 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(m);
 	if (m == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_CONF_FETCH_OPCODE:
@@ -100,18 +100,18 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		break;
 	default:
 		m0_free(m);
-		M0_RETURN(-EOPNOTSUPP);
+		return M0_RC(-EOPNOTSUPP);
 	}
 	rep_fop = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
 	if (rep_fop == NULL) {
 		m0_free(m);
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	}
 	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop,
 	            reqh, fop->f_type->ft_fom_type.ft_rstype);
 	*out = &m->dm_fom;
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static int conf_fetch_tick(struct m0_fom *fom)
@@ -205,13 +205,13 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 		if (m0_conf_obj_type(cur) != &M0_CONF_DIR_TYPE) {
 			rc = apply(n, enc, cur);
 			if (rc != 0)
-				M0_RETURN(rc);
+				return M0_RC(rc);
 		}
 
 		rc = cur->co_ops->coo_lookup(cur, &path->af_elems[i], &cur) ?:
 			readiness_check(cur);
 		if (rc != 0)
-			M0_RETURN(rc);
+			return M0_RC(rc);
 	}
 
 	/* Handle final object. */
@@ -228,14 +228,14 @@ static int confd_path_walk(struct m0_conf_obj *cur, const struct arr_fid *path,
 
 			rc = apply(n, enc, entry);
 			if (rc != 0)
-				M0_RETURN(rc);
+				return M0_RC(rc);
 		}
 		m0_conf_obj_put(cur);
 	} else {
 		rc = apply(n, enc, cur);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
@@ -254,15 +254,15 @@ static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 
 	rc = m0_conf_obj_find(cache, origin, &org) ?: readiness_check(org);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	rc = confd_path_walk(org, path, _count, &nr, NULL);
 	if (rc != 0 || nr == 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	M0_ALLOC_ARR(data, nr * m0_confx_sizeof());
 	if (data == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	/* "data" is freed by m0_confx_free(dest). */
 	dest->cx__objs = (void *)data;
 
@@ -273,7 +273,7 @@ static int confx_populate(struct m0_confx *dest, const struct m0_fid *origin,
 		M0_ASSERT(nr == 0);
 	else
 		m0_confx_free(dest);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 /** @} confd_dlspec */

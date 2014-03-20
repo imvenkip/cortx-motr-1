@@ -221,7 +221,7 @@ m0_be_tx_group_tx_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
 		rc = -ENOSPC;
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void

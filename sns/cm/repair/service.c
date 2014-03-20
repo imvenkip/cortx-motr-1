@@ -95,7 +95,7 @@ static int repair_svc_allocate(struct m0_reqh_service **service,
 	rc = m0_sns_cm_svc_allocate(service, stype, rctx, &repair_svc_ops,
 				    &sns_repair_ops);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int repair_svc_start(struct m0_reqh_service *service)

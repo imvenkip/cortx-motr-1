@@ -282,7 +282,7 @@ static int m0t1fs_inode_set(struct inode *inode, void *opaque)
 	inode->i_ino = fid->f_key;
 
 	M0_LOG(M0_DEBUG, "inode (%p) "FID_F, inode, FID_P(fid));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0t1fs_inode_update(struct inode      *inode,

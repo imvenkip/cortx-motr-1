@@ -390,7 +390,7 @@ static int addb_cache_evmgr_flush(struct m0_addb_mc *src_mc,
 		if (addb_rec == NULL) {
 			/* Add addb rec back to cache evmgr's TS headers list */
 			addb_ts_save(&cache->ace_ts, ts_rec);
-			M0_RETERR(-ENOMEM, "Dest addb mc's rec alloc");
+			return M0_ERR(-ENOMEM, "Dest addb mc's rec alloc");
 		}
 
 		memcpy(addb_rec, ts_rec->atr_data, rec_len);
@@ -449,12 +449,13 @@ M0_INTERNAL int m0_addb_mc_configure_cache_evmgr(struct m0_addb_mc *mc,
 
 	M0_ALLOC_PTR(cache);
 	if (cache == NULL)
-		M0_RETERR(-ENOMEM, "Unable to allocate memory for cache evmgr");
+		return M0_ERR(-ENOMEM, "Unable to allocate memory for "
+				"cache evmgr");
 
 	rc = addb_ts_init(&cache->ace_ts, npages, npages, pgsize);
 	if (rc != 0) {
 		m0_free(cache);
-		M0_RETERR(rc, "Cannot initialize addb transient store");
+		return M0_ERR(rc, "Cannot initialize addb transient store");
 	}
 
 	evmgr = &cache->ace_evmgr;

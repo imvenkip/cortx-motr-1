@@ -221,7 +221,7 @@ static int mgmt_fop_ss_fo_tick(struct m0_fom *fom)
 		M0_ASSERT(m0_fom_phase(fom) < MGMT_FOP_SS_PHASE_FINI);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void mgmt_fop_ss_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -283,12 +283,12 @@ static int mgmt_fop_ss_fto_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_POST(m0_ref_read(&rfop->f_ref) == 1);
 
 	*out = &ssfom->ss_m0fom;
-	M0_RETURN(0);
+	return M0_RC(0);
 
  failed:
 	if (ssfom != NULL)
 		m0_free(ssfom);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static const struct m0_fom_type_ops mgmt_fop_ss_fom_type_ops = {

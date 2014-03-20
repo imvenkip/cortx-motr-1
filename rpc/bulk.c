@@ -100,14 +100,14 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 
 	rc = m0_0vec_init(&rbuf->bb_zerovec, segs_nr);
 	if (rc != 0)
-		M0_RETERR(rc, "bulk_buf: Zero vector initialization");
+		return M0_ERR(rc, "bulk_buf: Zero vector initialization");
 
 	rbuf->bb_flags = 0;
 	if (nb == NULL) {
 		RPC_ALLOC_PTR(rbuf->bb_nbuf, BULK_BUF_INIT, &m0_rpc_addb_ctx);
 		if (rbuf->bb_nbuf == NULL) {
 			m0_0vec_fini(&rbuf->bb_zerovec);
-			M0_RETURN(-ENOMEM);
+			return M0_RC(-ENOMEM);
 		}
 		rbuf->bb_flags |= M0_RPC_BULK_NETBUF_ALLOCATED;
 		rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
@@ -124,14 +124,14 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 			rc = m0_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
 			if (rc != 0) {
 				m0_0vec_fini(&rbuf->bb_zerovec);
-				M0_RETERR(rc, "Addition of cbuf");
+				return M0_ERR(rc, "Addition of cbuf");
 			}
 		}
 	}
 
 	rpcbulk_tlink_init(rbuf);
 	rbuf->bb_magic = M0_RPC_BULK_BUF_MAGIC;
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void buf_bulk_cb(const struct m0_net_buffer_event *evt)
@@ -266,16 +266,16 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	M0_PRE(out != NULL);
 
 	if (segs_nr > m0_net_domain_get_max_buffer_segments(netdom))
-		M0_RETERR(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
+		return M0_ERR(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
 
 	RPC_ALLOC_PTR(buf, BULK_BUF_ADD, &m0_rpc_addb_ctx);
 	if (buf == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 
 	rc = rpc_bulk_buf_init(buf, segs_nr, nb);
 	if (rc != 0) {
 		m0_free(buf);
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	}
 
 	m0_mutex_lock(&rbulk->rb_mutex);
@@ -285,7 +285,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_add(struct m0_rpc_bulk *rbulk,
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
 	M0_POST(rpc_bulk_buf_invariant(buf));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 M0_EXPORTED(m0_rpc_bulk_buf_add);
 
@@ -318,14 +318,14 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 	rbulk = rbuf->bb_rbulk;
 	rc = m0_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
 	if (rc != 0)
-		M0_RETERR(rc, "Addition of cbuf");
+		return M0_ERR(rc, "Addition of cbuf");
 
 	rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
 	M0_POST(rpc_bulk_buf_invariant(rbuf));
 	m0_mutex_lock(&rbulk->rb_mutex);
 	M0_POST(rpc_bulk_invariant(rbulk));
 	m0_mutex_unlock(&rbulk->rb_mutex);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_bulk_buf_databuf_add);
 
@@ -422,7 +422,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk *rbulk,
 	M0_POST(rpc_bulk_invariant(rbulk));
 	m0_mutex_unlock(&rbulk->rb_mutex);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 cleanup:
 	RPC_ADDB_FUNCFAIL(rc, BULK_RPC_BULK_OP, &m0_rpc_addb_ctx);
 	M0_ASSERT(rc != 0);
@@ -432,7 +432,7 @@ cleanup:
 			m0_net_buffer_del(rbuf->bb_nbuf, tm);
 	} m0_tl_endfor;
 	m0_mutex_unlock(&rbulk->rb_mutex);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk *rbulk,

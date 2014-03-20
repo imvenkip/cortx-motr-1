@@ -279,7 +279,7 @@ static int fom_tx_wait(struct m0_fom *fom)
 					  M0_BTS_ACTIVE, M0_BTS_FAILED)));
 
 	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
-		M0_RETURN(tx->t_sm.sm_rc);
+		return M0_RC(tx->t_sm.sm_rc);
 	else if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
 		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
 		M0_LEAVE();

@@ -54,7 +54,7 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
 	if (sctx->rsx_log_file == NULL)
-		M0_RETERR(errno, "Open of error log file");
+		return M0_ERR(errno, "Open of error log file");
 
 	/*
 	 * Start rpc server.
@@ -73,12 +73,12 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 			     sctx->rsx_argv);
 	M0_LOG(M0_DEBUG, "cs_setup_env: rc=%d", rc);
 	if (rc == 0)
-		M0_RETURN(m0_cs_start(&sctx->rsx_mero_ctx));
+		return M0_RC(m0_cs_start(&sctx->rsx_mero_ctx));
 
 	m0_cs_fini(&sctx->rsx_mero_ctx);
 fclose:
 	fclose(sctx->rsx_log_file);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 void m0_rpc_server_stop(struct m0_rpc_server_ctx *sctx)
@@ -111,19 +111,19 @@ M0_INTERNAL int m0_rpc_client_connect(struct m0_rpc_conn    *conn,
 
 	rc = m0_net_end_point_create(&ep, &rpc_mach->rm_tm, remote_addr);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	rc = m0_rpc_conn_create(conn, ep, rpc_mach, max_rpcs_in_flight,
 				M0_TIME_NEVER);
 	m0_net_end_point_put(ep);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 
 	rc = m0_rpc_session_create(session, conn, M0_TIME_NEVER);
 	if (rc != 0)
 		(void)m0_rpc_conn_destroy(conn, M0_TIME_NEVER);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
@@ -168,12 +168,12 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 				   cctx->rcx_remote_addr,
 				   cctx->rcx_max_rpcs_in_flight);
 	if (rc == 0)
-		M0_RETURN(rc);
+		return M0_RC(0);
 
 	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 err:
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_client_start);
 
@@ -197,7 +197,7 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	m0_reqh_fini(&cctx->rcx_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	M0_RETURN(rc0 ?: rc1);
+	return M0_RC(rc0 ?: rc1);
 }
 
 int m0_rpc_client_call(struct m0_fop                *fop,
@@ -222,7 +222,7 @@ int m0_rpc_client_call(struct m0_fop                *fop,
 		m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
 		m0_rpc_item_generic_reply_rc(item->ri_reply);
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_client_call);
 

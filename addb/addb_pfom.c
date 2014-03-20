@@ -273,7 +273,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Phasors were not on stun!");
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void addb_pfom_fo_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

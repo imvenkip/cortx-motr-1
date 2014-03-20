@@ -103,7 +103,7 @@ M0_INTERNAL int m0_rpc_item_module_init(void)
 	m0_rpc_item_onwire_header_size = m0_xcode_length(&h1_xc) +
 		m0_xcode_length(&h2_xc);
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rpc_item_module_fini(void)
@@ -764,22 +764,22 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 
 	if (m0_rpc_item_is_oneway(item)) {
 		m0_rpc_item_dispatch(item);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	M0_ASSERT(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
 
 	if (m0_rpc_item_is_conn_establish(item)) {
 		m0_rpc_item_dispatch(item);
-		M0_RETURN(0);
+		return M0_RC(0);
 	}
 
 	conn = m0_rpc_machine_find_conn(machine, item);
 	if (conn == NULL)
-		M0_RETURN(-ENOENT);
+		return M0_RC(-ENOENT);
 	sess = m0_rpc_session_search(conn, item->ri_header.osr_session_id);
 	if (sess == NULL)
-		M0_RETURN(-ENOENT);
+		return M0_RC(-ENOENT);
 	item->ri_session = sess;
 
 	if (m0_rpc_item_is_request(item)) {
@@ -791,7 +791,7 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 		rc = item_reply_received(item, &req);
 	}
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int item_reply_received(struct m0_rpc_item *reply,
@@ -816,13 +816,13 @@ static int item_reply_received(struct m0_rpc_item *reply,
 		 *     When control reaches this point during testing it might
 		 *     be because of a possible bug. So assert.
 		 */
-		M0_RETURN(-EPROTO);
+		return M0_RC(-EPROTO);
 	}
 	rc = req_replied(req, reply);
 	if (rc == 0)
 		*req_out = req;
 
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)

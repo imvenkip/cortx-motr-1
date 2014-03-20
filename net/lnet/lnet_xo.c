@@ -110,7 +110,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 	M0_PRE(xprt == &m0_net_lnet_xprt);
 	NLX_ALLOC_ALIGNED_PTR_ADDB(dp, &dom->nd_addb_ctx, C_DOM_INIT);
 	if (dp == NULL)
-		M0_RETURN(-ENOMEM);
+		return M0_RC(-ENOMEM);
 	dom->nd_xprt_private = dp;
 	dp->xd_dom = dom;
 
@@ -122,7 +122,7 @@ static int nlx_xo_dom_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
 		nlx_core_dom_set_debug(&dp->xd_core, dp->_debug_);
 
 	M0_POST(ergo(rc == 0, nlx_dom_invariant(dom)));
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 static void nlx_xo_dom_fini(struct m0_net_domain *dom)

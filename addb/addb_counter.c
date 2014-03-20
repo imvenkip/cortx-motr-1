@@ -208,11 +208,11 @@ M0_INTERNAL int m0_addb_counter_init(struct m0_addb_counter *c,
 	c->acn_rt = rt;
 	c->acn_data = m0_alloc(counter_data_sz(rt));
 	if (c->acn_data == NULL)
-		M0_RETERR(-ENOMEM, "counter_init");
+		return M0_ERR(-ENOMEM, "counter_init");
 	c->acn_magic = M0_ADDB_CNTR_MAGIC;
 
 	M0_POST(addb_counter_invariant(c));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 M0_EXPORTED(m0_addb_counter_init);
 
@@ -241,8 +241,8 @@ static int counter_data_update(struct m0_addb_counter_data *data,
  * Reopening Jira "Mero-8: ADDB Counter update error."
  */
 	if (m0_addu64_will_overflow(data->acd_sum_sq, datum * datum))
-		M0_RETERR(-EOVERFLOW, "%s: counter's sum of samples square "
-			  "overflow: datum=%llu", rt->art_name,
+		return M0_ERR(-EOVERFLOW, "%s: counter's sum of samples "
+				"square overflow: datum=%llu", rt->art_name,
 			  (unsigned long long)datum);
 
 	++data->acd_nr;
@@ -279,10 +279,10 @@ M0_INTERNAL int m0_addb_counter_update(struct m0_addb_counter *c,
 
 	res = counter_data_update(c->acn_data, c->acn_rt, datum);
 	if (res != 0)
-		M0_RETURN(res);
+		return M0_RC(res);
 
 	M0_POST(addb_counter_invariant(c));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 M0_EXPORTED(m0_addb_counter_update);
 
@@ -364,12 +364,12 @@ M0_INTERNAL int m0_addb_sm_counter_update(struct m0_addb_sm_counter *c,
 				  c->asc_cntr_data_sz * idx,
 				  c->asc_rt, datum);
 	if (res != 0)
-		M0_RETURN(res);
+		return M0_RC(res);
 
 	++c->asc_nr;
 
 	M0_POST(addb_sm_counter_invariant(c));
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 M0_EXPORTED(m0_addb_sm_counter_update);
 

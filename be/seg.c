@@ -57,8 +57,9 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 		.bh_addr = addr,
 		.bh_size = size,
 	};
-	M0_RETURN(m0_be_io_single(seg->bs_stob, SIO_WRITE,
-				  &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr));
+	return M0_RC(m0_be_io_single(seg->bs_stob, SIO_WRITE,
+				      &hdr, M0_BE_SEG_HEADER_OFFSET,
+				      sizeof hdr));
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -68,7 +69,7 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 
 	/* XXX TODO: seg destroy ... */
 
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
@@ -121,13 +122,13 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
 	if (rc != 0)
-		M0_RETURN(rc);
+		return M0_RC(rc);
 	/* XXX check for magic */
 
 	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ|PROT_WRITE,
 		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 	if (p != hdr.bh_addr)
-		M0_RETURN(-errno);
+		return M0_RC(-errno);
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ, hdr.bh_addr, 0,
 			     hdr.bh_size);
@@ -138,7 +139,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	} else {
 		munmap(hdr.bh_addr, hdr.bh_size);
 	}
-	M0_RETURN(rc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
