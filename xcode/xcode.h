@@ -43,7 +43,7 @@
 
        - pretty-printing,
 
-       - pointer swizzling and adjustment when loading RVM segments into memory,
+       - pointer swizzling and adjustment when loading BE segments into memory,
 
        - consistency checking: traversing data-structures in memory validating
          check-sums and invariants.

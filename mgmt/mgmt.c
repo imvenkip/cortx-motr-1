@@ -186,8 +186,7 @@
      - This will be the run time directory of the m0d process.  Core files
        should end up in this directory.
      - A subdirectory named "db" will be created and passed as
-       the argument to the '-D' m0d flag (this specific behavior may change
-       when Mero converts to use of RVM instead of DB5).
+       the argument to the '-D' m0d flag.
      - The confd database will be in the /var/mero/confd directory on hosts that
        run the configuration database service.  It should not be under /etc
        because the size is proportional to both the number of physical and the

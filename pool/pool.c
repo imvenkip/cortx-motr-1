@@ -58,7 +58,7 @@
    states are updated and the final pool machine states are identical on all
    nodes.
 
-   Pool machine state is stored in DB (or RVM, when it is ready).
+   Pool machine state is stored in BE.
 
    <hr>
    @section pool_mach_store_replica-def Definitions
@@ -76,14 +76,14 @@
    @section pool_mach_store_replica-depends Dependencies
    FOP.
    DTM.
-   DB or RVM.
+   BE.
    Pool.
    Pool Machine.
 
    <hr>
    @section pool_mach_store_replica-fspec Functional Specification
    Pool Machine states, including failure vectors, event lists, spare slots
-   usages, etc. are stored in DB or RVM. Updates to these storage will be
+   usages, etc. are stored in BE. Updates to these storage will be
    protected by distributed transaction manager.
 
    Every ioservice has a pool machine. Pool machine update events are delivered
@@ -138,14 +138,14 @@
    The failure vector and version number operations are designed and listed
    in @ref poolmach.
    No new external interfaces are introduced by this feature. To implement
-   the data store on persistent storage, DB or RVM interfaces will be used.
+   the data store on persistent storage, BE interfaces are used.
    To send and handle pool machine update fop, rpc/reqh interfaces will be
    used.
 
    <hr>
    @section pool_mach_store_replica-conformance Conformance
    - @b I.DLD.P All pool machine states are stored on persistent storage, using
-		DB or RVM interfaces. This states data can be loaded when
+		BE interfaces. This states data can be loaded when
 		system re-starts.
    - @b I.DLD.T Updates to the persistent storage will be protected by
 		distributed transaction manager. This will insure the updates
@@ -154,9 +154,9 @@
    <hr>
    @section pool_mach_store_replica-ut Unit Tests
    Unit test will cover the following case:
-   - init DB or RVM storage.
-   - updates to DB or RVM.
-   - load from DB or RVM.
+   - init BE storage.
+   - updates to BE.
+   - load from BE.
    - Sending updates to replicas.
    - Replicas handles updates from master.
 
@@ -175,7 +175,7 @@
    - @ref agents
    - @ref poolmach
    - @ref DB
-   - @ref RVM
+   - @ref BE
  */
 
 /**

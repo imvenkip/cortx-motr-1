@@ -445,8 +445,6 @@ struct m0_cob_earec {
  * and is only used as a temporary handle of database structures for the
  * sake of handiness. This means, we don't need to bother with locking
  * as every time we pass cob to some function this is new instance of it.
- * All the concurrency for providing data correctness is done by underlying
- * database (db[45] or rvm).
  *
  * The exposed methods to get a new instance of cob are:
  * - m0_cob_lookup() - allocate new in-memory cob and populate it with lookup
