@@ -331,7 +331,7 @@ enum { M0_XCODE_DEPTH_MAX = 10 };
    and fields.
 
    This interface consists of two functions: m0_xcode_next(), m0_xcode_skip()
-   and a m0_xcode_cursor data-type.
+   and m0_xcode_cursor data-type.
 
    m0_xcode_next() takes a starting type (m0_xcode_type) and walks the tree of
    its fields, their types, their fields &c., all the way down to the atomic
