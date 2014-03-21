@@ -972,8 +972,10 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		return M0_RC(rc);
 	}
 
-	if (!m0_conf_fid_is_valid(&prof_fid) ||
-	    m0_conf_fid_type(&prof_fid) != &M0_CONF_PROFILE_TYPE) {
+	m0_fid_tset(&prof_fid, M0_CONF_PROFILE_TYPE.cot_ftype.ft_id,
+		    prof_fid.f_container, prof_fid.f_key);
+
+	if (!m0_conf_fid_is_valid(&prof_fid)) {
 		M0_LOG(M0_FATAL, "Wrong profile fid "FID_F, FID_P(&prof_fid));
 		return M0_RC(-EINVAL);
 	}
