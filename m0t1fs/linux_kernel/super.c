@@ -184,13 +184,9 @@ static void mount_opts_fini(struct mount_opts *mops)
 
 	/* Here we use kfree() instead of m0_free() because the memory
 	 * was allocated using match_strdup(). */
-
-	if (mops->mo_confd != NULL)
-		kfree(mops->mo_confd);
-	if (mops->mo_profile != NULL)
-		kfree(mops->mo_profile);
-	if (mops->mo_local_conf != NULL)
-		kfree(mops->mo_local_conf);
+	kfree(mops->mo_confd);
+	kfree(mops->mo_profile);
+	kfree(mops->mo_local_conf);
 	M0_SET0(mops);
 
 	M0_LEAVE();
