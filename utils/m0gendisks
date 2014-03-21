@@ -17,8 +17,6 @@ readonly PROG_NAME=$(basename $0)
 readonly stdout='/dev/fd/1'
 readonly default_start_id=1
 readonly default_disk_pattern='/dev/disk/by-id/scsi-35*'
-readonly default_addb_stob='/dev/null'
-readonly default_addb_stob2='/dev/null'
 readonly verbose_level_debug=2
 readonly verbose_level_info=1
 readonly verbose_level_none=0
@@ -32,8 +30,6 @@ split_count=
 disk_count=
 start_id=$default_start_id
 disk_pattern=$default_disk_pattern
-addb_stob=$default_addb_stob
-addb_stob2=$default_addb_stob2
 only_print_count=false
 
 
@@ -53,8 +49,7 @@ usage()
 Usage: $PROG_NAME [-h|--help] [-v] [-c] [-o|--output file]
                   [-O[file], --split-output[=file]] [-s|--split-count num]
                   [-d|--disk-count num] [-S|--start-id num]
-                  [-p|--disk-pattern pattern] [--addb-stob path]
-                  [--addb-stob2 path]
+                  [-p|--disk-pattern pattern]
 
     -c                     Only print number of available disks in the system,
                            those which match requirements, and exit. All other
@@ -95,12 +90,6 @@ Usage: $PROG_NAME [-h|--help] [-v] [-c] [-o|--output file]
                              /dev/loop[0-3]
                              /dev/disk/by-id/scsi-35*0{1,4}
 
-    --addb-stob path       Path to a block device which is used to store ADDB
-                           stob, by default it's '$default_addb_stob'.
-
-    --addb-stob2 path      Same as --addb-stob, but for --split-output option
-                           (a second disk list), by default it's '$default_addb_stob2'.
-
     -v                     Verbose output. Prints additional information to STDERR.
                            Can be specified more than once (-vv) to get more
                            verbose output.
@@ -120,7 +109,7 @@ parse_cli_options()
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
     TEMP=$( getopt --options hco:O::s:d:S:p:v \
-                   --longoptions help,output:,split-output::,split-count:,disk-count:,start-id:,disk-pattern:,addb-stob:,addb-stob2: \
+                   --longoptions help,output:,split-output::,split-count:,disk-count:,start-id:,disk-pattern: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -138,8 +127,6 @@ parse_cli_options()
             -d|--disk-count)    disk_count=$2; shift 2 ;;
             -S|--start-id)      start_id=$2; shift 2 ;;
             -p|--disk-pattern)  disk_pattern=$2; shift 2 ;;
-            --addb-stob)        addb_stob=$2; shift 2 ;;
-            --addb-stob2)       addb_stob2=$2; shift 2 ;;
             -v)                 verbose_level=$((verbose_level + 1)); shift ;;
             --)                 shift; break ;;
             *)                  echo 'getopt: internal error...'; exit 1 ;;
@@ -221,23 +208,16 @@ find_available_disks()
 # Return disks list in YAML format, suitable for m0d.
 #   @param  $1  list for block devices
 #   @param  $2  base number for a sequence of device IDs
-#   @param  $3  file path for ADDB stob
 generate_yaml_config()
 {
     local disks=$1
     local disk_id=$2
-    local addb_stob_path=$3
 
     [[ -z $disks ]] && return
-    [[ -z $addb_stob_path ]] && addb_stob_path=$default_addb_stob
 
     info "Generating YAML config"
 
     echo 'Device:'
-
-    # ADDB stob
-    echo "  - id: 0"
-    echo "    filename: $addb_stob_path"
 
     [[ -z $disk_id ]] && disk_id=$default_start_id
 
@@ -295,11 +275,11 @@ if $split_output ; then
     disks=$( echo "$disks" | head -n $group1_count )
 fi
 
-yaml_conf=$(generate_yaml_config "$disks" $start_id $addb_stob)
+yaml_conf=$(generate_yaml_config "$disks" $start_id)
 echo "$yaml_conf" > $outfile
 
 if $split_output ; then
-    yaml_conf=$( generate_yaml_config "$disks2" $((start_id + $group1_count)) $addb_stob2 )
+    yaml_conf=$( generate_yaml_config "$disks2" $((start_id + $group1_count)) )
     echo "---" > $outfile2
     echo "$yaml_conf" > $outfile2
 fi
