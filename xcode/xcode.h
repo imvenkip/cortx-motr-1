@@ -109,14 +109,20 @@
        - manually creating an instance of m0_xcode_type structure, describing
          properties of the data-type or
 
+       - by tagging C structure declarations with macros defined in
+         xcode/xcode.h and then executing xcode/gccxml2xcode on the header file
+         or
+
        - by creating a description of the desired serialized format of a
          data-type and using ff2c translator (xcode/ff2c/ff2c.c) to produce C
          files (.c and .h) containing the matching data-type definitions and
          xcode descriptors.
 
-   The first method is suitable for memory-only structures. The second method is
-   for structures designed to be transmitted over network of stored on
-   persistent storage (fops, db records, &c.).
+   The first method is suitable for memory-only structures. The last 2 methods
+   are for structures designed to be transmitted over network of stored on
+   persistent storage (fops, db records, &c.). gccxml2xcode is the preferable
+   method. ff2c should only be used when gccxml2xcode cannot accomplish the
+   task.
  */
 /** @{ */
 
