@@ -1,0 +1,37 @@
+#!/bin/bash
+
+#
+# Main script for mero-build Jenkins job
+#
+
+# auto export all variables
+set -a
+
+# exit with error code on any command failure
+set -e
+
+
+WORKSPASE=$(pwd)
+ARTIFACTS=$WORKSPASE/artifacts
+
+if [[ -d $ARTIFACTS ]] ; then
+    rm -f $ARTIFACTS/*
+else
+    mkdir $ARTIFACTS
+fi
+
+pushd workdir/src/
+    git clean -dfx
+    git submodule foreach git clean -dfx
+    git submodule update
+
+    ./autogen.sh |& tee $ARTIFACTS/configure.log
+    ./configure |& tee -a $ARTIFACTS/configure.log
+
+    [[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
+    make -j |& tee $ARTIFACTS/make.log
+    make -j rpms |& tee $ARTIFACTS/rpm.log
+    make -j doc
+popd
+
+cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
