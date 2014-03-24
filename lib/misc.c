@@ -274,6 +274,15 @@ M0_INTERNAL uint32_t m0_no_of_bits_set(uint64_t val)
 	return count;
 }
 
+M0_INTERNAL bool
+m0_elems_are_unique(const void *array, unsigned nr_elems, size_t elem_size)
+{
+	return m0_forall(i, nr_elems,
+			 m0_forall(j, i, memcmp(array + i * elem_size,
+						array + j * elem_size,
+						elem_size) != 0));
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

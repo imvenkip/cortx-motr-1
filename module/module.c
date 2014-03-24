@@ -202,10 +202,7 @@ M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
 static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n)
 {
 	M0_PRE(n <= M0_MODDEP_MAX);
-	return m0_forall(i, n,
-			 m0_forall(j, n,
-				   !!memcmp(&arr[i], &arr[j], sizeof *arr) ==
-				   (i != j)));
+	return m0_elems_are_unique(arr, n, sizeof *arr);
 }
 
 /** @} end of module group */

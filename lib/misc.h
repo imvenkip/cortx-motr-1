@@ -233,6 +233,9 @@ void __dummy_function(void);
 	((unsigned long)(idx)) < ARRAY_SIZE(array); \
 })
 
+M0_INTERNAL bool m0_elems_are_unique(const void *array, unsigned nr_elems,
+				     size_t elem_size);
+
 #define M0_AMB(obj, ptr, field)					\
 ({								\
 	(obj) = container_of((ptr), typeof(*(obj)), field);	\
