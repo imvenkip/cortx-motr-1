@@ -562,7 +562,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 	const char        **pstr;
 	int                 rc;
 	bool                mds_is_provided       = false;
-	bool                dlm_is_provided       = false;
+	bool                rms_is_provided       = false;
 
 	M0_ENTRY();
 	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
@@ -580,8 +580,8 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 
 		if (svc->cs_type == M0_CST_MDS)
 			mds_is_provided = true;
-		else if (svc->cs_type == M0_CST_DLM)
-			dlm_is_provided = true;
+		else if (svc->cs_type == M0_CST_RMS)
+			rms_is_provided = true;
 		else if (svc->cs_type == M0_CST_IOS)
 			++*nr_ios;
 
@@ -597,7 +597,7 @@ out:
 	m0_confc_close(entry);
 	m0_confc_close(dir);
 
-	if (rc == 0 && mds_is_provided && dlm_is_provided && *nr_ios > 0)
+	if (rc == 0 && mds_is_provided && rms_is_provided && *nr_ios > 0)
 		M0_LOG(M0_DEBUG, "Connected to IOS, MDS and RMS");
 	else {
 		M0_LOG(M0_FATAL, "Error connecting to the services. "
@@ -800,7 +800,7 @@ static int cl_map_build(struct m0t1fs_sb       *csb,
 		case M0_CST_SS:
 			break;
 
-		case M0_CST_DLM:
+		case M0_CST_RMS:
 			map->clm_map[csb->csb_nr_containers] = ctx;
 			break;
 

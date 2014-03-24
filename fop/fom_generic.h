@@ -106,7 +106,7 @@ enum m0_fom_standard_phase {
    - resource usage and conflict resolution: reqh determines what distributed
      resources will be consumed by the operation execution and call resource
      management infrastructure to request the resources and deal with resource
-     usage conflicts (by calling DLM if necessary);
+     usage conflicts (by calling RM if necessary);
 
    - object existence: reqh extracts identities of file system objects affected
      by the fop and requests appropriate stores to load object representations

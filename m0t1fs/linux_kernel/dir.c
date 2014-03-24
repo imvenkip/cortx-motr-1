@@ -740,7 +740,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 
 	/**
-	   TODO: When we have dlm locking working, this will be changed to
+	   TODO: When we have rm locking working, this will be changed to
 	   revalidate inode with checking cached lock. If lock is cached
 	   (not canceled), which means inode did not change, then we don't
 	   have to do getattr and can just use @inode cached data.

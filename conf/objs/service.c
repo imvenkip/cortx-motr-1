@@ -31,7 +31,7 @@ static bool service_check(const void *bob)
 
 	return ergo(self_obj->co_status == M0_CS_READY,
 		    M0_IN(self->cs_type,
-			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM,
+			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_RMS,
 			   M0_CST_SS)));
 }
 
