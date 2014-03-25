@@ -154,7 +154,7 @@ void m0_stats_free(struct m0_stats_recs *stats)
                 .xo_ptr  = stats,
 	};
 
-	m0_xcode_free(&obj);
+	M0_XCODE_FREE(&obj, NULL, NULL);
 }
 /*
  *  Local variables:

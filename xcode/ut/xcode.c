@@ -451,7 +451,7 @@ static void xcode_decode_test(void)
 	M0_UT_ASSERT( TT->t_un.u.u_y   ==  T.t_un.u.u_y);
 	M0_UT_ASSERT(*TT->t_opaq.o_32  == *T.t_opaq.o_32);
 
-	m0_xcode_free(&decoded);
+	M0_XCODE_FREE(&decoded, NULL, NULL);
 }
 
 enum {
@@ -575,8 +575,8 @@ static void xcode_cmp_test(void)
 	M0_UT_ASSERT(cmp > 0);
 	t1->t_v.v_nr--;
 
-	m0_xcode_free(&obj0);
-	m0_xcode_free(&obj1);
+	M0_XCODE_FREE(&obj0, NULL, NULL);
+	M0_XCODE_FREE(&obj1, NULL, NULL);
 }
 
 #define OBJ(xt, ptr) (&(struct m0_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })

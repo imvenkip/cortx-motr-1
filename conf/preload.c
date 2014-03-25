@@ -33,7 +33,7 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc)
 {
 	M0_ENTRY();
 	if (enc != NULL)
-		m0_xcode_free(&M0_XCODE_OBJ(m0_confx_xc, enc));
+		M0_XCODE_FREE(&M0_XCODE_OBJ(m0_confx_xc, enc), NULL, NULL);
 	M0_LEAVE();
 }
 

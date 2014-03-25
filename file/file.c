@@ -329,7 +329,7 @@ static void file_lock_resource_free(struct m0_rm_resource *resource)
 	struct m0_file *fl;
 
 	fl = container_of(resource, struct m0_file, fi_res);
-	m0_xcode_free(&M0_XCODE_OBJ(m0_fid_xc, (void *)fl->fi_fid));
+	M0_XCODE_FREE(&M0_XCODE_OBJ(m0_fid_xc, (void *)fl->fi_fid), NULL, NULL);
 	m0_free(fl);
 }
 

@@ -329,7 +329,7 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 			if (m0_addb_rec_is_ctx(r)) {
 				ctx_nr++;
 				obj.xo_ptr = r;
-				m0_xcode_free(&obj);
+				M0_XCODE_FREE(&obj, NULL, NULL);
 				continue;
 			}
 			M0_UT_ASSERT(r->ar_rid == dp_rid);
@@ -343,7 +343,7 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 			}
 			count++;
 			obj.xo_ptr = r;
-			m0_xcode_free(&obj);
+			M0_XCODE_FREE(&obj, NULL, NULL);
 		}
 	}
 	M0_UT_ASSERT(ctx_nr == 1);

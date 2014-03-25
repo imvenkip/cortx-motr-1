@@ -534,6 +534,7 @@ struct m0_xcode_ctx {
 	   and all its non-inline sub-objects (arrays and opaque sub-objects).
 	 */
 	void                  *(*xcx_alloc)(struct m0_xcode_cursor *ctx, size_t);
+	void                   (*xcx_free)(struct m0_xcode_cursor *ctx);
 };
 
 /**
@@ -656,12 +657,21 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
  */
 M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
 			       char *str, int nr);
-M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj);
+
+#define M0_XCODE_FREE(obj, alloc, free)   \
+do {                                      \
+	struct m0_xcode_ctx __ctx;        \
+	m0_xcode_ctx_init(&__ctx, (obj)); \
+	__ctx.xcx_alloc = (alloc);        \
+	__ctx.xcx_free  = (free);         \
+	m0_xcode_free(&__ctx);            \
+} while (0)
+
+M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx);
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1);
-M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
-				struct m0_xcode_obj *src, struct m0_be_seg *seg,
-				struct m0_be_tx *tx);
+M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
+			     struct m0_xcode_ctx *src);
 
 /**
    Returns the address of a sub-object within an object.

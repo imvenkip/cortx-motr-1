@@ -579,7 +579,7 @@ static void addb_cursor_rec_free(struct m0_addb_cursor *cur)
 			.xo_ptr  = cur->ac_rec,
 		};
 
-		m0_xcode_free(&obj);
+		M0_XCODE_FREE(&obj, NULL, NULL);
 		cur->ac_rec = NULL;
 	}
 }

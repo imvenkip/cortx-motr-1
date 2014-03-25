@@ -203,8 +203,8 @@ static void addb_ut_fom_test(void)
 	m0_stob_put(ut_data.aufd_stob);
 	m0_stob_domain_fini(dom);
 	for (i = 0; i < UT_ADDB_FOM_REC_NR; ++i)
-		m0_xcode_free(&M0_XCODE_OBJ(m0_addb_rec_xc,
-					    ut_addb_rec_arr[i]));
+		M0_XCODE_FREE(&M0_XCODE_OBJ(m0_addb_rec_xc,
+					    ut_addb_rec_arr[i]), NULL, NULL);
 	addb_ct_tlist_del(&m0__addb_ut_ct0);
 	m0__addb_ut_ct0.act_magic = 0;
 	addb_rt_tlist_del(&m0__addb_ut_rt_dp1);
