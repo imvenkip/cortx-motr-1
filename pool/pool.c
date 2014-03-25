@@ -402,6 +402,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
 	M0_PRE(pm != NULL);
 	M0_PRE(event != NULL);
 
+	M0_SET0(&event_link);
 	state = pm->pm_state;
 
 	if (!M0_IN(event->pe_type, (M0_POOL_NODE, M0_POOL_DEVICE)))
