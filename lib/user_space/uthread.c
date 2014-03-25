@@ -32,6 +32,7 @@
 #include "lib/arith.h"
 #include "lib/bitmap.h"
 #include "lib/assert.h"
+#include "module/instance.h"  /* m0_set */
 
 /**
    @addtogroup thread Thread
@@ -51,19 +52,10 @@
 
 static pthread_key_t  tls_key;
 static pthread_attr_t pthread_attr_default;
-static struct m0     *instance_0;
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
 {
 	return pthread_getspecific(tls_key);
-}
-
-M0_INTERNAL void m0_threads_set_instance(struct m0 *instance)
-{
-	M0_PRE(instance_0 == NULL);
-	M0_PRE(instance != NULL);
-
-	instance_0 = instance;
 }
 
 static void *uthread_trampoline(void *arg)
@@ -130,7 +122,7 @@ M0_INTERNAL char *m0_debugger_args[4] = {
 	NULL
 };
 
-M0_INTERNAL int m0_threads_init(void)
+M0_INTERNAL int m0_threads_init(struct m0 *instance)
 {
 	static struct m0_thread main_thread;
 	static char             pidbuf[20];
@@ -149,6 +141,12 @@ M0_INTERNAL int m0_threads_init(void)
 	result = snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
 	M0_ASSERT(result < ARRAY_SIZE(pidbuf));
 
+	/* XXX TODO
+	 * Creation of pthread_key_t [and pthread_attr_t] should be done
+	 * through pthread_once(3p). There is no need to finalise it:
+	 * this leak is acceptable.
+	 *  -- source: http://goo.gl/lavgnw
+	 */
 	result = -pthread_attr_init(&pthread_attr_default) ?:
 		 -pthread_attr_setdetachstate(&pthread_attr_default,
 					      PTHREAD_CREATE_JOINABLE);
@@ -161,8 +159,7 @@ M0_INTERNAL int m0_threads_init(void)
 
 	result = -pthread_setspecific(tls_key, &main_thread.t_tls);
 	if (result == 0) {
-		M0_ASSERT(instance_0 != NULL);
-		main_thread.t_tls.tls_m0_instance = instance_0;
+		m0_set(instance);
 		return 0;
 	}
 

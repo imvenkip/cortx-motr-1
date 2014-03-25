@@ -99,7 +99,7 @@
  * @{
  */
 
-enum { M0_MODDEP_MAX = 64 };
+enum { M0_MODDEP_MAX = 64, M0_MODLEV_NONE = -1U };
 
 /**
  * Dependency between a (module, level) pair.
@@ -113,6 +113,9 @@ struct m0_moddep {
 	unsigned          md_src;
 	unsigned          md_dst;
 };
+
+#define M0_MODDEP_INIT(other, src, dst) \
+	{ .md_other = (other), .md_src = (src), .md_dst = (dst) }
 
 /**
  * Module.
@@ -128,8 +131,19 @@ struct m0_moddep {
 struct m0_module {
 	const char             *m_name;
 	struct m0              *m_m0;
-	/** Current level. */
+	/**
+	 * Current level.
+	 *
+	 * This value is equal to M0_MODLEV_NONE iff the module is not
+	 * initialised.
+	 */
 	unsigned                m_cur;
+	/**
+	 * Array of levels.
+	 *
+	 * @note The first entry of this list is never used, because
+	 *       level 0 can be neither entered, nor left.
+	 */
 	const struct m0_modlev *m_level;
 	unsigned                m_level_nr;
 	/** List of dependencies. */
@@ -139,6 +153,54 @@ struct m0_module {
 	struct m0_moddep        m_inv[M0_MODDEP_MAX];
 	unsigned                m_inv_nr;
 };
+
+/**
+ * m0_module initialiser.
+ *
+ * @see M0_MODULE_DEPS(), M0_MODULE_INVS()
+ *
+ * Example:
+ * @code
+ * struct m0_module m1 = M0_MODULE_INIT("m1 module", instance,
+ *                                      m1_levels, ARRAY_SIZE(m1_levels));
+ * struct m0_module m2 = M0_MODULE_INIT("m2 module", instance,
+ *                                      m2_levels, ARRAY_SIZE(m2_levels),
+ *                                      M0_MODULE_DEPS(&m3, LEVEL_M2_SRC,
+ *                                      LEVEL_M3_DST));
+ * struct m0_module m3 = M0_MODULE_INIT("m3 module", instance,
+ *                                      m3_levels, ARRAY_SIZE(m3_levels),
+ *                                      M0_MODULE_INVS(&m2, LEVEL_M2_SRC,
+ *                                      LEVEL_M3_DST));
+ * @endcode
+ */
+#define M0_MODULE_INIT(name, instance, levels, levels_nr, ...) { \
+	.m_name     = (name),                                    \
+	.m_m0       = (instance),                                \
+	.m_cur      = M0_MODLEV_NONE,                            \
+	.m_level    = (levels),                                  \
+	.m_level_nr = (levels_nr),                               \
+	__VA_ARGS__                                              \
+}
+
+#define M0_MODULE_DEPS(...)                                              \
+	.m_dep = {                                                       \
+		M0_CAT(M0_MODDEP_, M0_COUNT_PARAMS(dummy, __VA_ARGS__))( \
+			__VA_ARGS__)                                     \
+	},                                                               \
+	.m_dep_nr = M0_COUNT_PARAMS(dummy, __VA_ARGS__)
+
+#define M0_MODULE_INVS(...)                                              \
+	.m_inv = {                                                       \
+		M0_CAT(M0_MODDEP_, M0_COUNT_PARAMS(dummy, __VA_ARGS__))( \
+			__VA_ARGS__)                                     \
+	},                                                               \
+	.m_inv_nr = M0_COUNT_PARAMS(dummy, __VA_ARGS__)
+
+#define M0_MODDEP_1(args)      M0_MODDEP_INIT args
+#define M0_MODDEP_2(args, ...) M0_MODDEP_INIT args, M0_MODDEP_1(__VA_ARGS__)
+#define M0_MODDEP_3(args, ...) M0_MODDEP_INIT args, M0_MODDEP_2(__VA_ARGS__)
+#define M0_MODDEP_4(args, ...) M0_MODDEP_INIT args, M0_MODDEP_3(__VA_ARGS__)
+#define M0_MODDEP_5(args, ...) M0_MODDEP_INIT args, M0_MODDEP_4(__VA_ARGS__)
 
 /** Module level. */
 struct m0_modlev {
@@ -157,13 +219,16 @@ struct m0_modlev {
  *
  * This function is not self-cleaning: even if it fails,
  * m0_module_fini() should be called.
- *
- * @pre level != 0
  */
 M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level);
 
 /** Downgrade the module to the given level. */
-M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level);
+M0_INTERNAL void m0_module__fini(struct m0_module *module, unsigned level);
+
+static inline void m0_module_fini(struct m0_module *module)
+{
+	m0_module__fini(module, M0_MODLEV_NONE);
+}
 
 /** Creates (m0, l0) -> (m1, l1) dependency. */
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,

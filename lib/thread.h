@@ -245,18 +245,16 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void);
 
 /**
- * Assigns initial m0 instance to be returned by m0_get().
- * Use m0_set() to reassign m0 instance.
+ * Initialises thread system.
  *
- * @note  m0_threads_set_instance() may only be called once. It should be
- *        called at the early stages of Mero initialisation, i.e., early in
- *        m0_init().
+ * m0_threads_init() is usually called at the early stages of Mero
+ * initialisation, i.e., early in m0_init().
  *
- * @pre instance != NULL
- *
- * @see m0_set(), m0_get()
+ * @param instance  Initial m0 instance.
  */
-M0_INTERNAL void m0_threads_set_instance(struct m0 *instance);
+M0_INTERNAL int m0_threads_init(struct m0 *instance);
+
+M0_INTERNAL void m0_threads_fini(void);
 
 /** Sets the thread in awkward context. */
 M0_INTERNAL void m0_enter_awkward(void);

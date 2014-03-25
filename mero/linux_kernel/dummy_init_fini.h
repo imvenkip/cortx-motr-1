@@ -29,9 +29,6 @@ M0_INTERNAL void m0_trace_fini(void);
 M0_INTERNAL int m0_memory_init(void);
 M0_INTERNAL void m0_memory_fini(void);
 
-M0_INTERNAL int m0_threads_init(void);
-M0_INTERNAL void m0_threads_fini(void);
-
 M0_INTERNAL int m0_db_init(void);
 M0_INTERNAL void m0_db_fini(void);
 

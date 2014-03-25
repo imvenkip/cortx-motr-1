@@ -18,11 +18,10 @@
  * Original creation date: 02/24/2011
  */
 
-#include "lib/misc.h"   /* M0_SET0 */
 #include "lib/thread.h"
-#include "lib/arith.h"
-#include "lib/bitmap.h"
-#include "lib/assert.h"
+#include "lib/arith.h"        /* min64u */
+#include "lib/bitmap.h"       /* m0_bitmap_get */
+#include "module/instance.h"  /* m0_set */
 
 /**
    @addtogroup kthread Kernel Thread Implementation
@@ -61,12 +60,16 @@ M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
 	return &kernel_tls;
 }
 
-M0_INTERNAL void m0_threads_set_instance(struct m0 *instance)
+M0_INTERNAL int m0_threads_init(struct m0 *instance)
 {
 	M0_PRE(kernel_tls.tls_m0_instance == NULL);
-	M0_PRE(instance != NULL);
 
-	kernel_tls.tls_m0_instance = instance;
+	m0_set(instance);
+	return 0;
+}
+
+M0_INTERNAL void m0_threads_fini(void)
+{
 }
 
 static int kthread_trampoline(void *arg)

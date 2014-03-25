@@ -47,9 +47,6 @@ struct m0_thread_handle {
 	pthread_t h_id;
 };
 
-M0_INTERNAL int m0_threads_init(void);
-M0_INTERNAL void m0_threads_fini(void);
-
 /** Thread-local storage. */
 struct m0_thread_tls {
 	/** The pointer returned by m0_get(). */

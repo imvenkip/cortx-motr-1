@@ -32,17 +32,33 @@
 
 static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n);
 
+M0_BASSERT(M0_MODLEV_NONE == (typeof(M0_FIELD_VALUE(struct m0_module, m_cur)))
+	   -1);
+
+/** x < y */
+static bool level_lt(unsigned a, unsigned b)
+{
+	return b != M0_MODLEV_NONE && (a == M0_MODLEV_NONE || a < b);
+}
+
+/** x >= y */
+static bool level_ge(unsigned a, unsigned b)
+{
+	return !level_lt(a, b);
+}
+
 static bool module_invariant(const struct m0_module *mod)
 {
 	const struct m0_moddep *md;
 
-	return  _0C(mod->m_cur < mod->m_level_nr) &&
-		_0C(m0_forall(i, mod->m_level_nr, (i == 0) ==
-			      (mod->m_level[i].ml_name == NULL &&
-			       /* A level without ->ml_enter() operation
-				* is a pure decoration that we can do
-				* without. */
-			       mod->m_level[i].ml_enter == NULL))) &&
+	return  _0C(!M0_IN(M0_MODLEV_NONE,
+			   (mod->m_level_nr, mod->m_dep_nr, mod->m_inv_nr))) &&
+		_0C(level_lt(mod->m_cur, mod->m_level_nr)) &&
+		_0C(m0_forall(i, mod->m_level_nr,
+			      /* A level without ->ml_enter() operation
+			       * is a pure decoration that we can do
+			       * without. */
+			      mod->m_level[i].ml_enter != NULL)) &&
 		_0C(mod->m_dep_nr <= ARRAY_SIZE(mod->m_dep)) &&
 		_0C(mod->m_inv_nr <= ARRAY_SIZE(mod->m_inv)) &&
 		_0C(moddeps_are_unique(mod->m_dep, mod->m_dep_nr)) &&
@@ -51,12 +67,14 @@ static bool module_invariant(const struct m0_module *mod)
 			  (md = &mod->m_dep[i]) &&
 			  _0C(md->md_other != NULL) &&
 			  _0C(md->md_other != mod) &&
-			  _0C(md->md_src < mod->m_level_nr) &&
-			  _0C(md->md_dst < md->md_other->m_level_nr) &&
-			  _0C(md->md_src != 0) && _0C(md->md_dst != 0) &&
-			  /* Check dependencies. */
-			  _0C(ergo(md->md_src <= mod->m_cur,
-				   md->md_dst <= md->md_other->m_cur)) &&
+			  _0C(md->md_src != M0_MODLEV_NONE &&
+			      md->md_src < mod->m_level_nr) &&
+			  _0C(md->md_dst != M0_MODLEV_NONE &&
+			      md->md_dst < md->md_other->m_level_nr) &&
+			  /* Check that dependencies are satisfied. */
+			  _0C(ergo(level_ge(mod->m_cur, md->md_src),
+				   level_ge(md->md_other->m_cur,
+					    md->md_dst))) &&
 			  /* Check that there is a matching inverse
 			   * dependency. */
 			  _0C(m0_exists(j, md->md_other->m_inv_nr,
@@ -81,7 +99,7 @@ static int module_up(struct m0_module *module, unsigned level)
 
 	M0_ASSERT(M0_IN(module->m_m0, (NULL, instance)));
 	module->m_m0 = instance;
-	while (level > module->m_cur && result == 0) {
+	while (level_lt(module->m_cur, level) && result == 0) {
 		unsigned next = module->m_cur + 1;
 		int      i;
 
@@ -118,7 +136,7 @@ static int module_up(struct m0_module *module, unsigned level)
 M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level)
 {
 	int result;
-	M0_PRE(level != 0);
+	M0_PRE(level != M0_MODLEV_NONE);
 
 	/* Repeat initialisation if a new module or dependency were added. */
 	while ((result = module_up(module, level)) == -EAGAIN)
@@ -126,12 +144,12 @@ M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level)
 	return result;
 }
 
-M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level)
+M0_INTERNAL void m0_module__fini(struct m0_module *module, unsigned level)
 {
-	M0_PRE(level < module->m_level_nr);
+	M0_PRE(level == M0_MODLEV_NONE || level < module->m_level_nr);
 	M0_PRE(module_invariant(module));
 
-	while (level < module->m_cur) {
+	while (level_lt(level, module->m_cur)) {
 		unsigned          cur = module->m_cur;
 		int               i;
 		struct m0_moddep *md;
@@ -144,7 +162,7 @@ M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level)
 		for (i = 0; i < module->m_inv_nr; ++i) {
 			md = &module->m_inv[i];
 			if (md->md_dst == cur &&
-			    md->md_other->m_cur >= md->md_src)
+			    level_ge(md->md_other->m_cur, md->md_src))
 				return;
 		}
 
@@ -159,7 +177,7 @@ M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level)
 		for (i = module->m_dep_nr - 1; i >= 0; --i) {
 			md = &module->m_dep[i];
 			if (md->md_src == cur)
-				m0_module_fini(md->md_other, md->md_dst - 1);
+				m0_module__fini(md->md_other, md->md_dst - 1);
 		}
 	}
 	M0_POST(module_invariant(module));
@@ -167,7 +185,7 @@ M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level)
 
 static bool equal_or_null(const void *a, const void *b)
 {
-	return a == b || (a == NULL) != (b == NULL);
+	return a == NULL || b == NULL || a == b;
 }
 
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
@@ -178,8 +196,9 @@ M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
 	M0_PRE(_0C(m0 != m1) && _0C(equal_or_null(m0->m_m0, m1->m_m0)));
 	M0_PRE(module_invariant(m0));
 	M0_PRE(module_invariant(m1));
-	M0_PRE(m0->m_cur < l0); /* Otherwise it is too late to enforce the
-				 * dependency. */
+	M0_PRE(l0 != M0_MODLEV_NONE && l1 != M0_MODLEV_NONE);
+	M0_PRE(level_lt(m0->m_cur, l0)); /* Otherwise it is too late
+					  * to enforce the dependency. */
 
 	M0_ASSERT(m0->m_dep_nr < ARRAY_SIZE(m0->m_dep));
 	m0->m_dep[m0->m_dep_nr++] = (struct m0_moddep){

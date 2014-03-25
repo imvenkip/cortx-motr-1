@@ -70,8 +70,7 @@ struct m0 {
 	struct m0_net    i_net;
 };
 
-/** Performs initial configuration of m0 instance and its submodules. */
-M0_INTERNAL void m0_instance_setup(struct m0 *instance);
+M0_INTERNAL void m0_instance_init(struct m0 *instance);
 
 /**
  * Returns current m0 instance.
@@ -94,9 +93,30 @@ M0_INTERNAL struct m0 *m0_get(void);
  * Stores given pointer in thread-local storage.
  *
  * @pre instance != NULL
- * @see m0_get(), m0_threads_set_instance()
  */
 M0_INTERNAL void m0_set(struct m0 *instance);
+
+/**
+ * Levels of m0 instance.
+ *
+ * @note Level numbering should start at 1, not 0; the documentation
+ *       of m0_module::m_level provides the rationale.
+ *
+ * Dependencies:
+ * @verbatim
+ *
+ *   m0                     m0_net
+ * +===============+      +--------------+
+ * | M0_LEVEL_INIT |----->| M0_LEVEL_NET |
+ * +---------------+      +--------------+
+ *
+ * @endverbatim
+ */
+enum {
+	/** m0 instance and its submodules have been initialised. */
+	M0_LEVEL_INIT,
+	M0_LEVEL__NR
+};
 
 /** @} module */
 #endif /* __MERO_MODULE_INSTANCE_H__ */

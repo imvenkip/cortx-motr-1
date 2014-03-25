@@ -48,26 +48,11 @@ struct m0_net;
  * @{
  */
 
-/**
- * Performs initial configuration of `net' module and the modules
- * embedded in it.
- */
-M0_INTERNAL void m0_net_modules_setup(struct m0_net *net);
-
-/** Levels of m0_net::n_module. */
-enum {
-	/** m0_mero_init() has been called. */
-	M0_LEVEL_NET = 1
-};
-
-/** Levels of m0_net_xprt_module::nx_module. */
-enum {
-	/** Dependency on (m0_net, M0_LEVEL_NET) is established. */
-	M0_LEVEL_NET_DEP = 1,
-	/** m0_net_xprt_module::nx_xprt is initialised. */
-	M0_LEVEL_NET_XPRT,
-	/** m0_net_xprt_module::nx_domain is initialised. */
-	M0_LEVEL_NET_DOMAIN
+/** Identifiers of network transports. */
+enum m0_net_xprt_id {
+	M0_NET_XPRT_LNET,
+	M0_NET_XPRT_BULK_MEM,
+	M0_NET_XPRT_NR
 };
 
 /** Network transport module. */
@@ -77,17 +62,30 @@ struct m0_net_xprt_module {
 	struct m0_net_domain nx_domain;
 };
 
-/** Identifiers of network transports. */
-enum m0_net_xprt_id {
-	M0_NET_XPRT_LNET,
-	M0_NET_XPRT_BULK_MEM,
-	M0_NET_XPRT_NR
-};
-
 /** Network module. */
 struct m0_net {
 	struct m0_module          n_module;
 	struct m0_net_xprt_module n_xprts[M0_NET_XPRT_NR];
+};
+
+M0_INTERNAL void m0_net_module_init(struct m0_net *net);
+
+/** Levels of m0_net::n_module. */
+enum {
+	/** m0_net_init() has been called. */
+	M0_LEVEL_NET,
+	M0_LEVEL_NET__NR
+};
+
+/** Levels of m0_net_xprt_module::nx_module. */
+enum {
+	/** Dependency on (m0_net, M0_LEVEL_NET) has been established. */
+	M0_LEVEL_NET_DEP,
+	/** m0_net_xprt_module::nx_xprt has been initialised. */
+	M0_LEVEL_NET_XPRT,
+	/** m0_net_xprt_module::nx_domain has been initialised. */
+	M0_LEVEL_NET_DOMAIN,
+	M0_LEVEL_NET_XPRT__NR
 };
 
 /** @} net */

@@ -39,18 +39,6 @@ M0_INTERNAL int m0_memory_init(void)
 
 M0_INTERNAL void m0_memory_fini(void)
 {
-
-}
-
-M0_INTERNAL int m0_threads_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-M0_INTERNAL void m0_threads_fini(void)
-{
-
 }
 
 M0_INTERNAL int m0_db_init(void)
@@ -61,7 +49,6 @@ M0_INTERNAL int m0_db_init(void)
 
 M0_INTERNAL void m0_db_fini(void)
 {
-
 }
 
 M0_INTERNAL int m0_linux_stobs_init(void)
@@ -72,7 +59,6 @@ M0_INTERNAL int m0_linux_stobs_init(void)
 
 M0_INTERNAL void m0_linux_stobs_fini(void)
 {
-
 }
 
 M0_INTERNAL int m0_ad_stobs_init(void)
@@ -83,7 +69,6 @@ M0_INTERNAL int m0_ad_stobs_init(void)
 
 M0_INTERNAL void m0_ad_stobs_fini(void)
 {
-
 }
 
 M0_INTERNAL int sim_global_init(void)
@@ -94,7 +79,6 @@ M0_INTERNAL int sim_global_init(void)
 
 M0_INTERNAL void sim_global_fini(void)
 {
-
 }
 
 M0_INTERNAL int m0_timers_init(void)
@@ -105,5 +89,4 @@ M0_INTERNAL int m0_timers_init(void)
 
 M0_INTERNAL void m0_timers_fini(void)
 {
-
 }

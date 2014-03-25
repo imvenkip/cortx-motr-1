@@ -22,7 +22,6 @@
 #ifndef __KERNEL__
 #  include "desim/sim.h"
 #endif
-#include "lib/thread.h"  /* m0_threads_init */
 #include "lib/trace.h"   /* m0_trace_init */
 #include "stob/stob.h"
 #include "net/net.h"
@@ -77,7 +76,7 @@
 #include "stats/stats_fops.h"
 #include "mgmt/mgmt.h"
 #include "ha/epoch.h"
-#include "module/instance.h"  /* m0_instance_setup */
+#include "module/instance.h"  /* m0_instance_init */
 
 M0_INTERNAL int m0_utime_init(void);
 M0_INTERNAL void m0_utime_fini(void);
@@ -115,7 +114,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
 	{ &m0_cookie_global_init, &m0_cookie_global_fini, "cookie" },
 	{ &m0_processors_init,  &m0_processors_fini,  "processors" },
-	{ &m0_threads_init,     &m0_threads_fini,     "thread" },
 	/* localities must be initialised before lib/processor.h */
 	{ &m0_localities_init,  &m0_localities_fini,  "locality" },
 	{ &m0_timers_init,      &m0_timers_fini,      "timer" },
@@ -185,10 +183,21 @@ static void fini_nr(int i)
 int m0_init(struct m0 *instance)
 {
 	int i;
-	int rc = 0;
+	int rc;
 
-	m0_instance_setup(instance);
-	m0_threads_set_instance(instance);
+	/* XXX FIXME
+	 * m0_init() should not call m0_threads_init(): m0_init() can be
+	 * called multiple times, but the actions of m0_threads_init()
+	 * should only be performed once.
+	 *  -- source: http://goo.gl/lavgnw
+	 */
+	rc = m0_threads_init(instance);
+	if (rc != 0)
+		return rc;
+
+	m0_instance_init(instance);
+	if (0 /*XXX ENABLEME*/)
+		m0_module_init(&instance->i_self, M0_LEVEL_INIT);
 
 	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		rc = subsystem[i].ifc_init();
@@ -203,6 +212,7 @@ int m0_init(struct m0 *instance)
 void m0_fini()
 {
 	fini_nr(ARRAY_SIZE(subsystem));
+	m0_threads_fini(); /* XXX DELETEME */
 }
 
 /** @} end of init group */

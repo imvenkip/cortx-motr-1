@@ -28,17 +28,15 @@ static void test_net_modules(void)
 		&net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module;
 	int               rc;
 
-	m0_net_modules_setup(net);
-
-	M0_UT_ASSERT(xprt_m->m_cur == 0);
-	M0_UT_ASSERT(net->n_module.m_cur == 0);
+	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
+	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
 
 #define CURIOUS 0
 	if (CURIOUS) {
 		struct m0 another_instance;
 
+		m0_instance_init(&another_instance);
 		m0_set(&another_instance);
-		m0_net_modules_setup(&another_instance.i_net);
 		/*
 		 * This statement fails, since `xprt_m' does not belong
 		 * `another_instance'.
@@ -54,10 +52,10 @@ static void test_net_modules(void)
 	M0_UT_ASSERT(xprt_m->m_cur == M0_LEVEL_NET_DOMAIN);
 	M0_UT_ASSERT(net->n_module.m_cur == M0_LEVEL_NET);
 
-	m0_module_fini(xprt_m, 0);
+	m0_module_fini(xprt_m);
 
-	M0_UT_ASSERT(xprt_m->m_cur == 0);
-	M0_UT_ASSERT(net->n_module.m_cur == 0);
+	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
+	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
 }
 
 const struct m0_test_suite m0_net_module_ut = {
