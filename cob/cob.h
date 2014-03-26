@@ -222,8 +222,14 @@ struct m0_cob_domain_id;
 /* Namespace name for root cob (not exposed to user) */
 extern const char M0_COB_ROOT_NAME[];
 
+/* Namespace name for obf cob */
+extern const char M0_COB_OBF_NAME[];
+
 /* Grobal cob root fid. */
 extern const struct m0_fid M0_COB_ROOT_FID;
+
+/* Obf fid. */
+extern const struct m0_fid M0_COB_OBF_FID;
 
 /* Hierarchy root fid (exposed to user). */
 extern const struct m0_fid M0_COB_SLASH_FID;

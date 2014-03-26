@@ -94,7 +94,16 @@ const struct m0_fid M0_COB_SLASH_FID = {
 	.f_key       = 2ULL
 };
 
+/**
+   Obf dir fid.
+*/
+const struct m0_fid M0_COB_OBF_FID = {
+	.f_container = 1ULL,
+	.f_key       = 4ULL
+};
+
 const char M0_COB_ROOT_NAME[] = "ROOT";
+const char M0_COB_OBF_NAME[] = ".mero";
 
 struct m0_addb_ctx m0_cob_mod_ctx;
 
@@ -766,6 +775,73 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	m0_cob_put(cob);
+
+	if (rc == -EEXIST)
+		rc = 0;
+	if (rc != 0) {
+		m0_free(nskey);
+		m0_free(fabrec);
+		return rc;
+	}
+
+	/**
+	   Create obf dir. At this point it is normal empty directory
+	   used for accessing files via fid number in a way like this:
+	   cat "/mnt/mero/.mero/1:5". In order to provide this kind of
+	   behavior, lookup code path in mdservice/mdstore is modified.
+
+           Rationale why this is done on server side rather than do it
+           on client with creating virtual directry dentry in lookup
+           code path:
+           - client is in kernel space and is more bugs prone and not
+           easy to debug especially when dentry cache is involved;
+           - client stays unmodified and simplistic, which is good;
+           - server would need some modifications in either case;
+           - number of modifications is less in compare to client
+           side paradigm.
+
+	   @see m0_mdstore_lookup
+	 */
+	M0_SET0(&nsrec);
+
+	rc = m0_cob_alloc(dom, &cob);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_cob_nskey_make(&nskey, rootfid, M0_COB_OBF_NAME,
+			       strlen(M0_COB_OBF_NAME));
+	if (rc != 0) {
+	    m0_cob_put(cob);
+	    return rc;
+	}
+
+	nsrec.cnr_omgid = 0;
+	nsrec.cnr_fid = M0_COB_OBF_FID;
+
+	nsrec.cnr_nlink = 2;
+	nsrec.cnr_size = MKFS_ROOT_SIZE;
+	nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
+	nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
+	nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime =
+		m0_time_seconds(m0_time_now());
+
+	omgrec.cor_uid = 0;
+	omgrec.cor_gid = 0;
+	omgrec.cor_mode = S_IFDIR |
+			  S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+			  S_IRGRP | S_IXGRP |           /* r-x for group */
+			  S_IROTH | S_IXOTH;            /* r-x for others */
+
+	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
+	if (rc != 0) {
+		m0_cob_put(cob);
+		m0_free(nskey);
+		return rc;
+	}
+
+	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+	m0_cob_put(cob);
+
 	if (rc == -EEXIST)
 		rc = 0;
 	if (rc != 0) {

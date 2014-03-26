@@ -285,8 +285,8 @@ static int mount_opts_validate(const struct mount_opts *mops)
 		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
 			       "profile");
 
-	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 3))
-		return M0_ERR(-EINVAL, "fid_start must be greater than 3");
+	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 4))
+		M0_RETERR(-EINVAL, "fid_start must be greater than 4");
 
 	return M0_RC(0);
 }
@@ -305,7 +305,7 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
 	M0_SET0(dest);
-	dest->mo_fid_start = 4;   /* Default value */
+	dest->mo_fid_start = 5;   /* Default value */
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
 		case M0T1FS_MNTOPT_CONFD:

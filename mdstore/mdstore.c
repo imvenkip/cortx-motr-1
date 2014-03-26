@@ -206,10 +206,10 @@ m0_mdstore_create_credit(struct m0_mdstore *md,
 }
 
 M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
-				  struct m0_fid         *pfid,
-				  struct m0_cob_attr    *attr,
-				  struct m0_cob        **out,
-				  struct m0_be_tx       *tx)
+				   struct m0_fid         *pfid,
+				   struct m0_cob_attr    *attr,
+				   struct m0_cob        **out,
+				   struct m0_be_tx       *tx)
 {
 	struct m0_cob         *cob;
 	struct m0_cob_nskey   *nskey;
@@ -221,6 +221,12 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 
 	M0_ENTRY();
 	M0_ASSERT(pfid != NULL);
+
+        /* We don't allow normal fs things in obf directory. */
+        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+                rc = -EINVAL;
+                goto out;
+        }
 
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
@@ -300,6 +306,12 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	M0_ENTRY();
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
+
+        /* We don't allow normal fs things in obf directory. */
+        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+                rc = -EINVAL;
+                goto out;
+        }
 
 	time(&now);
 	M0_SET0(&nsrec);
@@ -402,6 +414,20 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	       FID_P(&cob->co_nsrec.cnr_fid), cob->co_nsrec.cnr_linkno);
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
+
+        /* We don't allow normal fs things in obf directory. */
+        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+                rc = -EINVAL;
+                goto out;
+        }
+
+        /* We don't allow to kill obf dir. */
+        if (m0_fid_eq(pfid, &M0_COB_SLASH_FID) &&
+            name->b_nob == strlen(M0_COB_OBF_NAME) &&
+            !strncmp((char *)name->b_addr, M0_COB_OBF_NAME, (int)name->b_nob)) {
+                rc = -EINVAL;
+                goto out;
+        }
 
 	M0_PRE(cob->co_nsrec.cnr_nlink > 0);
 
@@ -570,6 +596,12 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 	M0_ASSERT(pfid_src != NULL);
 
 	time(&now);
+
+        /* We don't allow normal fs things in obf directory. */
+        if (m0_fid_eq(pfid_tgt, &M0_COB_OBF_FID) || m0_fid_eq(pfid_src, &M0_COB_OBF_FID)) {
+                rc = -EINVAL;
+                goto out;
+        }
 
 	/*
 	 * Let's kill existing target name.
@@ -853,6 +885,9 @@ out:
 	return M0_RC(rc);
 }
 
+/**
+   Find cob by @fid and store its pointer to passed @cob.
+ */
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 				  const struct m0_fid   *fid,
 				  struct m0_cob        **cob,
@@ -885,12 +920,25 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 	return rc;
 }
 
+/**
+   Find cob by name and store its pointer to passed @cob.
+
+   In order to handle possible obf-like names like this:
+   (cat /mnt/mero/.mero/1:5), parent fid is checked and
+   special action is taken to extract fid components from
+   file name in obf case. Then m0_cob_locate() is used
+   to find cob by fid rather than by name.
+
+   @see m0_cob_domain_mkfs
+   @see m0_mdstore_locate
+ */
 M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_buf         *name,
 				  struct m0_cob        **cob)
 {
 	struct m0_cob_nskey *nskey;
+        struct m0_fid fid;
 	int flags;
 	int rc;
 
@@ -901,8 +949,22 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 	rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
 	if (rc != 0)
 		goto out;
-	flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
-	rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
+        /*
+          Check for obf case and use m0_cob_locate() to get cob by fid
+          extracted from name.
+         */
+        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+                m0_fid_set(&fid, 0, 0);
+                sscanf((char *)name->b_addr, FID_F, FID_R(&fid));
+                if (!m0_fid_is_set(&fid)) {
+                        rc = -EINVAL;
+                        goto out;
+                }
+                rc = m0_mdstore_locate(md, &fid, cob, M0_MD_LOCATE_STORED);
+        } else {
+	        flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
+	        rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
+	}
 out:
 	return M0_RC(rc);
 }

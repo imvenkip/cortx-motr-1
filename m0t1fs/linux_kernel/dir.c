@@ -296,6 +296,7 @@ static int m0t1fs_create(struct inode     *dir,
 	m0t1fs_fs_lock(csb);
 	ci->ci_fid = new_fid;
 
+	inode->i_ino = ci->ci_fid.f_key;
 	inode->i_mode = mode;
 	inode->i_uid = current_fsuid();
 	if (dir->i_mode & S_ISGID) {

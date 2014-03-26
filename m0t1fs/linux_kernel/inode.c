@@ -389,9 +389,11 @@ M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
 	}
 	if ((inode->i_state & I_NEW) != 0) {
 		/* New inode, set its fields from @body */
+	        M0_LOG(M0_DEBUG, "new inode (%p) "FID_F, inode, FID_P(fid));
 		err = m0t1fs_inode_read(inode, body);
 	} else if (!(inode->i_state & (I_FREEING | I_CLEAR))) {
 		/* Not a new inode, let's update its attributes from @body */
+	        M0_LOG(M0_DEBUG, "found inode (%p) "FID_F, inode, FID_P(fid));
 		err = m0t1fs_inode_update(inode, body);
 	}
 	if (err != 0)
@@ -447,7 +449,15 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 
 	csb = M0T1FS_SB(ci->ci_inode.i_sb);
 
-	M0_ASSERT(ci->ci_layout_id != 0);
+        /* 
+         * Obf directory ".mero" is created (currently) on server in mkfs time.
+         * It has zero layout_id and should be handled by setting sb layout id.
+         *
+         * @todo: check for name or fid or whatever in order to filter out
+         * possible cases when not obf dir has zero layout id.
+         */
+        if (ci->ci_layout_id == 0)
+                ci->ci_layout_id = csb->csb_layout_id;
 	rc = m0t1fs_build_layout_instance(csb, ci->ci_layout_id,
 					  m0t1fs_inode_fid(ci), &linst);
 	if (rc == 0)
