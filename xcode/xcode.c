@@ -400,7 +400,7 @@ M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)
 	return m0_alloc(nob);
 }
 
-/*
+
 static void __xcode_free(struct m0_xcode_cursor *it)
 {
 	struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(it);
@@ -411,11 +411,9 @@ static void __xcode_free(struct m0_xcode_cursor *it)
 	if (top->s_datum != 0) {
 		m0_free((void *) top->s_datum);
 		top->s_datum = 0;
-	}
-	if (nob != 0)
+	} else if (nob != 0)
 		m0_free(*slot);
 }
-*/
 
 /**
  * Frees xcode object and its sub-objects.
@@ -434,10 +432,9 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx)
 {
 	struct m0_xcode_cursor *it;
 
-	//m0_xcode_cursor_init(&it, obj);
 	it = &ctx->xcx_it;
-	//if (ctx->xcx_free == NULL)
-	//	ctx->xcx_free = __xcode_free;
+	if (ctx->xcx_free == NULL)
+		ctx->xcx_free = __xcode_free;
 	while (m0_xcode_next(it) > 0) {
 		struct m0_xcode_cursor_frame *top    = m0_xcode_cursor_top(it);
 		size_t                        nob    = 0;
@@ -449,8 +446,7 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx)
 		if (top->s_flag == M0_XCODE_CURSOR_POST) {
 			slot = allocp(it, &nob);
 			if (top->s_datum != 0) {
-				ctx->xcx_free == NULL ? m0_free((void *) top->s_datum) :
-							ctx->xcx_free(it);
+				ctx->xcx_free(it);
 				top->s_datum = 0;
 			}
 			if (arrayp)
@@ -460,9 +456,7 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx)
 				 */
 				prev->s_datum = (uint64_t)*slot;
 			else if (nob != 0)
-				ctx->xcx_free == NULL ? m0_free(*slot) :
-							ctx->xcx_free(it);
-				//m0_free(*slot);
+				ctx->xcx_free(it);
 		} else if (top->s_flag == M0_XCODE_CURSOR_PRE) {
 			/*
 			 * Deal with partially constructed objects.
@@ -487,11 +481,8 @@ M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
 	struct m0_xcode_cursor  *sit;
 	int                      result;
 
-	//m0_xcode_cursor_init(&sit, src);
-	//m0_xcode_cursor_init(&dit, dest);
 	dit = &dest->xcx_it;
 	sit = &src->xcx_it;
-
 	M0_ASSERT(m0_xcode_cursor_top(dit)->s_obj.xo_type ==
 		  m0_xcode_cursor_top(sit)->s_obj.xo_type);
 
@@ -527,11 +518,6 @@ M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
 			memcpy(dobj->xo_ptr, sobj->xo_ptr, xt->xct_sizeof);
 		}
 	}
-
-	//if (result >= 0) {
-	//	result = 0;
-	//	*dest = m0_xcode_cursor_top(dit)->s_obj;
-	//}
 
 	M0_POST(ergo(result == 0, m0_xcode_cmp(&dit->xcu_stack[0].s_obj,
 					       &sit->xcu_stack[0].s_obj) == 0));

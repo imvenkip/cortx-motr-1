@@ -271,7 +271,6 @@ static int confdb_alloc(struct confx_allocator *alloc, struct m0_be_seg *seg,
 	M0_BE_OP_SYNC(__op,
 			m0_be_alloc(m0_be_seg_allocator(seg), tx, &__op,
 				&alloc->a_chunk, size));
-	M0_ASSERT(alloc->a_chunk != NULL);
 	if (alloc->a_chunk == NULL)
 		return -ENOMEM;
 	alloc->a_total = size;
@@ -424,10 +423,6 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg,
 
 	M0_ENTRY();
 
-	/*
-	 * FIXME: Does not free the internal be objects allocated during
-	 *        confdb_create as part of xcode_dup operation.
-	 */
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
 	if (rc == 0)
 		rc = __confdb_free(btree, seg, tx);
