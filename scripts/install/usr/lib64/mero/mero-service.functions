@@ -307,11 +307,11 @@ m0_build_local_conf()
     mds='(0x7300000000000001, 2)'
     rm='(0x7300000000000001, 3)'
     stats='(0x7300000000000001, 4)'
-    node='(0x6e00000000000004, 0)'
+    node='(0x6e00000000000001, 0)'
 
     ios_num=0
     for ios_ep in $(m0_get_global_ios_eps | sed -e 's/lnet://g'); do
-        local ios_name="(3, $((ios_idx++)))"
+        local ios_name="(0x7300000000000003, $((ios_idx++)))"
         ios_num=$(($ios_num+1))
         ios_names="$ios_names${ios_names:+, }$ios_name"
         ios_objs="$ios_objs${ios_objs:+, }{0x73| (($ios_name), 2, [1: \"$ios_ep\"], $node)}"

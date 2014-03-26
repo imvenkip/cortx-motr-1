@@ -1,0 +1,195 @@
+#!/bin/bash
+
+#
+# m0t1fs system test
+#
+
+
+#
+# Global vars
+#
+
+# constants
+readonly PROG_NAME=$(basename $0)
+readonly verbose_level_debug=2
+readonly verbose_level_info=1
+readonly verbose_level_none=0
+
+# variables
+verbose_level=$verbose_level_none
+rpm_pkg=''
+
+
+#
+# Usage
+#
+
+help()
+{
+    [[ $1 == stdout ]] && usage || usage >&2
+    exit 1
+}
+
+usage()
+{
+    cat <<USAGE_END
+Usage: $PROG_NAME [-h|--help] [-v] [-r rpm_pkg]
+
+    -r rpm_pkg      Mero rpm package to test. By default, currently installed
+                    mero package is tested. If provided, the specified 'rpm_pkg'
+                    is installed in the system and then removed after testing is
+                    finished.
+
+    -v              Verbose output. Prints additional information to STDERR.
+                    Can be specified more than once (-vv) to get more
+                    verbose output.
+
+    -h|--help       Print this help screen.
+USAGE_END
+}
+
+
+#
+# Parse CLI options
+#
+
+parse_cli_options()
+{
+    # Note that we use `"$@"' to let each command-line parameter expand to a
+    # separate word. The quotes around `$@' are essential!
+    # We need TEMP as the `eval set --' would nuke the return value of getopt.
+    TEMP=$( getopt --options hvr: \
+                   --longoptions help \
+                   --name "$PROG_NAME" -- "$@" )
+
+    [[ $? -ne 0 ]] && help
+
+    # Note the quotes around `$TEMP': they are essential!
+    eval set -- "$TEMP"
+
+    while true ; do
+        case "$1" in
+            -h|--help)          help stdout ;;
+            -v)                 verbose_level=$((verbose_level + 1)); shift ;;
+            -r)                 rpm_pkg=$2; shift 2 ;;
+            --)                 shift; break ;;
+            *)                  echo 'getopt: internal error...'; exit 1 ;;
+        esac
+    done
+}
+
+
+#
+# Utility functions
+#
+
+echo_err()
+{
+    echo -e "$*" >&2
+}
+
+debug()
+{
+    if [[ $verbose_level -ge $verbose_level_debug ]] ; then
+        echo_err "$PROG_NAME:  DEBUG:  $*"
+    fi
+}
+
+info()
+{
+    if [[ $verbose_level -ge $verbose_level_info ]] ; then
+        echo_err "$PROG_NAME:  INFO:   $*"
+    fi
+}
+
+warn()
+{
+    echo_err "$PROG_NAME: WARNING: $*"
+}
+
+die()
+{
+    echo_err "$PROG_NAME:  ERROR:  $*"
+    exit 1
+}
+
+is_mero_installed()
+{
+    if [[ -e /etc/init/mero.conf ]] ; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+install_mero_rpm()
+{
+    local pkg=$1
+
+    info "Installing rpm: $pkg"
+    rpm -ihv $pkg
+}
+
+remove_mero_rpm()
+{
+    local pkg=$1
+
+    local pkg_name=$(echo $pkg | grep -Po '(?:^|(?<=/))[_[:alnum:]]+(?=-\d+\.\d+\.\d+)')
+
+    info "Removing rpm: $pkg_name"
+    rpm -e $pkg_name
+}
+
+do_m0t1fs_system_test()
+{
+    debug "do_m0t1fs_system_test: start dd"
+    dd if=/dev/sda of=/mnt/m0t1fs/data bs=32M &
+
+    local dd_pid=$!
+    local i=60
+
+    while [[ $((--i)) -gt 0 ]] ; do
+        sleep 1
+        kill -USR1 $dd_pid
+    done
+
+    debug "do_m0t1fs_system_test: stop dd"
+    kill $dd_pid
+
+    debug "do_m0t1fs_system_test: sleep 20 sec"
+    sleep 20 # FIXME: w/a for 'umount: /mnt/m0t1fs: device is busy'
+
+    debug "do_m0t1fs_system_test: syncing data"
+    sync
+
+    debug "do_m0t1fs_system_test: lsof /mnt/m0t1fs"
+    lsof /mnt/m0t1fs || true
+}
+
+
+#
+# Main
+#
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+parse_cli_options "$@"
+
+if ! is_mero_installed && [[ -z $rpm_pkg ]] ; then
+    die 'Mero rpm is not installed, either install desired Mero rpm package' \
+        'manually or provide it with -r option for automatic installation' \
+        'and removal'
+fi
+
+[[ -n $rpm_pkg ]] && install_mero_rpm $rpm_pkg
+
+info "Starting Mero"
+start mero-singlenode
+
+do_m0t1fs_system_test
+
+info "Stopping Mero"
+stop mero-singlenode
+
+[[ -n $rpm_pkg ]] && remove_mero_rpm $rpm_pkg

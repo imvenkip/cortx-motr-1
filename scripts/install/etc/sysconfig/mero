@@ -58,5 +58,5 @@
 # working directory path, instead of system-wide binaries. This can be useful
 # for developers to quickly test their local changes w/o creating and installing
 # an rpm package each time.
-MERO_DEVEL_WORKDIR_PATH=/home/nikita/p/m
+#MERO_DEVEL_WORKDIR_PATH=/home/devvm/mero
 
