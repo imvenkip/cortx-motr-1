@@ -591,6 +591,7 @@ M0_INTERNAL int m0_indexvec_split(struct m0_indexvec    *in,
  */
 M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 				     int		    max_frags_nr,
+				     uint32_t               bshift,
 				     struct m0_addb_ctx    *ctx,
 				     const unsigned	    addb_loc,
 				     struct m0_indexvec	   *mem_ivec);

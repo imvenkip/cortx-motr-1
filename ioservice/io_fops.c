@@ -1251,16 +1251,15 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	M0_ASSERT(rbulk != NULL);
 	M0_ASSERT(m0_mutex_is_locked(&rbulk->rb_mutex));
 	rw      = io_rw_get(fop);
-	io_info = &rw->crw_ivecs;
+	io_info = &rw->crw_ivec;
 	sb      = m0_fop_to_sb(fop);
 	rdom    = m0t1fs_rmsvc_domain_get(&sb->csb_reqh);
 	file    = m0_resource_to_file(&rw->crw_gfid,
 				   rdom->rd_types[M0_RM_FLOCK_RT]);
-	io_info = &rw->crw_ivec;
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
-	rc = m0_indexvec_wire2mem(io_info, io_info->ci_nr,
+	rc = m0_indexvec_wire2mem(io_info, io_info->ci_nr, 0,
 				  &m0_ios_addb_ctx,
 			          M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
 			          &io_vec);
@@ -1271,7 +1270,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	rw->crw_di_data.b_addr = m0_alloc(size);
 	if (rw->crw_di_data.b_addr == NULL) {
 		rc = -ENOMEM;
-		goto cleanup;
+		goto out;
 	}
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
 		struct m0_indexvec ivec;
@@ -1290,14 +1289,14 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
 				       &ivec);
 		if (rc != 0)
-			goto cleanup;
+			goto out;
 		file->fi_di_ops->do_sum(file, &ivec, &rbuf->bb_nbuf->nb_buffer,
 				        &cksum_data);
 		curr_size += todo;
 		m0_indexvec_free(&ivec);
 	} m0_tl_endfor;
 
-cleanup:
+out:
 	m0_indexvec_free(&io_vec);
 	return M0_RC(rc);
 #endif
@@ -1404,6 +1403,7 @@ M0_INTERNAL int m0_io_fop_prepare(struct m0_fop *fop)
 	m0_rpc_bulk_qtype(rbulk, q);
 	if (rc == 0 && m0_is_write_fop(fop))
 		rc = io_fop_di_prepare(fop);
+
 err:
 	m0_mutex_unlock(&rbulk->rb_mutex);
 	return M0_RC(rc);

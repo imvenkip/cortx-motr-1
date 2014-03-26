@@ -321,6 +321,7 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 static int be_tx_memory_allocate(struct m0_be_tx *tx)
 {
 	int rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared, true);
+
 	if (rc == -ENOMEM) {
 		M0_LOG(M0_DEBUG, "tx = %p: there is not enough memory "
 		       "to allocate using prepared credit "BETXCR_F,
@@ -352,8 +353,8 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 
 	if (rc != 0)
 		M0_LOG(M0_INFO, "%s -> %s: transaction failure: rc = %d",
-			m0_be_tx_state_name(m0_be_tx_state(tx)),
-			m0_be_tx_state_name(state), rc);
+		       m0_be_tx_state_name(m0_be_tx_state(tx)),
+		       m0_be_tx_state_name(state), rc);
 
 	if (state == M0_BTS_LOGGED && tx->t_persistent != NULL)
 		tx->t_persistent(tx);

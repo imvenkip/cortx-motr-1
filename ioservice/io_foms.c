@@ -1060,7 +1060,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 				   struct m0_reqh *reqh)
 {
 	int                      rc = 0;
-	uint32_t                 max_frags_nr = 0;
 	struct m0_fom           *fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
@@ -1072,36 +1071,21 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_ENTRY("fop=%p", fop);
 
-	rwfop = io_rw_get(fop);
-	max_frags_nr = rwfop->crw_ivec.ci_nr;
-	M0_LOG(M0_DEBUG, "max_frags_nr=%d", max_frags_nr);
-
 	IOS_ALLOC_PTR(fom_obj, &m0_ios_addb_ctx, FOM_COB_RW_CREATE);
 	if (fom_obj == NULL)
 		return M0_RC(-ENOMEM);
 
-	if (max_frags_nr > 0) {
-		rc = m0_indexvec_wire2mem(&rwfop->crw_ivec, max_frags_nr,
-					  &m0_ios_addb_ctx,
-					  M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
-					  &fom_obj->fcrw_ivec);
-		if (rc != 0) {
-			m0_free(fom_obj);
-			return M0_RC(rc);
-		}
-	}
 	rep_fop = m0_is_read_fop(fop) ?
 		    m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL) :
 		    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
 	if (rep_fop == NULL) {
-		if (fom_obj->fcrw_ivec.iv_vec.v_nr > 0)
-			m0_indexvec_free(&fom_obj->fcrw_ivec);
 		m0_free(fom_obj);
 		return M0_RC(-ENOMEM);
 	}
 
-	fom  = &fom_obj->fcrw_gen;
-	*out = fom;
+	fom   = &fom_obj->fcrw_gen;
+	rwfop = io_rw_get(fop);
+	*out  = fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type,
 		    &ops, fop, rep_fop, reqh,
 		    fop->f_type->ft_fom_type.ft_rstype);
@@ -1187,7 +1171,7 @@ static int io_prepare(struct m0_fom *fom)
 	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
 
 	M0_LOG(M0_DEBUG, "Preparing %s IO @"FID_F"",
-			 m0_is_read_fop(fom->fo_fop)? "Read": "Write",
+	       m0_is_read_fop(fom->fo_fop)? "Read": "Write",
 	       FID_P(&rwfop->crw_fid));
 	/*
 	 * Dumps the state of SNS repair with respect to global fid
@@ -1668,10 +1652,12 @@ static int io_launch(struct m0_fom *fom)
 		stio->si_fol_rec_part = &stio_desc->siod_fol_rec_part;
 
 		mem_ivec  = &stio->si_stob;
-		todo = rwfop->crw_desc.id_descs[index++].bdd_used;
+		todo = rwfop->crw_desc.id_descs[index++].bdd_used >>
+			fom_obj->fcrw_bshift;
 		rc = m0_indexvec_split(&fom_obj->fcrw_ivec,
 				       fom_obj->fcrw_curr_size, todo,
-				       fom_obj->fcrw_bshift,  &fom->fo_addb_ctx,
+				       /* fom_obj->fcrw_bshift */ 0,
+				       &fom->fo_addb_ctx,
 				       M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
 				       mem_ivec);
                 if (rc != 0) {
@@ -1721,6 +1707,10 @@ static int io_launch(struct m0_fom *fom)
 		}
 		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 
+		/*
+		 * The value is already bshifted during conversion of
+		 * m0_io_indexvec from on-wire to in-mem.
+		 * */
 		fom_obj->fcrw_curr_size += ivec_count;
                 stio_desc->siod_fcb.fc_bottom = stobio_complete_cb;
                 m0_mutex_lock(&stio->si_mutex);
@@ -1862,11 +1852,45 @@ static int io_finish(struct m0_fom *fom)
         return M0_FSO_AGAIN;
 }
 
-static void stob_write_credit(struct m0_fom *fom)
+static int indexvec_wire2mem(struct m0_fom *fom, uint32_t bshift)
 {
+	int                      rc = 0;
+	uint32_t                 max_frags_nr = 0;
+	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_fop_cob_rw    *rwfop;
+	struct m0_indexvec      *iv;
+
+	M0_PRE(fom != NULL);
+
+	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+
+	rwfop = io_rw_get(fom->fo_fop);
+	iv = &fom_obj->fcrw_ivec;
+	fom_obj->fcrw_bshift = bshift;
+
+	max_frags_nr = rwfop->crw_ivec.ci_nr;
+	M0_LOG(M0_DEBUG, "max_frags_nr=%d", max_frags_nr);
+
+	if (max_frags_nr > 0)
+		rc = m0_indexvec_wire2mem(&rwfop->crw_ivec, max_frags_nr,
+					  bshift, &m0_ios_addb_ctx,
+					  M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC, iv);
+	return M0_RC(rc);
+}
+
+/*
+ * This function converts the on-wire m0_io_indexvec to in-mem m0_indexvec,
+ * with index and count values appropriately block shifted.
+ * If current operation is `write', it also adds the BE-credit to fom_tx_credit
+ */
+static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
+{
+
 	int			 rc;
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_stob_domain	*fom_stdom;
+	uint32_t                 bshift;
+
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1879,12 +1903,19 @@ static void stob_write_credit(struct m0_fom *fom)
 
 	rc = stob_object_find(fom);
 	M0_ASSERT(rc == 0);
+
 	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom),
 					   &fom_obj->fcrw_stob->so_id);
 	M0_ASSERT(fom_stdom != NULL);
 
-	m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
-			     m0_fom_tx_credit(fom));
+	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
+
+	indexvec_wire2mem(fom, bshift);
+
+	if (is_op_write)
+		m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
+				     m0_fom_tx_credit(fom));
+
 	m0_stob_put(fom_obj->fcrw_stob);
 }
 
@@ -1920,9 +1951,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	/* first handle generic phase */
         if (m0_fom_phase(fom) < M0_FOPH_NR) {
-		if (m0_is_write_fop(fom->fo_fop) &&
-		    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
-			stob_write_credit(fom);
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+			stob_be_credit(fom, m0_is_write_fop(fom->fo_fop));
                 return m0_fom_tick_generic(fom);
 	}
 
