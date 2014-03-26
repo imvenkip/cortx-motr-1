@@ -23,6 +23,7 @@
 #  include "desim/sim.h"
 #endif
 #include "lib/trace.h"   /* m0_trace_init */
+#include "lib/thread.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
@@ -172,25 +173,50 @@ struct init_fini_call subsystem[] = {
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 };
 
-static void fini_nr(int i)
+struct init_fini_call once[] = {
+	{ &m0_threads_once_init, &m0_threads_once_fini, "threads" }
+};
+
+static void fini_calls(struct init_fini_call *arr, int nr)
 {
-	while (--i >= 0) {
-		if (subsystem[i].ifc_fini != NULL)
-			subsystem[i].ifc_fini();
+	while (--nr >= 0) {
+		if (arr[nr].ifc_fini != NULL)
+			arr[nr].ifc_fini();
 	}
 }
+
+static void fini_nr(int i, int j)
+{
+	fini_calls(once, i);
+	fini_calls(subsystem, j);
+}
+
+/**
+ * Flag protecting initialisations to be done only once per process address
+ * space (or kernel).
+ */
+static bool initialised_once = false;
 
 int m0_init(struct m0 *instance)
 {
 	int i;
 	int rc;
 
-	/* XXX FIXME
-	 * m0_init() should not call m0_threads_init(): m0_init() can be
-	 * called multiple times, but the actions of m0_threads_init()
-	 * should only be performed once.
-	 *  -- source: http://goo.gl/lavgnw
-	 */
+	if (!initialised_once) {
+		/*
+		 * Bravely ignore all issues of concurrency and memory
+		 * consistency models, which occupy weaker minds.
+		 */
+		for (i = 0; i < ARRAY_SIZE(once); ++i) {
+			rc = once[i].ifc_init();
+			if (rc != 0) {
+				fini_nr(i, 0);
+				return rc;
+			}
+		}
+		initialised_once = true;
+	}
+
 	rc = m0_threads_init(instance);
 	if (rc != 0)
 		return rc;
@@ -202,7 +228,7 @@ int m0_init(struct m0 *instance)
 	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		rc = subsystem[i].ifc_init();
 		if (rc != 0) {
-			fini_nr(i);
+			fini_nr(ARRAY_SIZE(once), i);
 			break;
 		}
 	}
@@ -211,8 +237,8 @@ int m0_init(struct m0 *instance)
 
 void m0_fini()
 {
-	fini_nr(ARRAY_SIZE(subsystem));
-	m0_threads_fini(); /* XXX DELETEME */
+	fini_nr(ARRAY_SIZE(once), ARRAY_SIZE(subsystem));
+	m0_threads_fini();
 }
 
 /** @} end of init group */

@@ -50,7 +50,18 @@
    @{
  */
 
-static pthread_key_t  tls_key;
+/**
+ * Pthread TLS key at which Mero stores all per-thread state.
+ *
+ * This is per-process, not per-m0-instance.
+ */
+static pthread_key_t tls_key;
+
+/**
+ * Default pthread creation attribute.
+ *
+ * @todo move this in m0 instance.
+ */
 static pthread_attr_t pthread_attr_default;
 
 M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void)
@@ -124,11 +135,23 @@ M0_INTERNAL char *m0_debugger_args[4] = {
 
 M0_INTERNAL int m0_threads_init(struct m0 *instance)
 {
+	m0_set(instance);
+	return -pthread_attr_init(&pthread_attr_default) ?:
+		-pthread_attr_setdetachstate(&pthread_attr_default,
+					     PTHREAD_CREATE_JOINABLE);
+}
+
+M0_INTERNAL void m0_threads_fini(void)
+{
+	(void)pthread_attr_destroy(&pthread_attr_default);
+}
+
+M0_INTERNAL int m0_threads_once_init(void)
+{
 	static struct m0_thread main_thread;
 	static char             pidbuf[20];
-
-	char *env_ptr;
-	int   result;
+	char                   *env_ptr;
+	int                     result;
 
 	env_ptr = getenv("M0_DEBUGGER");
 	if (env_ptr != NULL)
@@ -139,42 +162,23 @@ M0_INTERNAL int m0_threads_init(struct m0 *instance)
 	m0_debugger_args[1] = program_invocation_name;
 	m0_debugger_args[2] = pidbuf;
 	result = snprintf(pidbuf, ARRAY_SIZE(pidbuf), "%i", getpid());
-	M0_ASSERT(result < ARRAY_SIZE(pidbuf));
-
-	/* XXX TODO
-	 * Creation of pthread_key_t [and pthread_attr_t] should be done
-	 * through pthread_once(3p). There is no need to finalise it:
-	 * this leak is acceptable.
-	 *  -- source: http://goo.gl/lavgnw
-	 */
-	result = -pthread_attr_init(&pthread_attr_default) ?:
-		 -pthread_attr_setdetachstate(&pthread_attr_default,
-					      PTHREAD_CREATE_JOINABLE);
-	if (result != 0)
-		goto err_0;
 
 	result = -pthread_key_create(&tls_key, NULL);
 	if (result != 0)
-		goto err_1;
+		goto err;
 
 	result = -pthread_setspecific(tls_key, &main_thread.t_tls);
-	if (result == 0) {
-		m0_set(instance);
-		return 0;
-	}
+	if (result == 0)
+		return result;
 
 	(void)pthread_key_delete(tls_key);
-err_1:
-	(void)pthread_attr_destroy(&pthread_attr_default);
-err_0:
+ err:
 	m0_free0(&m0_debugger_args[0]); /* harmless even if env_ptr == NULL */
 	return result;
 }
 
-M0_INTERNAL void m0_threads_fini(void)
+M0_INTERNAL void m0_threads_once_fini(void)
 {
-	(void)pthread_key_delete(tls_key);
-	(void)pthread_attr_destroy(&pthread_attr_default);
 	m0_free0(&m0_debugger_args[0]);
 }
 

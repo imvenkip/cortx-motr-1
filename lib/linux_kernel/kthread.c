@@ -72,6 +72,15 @@ M0_INTERNAL void m0_threads_fini(void)
 {
 }
 
+M0_INTERNAL int m0_threads_once_init(void)
+{
+	return 0;
+}
+
+M0_INTERNAL void m0_threads_once_fini(void)
+{
+}
+
 static int kthread_trampoline(void *arg)
 {
 	struct m0_thread *t = arg;

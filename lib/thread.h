@@ -253,8 +253,10 @@ M0_INTERNAL struct m0_thread_tls *m0_thread_tls(void);
  * @param instance  Initial m0 instance.
  */
 M0_INTERNAL int m0_threads_init(struct m0 *instance);
-
 M0_INTERNAL void m0_threads_fini(void);
+
+M0_INTERNAL int m0_threads_once_init(void);
+M0_INTERNAL void m0_threads_once_fini(void);
 
 /** Sets the thread in awkward context. */
 M0_INTERNAL void m0_enter_awkward(void);
