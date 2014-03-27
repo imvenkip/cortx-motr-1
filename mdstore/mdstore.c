@@ -728,6 +728,9 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 		       (unsigned)cob->co_nsrec.cnr_linkno,
 		       (unsigned)cob->co_nsrec.cnr_cntr,
 		       (unsigned)attr->ca_nlink);
+		M0_LOG(M0_DEBUG, "size:%u, lid:%u",
+		       (unsigned)attr->ca_size,
+		       (unsigned)attr->ca_lid);
 	}
 
 	/*

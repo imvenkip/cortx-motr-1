@@ -781,7 +781,7 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 
 	for (i = 0; i < m0_reqh_nr_localities(reqh); i++)
-		m0_fom_locality_post_stats(&reqh->rh_fom_dom.fd_localities[i]);
+		m0_fom_locality_post_stats(reqh->rh_fom_dom.fd_localities[i]);
 }
 
 M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)

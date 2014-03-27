@@ -44,6 +44,8 @@
 #include "lib/hash.h"	    /* m0_htable */
 #include "sns/parity_repair.h"  /*m0_sns_repair_spare_map() */
 #include "m0t1fs/linux_kernel/file_internal.h"
+#include "m0t1fs/m0t1fs_addb.h"
+
 
 /**
    @page iosnsrepair I/O with SNS and SNS repair.
@@ -3342,7 +3344,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	struct inode	    *inode;
 	struct target_ioreq *ti;
 
-	M0_ENTRY("io_request %p", req);
+	M0_ENTRY("io_request %p sb = %p", req, file_to_sb(req->ir_file));
 	M0_PRE_EX(io_request_invariant(req));
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
@@ -4686,6 +4688,19 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
 	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
 }
 
+M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop)
+{
+	struct m0_io_fop  *iofop;
+	struct io_req_fop *irfop;
+	struct io_request *ioreq;
+
+	iofop = container_of(fop, struct m0_io_fop, if_fop);
+	irfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+	ioreq  = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
+			ir_nwxfer, &ioreq_bobtype);
+	return file_to_sb(ioreq->ir_file);
+}
+
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	int                         rc;
@@ -4982,11 +4997,15 @@ static inline uint32_t io_seg_size(void)
 	return sizeof(struct m0_ioseg);
 }
 
-static inline uint32_t io_di_size(const struct io_request *req)
+static uint32_t io_di_size(const struct io_request *req)
 {
-	struct m0_file *file;
+	struct m0_file      *file;
+	struct m0t1fs_sb    *sb;
+	struct m0_rm_domain *rdom;
 
-	file = m0_resource_to_file(file_to_fid(req->ir_file));
+	sb = file_to_sb(req->ir_file);
+	rdom = m0t1fs_rmsvc_domain_get(&sb->csb_reqh);
+	file = m0_resource_to_file(file_to_fid(req->ir_file), rdom->rd_types[M0_RM_FLOCK_RT]);
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	return file->fi_di_ops->do_out_shift(file) * M0_DI_ELEMENT_SIZE;

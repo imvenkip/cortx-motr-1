@@ -397,8 +397,11 @@ void bulkio_params_init(struct bulkio_params *bp)
 	bp->bp_rfops = NULL;
 	bp->bp_wfops = NULL;
 
+	bp->bp_flock_rt.rt_name = "File Lock Resource Type";
+
 	m0_rm_domain_init(&bp->bp_rdom);
-	rc = m0_file_lock_type_register(&bp->bp_rdom);
+	rc = m0_file_lock_type_register(&bp->bp_rdom, &bp->bp_flock_rt);
+
 	M0_ASSERT(rc == 0);
 
 }
@@ -430,7 +433,7 @@ void bulkio_params_fini(struct bulkio_params *bp)
 
 	m0_free(bp->bp_cdbname);
 	m0_free(bp->bp_slogfile);
-	m0_file_lock_type_deregister();
+	m0_file_lock_type_deregister(&bp->bp_flock_rt);
 	m0_rm_domain_fini(&bp->bp_rdom);
 }
 

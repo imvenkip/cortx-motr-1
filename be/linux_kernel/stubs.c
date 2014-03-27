@@ -111,6 +111,8 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom)
 {
+	seg->bs_stob   = stob;
+	seg->bs_domain = dom;
 }
 
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)

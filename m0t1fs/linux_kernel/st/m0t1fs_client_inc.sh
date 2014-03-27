@@ -1,6 +1,6 @@
 mount_m0t1fs()
 {
-	if [ $# -ne 5 ]
+	if [ $# -ne 5 -a $# -ne 6 ]
 	then
 		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)> <N> <K> <p>"
 		return 1
@@ -11,6 +11,7 @@ mount_m0t1fs()
 	local N=$3
 	local K=$4
 	local P=$5
+	local mountop=$6
 
 	# Create mount directory
 	sudo mkdir -p $m0t1fs_mount_dir || {
@@ -67,7 +68,7 @@ EOF`"
 
 	echo "Mounting file system..."
 
-	cmd="sudo mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF' \
+	cmd="sudo mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF',$mountop \
 	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {
@@ -97,6 +98,25 @@ unmount_and_clean()
 		rm -rf $MERO_M0T1FS_TEST_DIR/d$i/stobs/o/*
 	done
 }
+
+unmount_m0t1fs()
+
+{	if [ $# -ne 1 ]
+	then
+		echo "Usage: unmount_m0t1fs <mount_dir>"
+		return 1
+	fi
+
+	local m0t1fs_mount_dir=$1
+	echo "Unmounting file system ..."
+	umount $m0t1fs_mount_dir &>/dev/null
+
+	sleep 2
+
+	echo "Cleaning up test directory..."
+	rm -rf $m0t1fs_mount_dir &>/dev/null
+}
+
 
 bulkio_test()
 {
@@ -307,6 +327,7 @@ file_creation_test()
 	    >> $MERO_TEST_LOGFILE
 	for ((i=0; i<$nr_files; ++i)); do
 		touch $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+		echo '0123456789abcdef' > $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
 		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
 	done
 	unmount_and_clean &>> $MERO_TEST_LOGFILE
@@ -340,6 +361,86 @@ file_creation_test()
 	return 0
 }
 
+multi_client_test()
+{
+	local nr_clients=$1
+	local mount_dir_1=${MERO_M0T1FS_MOUNT_DIR}aa
+	local mount_dir_2=${MERO_M0T1FS_MOUNT_DIR}bb
+	local mount_dir_3=${MERO_M0T1FS_MOUNT_DIR}cc
+
+	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=4" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
+	df
+	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1004" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+		return 1
+	}
+	df
+	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2004" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+		unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
+		return 1
+	}
+	echo "Three clients mounted:"
+	mount
+	mkdir ${mount_dir_1}/dir1
+	mkdir ${mount_dir_2}/dir2
+	mkdir ${mount_dir_3}/dir3
+	cp -av /bin/ls ${mount_dir_1}/dir1/obj1
+	cp -av /bin/ls ${mount_dir_2}/dir2/obj2
+	cp -av /bin/ls ${mount_dir_3}/dir3/obj3
+	ls -liR ${mount_dir_1}
+	ls -liR ${mount_dir_2}
+	ls -liR ${mount_dir_3}
+
+	diff /bin/ls ${mount_dir_1}/dir1/obj1 || echo "Obj1 creation failure"
+	diff /bin/ls ${mount_dir_1}/dir2/obj2 || echo "Obj2 creation failure"
+	diff /bin/ls ${mount_dir_1}/dir3/obj3 || echo "Obj3 creation failure"
+
+	diff /bin/ls ${mount_dir_1}/dir1/obj1 || echo "Obj1 creation failure"
+	diff /bin/ls ${mount_dir_2}/dir2/obj2 || echo "Obj2 creation failure"
+	diff /bin/ls ${mount_dir_3}/dir3/obj3 || echo "Obj3 creation failure"
+
+	unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
+	unmount_m0t1fs ${mount_dir_3} &>> $MERO_TEST_LOGFILE
+	echo "First round done."
+	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=4" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
+	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1004" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
+	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2004" &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
+	echo "Three clients mounted:"
+	mount
+	ls -liR ${mount_dir_1}
+	ls -liR ${mount_dir_2}
+	ls -liR ${mount_dir_3}
+
+	md5sum /bin/ls
+	md5sum ${mount_dir_1}/dir1/obj1
+	md5sum ${mount_dir_2}/dir2/obj2
+	md5sum ${mount_dir_3}/dir3/obj3
+
+	unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
+	unmount_m0t1fs ${mount_dir_3} &>> $MERO_TEST_LOGFILE
+	echo "Second round done"
+	df
+	return 0
+}
+
+
 rmw_test()
 {
 	for unit_size in 4 8 16 32
@@ -370,7 +471,7 @@ rmw_test()
 m0t1fs_system_tests()
 {
 	file_creation_test $MAX_NR_FILES || {
-                echo "Failed: File creation test failed."
+		echo "Failed: File creation test failed."
 		return 1
 	}
 

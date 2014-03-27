@@ -26,6 +26,7 @@
 #include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
 #include "net/lnet/lnet.h"
 #include "file/file.h"
+#include "lib/finject.h"
 
 #ifdef __KERNEL__
 #include "m0t1fs/linux_kernel/m0t1fs.h"
@@ -151,20 +152,20 @@ static void bulkclient_test(void)
 	struct m0_rm_domain     *rm_dom;
 	struct m0_file           file;
 
+	struct m0_rm_resource_type flock_rt = {
+		.rt_name = "File Lock Resource Type"
+	};
+
 	M0_ALLOC_PTR(iofop);
 	M0_ASSERT(iofop != NULL);
 	M0_SET0(iofop);
 	M0_SET0(&nd);
 
-#ifndef __KERNEL__
 	M0_ALLOC_PTR(rm_dom);
 	M0_ASSERT(rm_dom != NULL);
 	m0_rm_domain_init(rm_dom);
-	rc = m0_file_lock_type_register(rm_dom);
+	rc = m0_file_lock_type_register(rm_dom, &flock_rt);
 	M0_ASSERT(rc == 0);
-#else
-	rm_dom = m0t1fs_rmsvc_domain_get();
-#endif
 
 	xprt = &m0_net_lnet_xprt;
 	rc = m0_net_domain_init(&nd, xprt, &m0_addb_proc_ctx);
@@ -263,6 +264,9 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(!rbuf1->bb_flags & M0_RPC_BULK_NETBUF_ALLOCATED);
 
 	M0_UT_ASSERT(rbuf->bb_nbuf != NULL);
+	/* In normal code path, an io_request is allocated. io_request embeds io_fop.
+	 * In this UT, only io_fop is allocated here. So, skip di_prepare here. */
+	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
 	rc = m0_io_fop_prepare(&iofop->if_fop);
 	M0_UT_ASSERT(rc == 0);
 	rw = io_rw_get(&iofop->if_fop);
@@ -411,11 +415,9 @@ static void bulkclient_test(void)
 	m0_free(iofop);
 	m0_net_domain_fini(&nd);
 	m0_file_fini(&file);
-#ifndef __KERNEL__
-	m0_file_lock_type_deregister();
+	m0_file_lock_type_deregister(&flock_rt);
 	m0_rm_domain_fini(rm_dom);
 	m0_free(rm_dom);
-#endif
 }
 
 const struct m0_test_suite bulkio_client_ut = {

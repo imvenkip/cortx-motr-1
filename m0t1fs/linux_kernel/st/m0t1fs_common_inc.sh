@@ -43,14 +43,14 @@ MERO_STOB_DOMAIN="ad -d disks.conf"
 
 # list of server end points
 EP=(
-    12345:33:101   # MDS  EP
-    12345:33:102   # IOS1 EP
-    12345:33:103   # IOS2 EP
-    12345:33:104   # IOS3 EP
-    12345:33:105   # IOS4 EP
+    12345:33:1001   # MDS  EP
+    12345:33:1002   # IOS1 EP
+    12345:33:1003   # IOS2 EP
+    12345:33:1004   # IOS3 EP
+    12345:33:1005   # IOS4 EP
 )
 
-SNS_CLI_EP="12345:33:301"
+SNS_CLI_EP="12345:33:991"
 
 PREPARE_STORAGE="-p"
 POOL_WIDTH=$(expr ${#EP[*]} - 1)
@@ -83,7 +83,8 @@ load_kernel_module()
 	server_nid=${server_nid:-$lnet_nid}
 
 	# Client end point (m0mero module local_addr)
-	LADDR="$lnet_nid:12345:33:1"
+	# last component in this addr will be generated and filled in m0mero.
+	LADDR="$lnet_nid:12345:33:"
 
 	mero_module_path=$MERO_CORE_ROOT/mero
 	mero_module=$MERO_MODULE

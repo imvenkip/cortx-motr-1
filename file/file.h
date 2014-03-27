@@ -137,23 +137,30 @@ M0_INTERNAL void m0_file_unlock(struct m0_rm_incoming *req);
 /**
  * Registers the resource of type 'distributed mutex' with a resource domain.
  */
-M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom);
+M0_INTERNAL
+int m0_file_lock_type_register(struct m0_rm_domain *dom,
+			       struct m0_rm_resource_type *flock_rt);
 
 /**
  * De-registers the resource of type 'distributed mutex' from a resource domain.
  */
-M0_INTERNAL void m0_file_lock_type_deregister(void);
+M0_INTERNAL
+void m0_file_lock_type_deregister(struct m0_rm_resource_type *flock_rt);
 
 /**
  * Check whether a file lock resource with description given in @fid is
  * registered with file lock domain.
  */
-M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid);
+M0_INTERNAL
+bool m0_file_lock_resource_is_added(const struct m0_fid *fid,
+				    struct m0_rm_resource_type *flock_rt);
 
 /**
  * Returns m0_file from the given resource @fid.
  */
-M0_INTERNAL struct m0_file *m0_resource_to_file(const struct m0_fid *fid);
+M0_INTERNAL
+struct m0_file *m0_resource_to_file(const struct m0_fid *fid,
+				    struct m0_rm_resource_type *flock_rt);
 
 /** @} end of FileLock */
 

@@ -279,6 +279,7 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0t1fs_inode      *ci;
 	struct m0t1fs_mdop        mo;
 	struct inode             *inode;
+	struct m0_fid             new_fid;
 	int                       rc;
 
 	M0_ENTRY();
@@ -287,13 +288,13 @@ static int m0t1fs_create(struct inode     *dir,
 	       dentry->d_name.name, dir->i_ino,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
-	/* new_inode() will call m0t1fs_alloc_inode() using super_operations */
-	inode = new_inode(sb);
+	m0t1fs_fid_alloc(csb, &new_fid);
+	inode = iget_locked(sb, fid_hash(&new_fid));
 	if (inode == NULL)
 		return M0_RC(-ENOMEM);
 	ci = M0T1FS_I(inode);
 	m0t1fs_fs_lock(csb);
-	m0t1fs_fid_alloc(csb, &ci->ci_fid);
+	ci->ci_fid = new_fid;
 
 	inode->i_mode = mode;
 	inode->i_uid = current_fsuid();
@@ -316,9 +317,8 @@ static int m0t1fs_create(struct inode     *dir,
 
 	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
 	m0t1fs_file_lock_init(ci, csb);
-
-	insert_inode_hash(inode);
-	mark_inode_dirty(inode);
+	if ((inode->i_state & I_NEW) != 0)
+		unlock_new_inode(inode);
 
 	rc = m0t1fs_inode_layout_init(ci);
 	if (rc != 0)
@@ -986,7 +986,8 @@ out:
 	return rc;
 }
 
-static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
+static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
+				       const struct m0t1fs_mdop *mo,
 				       struct m0_fop            *fop)
 {
 	struct m0_fop_create    *create;
@@ -1082,7 +1083,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
 			 * for any type of layout.
 			 */
 			layout->l_buf.b_count = m0_layout_max_recsize(
-						&m0t1fs_globals.g_layout_dom);
+						&csb->csb_layout_dom);
 			layout->l_buf.b_addr = m0_alloc(layout->l_buf.b_count);
 			if (layout->l_buf.b_addr == NULL) {
 				rc = -ENOMEM;
@@ -1191,7 +1192,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		goto out;
 	}
 
-	rc = m0t1fs_mds_cob_fop_populate(mo, fop);
+	rc = m0t1fs_mds_cob_fop_populate(csb, mo, fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR,
 		       "m0t1fs_mds_cob_fop_populate() failed with %d", rc);
@@ -1297,7 +1298,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 	struct m0_fop_layout_rep *rep = NULL;
 	int                       rc;
 	struct m0_layout         *layout = NULL;
-	struct m0_layout_domain  *ldom = &m0t1fs_globals.g_layout_dom;
+	struct m0_layout_domain  *ldom = &csb->csb_layout_dom;
 
 	M0_ENTRY();
 

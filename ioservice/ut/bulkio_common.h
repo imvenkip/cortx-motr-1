@@ -105,6 +105,7 @@ struct bulkio_params {
 	struct m0_net_xprt		 *bp_xprt;
 
 	struct m0_rm_domain		 bp_rdom;
+	struct m0_rm_resource_type       bp_flock_rt;
 	struct m0_file			 bp_file[IO_FIDS_NR];
 };
 

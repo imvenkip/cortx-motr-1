@@ -331,7 +331,7 @@ M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc);
  */
 struct m0_fom_domain {
 	/** An array of localities. */
-	struct m0_fom_locality		*fd_localities;
+	struct m0_fom_locality	       **fd_localities;
 	/** Number of localities in the domain. */
 	size_t				 fd_localities_nr;
 	/** Domain operations. */
@@ -340,8 +340,6 @@ struct m0_fom_domain {
 	struct m0_reqh			*fd_reqh;
 	/** Addb context for fom */
 	struct m0_addb_ctx               fd_addb_ctx;
-	/** fop rate monitor key */
-	uint32_t			 fd_fop_rate_monitor_key;
 	/** fop rate monitor */
 	struct m0_addb_monitor           fd_fop_rate_monitor;
 };

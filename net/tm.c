@@ -223,6 +223,7 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 {
 	struct m0_net_domain *dom = tm->ntm_dom;
 	int i;
+	M0_ENTRY();
 
 	/* wait for ongoing event processing to drain without holding lock:
 	   events modify state and end point refcounts
@@ -272,13 +273,14 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 	m0_list_link_fini(&tm->ntm_dom_linkage);
 
 	m0_mutex_unlock(&dom->nd_mutex);
-	return;
+	M0_LEAVE();;
 }
 M0_EXPORTED(m0_net_tm_fini);
 
 M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
+	M0_ENTRY();
 
 	M0_ASSERT(addr != NULL);
 	M0_PRE(tm != NULL);
@@ -303,7 +305,7 @@ M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 	M0_POST(m0_net__tm_invariant(tm));
 	m0_mutex_unlock(&tm->ntm_mutex);
 	M0_ASSERT(rc <= 0);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_tm_start);
 
@@ -311,6 +313,7 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort)
 {
 	int rc;
 	enum m0_net_tm_state oldstate;
+	M0_ENTRY();
 
 	m0_mutex_lock(&tm->ntm_mutex);
 	M0_PRE(m0_net__tm_invariant(tm));
@@ -330,7 +333,7 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort)
 	M0_POST(m0_net__tm_invariant(tm));
 	m0_mutex_unlock(&tm->ntm_mutex);
 	M0_ASSERT(rc <= 0);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_tm_stop);
 

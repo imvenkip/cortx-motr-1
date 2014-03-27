@@ -770,7 +770,6 @@ M0_INTERNAL int m0_layout_type_register(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(lt != NULL);
 	M0_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
-	M0_PRE(lt->lt_ref_count == 0);
 	M0_PRE(lt->lt_ops != NULL);
 
 	M0_ENTRY("Layout-type-id %lu, domain %p",
@@ -809,7 +808,6 @@ M0_INTERNAL void m0_layout_type_unregister(struct m0_layout_domain *dom,
 	M0_ENTRY("Layout-type-id %lu, domain %p",
 		 (unsigned long)lt->lt_id, dom);
 	m0_mutex_lock(&dom->ld_lock);
-	M0_PRE(lt->lt_ref_count == 0);
 	lt->lt_ops->lto_unregister(dom, lt);
 	dom->ld_type[lt->lt_id] = NULL;
 	max_recsize_update(dom);
@@ -825,7 +823,6 @@ M0_INTERNAL int m0_layout_enum_type_register(struct m0_layout_domain *dom,
 	M0_PRE(m0_layout__domain_invariant(dom));
 	M0_PRE(let != NULL);
 	M0_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
-	M0_PRE(let->let_ref_count == 0);
 	M0_PRE(let->let_ops != NULL);
 
 	M0_ENTRY("Enum_type_id %lu, domain %p",
@@ -863,7 +860,6 @@ M0_INTERNAL void m0_layout_enum_type_unregister(struct m0_layout_domain *dom,
 	M0_ENTRY("Enum_type_id %lu, domain %p",
 		 (unsigned long)let->let_id, dom);
 	m0_mutex_lock(&dom->ld_lock);
-	M0_PRE(let->let_ref_count == 0);
 	let->let_ops->leto_unregister(dom, let);
 	dom->ld_enum[let->let_id] = NULL;
 	max_recsize_update(dom);

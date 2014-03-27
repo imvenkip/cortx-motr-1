@@ -40,8 +40,9 @@
 #include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
 #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
 #include "conf/schema.h"          /* m0_conf_service_type */
-#include "m0t1fs/m0t1fs_addb.h"
 #include "file/file.h"		  /* m0_file */
+#include "be/be.h"
+#include "be/ut/helper.h"
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -419,27 +420,6 @@ enum io_req_type {
         IRT_TYPE_NR,
 };
 
-/** Anything that is global to m0t1fs module goes in this singleton structure.
-    There is only one, global, instance of this type. */
-struct m0t1fs_globals {
-	struct m0_net_xprt                     *g_xprt;
-	/** local endpoint address module parameter */
-	const char                             *g_laddr;
-	char                                   *g_db_name;
-	struct m0_net_domain                    g_ndom;
-	struct m0_rpc_machine                   g_rpc_machine;
-	struct m0_reqh                          g_reqh;
-	struct m0_dbenv                         g_dbenv;
-	struct m0_fol                           g_fol;
-	struct m0_net_buffer_pool               g_buffer_pool;
-	struct m0_layout_domain                 g_layout_dom;
-	struct m0_addb_monitor                  g_addb_mon_rw_io_size;
-	uint32_t                                g_addb_mon_rw_io_size_key;
-	struct m0t1fs_addb_mon_sum_data_io_size g_addb_mon_sum_data_rw_io_size;
-};
-
-extern struct m0t1fs_globals m0t1fs_globals;
-
 /**
    For each <mounted_fs, target_service> pair, there is one instance of
    m0t1fs_service_context.
@@ -485,79 +465,99 @@ struct m0t1fs_container_location_map {
  */
 struct m0t1fs_sb {
 	/** service context of MGS. Not a member of csb_service_contexts */
-	struct m0t1fs_service_context csb_mgs;
+	struct m0t1fs_service_context          csb_mgs;
 
 	/** number of contexts in csb_service_contexts list, that have
 	    ACTIVE rpc connection and rpc session.
 	    csb_nr_active_contexts <= m0_tlist_length(&csb_service_contexts) */
-	uint32_t                      csb_nr_active_contexts;
+	uint32_t                               csb_nr_active_contexts;
 
 	/** list of m0t1fs_service_context objects hanging using sc_link.
 	    tlist descriptor: svc_ctx_tl */
-	struct m0_tl                  csb_service_contexts;
+	struct m0_tl                            csb_service_contexts;
 
 	/** Total number of containers. */
-	uint32_t                      csb_nr_containers;
+	uint32_t                                csb_nr_containers;
 
 	/** pool width */
-	uint32_t                      csb_pool_width;
+	uint32_t                                csb_pool_width;
 
-	struct m0_pool                csb_pool;
+	struct m0_pool                          csb_pool;
 
 	/** used by temporary implementation of m0t1fs_fid_alloc(). */
-	uint64_t                      csb_next_key;
+	uint64_t                                csb_next_key;
 
 	struct
-	m0t1fs_container_location_map csb_cl_map;
+	m0t1fs_container_location_map           csb_cl_map;
 
 	/** mutex that serialises all file and directory operations */
-	struct m0_mutex               csb_mutex;
+	struct m0_mutex                         csb_mutex;
 
 	/** File layout ID */
-	uint64_t                      csb_layout_id;
+	uint64_t                                csb_layout_id;
 
 	/** Layout for file */
-	struct m0_layout             *csb_file_layout;
+	struct m0_layout                       *csb_file_layout;
 
 	/**
 	 * Flag indicating if m0t1fs mount is active or not.
 	 * Flag is set when m0t1fs is mounted and is reset by unmount thread.
 	 */
-	bool                          csb_active;
+	bool                                    csb_active;
 
 	/**
 	 * Instantaneous count of pending io requests.
 	 * Every io request increments this value while initializing
 	 * and decrements it while finalizing.
 	 */
-	struct m0_atomic64            csb_pending_io_nr;
+	struct m0_atomic64                      csb_pending_io_nr;
 
 	/** Special thread which runs ASTs from io requests. */
-	struct m0_thread              csb_astthread;
+	struct m0_thread                        csb_astthread;
 
 	/**
 	 * Channel on which unmount thread will wait. It will be signalled
 	 * by AST thread while exiting.
 	 */
-	struct m0_chan                csb_iowait;
+	struct m0_chan                          csb_iowait;
 
 	/** State machine group used for all IO requests. */
-	struct m0_sm_group            csb_iogroup;
+	struct m0_sm_group                      csb_iogroup;
 
 	/** Root fid, retrieved from mdservice in mount time. */
-	struct m0_fid                 csb_root_fid;
+	struct m0_fid                           csb_root_fid;
 
 	/** Maximal allowed namelen (retrived from mdservice) */
-	int                           csb_namelen;
+	int                                     csb_namelen;
 
 	/** Run-time addb context for each mount point */
-	struct m0_addb_ctx            csb_addb_ctx;
+	struct m0_addb_ctx                      csb_addb_ctx;
 
 	/** Read[0] and write[1] I/O request statistics */
-	struct m0_addb_io_stats       csb_io_stats[2];
+	struct m0_addb_io_stats                 csb_io_stats[2];
 
 	/** Degraded mode Read[0] and write[1] I/O request statistics */
-	struct m0_addb_io_stats       csb_dgio_stats[2];
+	struct m0_addb_io_stats                 csb_dgio_stats[2];
+
+	struct m0_net_xprt                     *csb_xprt;
+	/** local endpoint address module parameter */
+	char                                   *csb_laddr;
+	char                                   *csb_db_name;
+	struct m0_net_domain                    csb_ndom;
+	struct m0_rpc_machine                   csb_rpc_machine;
+	struct m0_reqh                          csb_reqh;
+	struct m0_dbenv                         csb_dbenv;
+	struct m0_fol                           csb_fol;
+	struct m0_net_buffer_pool               csb_buffer_pool;
+	struct m0_layout_domain                 csb_layout_dom;
+
+	struct m0_addb_monitor                  csb_addb_mon_rw_io_size;
+	struct m0t1fs_addb_mon_sum_data_io_size csb_addb_mon_sum_data_rw_io_size;
+	struct m0_be_ut_backend                 csb_ut_be;
+	struct m0_be_ut_seg                     csb_ut_seg;
+
+	/** lnet tmid for client ep */
+	size_t                                  csb_tmid;
 };
 
 struct m0t1fs_filedata {
@@ -659,10 +659,10 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci);
 M0_INTERNAL struct m0_fid
 m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci, int index);
 
-M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void);
+M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(struct m0_reqh *reqh);
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
-				       const struct m0t1fs_sb *csb);
+				       struct m0t1fs_sb *csb);
 
 M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci);
 
@@ -763,6 +763,8 @@ M0_INTERNAL const struct m0_fid *
 		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
 
 void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
+unsigned long fid_hash(const struct m0_fid *fid);
+M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

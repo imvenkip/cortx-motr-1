@@ -88,23 +88,6 @@ static int test_init(void)
 	rc = m0_layout_domain_init(&domain, &dbenv);
 	M0_ASSERT(rc == 0);
 
-#ifdef __KERNEL__
-	/*
-	 * A layout type can be registered with only one domain at a time.
-	 * As a part of the kernel UT, all the available layout types and enum
-	 * types have been registered with the domain
-	 * "m0t1fs_globals.g_layout_dom".
-	 * (This happpens during the module load operation, by performing
-	 * m0_layout_standard_types_register(&m0t1fs_globals.g_layout_dom)
-	 * through m0t1fs_init()). Hence, performing
-	 * m0_layout_standard_types_unregister(&m0t1fs_globals.g_layout_dom)
-	 * here to temporarily unregister all the available layout types and
-	 * enum types from the domain "m0t1fs_globals.g_layout_dom". Those will
-	 * be registered back in test_fini().
-	 */
-	m0_layout_standard_types_unregister(&m0t1fs_globals.g_layout_dom);
-#endif
-
 	/* Register all the standard layout types and enum types. */
 	rc = m0_layout_standard_types_register(&domain);
 	M0_ASSERT(rc == 0);
@@ -115,11 +98,6 @@ static int test_init(void)
 static int test_fini(void)
 {
 	m0_layout_standard_types_unregister(&domain);
-
-#ifdef __KERNEL__
-	m0_layout_standard_types_register(&m0t1fs_globals.g_layout_dom);
-#endif
-
 	m0_layout_domain_fini(&domain);
 	m0_dbenv_fini(&dbenv);
 

@@ -88,6 +88,12 @@ static struct m0t1fs_service_context msc;
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
+int m0t1fs_layout_init(struct m0t1fs_sb *csb);
+int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb);
+int m0t1fs_rpc_init(struct m0t1fs_sb *csb);
+int m0t1fs_net_init(struct m0t1fs_sb *csb);
+int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
+
 static int file_io_ut_init(void)
 {
         int		  rc;
@@ -107,6 +113,20 @@ static int file_io_ut_init(void)
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
         io_bob_tlists_init();
 
+        rc = m0t1fs_net_init(&csb);
+        M0_ASSERT(rc == 0);
+
+        rc = m0t1fs_rpc_init(&csb);
+        M0_ASSERT(rc == 0);
+
+        rc = m0t1fs_addb_mon_total_io_size_init(&csb);
+        M0_ASSERT(rc == 0);
+
+        rc = m0t1fs_layout_init(&csb);
+        M0_ASSERT(rc == 0);
+        rc = m0t1fs_reqh_services_start(&csb);
+        M0_ASSERT(rc == 0);
+
         /* Tries to build a layout. */
         llattr = (struct m0_layout_linear_attr) {
                 .lla_nr = LAY_N + 2 * LAY_K,
@@ -114,7 +134,7 @@ static int file_io_ut_init(void)
                 .lla_B  = ATTR_B_CONST,
         };
         llenum = NULL;
-        rc = m0_linear_enum_build(&m0t1fs_globals.g_layout_dom, &llattr,
+        rc = m0_linear_enum_build(&csb.csb_layout_dom, &llattr,
 			          &llenum);
         M0_ASSERT(rc == 0);
 
@@ -128,7 +148,7 @@ static int file_io_ut_init(void)
 
         };
         m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
-        rc = m0_pdclust_build(&m0t1fs_globals.g_layout_dom, csb.csb_layout_id,
+        rc = m0_pdclust_build(&csb.csb_layout_dom, csb.csb_layout_id,
 			      &pdattr, &llenum->lle_base, &pdlay);
         M0_ASSERT(rc == 0);
         M0_ASSERT(pdlay != NULL);
@@ -669,6 +689,11 @@ static void nw_xfer_ops_test(void)
 	m0_indexvec_free(&ivec);
 }
 
+void m0t1fs_layout_fini(struct m0t1fs_sb *csb);
+void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
+void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
+void m0t1fs_net_fini(struct m0t1fs_sb *csb);
+
 static int file_io_ut_fini(void)
 {
 	m0t1fs_file_lock_fini(&ci);
@@ -682,6 +707,12 @@ static int file_io_ut_fini(void)
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);
 	m0_poolmach_fini(csb.csb_pool.po_mach);
+
+	m0t1fs_layout_fini(&csb);
+	m0t1fs_addb_mon_total_io_size_fini(&csb);
+	m0t1fs_rpc_fini(&csb);
+	m0t1fs_net_fini(&csb);
+
 	return 0;
 }
 
@@ -697,7 +728,6 @@ static void target_ioreq_test(void)
 	int		           cnt;
 	int                        rc;
 	void		          *aligned_buf;
-	struct m0_net_domain      *ndom;
 	struct iovec               iovec_arr[IOVEC_NR];
 	struct m0_indexvec        *ivec;
 	struct pargrp_iomap       *map;
@@ -712,8 +742,7 @@ static void target_ioreq_test(void)
 	size = IOVEC_NR * PAGE_CACHE_SIZE;
 	req.ir_sm.sm_state = IRS_READING;
 
-	ndom = &m0t1fs_globals.g_ndom;
-	conn.c_rpc_machine = &m0t1fs_globals.g_rpc_machine;
+	conn.c_rpc_machine = &csb.csb_rpc_machine;
 	session.s_conn = &conn;
 
 	aligned_buf = m0_alloc_aligned(M0_0VEC_ALIGN, M0_0VEC_SHIFT);
@@ -908,8 +937,8 @@ static void dgmode_readio_test(void)
 	M0_ALLOC_PTR(conn);
 	M0_UT_ASSERT(conn != NULL);
 	session->s_conn = conn;
-	conn->c_rpc_machine = &m0t1fs_globals.g_rpc_machine;
-	conn->c_rpc_machine->rm_tm.ntm_dom = &m0t1fs_globals.g_ndom;
+	conn->c_rpc_machine = &csb.csb_rpc_machine;
+	conn->c_rpc_machine->rm_tm.ntm_dom = &csb.csb_ndom;
 	ti->ti_session = session;
 
 	/* Creates IO fops from pages. */

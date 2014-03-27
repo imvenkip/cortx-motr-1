@@ -156,6 +156,7 @@ struct m0_loc_thread {
 	uint64_t                lt_magix;
 };
 
+extern uint32_t  fop_rate_monitor_key;
 static m0_time_t fop_rate_interval = M0_MKTIME(1, 0);
 
 M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
@@ -179,8 +180,6 @@ static void __fom_domain_fini(struct m0_fom_domain *dom);
  * Fom domain operations.
  * @todo Support fom timeout functionality.
  */
-#undef FOM_RATE_KEY
-#define FOM_RATE_KEY(reqh)	(reqh->rh_fom_dom.fd_fop_rate_monitor_key)
 
 static struct m0_fom_domain_ops m0_fom_dom_ops = {
 	.fdo_time_is_out = fom_wait_time_is_out
@@ -199,7 +198,7 @@ fop_rate_monitor_sum_rec(const struct m0_addb_monitor *mon,
 	M0_PRE(reqh != NULL);
 
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
-	sum_rec = m0_reqh_lockers_get(reqh, FOM_RATE_KEY(reqh));
+	sum_rec = m0_reqh_lockers_get(reqh, fop_rate_monitor_key);
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 
 	M0_ASSERT(sum_rec != NULL);
@@ -251,7 +250,7 @@ const struct m0_addb_monitor_ops fop_rate_monitor_ops = {
 
 static int fop_rate_monitor_init(struct m0_reqh         *reqh,
 				 struct m0_addb_monitor *monitor,
-				 uint32_t               *fop_rate_monitor_key)
+				 uint32_t                fop_rate_monitor_key)
 {
 #undef FOP_RATE_STATS_NR
 #define FOP_RATE_STATS_NR (sizeof(fop_rate_stats_sum) / sizeof(uint64_t))
@@ -269,10 +268,8 @@ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
 				     (uint64_t *)&fop_rate_stats_sum,
 				     FOP_RATE_STATS_NR);
 
-	*fop_rate_monitor_key = m0_reqh_lockers_allot();
-
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	m0_reqh_lockers_set(reqh, *fop_rate_monitor_key, sum_rec);
+	m0_reqh_lockers_set(reqh, fop_rate_monitor_key, sum_rec);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	m0_addb_monitor_add(reqh, monitor);
@@ -337,7 +334,9 @@ static bool thread_invariant(const struct m0_loc_thread *t)
 
 M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom)
 {
+	size_t cpu_max = m0_processor_nr_max();
 	return dom != NULL && dom->fd_localities != NULL &&
+	       m0_forall(i, cpu_max, dom->fd_localities[i] != NULL) &&
 		dom->fd_ops != NULL;
 }
 
@@ -555,7 +554,7 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 	dom = &reqh->rh_fom_dom;
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 	M0_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
-	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
+	fom->fo_loc = reqh->rh_fom_dom.fd_localities[loc_idx];
 	m0_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -1015,8 +1014,8 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 	int                     result;
 	size_t                  cpu;
 	size_t                  cpu_max;
-	struct m0_fom_locality *localities;
 	struct m0_bitmap        onln_cpu_map;
+	int                     i;
 
 
 	M0_PRE(dom != NULL);
@@ -1028,20 +1027,34 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 		return result;
 
 	m0_processors_online(&onln_cpu_map);
+	M0_LOG(M0_DEBUG, "sizeof struct m0_fom_locality = %d cpu_max = %d",
+			 (int)(sizeof **dom->fd_localities), (int)cpu_max);
 	FOP_ALLOC_ARR(dom->fd_localities, cpu_max, FOM_DOMAIN_INIT,
 			&m0_fop_addb_ctx);
 	if (dom->fd_localities == NULL) {
 		m0_bitmap_fini(&onln_cpu_map);
 		return -ENOMEM;
 	}
+	for (i = 0; i < cpu_max; i++) {
+		FOP_ALLOC_PTR(dom->fd_localities[i], FOM_DOMAIN_INIT,
+			      &m0_fop_addb_ctx);
+		if (dom->fd_localities[i] == NULL) {
+			int j;
+			for (j = 0; j <= i; j++) {
+				m0_free(dom->fd_localities[j]);
+			}
+			m0_free(dom->fd_localities);
+			m0_bitmap_fini(&onln_cpu_map);
+			return -ENOMEM;
+		}
+	}
 
-	localities = dom->fd_localities;
 	for (cpu = 0; cpu < cpu_max; ++cpu) {
 		struct m0_fom_locality *loc;
 
 		if (!m0_bitmap_get(&onln_cpu_map, cpu))
 			continue;
-		loc = &localities[dom->fd_localities_nr];
+		loc = dom->fd_localities[dom->fd_localities_nr];
 		loc->fl_dom = dom;
 		result = loc_init(loc, cpu, cpu_max);
 		if (result != 0) {
@@ -1056,24 +1069,27 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 	}
 
 	m0_bitmap_fini(&onln_cpu_map);
-	dom->fd_fop_rate_monitor_key = 0;
 	return fop_rate_monitor_init(dom->fd_reqh,
 				     &dom->fd_fop_rate_monitor,
-				     &dom->fd_fop_rate_monitor_key);
+				     fop_rate_monitor_key);
 }
 
 static void __fom_domain_fini(struct m0_fom_domain *dom)
 {
 	int fd_loc_nr;
+	int i;
 
 	M0_ASSERT(m0_fom_domain_invariant(dom));
 
 	fd_loc_nr = dom->fd_localities_nr;
 	while (fd_loc_nr > 0) {
-		loc_fini(&dom->fd_localities[fd_loc_nr - 1]);
+		loc_fini(dom->fd_localities[fd_loc_nr - 1]);
 		--fd_loc_nr;
 	}
 
+	for (i = 0; i < m0_processor_nr_max(); i++) {
+		m0_free(dom->fd_localities[i]);
+	}
 	m0_free(dom->fd_localities);
 }
 
@@ -1082,13 +1098,13 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 	__fom_domain_fini(dom);
 	fop_rate_monitor_fini(dom->fd_reqh,
 			      &dom->fd_fop_rate_monitor,
-			      dom->fd_fop_rate_monitor_key);
+			      fop_rate_monitor_key);
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 {
 	return m0_forall(i, dom->fd_localities_nr,
-			 dom->fd_localities[i].fl_foms == 0);
+			 dom->fd_localities[i]->fl_foms == 0);
 }
 
 static void fop_fini(struct m0_fop *fop, bool local)
@@ -1524,6 +1540,9 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 	struct m0_fol_rec_desc *desc;
 	struct m0_fol          *fol;
 	int                     rc;
+#ifdef __KERNEL__
+	return 0;
+#endif
 
 	fol  = m0_fom_reqh(fom)->rh_fol;
 	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
@@ -1539,7 +1558,6 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 }
 
 /** @} endgroup fom */
-#undef FOM_RATE_KEY
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

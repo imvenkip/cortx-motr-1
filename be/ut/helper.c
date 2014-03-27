@@ -703,8 +703,8 @@ static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
 	bool result = false;
 
 	for (i = 0; i < dom->fd_localities_nr; ++i) {
-		if ((i == 0 && dom->fd_localities[i].fl_foms == 1) ||
-				dom->fd_localities[i].fl_foms == 0)
+		if ((i == 0 && dom->fd_localities[i]->fl_foms == 1) ||
+				dom->fd_localities[i]->fl_foms == 0)
 			result = true;
 		else
 			return false;

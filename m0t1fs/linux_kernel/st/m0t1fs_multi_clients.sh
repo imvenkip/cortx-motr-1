@@ -18,7 +18,7 @@ main()
 		return 1
 	fi
 
-	m0t1fs_system_tests
+	multi_client_test $NR_CLIENTS
 	rc=$?
 
 	# mero_service stop --collect-addb
@@ -31,20 +31,11 @@ main()
 
 	if [ $rc -ne "0" ]
 	then
-		echo "Failed m0t1fs system tests."
+		echo "Failed m0t1fs multi-clients tests."
 		return 1
 	fi
 
-	# ADDB RPC sink ST usage ADDB client records generated
-	# from IO done by "m0t1fs_system_tests".
-	# ADDB dump file removed from rpcsink_addb_st after test.
-	# rpcsink_addb_st
-	# if [ $? -ne "0" ]
-	# then
-	# return 1
-	# fi
-
-	echo "System tests status: SUCCESS."
+	echo "m0t1fs multi-clients tests status: SUCCESS."
 	echo "Test log available at $MERO_TEST_LOGFILE."
 
 	return $rc

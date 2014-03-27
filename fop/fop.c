@@ -36,6 +36,7 @@
 #include "fop/fop_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
 #include "addb/addb_monitor.h" /* stats register */
+#include "reqh/reqh.h"
 
 /**
    @addtogroup fop
@@ -46,6 +47,7 @@
 struct m0_addb_ctx     m0_fop_addb_ctx;
 static struct m0_mutex fop_types_lock;
 static struct m0_tl    fop_types_list;
+uint32_t               fop_rate_monitor_key;
 
 M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
 		   ft_linkage,	ft_magix,
@@ -289,6 +291,7 @@ M0_INTERNAL int m0_fops_init(void)
 	m0_fop_fol_rec_part_type.rpt_ops = NULL;
 	M0_FOL_REC_PART_TYPE_INIT(m0_fop_fol_rec_part,
 				  "fop generic record part");
+	fop_rate_monitor_key = m0_reqh_lockers_allot();
 	return m0_fol_rec_part_type_register(&m0_fop_fol_rec_part_type);
 }
 

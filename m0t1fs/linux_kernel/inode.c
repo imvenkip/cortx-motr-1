@@ -98,11 +98,11 @@ M0_INTERNAL void m0t1fs_inode_cache_fini(void)
 	M0_LEAVE();
 }
 
-M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(void)
+M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(struct m0_reqh *reqh)
 {
 	return m0_rm_svc_domain_get(
 		m0_reqh_service_find(m0_reqh_service_type_find("rmservice"),
-				     &m0t1fs_globals.g_reqh));
+				     reqh));
 }
 
 static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
@@ -111,7 +111,7 @@ static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
 }
 
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
-				       const struct m0t1fs_sb *csb)
+				       struct m0t1fs_sb *csb)
 {
 	struct m0_rm_domain *rdom;
 	const struct m0_fid *fid = &ci->ci_fid;
@@ -119,7 +119,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, FID_F, FID_P(fid));
-	rdom = m0t1fs_rmsvc_domain_get();
+	rdom = m0t1fs_rmsvc_domain_get(&csb->csb_reqh);
 	M0_ASSERT(rdom != NULL);
 	/**
 	 * @todo Get di type from configuration.
@@ -138,6 +138,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
 {
 	int rc;
+	M0_ENTRY();
 
 	m0_rm_owner_windup(&ci->ci_fowner);
 	rc = m0_rm_owner_timedwait(&ci->ci_fowner, M0_BITS(ROS_FINAL),
@@ -146,6 +147,7 @@ M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
 	m0_file_owner_fini(&ci->ci_fowner);
 	m0_file_fini(&ci->ci_flock);
 	m0_rm_remote_fini(&ci->ci_creditor);
+	M0_LEAVE();
 }
 
 static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
@@ -203,7 +205,8 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 
 	M0_ENTRY("inode: %p, fid: "FID_F, inode, FID_P(fid));
 	if (m0_fid_is_set(fid) && !m0t1fs_inode_is_root(inode)) {
-		m0_layout_instance_fini(ci->ci_layout_instance);
+		if (ci->ci_layout_instance != NULL)
+			m0_layout_instance_fini(ci->ci_layout_instance);
 		m0t1fs_file_lock_fini(ci);
 	}
 	m0t1fs_inode_fini(ci);
@@ -353,7 +356,7 @@ out:
 /**
    XXX Temporary implementation of simple hash on fid
  */
-static unsigned long fid_hash(const struct m0_fid *fid)
+unsigned long fid_hash(const struct m0_fid *fid)
 {
 	M0_ENTRY();
 	M0_LEAVE("hash: %lu", (unsigned long) fid->f_key);
@@ -416,7 +419,7 @@ static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
 	M0_PRE(fid != NULL);
 	M0_PRE(linst != NULL);
 
-	layout = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
+	layout = m0_layout_find(&csb->csb_layout_dom, layout_id);
 	if (layout == NULL) {
 		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
 				      layout_id, &layout);

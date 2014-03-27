@@ -27,9 +27,9 @@ export_lnet_nid_endpoints() {
     ##
     ## The PID value of 12345 is used by Lustre in the kernel and is
     ## the only value currently supported.
-    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:6"
-    export IOS0_ENDPOINT="$LNET_NID:12345:34:1"
-    export IOS1_ENDPOINT="$LNET_NID:12345:34:2"
+    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
+    export IOS0_ENDPOINT="$LNET_NID:12345:34:1001"
+    export IOS1_ENDPOINT="$LNET_NID:12345:34:1002"
     export MDS_ENDPOINT="$IOS0_ENDPOINT"
     export RMS_ENDPOINT="$IOS0_ENDPOINT"
     export CONFD_ENDPOINT="$IOS0_ENDPOINT"

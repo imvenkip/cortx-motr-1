@@ -183,10 +183,6 @@ static int file_lock_cr_decode(struct m0_rm_credit     *self,
 static void file_lock_cr_free(struct m0_rm_credit *self);
 static void file_lock_cr_initial_capital(struct m0_rm_credit *self);
 
-static struct m0_rm_resource_type flock_rt = {
-	.rt_name = "File Lock Resource Type"
-};
-
 const struct m0_rm_resource_type_ops file_lock_type_ops = {
 	.rto_eq     = file_lock_equal,
 	.rto_len    = file_lock_len,
@@ -540,36 +536,42 @@ M0_INTERNAL void m0_file_unlock(struct m0_rm_incoming *req)
 }
 M0_EXPORTED(m0_file_unlock);
 
-M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom)
+M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom,
+					   struct m0_rm_resource_type *flock_rt)
 {
 	M0_ENTRY();
 
-	flock_rt.rt_id = M0_RM_FLOCK_RT;
-	flock_rt.rt_ops = &file_lock_type_ops;
-	return M0_RC(m0_rm_type_register(dom, &flock_rt));
+	flock_rt->rt_id = M0_RM_FLOCK_RT;
+	flock_rt->rt_ops = &file_lock_type_ops;
+	return M0_RC(m0_rm_type_register(dom, flock_rt));
 }
 M0_EXPORTED(m0_file_lock_type_register);
 
-M0_INTERNAL void m0_file_lock_type_deregister(void)
+M0_INTERNAL
+void m0_file_lock_type_deregister(struct m0_rm_resource_type *flock_rt)
 {
 	M0_ENTRY();
-	m0_rm_type_deregister(&flock_rt);
+	m0_rm_type_deregister(flock_rt);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_file_lock_type_deregister);
 
-M0_INTERNAL bool m0_file_lock_resource_is_added(const struct m0_fid *fid)
+M0_INTERNAL
+bool m0_file_lock_resource_is_added(const struct m0_fid *fid,
+				    struct m0_rm_resource_type *flock_rt)
 {
 	struct m0_file file;
 
 	M0_PRE(fid != NULL);
 
 	file.fi_fid = fid;
-	return m0_rm_resource_find(&flock_rt, &file.fi_res) == NULL ?
+	return m0_rm_resource_find(flock_rt, &file.fi_res) == NULL ?
 		false : true;
 }
 
-M0_INTERNAL struct m0_file *m0_resource_to_file(const struct m0_fid *fid)
+M0_INTERNAL
+struct m0_file *m0_resource_to_file(const struct m0_fid *fid,
+				    struct m0_rm_resource_type *flock_rt)
 {
 	struct m0_file	      *file = NULL;
 	struct m0_file	       lfile;
@@ -581,7 +583,7 @@ M0_INTERNAL struct m0_file *m0_resource_to_file(const struct m0_fid *fid)
 	M0_LOG(M0_DEBUG, FID_F, FID_P(fid));
 
 	lfile.fi_fid = fid;
-	res = m0_rm_resource_find(&flock_rt, &lfile.fi_res);
+	res = m0_rm_resource_find(flock_rt, &lfile.fi_res);
 	if (res != NULL)
 		file = container_of(res, struct m0_file, fi_res);
 

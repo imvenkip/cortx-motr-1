@@ -21,6 +21,7 @@
 /* This file is designed to be included by addb/addb.c */
 
 #include "m0t1fs/linux_kernel/m0t1fs.h"
+#include "m0t1fs/m0t1fs_addb.h"
 
 /**
    @ingroup addb_pvt

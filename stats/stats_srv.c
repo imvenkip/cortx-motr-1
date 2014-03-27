@@ -208,8 +208,6 @@ const struct m0_fom_type_ops stats_query_fom_type_ops;
 struct m0_sm_conf stats_update_fom_sm_conf;
 struct m0_sm_conf stats_query_fom_sm_conf;
 
-static int stats_add(struct m0_tl *stats_list, struct m0_stats_sum *sum);
-
 #define SUM_DATA_SIZE(sum_data) (sum_data->ss_data.au64s_nr * sizeof(uint64_t))
 
 /*

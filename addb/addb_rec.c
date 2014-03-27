@@ -68,7 +68,6 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 			  uint64_t *fields,
 			  size_t fields_nr)
 {
-	struct m0_addb_monitor *mon;
 	struct m0_addb_rec     *rec;
 	size_t                  len;
 	size_t                  ctxid_seq_data_size;
@@ -160,6 +159,7 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 	 */
 	if (mc->am_reqh != NULL &&
 	    m0_addb_mon_ctx_invariant(&mc->am_reqh->rh_addb_monitoring_ctx)) {
+		struct m0_addb_monitor *mon;
 		/* Invoke all the monitor's filters */
 		m0_mutex_lock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
 		m0_tl_for(addb_mon,

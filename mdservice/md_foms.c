@@ -159,6 +159,9 @@ static int m0_md_create(struct m0_mdstore   *md,
 	}
 	if (scob)
 		m0_cob_put(scob);
+	M0_LOG(M0_DEBUG, "create \"%.*s\" finished with %d and lid=%d",
+	       (int)attr->ca_name.b_nob, (char *)attr->ca_name.b_addr, rc,
+	       (int)attr->ca_lid);
 	return rc;
 }
 
@@ -754,6 +757,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 out:
 	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
 	       (int)name.b_nob, (char *)name.b_addr, rc);
+
 	rep->l_body.b_rc = rc;
 	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	return M0_FSO_AGAIN;
@@ -786,7 +790,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 	M0_ASSERT(fop_rep != NULL);
 	rep = m0_fop_data(fop_rep);
 
-	M0_LOG(M0_DEBUG, "Getattr for "FID_F" started", FID_P(&body->b_pfid));
+	M0_LOG(M0_DEBUG, "Getattr for "FID_F" started", FID_P(&body->b_tfid));
 
 	/**
 	 * Init some fop fields (full path) that require mdstore and other
@@ -808,7 +812,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 	}
 out:
 	M0_LOG(M0_DEBUG, "Getattr for "FID_F" finished with %d",
-	       FID_P(&body->b_pfid), rc);
+	       FID_P(&body->b_tfid), rc);
 	rep->g_body.b_rc = rc;
 	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
 	return M0_FSO_AGAIN;

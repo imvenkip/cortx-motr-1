@@ -41,6 +41,11 @@
 #include "fop/fom_generic.h"
 #include "ioservice/cob_foms.h"
 #include "file/file.h"
+#include "lib/finject.h"
+#ifdef __KERNEL__
+  #undef M0_ADDB_CT_CREATE_DEFINITION
+  #include "m0t1fs/linux_kernel/m0t1fs.h"
+#endif
 
 /**
  * This addb ctx would be used only to post for exception records
@@ -1230,6 +1235,9 @@ static void io_fop_ivec_prepare(struct m0_fop *res_fop,
 
 static int io_fop_di_prepare(struct m0_fop *fop)
 {
+#ifndef __KERNEL__
+	return 0;
+#else
 	uint64_t		   size;
 	struct m0_fop_cob_rw	  *rw;
 	struct m0_io_indexvec_seq *io_info;
@@ -1239,7 +1247,11 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	struct m0_file		  *file;
 	uint32_t		   i;
 	m0_bcount_t		   bsize;
+	struct m0t1fs_sb          *sb;
+	struct m0_rm_domain       *rdom;
 
+	if (M0_FI_ENABLED("skip_di_for_ut"))
+		return 0;
 	M0_PRE(fop != NULL);
 
 	rbulk = m0_fop_to_rpcbulk(fop);
@@ -1247,7 +1259,9 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	M0_ASSERT(m0_mutex_is_locked(&rbulk->rb_mutex));
 	rw = io_rw_get(fop);
 	io_info = &rw->crw_ivecs;
-	file = m0_resource_to_file(&rw->crw_gfid);
+	sb = m0_fop_to_sb(fop);
+	rdom = m0t1fs_rmsvc_domain_get(&sb->csb_reqh);
+	file = m0_resource_to_file(&rw->crw_gfid, rdom->rd_types[M0_RM_FLOCK_RT]);
 	if (file->fi_di_ops->do_out_shift(file) == 0)
 		return 0;
 	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
@@ -1282,6 +1296,7 @@ cleanup:
 		--i;
 	}
 	return -ENOMEM;
+#endif
 }
 
 static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)
@@ -1360,6 +1375,7 @@ M0_INTERNAL int m0_io_fop_prepare(struct m0_fop *fop)
 	int		       rc;
 	struct m0_rpc_bulk    *rbulk;
 	enum m0_net_queue_type q;
+	M0_ENTRY();
 
 	M0_PRE(fop != NULL);
 	M0_PRE(m0_is_io_fop(fop));
@@ -1387,7 +1403,7 @@ M0_INTERNAL int m0_io_fop_prepare(struct m0_fop *fop)
 		rc = io_fop_di_prepare(fop);
 err:
 	m0_mutex_unlock(&rbulk->rb_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 
 /*
