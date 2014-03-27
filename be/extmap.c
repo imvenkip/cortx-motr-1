@@ -504,12 +504,12 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 
 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
 
+	m0_rwlock_write_lock(&map->em_lock);
 	map->em_key.ek_prefix = *prefix;
 	map->em_key.ek_offset = M0_BINDEX_MAX + 1;
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 
-	m0_rwlock_write_lock(&map->em_lock);
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,
 		m0_be_btree_insert(&map->em_mapping, tx, &local_op,
