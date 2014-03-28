@@ -124,8 +124,8 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
 
 	if (m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_NORMAL)
-		m0_reqh_shutdown(&ctx->rmc_reqh);
-	m0_ut_be_fom_domain_idle_wait(&ctx->rmc_reqh);
+		m0_reqh_shutdown_wait(&ctx->rmc_reqh);
+	//m0_ut_be_fom_domain_idle_wait(&ctx->rmc_reqh);
 	m0_reqh_services_terminate(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_fol_destroy(&ctx->rmc_reqh);

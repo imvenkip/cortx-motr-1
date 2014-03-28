@@ -229,9 +229,8 @@ void write_post(void)
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-	/*m0_reqh_fom_domain_idle_wait(reqh);*/
-	m0_ut_be_fom_domain_idle_wait(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
+	//m0_ut_be_fom_domain_idle_wait(reqh);
 }
 
 const struct m0_cm_cp_ops read_cp_dummy_ops = {
@@ -280,8 +279,8 @@ static void read_post(void)
          * Wait until all the foms in the request handler locality runq are
          * processed. This is required for further validity checks.
          */
-	//m0_reqh_fom_domain_idle_wait(reqh);
-	m0_ut_be_fom_domain_idle_wait(reqh);
+	m0_reqh_fom_domain_idle_wait(reqh);
+	//m0_ut_be_fom_domain_idle_wait(reqh);
 }
 
 static void test_cp_write_read(void)

@@ -231,9 +231,8 @@ static void test_cp_single_thread(void)
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-        /*m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);*/
-	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+        m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+	/*m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);*/
 	m0_semaphore_fini(&sem);
 }
 
@@ -270,9 +269,8 @@ static void test_cp_multi_thread(void)
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-        /*m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);*/
-	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+        m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+	/*m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);*/
         m0_free(cp_thread);
 	m0_semaphore_fini(&sem);
 }

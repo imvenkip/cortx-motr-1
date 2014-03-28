@@ -73,7 +73,6 @@ M0_TL_DESCR_DEFINE(m0_reqh_rpc_mach, "rpc machines", ,
 M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
-M0_LOCKERS_DEFINE(M0_INTERNAL, m0_fom_locality, fl_lockers);
 
 static void __reqh_fini(struct m0_reqh *reqh);
 
@@ -136,11 +135,14 @@ static struct m0_sm_conf m0_reqh_sm_conf = {
 M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
 	return	reqh != NULL &&
-		reqh->rh_mdstore != NULL &&
+		ergo(M0_IN(reqh->rh_sm.sm_state,(M0_REQH_ST_INIT,
+						 M0_REQH_ST_MGMT_STARTED,
+						 M0_REQH_ST_NORMAL)),
 #ifndef __KERNEL__
-		reqh->rh_fol != NULL &&
+		     reqh->rh_fol != NULL &&
 #endif
-		m0_fom_domain_invariant(&reqh->rh_fom_dom);
+		     reqh->rh_mdstore != NULL) &&
+		     m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
 M0_INTERNAL int
@@ -580,15 +582,22 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 
 M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 {
-	struct m0_clink clink;
+	struct m0_reqh_service *service;
+	struct m0_clink         clink;
 
 	M0_PRE(reqh != NULL);
-        m0_clink_init(&clink, NULL);
-        m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
 
-	while (!m0_fom_domain_is_idle(&reqh->rh_fom_dom))
-		m0_chan_wait(&clink);
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
+	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
+		M0_ASSERT(m0_reqh_service_invariant(service));
 
+		if ((strcmp(service->rs_type->rst_name, "be-tx-service") == 0))
+			continue;
+		while (!m0_fom_domain_is_idle_for(&reqh->rh_fom_dom,
+						  service->rs_type->rst_fomcnt_key))
+			m0_chan_wait(&clink);
+	} m0_tl_endfor;
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 }
@@ -667,7 +676,7 @@ M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh)
 	} m0_tl_endfor;
 
         m0_rwlock_write_lock(&reqh->rh_rwlock);
-	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
 
 	if (reqh->rh_mgmt_svc != NULL)
 		reqh_state_set(reqh, M0_REQH_ST_MGMT_STOP);
@@ -747,11 +756,7 @@ M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh)
 
 	if (service != NULL) {
 		m0_reqh_service_prepare_to_stop(service);
-#ifndef __KERNEL__
-		m0_ut_be_fom_domain_idle_wait(reqh);
-#else
 		m0_reqh_fom_domain_idle_wait(reqh); /* drain mgmt fops */
-#endif
 		m0_reqh_service_stop(service);
 		m0_reqh_service_fini(service);
 		reqh->rh_mgmt_svc = NULL;

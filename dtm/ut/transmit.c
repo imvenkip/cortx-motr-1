@@ -436,14 +436,15 @@ static void rpc_fop_fom_init(void)
 
 static void rpc_fop_fom_fini(void)
 {
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-	/*m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);*/
+	m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);
+/*
 	m0_reqh_shutdown(&test_ctx.rmc_reqh);
 #ifndef __KERNEL__
 	m0_ut_be_fom_domain_idle_wait(&test_ctx.rmc_reqh);
 #else
 	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
 #endif
+*/
 	m0_reqh_service_stop(test_svc);
 	m0_reqh_service_fini(test_svc);
 	m0_reqh_service_type_unregister(&test_stype);
@@ -719,11 +720,11 @@ static void redo_test(void)
 
 	ticked = 0;
 	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 2);
-#ifndef __KERNEL__
-	m0_ut_be_fom_domain_idle_wait(&test_ctx.rmc_reqh);
-#else
+//#ifndef __KERNEL__
+//	m0_ut_be_fom_domain_idle_wait(&test_ctx.rmc_reqh);
+//#else
 	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
-#endif
+//#endif
 	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();
 	src_fini();

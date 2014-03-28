@@ -1146,6 +1146,7 @@ static void cs_reqh_be_tx_svc_stop(struct m0_reqh *reqh)
 		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_stop(svc);
 	m0_reqh_service_fini(svc);
+	M0_LOG(M0_FATAL, "here");
 }
 
 /**
@@ -1298,10 +1299,14 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 		m0_addb_monitor_stats_svc_conn_fini(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
-		m0_reqh_shutdown(reqh);
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-	/*m0_reqh_fom_domain_idle_wait(reqh);*/
-	m0_ut_be_fom_domain_idle_wait(reqh);
+		m0_reqh_shutdown_wait(reqh);
+
+	m0_reqh_dbenv_fini(reqh);
+	m0_mdstore_fini(&rctx->rc_mdstore);
+	cs_addb_storage_fini(&rctx->rc_addb_stob);
+	cs_storage_fini(&rctx->rc_stob);
+	m0_dbenv_fini(&rctx->rc_db);
+	cs_rpc_machines_fini(reqh);
 
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
@@ -1312,12 +1317,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 		m0_reqh_mgmt_service_stop(reqh);
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 
-	m0_reqh_dbenv_fini(reqh);
-	m0_mdstore_fini(&rctx->rc_mdstore);
-	cs_addb_storage_fini(&rctx->rc_addb_stob);
-	cs_storage_fini(&rctx->rc_stob);
-	m0_dbenv_fini(&rctx->rc_db);
-	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
 
 	rctx->rc_state = RC_UNINITIALISED;

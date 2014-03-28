@@ -103,17 +103,15 @@ static void cm_setup_ut(void)
 	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
 
-	while (m0_fom_domain_is_idle(&cmut_rmach_ctx.rmc_reqh.rh_fom_dom) ||
+	while (m0_fom_domain_is_idle_for(&cmut_rmach_ctx.rmc_reqh.rh_fom_dom,
+					 cm->cm_service.rs_type->rst_fomcnt_key) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 
 	cm->cm_sw_update.swu_is_complete = true;
 	rc = m0_cm_stop(cm);
 	M0_UT_ASSERT(rc == 0);
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-	/*m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);*/
-	m0_reqh_shutdown(&cmut_rmach_ctx.rmc_reqh);
-	m0_ut_be_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
 	reqh = cm_ut_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
 	grp  = m0_locality0_get()->lo_grp;

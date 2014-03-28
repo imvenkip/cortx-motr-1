@@ -741,14 +741,12 @@ static void sender_fini()
 	m0_cm_proxy_del(&sender_cm, &sender_cm_proxy);
 	m0_cm_unlock(&sender_cm);
 	m0_cm_proxy_rpc_conn_close(&sender_cm_proxy);
-	/* Fini the sender side. */
-	cm_stop(&sender_cm);
-	rc = m0_rpc_client_stop(&cctx);
-	M0_UT_ASSERT(rc == 0);
-	m0_net_domain_fini(&client_net_dom);
-	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
-	/*m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);*/
-	m0_ut_be_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
+        /* Fini the sender side. */
+        cm_stop(&sender_cm);
+        rc = m0_rpc_client_stop(&cctx);
+        M0_UT_ASSERT(rc == 0);
+        m0_net_domain_fini(&client_net_dom);
+	m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
 	reqh = sender_cm_service->rs_reqh;
 	pm = m0_ios_poolmach_get(reqh);
 	grp = m0_locality0_get()->lo_grp;

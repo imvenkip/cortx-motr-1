@@ -435,6 +435,8 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom);
  * the caller must first guarantee that no new foms can be queued.
  */
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom);
+M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
+					   uint32_t loc_key);
 
 /**
  * This function iterates over m0_fom_domain members and checks
