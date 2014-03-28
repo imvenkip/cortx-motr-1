@@ -29,6 +29,13 @@
  * @{
  */
 
+static bool bob_type_invariant(const struct m0_bob_type *bt)
+{
+	return
+		_0C(bt->bt_name != NULL) && _0C(*bt->bt_name != '\0') &&
+		_0C(bt->bt_magix != 0);
+}
+
 M0_INTERNAL void m0_bob_type_tlist_init(struct m0_bob_type *bt,
 					const struct m0_tl_descr *td)
 {
@@ -37,6 +44,8 @@ M0_INTERNAL void m0_bob_type_tlist_init(struct m0_bob_type *bt,
 	bt->bt_name         = td->td_name;
 	bt->bt_magix        = td->td_link_magic;
 	bt->bt_magix_offset = td->td_link_magic_offset;
+
+	M0_POST(bob_type_invariant(bt));
 }
 
 /**
@@ -49,6 +58,8 @@ M0_INTERNAL void m0_bob_type_tlist_init(struct m0_bob_type *bt,
 
 M0_INTERNAL void m0_bob_init(const struct m0_bob_type *bt, void *bob)
 {
+	M0_PRE(bob_type_invariant(bt));
+
 	*MAGIX(bt, bob) = bt->bt_magix;
 }
 
