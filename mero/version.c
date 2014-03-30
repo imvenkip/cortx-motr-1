@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -71,7 +71,7 @@ void m0_build_info_print(void)
 	m0_console_printf(BI_PREFIX "\n");
 
 	m0_console_printf(BI_PREFIX
-			  "Copyright (C) 2013 Xyratex Technology Limited\n");
+			  "Copyright (C) 2014 Xyratex Technology Limited\n");
 
 	m0_console_printf(BI_PREFIX "\n");
 
