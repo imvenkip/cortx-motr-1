@@ -54,6 +54,8 @@ mero_service()
 	. /etc/rc.d/init.d/functions
 
 	start() {
+		local i
+
 		prepare
 		for ((i=1; i < ${#EP[*]}; i++)) ; do
 			ios_eps="$ios_eps -i $XPT:${lnet_nid}:${EP[$i]} "
@@ -67,21 +69,24 @@ mero_service()
 		fi
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
+			DIR=$MERO_M0T1FS_TEST_DIR/d$i
+			rm -rf $DIR
+			mkdir $DIR
+
+			(mkloopdevs $i $nr_dev_per_ios $DIR) || return 1
+
 			SNAME="-s $MERO_ADDBSERVICE_NAME"
 			if ((i == 0)); then
-				SNAME="-s $MERO_MDSERVICE_NAME -s $MERO_RMSERVICE_NAME $SNAME -s $MERO_STATSSERVICE_NAME"
+				SNAME="-s $MERO_MDSERVICE_NAME -s $MERO_RMSERVICE_NAME $SNAME -s $MERO_STATSSERVICE_NAME -s $MERO_CONFD_NAME -c $DIR/conf.xc"
+				build_conf > $DIR/conf.xc
 			else
 				SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_SNSREPAIRSERVICE_NAME \
 				      -s $MERO_SNSREBALANCESERVICE_NAME $SNAME"
 			fi
 
-			rm -rf $MERO_M0T1FS_TEST_DIR/d$i
-			mkdir $MERO_M0T1FS_TEST_DIR/d$i
-
-			(mkloopdevs $i $nr_dev_per_ios $MERO_M0T1FS_TEST_DIR/d$i) || return 1
 
 			ulimit -c unlimited
-			cmd="cd $MERO_M0T1FS_TEST_DIR/d$i && exec \
+			cmd="cd $DIR && exec \
 			$prog_start -r $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A addb-stobs \
@@ -95,7 +100,7 @@ mero_service()
 			(eval "$cmd") &
 
 			# wait till the server start completes
-			local m0d_log=$MERO_M0T1FS_TEST_DIR/d$i/m0d.log
+			local m0d_log=$DIR/m0d.log
 			touch $m0d_log
 			sleep 2
 			while status $prog_exec > /dev/null && \

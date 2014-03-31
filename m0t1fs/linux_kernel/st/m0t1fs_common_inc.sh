@@ -39,6 +39,8 @@ MERO_SNSREPAIRSERVICE_NAME=sns_repair
 MERO_SNSREBALANCESERVICE_NAME=sns_rebalance
 MERO_STATSSERVICE_NAME=stats
 MERO_RMSERVICE_NAME=rmservice
+MERO_CONFD_NAME=confd
+
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
 # list of server end points
@@ -56,6 +58,7 @@ PREPARE_STORAGE="-p"
 POOL_WIDTH=$(expr ${#EP[*]} - 1)
 NR_PARITY=1
 NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)
+UNIT_SIZE=$(expr 1024 \* 1024)
 
 #MAX_NR_FILES=250
 MAX_NR_FILES=2 # XXX temporary workaround for performance issues
@@ -150,4 +153,48 @@ unprepare()
 		unload_kernel_module
 	fi
 	modunload_galois
+}
+
+function build_conf () {
+	local i
+
+	# prepare configuration data
+	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
+	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
+	PROF='(0x7000000000000001, 0)'
+	PROF_OPT='0x7000000000000001:0'
+	FS='(0x6600000000000001, 1)'
+	MDS='(0x7300000000000001, 2)'
+	RM='(0x7300000000000001, 3)'
+	STATS='(0x7300000000000001, 4)'
+	NODE='(0x6e00000000000001, 0)'
+	for ((i=1; i < ${#EP[*]}; i++)); do
+	    IOS_NAME="(0x7300000000000003, $i)"
+
+	    if ((i == 1)); then
+	        IOS_NAMES="$IOS_NAME"
+	    else
+	        IOS_NAMES="$IOS_NAMES, $IOS_NAME"
+	    fi
+
+	    local ep=\"${server_nid}:${EP[$i]}\"
+	    IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $ep], $NODE)}"
+	    if ((i == 1)); then
+	        IOS_OBJS="$IOS_OBJ"
+	    else
+		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+	    fi
+	done
+
+	echo "[$((${#EP[*]} + 3)):
+  {0x70| (($PROF), $FS)},
+  {0x66| (($FS), (11, 22),
+	      [4: \"pool_width=$POOL_WIDTH\",
+		  \"nr_data_units=$NR_DATA\",
+		  \"nr_parity_units=$NR_PARITY\",
+		  \"unit_size=$UNIT_SIZE\"],
+	      [$((${#EP[*]} + 1)): $MDS, $RM, $IOS_NAMES])},
+  {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
+  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
+  $IOS_OBJS]"
 }
