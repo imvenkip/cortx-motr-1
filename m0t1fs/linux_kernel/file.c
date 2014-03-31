@@ -989,20 +989,20 @@ static bool data_buf_invariant_nr(const struct pargrp_iomap *map)
 static bool io_req_fop_invariant(const struct io_req_fop *fop)
 {
 	return
-		io_req_fop_bob_check(fop) &&
-		fop->irf_tioreq != NULL &&
-		fop->irf_ast.sa_cb != NULL &&
-		fop->irf_ast.sa_mach != NULL;
+		_0C(io_req_fop_bob_check(fop)) &&
+		_0C(fop->irf_tioreq      != NULL) &&
+		_0C(fop->irf_ast.sa_cb   != NULL) &&
+		_0C(fop->irf_ast.sa_mach != NULL);
 }
 
 static bool target_ioreq_invariant(const struct target_ioreq *ti)
 {
 	return
-		target_ioreq_bob_check(ti) &&
-		ti->ti_session	    != NULL &&
-		ti->ti_nwxfer	    != NULL &&
-		ti->ti_bufvec.ov_buf != NULL &&
-		m0_fid_is_valid(&ti->ti_fid) &&
+		_0C(target_ioreq_bob_check(ti)) &&
+		_0C(ti->ti_session       != NULL) &&
+		_0C(ti->ti_nwxfer        != NULL) &&
+		_0C(ti->ti_bufvec.ov_buf != NULL) &&
+		_0C(m0_fid_is_valid(&ti->ti_fid)) &&
 		m0_tl_forall(iofops, iofop, &ti->ti_iofops,
 			     io_req_fop_invariant(iofop));
 }
