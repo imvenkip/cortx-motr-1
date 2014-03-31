@@ -62,7 +62,7 @@ usage()
 	cat <<.
 Usage:
 
-$ sudo m0mount [-Laclsq] [-d NUM] [-p NUM] [-n NUM] [-u NUM]
+$ sudo m0mount [-Laclsqv] [-d NUM] [-p NUM] [-n NUM] [-u NUM]
 
 Where:
 -a: Use AD stobs
@@ -88,6 +88,8 @@ Where:
     The number of services is controlled by SERVICES_NR
     variable. The default number is $SERVICES_NR.
 
+-v: Increase verbosity.
+
 -h: Print this help.
 
 -n NUM: Start 'NUM' number of local m0d. (default is $SERVICES_NR)
@@ -105,7 +107,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="acln:d:k:p:u:qhLs"
+OPTIONS_STRING="acln:d:k:p:u:qhLsv"
 
 # This example puts 3 ioservices on 3 nodes
 SERVICES=(
@@ -135,6 +137,7 @@ setup_loops_p=0
 loop_used=-1
 setup_local_server_config=0
 wait_after_mount=1
+verbosity=0
 
 M0_TRACE_IMMEDIATE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap
 M0_TRACE_LEVEL=warn+
@@ -149,12 +152,26 @@ MERO_TRACE_LEVEL=warn+
 MP=/mnt/m0
 
 function l_run () {
-	echo "# $*" >/dev/tty
+	if [ $verbosity -gt 0 ] ;then
+		echo "# $*" >/dev/tty
+	fi
 	eval $*
 }
 
-l_run modprobe lnet
-l_run lctl network up &>> /dev/null
+function l_do () {
+	if [ $verbosity -gt 1 ] ;then
+		echo "# $*" >/dev/tty
+		eval $*
+	elif [ $verbosity -gt 0 ] ;then
+		echo "# $*" >/dev/tty
+		eval $* > /dev/null 2>/dev/null
+	else
+		eval $* > /dev/null 2>/dev/null
+	fi
+}
+
+l_do modprobe lnet
+l_do lctl network up &>> /dev/null
 LOCAL_NID=`lctl list_nids | head -1`
 LOCAL_EP=$LOCAL_NID:12345:41:10
 
@@ -386,7 +403,7 @@ exit 0
 EOF
 
 	if [ $H != $THIS_HOST ]; then
-		l_run scp $SF $H:$DISKS_SH
+		l_do scp $SF $H:$DISKS_SH
 	else
 		$RUN cp $SF $DISKS_SH
 	fi
@@ -448,22 +465,25 @@ function start_server () {
 	local dcf_id=$4
 
 	echo Starting server with end point $EP on host $H
+	local DO
 	local RUN
 	if [ $H != $THIS_HOST ]; then
+		DO="r_run $H"
 		RUN="r_run $H"
 	else
+		DO=l_do
 		RUN=l_run
 	fi
 	local SDIR=$WORK_ARENA/d$I
 	local DDIR=$SDIR
-	$RUN rm -rf $SDIR
-	$RUN mkdir -p $SDIR
+	$DO rm -rf $SDIR
+	$DO mkdir -p $SDIR
 	local DF=$SDIR/m0d.sh
 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"
 	if [ $STOB == "ad" -o $STOB == "-td" ]; then
 
-		if ! $RUN [ -f $DISKS_SH_FILE ]; then
+		if ! $DO [ -f $DISKS_SH_FILE ]; then
 			local dev_id=1
 			if [ $dcf_id -eq 0 ]; then
 				# -1 to exclude addb-stob from numbering
@@ -473,20 +493,20 @@ function start_server () {
 		fi
 
 		if [ $STOB == "ad" ]; then
-			$RUN cat $DISKS_SH_FILE
+			$DO cat $DISKS_SH_FILE
 		else
 			local disk=`$RUN "cat $DISKS_SH_FILE | grep filename"`
 			disk=`echo $disk | head -1 | awk '{print $2}'`
 			DDIR=/mnt/tdisk$dcf_id
-			$RUN umount $DDIR >& /dev/null
-			$RUN mkfs.ext4 -b 4096 -F $disk 2621440 || return 1
-			$RUN mkdir -p $DDIR
-			$RUN mount $disk $DDIR || return 1
+			$DO umount $DDIR >& /dev/null
+			$DO mkfs.ext4 -b 4096 -F $disk 2621440 || return 1
+			$DO mkdir -p $DDIR
+			$DO mount $disk $DDIR || return 1
 		fi
 		if [ $? -ne 0 ]; then
 			echo "ERROR: can't find $DISKS_SH_FILE file"
 			echo "Check the status of Titan disks:"
-			$RUN ~root/gem.sh dumpdrives
+			$DO ~root/gem.sh dumpdrives
 			return 1
 		fi
 		if [ $STOB == "ad" ]; then
@@ -501,7 +521,7 @@ function start_server () {
 		SNAME="-s confd -c $SDIR/conf.xc $SNAME"
 	fi
 
-	$RUN "echo rotated > ${SLOG}$I.log"
+	$DO "echo rotated > ${SLOG}$I.log"
 	$RUN "cd $DDIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
@@ -564,7 +584,7 @@ function start_servers () {
 		local STARTED_NR=`cat ${SLOG}*.log | grep CTRL | wc -l`
 		echo "Started $STARTED_NR (of $SERVICES_NR) services..."
 		[ $STARTED_NR -ge $SERVICES_NR ] && break
-		l_run sleep 5
+		l_do sleep 5
 	done
 
 	return 0
@@ -608,11 +628,11 @@ function stop_servers () {
 function setup_loops () {
 	echo Setting up loop devices ...
 
-	l_run mkdir -p $WORK_ARENA
+	l_do mkdir -p $WORK_ARENA
 	for ((i = 0; i < $((POOL_WIDTH + SERVICES_NR)); i++)); do
-		l_run dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
+		l_do dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
 			bs=1M seek=1M count=1
-		l_run losetup /dev/loop$i $WORK_ARENA/disk-image-$i
+		l_do losetup /dev/loop$i $WORK_ARENA/disk-image-$i
 		loop_used=$i
 	done
 }
@@ -620,7 +640,7 @@ function setup_loops () {
 function cleanup () {
 	echo Cleaning up ...
 	if [ "x_$IS_MOUNTED" == "x_yes" ]; then
-		l_run umount $MP
+		l_do umount $MP
 		if [ $? -ne 0 ]; then
 			cat > /dev/stderr << EOF
 WARNING! Failed to unmount $MP
@@ -676,11 +696,11 @@ main()
 	rmmod m0loop m0mero galois &> /dev/null
 
 	# ldemo now needs kernel module loaded for some reason...
-	l_run $GALOIS_KO_LOAD_CMD || {
+	l_do $GALOIS_KO_LOAD_CMD || {
 		echo ERROR: Failed to load galois module
 		exit 1
 	}
-	l_run $MERO_KO_LOAD_CMD || {
+	l_do $MERO_KO_LOAD_CMD || {
 		echo ERROR: Failed to load m0mero module
 		rmmod galois
 		exit 1
@@ -688,7 +708,7 @@ main()
 
 	local rows=4
 	local groups=$((rows * POOL_WIDTH / (NR_DATA + NR_PARITY*2) + 1))
-	l_run $M0LAYOUT $NR_DATA $NR_PARITY $POOL_WIDTH $rows $groups
+	l_do $M0LAYOUT $NR_DATA $NR_PARITY $POOL_WIDTH $rows $groups
 	if [ $? -ne 0 ]; then
 		echo ERROR: Parity configuration is incorrect
 		exit 1
@@ -736,7 +756,7 @@ EOF`"
 
 	# mount the file system
 	mkdir -p $MP
-	l_run "mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF' \
+	l_do "mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF' \
                'm0t1' $MP" || {
 		echo ERROR: Unable to mount the file system
 		exit 1
@@ -793,6 +813,9 @@ while getopts "$OPTIONS_STRING" OPTION; do
             ;;
         q)
             wait_after_mount=0
+            ;;
+        v)
+            verbosity=$(($verbosity + 1))
             ;;
         h)
             usage
