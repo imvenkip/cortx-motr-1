@@ -721,7 +721,7 @@ static void target_ioreq_test(void)
 	struct target_ioreq        ti;
 	struct io_request          req;
 	uint64_t                   size;
-	struct m0_fid              cfid;
+	struct m0_fid              cfid = M0_FID_INIT(0, 5);
 	struct m0_rpc_session      session;
 	struct m0_rpc_conn         conn;
 	struct io_req_fop         *irfop;
