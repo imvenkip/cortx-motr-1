@@ -28,7 +28,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/finject.h"    /* M0_FI_ENABLED */
-#include "lib/string.h"     /* m0_strdup */
+#include "lib/string.h"     /* m0_strdup, m0_streq */
 #include "lib/getopts.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -119,11 +119,6 @@ M0_TL_DEFINE(astob, static, struct cs_ad_stob);
 static struct m0_bob_type astob_bob;
 M0_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
 
-static bool streq(const char *s1, const char *s2)
-{
-	return strcmp(s1, s2) == 0;
-}
-
 /**
  * Returns true iff there is service with given name among rctx->rc_services.
  */
@@ -133,7 +128,7 @@ contains_service(const struct m0_reqh_context *rctx, const char *name)
 	int i;
 
 	for (i = 0; i < rctx->rc_nr_services; ++i) {
-		if (streq(rctx->rc_services[i], name))
+		if (m0_streq(rctx->rc_services[i], name))
 			return true;
 	}
 	return false;
@@ -1590,7 +1585,7 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
 		M0_ASSERT(m0_reqh_context_invariant(rctx));
 
 		for (i = 0; i < rctx->rc_nr_services; ++i) {
-			if (streq(rctx->rc_services[i], service_name)) {
+			if (m0_streq(rctx->rc_services[i], service_name)) {
 				ret = &rctx->rc_reqh;
 				goto out;
 			}
