@@ -406,10 +406,9 @@ EOF
 
 function start_server () {
 	H=$1
-	CEP=$2
-	EP=$3
-	I=$4
-	local dcf_id=$5
+	EP=$2
+	I=$3
+	local dcf_id=$4
 
 	echo Starting server with end point $EP on host $H
 	local RUN
@@ -502,14 +501,10 @@ function start_servers () {
 	for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
 		H=${SERVICES[$i]}
 		SEP=${SERVICES[((i+1))]}	# server EP
-		SEP1=${SEP%:*}
-		TM=${SEP##*:}
-		TM=$((TM + 100))
-		CEP=$SEP1:$TM			# client EP
 		# new Titan couple?
 		[ $i -gt 0 ] && [ ${H%-*} != ${SERVICES[((i-2))]%-*} ] && \
 			devs_conf_cnt=0
-		start_server $H $CEP $SEP $((i / 2)) $devs_conf_cnt
+		start_server $H $SEP $((i / 2)) $devs_conf_cnt
 		if [ $? -ne 0 ]; then
 			return 1
 		fi
