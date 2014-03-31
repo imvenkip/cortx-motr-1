@@ -151,6 +151,11 @@ MERO_TRACE_LEVEL=warn+
 # Local mount data
 MP=/mnt/m0
 
+#
+# Execute supplied command line.
+#
+# Use this in case command's output is consumed by the caller.
+#
 function l_run () {
 	if [ $verbosity -gt 0 ] ;then
 		echo "# $*" >/dev/tty
@@ -158,15 +163,20 @@ function l_run () {
 	eval $*
 }
 
+#
+# Similar to l_run, but discards command output.
+#
+# Use this when command is needed only for its side-effects.
+#
 function l_do () {
 	if [ $verbosity -gt 1 ] ;then
 		echo "# $*" >/dev/tty
 		eval $*
 	elif [ $verbosity -gt 0 ] ;then
 		echo "# $*" >/dev/tty
-		eval $* > /dev/null 2>/dev/null
+		eval $* > /dev/null
 	else
-		eval $* > /dev/null 2>/dev/null
+		eval $* > /dev/null
 	fi
 }
 
