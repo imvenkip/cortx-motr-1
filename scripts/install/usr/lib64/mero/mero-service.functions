@@ -214,6 +214,19 @@ m0_get_mds_ep()
     done
 }
 
+#
+# Build parameters list for m0d running "core" services
+#
+#   @param $1 directory to store configuration file.
+#
+m0_get_core_params()
+{
+    local dir=$1
+
+    m0_build_local_conf > $dir/conf.xc
+    echo "-s addb -s mdservice -s rmservice -s stats -s confd -c $dir/conf.xc"
+}
+
 # Return space-separated list of IOS endpoints of a node
 #   @param  $1  optional name of a node, for which the query is performed, if
 #               ommited, then value is returned for current node
