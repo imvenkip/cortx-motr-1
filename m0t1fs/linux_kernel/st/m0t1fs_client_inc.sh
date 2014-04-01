@@ -368,18 +368,18 @@ multi_client_test()
 	local mount_dir_2=${MERO_M0T1FS_MOUNT_DIR}bb
 	local mount_dir_3=${MERO_M0T1FS_MOUNT_DIR}cc
 
-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=4" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=6" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
 	df
-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1004" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1006" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
 		return 1
 	}
 	df
-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2004" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2006" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
 		unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
@@ -409,15 +409,15 @@ multi_client_test()
 	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
 	unmount_m0t1fs ${mount_dir_3} &>> $MERO_TEST_LOGFILE
 	echo "First round done."
-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=4" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=6" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1004" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1006" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2004" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2006" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}

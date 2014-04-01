@@ -304,7 +304,7 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
-	*dest = (struct mount_opts){ .mo_fid_start = 5 /* default value */ };
+	*dest = (struct mount_opts){ .mo_fid_start = 6 /* default value */ };
 
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
@@ -635,6 +635,7 @@ static int configure_addb_rpc_sink(struct m0t1fs_sb *csb,
 
 static void ast_thread(struct m0t1fs_sb *csb);
 static void ast_thread_stop(struct m0t1fs_sb *csb);
+static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb);
 
 static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 {
@@ -1431,10 +1432,9 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_net_fini(csb);
 }
 
-static void m0t1fs_obf_dealloc(struct super_block *sb) {
-	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
-
+static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 	M0_ENTRY();
+        M0_PRE(csb != NULL);
 
 	if (csb->csb_fid_dentry != NULL) {
                 csb->csb_fid_dentry->d_inode->i_nlink = 0;
@@ -1461,6 +1461,8 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_cob        *body = &csb->csb_virt_body;
 
+	M0_ENTRY();
+
         body->b_atime = body->b_ctime = body->b_mtime = m0_time_seconds(m0_time_now());
         body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
 	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
@@ -1473,9 +1475,7 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
                         S_IRGRP | S_IXGRP |                     /* r-x for group */
                         S_IROTH | S_IXOTH);
 
-	M0_ENTRY();
-
-        /* Init virtual /.mero directory */
+        /* Init virtual .mero directory */
         mero_dentry = d_alloc_name(sb->s_root, M0_VIRT_MERO_NAME);
         if (mero_dentry == NULL)
                 return M0_RC(-ENOMEM);
@@ -1486,25 +1486,28 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
                 return M0_RC((int)PTR_ERR(mero_inode));
         }
 
-        d_add(mero_dentry, mero_inode);
-        csb->csb_mero_dentry = mero_dentry;
-
-        /* Init virtual /.mero/fid directory */
+        /* Init virtual .mero/fid directory */
         fid_dentry = d_alloc_name(mero_dentry, M0_VIRT_OBF_NAME);
         if (fid_dentry == NULL) {
-                m0t1fs_obf_dealloc(sb);
+                iput(mero_inode);
+                dput(mero_dentry);
                 return M0_RC(-ENOMEM);
         }
 
         fid_inode = m0t1fs_iget(sb, &M0_VIRT_OBF_FID, body);
         if (IS_ERR(fid_inode)) {
                 dput(fid_dentry);
-                m0t1fs_obf_dealloc(sb);
+                iput(mero_inode);
+                dput(mero_dentry);
                 return M0_RC((int)PTR_ERR(fid_inode));
         }
 
         d_add(fid_dentry, fid_inode);
         csb->csb_fid_dentry = fid_dentry;
+
+        d_add(mero_dentry, mero_inode);
+        csb->csb_mero_dentry = mero_dentry;
+
 	return M0_RC(0);
 }
 
@@ -1622,7 +1625,12 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 
 	M0_ENTRY("csb = %p", csb);
 
-        m0t1fs_obf_dealloc(sb);
+        /*
+         * Dealloc virtual .mero/fid dirs. This should be done _before_
+         * kill_anon_super()
+         */
+	if (csb != NULL)
+                m0t1fs_obf_dealloc(csb);
 
 	kill_anon_super(sb);
 

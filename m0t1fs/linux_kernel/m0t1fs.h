@@ -88,7 +88,7 @@
       <0, $fid_start> for first file, <0, $fid_start+1> for second
       and so on.
       mdstore uses constant fid - M0_COB_SLASH_FID <1, 3> - for root.
-      Hence fid_start must be greater than 3.
+      Hence fid_start must be greater than 5.
 
    'device' argument of mount command is ignored.
 
