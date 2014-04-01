@@ -946,9 +946,6 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 	if (pfid == NULL)
 		pfid = (struct m0_fid *)&M0_COB_ROOT_FID;
 
-	rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
-	if (rc != 0)
-		goto out;
         /*
           Check for obf case and use m0_cob_locate() to get cob by fid
           extracted from name.
@@ -962,6 +959,9 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
                 }
                 rc = m0_mdstore_locate(md, &fid, cob, M0_MD_LOCATE_STORED);
         } else {
+	        rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);
+	        if (rc != 0)
+		        goto out;
 	        flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
 	        rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
 	}

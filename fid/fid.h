@@ -100,6 +100,12 @@ M0_INTERNAL const struct m0_fid_type *
 m0_fid_type_getfid(const struct m0_fid *fid);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 
+/* Namespace name for obf cob */
+extern const char M0_COB_OBF_NAME[];
+
+/* Obf fid. */
+extern const struct m0_fid M0_COB_OBF_FID;
+
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */
 

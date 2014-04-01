@@ -490,6 +490,9 @@ static int m0t1fs_readdir(struct file *f,
 	csb    = M0T1FS_SB(dir->i_sb);
 	i      = f->f_pos;
 
+	if (m0t1fs_inode_is_obf(&ci->ci_inode))
+		return M0_RC(0);
+
 	fd = f->private_data;
 	if (fd->fd_direof)
 		return M0_RC(0);
@@ -721,6 +724,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	struct m0_fop_getattr_rep       *getattr_rep;
 	struct m0t1fs_sb                *csb;
 	struct inode                    *inode;
+	struct m0_fop_cob               *body;
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	int                              rc;
@@ -735,32 +739,38 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	m0t1fs_fs_lock(csb);
 
-	M0_SET0(&mo);
-	mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
+        /** Return cached attributes for obf dir. */
+	if (!m0t1fs_inode_is_obf(&ci->ci_inode)) {
+	        M0_SET0(&mo);
+	        mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 
-	/**
-	   TODO: When we have rm locking working, this will be changed to
-	   revalidate inode with checking cached lock. If lock is cached
-	   (not canceled), which means inode did not change, then we don't
-	   have to do getattr and can just use @inode cached data.
-	 */
-	rc = m0t1fs_mds_cob_getattr(csb, &mo, &getattr_rep);
-	if (rc != 0)
-		goto out;
+	        /**
+	          TODO: When we have dlm locking working, this will be changed to
+	          revalidate inode with checking cached lock. If lock is cached
+	          (not canceled), which means inode did not change, then we don't
+	          have to do getattr and can just use @inode cached data.
+	        */
+	        rc = m0t1fs_mds_cob_getattr(csb, &mo, &getattr_rep);
+	        if (rc != 0)
+		        goto out;
+		body = &getattr_rep->g_body;
+        } else {
+		body = &csb->csb_obf_body;
+        }
 
-	/** Update inode fields with data from @getattr_rep. */
-	rc = m0t1fs_inode_update(inode, &getattr_rep->g_body);
+	/** Update inode fields with data from @getattr_rep or cached attrs. */
+	rc = m0t1fs_inode_update(inode, body);
 	if (rc != 0)
 		goto out;
 
 	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
-	    ci->ci_layout_id != getattr_rep->g_body.b_lid) {
+	    ci->ci_layout_id != body->b_lid) {
 		/* layout for this file is changed. */
 
 		M0_ASSERT(ci->ci_layout_instance != NULL);
 		m0_layout_instance_fini(ci->ci_layout_instance);
 
-		ci->ci_layout_id = getattr_rep->g_body.b_lid;
+		ci->ci_layout_id = body->b_lid;
 		rc = m0t1fs_inode_layout_init(ci);
 		M0_ASSERT(rc == 0);
 	}

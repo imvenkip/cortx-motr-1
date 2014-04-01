@@ -84,6 +84,16 @@ M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name)
 	return NULL;
 }
 
+/**
+   Obf dir fid.
+*/
+const struct m0_fid M0_COB_OBF_FID = {
+	.f_container = 1ULL,
+	.f_key       = 4ULL
+};
+
+const char M0_COB_OBF_NAME[] = ".mero";
+
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {
 	const struct m0_fid_type *ft = m0_fid_type_getfid(fid);

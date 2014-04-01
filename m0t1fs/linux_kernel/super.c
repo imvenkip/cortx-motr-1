@@ -1431,6 +1431,52 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_net_fini(csb);
 }
 
+static int m0t1fs_obf_alloc(struct super_block *sb)
+{
+        struct inode             *obf_inode;
+        struct dentry            *obf_dentry;
+        struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
+	struct m0_fop_cob        *body = &csb->csb_obf_body;
+
+        body->b_atime = body->b_ctime = body->b_mtime = m0_time_seconds(m0_time_now());
+        body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
+	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
+	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE);
+        body->b_blocks = 16;
+        body->b_size = 4096;
+        body->b_blksize = 4096;
+	body->b_nlink = 2;
+        body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                        S_IRGRP | S_IXGRP |                     /* r-x for group */
+                        S_IROTH | S_IXOTH);
+
+	M0_ENTRY();
+
+        obf_dentry = d_alloc_name(sb->s_root, M0_COB_OBF_NAME);
+        if (obf_dentry == NULL)
+                M0_RETURN(-ENOMEM);
+
+        obf_inode = m0t1fs_iget(sb, &M0_COB_OBF_FID, body);
+        if (IS_ERR(obf_inode)) {
+                dput(obf_dentry);
+                M0_RETURN((int)PTR_ERR(obf_inode));
+        }
+
+        d_add(obf_dentry, obf_inode);
+        csb->csb_obf_dentry = obf_dentry;
+	M0_RETURN(0);
+}
+
+static void m0t1fs_obf_dealloc(struct super_block *sb) {
+	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
+
+	M0_ENTRY();
+        csb->csb_obf_dentry->d_inode->i_nlink = 0;
+        d_delete(csb->csb_obf_dentry);
+        dput(csb->csb_obf_dentry);
+	M0_LEAVE();
+}
+
 static int m0t1fs_root_alloc(struct super_block *sb)
 {
 	struct inode             *root_inode;
@@ -1504,6 +1550,10 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	if (rc != 0)
 		goto m0t1fs_teardown;
 
+        rc = m0t1fs_obf_alloc(sb);
+        if (rc != 0)
+                goto m0t1fs_teardown;
+
 	io_bob_tlists_init();
 	M0_SET0(&iommstats);
 
@@ -1540,6 +1590,8 @@ M0_INTERNAL void m0t1fs_kill_sb(struct super_block *sb)
 	struct m0t1fs_sb *csb = M0T1FS_SB(sb);
 
 	M0_ENTRY("csb = %p", csb);
+
+        m0t1fs_obf_dealloc(sb);
 
 	kill_anon_super(sb);
 

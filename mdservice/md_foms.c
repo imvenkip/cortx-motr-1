@@ -1314,12 +1314,15 @@ static int m0_md_req_path_get(struct m0_mdstore *mdstore,
 			      struct m0_fid *fid,
 			      struct m0_fop_str *str)
 {
+        /** This was solely used for replicator, which is not needed right now. */
+#if 0
 	int rc;
 
 	rc = m0_mdstore_path(mdstore, fid, (char **)&str->s_buf);
 	if (rc != 0)
 		return rc;
 	str->s_len = strlen((char *)str->s_buf);
+#endif
 	return 0;
 }
 
