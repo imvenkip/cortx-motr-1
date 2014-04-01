@@ -222,7 +222,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	M0_ENTRY();
 	M0_ASSERT(pfid != NULL);
 
-        /* We don't allow normal fs things in obf directory. */
+        /* We don't allow create in obf directory. */
         if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
@@ -307,7 +307,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
 
-        /* We don't allow normal fs things in obf directory. */
+        /* We don't allow link in obf directory. */
         if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
@@ -415,7 +415,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
 
-        /* We don't allow normal fs things in obf directory. */
+        /* We don't allow unlink in obf directory. */
         if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
@@ -597,8 +597,11 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 
 	time(&now);
 
-        /* We don't allow normal fs things in obf directory. */
-        if (m0_fid_eq(pfid_tgt, &M0_COB_OBF_FID) || m0_fid_eq(pfid_src, &M0_COB_OBF_FID)) {
+        /* We don't allow rename in/with obf directory. */
+        if (m0_fid_eq(pfid_tgt, &M0_COB_OBF_FID) ||
+            m0_fid_eq(pfid_src, &M0_COB_OBF_FID) ||
+            m0_fid_eq(m0_cob_fid(cob_tgt), &M0_COB_OBF_FID) ||
+            m0_fid_eq(m0_cob_fid(cob_src), &M0_COB_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
         }
@@ -886,7 +889,7 @@ out:
 }
 
 /**
-   Find cob by @fid and store its pointer to passed @cob.
+   Finds cob by @fid and store its pointer to passed @cob.
  */
 M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 				  const struct m0_fid   *fid,
@@ -921,7 +924,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 }
 
 /**
-   Find cob by name and store its pointer to passed @cob.
+   Finds cob by name and store its pointer to passed @cob.
 
    In order to handle possible obf-like names like this:
    (cat /mnt/mero/.mero/1:5), parent fid is checked and
@@ -951,12 +954,9 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
           extracted from name.
          */
         if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
-                m0_fid_set(&fid, 0, 0);
-                sscanf((char *)name->b_addr, FID_F, FID_R(&fid));
-                if (!m0_fid_is_set(&fid)) {
-                        rc = -EINVAL;
+                rc = m0_fid_sscanf((char *)name->b_addr, &fid);
+                if (rc != 0)
                         goto out;
-                }
                 rc = m0_mdstore_locate(md, &fid, cob, M0_MD_LOCATE_STORED);
         } else {
 	        rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr, name->b_nob);

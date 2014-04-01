@@ -286,7 +286,7 @@ static int mount_opts_validate(const struct mount_opts *mops)
 			       "profile");
 
 	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 4))
-		M0_RETERR(-EINVAL, "fid_start must be greater than 4");
+		return M0_ERR(-EINVAL, "fid_start must be greater than 4");
 
 	return M0_RC(0);
 }
@@ -304,8 +304,8 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
-	M0_SET0(dest);
-	dest->mo_fid_start = 5;   /* Default value */
+	*dest = (struct mount_opts){ .mo_fid_start = 5 /* default value */ };
+
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
 		case M0T1FS_MNTOPT_CONFD:
@@ -1454,17 +1454,17 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
 
         obf_dentry = d_alloc_name(sb->s_root, M0_COB_OBF_NAME);
         if (obf_dentry == NULL)
-                M0_RETURN(-ENOMEM);
+                return M0_RC(-ENOMEM);
 
         obf_inode = m0t1fs_iget(sb, &M0_COB_OBF_FID, body);
         if (IS_ERR(obf_inode)) {
                 dput(obf_dentry);
-                M0_RETURN((int)PTR_ERR(obf_inode));
+                return M0_RC((int)PTR_ERR(obf_inode));
         }
 
         d_add(obf_dentry, obf_inode);
         csb->csb_obf_dentry = obf_dentry;
-	M0_RETURN(0);
+	return M0_RC(0);
 }
 
 static void m0t1fs_obf_dealloc(struct super_block *sb) {
