@@ -490,10 +490,8 @@ static int m0t1fs_readdir(struct file *f,
 	i      = f->f_pos;
 
 	fd = f->private_data;
-	if (fd->fd_direof) {
-		rc = 0;
-		goto out;
-	}
+	if (fd->fd_direof)
+		return M0_RC(0);
 
 	M0_SET0(&mo);
 	/**
