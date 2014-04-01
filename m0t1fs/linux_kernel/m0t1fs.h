@@ -559,11 +559,14 @@ struct m0t1fs_sb {
 	/** lnet tmid for client ep */
 	size_t                                  csb_tmid;
 
-        /** .mero virtual dir dentry */
-        struct dentry                          *csb_obf_dentry;
+        /** /.mero virtual dir dentry */
+        struct dentry                          *csb_mero_dentry;
 
-        /** .mero virtual dir attributes. */
-        struct m0_fop_cob                       csb_obf_body;
+        /** /.mero/fid virtual dir dentry */
+        struct dentry                          *csb_fid_dentry;
+
+        /** virtual dirs cached attributes */
+        struct m0_fop_cob                       csb_virt_body;
 };
 
 struct m0t1fs_filedata {
@@ -648,7 +651,8 @@ M0_INTERNAL int m0t1fs_inode_cache_init(void);
 M0_INTERNAL void m0t1fs_inode_cache_fini(void);
 
 M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
-M0_INTERNAL bool m0t1fs_inode_is_obf(const struct inode *inode);
+M0_INTERNAL bool m0t1fs_inode_is_mero(const struct inode *inode);
+M0_INTERNAL bool m0t1fs_inode_is_fid(const struct inode *inode);
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 					   struct m0_fid *root_fid);

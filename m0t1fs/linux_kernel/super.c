@@ -285,8 +285,8 @@ static int mount_opts_validate(const struct mount_opts *mops)
 		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
 			       "profile");
 
-	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 4))
-		return M0_ERR(-EINVAL, "fid_start must be greater than 4");
+	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 5))
+		return M0_ERR(-EINVAL, "fid_start must be greater than 5");
 
 	return M0_RC(0);
 }
@@ -1431,12 +1431,35 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_net_fini(csb);
 }
 
+static void m0t1fs_obf_dealloc(struct super_block *sb) {
+	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
+
+	M0_ENTRY();
+
+	if (csb->csb_fid_dentry != NULL) {
+                csb->csb_fid_dentry->d_inode->i_nlink = 0;
+                d_delete(csb->csb_fid_dentry);
+                dput(csb->csb_fid_dentry);
+                csb->csb_fid_dentry = NULL;
+        }
+	if (csb->csb_mero_dentry != NULL) {
+                csb->csb_mero_dentry->d_inode->i_nlink = 0;
+                d_delete(csb->csb_mero_dentry);
+                dput(csb->csb_mero_dentry);
+                csb->csb_mero_dentry = NULL;
+        }
+
+	M0_LEAVE();
+}
+
 static int m0t1fs_obf_alloc(struct super_block *sb)
 {
-        struct inode             *obf_inode;
-        struct dentry            *obf_dentry;
+        struct inode             *mero_inode;
+        struct dentry            *mero_dentry;
+        struct inode             *fid_inode;
+        struct dentry            *fid_dentry;
         struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
-	struct m0_fop_cob        *body = &csb->csb_obf_body;
+	struct m0_fop_cob        *body = &csb->csb_virt_body;
 
         body->b_atime = body->b_ctime = body->b_mtime = m0_time_seconds(m0_time_now());
         body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
@@ -1452,29 +1475,37 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
 
 	M0_ENTRY();
 
-        obf_dentry = d_alloc_name(sb->s_root, M0_COB_OBF_NAME);
-        if (obf_dentry == NULL)
+        /* Init virtual /.mero directory */
+        mero_dentry = d_alloc_name(sb->s_root, M0_VIRT_MERO_NAME);
+        if (mero_dentry == NULL)
                 return M0_RC(-ENOMEM);
 
-        obf_inode = m0t1fs_iget(sb, &M0_COB_OBF_FID, body);
-        if (IS_ERR(obf_inode)) {
-                dput(obf_dentry);
-                return M0_RC((int)PTR_ERR(obf_inode));
+        mero_inode = m0t1fs_iget(sb, &M0_VIRT_MERO_FID, body);
+        if (IS_ERR(mero_inode)) {
+                dput(mero_dentry);
+                return M0_RC((int)PTR_ERR(mero_inode));
         }
 
-        d_add(obf_dentry, obf_inode);
-        csb->csb_obf_dentry = obf_dentry;
+        d_add(mero_dentry, mero_inode);
+        csb->csb_mero_dentry = mero_dentry;
+
+        /* Init virtual /.mero/fid directory */
+        fid_dentry = d_alloc_name(mero_dentry, M0_VIRT_OBF_NAME);
+        if (fid_dentry == NULL) {
+                m0t1fs_obf_dealloc(sb);
+                return M0_RC(-ENOMEM);
+        }
+
+        fid_inode = m0t1fs_iget(sb, &M0_VIRT_OBF_FID, body);
+        if (IS_ERR(fid_inode)) {
+                dput(fid_dentry);
+                m0t1fs_obf_dealloc(sb);
+                return M0_RC((int)PTR_ERR(fid_inode));
+        }
+
+        d_add(fid_dentry, fid_inode);
+        csb->csb_fid_dentry = fid_dentry;
 	return M0_RC(0);
-}
-
-static void m0t1fs_obf_dealloc(struct super_block *sb) {
-	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
-
-	M0_ENTRY();
-        csb->csb_obf_dentry->d_inode->i_nlink = 0;
-        d_delete(csb->csb_obf_dentry);
-        dput(csb->csb_obf_dentry);
-	M0_LEAVE();
 }
 
 static int m0t1fs_root_alloc(struct super_block *sb)

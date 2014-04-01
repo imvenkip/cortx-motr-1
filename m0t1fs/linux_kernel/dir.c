@@ -383,6 +383,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	struct inode             *inode = NULL;
 	struct m0_fop_lookup_rep *rep = NULL;
 	struct m0t1fs_mdop        mo;
+	struct m0_fid             fid;
 	int rc;
 
 
@@ -399,6 +400,20 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	M0_LOG(M0_DEBUG, "Name: \"%s\"", dentry->d_name.name);
 
 	m0t1fs_fs_lock(csb);
+
+        if (m0t1fs_inode_is_fid(&ci->ci_inode)) {
+	        rc = m0_fid_sscanf((char *)dentry->d_name.name, &fid);
+	        if (rc != 0) {
+			M0_LEAVE("ERROR: %d", rc);
+			m0t1fs_fs_unlock(csb);
+			return ERR_PTR(rc);
+	        }
+	        /**
+	           @todo: When multi-mdservice support is added,
+	           @fid will be used to figure out what mdservice
+	           lookup operation should be sent to.
+	        */
+	}
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_pfid = *m0t1fs_inode_fid(M0T1FS_I(dir));
@@ -490,7 +505,7 @@ static int m0t1fs_readdir(struct file *f,
 	csb    = M0T1FS_SB(dir->i_sb);
 	i      = f->f_pos;
 
-	if (m0t1fs_inode_is_obf(&ci->ci_inode))
+	if (m0t1fs_inode_is_mero(&ci->ci_inode) || m0t1fs_inode_is_fid(&ci->ci_inode))
 		return M0_RC(0);
 
 	fd = f->private_data;
@@ -740,7 +755,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	m0t1fs_fs_lock(csb);
 
         /** Return cached attributes for obf dir. */
-	if (!m0t1fs_inode_is_obf(&ci->ci_inode)) {
+	if (!m0t1fs_inode_is_mero(&ci->ci_inode) && !m0t1fs_inode_is_fid(&ci->ci_inode)) {
 	        M0_SET0(&mo);
 	        mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 
@@ -755,7 +770,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 		        goto out;
 		body = &getattr_rep->g_body;
         } else {
-		body = &csb->csb_obf_body;
+		body = &csb->csb_virt_body;
         }
 
 	/** Update inode fields with data from @getattr_rep or cached attrs. */

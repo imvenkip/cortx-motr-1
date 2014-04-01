@@ -84,15 +84,19 @@ M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name)
 	return NULL;
 }
 
-/**
-   Obf dir fid.
-*/
-const struct m0_fid M0_COB_OBF_FID = {
+const struct m0_fid M0_VIRT_MERO_FID = {
 	.f_container = 1ULL,
 	.f_key       = 4ULL
 };
 
-const char M0_COB_OBF_NAME[] = ".mero";
+const char M0_VIRT_MERO_NAME[] = ".mero";
+
+const struct m0_fid M0_VIRT_OBF_FID = {
+	.f_container = 1ULL,
+	.f_key       = 5ULL
+};
+
+const char M0_VIRT_OBF_NAME[] = "fid";
 
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
 {

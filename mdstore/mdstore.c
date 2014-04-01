@@ -222,8 +222,8 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	M0_ENTRY();
 	M0_ASSERT(pfid != NULL);
 
-        /* We don't allow create in obf directory. */
-        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+        /* We don't allow create in .mero and .mero/fid directory. */
+        if (m0_fid_eq(pfid, &M0_VIRT_MERO_FID) || m0_fid_eq(pfid, &M0_VIRT_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
         }
@@ -307,8 +307,8 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
 
-        /* We don't allow link in obf directory. */
-        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+        /* We don't allow link in .mero and .mero/fid directory. */
+        if (m0_fid_eq(pfid, &M0_VIRT_MERO_FID) || m0_fid_eq(pfid, &M0_VIRT_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
         }
@@ -415,16 +415,16 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	M0_ASSERT(pfid != NULL);
 	M0_ASSERT(cob != NULL);
 
-        /* We don't allow unlink in obf directory. */
-        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+        /* We don't allow unlink in .mero and .mero/fid directories. */
+        if (m0_fid_eq(pfid, &M0_VIRT_MERO_FID) || m0_fid_eq(pfid, &M0_VIRT_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
         }
 
-        /* We don't allow to kill obf dir. */
+        /* We don't allow to kill .mero dir. */
         if (m0_fid_eq(pfid, &M0_COB_SLASH_FID) &&
-            name->b_nob == strlen(M0_COB_OBF_NAME) &&
-            !strncmp((char *)name->b_addr, M0_COB_OBF_NAME, (int)name->b_nob)) {
+            name->b_nob == strlen(M0_VIRT_MERO_NAME) &&
+            !strncmp((char *)name->b_addr, M0_VIRT_MERO_NAME, (int)name->b_nob)) {
                 rc = -EINVAL;
                 goto out;
         }
@@ -597,11 +597,15 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 
 	time(&now);
 
-        /* We don't allow rename in/with obf directory. */
-        if (m0_fid_eq(pfid_tgt, &M0_COB_OBF_FID) ||
-            m0_fid_eq(pfid_src, &M0_COB_OBF_FID) ||
-            m0_fid_eq(m0_cob_fid(cob_tgt), &M0_COB_OBF_FID) ||
-            m0_fid_eq(m0_cob_fid(cob_src), &M0_COB_OBF_FID)) {
+        /* We don't allow rename in/with .mero/fid directories. */
+        if (m0_fid_eq(pfid_tgt, &M0_VIRT_MERO_FID) ||
+            m0_fid_eq(pfid_tgt, &M0_VIRT_OBF_FID) ||
+            m0_fid_eq(pfid_src, &M0_VIRT_MERO_FID) ||
+            m0_fid_eq(pfid_src, &M0_VIRT_OBF_FID) ||
+            m0_fid_eq(m0_cob_fid(cob_tgt), &M0_VIRT_MERO_FID) ||
+            m0_fid_eq(m0_cob_fid(cob_tgt), &M0_VIRT_OBF_FID) ||
+            m0_fid_eq(m0_cob_fid(cob_src), &M0_VIRT_MERO_FID) ||
+            m0_fid_eq(m0_cob_fid(cob_src), &M0_VIRT_OBF_FID)) {
                 rc = -EINVAL;
                 goto out;
         }
@@ -953,7 +957,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
           Check for obf case and use m0_cob_locate() to get cob by fid
           extracted from name.
          */
-        if (m0_fid_eq(pfid, &M0_COB_OBF_FID)) {
+        if (m0_fid_eq(pfid, &M0_VIRT_OBF_FID)) {
                 rc = m0_fid_sscanf((char *)name->b_addr, &fid);
                 if (rc != 0)
                         goto out;

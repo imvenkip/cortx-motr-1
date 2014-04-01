@@ -58,11 +58,18 @@ M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode)
 			 &M0T1FS_SB(inode->i_sb)->csb_root_fid);
 }
 
-M0_INTERNAL bool m0t1fs_inode_is_obf(const struct inode *inode)
+M0_INTERNAL bool m0t1fs_inode_is_mero(const struct inode *inode)
 {
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
 
-	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_COB_OBF_FID);
+	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_VIRT_MERO_FID);
+}
+
+M0_INTERNAL bool m0t1fs_inode_is_fid(const struct inode *inode)
+{
+	struct m0t1fs_inode *ci = M0T1FS_I(inode);
+
+	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_VIRT_OBF_FID);
 }
 
 static void init_once(void *foo)
