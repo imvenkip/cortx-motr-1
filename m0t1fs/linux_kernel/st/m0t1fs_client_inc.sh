@@ -468,8 +468,26 @@ rmw_test()
 	return 0
 }
 
+obf_test()
+{
+        stat $MERO_M0T1FS_MOUNT_DIR/.mero || return 1
+        ls -la $MERO_M0T1FS_MOUNT_DIR/.mero || return 1
+        stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid || return 1
+        ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid || return 1
+        touch $MERO_M0T1FS_MOUNT_DIR/file0 || return 1
+        stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:6 || return 1
+        ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:6 || return 1
+
+        return 0
+}
+
 m0t1fs_system_tests()
 {
+        obf_test || {
+		echo "Failed: Open-by-fid test failed."
+		return 1
+        }
+
 	file_creation_test $MAX_NR_FILES || {
 		echo "Failed: File creation test failed."
 		return 1
