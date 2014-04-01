@@ -204,9 +204,7 @@ M0_INTERNAL int m0_rpc_reply_timedwait(struct m0_clink *clink,
 				       const m0_time_t timeout)
 {
 	int rc;
-	M0_ENTRY("timeout: [%llu:%llu]",
-		 (unsigned long long)m0_time_seconds(timeout),
-		 (unsigned long long) m0_time_nanoseconds(timeout));
+	M0_ENTRY("timeout: "TIME_F, TIME_P(&timeout));
 	M0_PRE(clink != NULL);
 	M0_PRE(m0_clink_is_armed(clink));
 

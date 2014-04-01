@@ -40,6 +40,10 @@ enum {
 	M0_TIME_ONE_MSEC    = M0_TIME_ONE_SECOND / 1000,
 };
 
+#define TIME_F "<%llu:%llu>"
+#define TIME_P(t) (unsigned long long)((*t) / M0_TIME_ONE_SECOND), \
+		  (unsigned long long)((*t) % M0_TIME_ONE_SECOND)
+
 /**
    Special value of abs_timeout indicates that action should be performed
    immediately
