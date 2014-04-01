@@ -190,7 +190,7 @@ static void ds_test(void)
 {
         int                   rc;
         int                   cnt;
-	struct m0_fid         cfid;
+	struct m0_fid         cfid = M0_FID_INIT(0, 5);
 	struct data_buf      *dbuf;
         struct io_request     req;
         struct iovec          iovec_arr[IOVEC_NR];
