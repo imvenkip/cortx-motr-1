@@ -681,7 +681,8 @@ END_CHILD_INIT
             &$gen_child_init($member);
         }
     }
-    $xcode .= "}\n\n";
+    $xcode .= "\tM0_POST(m0_xcode_type_invariant($item->{'name'}_xc));";
+    $xcode .= "\n}\n\n";
 
     return $xcode;
 }

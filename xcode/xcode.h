@@ -740,7 +740,7 @@ M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj);
 M0_INTERNAL int m0_xcode_find(struct m0_xcode_obj *obj,
 			      const struct m0_xcode_type *xt, void **place);
 
-M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
+bool m0_xcode_type_invariant(const struct m0_xcode_type *xt);
 
 /**
  * Starts construction of a "dynamic union".

@@ -174,3 +174,4 @@ m0_xc_u32_init
 m0_xc_u64_init
 m0_xc_u8_init
 m0_xc_void_init
+m0_xcode_type_invariant

@@ -40,6 +40,21 @@ static bool is_pointer(const struct m0_xcode_type *xt,
 	return xt->xct_aggr == M0_XA_SEQUENCE && field == &xt->xct_child[1];
 }
 
+/**
+ * Returns "portable" alignment for a field, which would work on any
+ * architecture.
+ */
+static unsigned alignment_mask(const struct m0_xcode_type *xt,
+			       const struct m0_xcode_field *field)
+{
+	unsigned                    x;
+	const struct m0_xcode_type *ft = field->xf_type;
+
+	x = ft->xct_aggr == M0_XA_ATOM ? ft->xct_sizeof : 1;
+	M0_POST(m0_is_po2(x));
+	return x > 0 ? x - 1 : 0;
+}
+
 static bool field_invariant(const struct m0_xcode_type *xt,
                             const struct m0_xcode_field *field)
 {
@@ -47,11 +62,13 @@ static bool field_invariant(const struct m0_xcode_type *xt,
                 _0C(field->xf_name != NULL) && _0C(field->xf_type != NULL) &&
                 _0C(ergo(xt == &M0_XT_OPAQUE, field->xf_opaque != NULL)) &&
                 _0C(field->xf_offset +
-                (is_pointer(xt, field) ? sizeof(void *) :
-		 field->xf_type->xct_sizeof) <= xt->xct_sizeof);
+		    (is_pointer(xt, field) ? sizeof(void *) :
+		     field->xf_type->xct_sizeof) <= xt->xct_sizeof) &&
+		/* check that alignment is portable. */
+		_0C((field->xf_offset & alignment_mask(xt, field)) == 0);
 }
 
-M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
+bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 {
 	size_t   prev   = 0;
 	uint32_t offset = 0;
@@ -112,6 +129,7 @@ M0_INTERNAL bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 		_0C(ergo(xt->xct_aggr == M0_XA_ATOM,
 			 0 <= xt->xct_atype && xt->xct_atype < M0_XAT_NR));
 }
+M0_EXPORTED(m0_xcode_type_invariant);
 
 #include "xcode/cursor.c"
 
