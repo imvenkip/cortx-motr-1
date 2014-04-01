@@ -33,7 +33,6 @@
 #include "addb/addb.h"
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
-#include "dtm/verno.h"
 #include "be/btree.h"
 
 /* import */
@@ -394,7 +393,7 @@ struct m0_cob_fabkey {
 };
 
 struct m0_cob_fabrec {
-	struct m0_verno   cfb_version;  /**< version from last fop */
+	uint64_t          cfb_version;  /**< version from last fop */
 	uint64_t          cfb_layoutid; /**< reference to layout */
 	uint16_t          cfb_linklen;  /**< symlink len if any */
 	char              cfb_link[0];  /**< symlink body */

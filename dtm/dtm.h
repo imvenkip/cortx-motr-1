@@ -569,6 +569,7 @@ M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_done_sync(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_opened(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx);
+M0_INTERNAL int m0_dtx_fol_add(struct m0_dtx *tx);
 
 M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm, struct m0_uint128 *id);
 M0_INTERNAL void m0_dtm_fini(struct m0_dtm *dtm);

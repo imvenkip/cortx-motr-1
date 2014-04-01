@@ -130,7 +130,6 @@ struct m0_rpc_client_ctx {
 	 * They are initialised and filled by m0_rpc_client_start().
 	 */
 
-	struct m0_fol              rcx_fol;
 	struct m0_reqh             rcx_reqh;
 	struct m0_rpc_machine	   rcx_rpc_machine;
 	struct m0_rpc_conn	   rcx_connection;

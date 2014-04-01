@@ -15,9 +15,7 @@ nobase_mero_include_HEADERS += \
                                   dtm/object.h \
                                   dtm/operation.h \
                                   dtm/remote.h \
-                                  dtm/update.h \
-                                  dtm/verno.h \
-                                  dtm/verno_xc.h
+                                  dtm/update.h
 
 mero_libmero_la_SOURCES  += \
                                   dtm/catalogue.c \
@@ -37,15 +35,12 @@ mero_libmero_la_SOURCES  += \
                                   dtm/remote.c \
                                   dtm/remote_xc.c \
                                   dtm/update.c \
-                                  dtm/update_xc.c \
-                                  dtm/verno.c \
-                                  dtm/verno_xc.c
+                                  dtm/update_xc.c
 
 XC_FILES   += dtm/dtm_update_xc.h \
               dtm/operation_xc.h \
               dtm/remote_xc.h \
-              dtm/update_xc.h \
-              dtm/verno_xc.h
+              dtm/update_xc.h
 
 CLEANFILES += dtm/dtm_update_xc.h   \
               dtm/dtm_update_xc.c   \
@@ -55,7 +50,4 @@ CLEANFILES += dtm/dtm_update_xc.h   \
               dtm/operation.gccxml \
               dtm/remote_xc.h \
               dtm/remote_xc.c \
-              dtm/remote.gccxml \
-	      dtm/verno_xc.h \
-              dtm/verno_xc.c \
-              dtm/verno.gccxml
+              dtm/remote.gccxml

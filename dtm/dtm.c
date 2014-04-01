@@ -69,7 +69,7 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 		      NULL, NULL, NULL, NULL);
 	tx->tx_betx_cred = M0_BE_TX_CREDIT(0, 0);
 	tx->tx_state = M0_DTX_INIT;
-	m0_fol_rec_init(&tx->tx_fol_rec);
+	m0_fol_rec_init(&tx->tx_fol_rec, NULL);
 }
 
 M0_INTERNAL void m0_dtx_prep(struct m0_dtx *tx,
@@ -136,7 +136,6 @@ M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)
 M0_INTERNAL int m0_dtm_global_init(void)
 {
 	m0_xc_dtm_update_init();
-	m0_xc_verno_init();
 	m0_xc_operation_init();
 	m0_xc_update_init();
 	m0_dtm_nuclei_init();
@@ -150,7 +149,6 @@ M0_INTERNAL void m0_dtm_global_fini(void)
 	m0_xc_dtm_update_fini();
 	m0_xc_update_fini();
 	m0_xc_operation_fini();
-	m0_xc_verno_fini();
 }
 
 M0_INTERNAL struct m0_dtm *nu_dtm(struct m0_dtm_nu *nu)
@@ -166,6 +164,11 @@ M0_INTERNAL void dtm_lock(struct m0_dtm *dtm)
 M0_INTERNAL void dtm_unlock(struct m0_dtm *dtm)
 {
 	nu_unlock(&dtm->d_nu);
+}
+
+M0_INTERNAL int m0_dtx_fol_add(struct m0_dtx *tx)
+{
+	return m0_be_tx_fol_add(&tx->tx_betx, &tx->tx_fol_rec);
 }
 
 /** @} end of dtm group */

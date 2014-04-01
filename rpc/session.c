@@ -32,7 +32,6 @@
 #include "lib/arith.h"             /* M0_CNT_DEC */
 #include "lib/finject.h"
 #include "db/db.h"
-#include "dtm/verno.h"
 #include "rpc/rpc_internal.h"
 
 /**

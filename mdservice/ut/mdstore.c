@@ -51,7 +51,6 @@ static struct m0_be_seg		*be_seg;
 
 static struct m0_mdstore        md;
 static struct m0_reqh           reqh;
-static struct m0_fol           *fol;
 static struct m0_reqh_service  *mdservice;
 extern struct m0_reqh_service_type m0_mds_type;
 
@@ -147,21 +146,8 @@ extern struct m0_fom_type_ops m0_md_fom_ops;
 
 static void test_init(void)
 {
-        struct m0_be_tx		 tx;
-        struct m0_be_tx_credit	 cred = {};
 	int			 rc;
 
-	fol = m0_ut_be_alloc(sizeof *fol, be_seg, &ut_be);
-	M0_UT_ASSERT(fol != NULL);
-        m0_fol_init(fol, be_seg);
-	m0_fol_credit(fol, M0_FO_CREATE, 1, &cred);
-	m0_be_seg_dict_insert_credit(be_seg, "fol", &cred);
-	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx, &op));
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_seg_dict_insert(be_seg, &tx, "fol", fol);
-	M0_UT_ASSERT(rc == 0);
-	m0_ut_be_tx_end(&tx);
 	/* Patch md fom operations vector to overwrite finaliser. */
 	orig_fom_fini = m0_md_req_fom_fini_func;
 	m0_md_req_fom_fini_func = fom_fini;
@@ -173,8 +159,7 @@ static void test_init(void)
 	rc = M0_REQH_INIT(&reqh,
 		          .rhia_dtm       = NULL,
 		          .rhia_db        = be_seg,
-		          .rhia_mdstore   = &md,
-		          .rhia_fol       = fol);
+		          .rhia_mdstore   = &md);
         M0_UT_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_allocate(&mdservice, &m0_mds_type, NULL);
@@ -187,8 +172,6 @@ static void test_init(void)
 
 static void test_fini(void)
 {
-	struct m0_be_tx		 tx;
-	struct m0_be_tx_credit	 cred = {};
 	int			 rc;
 
 	m0_reqh_service_stop(mdservice);
@@ -197,13 +180,6 @@ static void test_fini(void)
 	m0_reqh_shutdown_wait(&reqh);
 	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
-
-	m0_fol_credit(fol, M0_FO_DESTROY, 1, &cred);
-	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx, &op));
-	m0_ut_be_tx_end(&tx);
-	m0_fol_fini(fol);
-	m0_ut_be_free(fol, sizeof *fol, be_seg, &ut_be);
 
 	rc = m0_mdstore_destroy(&md, grp);
 	M0_UT_ASSERT(rc == 0);

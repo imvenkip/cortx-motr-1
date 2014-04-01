@@ -1077,7 +1077,6 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	struct m0_net_domain      *ndom        = &csb->csb_ndom;
 	const char                *laddr       =  csb->csb_laddr;
 	struct m0_net_buffer_pool *buffer_pool = &csb->csb_buffer_pool;
-	struct m0_fol             *fol         = &csb->csb_fol;
 	struct m0_net_transfer_mc *tm;
 	int                        rc;
 	uint32_t		   bufs_nr;
@@ -1107,8 +1106,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = &csb->csb_ut_seg.bus_seg,
-			  .rhia_mdstore = (void*)1,
-			  .rhia_fol = fol);
+			  .rhia_mdstore = (void*)1);
 	if (rc != 0)
 		goto dbenv_fini;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,

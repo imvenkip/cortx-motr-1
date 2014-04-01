@@ -30,6 +30,7 @@
 #include "lib/misc.h"		/* M0_BITS */
 #include "lib/arith.h"		/* M0_CNT_INC */
 #include "lib/memory.h"		/* m0_alloc */
+#include "fol/fol.h"		/* m0_fol_rec_encode() */
 
 #include "be/op.h"		/* m0_be_op */
 #include "be/domain.h"		/* m0_be_domain_engine */
@@ -476,6 +477,11 @@ M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx)
 M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx)
 {
 	return tx->t_fast;
+}
+
+M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
+{
+	return m0_fol_rec_encode(rec, &tx->t_payload);
 }
 
 #undef BE_TX_LOCKED_AT_STATE

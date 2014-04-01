@@ -30,6 +30,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
 #include "lib/tlist.h"
+#include "reqh/reqh.h"
 #include "addb/addb.h"
 #include "mero/magic.h"
 #include "fop/fop_item_type.h"
@@ -129,7 +130,7 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 {
 	int		result;
 	struct m0_fop  *fop;
-	struct m0_reqh *reqh = fol->f_reqh;
+	struct m0_reqh *reqh = container_of(fol, struct m0_reqh, rh_fol);
 	struct m0_fom  *fom;
 	int	        delete;
 

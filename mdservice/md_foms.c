@@ -169,8 +169,14 @@ static inline int m0_md_tick_generic(struct m0_fom *fom)
 {
 	M0_PRE(m0_fom_invariant(fom));
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR)
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			/* XXX: should be fixed after layout converted to BE */
+			struct m0_be_tx_credit cred = M0_BE_TX_CREDIT(512, 65536);
+			m0_be_tx_credit_add(&fom->fo_tx.tx_betx_cred, &cred);
+		}
 		return m0_fom_tick_generic(fom);
+	}
 
 	return 0;
 }

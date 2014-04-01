@@ -27,7 +27,6 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "dtm/verno_xc.h" /* m0_xc_verno_init */
 #include "rpc/rpc_internal.h"
 
 /**
@@ -118,7 +117,6 @@ M0_INTERNAL void m0_rpc_session_fop_fini(void)
 	m0_fop_type_fini(&m0_rpc_fop_conn_establish_fopt);
 	m0_xc_session_fops_fini();
 	m0_xc_rpc_onwire_fini();
-	m0_xc_verno_fini();
 }
 
 extern struct m0_fom_type_ops m0_rpc_fom_conn_establish_type_ops;

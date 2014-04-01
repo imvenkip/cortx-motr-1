@@ -553,7 +553,6 @@ struct m0t1fs_sb {
 	struct m0_rpc_machine                   csb_rpc_machine;
 	struct m0_reqh                          csb_reqh;
 	struct m0_dbenv                         csb_dbenv;
-	struct m0_fol                           csb_fol;
 	struct m0_net_buffer_pool               csb_buffer_pool;
 	struct m0_layout_domain                 csb_layout_dom;
 

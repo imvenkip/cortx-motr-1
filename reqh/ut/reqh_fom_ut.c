@@ -183,8 +183,7 @@ static int server_init(const char             *stob_path,
 	rc = M0_REQH_INIT(&reqh,
 			  .rhia_dtm       = NULL,
 			  .rhia_db        = NULL,
-			  .rhia_mdstore   = &srv_mdstore,
-			  .rhia_fol       = NULL);
+			  .rhia_mdstore   = &srv_mdstore);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_be_ut_backend_init(&ut_be);
@@ -195,9 +194,6 @@ static int server_init(const char             *stob_path,
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_be_ut__seg_dict_create(seg, grp);
 	M0_ASSERT(rc == 0);
-
-	rc = m0_reqh_fol_create(&reqh, seg);
-	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_reqh_dbenv_init(&reqh, seg);
 	M0_UT_ASSERT(rc == 0);
@@ -306,7 +302,6 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_reqh_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
 
-	m0_reqh_fol_destroy(&reqh);
 	m0_reqh_dbenv_fini(&reqh);
 
 	rc = m0_stob_destroy(reqh_addb_stob, NULL);

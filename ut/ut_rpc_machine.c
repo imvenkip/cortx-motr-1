@@ -89,8 +89,6 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	rc = m0_be_ut__seg_dict_create(seg, grp);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_reqh_fol_create(&ctx->rmc_reqh, seg);
-	M0_ASSERT(rc == 0);
 	rc = m0_reqh_dbenv_init(&ctx->rmc_reqh, seg);
 	M0_ASSERT(rc == 0);
 
@@ -117,7 +115,6 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_reqh_pre_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
-	m0_reqh_fol_destroy(&ctx->rmc_reqh);
 	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
 	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp);

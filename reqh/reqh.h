@@ -56,7 +56,6 @@ High level design of M0 request handler</a>
    @{
  */
 
-struct m0_fol;
 struct m0_fop;
 struct m0_net_xprt;
 struct m0_rpc_machine;
@@ -110,7 +109,7 @@ struct m0_reqh {
 	struct m0_mdstore            *rh_mdstore;
 
 	/** Fol pointer for this request handler. */
-	struct m0_fol		     *rh_fol;
+	struct m0_fol		      rh_fol;
 
 	/** Fom domain for this request handler. */
 	struct m0_fom_domain	      rh_fom_dom;
@@ -184,8 +183,6 @@ struct m0_reqh_init_args {
 	/** Database environment for this request handler */
 	struct m0_be_seg        *rhia_db;
 	struct m0_mdstore       *rhia_mdstore;
-	/** fol File operation log to record fop execution */
-	struct m0_fol           *rhia_fol;
 };
 
 /**
@@ -232,20 +229,6 @@ M0_INTERNAL int m0_reqh_dbenv_init(struct m0_reqh *reqh,
    Finalises db-dependant part of request handler.
  */
 M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh);
-
-/**
-   Creates the fol structures of request hander.
-
-   @note Should be called before m0_reqh_dbenv_init().
- */
-M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
-				   struct m0_be_seg *seg);
-/**
-   Destroys the fol structures of request hander.
-
-   @note Should be called before m0_reqh_dbenv_fini().
- */
-M0_INTERNAL void m0_reqh_fol_destroy(struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_reqh_addb_mc_config(struct m0_reqh *reqh,
 				       struct m0_stob *stob);

@@ -442,7 +442,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	base_fom->fo_type = &ft;
 
 	m0_fom_sm_init(base_fom);
-	m0_fol_rec_init(&base_fom->fo_tx.tx_fol_rec);
+	m0_fol_rec_init(&base_fom->fo_tx.tx_fol_rec, &reqh->rh_fol);
 }
 
 /*
@@ -1148,6 +1148,7 @@ static void cobfoms_fv_updates(void)
 			      COB_FOP_SINGLE);
 }
 
+# if 0
 #define COB_DATA(data) M0_XCODE_OBJ(m0_fop_cob_common_xc, data)
 
 static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
@@ -1199,6 +1200,8 @@ static void cobfoms_fol_verify(void)
 	int		   result;
 	struct m0_fop	  *c_fop;
 	struct m0_fop     *d_fop;
+	struct m0_be_tx   *cctx;
+	struct m0_be_tx   *cdtx;
 
 	cobfoms_fop_thread_init(1, 1);
 	cobfoms_fops_dispatch(&m0_fop_cob_create_fopt, 0);
@@ -1211,12 +1214,12 @@ static void cobfoms_fol_verify(void)
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(dec_cc_rec.fr_desc.rd_header.rh_parts_nr == 1);
+	M0_UT_ASSERT(dec_cc_rec.fr_header.rh_parts_nr == 1);
 
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 1, &dec_cd_rec);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(dec_cd_rec.fr_desc.rd_header.rh_parts_nr == 1);
+	M0_UT_ASSERT(dec_cd_rec.fr_header.rh_parts_nr == 1);
 
 	/* Perform undo operations */
 	result = cob_cd_op(&dec_cd_rec, d_fop, true);
@@ -1230,11 +1233,12 @@ static void cobfoms_fol_verify(void)
 	result = cob_cd_op(&dec_cc_rec, c_fop, false);
 	M0_UT_ASSERT(result == 0);
 
-	m0_fol_lookup_rec_fini(&dec_cc_rec);
-	m0_fol_lookup_rec_fini(&dec_cd_rec);
+	m0_fol_rec_fini(&dec_cc_rec);
+	m0_fol_rec_fini(&dec_cd_rec);
 
 	cobfoms_fop_thread_fini(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
 }
+#endif
 
 static void fom_dtx_init_open(struct m0_fom *fom, struct m0_sm_group *grp,
 			      enum m0_cob_op opcode)
@@ -1269,7 +1273,10 @@ const struct m0_test_suite cobfoms_ut = {
 		{ "cobfoms_delete_nonexistent_cob", cobfoms_del_nonexist_cob},
 		{ "cobfoms_create_cob_apitest",     cob_create_api_test},
 		{ "cobfoms_delete_cob_apitest",     cob_delete_api_test},
-		{ "cob_create_delete_fol_verify",   cobfoms_fol_verify},
+		/* XXX: enable after m0_be_domain_tx_find() will be able
+		 * to read back from stob finalized transactions payloads.
+		 * This might be available along with recovery.
+		{ "cob_create_delete_fol_verify",   cobfoms_fol_verify}, */
 		{ "single_fop_with_mismatch_fv",    cobfoms_fv_updates},
 		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }

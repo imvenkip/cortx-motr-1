@@ -18,6 +18,7 @@
  * Original creation date: 16-Sep-2010
  */
 
+#include "be/tx.h"
 #include "fol/fol.h"
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
@@ -34,9 +35,7 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 
-static struct m0_fol            *g_fol;
-static struct m0_fol_rec_header *g_hdr;
-static struct m0_fol_rec_desc   *g_desc;
+static struct m0_fol             g_fol;
 static struct m0_fol_rec         g_rec;
 static struct m0_be_ut_backend   g_ut_be;
 static struct m0_be_ut_seg       g_ut_seg;
@@ -49,46 +48,17 @@ M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL,
 
 static void test_init(void)
 {
-	struct m0_be_tx_credit cred = {};
-	int		       rc;
-
 	m0_ut_backend_init(&g_ut_be, &g_ut_seg);
 
-	g_fol = m0_ut_be_alloc(sizeof *g_fol, &g_ut_seg.bus_seg, &g_ut_be);
-	M0_UT_ASSERT(g_fol != NULL);
-
-	m0_fol_init(g_fol, &g_ut_seg.bus_seg);
-	m0_fol_credit(g_fol, M0_FO_CREATE, 1, &cred);
-	/*
-	 * There are 3 m0_fol_rec_add() calls --- in functions test_add(),
-	 * test_lookup(), and test_fol_rec_part_encdec().
-	 */
-	m0_fol_credit(g_fol, M0_FO_REC_ADD, 3, &cred);
-	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &cred);
-
-	M0_BE_OP_SYNC(op,
-			rc = m0_fol_create(g_fol, &g_tx, &op));
-	M0_UT_ASSERT(rc == 0);
-
-	m0_fol_rec_init(&g_rec);
-	g_desc = &g_rec.fr_desc;
-	g_hdr = &g_desc->rd_header;
+	m0_ut_be_tx_begin2(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT(0, 0),
+				FOL_REC_MAXSIZE);
+	m0_fol_init(&g_fol);
 }
 
 static void test_fini(void)
 {
-	struct m0_be_tx_credit cred = {};
-
-	m0_fol_rec_fini(&g_rec);
+	m0_fol_fini(&g_fol);
 	m0_ut_be_tx_end(&g_tx);
-
-	m0_fol_credit(g_fol, M0_FO_DESTROY, 1, &cred);
-	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &cred);
-	M0_BE_OP_SYNC(op, m0_fol_destroy(g_fol, &g_tx, &op));
-	m0_ut_be_tx_end(&g_tx);
-	m0_fol_fini(g_fol);
-
-	m0_ut_be_free(g_fol, sizeof *g_fol, &g_ut_seg.bus_seg, &g_ut_be);
 	m0_ut_backend_fini(&g_ut_be, &g_ut_seg);
 }
 
@@ -111,43 +81,6 @@ static void test_rec_part_type_unreg(void)
 	M0_ASSERT(ut_part_type.rpt_index == 0);
 }
 
-static void test_add(void)
-{
-	int rc;
-
-	M0_SET0(g_hdr);
-	g_hdr->rh_refcount = 1;
-
-	g_desc->rd_lsn = m0_fol_lsn_allocate(g_fol);
-	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(g_fol, &g_rec, &g_tx, &op));
-	M0_ASSERT(rc == 0);
-}
-
-extern m0_lsn_t lsn_inc(m0_lsn_t lsn);
-
-static void test_lookup(void)
-{
-	struct m0_fol_rec dup;
-	int               rc;
-
-	g_desc->rd_lsn = m0_fol_lsn_allocate(g_fol);
-	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(g_fol, &g_rec, &g_tx, &op));
-	M0_ASSERT(rc == 0);
-
-	rc = m0_fol_rec_lookup(g_fol, g_desc->rd_lsn, &dup);
-	M0_ASSERT(rc == 0);
-
-	M0_ASSERT(dup.fr_desc.rd_lsn == g_desc->rd_lsn);
-	M0_ASSERT(m0_xcode_cmp(&M0_REC_HEADER_XCODE_OBJ(&g_desc->rd_header),
-			       &M0_REC_HEADER_XCODE_OBJ(&dup.fr_desc.rd_header))
-		  == 0);
-
-	m0_fol_lookup_rec_fini(&dup);
-
-	rc = m0_fol_rec_lookup(g_fol, lsn_inc(g_desc->rd_lsn), &dup);
-	M0_ASSERT(rc == -ENOENT);
-}
-
 static int verify_part_data(struct m0_fol_rec_part *part,
 			    struct m0_be_tx *_)
 {
@@ -164,11 +97,11 @@ static void test_fol_rec_part_encdec(void)
 	struct m0_fid          *rec;
 	struct m0_fol_rec       dec_rec;
 	struct m0_fol_rec_part  ut_rec_part;
-	m0_lsn_t                lsn;
 	struct m0_fol_rec_part *dec_part;
+	struct m0_buf           buf;
 	int                     rc;
 
-	m0_fol_rec_init(&g_rec);
+	m0_fol_rec_init(&g_rec, &g_fol);
 
 	M0_ALLOC_PTR(rec);
 	M0_UT_ASSERT(rec != NULL);
@@ -177,25 +110,21 @@ static void test_fol_rec_part_encdec(void)
 	m0_fol_rec_part_init(&ut_rec_part, rec, &ut_part_type);
 	m0_fol_rec_part_add(&g_rec, &ut_rec_part);
 
-	g_hdr->rh_refcount = 1;
-	lsn = g_desc->rd_lsn = m0_fol_lsn_allocate(g_fol);
-
-	M0_BE_OP_SYNC(op, rc = m0_fol_rec_add(g_fol, &g_rec, &g_tx, &op));
-	M0_ASSERT(rc == 0);
+	buf = g_tx.t_payload;
+	rc = m0_fol_rec_encode(&g_rec, &buf);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_fol_rec_fini(&g_rec);
 
-	m0_ut_be_tx_end(&g_tx);
-	m0_ut_be_tx_begin(&g_tx, &g_ut_be, &M0_BE_TX_CREDIT(0, 0));
-
-	rc = m0_fol_rec_lookup(g_fol, lsn, &dec_rec);
-	M0_ASSERT(rc == 0);
+	m0_fol_rec_init(&dec_rec, &g_fol);
+	rc = m0_fol_rec_decode(&dec_rec, &buf);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
 		/* Call verify_part_data() for each part. */
 		dec_part->rp_ops->rpo_undo(dec_part, &g_tx);
 	} m0_tl_endfor;
-	m0_fol_lookup_rec_fini(&dec_rec);
+	m0_fol_rec_fini(&dec_rec);
 }
 
 extern struct m0_sm_group ut__txs_sm_group;
@@ -224,8 +153,6 @@ const struct m0_test_suite fol_ut = {
 		 */
 		{ "fol-init",                test_init                },
 		{ "fol-rec-part-type-reg",   test_rec_part_type_reg   },
-		{ "fol-add",                 test_add                 },
-		{ "fol-lookup",              test_lookup              },
 		{ "fol-rec-part-test",       test_fol_rec_part_encdec },
 		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
 		{ "fol-fini",                test_fini                },
@@ -243,7 +170,6 @@ static int ub_init(const char *opts M0_UNUSED)
 {
 	test_init();
 	test_rec_part_type_reg();
-	*g_hdr = (struct m0_fol_rec_header){ .rh_refcount = 1 };
 	return 0;
 }
 
@@ -268,7 +194,7 @@ static void checkpoint()
 static void ub_insert(int i)
 {
 	d->rd_lsn = m0_fol_lsn_allocate(&fol);
-	rc = m0_fol_rec_add(&fol, &tx, &r);
+	rc = m0_fol_rec_encode(&fol, &tx, &r);
 	M0_ASSERT(rc == 0);
 	last = d->rd_lsn;
 	if (i % 1000 == 0)

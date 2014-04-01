@@ -1168,13 +1168,9 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 	rctx->rc_beseg = rctx->rc_db.d_i.d_seg;
 	rctx->rc_reqh.rh_dbenv = &rctx->rc_db;
 
-	rc = m0_reqh_fol_create(&rctx->rc_reqh, rctx->rc_beseg);
-	if (rc != 0 && rc != -EEXIST)
-		goto dbenv_fini;
-
 	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0)
-		goto fol_fini;
+		goto dbenv_fini;
 
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
@@ -1242,8 +1238,6 @@ cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_dbenv_fini:
 	m0_reqh_dbenv_fini(&rctx->rc_reqh);
-fol_fini:
-	/* Nothing, fall through. */
 dbenv_fini:
 	m0_dbenv_fini(&rctx->rc_db);
 reqh_fini:

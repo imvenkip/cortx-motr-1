@@ -32,6 +32,7 @@
 struct m0_ref;
 struct m0_be_domain;
 struct m0_be_tx_group;
+struct m0_fol_rec;
 
 /**
  * @defgroup be
@@ -460,6 +461,9 @@ M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx);
  * @todo Remove when m0_be_tx_close_sync() is removed.
  */
 M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx);
+
+/** Adds fol record @rec into the transaction @tx payload */
+M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

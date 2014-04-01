@@ -58,6 +58,11 @@ M0_INTERNAL void m0_ut_be_tx_begin(struct m0_be_tx *tx,
 				   struct m0_be_ut_backend *ut_be,
 				   struct m0_be_tx_credit *cred);
 
+M0_INTERNAL void m0_ut_be_tx_begin2(struct m0_be_tx *tx,
+				   struct m0_be_ut_backend *ut_be,
+				   struct m0_be_tx_credit *cred,
+				   m0_bcount_t payload_cred);
+
 /** Closes the transaction and waits for its completion. */
 M0_INTERNAL void m0_ut_be_tx_end(struct m0_be_tx *tx);
 

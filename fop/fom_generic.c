@@ -249,10 +249,9 @@ static int fom_tx_init(struct m0_fom *fom)
  */
 static int fom_tx_open(struct m0_fom *fom)
 {
-	struct m0_reqh *reqh = m0_fom_reqh(fom);
 	struct m0_dtx  *dtx  = &fom->fo_tx;
 
-	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, m0_fom_tx_credit(fom));
+	m0_be_tx_payload_prep(m0_fom_tx(fom), FOL_REC_MAXSIZE);
 
 	if (!fom->fo_local) {
 		int rc;
@@ -345,11 +344,9 @@ static int fom_success(struct m0_fom *fom)
 static int fom_fol_rec_add(struct m0_fom *fom)
 {
 	if (!fom->fo_local) {
-		int rc;
-
-		rc = m0_fom_fol_rec_add(fom);
+		int rc = m0_fom_fol_rec_add(fom);
 		if (rc < 0)
-			return rc;
+			return M0_RC(rc);
 	}
 
 	return M0_FSO_AGAIN;

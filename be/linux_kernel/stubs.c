@@ -313,3 +313,8 @@ M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob)
 {
 	return 0;
 }
+
+int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
+{
+	return -EINVAL;
+}

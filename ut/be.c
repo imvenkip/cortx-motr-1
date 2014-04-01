@@ -60,8 +60,21 @@ M0_INTERNAL void m0_ut_be_tx_begin(struct m0_be_tx *tx,
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+}
+
+M0_INTERNAL void m0_ut_be_tx_begin2(struct m0_be_tx *tx,
+				   struct m0_be_ut_backend *ut_be,
+				   struct m0_be_tx_credit *cred,
+				   m0_bcount_t payload_cred)
+{
+	int rc;
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, cred);
+	m0_be_tx_payload_prep(tx, payload_cred);
+	rc = m0_be_tx_open_sync(tx);
 	M0_ASSERT(rc == 0);
 }
 

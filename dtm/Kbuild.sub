@@ -16,6 +16,4 @@ m0mero_objects += \
                   dtm/remote.o \
                   dtm/remote_xc.o \
                   dtm/update.o \
-                  dtm/update_xc.o \
-                  dtm/verno.o \
-                  dtm/verno_xc.o
+                  dtm/update_xc.o

@@ -63,6 +63,9 @@ struct m0_buf {
 #define M0_BUF_INITS(str)       M0_BUF_INIT(strlen(str), (str))
 #define M0_BUF_INIT0            M0_BUF_INIT(0, NULL)
 
+#define BUF_F "[%p,%llu]"
+#define BUF_P(p) (p)->b_addr, (unsigned long long)(p)->b_nob
+
 /** Initialises struct m0_buf. */
 M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
 

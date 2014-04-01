@@ -63,7 +63,6 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
  */
 M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 				struct m0_cob_domain *cdom,
-				m0_lsn_t	      clsn,
 				struct m0_be_tx	     *ctx);
 
 #endif    /* __MERO_IOSERVICE_COB_FOMS_H__ */

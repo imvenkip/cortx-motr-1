@@ -512,7 +512,6 @@ static void cob_op_credit(struct m0_fom *fom, enum m0_cob_op opcode,
 static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
 	struct m0_cob_domain *cdom;
-	m0_lsn_t	      lsn;
 	struct m0_be_tx	     *tx;
 
 	M0_PRE(fom != NULL);
@@ -521,15 +520,13 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 	cdom = cdom_get(fom);
 	M0_ASSERT(cdom != NULL);
 
-	lsn = m0_fol_lsn_allocate(m0_fom_reqh(fom)->rh_fol);
 	tx = m0_fom_tx(fom);
 
-	return m0_cc_cob_setup(cc, cdom, lsn, tx);
+	return m0_cc_cob_setup(cc, cdom, tx);
 }
 
 M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 				struct m0_cob_domain *cdom,
-				m0_lsn_t	      clsn,
 				struct m0_be_tx	     *ctx)
 {
 	int		      rc;
@@ -567,8 +564,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 		return rc;
 	}
 
-	fabrec->cfb_version.vn_lsn = clsn;
-	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
+	fabrec->cfb_version = ctx->t_id;
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;

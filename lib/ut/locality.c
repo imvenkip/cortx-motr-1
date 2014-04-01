@@ -35,7 +35,6 @@ static uint64_t             core[NR];
 static struct m0_mutex      lock;
 static struct m0_semaphore  sem[NR];
 static struct m0_sm_ast     ast[NR];
-static struct m0_fol        fol;
 static struct m0_reqh       reqh;
 static struct m0_fom_simple s[NR];
 static struct m0_atomic64   hoarded;
@@ -63,8 +62,7 @@ static void _reqh_init(void)
 	result = M0_REQH_INIT(&reqh,
 			      .rhia_dtm       = (void*)1,
 			      .rhia_db        = NULL,
-			      .rhia_mdstore   = (void*)1,
-			      .rhia_fol       = &fol);
+			      .rhia_mdstore   = (void*)1);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_start(&reqh);
 	fom_simple_svc_start();

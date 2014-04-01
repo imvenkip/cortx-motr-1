@@ -60,7 +60,6 @@ static const struct m0_reqh_service_ops *mgmt_svc_ops;
 static struct m0_reqh_service_ops mgmt_svc_ut_ops;
 static int mgmt_svc_rso_fop_accept_rc;
 static int mgmt_svc_rso_fop_accept_called;
-static struct m0_fol s_fol;
 
 static int mgmt_svc_ut_rso_fop_accept(struct m0_reqh_service *service,
 				      struct m0_fop *fop)
@@ -126,8 +125,7 @@ static struct m0_reqh *reqh_init()
 	M0_UT_ASSERT(rh != NULL);
 	rc = M0_REQH_INIT(rh,
 			  .rhia_db      = NULL,
-			  .rhia_mdstore = (void *)1,
-			  .rhia_fol     = &s_fol);
+			  .rhia_mdstore = (void *)1);
 	M0_UT_ASSERT(rc == 0);
 	return rh;
 }

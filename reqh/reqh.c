@@ -138,9 +138,6 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 		ergo(M0_IN(reqh->rh_sm.sm_state,(M0_REQH_ST_INIT,
 						 M0_REQH_ST_MGMT_STARTED,
 						 M0_REQH_ST_NORMAL)),
-#ifndef __KERNEL__
-		     reqh->rh_fol != NULL &&
-#endif
 		     reqh->rh_mdstore != NULL) &&
 		     m0_fom_domain_invariant(&reqh->rh_fom_dom);
 }
@@ -153,11 +150,8 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_beseg   = reqh_args->rhia_db;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
-	reqh->rh_fol     = reqh_args->rhia_fol;
 
-	if (reqh->rh_fol != NULL)
-		reqh->rh_fol->f_reqh = reqh;
-
+	m0_fol_init(&reqh->rh_fol);
 	m0_ha_domain_init(&reqh->rh_hadom, M0_HA_EPOCH_NONE);
 
 	m0_addb_mc_init(&reqh->rh_addb_mc);
@@ -204,124 +198,6 @@ monitors_init_failed:
 	return rc;
 }
 
-#ifndef __KERNEL__
-static struct m0_fol *
-fol_alloc(struct m0_be_seg *seg)
-{
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_dtx       tx = {};
-	struct m0_fol      *fol;
-
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, seg->bs_domain, grp);
-	M0_BE_ALLOC_CREDIT_PTR(fol, seg, &tx.tx_betx_cred);
-	m0_dtx_open_sync(&tx);
-	M0_BE_ALLOC_PTR_SYNC(fol, seg, &tx.tx_betx);
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-
-	return fol;
-}
-
-static void
-fol_free(struct m0_fol *fol, struct m0_be_seg *seg)
-{
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_dtx       tx = {};
-
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, seg->bs_domain, grp);
-	M0_BE_FREE_CREDIT_PTR(fol, seg, &tx.tx_betx_cred);
-	m0_dtx_open_sync(&tx);
-	M0_BE_FREE_PTR_SYNC(fol, seg, &tx.tx_betx);
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-}
-
-static int fol_create(struct m0_fol *fol, struct m0_be_seg *seg)
-{
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_dtx       tx = {};
-	int                 rc;
-	void               *p;
-
-	M0_PRE(m0_be_seg_dict_lookup(seg, "fol", &p) != 0);
-
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, seg->bs_domain, grp);
-	m0_fol_credit(fol, M0_FO_CREATE, 1, &tx.tx_betx_cred);
-	m0_be_seg_dict_insert_credit(seg, "fol", &tx.tx_betx_cred);
-	m0_dtx_open_sync(&tx);
-	rc = m0_be_seg_dict_insert(seg, &tx.tx_betx, "fol", fol);
-	M0_ASSERT(rc == 0);
-	M0_BE_OP_SYNC(op, rc = m0_fol_create(fol, &tx.tx_betx, &op));
-
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-
-	return rc;
-}
-
-static void fol_destroy(struct m0_fol *fol, struct m0_be_seg *seg)
-{
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_dtx       tx = {};
-	void               *p;
-
-	M0_PRE(m0_be_seg_dict_lookup(seg, "fol", &p) == 0);
-
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, seg->bs_domain, grp);
-	m0_fol_credit(fol, M0_FO_DESTROY, 1, &tx.tx_betx_cred);
-	m0_be_seg_dict_delete_credit(seg, "fol", &tx.tx_betx_cred);
-	m0_dtx_open_sync(&tx);
-	M0_BE_OP_SYNC(op, m0_fol_destroy(fol, &tx.tx_betx, &op));
-	(void) m0_be_seg_dict_delete(seg, &tx.tx_betx, "fol");
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-}
-
-M0_INTERNAL int m0_reqh_fol_create(struct m0_reqh *reqh,
-				   struct m0_be_seg *seg)
-{
-	int rc;
-
-	M0_ENTRY("reqh=%p", reqh);
-
-	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
-	if (rc == 0)
-		return M0_RC(-EEXIST);
-
-	reqh->rh_fol = fol_alloc(seg);
-	if (reqh->rh_fol == NULL)
-		return M0_RC(-ENOMEM);
-
-	m0_fol_init(reqh->rh_fol, seg);
-	rc = fol_create(reqh->rh_fol, seg);
-	if (rc != 0) {
-		fol_free(reqh->rh_fol, seg);
-		reqh->rh_fol = NULL;
-	}
-
-	return M0_RC(rc);
-}
-
-M0_INTERNAL void m0_reqh_fol_destroy(struct m0_reqh *reqh)
-{
-	M0_PRE(reqh->rh_beseg != NULL);
-	M0_PRE(reqh->rh_fol   != NULL);
-
-	fol_destroy(reqh->rh_fol, reqh->rh_beseg);
-	m0_fol_fini(reqh->rh_fol);
-	fol_free(reqh->rh_fol, reqh->rh_beseg);
-	reqh->rh_fol = NULL;
-}
-#endif
-
 M0_INTERNAL int
 m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 {
@@ -340,14 +216,6 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 		}
 	}
 
-#ifndef __KERNEL__
-	rc = m0_be_seg_dict_lookup(seg, "fol", (void**)&reqh->rh_fol);
-	if (rc != 0)
-		return M0_ERR(rc, "fol not found in BE");
-	m0_fol_init(reqh->rh_fol, seg);
-	reqh->rh_fol->f_reqh = reqh;
-#endif
-
 	reqh->rh_beseg = seg;
 	M0_POST(m0_reqh_invariant(reqh));
 
@@ -357,12 +225,6 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
 {
 	if (reqh->rh_beseg != NULL) {
-#ifndef __KERNEL__
-		if (reqh->rh_fol != NULL) {
-			m0_fol_fini(reqh->rh_fol);
-			reqh->rh_fol = NULL;
-		}
-#endif
 		if (reqh->rh_dbenv != NULL) {
 			m0_layout_standard_types_unregister(&reqh->rh_ldom);
 			m0_layout_domain_fini(&reqh->rh_ldom);
@@ -390,6 +252,7 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_chan_fini_lock(&reqh->rh_sd_signal); /* deprecated */
 	m0_mutex_fini(&reqh->rh_mutex); /* deprecated */
 	m0_ha_domain_fini(&reqh->rh_hadom);
+	m0_fol_fini(&reqh->rh_fol);
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)

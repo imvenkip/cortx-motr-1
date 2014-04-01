@@ -59,8 +59,7 @@ static int rpc_mc_ut_init(void)
 	rc = M0_REQH_INIT(&reqh,
 			  .rhia_dtm       = NULL,
 			  .rhia_db        = NULL,
-			  .rhia_mdstore   = NULL,
-			  .rhia_fol       = NULL);
+			  .rhia_mdstore   = NULL);
 	return rc;
 }
 
