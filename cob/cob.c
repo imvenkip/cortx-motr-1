@@ -94,7 +94,6 @@ const struct m0_fid M0_COB_SLASH_FID = {
 	.f_key       = 2ULL
 };
 
-
 const char M0_COB_ROOT_NAME[] = "ROOT";
 
 struct m0_addb_ctx m0_cob_mod_ctx;
@@ -767,7 +766,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
 	m0_cob_put(cob);
-
 	if (rc == -EEXIST)
 		rc = 0;
 	if (rc != 0) {
@@ -775,7 +773,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 		m0_free(fabrec);
 		return rc;
 	}
-
 	return 0;
 }
 
