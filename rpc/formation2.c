@@ -356,7 +356,7 @@ frm_which_qtype(struct m0_rpc_frm *frm, const struct m0_rpc_item *item)
 
 	M0_LOG(M0_DEBUG,
 	       "deadline: "TIME_F" deadline_passed: %s",
-	       TIME_P(&item->ri_deadline),
+	       TIME_P(item->ri_deadline),
 	       m0_bool_to_str(deadline_passed));
 
 	qtype = deadline_passed ? FRMQ_URGENT : FRMQ_WAITING;

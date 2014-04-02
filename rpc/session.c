@@ -299,7 +299,7 @@ M0_INTERNAL int m0_rpc_session_timedwait(struct m0_rpc_session *session,
 	int                    rc;
 
 	M0_ENTRY("session: %p, abs_timeout: "TIME_F, session,
-		 TIME_P(&abs_timeout));
+		 TIME_P(abs_timeout));
 
 	m0_rpc_machine_lock(machine);
 	M0_ASSERT(m0_rpc_session_invariant(session));

@@ -455,7 +455,7 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
 	int rc;
 
 	M0_ENTRY("conn: %p, abs_timeout: "TIME_F, conn,
-		 TIME_P(&timeout));
+		 TIME_P(timeout));
 	M0_PRE(conn != NULL && conn->c_rpc_machine != NULL);
 
 	m0_rpc_machine_lock(conn->c_rpc_machine);
