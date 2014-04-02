@@ -1085,7 +1085,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	}
 
 	cc.fco_stobid = stobid;
-	cc.fco_gfid   = M0_COB_SLASH_FID;
+	cc.fco_gfid   = M0_MDSERVICE_SLASH_FID;
 	cc.fco_cfid   = rwfop->crw_gfid;
 	cc.fco_cob_idx = (uint32_t) rwfop->crw_gfid.f_key;
 

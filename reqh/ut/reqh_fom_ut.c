@@ -244,7 +244,7 @@ static int server_init(const char             *stob_path,
 	/* Create root session cob and other structures */
 	m0_cob_tx_credit(&srv_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_cob_domain_mkfs(&srv_mdstore.md_dom, &M0_COB_SLASH_FID, &tx);
+	rc = m0_cob_domain_mkfs(&srv_mdstore.md_dom, &M0_MDSERVICE_SLASH_FID, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 

@@ -392,7 +392,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	do {
 		rc = __fid_next(it, &fid_next);
 	} while (rc == 0 && (m0_fid_eq(&fid_next, &M0_COB_ROOT_FID)     ||
-			     m0_fid_eq(&fid_next, &M0_COB_SLASH_FID)));
+			     m0_fid_eq(&fid_next, &M0_MDSERVICE_SLASH_FID)));
 
 	if (rc == -ENOENT)
 		return M0_RC(-ENODATA);

@@ -1134,7 +1134,7 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
 
 	rc = m0_dtx_open_sync(&tx);
 	if (rc == 0) {
-		rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID, &tx.tx_betx);
+		rc = m0_cob_domain_mkfs(dom, &M0_MDSERVICE_SLASH_FID, &tx.tx_betx);
 		if (rc != 0)
 			m0_cob_domain_destroy(dom, grp);
 		m0_dtx_done_sync(&tx);

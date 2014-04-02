@@ -553,7 +553,7 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 		m0_cob_tx_credit(cdom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
 		rc = m0_dtx_open_sync(&tx);
 		if (rc == 0) {
-			rc = m0_cob_domain_mkfs(cdom, &M0_COB_SLASH_FID,
+			rc = m0_cob_domain_mkfs(cdom, &M0_MDSERVICE_SLASH_FID,
 						&tx.tx_betx);
 			m0_dtx_done_sync(&tx);
 		}

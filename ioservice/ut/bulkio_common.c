@@ -125,7 +125,7 @@ void bulkio_server_stop(struct m0_rpc_server_ctx *sctx)
 static void io_fids_init(struct bulkio_params *bp)
 {
 	int i;
-	struct m0_fid gfid = M0_COB_SLASH_FID;
+	struct m0_fid gfid = M0_MDSERVICE_SLASH_FID;
 
 	M0_ASSERT(bp != NULL);
 	/* Populates fids. */

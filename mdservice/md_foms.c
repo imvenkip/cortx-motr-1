@@ -1314,7 +1314,12 @@ static int m0_md_req_path_get(struct m0_mdstore *mdstore,
 			      struct m0_fid *fid,
 			      struct m0_fop_str *str)
 {
-        /** This was solely used for replicator, which is not needed right now. */
+        /*
+         * This was solely used for replicator, which is not needed right now.
+         * The reason to disable this is that, m0_mdstore_path() tries to init
+         * fid's cob, which is not existing for .mero/fid directories. Later
+         * when we need this path, we will rework it different way.
+         */
 #if 0
 	int rc;
 

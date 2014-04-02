@@ -223,7 +223,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	M0_ASSERT(pfid != NULL);
 
         /* We don't allow create in .mero and .mero/fid directory. */
-        if (m0_fid_eq(pfid, &M0_DOT_MERO_FID) || m0_fid_eq(pfid, &M0_DOT_MERO_FID_FID)) {
+        if (m0_fid_cmp(pfid, &M0_MDSERVICE_SLASH_FID) < 0) {
                 rc = -EOPNOTSUPP;
                 goto out;
         }
@@ -308,7 +308,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	M0_ASSERT(cob != NULL);
 
         /* We don't allow link in .mero and .mero/fid directory. */
-        if (m0_fid_eq(pfid, &M0_DOT_MERO_FID) || m0_fid_eq(pfid, &M0_DOT_MERO_FID_FID)) {
+        if (m0_fid_cmp(pfid, &M0_MDSERVICE_SLASH_FID) < 0) {
                 rc = -EOPNOTSUPP;
                 goto out;
         }
@@ -416,13 +416,13 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 	M0_ASSERT(cob != NULL);
 
         /* We don't allow unlink in .mero and .mero/fid directories. */
-        if (m0_fid_eq(pfid, &M0_DOT_MERO_FID) || m0_fid_eq(pfid, &M0_DOT_MERO_FID_FID)) {
+        if (m0_fid_cmp(pfid, &M0_MDSERVICE_SLASH_FID) < 0) {
                 rc = -EOPNOTSUPP;
                 goto out;
         }
 
         /* We don't allow to kill .mero dir. */
-        if (m0_fid_eq(pfid, &M0_COB_SLASH_FID) &&
+        if (m0_fid_eq(pfid, &M0_MDSERVICE_SLASH_FID) &&
             name->b_nob == strlen(M0_DOT_MERO_NAME) &&
             !strncmp((char *)name->b_addr, M0_DOT_MERO_NAME, (int)name->b_nob)) {
                 rc = -EOPNOTSUPP;
@@ -598,14 +598,10 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 	time(&now);
 
         /* We don't allow rename in/with .mero/fid directories. */
-        if (m0_fid_eq(pfid_tgt, &M0_DOT_MERO_FID) ||
-            m0_fid_eq(pfid_tgt, &M0_DOT_MERO_FID_FID) ||
-            m0_fid_eq(pfid_src, &M0_DOT_MERO_FID) ||
-            m0_fid_eq(pfid_src, &M0_DOT_MERO_FID_FID) ||
-            m0_fid_eq(m0_cob_fid(cob_tgt), &M0_DOT_MERO_FID) ||
-            m0_fid_eq(m0_cob_fid(cob_tgt), &M0_DOT_MERO_FID_FID) ||
-            m0_fid_eq(m0_cob_fid(cob_src), &M0_DOT_MERO_FID) ||
-            m0_fid_eq(m0_cob_fid(cob_src), &M0_DOT_MERO_FID_FID)) {
+        if (m0_fid_cmp(pfid_tgt, &M0_MDSERVICE_SLASH_FID) < 0 ||
+            m0_fid_cmp(pfid_src, &M0_MDSERVICE_SLASH_FID) < 0 ||
+            m0_fid_cmp(m0_cob_fid(cob_tgt), &M0_MDSERVICE_SLASH_FID) < 0 ||
+            m0_fid_cmp(m0_cob_fid(cob_src), &M0_MDSERVICE_SLASH_FID) < 0) {
                 rc = -EOPNOTSUPP;
                 goto out;
         }

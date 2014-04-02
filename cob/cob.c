@@ -78,23 +78,6 @@ struct m0_cob_tables {
 	{ .tree=&dom->cd_fileattr_omg,   .ops=&cob_omg_ops, .prefix="fo" }, \
 	{ .tree=&dom->cd_fileattr_ea,	 .ops=&cob_ea_ops,  .prefix="ea" }, \
 }
-/**
-   Storage virtual root. All cobs are placed in it.
- */
-const struct m0_fid M0_COB_ROOT_FID = {
-	.f_container = 1ULL,
-	.f_key       = 1ULL
-};
-
-/**
-   Metadata hierarchry root fid.
-*/
-const struct m0_fid M0_COB_SLASH_FID = {
-	.f_container = 1ULL,
-	.f_key       = 2ULL
-};
-
-const char M0_COB_ROOT_NAME[] = "ROOT";
 
 struct m0_addb_ctx m0_cob_mod_ctx;
 

@@ -120,7 +120,7 @@ static void test_mkfs(void)
 	ut_tx_open(tx, &accum);
 
 	/* Create root and other structures */
-	rc = m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID, tx);
+	rc = m0_cob_domain_mkfs(&dom, &M0_MDSERVICE_SLASH_FID, tx);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = _locate(1, 2); /* slash */
@@ -395,7 +395,7 @@ static int ub_init(const char *opts M0_UNUSED)
 
 	/* Create root and other structures */
 	rc = m0_db_tx_init(&tx, &db, 0) ?:
-		m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID, &tx);
+		m0_cob_domain_mkfs(&dom, &M0_MDSERVICE_SLASH_FID, &tx);
 	M0_ASSERT(rc == 0);
 	m0_db_tx_commit(&tx);
 

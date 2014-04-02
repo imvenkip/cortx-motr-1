@@ -285,8 +285,8 @@ static int mount_opts_validate(const struct mount_opts *mops)
 		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
 			       "profile");
 
-	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > 5))
-		return M0_ERR(-EINVAL, "fid_start must be greater than 5");
+	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > M0_MDSERVICE_START_FID.f_key - 1))
+		return M0_ERR(-EINVAL, "fid_start must be greater than %llu", M0_MDSERVICE_START_FID.f_key - 1);
 
 	return M0_RC(0);
 }
@@ -304,7 +304,7 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
-	*dest = (struct mount_opts){ .mo_fid_start = 6 /* default value */ };
+	*dest = (struct mount_opts){ .mo_fid_start = M0_MDSERVICE_START_FID.f_key /* default value */ };
 
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
@@ -1432,20 +1432,24 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0t1fs_net_fini(csb);
 }
 
+static void m0t1fs_dput(struct dentry *dentry)
+{
+        dentry->d_inode->i_nlink = 0;
+        d_delete(dentry);
+        dput(dentry);
+}
+
 static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 	M0_ENTRY();
+
         M0_PRE(csb != NULL);
 
 	if (csb->csb_fid_dentry != NULL) {
-                csb->csb_fid_dentry->d_inode->i_nlink = 0;
-                d_delete(csb->csb_fid_dentry);
-                dput(csb->csb_fid_dentry);
+	        m0t1fs_dput(csb->csb_fid_dentry);
                 csb->csb_fid_dentry = NULL;
         }
 	if (csb->csb_mero_dentry != NULL) {
-                csb->csb_mero_dentry->d_inode->i_nlink = 0;
-                d_delete(csb->csb_mero_dentry);
-                dput(csb->csb_mero_dentry);
+	        m0t1fs_dput(csb->csb_mero_dentry);
                 csb->csb_mero_dentry = NULL;
         }
 
@@ -1466,11 +1470,13 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         body->b_atime = body->b_ctime = body->b_mtime = m0_time_seconds(m0_time_now());
         body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
 	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
-	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE);
+	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
+	                 M0_COB_LID);
         body->b_blocks = 16;
         body->b_size = 4096;
         body->b_blksize = 4096;
 	body->b_nlink = 2;
+	body->b_lid = csb->csb_layout_id;
         body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                         S_IRGRP | S_IXGRP |                     /* r-x for group */
                         S_IROTH | S_IXOTH);
