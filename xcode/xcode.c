@@ -409,7 +409,6 @@ M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)
 	return m0_alloc(nob);
 }
 
-
 static void __xcode_free(struct m0_xcode_cursor *it)
 {
 	struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(it);

@@ -111,9 +111,9 @@ static int confx_obj_measure(struct m0_confx_obj *xobj)
  * releasing the memory as part of the db destruction.
  */
 struct confx_allocator {
-	void                *a_chunk;
-	m0_bcount_t          a_total;
-	m0_bcount_t          a_used;
+	void        *a_chunk;
+	m0_bcount_t  a_total;
+	m0_bcount_t  a_used;
 };
 
 /**
@@ -418,8 +418,8 @@ static int __confdb_free(struct m0_be_btree *btree, struct m0_be_seg *seg,
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg,
 				  struct m0_be_tx *tx)
 {
-	struct m0_be_btree        *btree;
-	int                        rc;
+	struct m0_be_btree *btree;
+	int                 rc;
 
 	M0_ENTRY();
 
