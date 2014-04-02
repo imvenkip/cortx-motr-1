@@ -403,14 +403,14 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
 	m0_rec_part_tlink_fini(part);
 
 	if (part->rp_flag == M0_XCODE_DECODE) {
-		M0_XCODE_FREE(&REC_PART_XCODE_OBJ(part), NULL, NULL);
+		m0_xcode_free_obj(&REC_PART_XCODE_OBJ(part));
 		m0_free(part);
 	} else {
 	    if (part->rp_ops->rpo_type == &m0_fop_fol_rec_part_type) {
 		m0_free(part->rp_data);
 		m0_free(part);
 	    } else
-		M0_XCODE_FREE(&REC_PART_XCODE_OBJ(part), NULL, NULL);
+		m0_xcode_free_obj(&REC_PART_XCODE_OBJ(part));
 	}
 }
 

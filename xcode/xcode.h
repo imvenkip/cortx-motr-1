@@ -658,15 +658,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
 M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
 			       char *str, int nr);
 
-#define M0_XCODE_FREE(obj, alloc, free)   \
-do {                                      \
-	struct m0_xcode_ctx __ctx;        \
-	m0_xcode_ctx_init(&__ctx, (obj)); \
-	__ctx.xcx_alloc = (alloc);        \
-	__ctx.xcx_free  = (free);         \
-	m0_xcode_free(&__ctx);            \
-} while (0)
-
+M0_INTERNAL void m0_xcode_free_obj(struct m0_xcode_obj *obj);
 M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx);
 M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1);

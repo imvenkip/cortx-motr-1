@@ -240,6 +240,15 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
 	return 0;
 }
 
+M0_INTERNAL void m0_xcode_free_obj(struct m0_xcode_obj *obj)
+{
+	struct m0_xcode_ctx ctx;
+
+	M0_SET0(&ctx);
+	m0_xcode_ctx_init(&ctx, (obj));
+	m0_xcode_free(&ctx);
+}
+
 /**
    Common xcoding function, implementing encoding, decoding and sizing.
  */

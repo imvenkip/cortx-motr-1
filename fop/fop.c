@@ -130,7 +130,7 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 
 	m0_rpc_item_fini(&fop->f_item);
 	if (fop->f_data.fd_data != NULL)
-		M0_XCODE_FREE(&M0_FOP_XCODE_OBJ(fop), NULL, NULL);
+		m0_xcode_free_obj(&M0_FOP_XCODE_OBJ(fop));
 	M0_LEAVE();
 }
 
