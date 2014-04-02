@@ -87,12 +87,14 @@
       Client allocates fid for a file during its creation. It assigns
       <0, $fid_start> for first file, <0, $fid_start+1> for second
       and so on.
-      mdstore uses constant fid - M0_MDSERVICE_SLASH_FID <1, 1> - for root.
-      Couple more are reserved for sessions and other things.
+      mdstore uses constant fid - M0_MDSERVICE_SLASH_FID <1, 65535>
+      for namespace root exposed to user.
 
-      One more - for .mero dir <1, 4> and one more for .mero/fid dir <1, 5>
-      Hence fid_start must be greater than 5. See M0_DOT_MERO_FID and
-      M0_DOT_MERO_FID_FID
+      Fids below 65535 are reserved for special objects such as: storage root,
+      ".mero", ".mero/fid" and potentially many others that will live in ".mero"
+      directory.
+
+      Hence fid_start must be greater than 65535.
 
    'device' argument of mount command is ignored.
 
