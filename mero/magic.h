@@ -264,9 +264,6 @@ enum m0_magic_satchel {
 	/* cs_reqh_context::rc_magix (cooled coffee) */
 	M0_CS_REQH_CTX_MAGIC = 0x33c001edc0ffee77,
 
-	/* rhctx_tl::td_head_magix (abdicable ace) */
-	M0_CS_REQH_CTX_HEAD_MAGIC = 0x33abd1cab1eace77,
-
 	/* cs_endpoint_and_xprt::ex_magix (adios alibaba) */
 	M0_CS_ENDPOINT_AND_XPRT_MAGIC = 0x33ad105a11baba77,
 

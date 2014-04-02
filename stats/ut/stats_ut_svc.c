@@ -32,7 +32,7 @@ struct m0_cond  ut_stats_cond;
 struct m0_rpc_server_ctx stats_ut_sctx_bk;
 
 static char *stats_ut_server_argv[] = {
-        "rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_NAME,
+        "rpclib_ut", "-p", "-T", "AD", "-D", SERVER_DB_NAME,
         "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
         "-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
 };
@@ -138,9 +138,7 @@ static void stats_ut_svc_start_stop()
 
 	start_rpc_client_and_server();
 
-	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
 	stats_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
 	M0_UT_ASSERT(stats_srv != NULL);
 	M0_UT_ASSERT(m0_reqh_service_state_get(stats_srv) == M0_RST_STARTED);
@@ -274,9 +272,7 @@ static void stats_ut_svc_update_fom()
 
 	start_rpc_client_and_server();
 
-	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);
 	M0_UT_ASSERT(m0_reqh_service_state_get(reqh_srv) == M0_RST_STARTED);
@@ -420,9 +416,7 @@ static void stats_ut_svc_query_fom()
 
 	start_rpc_client_and_server();
 
-	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);
 	M0_UT_ASSERT(m0_reqh_service_state_get(reqh_srv) == M0_RST_STARTED);
@@ -493,25 +487,23 @@ static void check_stats_recs(struct m0_stats_recs *recs, int num)
 
 static void stats_svc_query_api()
 {
-	struct m0_reqh	       *reqh;
-	struct m0_reqh_service *reqh_srv;
-	struct stats_svc       *srv;
+	struct m0_reqh            *reqh;
+	struct m0_reqh_service    *reqh_srv;
+	struct stats_svc          *srv;
 	struct m0_addb_uint64_seq *ids;
 	struct m0_stats_recs      *stats_recs = NULL;
-	int                       rc;
+	int                        rc;
 
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv             = stats_ut_server_argv,
-        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
-        sctx.rsx_service_types    = stats_ut_default_stypes,
-        sctx.rsx_service_types_nr = 1,
+	sctx.rsx_argv             = stats_ut_server_argv;
+	sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv);
+	sctx.rsx_service_types    = stats_ut_default_stypes;
+	sctx.rsx_service_types_nr = 1;
 
 	start_rpc_client_and_server();
 
-	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);
 	M0_UT_ASSERT(m0_reqh_service_state_get(reqh_srv) == M0_RST_STARTED);

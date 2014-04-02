@@ -87,7 +87,7 @@
    Define parameters for mero setup and setup environment as below,
 
    @code
-   static char *cmd[] = { "m0d", "-r", "-T", "AD",
+   static char *cmd[] = { "m0d", "-T", "AD",
                    "-D", "cs_db", "-S", "cs_stob",
                    "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                    "-s", "dummy"};
@@ -114,12 +114,12 @@
 
     Similarly, to setup mero externally, using m0d program along
     with parameters specified as above.
-    e.g. ./mero -r -T linux -D dbpath -S stobfile \
+    e.g. ./m0d -T linux -D dbpath -S stobfile \
            -e xport:172.18.50.40@o2ib1:12345:34:1 -s service
 
     Below image gives an overview of entire mero context.
     @note This image is borrowed from the "New developer guide for mero"
-          document in section "Starting Mero services".
+	  document in section "Starting Mero services".
 
     @image html "../../mero/DS-Reqh.gif"
 
@@ -127,20 +127,20 @@
  */
 
 enum {
-	M0_SETUP_DEFAULT_POOL_WIDTH = 10,
+	M0_SETUP_DEFAULT_POOL_WIDTH = 10
 };
 
 enum {
 	M0_AD_STOB_ID_DEFAULT = 0x0,
 	M0_AD_STOB_ID_LO      = 0xadf11e, /* AD file */
 	M0_ADDB_STOB_ID_HI    = M0_AD_STOB_ID_DEFAULT,
-	M0_ADDB_STOB_ID_LI    = 1,
+	M0_ADDB_STOB_ID_LI    = 1
 };
 
 enum stob_type {
-	M0_LINUX_STOB = 0,
+	M0_LINUX_STOB,
 	M0_AD_STOB,
-	M0_STOB_TYPE_NR,
+	M0_STOB_TYPE_NR
 };
 
 /** String representations corresponding to the stob types. */
@@ -188,112 +188,14 @@ struct cs_endpoint_and_xprt {
 };
 
 /**
-   Defines a mero context containing a set of network transports,
-   network domains and request handler contexts.
-
-   Every request handler context is a set of parsed values of setup arguments
-   and corresponding in-memory representations of storage, database environment,
-   cob domain, fol, network domains, services and request handler.
- */
-struct m0_mero {
-	/** Protects access to m0_mero members. */
-	struct m0_rwlock            cc_rwlock;
-
-	/**
-	   Array of network transports supported in a mero context.
-	 */
-	struct m0_net_xprt        **cc_xprts;
-
-	/**
-	   Size of cc_xprts array.
-	 */
-	size_t                      cc_xprts_nr;
-
-        /**
-           List of network domain per mero context.
-
-	   @see m0_net_domain::nd_app_linkage
-         */
-        struct m0_tl                cc_ndoms;
-
-        /**
-           List of request handler contexts running under one mero context
-	   on a node.
-
-	   @see m0_reqh_context::rc_linkage
-         */
-	struct m0_tl                cc_reqh_ctxs;
-
-	/**
-	   File to which the output is written.
-	   This is set to stdout by default if no output file
-	   is specified.
-	   Default is set to stdout.
-	   @see m0_cs_init()
-	 */
-	FILE                       *cc_outfile;
-	/**
-	 * List of buffer pools in mero context.
-	 * @see cs_buffer_pool::cs_bp_linkage
-	 */
-	struct m0_tl                cc_buffer_pools;
-
-	/**
-	 * Minimum number of buffers in TM receive queue.
-	 * @see m0_net_transfer_mc:ntm_recv_queue_length
-	 * Default is set to M0_NET_TM_RECV_QUEUE_DEF_LEN.
-	 */
-	size_t                      cc_recv_queue_min_length;
-
-	/** Maximum RPC message size. */
-	size_t                      cc_max_rpc_msg_size;
-
-	/** Segment size for any ADDB stob. */
-	size_t                      cc_addb_stob_segment_size;
-
-	/** mdservice endpoint */
-	struct cs_endpoint_and_xprt cc_mds_epx;
-
-	/** stats service endpoint */
-	struct cs_endpoint_and_xprt cc_stats_svc_epx;
-
-	/** list of ioservice end points */
-	struct m0_tl                cc_ios_eps;
-
-	/** Pool width */
-	uint32_t                    cc_pool_width;
-
-	/** Run as a daemon */
-	bool                        cc_daemon;
-
-	/** command line arguments */
-	struct cs_args		    cc_args;
-};
-
-enum {
-	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + M0_NET_LNET_XEP_ADDR_LEN */
-};
-M0_BASSERT(CS_MAX_EP_ADDR_LEN >= M0_NET_LNET_XEP_ADDR_LEN);
-
-/**
  * Represent devices configuration file in form of yaml document.
  * @note This is temporary implementation in-order to configure device as
  *       a stob. This may change when confc implementation lands into master.
+ * @todo XXX FIXME: confc has landed ages ago.
  */
 struct cs_stob_file {
-	bool              sf_is_initialised;
-	yaml_document_t   sf_document;
-};
-
-struct cs_ad_stob {
-	/** Allocation data storage domain.*/
-	struct m0_stob_domain *as_dom;
-	/** Back end storage object id, i.e. ad */
-	struct m0_stob_id      as_id_back;
-	/** Back end storage object. */
-	struct m0_stob        *as_stob_back;
-	uint64_t               as_magix;
-	struct m0_tlink        as_linkage;
+	bool            sf_is_initialised;
+	yaml_document_t sf_document;
 };
 
 /**
@@ -305,30 +207,10 @@ struct cs_stobs {
 	enum stob_type         s_stype;
 	/** Linux storage domain. */
 	struct m0_stob_domain *s_ldom;
+	/** Devices configuration. */
 	struct cs_stob_file    s_sfile;
 	/** List of AD stobs */
 	struct m0_tl           s_adstobs;
-};
-
-/**
-   Represents state of a request handler context.
- */
-enum cs_reqh_ctx_states {
-	/**
-	   A request handler context is in RC_UNINTIALISED state when it is
-	   allocated and added to the list of the same in struct m0_mero.
-
-	   @see m0_mero::cc_reqh_ctxs
-	 */
-	RC_UNINITIALISED,
-	/**
-	   A request handler context is in RC_INITIALISED state once the
-	   request handler (embedded inside the context) is successfully
-	   initialised.
-
-	   @see m0_reqh_context::rc_reqh
-	 */
-	RC_INITIALISED
 };
 
 /**
@@ -338,8 +220,14 @@ enum cs_reqh_ctx_states {
  */
 struct cs_addb_stob {
 	/** ADDB Storage domain for a request handler ADDB machine */
-	struct cs_stobs  cas_stobs;
-	struct m0_stob  *cas_stob;
+	struct cs_stobs cas_stobs;
+	struct m0_stob *cas_stob;
+};
+
+/** States of m0_mero::cc_reqh_ctx. */
+enum cs_reqh_ctx_states {
+	RC_UNINITIALISED,
+	RC_INITIALISED
 };
 
 /**
@@ -394,6 +282,7 @@ struct m0_reqh_context {
 
 	/** ADDB specific stob information */
 	struct cs_addb_stob          rc_addb_stob;
+
 	/** Database used by the request handler */
 	struct m0_dbenv              rc_db;
 	struct m0_be_seg            *rc_beseg;
@@ -415,9 +304,6 @@ struct m0_reqh_context {
 	/** Reqh context magic */
 	uint64_t                     rc_magix;
 
-	/** Linkage into reqh context list */
-	struct m0_tlink              rc_linkage;
-
 	/** Backlink to struct m0_mero. */
 	struct m0_mero              *rc_mero;
 
@@ -434,6 +320,90 @@ struct m0_reqh_context {
 	 * m0_net_domain_get_max_buffer_size() is used.
 	 */
 	uint32_t                     rc_max_rpc_msg_size;
+};
+
+/**
+   Defines "Mero context" structure, which contains information on
+   network transports, network domains and a request handler.
+ */
+struct m0_mero {
+	/** Protects access to m0_mero members. */
+	struct m0_rwlock            cc_rwlock;
+
+	struct m0_reqh_context      cc_reqh_ctx;
+
+	/** Array of network transports supported in a mero context. */
+	struct m0_net_xprt        **cc_xprts;
+
+	/** Size of cc_xprts array. */
+	size_t                      cc_xprts_nr;
+
+	/**
+	   List of network domain per mero context.
+
+	   @see m0_net_domain::nd_app_linkage
+	 */
+	struct m0_tl                cc_ndoms;
+
+	/**
+	   File to which the output is written.
+	   This is set to stdout by default if no output file
+	   is specified.
+	   Default is set to stdout.
+	   @see m0_cs_init()
+	 */
+	FILE                       *cc_outfile;
+
+	/**
+	 * List of buffer pools in mero context.
+	 * @see cs_buffer_pool::cs_bp_linkage
+	 */
+	struct m0_tl                cc_buffer_pools;
+
+	/**
+	 * Minimum number of buffers in TM receive queue.
+	 * @see m0_net_transfer_mc:ntm_recv_queue_length
+	 * Default is set to M0_NET_TM_RECV_QUEUE_DEF_LEN.
+	 */
+	size_t                      cc_recv_queue_min_length;
+
+	size_t                      cc_max_rpc_msg_size;
+
+	/** Segment size for any ADDB stob. */
+	size_t                      cc_addb_stob_segment_size;
+
+	/** "mdservice" endpoint. */
+	struct cs_endpoint_and_xprt cc_mds_epx;
+
+	/** "stats" service endpoint. */
+	struct cs_endpoint_and_xprt cc_stats_svc_epx;
+
+	/** List of ioservice end points. */
+	struct m0_tl                cc_ios_eps;
+
+	uint32_t                    cc_pool_width;
+
+	/** Run as a daemon? */
+	bool                        cc_daemon;
+
+	/** Command line arguments. */
+	struct cs_args		    cc_args;
+};
+
+enum {
+	CS_MAX_EP_ADDR_LEN = 86 /* "lnet:" + M0_NET_LNET_XEP_ADDR_LEN */
+};
+M0_BASSERT(CS_MAX_EP_ADDR_LEN >= sizeof "lnet:" + M0_NET_LNET_XEP_ADDR_LEN);
+
+struct cs_ad_stob {
+	/** Allocation data storage domain.*/
+	struct m0_stob_domain *as_dom;
+	/** Back end storage object id, i.e. ad */
+	struct m0_stob_id      as_id_back;
+	/** Back end storage object. */
+	struct m0_stob        *as_stob_back;
+	uint64_t               as_magix;
+	struct m0_tlink        as_linkage;
 };
 
 /**
@@ -479,16 +449,11 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
 					const struct m0_stob_id *stob_id);
 
 /**
-   Find a request handler service within a given Mero instance.
-
-   @param cctx Pointer to Mero context
-   @param service_name Name of the service
-
-   @pre cctx != NULL && service_name != NULL
-
-   @retval  NULL of reqh instnace.
+ * Accesses the request handler.
+ *
+ * @note Returned pointer is never NULL.
  */
-struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx, const char *service_name);
+struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx);
 
 /**
  * Returns instance of struct m0_mero given a

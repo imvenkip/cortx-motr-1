@@ -26,6 +26,7 @@
 #include "ut/cs_service.h"  /* ds1_service_type */
 #include "net/lnet/lnet.h"
 #include "file/file.h"
+#include "lib/string.h"     /* m0_strdup */
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"
@@ -36,125 +37,86 @@
     single buffer is supported.
  */
 
-enum {
-	STRING_LEN		 = 16,
-};
-
-/* Global reference to bulkio_params structure. */
-static struct bulkio_params *bparm;
-
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 
 extern struct m0_reqh_service_type m0_ioservice_type;
 
 #ifndef __KERNEL__
+static char **server_argv_alloc(const char *server_ep_addr, int *argc)
+{
+	enum { STRLEN = 16 };
+	int         n;
+	char      **ret;
+	char        ep[IO_ADDR_LEN];
+	char        tm_len[STRLEN];
+	char        rpc_size[STRLEN];
+	const char *argv[] = {
+		"bulkio_st", "-p", "-T", "AD", "-D", S_DBFILE,
+		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
+		"-s", "ioservice", "-s", "sns_repair", "-q", tm_len,
+		"-m", rpc_size, "-w", "10", "-G", ep
+	};
+
+	n = snprintf(ep, sizeof ep, "lnet:%s", server_ep_addr);
+	M0_ASSERT(n < sizeof ep);
+
+	n = snprintf(tm_len, sizeof tm_len, "%d", M0_NET_TM_RECV_QUEUE_DEF_LEN);
+	M0_ASSERT(n < sizeof tm_len);
+
+	n = snprintf(rpc_size, sizeof rpc_size, "%d",
+		     M0_RPC_DEF_MAX_RPC_MSG_SIZE);
+	M0_ASSERT(n < sizeof rpc_size);
+
+	M0_ALLOC_ARR(ret, ARRAY_SIZE(argv));
+	M0_ASSERT(ret != NULL);
+
+	for (n = 0; n < ARRAY_SIZE(argv); ++n) {
+		ret[n] = m0_strdup(argv[n]);
+		M0_ASSERT(ret[n] != NULL);
+	}
+	*argc = ARRAY_SIZE(argv);
+	return ret;
+}
+
 int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 {
-	int			      i;
-	int			      rc                = 0;
-	char			    **server_args;
-	const char		      xprt[IO_ADDR_LEN] = "lnet:";
-	struct m0_rpc_server_ctx     *sctx;
 	struct m0_reqh_service_type **stypes;
-	static char		      tm_len[STRING_LEN];
-	static char		      rpc_size[STRING_LEN];
+	int                           argc;
 
-	M0_ASSERT(saddr != NULL);
-
-	M0_ALLOC_ARR(server_args, IO_SERVER_ARGC);
-	M0_ASSERT(server_args != NULL);
-	if (server_args == NULL)
-		return -ENOMEM;
-
-	for (i = 0; i < IO_SERVER_ARGC; ++i) {
-		M0_ALLOC_ARR(server_args[i], M0_NET_LNET_XEP_ADDR_LEN);
-		M0_ASSERT(server_args[i] != NULL);
-		if (server_args[i] == NULL) {
-			rc = -ENOMEM;
-			break;
-		}
-	}
-
-	if (rc != 0) {
-		for (i = 0; i < IO_SERVER_ARGC; ++i)
-			m0_free(server_args[i]);
-		m0_free(server_args);
-		return -ENOMEM;
-	}
-
-	sprintf(tm_len, "%d", M0_NET_TM_RECV_QUEUE_DEF_LEN);
-	sprintf(rpc_size, "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
-	/* Copy all server arguments to server_args list. */
-	strcpy(server_args[0], "bulkio_st");
-	strcpy(server_args[1], "-r");
-	strcpy(server_args[2], "-p");
-	strcpy(server_args[3], "-T");
-	strcpy(server_args[4], "AD");
-	strcpy(server_args[5], "-D");
-	strcpy(server_args[6], S_DBFILE);
-	strcpy(server_args[7], "-S");
-	strcpy(server_args[8], S_STOBFILE);
-	strcpy(server_args[9], "-A");
-	strcpy(server_args[10], S_ADDB_STOBFILE);
-	strcpy(server_args[11], "-e");
-	strcat(server_args[12], xprt);
-	strcat(server_args[12], saddr);
-	strcpy(server_args[13], "-s");
-	strcpy(server_args[14], "ioservice");
-	/*
-	 * sns_cm service needs to be started in order to serve the API
-	 * m0_sns_cm_fid_repair_done().
-	 */
-	strcpy(server_args[15], "-s");
-	strcpy(server_args[16], "sns_repair");
-	strcpy(server_args[17], "-q");
-	strcpy(server_args[18], tm_len);
-	strcpy(server_args[19], "-m");
-	strcpy(server_args[20], rpc_size);
-	strcpy(server_args[21], "-w");
-	strcpy(server_args[22], "10");
-	strcpy(server_args[23], "-G");
-	strcat(server_args[24], xprt);
-	strcat(server_args[24], saddr);
+	M0_PRE(saddr != NULL && *saddr != '\0');
 
 	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	M0_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
 
-	M0_ALLOC_PTR(sctx);
-	M0_ASSERT(sctx != NULL);
-
-	sctx->rsx_xprts_nr = IO_XPRT_NR;
-	sctx->rsx_argv = server_args;
-	sctx->rsx_argc = IO_SERVER_ARGC;
-	sctx->rsx_service_types = stypes;
-	sctx->rsx_service_types_nr = IO_SERVER_SERVICE_NR;
-
-	M0_ALLOC_ARR(bp->bp_slogfile, IO_STR_LEN);
+	bp->bp_slogfile = m0_strdup(IO_SERVER_LOGFILE);
 	M0_ASSERT(bp->bp_slogfile != NULL);
-	strcpy(bp->bp_slogfile, IO_SERVER_LOGFILE);
-	sctx->rsx_log_file_name = bp->bp_slogfile;
-	sctx->rsx_xprts = &bp->bp_xprt;
 
-	rc = m0_rpc_server_start(sctx);
-	M0_ASSERT(rc == 0);
+	M0_ALLOC_PTR(bp->bp_sctx);
+	M0_ASSERT(bp->bp_sctx != NULL);
+	*bp->bp_sctx = (struct m0_rpc_server_ctx){
+		.rsx_xprts_nr         = IO_XPRT_NR,
+		.rsx_argv             = server_argv_alloc(saddr, &argc),
+		.rsx_argc             = argc,
+		.rsx_service_types    = stypes,
+		.rsx_service_types_nr = IO_SERVER_SERVICE_NR,
+		.rsx_xprts            = &bp->bp_xprt,
+		.rsx_log_file_name    = bp->bp_slogfile
+	};
 
-	bp->bp_sctx = sctx;
-	bparm = bp;
-	return rc;
+	return m0_rpc_server_start(bp->bp_sctx);
 }
 
 void bulkio_server_stop(struct m0_rpc_server_ctx *sctx)
 {
 	int i;
 
-	M0_ASSERT(sctx != NULL);
-
 	m0_rpc_server_stop(sctx);
-	for (i = 0; i < IO_SERVER_ARGC; ++i)
-		m0_free(sctx->rsx_argv[i]);
 
+	for (i = 0; i < sctx->rsx_argc; ++i)
+		m0_free(sctx->rsx_argv[i]);
 	m0_free(sctx->rsx_argv);
+
 	m0_free(sctx->rsx_service_types);
 	m0_free(sctx);
 }

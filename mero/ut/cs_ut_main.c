@@ -18,7 +18,7 @@
  * Original creation date: 12/10/2011
  */
 
-#include "ut/ut.h"    /* M0_UT_ASSERT */
+#include "ut/ut.h"     /* M0_UT_ASSERT */
 #include "lib/misc.h"  /* M0_SET_ARR0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -48,20 +48,14 @@ struct cl_ctx {
 };
 
 /* Configures mero environment with given parameters. */
-static char *cs_ut_service_one_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+static char *cs_ut_service_one_cmd[] = { "m0d", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
                                 "-s", "ds1"};
 
-static char *cs_ut_missing_pool[] = { "m0d", "-r", "-p", "-T", "linux",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "ds1"};
-
-static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_services_many_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
@@ -69,25 +63,13 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
-static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
-                                "-D", "cs_r1sdb", "-S", "cs_r1stob",
-                                "-A", "cs_r1addb_stob",
-				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "ds1",
-                                "-r", "-p", "-T", "AD",
-                                "-D", "cs_r2sdb", "-S", "cs_r2stob",
-                                "-A", "cs_r2addb_stob",
-                                "-e", "bulk-mem:127.0.0.1:35678",
-                                "-s" "ds2"};
-
-static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-r", "-p", "-D",
+static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-p", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob", "-A", "cs_addb_stob"};
 
-static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_dev_stob_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
@@ -95,60 +77,53 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_reqh_none_cmd[] = { "m0d", "-T", "AD",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
-				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-s", "ds1"};
-
-static char *cs_ut_stype_bad_cmd[] = { "m0d", "-r", "-p", "-T", "asdadd",
+static char *cs_ut_stype_bad_cmd[] = { "m0d", "-p", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-r", "-p","-T", "AD",
+static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-p","-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
 				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
                                 "-s", "ds1"};
 
-static char *cs_ut_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_ep_bad_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
-static char *cs_ut_service_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_service_bad_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                                 "-s", "dasdadasd"};
 
-static char *cs_ut_args_bad_cmd[] = { "m0d", "-r", "-p", "-D", "cs_sdb",
+static char *cs_ut_args_bad_cmd[] = { "m0d", "-p", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-A", "cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
-static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096"};
 
-static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+static char *cs_ut_lnet_cmd[] = { "m0d", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-p", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
@@ -156,18 +131,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
-				"-w", "10",
-                                "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
-                                "-s", "ds1", "-r", "-p", "-T", "AD",
-                                "-D", "cs_sdb2", "-S", "cs_stob2",
-                                "-A", "cs_addb_stob2",
-                                "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
-                                "-s", "ds1"};
-
-static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
@@ -177,7 +141,7 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
@@ -185,24 +149,16 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
-static const char *cdbnames[] = {
-				"cdb1",
-				"cdb2"};
-
-static const char *cl_ep_addrs[] = {
-					"0@lo:12345:34:2",
-					"127.0.0.1:34569"};
-
-static const char *srv_ep_addrs[] = {
-					"0@lo:12345:34:1",
-					"127.0.0.1:35678"};
+static const char *cdbnames[] = { "cdb1", "cdb2" };
+static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
+static const char *srv_ep_addrs[] = { "0@lo:12345:34:1", "127.0.0.1:35678" };
 
 /*
   Transports used in mero a context.
@@ -212,11 +168,9 @@ static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_bulk_mem_xprt
 };
 
-enum {
-	MAX_RPCS_IN_FLIGHT = 10,
-};
+enum { MAX_RPCS_IN_FLIGHT = 10 };
 
-#define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
+#define SERVER_LOG_FILE_NAME "cs_ut.errlog"
 
 static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 			     const char *srv_ep_addr, const char* dbname,
@@ -226,7 +180,7 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	struct m0_rpc_client_ctx *cl_ctx;
 
 	M0_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
-		dbname != NULL && xprt != NULL);
+	       dbname != NULL && xprt != NULL);
 
 	rc = m0_net_domain_init(&cctx->cl_ndom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
@@ -248,17 +202,13 @@ static void cs_ut_client_fini(struct cl_ctx *cctx)
 {
 	int rc;
 
-	M0_PRE(cctx != NULL);
-
 	rc = m0_rpc_client_stop(&cctx->cl_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_net_domain_fini(&cctx->cl_ndom);
 }
 
-/*
-  Sends fops to server.
- */
+/** Sends fops to server. */
 int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 {
 	int                      rc;
@@ -366,18 +316,11 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 
 static void test_cs_ut_service_one(void)
 {
-	struct cl_ctx  cctx[1] = { };
+	struct cl_ctx cctx[1] = {};
 
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_service_one_cmd,
 				  ARRAY_SIZE(cs_ut_service_one_cmd));
 }
-
-static void test_cs_ut_missing_pool_width(void)
-{
-	cs_ut_test_helper_failure(cs_ut_missing_pool,
-				  ARRAY_SIZE(cs_ut_missing_pool));
-}
-
 
 static void dev_conf_file_create(void)
 {
@@ -398,7 +341,7 @@ static void dev_conf_file_create(void)
 
 static void test_cs_ut_dev_stob(void)
 {
-	struct cl_ctx  cctx[1] = { };
+	struct cl_ctx cctx[1] = {};
 
 	dev_conf_file_create();
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_dev_stob_cmd,
@@ -407,33 +350,23 @@ static void test_cs_ut_dev_stob(void)
 
 static void test_cs_ut_services_many(void)
 {
-	struct cl_ctx  cctx[2] = { };
+	struct cl_ctx cctx[2] = {};
 
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
 				  cs_ut_services_many_cmd,
 				  ARRAY_SIZE(cs_ut_services_many_cmd));
 }
 
-static void test_cs_ut_reqhs_many(void)
-{
-	struct cl_ctx  cctx[2] = { };
-
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_reqhs_many_cmd,
-				  ARRAY_SIZE(cs_ut_reqhs_many_cmd));
-}
-
 static void test_cs_ut_opts_jumbled(void)
 {
-	struct cl_ctx  cctx[1] = { };
+	struct cl_ctx cctx[1] = {};
 
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
 				  cs_ut_opts_jumbled_cmd,
 				  ARRAY_SIZE(cs_ut_opts_jumbled_cmd));
 }
 
-/*
- * Tests m0d failure paths using fault injection.
- */
+/** Tests m0d failure paths using fault injection. */
 static void test_cs_ut_linux_stob_cleanup(void)
 {
 	int ret;
@@ -458,15 +391,7 @@ static void test_cs_ut_ad_stob_cleanup(void)
 				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
 }
 
-/*
-  Tests server side bad mero setup commands.
- */
-static void test_cs_ut_reqh_none(void)
-{
-	cs_ut_test_helper_failure(cs_ut_reqh_none_cmd,
-				  ARRAY_SIZE(cs_ut_reqh_none_cmd));
-}
-
+/** Tests server side bad mero setup commands. */
 static void test_cs_ut_stype_bad(void)
 {
 	cs_ut_test_helper_failure(cs_ut_stype_bad_cmd,
@@ -493,10 +418,6 @@ static void test_cs_ut_lnet_ep_bad(void)
 
 static void test_cs_ut_lnet_ep_duplicate(void)
 {
-	/* Duplicate endpoint across request handler contexts. */
-	cs_ut_test_helper_failure(cs_ut_lnet_ep_dup_cmd,
-				  ARRAY_SIZE(cs_ut_lnet_ep_dup_cmd));
-
 	/* Duplicate tcp interfaces in a request handler context. */
 	cs_ut_test_helper_failure(cs_ut_lnet_dup_tcp_if_cmd,
 				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
@@ -514,7 +435,7 @@ static void test_cs_ut_lnet_multiple_if(void)
 			   cs_ut_lnet_mult_if_cmd);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = reqh_ctxs_are_valid(&mero_ctx);
+	rc = reqh_ctx_validate(&mero_ctx);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cs_fini(&mero_ctx);
@@ -535,13 +456,12 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 			   cs_ut_ep_mixed_dup_cmd);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = reqh_ctxs_are_valid(&mero_ctx);
+	rc = reqh_ctx_validate(&mero_ctx);
 	M0_UT_ASSERT(rc != 0);
 
 	m0_cs_fini(&mero_ctx);
 	fclose(out);
 }
-
 
 static void test_cs_ut_service_bad(void)
 {
@@ -557,7 +477,7 @@ static void test_cs_ut_args_bad(void)
 
 static void test_cs_ut_buffer_pool(void)
 {
-	struct cl_ctx  cctx[1] = { };
+	struct cl_ctx cctx[1] = {};
 
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_buffer_pool_cmd,
 				  ARRAY_SIZE(cs_ut_buffer_pool_cmd));
@@ -565,7 +485,7 @@ static void test_cs_ut_buffer_pool(void)
 
 static void test_cs_ut_lnet(void)
 {
-	struct cl_ctx  cctx[1] = { };
+	struct cl_ctx cctx[1] = {};
 
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_lnet_cmd,
 				  ARRAY_SIZE(cs_ut_lnet_cmd));
@@ -573,18 +493,13 @@ static void test_cs_ut_lnet(void)
 
 const struct m0_test_suite m0d_ut = {
         .ts_name = "m0d-ut",
-        .ts_init = NULL,
-        .ts_fini = NULL,
         .ts_tests = {
                 { "cs-single-service", test_cs_ut_service_one},
-                { "cs-missing-pool-width", test_cs_ut_missing_pool_width},
 		{ "cs-multiple-services", test_cs_ut_services_many},
-		{ "cs-multiple-request-handlers", test_cs_ut_reqhs_many},
 		{ "cs-command-options-jumbled", test_cs_ut_opts_jumbled},
 		{ "cs-device-stob", test_cs_ut_dev_stob},
 		{ "cs-fail-linux-stob-cleanup", test_cs_ut_linux_stob_cleanup},
 		{ "cs-fail-ad-stob-cleanup", test_cs_ut_ad_stob_cleanup},
-		{ "cs-missing-reqh-option", test_cs_ut_reqh_none},
 		{ "cs-bad-storage-type", test_cs_ut_stype_bad},
 		{ "cs-bad-network-xprt", test_cs_ut_xprt_bad},
 		{ "cs-bad-network-ep", test_cs_ut_ep_bad},

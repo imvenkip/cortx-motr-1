@@ -28,33 +28,32 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "cob/cob.h"            /* m0_cob_domain */
-#include "ioservice/io_fops.h"	/* m0_io_fop */
-#include "rpc/rpc.h"		/* m0_rpc_bulk, m0_rpc_bulk_buf */
-#include "rpc/rpc_opcodes.h"	/* M0_RPC_OPCODES */
-#include "lib/thread.h"		/* M0_THREAD_INIT */
-#include "lib/misc.h"		/* M0_SET_ARR0 */
+#include "ioservice/io_fops.h"  /* m0_io_fop */
+#include "rpc/rpc.h"            /* m0_rpc_bulk, m0_rpc_bulk_buf */
+#include "rpc/rpc_opcodes.h"    /* M0_RPC_OPCODES */
+#include "lib/thread.h"         /* M0_THREAD_INIT */
+#include "lib/misc.h"           /* M0_SET_ARR0 */
 
 enum IO_UT_VALUES {
-	IO_FIDS_NR	     = 2,
-	IO_SEGS_NR	     = 16,
-	IO_SEG_SIZE	     = 4096,
-	IO_SEQ_LEN	     = 8,
-	IO_FOPS_NR	     = 16,
-	IO_FID_SINGLE	     = 1,
-	IO_FOP_SINGLE	     = 1,
-	IO_XPRT_NR	     = 1,
+	IO_FIDS_NR           = 2,
+	IO_SEGS_NR           = 16,
+	IO_SEG_SIZE          = 4096,
+	IO_SEQ_LEN           = 8,
+	IO_FOPS_NR           = 16,
+	IO_FID_SINGLE        = 1,
+	IO_FOP_SINGLE        = 1,
+	IO_XPRT_NR           = 1,
 	IO_CLIENT_SVC_ID     = 2,
 	IO_SERVER_SVC_ID     = 1,
-	IO_ADDR_LEN	     = 32,
-	IO_STR_LEN	     = 16,
-	IO_SEG_STEP	     = 64,
+	IO_ADDR_LEN          = 32,
+	IO_STR_LEN           = 16,
+	IO_SEG_STEP          = 64,
 	IO_RPC_ITEM_TIMEOUT  = 300,
 	IO_SEG_START_OFFSET  = IO_SEG_SIZE,
 	IO_CLIENT_COBDOM_ID  = 21,
 	IO_SERVER_COBDOM_ID  = 29,
 	IO_RPC_MAX_IN_FLIGHT = 32,
-	IO_SERVER_ARGC	     = 32,
-	IO_SERVER_SERVICE_NR = 1,
+	IO_SERVER_SERVICE_NR = 1
 };
 
 #define IO_CLIENT_DBNAME   "bulk_c_db"
@@ -65,58 +64,58 @@ enum IO_UT_VALUES {
 /* Structure containing data needed for UT. */
 struct bulkio_params {
 	/* Fids of global files. */
-	struct m0_fid		          bp_fids[IO_FIDS_NR];
+	struct m0_fid              bp_fids[IO_FIDS_NR];
 
 	/* Tracks offsets for global fids. */
-	uint64_t			  bp_offsets[IO_FIDS_NR];
+	uint64_t                   bp_offsets[IO_FIDS_NR];
 
 	/* In-memory fops for read IO. */
-	struct m0_io_fop		**bp_rfops;
+	struct m0_io_fop         **bp_rfops;
 
 	/* In-memory fops for write IO. */
-	struct m0_io_fop		**bp_wfops;
+	struct m0_io_fop         **bp_wfops;
 
 	/* Read buffers to which data will be transferred. */
-	struct m0_net_buffer		**bp_iobuf;
+	struct m0_net_buffer     **bp_iobuf;
 
 	/* Threads to post rpc items to rpc layer. */
-	struct m0_thread		**bp_threads;
+	struct m0_thread         **bp_threads;
 
 	/*
 	 * Standard buffers containing a data pattern.
 	 * Primarily used for data verification in read and write IO.
 	 */
-	char				 *bp_readbuf;
-	char				 *bp_writebuf;
+	char                      *bp_readbuf;
+	char                      *bp_writebuf;
 
 	/* Structures used by client-side rpc code. */
-	struct m0_dbenv			  bp_cdbenv;
-	struct m0_cob_domain		  bp_ccbdom;
-	struct m0_net_domain		  bp_cnetdom;
+	struct m0_dbenv            bp_cdbenv;
+	struct m0_cob_domain       bp_ccbdom;
+	struct m0_net_domain       bp_cnetdom;
 
-	const char			 *bp_caddr;
-	char				 *bp_cdbname;
-	const char			 *bp_saddr;
-	char				 *bp_slogfile;
+	const char                *bp_caddr;
+	char                      *bp_cdbname;
+	const char                *bp_saddr;
+	char                      *bp_slogfile;
 
-	struct m0_rpc_client_ctx	 *bp_cctx;
-	struct m0_rpc_server_ctx	 *bp_sctx;
+	struct m0_rpc_client_ctx  *bp_cctx;
+	struct m0_rpc_server_ctx  *bp_sctx;
 
-	struct m0_net_xprt		 *bp_xprt;
+	struct m0_net_xprt        *bp_xprt;
 
-	struct m0_rm_domain		 bp_rdom;
-	struct m0_rm_resource_type       bp_flock_rt;
-	struct m0_file			 bp_file[IO_FIDS_NR];
+	struct m0_rm_domain        bp_rdom;
+	struct m0_rm_resource_type bp_flock_rt;
+	struct m0_file             bp_file[IO_FIDS_NR];
 };
 
 /* A structure used to pass as argument to io threads. */
 struct thrd_arg {
 	/* Index in fops array to be posted to rpc layer. */
-	int			 ta_index;
+	int                   ta_index;
 	/* Type of fop to be sent (read/write). */
-	enum M0_RPC_OPCODES	 ta_op;
+	enum M0_RPC_OPCODES   ta_op;
 	/* bulkio_params structure which contains common data. */
-	struct bulkio_params	*ta_bp;
+	struct bulkio_params *ta_bp;
 };
 
 /* Common APIs used by bulk client as well as UT code. */

@@ -419,7 +419,7 @@ static int run_server(void)
 	static char rpc_size[STRING_LEN];
 	int	    rc;
 	char       *argv[] = {
-		"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		"rpclib_ut", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-A", SERVER_ADDB_STOB_FILE_NAME, "-w", "5",
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
@@ -470,20 +470,8 @@ static int run_server(void)
 	quit_dialog();
 
 	if (verbose) {
-		struct m0_reqh *reqh;
-
-		reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "ds1");
-		if (reqh != NULL) {
-			printf("########### Server DS1 statS ###########\n");
-			print_stats(reqh);
-		}
-
-		reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "ds2");
-		if (reqh != NULL) {
-			printf("\n");
-			printf("########### Server DS2 statS ###########\n");
-			print_stats(reqh);
-		}
+		printf("########### Server stats ###########\n");
+		print_stats(m0_cs_reqh_get(&sctx.rsx_mero_ctx));
 	}
 
 	m0_rpc_server_stop(&sctx);

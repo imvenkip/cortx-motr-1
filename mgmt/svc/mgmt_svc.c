@@ -122,9 +122,9 @@ struct cs_reqh_context {
 };
 @endcode
    The rc_services field is no longer const, as it will be filled with malloc'd
-   strings which must be freed in cs_reqh_ctx_free().
-   The array must be allocated along with rc_services in cs_reqh_ctx_alloc(),
-   and freed in cs_reqh_ctx_free().
+   strings which must be freed in cs_reqh_ctx_fini().
+   The array must be allocated along with rc_services in cs_reqh_ctx_init(),
+   and freed in cs_reqh_ctx_fini().
    - The m0_reqh_service_init() subroutine is extended to accept a pointer to
    the service UUID.  The pointer is optional to support unit tests.
 @code

@@ -46,7 +46,7 @@
 #ifndef __KERNEL__
 int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 {
-	int  rc;
+	int rc;
 
 	M0_ENTRY("server_ctx: %p", sctx);
 	M0_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);

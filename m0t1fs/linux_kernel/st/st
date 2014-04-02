@@ -133,7 +133,7 @@ services_start() {
 
   {0x70| (($PROF_AC), $FS1)},
   {0x66| (($FS1), (11, 22),
-                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs",
+                [11: "-p", "-T", "linux", "-D", "db", "-S", "stobs",
                      "-A", "addb-stobs", "-w", "3"],
                 [1: $IOS1])},
   {0x73| (($IOS1), 2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)},
@@ -147,7 +147,7 @@ EOF`"
     }
 
     local OPTIONS="`cat <<EOF
--r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
+-p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A $SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3

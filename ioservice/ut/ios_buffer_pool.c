@@ -32,50 +32,48 @@
 
 #include "ioservice/io_service.c"
 
-struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
-			       const char *service_name);
-
 extern const struct m0_tl_descr bufferpools_tl;
-extern const struct m0_tl_descr m0_rhctx_tl;
 
- /* Mero setup arguments. */
-static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
+/* Mero setup arguments. */
+static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-p", "-T", "AD",
+				"-D", "cs_sdb", "-S", "cs_stob",
+				"-A", "cs_addb_stob",
+				"-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
-                                "-s", "ioservice"};
-static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
+				"-s", "ioservice"};
+
+static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-p", "-T", "AD",
+				"-D", "cs_sdb", "-S", "cs_stob",
+				"-A", "cs_addb_stob",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-e", "bulk-mem:127.0.0.1:35678",
-                                "-s", "ioservice"};
-static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
+				"-e", "lnet:0@lo:12345:34:1",
+				"-e", "bulk-mem:127.0.0.1:35678",
+				"-s", "ioservice"};
+
+static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-p", "-T", "AD",
+				"-D", "cs_sdb", "-S", "cs_stob",
+				"-A", "cs_addb_stob",
 				"-w", "10",
-                                "-e", "bulk-mem:127.0.0.1:35678",
-                                "-e", "bulk-mem:127.0.0.1:35679",
-                                "-s", "ioservice"};
-static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "cs_addb_stob",
+				"-e", "bulk-mem:127.0.0.1:35678",
+				"-e", "bulk-mem:127.0.0.1:35679",
+				"-s", "ioservice"};
+
+static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-p", "-T", "AD",
+				"-D", "cs_sdb", "-S", "cs_stob",
+				"-A", "cs_addb_stob",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:35:1",
-                                "-e", "bulk-mem:127.0.0.1:35678",
-                                "-e", "bulk-mem:127.0.0.1:35679",
-                                "-s", "ioservice"};
-/*
-  Transports used in mero a context.
- */
+				"-e", "lnet:0@lo:12345:35:1",
+				"-e", "bulk-mem:127.0.0.1:35678",
+				"-e", "bulk-mem:127.0.0.1:35679",
+				"-s", "ioservice"};
+
+/* Transports used in mero context. */
 static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt,
 	&m0_net_bulk_mem_xprt
 };
 
-#define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
+#define SERVER_LOG_FILE_NAME "cs_ut.errlog"
 
 static int get_ioservice_buffer_pool_count(struct m0_rpc_server_ctx *sctx)
 {
@@ -83,10 +81,9 @@ static int get_ioservice_buffer_pool_count(struct m0_rpc_server_ctx *sctx)
 	struct m0_reqh_service    *reqh_ios;
 	struct m0_reqh            *reqh;
 
-	reqh     = m0_cs_reqh_get(&sctx->rsx_mero_ctx, "ioservice");
+	reqh     = m0_cs_reqh_get(&sctx->rsx_mero_ctx);
 	reqh_ios = m0_reqh_service_find(&m0_ios_type, reqh);
 	serv_obj = container_of(reqh_ios, struct m0_reqh_io_service, rios_gen);
-
 	M0_UT_ASSERT(serv_obj != NULL);
 
 	return bufferpools_tlist_length(&serv_obj->rios_buffer_pools);
@@ -113,7 +110,6 @@ static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 	M0_UT_ASSERT(bp_count == nbp);
 
 	m0_rpc_server_stop(&sctx);
-
 	return rc;
 }
 

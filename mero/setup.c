@@ -93,13 +93,14 @@ M0_INTERNAL const struct m0_stob_id m0_addb_stob_id = {
 	}
 };
 
-M0_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct m0_reqh_context,
-		   rc_linkage, rc_magix, M0_CS_REQH_CTX_MAGIC,
-		   M0_CS_REQH_CTX_HEAD_MAGIC);
+static bool reqh_context_check(const void *bob);
 
-M0_TL_DEFINE(rhctx, static, struct m0_reqh_context);
-
-static struct m0_bob_type rhctx_bob;
+static struct m0_bob_type rhctx_bob = {
+	.bt_name         = "m0_reqh_context",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_reqh_context, rc_magix),
+	.bt_magix        = M0_CS_REQH_CTX_MAGIC,
+	.bt_check        = reqh_context_check
+};
 M0_BOB_DEFINE(static, &rhctx_bob, m0_reqh_context);
 
 M0_TL_DESCR_DEFINE(ndom, "network domains", static, struct m0_net_domain,
@@ -119,54 +120,41 @@ M0_TL_DEFINE(astob, static, struct cs_ad_stob);
 static struct m0_bob_type astob_bob;
 M0_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
 
-/**
- * Returns true iff there is service with given name among rctx->rc_services.
- */
-static bool
-contains_service(const struct m0_reqh_context *rctx, const char *name)
+static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
-	int i;
-
-	for (i = 0; i < rctx->rc_nr_services; ++i) {
-		if (m0_streq(rctx->rc_services[i], name))
-			return true;
-	}
-	return false;
+	return equi(rctx->rc_confdb != NULL,
+			m0_exists(i, rctx->rc_nr_services,
+				  m0_streq(rctx->rc_services[i], "confd"))) &&
+		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
+		rctx->rc_addb_stpath != NULL && rctx->rc_dbpath != NULL &&
+		rctx->rc_nr_services != 0 && rctx->rc_services != NULL &&
+		!cs_eps_tlist_is_empty(&rctx->rc_eps);
 }
 
-static int reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
+static bool reqh_context_check(const void *bob)
 {
-	return equi(rctx->rc_confdb != NULL, contains_service(rctx, "confd")) &&
-		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
-		rctx->rc_addb_stpath != NULL &&
-		rctx->rc_dbpath != NULL && rctx->rc_nr_services != 0 &&
-		rctx->rc_services != NULL &&
-		!cs_eps_tlist_is_empty(&rctx->rc_eps);
+	const struct m0_reqh_context *rctx = bob;
+	return
+		_0C(M0_IN(rctx->rc_state,
+			  (RC_UNINITIALISED, RC_INITIALISED))) &&
+		_0C(rctx->rc_max_services == m0_reqh_service_types_length()) &&
+		_0C(M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl,
+						   &rctx->rc_eps))) &&
+		_0C(rctx->rc_stype == NULL || reqh_ctx_args_are_valid(rctx)) &&
+		_0C(rctx->rc_mero != NULL) &&
+		_0C(ergo(rctx->rc_state == RC_INITIALISED,
+			 m0_reqh_invariant(&rctx->rc_reqh)));
+}
+
+static bool reqh_context_invariant(const struct m0_reqh_context *rctx)
+{
+	return m0_reqh_context_bob_check(rctx); /* calls reqh_context_check() */
 }
 
 M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
 {
-	struct m0_reqh_context *reqh_ctx;
-
-	reqh_ctx = rhctx_tlist_head(&mero->cc_reqh_ctxs);
-	if (reqh_ctx == NULL)
-		return NULL;
-
-	return m0_reqh_rpc_mach_tlist_head(&reqh_ctx->rc_reqh.rh_rpc_machines);
-}
-
-/**
-   Checks consistency of request handler context.
- */
-static bool m0_reqh_context_invariant(const struct m0_reqh_context *rctx)
-{
-	return m0_reqh_context_bob_check(rctx) &&
-	       M0_IN(rctx->rc_state, (RC_UNINITIALISED, RC_INITIALISED)) &&
-	       rctx->rc_max_services == m0_reqh_service_types_length() &&
-	       M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl, &rctx->rc_eps)) &&
-	       reqh_ctx_args_are_valid(rctx) && rctx->rc_mero != NULL &&
-	       ergo(rctx->rc_state == RC_INITIALISED,
-	       m0_reqh_invariant(&rctx->rc_reqh));
+	return m0_reqh_rpc_mach_tlist_head(
+		&mero->cc_reqh_ctx.rc_reqh.rh_rpc_machines);
 }
 
 /**
@@ -188,14 +176,12 @@ static struct m0_net_xprt *cs_xprt_lookup(const char *xprt_name,
 	M0_PRE(xprt_name != NULL && xprts != NULL && xprts_nr > 0);
 
 	for (i = 0; i < xprts_nr; ++i)
-		if (strcmp(xprt_name, xprts[i]->nx_name) == 0)
+		if (m0_streq(xprt_name, xprts[i]->nx_name))
 			return xprts[i];
 	return NULL;
 }
 
-/**
-   Lists supported network transports.
- */
+/** Lists supported network transports. */
 static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts,
 			  size_t xprts_nr)
 {
@@ -208,9 +194,7 @@ static void cs_xprts_list(FILE *out, struct m0_net_xprt **xprts,
 		fprintf(out, " %s\n", xprts[i]->nx_name);
 }
 
-/**
-   Lists supported stob types.
- */
+/** Lists supported stob types. */
 static void cs_stob_types_list(FILE *out)
 {
 	int i;
@@ -222,13 +206,7 @@ static void cs_stob_types_list(FILE *out)
 		fprintf(out, " %s\n", m0_cs_stypes[i]);
 }
 
-/**
-   Checks if the specified storage type is supported in a mero context.
-
-   @param stype Storage type
-
-   @pre stype != NULL
- */
+/** Checks if the specified storage type is supported in a mero context. */
 static bool stype_is_valid(const char *stype)
 {
 	M0_PRE(stype != NULL);
@@ -240,42 +218,30 @@ static bool stype_is_valid(const char *stype)
 /**
    Checks if given network transport and network endpoint address are already
    in use in a request handler context.
-
-   @param cctx Mero context
-   @param xprt Network transport
-   @param ep Network end point address
-
-   @pre cctx != NULL && xprt != NULL && ep != NULL
  */
-static bool cs_endpoint_is_duplicate(struct m0_mero *cctx,
+static bool cs_endpoint_is_duplicate(const struct m0_reqh_context *rctx,
 				     const struct m0_net_xprt *xprt,
 				     const char *ep)
 {
-	int                          cnt;
-	struct m0_reqh_context      *rctx;
-	struct cs_endpoint_and_xprt *ep_xprt;
+	static int (*cmp[])(const char *s1, const char *s2) = {
+		strcmp,
+		m0_net_lnet_ep_addr_net_cmp
+	};
+	struct cs_endpoint_and_xprt *ex;
+	bool                         seen = false;
 
-	M0_PRE(cctx != NULL && xprt != NULL && ep != NULL);
+	M0_PRE(reqh_context_invariant(rctx) && ep != NULL);
 
-	cnt = 0;
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_invariant(rctx));
-		m0_tl_for(cs_eps, &rctx->rc_eps, ep_xprt) {
-			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep_xprt));
-			if (strcmp(xprt->nx_name, "lnet") == 0) {
-				if (m0_net_lnet_ep_addr_net_cmp(
-					ep_xprt->ex_endpoint, ep) == 0 &&
-				   strcmp(ep_xprt->ex_xprt, xprt->nx_name) == 0)
-					++cnt;
-			} else {
-				if (strcmp(ep_xprt->ex_endpoint, ep) == 0 &&
-				    strcmp(ep_xprt->ex_xprt, xprt->nx_name)
-					   == 0)
-					++cnt;
-			}
-			if (cnt > 1)
+	m0_tl_for(cs_eps, &rctx->rc_eps, ex) {
+		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ex));
+		if (cmp[!!m0_streq(xprt->nx_name, "lnet")](ex->ex_endpoint,
+							   ep) == 0 &&
+		    m0_streq(ex->ex_xprt, xprt->nx_name)) {
+			if (seen)
 				return true;
-		} m0_tl_endfor;
+			else
+				seen = true;
+		}
 	} m0_tl_endfor;
 
 	return false;
@@ -310,8 +276,8 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
 	if (xprt == NULL)
 		return M0_RC(-EINVAL);
 
-	return M0_RC(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE
-			: 0);
+	return M0_RC(cs_endpoint_is_duplicate(&cctx->cc_reqh_ctx, xprt, ep) ?
+		     -EADDRINUSE : 0);
 }
 
 M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
@@ -387,7 +353,7 @@ static bool service_is_duplicate(const struct m0_reqh_context *rctx,
 	int n;
 	int i;
 
-	M0_PRE(m0_reqh_context_invariant(rctx));
+	M0_PRE(reqh_context_invariant(rctx));
 
 	for (i = 0, n = 0; i < rctx->rc_nr_services; ++i) {
 		if (strcasecmp(rctx->rc_services[i], sname) == 0)
@@ -398,61 +364,39 @@ static bool service_is_duplicate(const struct m0_reqh_context *rctx,
 	return false;
 }
 
-/**
-   Allocates a request handler and adds it to the list of the same in given
-   mero context.
-
-   @param cctx Mero context
-
-   @see m0_mero
- */
-static struct m0_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
+static int cs_reqh_ctx_init(struct m0_mero *cctx)
 {
-	struct m0_reqh_context *rctx;
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 
-	M0_PRE(cctx != NULL);
+	M0_ENTRY();
 
-	M0_ALLOC_PTR(rctx);
-	if (rctx == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
-		return NULL;
-	}
+	*rctx = (struct m0_reqh_context){
+		.rc_max_services = m0_reqh_service_types_length(),
+		.rc_mero         = cctx
+	};
+	if (rctx->rc_max_services == 0)
+		return M0_ERR(-EINVAL, "No services registered");
 
-	rctx->rc_max_services = m0_reqh_service_types_length();
-	if (rctx->rc_max_services == 0) {
-		M0_LOG(M0_ERROR, "No services available");
-		goto err;
-	}
-
-	M0_ALLOC_ARR(rctx->rc_services, rctx->rc_max_services);
-	if (rctx->rc_services == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
-		goto err;
-	}
+	M0_ALLOC_ARR(rctx->rc_services,      rctx->rc_max_services);
 	M0_ALLOC_ARR(rctx->rc_service_uuids, rctx->rc_max_services);
-	if (rctx->rc_service_uuids == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
-		goto err;
+	if (rctx->rc_services == NULL || rctx->rc_service_uuids == NULL) {
+		m0_free(rctx->rc_services);
+		m0_free(rctx->rc_service_uuids);
+		return M0_RC(-ENOMEM);
 	}
 
-	m0_reqh_context_bob_init(rctx);
 	cs_eps_tlist_init(&rctx->rc_eps);
-	rhctx_tlink_init_at_tail(rctx, &cctx->cc_reqh_ctxs);
-	rctx->rc_mero = cctx;
+	m0_reqh_context_bob_init(rctx);
 
-	return rctx;
-err:
-	m0_free(rctx->rc_services);
-	m0_free(rctx);
-	return NULL;
+	return M0_RC(0);
 }
 
-static void cs_reqh_ctx_free(struct m0_reqh_context *rctx)
+static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 {
 	struct cs_endpoint_and_xprt *ep;
 	int                          i;
 
-	M0_PRE(rctx != NULL);
+	m0_reqh_context_bob_fini(rctx);
 
 	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
 		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
@@ -462,15 +406,12 @@ static void cs_reqh_ctx_free(struct m0_reqh_context *rctx)
 		cs_endpoint_and_xprt_bob_fini(ep);
 		m0_free(ep);
 	} m0_tl_endfor;
-
 	cs_eps_tlist_fini(&rctx->rc_eps);
+
 	for (i = 0; i < rctx->rc_max_services; ++i)
 		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
 	m0_free(rctx->rc_service_uuids);
-	rhctx_tlink_del_fini(rctx);
-	m0_reqh_context_bob_fini(rctx);
-	m0_free(rctx);
 }
 
 M0_INTERNAL struct m0_net_domain *
@@ -482,7 +423,7 @@ m0_cs_net_domain_locate(struct m0_mero *cctx, const char *xprt_name)
 
 	m0_tl_for(ndom, &cctx->cc_ndoms, ndom) {
 		M0_ASSERT(m0_net_domain_bob_check(ndom));
-		if (strcmp(ndom->nd_xprt->nx_name, xprt_name) == 0)
+		if (m0_streq(ndom->nd_xprt->nx_name, xprt_name))
 			break;
 	} m0_tl_endfor;
 
@@ -556,71 +497,33 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 	return rc;
 }
 
-/**
-   Intialises rpc machines in a mero context.
-
-   @param cctx Mero context
- */
 static int cs_rpc_machines_init(struct m0_mero *cctx)
 {
-	int                          rc = 0;
-	struct m0_reqh_context      *rctx;
+	struct m0_reqh_context      *rctx = &cctx->cc_reqh_ctx;
 	struct cs_endpoint_and_xprt *ep;
 
-	M0_PRE(cctx != NULL);
+	M0_ENTRY();
+	M0_PRE(reqh_context_invariant(rctx));
 
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_invariant(rctx));
-		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
-			rc = cs_rpc_machine_init(cctx, ep->ex_xprt,
-						 ep->ex_endpoint,
-						 ep->ex_tm_colour,
-						 rctx->rc_recv_queue_min_length,
-						 rctx->rc_max_rpc_msg_size,
-						 &rctx->rc_reqh);
-			if (rc != 0) {
-				M0_LOG(M0_ERROR, "rpc_init_fail");
-				return rc;
-			}
-		} m0_tl_endfor;
+	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+		int rc;
+
+		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+		rc = cs_rpc_machine_init(cctx, ep->ex_xprt,
+					 ep->ex_endpoint, ep->ex_tm_colour,
+					 rctx->rc_recv_queue_min_length,
+					 rctx->rc_max_rpc_msg_size,
+					 &rctx->rc_reqh);
+		if (rc != 0)
+			return M0_RC(rc);
 	} m0_tl_endfor;
 
-	return rc;
+	return M0_RC(0);
 }
 
-static void cs_addb_monitor_stats_svc_conn_init(struct m0_mero *cctx)
-{
-	int                          rc = 0;
-	struct m0_reqh_context      *rctx;
-
-	M0_PRE(cctx != NULL);
-
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_invariant(rctx));
-		rc = m0_addb_monitor_stats_svc_conn_init(&rctx->rc_reqh);
-		if (rc != 0) {
-			/* @todo: LOG ADDB msg */
-			rc = 0;
-			break;
-		}
-
-	} m0_tl_endfor;
-}
-
-/**
-   Finalises all the rpc machines from the list of rpc machines present in
-   m0_reqh.
-
-   @param reqh Request handler of which the rpc machines belong
-
-   @pre reqh != NULL
- */
 static void cs_rpc_machines_fini(struct m0_reqh *reqh)
 {
 	struct m0_rpc_machine *rpcmach;
-
-	M0_PRE(reqh != NULL);
 
 	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
 		M0_ASSERT(m0_rpc_machine_bob_check(rpcmach));
@@ -630,48 +533,34 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
 	} m0_tl_endfor;
 }
 
-static uint32_t cs_domain_tms_nr(struct m0_mero       *cctx,
-				 struct m0_net_domain *dom)
+static uint32_t
+cs_domain_tms_nr(struct m0_reqh_context *rctx, struct m0_net_domain *dom)
 {
-	struct m0_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
-	uint32_t                     cnt = 0;
+	uint32_t                     n = 0;
 
-	M0_PRE(cctx != NULL);
-
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			if (strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
-				ep->ex_tm_colour = cnt++;
-		} m0_tl_endfor;
+	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+		if (m0_streq(ep->ex_xprt, dom->nd_xprt->nx_name))
+			ep->ex_tm_colour = n++;
 	} m0_tl_endfor;
 
-	M0_POST(cnt > 0);
-	return cnt;
+	M0_POST(n > 0);
+	return n;
 }
 
-/**
-   It calculates the summation of the minimum receive queue length of all
-   endpoints belong to a domain in all the reqest handler contexts.
- */
-static uint32_t cs_dom_tm_min_recv_queue_total(struct m0_mero *cctx,
+static uint32_t cs_dom_tm_min_recv_queue_total(struct m0_reqh_context *rctx,
 					       struct m0_net_domain *dom)
 {
-	struct m0_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
-	uint32_t                     min_queue_len_total = 0;
+	uint32_t                     result = 0;
 
-	M0_PRE(cctx != NULL);
+	M0_PRE(reqh_context_invariant(rctx));
 
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_bob_check(rctx));
-		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			if (strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
-				min_queue_len_total +=
-					rctx->rc_recv_queue_min_length;
-		} m0_tl_endfor;
+	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+		if (m0_streq(ep->ex_xprt, dom->nd_xprt->nx_name))
+			result += rctx->rc_recv_queue_min_length;
 	} m0_tl_endfor;
-	return min_queue_len_total;
+	return result;
 }
 
 static void cs_buffer_pool_fini(struct m0_mero *cctx)
@@ -689,40 +578,36 @@ static void cs_buffer_pool_fini(struct m0_mero *cctx)
 
 static int cs_buffer_pool_setup(struct m0_mero *cctx)
 {
-	int                    rc = 0;
-	struct m0_net_domain  *dom;
-	struct cs_buffer_pool *cs_bp;
-	uint32_t               tms_nr;
-	uint32_t               bufs_nr;
-	uint32_t               max_recv_queue_len;
-
-	M0_PRE(cctx != NULL);
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	struct m0_net_domain   *dom;
+	struct cs_buffer_pool  *bp;
+	uint32_t                tms_nr;
+	uint32_t                max_recv_queue_len;
+	int                     rc = 0;
 
 	m0_tl_for(ndom, &cctx->cc_ndoms, dom) {
-		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, dom);
-		tms_nr		   = cs_domain_tms_nr(cctx, dom);
+		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(rctx, dom);
+		tms_nr = cs_domain_tms_nr(rctx, dom);
 		M0_ASSERT(max_recv_queue_len >= tms_nr);
 
-		M0_ALLOC_PTR(cs_bp);
-		if (cs_bp == NULL) {
+		M0_ALLOC_PTR(bp);
+		if (bp == NULL) {
 			rc = -ENOMEM;
 			break;
 		}
-
-		bufs_nr = m0_rpc_bufs_nr(max_recv_queue_len, tms_nr);
-		rc = m0_rpc_net_buffer_pool_setup(dom, &cs_bp->cs_buffer_pool,
-						  bufs_nr, tms_nr);
+		rc = m0_rpc_net_buffer_pool_setup(
+			dom, &bp->cs_buffer_pool,
+			m0_rpc_bufs_nr(max_recv_queue_len, tms_nr),
+			tms_nr);
 		if (rc != 0) {
-			m0_free(cs_bp);
+			m0_free(bp);
 			break;
 		}
-		cs_buffer_pools_tlink_init_at_tail(cs_bp,
-						   &cctx->cc_buffer_pools);
+		cs_buffer_pools_tlink_init_at_tail(bp, &cctx->cc_buffer_pools);
 	} m0_tl_endfor;
 
 	if (rc != 0)
 		cs_buffer_pool_fini(cctx);
-
 	return rc;
 }
 
@@ -819,7 +704,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 						f_path, NULL);
 		if (rc == 0 || rc == -EEXIST)
 			rc = m0_stob_create_helper(stob->s_ldom, NULL,
-						bstob_id, bstob);
+						   bstob_id, bstob);
 		if (rc == 0)
 			m0_stob_put(*bstob);
 	}
@@ -867,54 +752,41 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	return M0_RC(rc);
 }
 
-/**
-   Initialises AD type stob.
- */
 static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 {
-	int                rc;
-	int                result;
-	uint64_t           cid;
-	const char        *f_path;
-	yaml_document_t   *doc;
-	yaml_node_t       *node;
-	yaml_node_t       *s_node;
-	yaml_node_item_t  *item;
+	yaml_document_t *doc = &stob->s_sfile.sf_document;
+	yaml_node_t     *node;
+	int              rc = 0;
 
 	M0_ENTRY();
 
-	M0_PRE(stob != NULL);
-
 	astob_tlist_init(&stob->s_adstobs);
-	if (stob->s_sfile.sf_is_initialised) {
-		doc = &stob->s_sfile.sf_document;
-		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
-			for (item = (node)->data.sequence.items.start;
-			     item < (node)->data.sequence.items.top; ++item) {
-				s_node = yaml_document_get_node(doc, *item);
-				result = stob_file_id_get(doc, s_node, &cid);
-				if (result != 0)
-					continue;
-				f_path = stob_file_path_get(doc, s_node);
-				rc = cs_ad_stob_create(stob, cid, db, f_path);
-				if (rc != 0)
-					break;
-			}
+
+	if (!stob->s_sfile.sf_is_initialised)
+		return M0_RC(cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, db,
+					       NULL));
+
+	for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
+		yaml_node_item_t *item;
+
+		for (item = node->data.sequence.items.start;
+		     item < node->data.sequence.items.top && rc == 0;
+		     ++item) {
+			yaml_node_t *s_node;
+			uint64_t     cid;
+
+			s_node = yaml_document_get_node(doc, *item);
+			rc = stob_file_id_get(doc, s_node, &cid);
+			if (rc == 0)
+				rc = cs_ad_stob_create(
+					stob, cid, db,
+					stob_file_path_get(doc, s_node));
+			else
+				/* Ignore the result of stob_file_id_get(). */
+				rc = 0;
 		}
-	} else {
-		rc = cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, db, NULL);
 	}
-
 	return M0_RC(rc);
-}
-
-/**
-   Initialises linux type stob.
- */
-static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
-{
-	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
-	       m0_linux_stob_setup(stob->s_ldom, true);
 }
 
 static void cs_ad_stob_fini(struct cs_stobs *stob)
@@ -923,8 +795,6 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	struct m0_stob        *bstob;
 	struct cs_ad_stob     *adstob;
 	struct m0_stob_domain *adom;
-
-	M0_PRE(stob != NULL);
 
 	m0_tl_for(astob, &stob->s_adstobs, adstob) {
 		M0_ASSERT(cs_ad_stob_bob_check(adstob) &&
@@ -945,28 +815,25 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adstobs);
 }
 
+static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
+{
+	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
+	       m0_linux_stob_setup(stob->s_ldom, true);
+}
+
 static void cs_linux_stob_fini(struct cs_stobs *stob)
 {
-	M0_PRE(stob != NULL);
-
 	if (stob->s_ldom != NULL)
 		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
 }
 
-M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
-							  const struct
-							  m0_stob_id *stob_id)
+M0_INTERNAL struct m0_stob_domain *
+m0_cs_stob_domain_find(struct m0_reqh *reqh, const struct m0_stob_id *stob_id)
 {
-	struct m0_reqh_context  *rqctx;
-	struct cs_stobs         *stob;
-	struct cs_ad_stob       *adstob;
-
-	rqctx = bob_of(reqh, struct m0_reqh_context, rc_reqh, &rhctx_bob);
-	stob = &rqctx->rc_stob;
-
-	if (stob->s_stype == M0_LINUX_STOB)
-		return stob->s_ldom;
-	else if (stob->s_stype == M0_AD_STOB) {
+	struct cs_stobs *stob = &bob_of(reqh, struct m0_reqh_context, rc_reqh,
+					&rhctx_bob)->rc_stob;
+	if (stob->s_stype == M0_AD_STOB) {
+		struct cs_ad_stob *adstob;
 		m0_tl_for(astob, &stob->s_adstobs, adstob) {
 			M0_ASSERT(cs_ad_stob_bob_check(adstob));
 			if (!stob->s_sfile.sf_is_initialised ||
@@ -974,9 +841,10 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
 			    stob_id->si_bits.u_hi)
 				return adstob->as_dom;
 		} m0_tl_endfor;
+		return NULL;
 	}
-
-	return NULL;
+	M0_ASSERT(stob->s_stype == M0_LINUX_STOB);
+	return stob->s_ldom;
 }
 
 /**
@@ -1029,7 +897,6 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 		rc = cs_ad_stob_init(stob, db);
 out:
 	m0_free(objpath);
-
 	return M0_RC(rc);
 }
 
@@ -1038,8 +905,6 @@ out:
  */
 static void cs_storage_fini(struct cs_stobs *stob)
 {
-	M0_PRE(stob != NULL);
-
 	if (stob->s_stype == M0_AD_STOB)
 		cs_ad_stob_fini(stob);
 	cs_linux_stob_fini(stob);
@@ -1069,10 +934,9 @@ static int __service_init(const char *name, struct m0_reqh_context *rctx,
 	m0_reqh_service_init(service, reqh, uuid);
 
 	/** @todo Remove the USE_MGMT_STARTUP macro later */
-	if (mgmt)
-		rc = m0_mgmt_reqh_service_start(service);
-	else
-		rc = m0_reqh_service_start(service);
+	rc = mgmt ? m0_mgmt_reqh_service_start(service) :
+		m0_reqh_service_start(service);
+
 	if (rc != 0)
 		m0_reqh_service_fini(service);
 
@@ -1091,7 +955,7 @@ static int
 cs_service_init(const char *name, struct m0_reqh_context *rctx,
 		struct m0_reqh *reqh, struct m0_uint128 *uuid)
 {
-	/** @todo Remove the USE_MGMT_STARTUP macro later */
+	/** @todo XXX Remove the USE_MGMT_STARTUP macro later */
 #define USE_MGMT_STARTUP 0
 #if USE_MGMT_STARTUP
 	return __service_init(name, rctx, reqh, uuid, true);
@@ -1100,14 +964,14 @@ cs_service_init(const char *name, struct m0_reqh_context *rctx,
 #endif
 }
 
-static int reqh_services_init(struct m0_reqh_context *rctx)
+static int reqh_context_services_init(struct m0_reqh_context *rctx)
 {
 	const char *name;
 	uint32_t    i;
 	int         rc;
 
 	M0_ENTRY();
-	M0_PRE(m0_reqh_context_invariant(rctx));
+	M0_PRE(reqh_context_invariant(rctx));
 
 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
 		name = rctx->rc_services[i];
@@ -1123,118 +987,111 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
 	return M0_RC(rc);
 }
 
-/**
-   Initialises set of services specified in a request handler context.
-   Services are started once the mero context is configured successfully
-   which includes network domains, request handlers, and rpc machines.
-
-   @param cctx Mero context
- */
-static int cs_services_init(struct m0_mero *cctx)
+#if USE_MGMT_STARTUP
+static int reqh_services_start(struct m0_reqh_context *rctx)
 {
-	struct m0_reqh_context *rctx;
-	int                     rc = 0;
+	struct m0_reqh *reqh = &rctx->rc_reqh;
+	int             rc;
 
 	M0_ENTRY();
-	M0_PRE(cctx != NULL);
 
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-#if USE_MGMT_STARTUP
-		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh);
-		if (rc != 0)
-			break;
-		m0_reqh_start(&rctx->rc_reqh);
-		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
-				     NULL) ?:
-		     cs_service_init("simple-fom-service", NULL, &rctx->rc_reqh,
-				     NULL) ?:
-			reqh_services_init(rctx);
-		m0_mgmt_reqh_services_start_wait(&rctx->rc_reqh);
-		/* return failure if any service has failed */
-		if (rc == 0 &&
-		    m0_reqh_services_state_count(&rctx->rc_reqh,
-						 M0_RST_FAILED) > 0)
-			rc = -ENOEXEC;
-		if (rc != 0)
-			break;
+	rc = m0_reqh_mgmt_service_start(reqh);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	m0_reqh_start(reqh);
+
+	rc = cs_service_init("rpcservice", NULL, reqh, NULL) ?:
+		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
+		reqh_context_services_init(rctx);
+
+	m0_mgmt_reqh_services_start_wait(reqh);
+
+	if (rc != 0)
+		return M0_RC(rc);
+
+	return M0_RC(m0_reqh_services_state_count(reqh, M0_RST_FAILED) > 0 ?
+		     -ENOEXEC : 0);
+}
 #else
-		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
-			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
-					NULL) ?:
-			cs_service_init("simple-fom-service", NULL,
-					&rctx->rc_reqh, NULL) ?:
-			reqh_services_init(rctx);
-		if (rc != 0)
-			break;
-		m0_reqh_start(&rctx->rc_reqh);
-#endif
-	} m0_tl_endfor;
+static int reqh_services_start(struct m0_reqh_context *rctx)
+{
+	struct m0_reqh *reqh = &rctx->rc_reqh;
+	int             rc;
+
+	M0_ENTRY();
+
+	rc = m0_reqh_mgmt_service_start(reqh) ?:
+		cs_service_init("rpcservice", NULL, reqh, NULL) ?:
+		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
+		reqh_context_services_init(rctx);
+
+	if (rc == 0)
+		m0_reqh_start(reqh);
 
 	return M0_RC(rc);
+}
+#endif /* !USE_MGMT_STARTUP */
+
+static int
+cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
+{
+	struct m0_net_xprt   *xprt;
+	struct m0_net_domain *ndom = NULL;
+	int                   rc;
+
+	M0_PRE(cs_endpoint_and_xprt_bob_check(ep));
+
+	xprt = cs_xprt_lookup(ep->ex_xprt, cctx->cc_xprts, cctx->cc_xprts_nr);
+	if (xprt == NULL)
+		return -EINVAL;
+
+	ndom = m0_cs_net_domain_locate(cctx, ep->ex_xprt);
+	if (ndom != NULL)
+		return 0; /* pass */
+
+	rc = m0_net_xprt_init(xprt);
+	if (rc != 0)
+		return rc;
+
+	M0_ALLOC_PTR(ndom);
+	if (ndom == NULL) {
+		rc = -ENOMEM;
+		goto err;
+	}
+
+	/** @todo replace m0_addb_proc_ctx */
+	rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
+	if (rc != 0)
+		goto err;
+
+	m0_net_domain_bob_init(ndom);
+	ndom_tlink_init_at_tail(ndom, &cctx->cc_ndoms);
+	return 0;
+err:
+	m0_free(ndom); /* freeing NULL does not hurt */
+	m0_net_xprt_fini(xprt);
+	return rc;
 }
 
 /**
    Initialises network domains per given distinct xport:endpoint pair in a
    mero context.
-
-   @param cctx Mero context
  */
 static int cs_net_domains_init(struct m0_mero *cctx)
 {
-	size_t                       xprts_nr;
-	struct m0_net_xprt         **xprts;
-	struct m0_net_xprt          *xprt;
-	struct m0_reqh_context      *rctx;
+	struct m0_reqh_context      *rctx = &cctx->cc_reqh_ctx;
 	struct cs_endpoint_and_xprt *ep;
-	struct m0_net_domain        *ndom;
-	int                          rc = 0;
 
 	M0_ENTRY();
-	M0_PRE(cctx != NULL);
+	M0_PRE(reqh_context_invariant(rctx));
 
-	xprts = cctx->cc_xprts;
-	xprts_nr = cctx->cc_xprts_nr;
-
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_invariant(rctx));
-
-		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
-
-			xprt = cs_xprt_lookup(ep->ex_xprt, xprts, xprts_nr);
-			if (xprt == NULL) {
-				M0_LOG(M0_ERROR, "endpoint_init_fail");
-				return M0_RC(-EINVAL);
-			}
-
-			ndom = m0_cs_net_domain_locate(cctx, ep->ex_xprt);
-			if (ndom != NULL)
-				continue;
-
-			rc = m0_net_xprt_init(xprt);
-			if (rc != 0)
-				return M0_RC(rc);
-
-			M0_ALLOC_PTR(ndom);
-			if (ndom == NULL) {
-				M0_LOG(M0_ERROR, "malloc failed");
-				m0_net_xprt_fini(xprt);
-				return M0_RC(-ENOMEM);
-			}
-			/** @todo replace m0_addb_proc_ctx */
-			rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
-			if (rc != 0) {
-				m0_free(ndom);
-				m0_net_xprt_fini(xprt);
-				return M0_RC(rc);
-			}
-
-			m0_net_domain_bob_init(ndom);
-			ndom_tlink_init_at_tail(ndom, &cctx->cc_ndoms);
-		} m0_tl_endfor;
+	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+		int rc = cs_net_domain_init(ep, cctx);
+		if (rc != 0)
+			return M0_RC(rc);
 	} m0_tl_endfor;
-
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 /**
@@ -1244,13 +1101,9 @@ static int cs_net_domains_init(struct m0_mero *cctx)
  */
 static void cs_net_domains_fini(struct m0_mero *cctx)
 {
-	struct m0_net_domain  *ndom;
-	struct m0_net_xprt   **xprts;
-	size_t                 idx;
+	struct m0_net_domain *ndom;
+	size_t                i;
 
-	M0_PRE(cctx != NULL);
-
-	xprts = cctx->cc_xprts;
 	m0_tl_for(ndom, &cctx->cc_ndoms, ndom) {
 		M0_ASSERT(m0_net_domain_bob_check(ndom));
 		m0_net_domain_fini(ndom);
@@ -1259,26 +1112,26 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
 		m0_free(ndom);
 	} m0_tl_endfor;
 
-	for (idx = 0; idx < cctx->cc_xprts_nr; ++idx)
-		m0_net_xprt_fini(xprts[idx]);
+	for (i = 0; i < cctx->cc_xprts_nr; ++i)
+		m0_net_xprt_fini(cctx->cc_xprts[i]);
 }
 
 static int cs_storage_prepare(struct m0_reqh_context *rctx)
 {
-	struct m0_sm_group	*grp = m0_locality0_get()->lo_grp;
-	struct m0_cob_domain	*dom = &rctx->rc_mdstore.md_dom;
-	struct m0_dtx		 tx = {};
-	int			 rc;
+	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
+	struct m0_cob_domain *dom = &rctx->rc_mdstore.md_dom;
+	struct m0_dtx         tx = {};
+	int                   rc;
 
 	m0_sm_group_lock(grp);
+
 	rc = m0_mdstore_create(&rctx->rc_mdstore, grp);
-	m0_sm_group_unlock(grp);
 	if (rc != 0)
-		return rc;
+		goto end;
 
-	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, rctx->rc_beseg->bs_domain, grp);
 	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
+
 	rc = m0_dtx_open_sync(&tx);
 	if (rc == 0) {
 		rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID, &tx.tx_betx);
@@ -1287,8 +1140,8 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
 		m0_dtx_done_sync(&tx);
 	}
 	m0_dtx_fini(&tx);
+end:
 	m0_sm_group_unlock(grp);
-
 	return rc;
 }
 
@@ -1316,9 +1169,8 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 
 	sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
 	m0_linux_stob_setup(sdom, false);
-	rc = m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
-				   &addb_stob->cas_stob);
-	return M0_RC(rc);
+	return M0_RC(m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
+					   &addb_stob->cas_stob));
 }
 
 /**
@@ -1343,7 +1195,7 @@ static void cs_reqh_be_tx_svc_stop(struct m0_reqh *reqh)
 	svc = m0_reqh_service_find(m0_reqh_service_type_find("be-tx-service"),
 				   reqh);
 	if (M0_IN(m0_reqh_service_state_get(svc),
-				(M0_RST_STARTED, M0_RST_STOPPING)))
+		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_stop(svc);
 	m0_reqh_service_fini(svc);
 }
@@ -1358,9 +1210,11 @@ static void cs_reqh_be_tx_svc_stop(struct m0_reqh *reqh)
 
    @param rctx Request handler context to be initialised
  */
-static int cs_request_handler_start(struct m0_reqh_context *rctx)
+static int cs_reqh_start(struct m0_reqh_context *rctx)
 {
 	int rc;
+
+	M0_PRE(reqh_context_invariant(rctx));
 
 	/** @todo Pass in a parent ADDB context for the db. Ideally should
 	    be same parent as that of the reqh.
@@ -1368,19 +1222,17 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 	    Needs work.
 	 */
 
-	rc = M0_REQH_INIT(&rctx->rc_reqh,
-			  .rhia_dtm       = NULL,
-			  .rhia_db        = NULL,
-			  .rhia_mdstore   = &rctx->rc_mdstore,
-			  .rhia_fol       = NULL,
-			  .rhia_svc       = NULL);
+	rc = M0_REQH_INIT(&rctx->rc_reqh, .rhia_mdstore = &rctx->rc_mdstore);
 	if (rc != 0)
 		goto out;
 
 	rc = __service_init("be-tx-service", rctx, &rctx->rc_reqh, NULL, false);
 	if (rc != 0)
 		goto reqh_fini;
-	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
+
+	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
+		&rctx->rc_reqh;
+
 	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_dbenv_init");
@@ -1406,8 +1258,8 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
 		}
 	}
 
-	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
-			     &rctx->rc_stob, rctx->rc_beseg);
+	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath, &rctx->rc_stob,
+			     rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init");
 		goto cleanup_stob;
@@ -1473,27 +1325,6 @@ out:
 }
 
 /**
-   Configures one or more request handler contexts and starts corresponding
-   request handlers in each context.
- */
-static int cs_request_handlers_start(struct m0_mero *cctx)
-{
-	int                     rc = 0;
-	struct m0_reqh_context *rctx;
-
-	M0_PRE(cctx != NULL);
-
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_invariant(rctx));
-		rc = cs_request_handler_start(rctx);
-		if (rc != 0)
-			return rc;
-	} m0_tl_endfor;
-
-	return rc;
-}
-
-/**
    Finalises a request handler context.
    Sets m0_reqh::rh_shutdown true, and checks if the request handler can be
    shutdown by invoking m0_reqh_can_shutdown().
@@ -1502,15 +1333,15 @@ static int cs_request_handlers_start(struct m0_mero *cctx)
 
    @param rctx Request handler context to be finalised
 
-   @pre m0_reqh_context_invariant()
+   @pre reqh_context_invariant()
  */
-static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+static void cs_reqh_stop(struct m0_reqh_context *rctx)
 {
 	struct m0_reqh *reqh = &rctx->rc_reqh;
 
-	M0_PRE(m0_reqh_context_invariant(rctx));
-
 	M0_ENTRY();
+	M0_PRE(rctx->rc_state == RC_INITIALISED);
+	M0_PRE(reqh_context_invariant(rctx));
 
 	if (reqh->rh_addb_monitoring_ctx.amc_stats_conn != NULL)
 		m0_addb_monitor_stats_svc_conn_fini(reqh);
@@ -1537,97 +1368,31 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
 	m0_dbenv_fini(&rctx->rc_db);
 	cs_rpc_machines_fini(reqh);
 	m0_reqh_fini(reqh);
+
+	rctx->rc_state = RC_UNINITIALISED;
+	M0_LEAVE();
 }
 
-/**
-   Finalises all the request handler contexts within a mero context.
-
-   @param cctx Mero context to which the reqeust handler contexts belong
- */
-static void cs_request_handlers_stop(struct m0_mero *cctx)
+struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx)
 {
-	struct m0_reqh_context *rctx;
-
-	M0_PRE(cctx != NULL);
-
-	M0_ENTRY();
-
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		if (rctx->rc_state == RC_INITIALISED)
-			cs_request_handler_stop(rctx);
-		cs_reqh_ctx_free(rctx);
-	} m0_tl_endfor;
-}
-
-/**
-   Find a request handler service within a given Mero instance.
-
-   @param cctx Pointer to Mero context
-   @param service_name Name of the service
-
-   @pre cctx != NULL && service_name != NULL
-
-   @retval  NULL of reqh instnace.
- */
-struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
-			       const char *service_name)
-{
-	int                     i;
-	struct m0_reqh_context *rctx;
-	struct m0_reqh         *ret = NULL;
-
-	M0_PRE(cctx != NULL);
-	M0_PRE(service_name != NULL);
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 
 	m0_rwlock_read_lock(&cctx->cc_rwlock);
-
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		M0_ASSERT(m0_reqh_context_invariant(rctx));
-
-		for (i = 0; i < rctx->rc_nr_services; ++i) {
-			if (m0_streq(rctx->rc_services[i], service_name)) {
-				ret = &rctx->rc_reqh;
-				goto out;
-			}
-		}
-	} m0_tl_endfor;
-out:
+	M0_ASSERT(reqh_context_invariant(rctx));
 	m0_rwlock_read_unlock(&cctx->cc_rwlock);
-	return ret;
+
+	return &rctx->rc_reqh;
 }
 M0_EXPORTED(m0_cs_reqh_get);
 
-static struct m0_reqh_context *cs_reqh_ctx_get(struct m0_reqh *reqh)
-{
-	struct m0_reqh_context *rqctx;
-
-	M0_PRE(m0_reqh_invariant(reqh));
-
-	rqctx = bob_of(reqh, struct m0_reqh_context, rc_reqh, &rhctx_bob);
-	M0_POST(m0_reqh_context_invariant(rqctx));
-
-	return rqctx;
-}
-
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh)
 {
-	return cs_reqh_ctx_get(reqh)->rc_mero;
+	return bob_of(reqh, struct m0_reqh_context, rc_reqh,
+		      &rhctx_bob)->rc_mero;
 }
 
-/**
-   Initialises a mero context.
-
-   @param cctx Mero context to be initialised
-
-   @pre cctx != NULL
- */
 static void cs_mero_init(struct m0_mero *cctx)
 {
-	M0_PRE(cctx != NULL);
-
-	rhctx_tlist_init(&cctx->cc_reqh_ctxs);
-	m0_bob_type_tlist_init(&rhctx_bob, &rhctx_tl);
-
 	ndom_tlist_init(&cctx->cc_ndoms);
 	m0_bob_type_tlist_init(&ndom_bob, &ndom_tl);
 	cs_buffer_pools_tlist_init(&cctx->cc_buffer_pools);
@@ -1641,15 +1406,9 @@ static void cs_mero_init(struct m0_mero *cctx)
 	cctx->cc_args.ca_argc = 0;
 }
 
-/**
-   Finalises a mero context.
-
-   @pre cctx != NULL
- */
 static void cs_mero_fini(struct m0_mero *cctx)
 {
 	struct cs_endpoint_and_xprt *ep;
-	M0_PRE(cctx != NULL);
 
 	m0_tl_for(cs_eps, &cctx->cc_ios_eps, ep) {
 		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
@@ -1662,7 +1421,6 @@ static void cs_mero_fini(struct m0_mero *cctx)
 
 	cs_eps_tlist_fini(&cctx->cc_ios_eps);
 
-	rhctx_tlist_fini(&cctx->cc_reqh_ctxs);
 	cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
 	ndom_tlist_fini(&cctx->cc_ndoms);
 	m0_rwlock_fini(&cctx->cc_rwlock);
@@ -1671,11 +1429,6 @@ static void cs_mero_fini(struct m0_mero *cctx)
 		m0_free(cctx->cc_args.ca_argv[--cctx->cc_args.ca_argc]);
 }
 
-/**
-   Displays usage of m0d program.
-
-   @param out File to which the output is written
- */
 static void cs_usage(FILE *out)
 {
 	M0_PRE(out != NULL);
@@ -1687,11 +1440,6 @@ static void cs_usage(FILE *out)
 "Type `m0d -h' for help.\n");
 }
 
-/**
-   Displays help for m0d program.
-
-   @param out File to which the output is written
- */
 static void cs_help(FILE *out)
 {
 	M0_PRE(out != NULL);
@@ -1717,10 +1465,6 @@ static void cs_help(FILE *out)
 "  -R addr  Stats service endpoint address \n"
 "\n"
 "Request handler options:\n"
-"  -r   Start new set of request handler options.\n"
-"       There may be multiple '-r' sets, each representing one request\n"
-"       handler.\n"
-"\n"
 "  -p       Prepare storage (root session, root hierarchy, etc).\n"
 "  -D str   Database environment path.\n"
 "  -c str   [optional] Path to the configuration database.\n"
@@ -1741,18 +1485,16 @@ static void cs_help(FILE *out)
 "               NID : PID : PortalNumber : TransferMachineIdentifier\n"
 "           e.g. lnet:172.18.50.40@o2ib1:12345:34:1\n"
 "           .\n"
-"           There may be several '-e' options in one set of request handler\n"
-"           options.  In this case network transport will have several\n"
-"           endpoints, distinguished by transfer machine id (the 4th\n"
-"           component of 4-tuple endpoint address in lnet).\n"
-"  -s str   Service (type) to be started in given request handler context.\n"
+"           If multiple '-e' options are provided, network transport\n"
+"           will have several endpoints, distinguished by transfer machine id\n"
+"           (the 4th component of 4-tuple endpoint address in lnet).\n"
+"  -s str   Service (type) to be started.\n"
 "           The string is of one of the following forms:\n"
 "              ServiceTypeName:ServiceInstanceUUID\n"
 "              ServiceTypeName\n"
 "           with the UUID expressed in the standard 8-4-4-4-12 hexadecimal\n"
 "           string form. The non-UUID form is permitted for testing purposes.\n"
-"           There may be several '-s' options in one set of request handler\n"
-"           options. Duplicated service type names are not allowed.\n"
+"           Multiple '-s' options are allowed, but the values must be unique.\n"
 "           Use '-l' to get a list of registered service types.\n"
 "  -q num   [optional] Minimum length of TM receive queue.\n"
 "           Defaults to the value set with '-Q' option.\n"
@@ -1760,91 +1502,61 @@ static void cs_help(FILE *out)
 "           Defaults to the value set with '-M' option.\n"
 "\n"
 "Example:\n"
-"    m0d -Q 4 -M 4096 -r -T linux -D dbpath -S stobfile \\\n"
+"    m0d -Q 4 -M 4096 -T linux -D dbpath -S stobfile \\\n"
 "        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n");
 }
 
-static int reqh_ctxs_are_valid(struct m0_mero *cctx)
+static int reqh_ctx_validate(struct m0_mero *cctx)
 {
-	struct m0_reqh_context      *rctx;
+	struct m0_reqh_context      *rctx = &cctx->cc_reqh_ctx;
 	struct cs_endpoint_and_xprt *ep;
-	const char                  *sname;
 	int                          i;
-	int                          rc = 0;
-
 	M0_ENTRY();
-	M0_PRE(cctx != NULL);
 
-	if (cctx->cc_recv_queue_min_length < M0_NET_TM_RECV_QUEUE_DEF_LEN)
-		cctx->cc_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	if (!reqh_ctx_args_are_valid(rctx))
+		return M0_ERR(-EINVAL, "Parameters are missing or invalid");
 
-	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-		if (!reqh_ctx_args_are_valid(rctx)) {
-			M0_LOG(M0_ERROR, "Missing or Invalid parameters");
-			return M0_RC(-EINVAL);
-		}
+	cctx->cc_recv_queue_min_length = max64(cctx->cc_recv_queue_min_length,
+					       M0_NET_TM_RECV_QUEUE_DEF_LEN);
+	rctx->rc_recv_queue_min_length = max64(rctx->rc_recv_queue_min_length,
+					       M0_NET_TM_RECV_QUEUE_DEF_LEN);
 
-		if (rctx->rc_recv_queue_min_length <
-		    M0_NET_TM_RECV_QUEUE_DEF_LEN)
-			rctx->rc_recv_queue_min_length =
-				cctx->cc_recv_queue_min_length;
+	if (rctx->rc_max_rpc_msg_size == 0)
+		rctx->rc_max_rpc_msg_size = cctx->cc_max_rpc_msg_size;
 
-		if (rctx->rc_max_rpc_msg_size == 0)
-			rctx->rc_max_rpc_msg_size = cctx->cc_max_rpc_msg_size;
+	if (!stype_is_valid(rctx->rc_stype)) {
+		cs_stob_types_list(cctx->cc_outfile);
+		return M0_ERR(-EINVAL, "Invalid service type");
+	}
 
-		if (!stype_is_valid(rctx->rc_stype)) {
-			M0_LOG(M0_ERROR, "storage_init_fail");
-			cs_stob_types_list(cctx->cc_outfile);
-			return M0_RC(-EINVAL);
-		}
-		/*
-		   Check if all the given end points in a reqh context are
-		   valid.
-		 */
-		if (cs_eps_tlist_is_empty(&rctx->rc_eps)) {
-			M0_LOG(M0_ERROR, "Endpoint missing");
-			return M0_RC(-EINVAL);
-		}
+	if (cs_eps_tlist_is_empty(&rctx->rc_eps))
+		return M0_ERR(-EINVAL, "Endpoint is missing");
 
-		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
-			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
-			rc = cs_endpoint_validate(cctx, ep->ex_endpoint,
-						  ep->ex_xprt);
-			if (rc != 0) {
-				M0_LOG(M0_ERROR, "endpoint_init_fail: %s: %d",
-						 ep->ex_endpoint, rc);
-				return M0_RC(rc);
-			}
-		} m0_tl_endfor;
+	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+		int rc;
 
-		/*
-		   Check if the services are registered and are valid in a
-		   reqh context.
-		 */
-		if (rctx->rc_nr_services == 0) {
-			M0_LOG(M0_ERROR, "No Service specified");
-			return M0_RC(-EINVAL);
-		}
-
-		for (i = 0; i < rctx->rc_nr_services; ++i) {
-			sname = rctx->rc_services[i];
-			if (!m0_reqh_service_is_registered(sname)) {
-				M0_LOG(M0_ERROR, "service_init_fail %s", sname);
-				return M0_RC(-ENOENT);
-			}
-			if (service_is_duplicate(rctx, sname)) {
-				M0_LOG(M0_ERROR, "service_init_fail %s", sname);
-				return M0_RC(-EEXIST);
-			}
-		}
+		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+		rc = cs_endpoint_validate(cctx, ep->ex_endpoint, ep->ex_xprt);
+		if (rc != 0)
+			return M0_ERR(rc, "Invalid endpoint: %s",
+				      ep->ex_endpoint);
 	} m0_tl_endfor;
 
-	if (cctx->cc_pool_width <= 0) {
-		M0_LOG(M0_ERROR, "Invalid pool width.\n"
-				 "Use -w to provide a valid integer");
-		return M0_RC(-EINVAL);
+	if (rctx->rc_nr_services == 0)
+		return M0_ERR(-EINVAL, "No service specified");
+
+	for (i = 0; i < rctx->rc_nr_services; ++i) {
+		const char *sname = rctx->rc_services[i];
+
+		if (!m0_reqh_service_is_registered(sname))
+			return M0_ERR(-ENOENT, "Service is not registered: %s",
+				      sname);
+
+		if (service_is_duplicate(rctx, sname))
+			return M0_ERR(-EEXIST, "Service is not unique: %s",
+				      sname);
 	}
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 /**
@@ -1860,15 +1572,11 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
  */
 static int cs_daemonize(struct m0_mero *cctx)
 {
-	int rc = 0;
-	struct sigaction hup_act = {
-		.sa_handler = SIG_IGN,
-	};
-
-	if (cctx->cc_daemon)
-		rc = daemon(1 /* nochdir */, 0 /* redirect stdio */) ?:
-		    sigaction(SIGHUP, &hup_act, NULL);
-	return rc;
+	if (cctx->cc_daemon) {
+		struct sigaction hup_act = { .sa_handler = SIG_IGN };
+		return daemon(1, 0) ?: sigaction(SIGHUP, &hup_act, NULL);
+	}
+	return 0;
 }
 
 /**
@@ -1883,8 +1591,8 @@ static int cs_daemonize(struct m0_mero *cctx)
    @param svc Allocated service type name
    @param uuid Numerical UUID value if present and valid, or zero.
  */
-static int service_string_parse(const char *str, char **svc,
-				struct m0_uint128 *uuid)
+static int
+service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 {
 	const char *colon;
 	size_t      len;
@@ -1917,25 +1625,16 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 		       const char **confd_addr, const char **profile,
 		       const char **genders, bool *use_genders)
 {
-	int                     result;
-	struct m0_reqh_context *rctx = NULL;
-	int                     rc = 0;
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	int                     rc_getops;
+	int                     rc;
 
 	M0_ENTRY();
-	M0_PRE(cctx != NULL);
 
 	if (argc <= 1)
 		return M0_RC(-EINVAL);
 
-#define _RETURN_EINVAL_UNLESS(rctx)   \
-	do {                          \
-		if (rctx == NULL) {   \
-			rc = -EINVAL; \
-			return;       \
-		}                     \
-	} while (0)
-
-	result = M0_GETOPTS("m0d", argc, argv,
+	rc_getops = M0_GETOPTS("m0d", argc, argv,
 			/* -------------------------------------------
 			 * Global options
 			 */
@@ -1979,24 +1678,22 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			M0_STRINGARG('G', "mdservice endpoint address",
 				LAMBDA(void, (const char *s)
 				{
-					rc = m0_ep_and_xprt_extract(&cctx->
-								    cc_mds_epx,
-								    s);
+					rc = m0_ep_and_xprt_extract(
+						&cctx->cc_mds_epx, s);
 				})),
 			M0_STRINGARG('R', "stats service endpoint address",
 				LAMBDA(void, (const char *s)
 				{
-					rc = m0_ep_and_xprt_extract(&cctx->
-								 cc_stats_svc_epx,
-								 s);
+					rc = m0_ep_and_xprt_extract(
+						&cctx->cc_stats_svc_epx, s);
 				})),
 			M0_STRINGARG('i', "ioservice endpoints list",
 				LAMBDA(void, (const char *s)
 				{
 					rc = ep_and_xprt_append(
-							&cctx->cc_ios_eps, s);
-					M0_LOG(M0_DEBUG, "adding %s to ios "
-							 "ep list %d", s, rc);
+						&cctx->cc_ios_eps, s);
+					M0_LOG(M0_DEBUG, "adding %s to ios ep "
+					       "list %d", s, rc);
 				})),
 			M0_FORMATARG('w', "Pool Width", "%i",
 				     &cctx->cc_pool_width),
@@ -2012,70 +1709,50 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			/* -------------------------------------------
 			 * Request handler options
 			 */
-			M0_VOIDARG('r', "Start request handler",
-				LAMBDA(void, (void)
-				{
-					rctx = NULL;
-					rctx = cs_reqh_ctx_alloc(cctx);
-					if (rctx == NULL) {
-						rc = -ENOMEM;
-						return;
-					}
-					rctx->rc_nr_services = 0;
-				})),
 			M0_VOIDARG('p', "Prepare storage (root session,"
 				   " hierarchy root, etc)",
 				LAMBDA(void, (void)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_prepare_storage = 1;
 				})),
 			M0_STRINGARG('D', "Database environment path",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_dbpath = s;
 				})),
 			M0_STRINGARG('c', "Path to the configuration database",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_confdb = s;
 				})),
 			M0_STRINGARG('T', "Storage domain type",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_stype = s;
 				})),
 			M0_STRINGARG('A', "ADDB Storage domain name",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_addb_stpath = s;
 				})),
 			M0_STRINGARG('S', "Storage domain name",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_stpath = s;
 				})),
 			M0_STRINGARG('d', "device configuration file",
 				LAMBDA(void, (const char *s)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_dfilepath = s;
 				})),
 			M0_NUMBERARG('q', "Minimum TM recv queue length",
 				LAMBDA(void, (int64_t length)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_recv_queue_min_length = length;
 				})),
 			M0_NUMBERARG('m', "Maximum RPC message size",
 				LAMBDA(void, (int64_t size)
 				{
-					_RETURN_EINVAL_UNLESS(rctx);
 					rctx->rc_max_rpc_msg_size = size;
 				})),
 			/*
@@ -2087,14 +1764,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				     " e.g. transport:address",
 				LAMBDA(void, (const char *s)
 				{
-				      _RETURN_EINVAL_UNLESS(rctx);
 				      rc = ep_and_xprt_append(&rctx->rc_eps, s);
 				})),
 			M0_STRINGARG('s', "Services to be configured",
 				LAMBDA(void, (const char *s)
 				{
 					int i;
-					_RETURN_EINVAL_UNLESS(rctx);
 					if (rctx->rc_nr_services >=
 					    rctx->rc_max_services) {
 						rc = -E2BIG;
@@ -2108,7 +1783,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 						   &rctx->rc_service_uuids[i]);
 					if (rc == 0)
 						M0_CNT_INC(
-							  rctx->rc_nr_services);
+							rctx->rc_nr_services);
 				})),
 			M0_VOIDARG('v', "Print version and exit",
 				LAMBDA(void, (void)
@@ -2117,9 +1792,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 					rc = 1;
 				})),
 			);
-#undef _RETURN_EINVAL_UNLESS
-
-	return M0_RC(result ?: rc);
+	return M0_RC(rc_getops ?: rc);
 }
 
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
@@ -2145,7 +1818,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	 */
 	if (use_genders && profile != NULL)
 		return M0_ERR(-EPROTO, "genders use conflicts with "
-			       "confd profile");
+			      "confd profile");
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
 		bool global_daemonize = cctx->cc_daemon;
@@ -2181,18 +1854,16 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 {
 	int rc;
 
-	M0_PRE(cctx != NULL);
-
 	if (M0_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
 	m0_rwlock_write_lock(&cctx->cc_rwlock);
 	rc = cs_args_parse(cctx, argc, argv) ?:
-		reqh_ctxs_are_valid(cctx) ?:
+		reqh_ctx_validate(cctx) ?:
 		cs_daemonize(cctx) ?:
 		cs_net_domains_init(cctx) ?:
 		cs_buffer_pool_setup(cctx) ?:
-		cs_request_handlers_start(cctx) ?:
+		cs_reqh_start(&cctx->cc_reqh_ctx) ?:
 		cs_rpc_machines_init(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
@@ -2200,59 +1871,68 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 		M0_LOG(M0_ERROR, "m0_cs_setup_env: %d", rc);
 		cs_usage(cctx->cc_outfile);
 	}
-
 	return rc;
 }
 
 int m0_cs_start(struct m0_mero *cctx)
 {
-	int rc;
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	int                     rc;
 
 	M0_ENTRY();
-	M0_PRE(cctx != NULL);
-	rc = cs_services_init(cctx);
+	M0_PRE(reqh_context_invariant(rctx));
+
+	rc = reqh_services_start(rctx);
+
 	/**
 	 * @todo: stats connection initialization should be done
 	 * in addb pfom, currently not being done due to some initialization
 	 * ordering issues.
-	 * RB link :- http://reviewboard.clusterstor.com/r/1544
+	 *
+	 * @see http://reviewboard.clusterstor.com/r/1544
 	 */
 	if (cctx->cc_stats_svc_epx.ex_endpoint != NULL)
-		cs_addb_monitor_stats_svc_conn_init(cctx);
+		/** @todo Log ADDB message in case of non-zero return value. */
+		(void)m0_addb_monitor_stats_svc_conn_init(&rctx->rc_reqh);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
-	       size_t xprts_nr, FILE * out)
+	       size_t xprts_nr, FILE *out)
 {
-	M0_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
+	M0_PRE(xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
-	cctx->cc_xprts = xprts;
+	cctx->cc_xprts    = xprts;
 	cctx->cc_xprts_nr = xprts_nr;
-	cctx->cc_outfile = out;
+	cctx->cc_outfile  = out;
+
 	cs_mero_init(cctx);
 
-	return 0;
+	return cs_reqh_ctx_init(cctx);
 }
 
 void m0_cs_fini(struct m0_mero *cctx)
 {
-	M0_PRE(cctx != NULL);
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 
 	M0_ENTRY();
 
-	cs_request_handlers_stop(cctx);
+	if (rctx->rc_state == RC_INITIALISED)
+		cs_reqh_stop(rctx);
+	cs_reqh_ctx_fini(rctx);
+
 	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
 	cs_mero_fini(cctx);
+
+	M0_LEAVE();
 }
 
 /** @} endgroup m0d */
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

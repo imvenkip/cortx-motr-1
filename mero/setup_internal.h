@@ -30,15 +30,12 @@
    @{
  */
 
-/**
- * Represents list of buffer pools in the mero context.
- */
+/** Represents list of buffer pools in the mero context. */
 struct cs_buffer_pool {
 	/** Network buffer pool object. */
 	struct m0_net_buffer_pool cs_buffer_pool;
-	/** Linkage into network buffer pool list */
+	/** Linkage into network buffer pool list. */
 	struct m0_tlink           cs_bp_linkage;
-	/** Magic */
 	uint64_t                  cs_bp_magic;
 };
 

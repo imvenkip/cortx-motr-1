@@ -1316,9 +1316,7 @@ static void bulkio_server_write_fol_rec_verify(void)
 	fop = &bp->bp_wfops[0]->if_fop;
 	wfop = (struct m0_fop_cob_writev *)m0_fop_data(fop);
 
-	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
@@ -1374,9 +1372,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	io_fops_destroy(bp);
 
 	/* Undo the last write, so that file contains data "b". */
-	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
 	M0_UT_ASSERT(result == 0);
@@ -1672,9 +1668,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	event.pe_index = 1;
 	event.pe_state = M0_PNDS_FAILED;
 
-	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	pm = m0_ios_poolmach_get(reqh);
 	M0_UT_ASSERT(pm != NULL);
 
@@ -1754,7 +1748,7 @@ static void bulkio_fini(void)
 	struct m0_reqh *reqh;
 	for (i = 0; i < IO_FIDS_NR; ++i)
 		m0_file_fini(&bp->bp_file[i]);
-	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx, "ioservice");
+	reqh = m0_cs_reqh_get(&bp->bp_sctx->rsx_mero_ctx);
 	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
 	/*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
@@ -1771,8 +1765,6 @@ static void bulkio_fini(void)
  */
 const struct m0_test_suite bulkio_server_ut = {
 	.ts_name = "bulk-server-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
 	.ts_tests = {
 		/*
 		 * Intentionally kept as first test case. It initializes

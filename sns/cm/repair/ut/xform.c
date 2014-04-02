@@ -239,33 +239,33 @@ static void cp_buf_free(struct m0_sns_cm_ag *sag)
 	}
 }
 
-static void tgt_fid_cob_create()
+static void tgt_fid_cob_create(struct m0_reqh *reqh)
 {
-	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
-        struct m0_dbenv      *dbenv;
-        struct m0_fid         gfid = {0, 4};
-        int                   rc;
+	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	struct m0_dbenv    *dbenv;
+	struct m0_fid       gfid = {0, 4};
+	int                 rc;
 
-        rc = m0_ios_cdom_get(reqh, &cdom);
-        M0_ASSERT(rc == 0);
-        dbenv = reqh->rh_dbenv;
+	rc = m0_ios_cdom_get(reqh, &cdom);
+	M0_ASSERT(rc == 0);
+	dbenv = reqh->rh_dbenv;
 
-        cob_create(dbenv, cdom, 0, &gfid, 0);
-        stob_dom = m0_cs_stob_domain_find(reqh, &sid);
-        M0_ASSERT(stob_dom != NULL);
+	cob_create(dbenv, cdom, 0, &gfid, 0);
+	stob_dom = m0_cs_stob_domain_find(reqh, &sid);
+	M0_ASSERT(stob_dom != NULL);
 
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
 	m0_stob_create_helper_credit(stob_dom, &sid, &tx.tx_betx_cred);
-        rc = stob_dom->sd_ops->sdo_tx_make(stob_dom, &tx);
-        M0_ASSERT(rc == 0);
-        rc = m0_stob_create_helper(stob_dom, &tx, &sid, &stob);
-        M0_ASSERT(rc == 0);
-        m0_dtx_done_sync(&tx);
+	rc = stob_dom->sd_ops->sdo_tx_make(stob_dom, &tx);
+	M0_ASSERT(rc == 0);
+	rc = m0_stob_create_helper(stob_dom, &tx, &sid, &stob);
+	M0_ASSERT(rc == 0);
+	m0_dtx_done_sync(&tx);
 	m0_dtx_fini(&tx);
 	m0_sm_group_unlock(grp);
 
-        m0_stob_put(stob);
+	m0_stob_put(stob);
 }
 
 static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
@@ -572,15 +572,16 @@ static int xform_init(void)
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
-	M0_ASSERT(reqh != NULL);
+	reqh = m0_cs_reqh_get(&sctx);
+	tgt_fid_cob_create(reqh);
 
-	tgt_fid_cob_create();
-	scm_service = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
-                                           reqh);
+	scm_service = m0_reqh_service_find(
+		m0_reqh_service_type_find("sns_repair"), reqh);
         M0_ASSERT(scm_service != NULL);
+
         cm = container_of(scm_service, struct m0_cm, cm_service);
         M0_ASSERT(cm != NULL);
+
         scm = cm2sns(cm);
 	scm->sc_it.si_cob_dom = cdom;
 	scm->sc_helpers = &xform_ut_repair_helpers;

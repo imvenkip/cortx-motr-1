@@ -261,7 +261,6 @@ M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
 
 	/* NB: allocation failures checked at end of block */
 	option_add(args, m0_strdup(argv0));
-	option_add(args, m0_strdup("-r"));
 	l = strlen(node.mnc_m0d_ep) + strlen(m0_net_lnet_xprt.nx_name) + 2;
 	bp = m0_alloc(l);
 	if (bp != NULL)

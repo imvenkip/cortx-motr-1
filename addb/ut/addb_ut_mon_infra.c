@@ -28,7 +28,7 @@ enum {
 };
 
 static char *addb_mon_infra_server_argv[] = {
-	"addb_mon_infra_ut", "-r", "-p", "-T", "linux", "-D", SERVER_DB_NAME,
+	"addb_mon_infra_ut", "-p", "-T", "linux", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-R", SERVER_ENDPOINT, "-s", "addb",
 	"-s", "stats", "-w", "10"
@@ -369,10 +369,10 @@ static void mon_test_3(void)
 
 static void addb_ut_mon_infra_test(void)
 {
-	struct m0_reqh_service    *reqh_srv;
-	m0_time_t                  temp_time;
-	int                        i;
-	int                        default_batch = stats_batch;
+	struct m0_reqh_service *reqh_srv;
+	m0_time_t               temp_time;
+	int                     i;
+	int                     default_batch = stats_batch;
 
 	/* Do not need to collect any data */
 	addb_rec_post_ut_data_enabled = false;
@@ -380,7 +380,7 @@ static void addb_ut_mon_infra_test(void)
 	addb_pfom_period = M0_MKTIME(0, 1 * 1000 * 1000 * 100);
 	sctx.rsx_argv = addb_mon_infra_server_argv;
 	start_rpc_client_and_server();
-	ut_srv_reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
+	ut_srv_reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
 
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, ut_srv_reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);

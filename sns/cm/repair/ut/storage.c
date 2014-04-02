@@ -304,14 +304,12 @@ static void read_post(void)
 
 static void test_cp_write_read(void)
 {
-	int                    rc;
+	int rc;
 
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&sctx);
 	/*
 	 * Write using a dummy copy packet. This data which is written, will
 	 * be used by the next copy packet to read.

@@ -166,7 +166,7 @@ M0_BASSERT(MIN_RECV_QUEUE_LEN == 200);
 #define NAME(ext) "rpc-ub" ext
 static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
-	"-r", "-p", "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
+	"-p", "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 	"-A", NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1"
 };
 

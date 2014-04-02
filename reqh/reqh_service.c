@@ -19,12 +19,13 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
-#include "lib/trace.h" /* m0_console_printf */
+#include "lib/trace.h"
+
 #include "lib/rwlock.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/time.h"
-#include "lib/misc.h" /* M0_SET_ARR0 */
+#include "lib/misc.h"    /* M0_SET_ARR0 */
 #include "lib/finject.h" /* M0_FI_ENABLED */
 #include "lib/uuid.h"
 #include "lib/lockers.h"
@@ -503,9 +504,8 @@ M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s)
 	return s->rs_sm.sm_state;
 }
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} endgroup reqhservice */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -103,7 +103,7 @@ for ((i=0; i < ${#EP[*]}; i++)) ; do
 	rm -rf $WORK_ARENA/d$i
 	mkdir $WORK_ARENA/d$i
 	(cd $WORK_ARENA/d$i
-	$HERE/mero/m0d -r -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
+	$HERE/mero/m0d -T ${STOB_TYPE} -D $WORK_ARENA/d$i/db \
 	    -S $WORK_ARENA/d$i/stobs -e $XPT:${EP[$i]} -s addb -s ioservice \
 	    -s sns_repair -m 163840 -q 16 &>>$WORK_ARENA/servers_started )&
 done

@@ -87,7 +87,7 @@ mero_service()
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
-			$prog_start -r $PREPARE_STORAGE \
+			$prog_start $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A addb-stobs \
 			 -w $P \

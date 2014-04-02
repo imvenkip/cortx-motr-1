@@ -115,13 +115,12 @@ static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
 
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
-	int                  rc;
+	int rc;
 
         rc = cs_init(&sctx);
         M0_ASSERT(rc == 0);
 
-	reqh = m0_cs_reqh_get(&sctx, "sns_repair");
-	M0_UT_ASSERT(reqh != NULL);
+	reqh = m0_cs_reqh_get(&sctx);
 	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
 				       reqh);
 	M0_UT_ASSERT(service != NULL);

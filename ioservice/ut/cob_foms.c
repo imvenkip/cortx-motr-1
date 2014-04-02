@@ -98,9 +98,8 @@ struct cobthread_arg {
 	int                 ca_rc;
 };
 
-
 static char *server_args[] = {
-	"m0d", "-r", "-p", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
+	"m0d", "-p", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
 	"-s", "ioservice", "-w", "10"/* =POOL_WIDTH */,
 };
@@ -428,8 +427,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	base_fom = *fom;
 	m0_fom_type_init(&ft, NULL, &m0_ios_type, &cob_ops_conf);
 
-	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
+	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	m0_fom_init(base_fom, &ft,
 		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
 		    NULL, NULL, reqh, &m0_ios_type);
@@ -504,8 +502,8 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
  */
 static void fom_fini_test(enum cob_fom_type fomtype)
 {
-	size_t	        tot_mem;
-	size_t	        base_mem;
+	size_t          tot_mem;
+	size_t          base_mem;
 	struct m0_fom  *fom;
 	struct m0_reqh *reqh;
 
@@ -516,7 +514,7 @@ static void fom_fini_test(enum cob_fom_type fomtype)
 	 * 3. Before taking memory record, make sure there are no
 	 *    stray foms around.
 	 */
-	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
+	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	/* Re-enable once m0_ut_be_fom_domain_idle_wait() is removed. */
 	/*m0_reqh_fom_domain_idle_wait(reqh);*/
 	m0_ut_be_fom_domain_idle_wait(reqh);
@@ -1056,10 +1054,7 @@ static void cd_fom_state_test(void)
 
 static void dummy_locality_setup()
 {
-	struct m0_reqh *reqh;
-
-	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
+	struct m0_reqh *reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 
 	dummy_loc.fl_dom = &reqh->rh_fom_dom;
 	m0_sm_group_init(&dummy_loc.fl_group);
@@ -1137,15 +1132,13 @@ static void cobfoms_fv_updates(void)
 	event.pe_index = 1;
 	event.pe_state = M0_PNDS_FAILED;
 
-	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	pm = m0_ios_poolmach_get(reqh);
 	M0_UT_ASSERT(pm != NULL);
 
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0,reqh->rh_beseg->bs_domain, grp,
-			      NULL, NULL, NULL, NULL);
+		      NULL, NULL, NULL, NULL);
 	m0_poolmach_store_credit(pm, &cred);
 
 	m0_be_tx_prep(&tx, &cred);
@@ -1225,9 +1218,7 @@ static void cobfoms_fol_verify(void)
 	c_fop = cut->cu_createfops[0];
 	d_fop = cut->cu_deletefops[0];
 
-	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx, "ioservice");
-	M0_UT_ASSERT(reqh != NULL);
-
+	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
 	M0_UT_ASSERT(result == 0);
