@@ -264,6 +264,7 @@ M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx)
 {
 	M0_ENTRY();
 	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(!M0_IN(m0_be_tx_state(tx), (M0_BTS_FAILED, M0_BTS_DONE)));
 
 	M0_CNT_INC(tx->t_ref);
 }
