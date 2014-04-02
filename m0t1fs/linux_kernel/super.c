@@ -1475,8 +1475,8 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         body->b_blocks = 16;
         body->b_size = 4096;
         body->b_blksize = 4096;
-	body->b_nlink = 2;
-	body->b_lid = csb->csb_layout_id;
+        body->b_nlink = 2;
+        body->b_lid = csb->csb_layout_id;
         body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                         S_IRGRP | S_IXGRP |                     /* r-x for group */
                         S_IROTH | S_IXOTH);

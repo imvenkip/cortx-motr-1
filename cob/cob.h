@@ -32,6 +32,7 @@
 #include "lib/bitstring.h"
 #include "addb/addb.h"
 #include "fid/fid.h"
+#include "mdservice/md_fid.h"
 #include "stob/stob.h"
 #include "dtm/verno.h"
 #include "be/btree.h"

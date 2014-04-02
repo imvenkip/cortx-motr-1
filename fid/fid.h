@@ -100,30 +100,6 @@ M0_INTERNAL const struct m0_fid_type *
 m0_fid_type_getfid(const struct m0_fid *fid);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 
-/* Namespace name for root cob (not exposed to user) */
-extern const char M0_COB_ROOT_NAME[];
-
-/* Grobal cob root fid. */
-extern const struct m0_fid M0_COB_ROOT_FID;
-
-/* Namespace name for virtual .mero directory */
-extern const char M0_DOT_MERO_NAME[];
-
-/* .mero directory fid. */
-extern const struct m0_fid M0_DOT_MERO_FID;
-
-/* Namespace name for virtual .mero/fid directory */
-extern const char M0_DOT_MERO_FID_NAME[];
-
-/* .mero/fid directory fid. */
-extern const struct m0_fid M0_DOT_MERO_FID_FID;
-
-/* Hierarchy root fid (exposed to user). */
-extern const struct m0_fid M0_MDSERVICE_SLASH_FID;
-
-/* First fid that is allowed to be used by client for normal files and dirs. */
-extern const struct m0_fid M0_MDSERVICE_START_FID;
-
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */
 
