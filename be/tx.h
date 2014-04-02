@@ -382,9 +382,10 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
 			       const struct m0_be_tx_credit *credit);
 
 /**
- * Accumulate transaction payload size.
- * This function will add size to the number of bytes
- * which will be allocated for the payload area.
+ * Accumulates transaction payload size.
+ *
+ * This function adds size to the number of bytes
+ * which is allocated for the payload area.
  *
  * @see m0_be_tx::t_payload
  */
@@ -405,13 +406,30 @@ M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx *tx,
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx);
 
+/**
+ * Gets additional reference to the transaction.
+ *
+ * @pre !M0_IN(m0_be_tx_state(tx), (M0_BTS_FAILED, M0_BTS_DONE))
+ * @see m0_be_tx_put()
+ */
 M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx);
+/**
+ * Puts reference to the transaction.
+ *
+ * Transaction is not shifted to M0_BTS_DONE state until number
+ * of m0_be_tx_get() calls is equal to the number of m0_be_tx_put() calls
+ * for the transaction.
+ *
+ * @see m0_be_tx_get()
+ */
 M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx);
 
 /** Forces the transaction to storage. */
 M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
 
 /**
+ * Waits until transacion reaches one of the given states.
+ *
  * @note To wait for a M0_BTS_PLACED state, caller must guarantee that the
  * transaction are not in M0_BTS_DONE state, e.g., by calling m0_be_tx_get().
  */
@@ -423,7 +441,7 @@ M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
 M0_INTERNAL const char *m0_be_tx_state_name(enum m0_be_tx_state state);
 
 /**
- * Call m0_be_tx_open() and then wait until transaction reached
+ * Calls m0_be_tx_open() and then waits until transaction reaches
  * M0_BTS_ACTIVE or M0_BTS_FAILED state.
  *
  * @post equi(rc == 0, m0_be_tx_state(tx) == M0_BTS_ACTIVE)
@@ -432,7 +450,7 @@ M0_INTERNAL const char *m0_be_tx_state_name(enum m0_be_tx_state state);
 M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx);
 
 /**
- * Call m0_be_tx_close() and then wait until transaction reached
+ * Calls m0_be_tx_close() and then waits until transaction reaches
  * M0_BTS_DONE state.
  */
 M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx);
