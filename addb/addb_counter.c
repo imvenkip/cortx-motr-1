@@ -313,6 +313,17 @@ M0_INTERNAL void m0__addb_counter_reset(struct m0_addb_counter *c)
 }
 M0_EXPORTED(m0__addb_counter_reset);
 
+M0_INTERNAL void m0_addb_post_cntr(struct m0_addb_mc       *mc,
+				   struct m0_addb_ctx     **cv,
+				   struct m0_addb_counter  *c)
+{
+	M0_PRE(addb_counter_invariant(c));
+
+	if (m0_addb_counter_nr(c) > 0)
+                M0_ADDB_POST_CNTR(mc, cv, c);
+}
+M0_EXPORTED(m0_addb_post_cntr);
+
 M0_INTERNAL void m0_addb_sm_counter_init(struct m0_addb_sm_counter *c,
 					 const struct m0_addb_rec_type *rt,
 					 void *data, size_t data_sz)

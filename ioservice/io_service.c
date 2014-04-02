@@ -597,6 +597,7 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 	struct m0_reqh_io_service *serv_obj;
 	struct m0_reqh            *reqh = service->rs_reqh;
 	struct m0_addb_ctx        *cv[] = { &service->rs_addb_ctx, NULL };
+	struct m0_addb_mc         *mc = &reqh->rh_addb_mc;
 	int                        i;
 
 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
@@ -606,14 +607,9 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
 		struct m0_addb_io_stats *stats;
 
 		stats = &serv_obj->rios_rwfom_stats[i];
-#undef CNTR_POST
-#define CNTR_POST(n)							\
-		if (m0_addb_counter_nr(&stats->ais_##n##_cntr) > 0)	\
-			M0_ADDB_POST_CNTR(&reqh->rh_addb_mc, cv,	\
-					  &stats->ais_##n##_cntr)
-		CNTR_POST(sizes);
-		CNTR_POST(times);
-#undef CNTR_POST
+
+		m0_addb_post_cntr(mc, cv, &stats->ais_sizes_cntr);
+		m0_addb_post_cntr(mc, cv, &stats->ais_times_cntr);
 	}
 }
 

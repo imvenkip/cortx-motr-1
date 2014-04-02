@@ -244,12 +244,12 @@ struct m0_addb_monitor_ops {
 	/**
 	 * This method is called on each addb record.
 	 */
-	void                    (*amo_watch) (const struct m0_addb_monitor *mon,
-					      const struct m0_addb_rec     *rec,
-					      struct m0_reqh               *r);
+	void                    (*amo_watch) (struct m0_addb_monitor   *mon,
+					      const struct m0_addb_rec *rec,
+					      struct m0_reqh           *r);
 	/** Returns m0_addb_sum_rec, if any for this monitor. */
-	struct m0_addb_sum_rec *(*amo_sum_rec) (const struct m0_addb_monitor *m,
-					        struct m0_reqh               *r);
+	struct m0_addb_sum_rec *(*amo_sum_rec) (struct m0_addb_monitor *m,
+					        struct m0_reqh         *r);
 };
 
 struct m0_addb_monitor {
@@ -326,6 +326,15 @@ M0_INTERNAL void m0_addb_monitor_sum_rec_init(struct m0_addb_sum_rec        *rec
  * @param sum_rec ADDB summary record to fini
  */
 M0_INTERNAL void m0_addb_monitor_sum_rec_fini(struct m0_addb_sum_rec *sum_rec);
+
+/**
+ * Check if monitor is initialised ot not ?
+ * @param monitor monitor object
+ * @retval true if initialised
+ *         false otherwise
+ */
+M0_INTERNAL
+bool m0_addb_monitor_is_initialised(struct m0_addb_monitor *monitor);
 
 /**
  * Add a particular monitor with the ADDB monitoring sub-system

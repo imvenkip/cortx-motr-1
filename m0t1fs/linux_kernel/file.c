@@ -4247,11 +4247,9 @@ static void m0t1fs_addb_stat_post_counters(struct m0t1fs_sb *csb)
 #undef CNTR_POST
 #define CNTR_POST(_mode_, _n_)						\
 	io_stats = &csb->csb_##_mode_##_stats[i];			\
-	if (m0_addb_counter_nr(&io_stats->ais_##_n_##_cntr) > 0) {	\
-		M0_ADDB_POST_CNTR(&m0_addb_gmc,				\
-				  M0_ADDB_CTX_VEC(&m0t1fs_addb_ctx),	\
-				  &io_stats->ais_##_n_##_cntr);		\
-	}
+	m0_addb_post_cntr(&m0_addb_gmc,					\
+			  M0_ADDB_CTX_VEC(&m0t1fs_addb_ctx),		\
+			  &io_stats->ais_##_n_##_cntr);
 
 	if (now >= next_post || next_post == 0) {
 		for (i = 0; i < ARRAY_SIZE(csb->csb_io_stats); ++i) {

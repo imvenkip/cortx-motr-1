@@ -522,13 +522,8 @@ static void __rpc_machine_stats_post_addb(struct m0_rpc_machine *machine)
 	addb_mc = machine->rm_reqh != NULL ?
 		  &machine->rm_reqh->rh_addb_mc :
 		  &m0_addb_gmc;
-	if (m0_addb_counter_nr(&machine->rm_cntr_sent_item_sizes) > 0)
-		M0_ADDB_POST_CNTR(addb_mc, cv,
-				  &machine->rm_cntr_sent_item_sizes);
-
-	if (m0_addb_counter_nr(&machine->rm_cntr_rcvd_item_sizes) > 0)
-		M0_ADDB_POST_CNTR(addb_mc, cv,
-				  &machine->rm_cntr_rcvd_item_sizes);
+	m0_addb_post_cntr(addb_mc, cv, &machine->rm_cntr_sent_item_sizes);
+	m0_addb_post_cntr(addb_mc, cv, &machine->rm_cntr_rcvd_item_sizes);
 
 	__rpc_machine_get_stats(machine, &rm_stats, true);
 	if (rm_stats.rs_nr_rcvd_items +

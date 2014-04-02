@@ -1145,9 +1145,9 @@ struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
 	return container_of(reqh, struct m0t1fs_sb, csb_reqh);
 }
 
-static void m0t1fs_mon_rw_io_watch(const struct m0_addb_monitor *mon,
-				   const struct m0_addb_rec     *rec,
-				   struct m0_reqh               *reqh)
+static void m0t1fs_mon_rw_io_watch(struct m0_addb_monitor   *mon,
+				   const struct m0_addb_rec *rec,
+				   struct m0_reqh           *reqh)
 {
 	struct m0_addb_sum_rec                  *sum_rec;
 	struct m0t1fs_addb_mon_sum_data_io_size *sum_data =
@@ -1174,8 +1174,8 @@ static void m0t1fs_mon_rw_io_watch(const struct m0_addb_monitor *mon,
 }
 
 static struct m0_addb_sum_rec *
-m0t1fs_mon_rw_io_sum_rec(const struct m0_addb_monitor *mon,
-		         struct m0_reqh               *reqh)
+m0t1fs_mon_rw_io_sum_rec(struct m0_addb_monitor *mon,
+		         struct m0_reqh         *reqh)
 {
 	struct m0_addb_sum_rec *sum_rec;
 

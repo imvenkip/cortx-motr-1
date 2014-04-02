@@ -352,11 +352,9 @@ static void rms_stats_post_addb(struct m0_reqh_service *service)
 
 #undef CNTR_POST
 #define CNTR_POST(counter)						\
-	if (m0_addb_counter_nr(&counter) > 0) {				\
-		M0_ADDB_POST_CNTR(&m0_addb_gmc,                         \
+		m0_addb_post_cntr(&m0_addb_gmc,                         \
 				  M0_ADDB_CTX_VEC(&m0_rm_addb_ctx),	\
-				  &counter);				\
-	}
+				  &counter);
 
 	for (i = 0; i < ARRAY_SIZE(dom->rd_types); ++i) {
 		struct m0_rm_resource_type *rt = dom->rd_types[i];

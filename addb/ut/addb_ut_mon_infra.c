@@ -146,8 +146,8 @@ void *dprt_arrp[] = { NULL,
 #undef DPRTP
 #define DPRTP(n) &m0__addb_ut_rt_dp ## n
 
-static struct m0_addb_sum_rec *ut_mon_sum_rec(const struct m0_addb_monitor *mon,
-				              struct m0_reqh               *reqh)
+static struct m0_addb_sum_rec *ut_mon_sum_rec(struct m0_addb_monitor *mon,
+				              struct m0_reqh         *reqh)
 {
 	struct m0_addb_sum_rec *sum_rec;
 	int                     idx;
@@ -162,9 +162,9 @@ static struct m0_addb_sum_rec *ut_mon_sum_rec(const struct m0_addb_monitor *mon,
 	return sum_rec;
 }
 
-void ut_mon_watch(const struct m0_addb_monitor *monitor,
-		  const struct m0_addb_rec     *rec,
-		  struct m0_reqh               *reqh)
+void ut_mon_watch(struct m0_addb_monitor   *monitor,
+		  const struct m0_addb_rec *rec,
+		  struct m0_reqh           *reqh)
 {
 	struct m0_addb_sum_rec *sum_rec;
 	int                     idx;

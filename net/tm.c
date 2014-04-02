@@ -385,14 +385,9 @@ M0_INTERNAL void m0_net__tm_stats_post_addb(struct m0_net_transfer_mc *tm)
 	cv[0] = &tm->ntm_addb_ctx;
 	cv[1] = NULL;
 
-#undef POST_CNTR_NZ
-#define POST_CNTR_NZ(n)							\
-	if (m0_addb_counter_nr(&tm->ntm_cntr_##n) > 0)			\
-		M0_ADDB_POST_CNTR(tm->ntm_addb_mc, cv, &tm->ntm_cntr_##n)
-	POST_CNTR_NZ(msg);
-	POST_CNTR_NZ(data);
-	POST_CNTR_NZ(rb);
-#undef POST_CNTR_NZ
+	m0_addb_post_cntr(tm->ntm_addb_mc, cv, &tm->ntm_cntr_msg);
+	m0_addb_post_cntr(tm->ntm_addb_mc, cv, &tm->ntm_cntr_data);
+	m0_addb_post_cntr(tm->ntm_addb_mc, cv, &tm->ntm_cntr_rb);
 
 	for (i = 0; i < M0_NET_QT_NR; ++i) {
 		struct m0_net_qstats qs;

@@ -39,6 +39,7 @@
 #include "mero/setup.h"
 #include "lib/chan.h"
 #include "lib/user_space/getopts.h"
+#include "module/instance.h" /* m0 */
 
 enum {
 	STATS_MAX_COUNT     = 3,
@@ -240,6 +241,7 @@ int main(int argc, char *argv[])
 	struct m0_addb_uint64_seq  *stats_ids  = NULL;
 	struct cs_endpoint_and_xprt epx;
 	FILE			   *fout;
+	static struct m0            instance;
 
 	r2 = M0_GETOPTS("m0stats", argc, argv,
 			M0_STRINGARG('R', "Stats service endpoint",
@@ -308,7 +310,7 @@ int main(int argc, char *argv[])
         sigaction(SIGQUIT, &sa, NULL);
         sigaction(SIGPIPE, &sa, NULL);
 
-	rc = m0_init(NULL);
+	rc = m0_init(&instance);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to initialize library. rc = %d\n", rc);
 		return rc;

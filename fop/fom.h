@@ -204,6 +204,7 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "lib/chan.h"
 #include "lib/atomic.h"
 #include "lib/tlist.h"
+#include "lib/lockers.h"
 
 #include "dtm/dtm.h"               /* m0_dtx */
 #include "fol/fol.h"
@@ -221,9 +222,12 @@ struct m0_fom_type_ops;
 struct m0_fom;
 struct m0_fom_ops;
 struct m0_long_lock;
+struct m0_fop_rate_monitor;
 
 /* defined in fom.c */
 struct m0_loc_thread;
+
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_fom_locality, 16);
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -243,25 +247,25 @@ struct m0_loc_thread;
  * @see m0_locality_invaraint()
  */
 struct m0_fom_locality {
-	struct m0_fom_domain        *fl_dom;
+	struct m0_fom_domain          *fl_dom;
 
 	/** Run-queue */
-	struct m0_tl		     fl_runq;
-	size_t			     fl_runq_nr;
+	struct m0_tl		       fl_runq;
+	size_t			       fl_runq_nr;
 
 	/** Wait list */
-	struct m0_tl		     fl_wail;
-	size_t			     fl_wail_nr;
+	struct m0_tl		       fl_wail;
+	size_t			       fl_wail_nr;
 
 	/**
 	 * Total number of active foms in this locality. Equals the length of
 	 * runq plus the length of wail plus the number of M0_FOS_RUNNING foms
 	 * in all locality threads.
 	 */
-	unsigned                     fl_foms;
+	unsigned                       fl_foms;
 
 	/** State Machine (SM) group for AST call-backs */
-	struct m0_sm_group	     fl_group;
+	struct m0_sm_group	       fl_group;
 
 	/**
 	 *  Re-scheduling channel that the handler thread waits on for new work.
@@ -269,41 +273,39 @@ struct m0_fom_locality {
 	 *  @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
 	 *  the explanation of the name.
 	 */
-	struct m0_chan		     fl_runrun;
+	struct m0_chan		       fl_runrun;
 	/**
 	 * Set to true when the locality is finalised. This signals locality
 	 * threads to exit.
 	 */
-	bool                         fl_shutdown;
+	bool                           fl_shutdown;
 	/** Handler thread */
-	struct m0_loc_thread        *fl_handler;
+	struct m0_loc_thread          *fl_handler;
 	/** Idle threads */
-	struct m0_tl                 fl_threads;
-	struct m0_atomic64           fl_unblocking;
-	struct m0_chan               fl_idle;
+	struct m0_tl                   fl_threads;
+	struct m0_atomic64             fl_unblocking;
+	struct m0_chan                 fl_idle;
 
 	/** Resources allotted to the partition */
-	struct m0_bitmap	     fl_processors;
+	struct m0_bitmap	       fl_processors;
 
-	struct m0_addb_ctx           fl_addb_ctx;
+	struct m0_addb_ctx             fl_addb_ctx;
 	/**
 	   Accumulated run time of all foms. Is is updated from fom_exec()
 	   along with m0_fom::fo_exec_time.
 	 */
-	struct m0_addb_counter       fl_stat_run_times;
+	struct m0_addb_counter         fl_stat_run_times;
 	/**
 	   Accumulated scheduling overhead of all foms. It is updated from
 	   fom_dequeue() counting by m0_fom::fo_sched_epoch.
 	 */
-	struct m0_addb_counter       fl_stat_sched_wait_times;
-
-	/** FOP rate counter. It is fop executed per sec. */
-	uint64_t                     fl_fop_rate_count;
-	m0_time_t		     fl_fop_rate_next_update;
-	struct m0_addb_counter       fl_stat_fop_rate;
+	struct m0_addb_counter         fl_stat_sched_wait_times;
 
 	/** AST which triggers the posting of statistics */
-	struct m0_sm_ast             fl_post_stats_ast;
+	struct m0_sm_ast               fl_post_stats_ast;
+
+	/** locker to store data pointers. */
+	struct m0_fom_locality_lockers fl_locker;
 
 	/** Something for memory, see set_mempolicy(2). */
 };
@@ -340,8 +342,6 @@ struct m0_fom_domain {
 	struct m0_reqh			*fd_reqh;
 	/** Addb context for fom */
 	struct m0_addb_ctx               fd_addb_ctx;
-	/** fop rate monitor */
-	struct m0_addb_monitor           fd_fop_rate_monitor;
 };
 
 /** Operations vector attached to a domain. */

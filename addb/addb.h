@@ -686,6 +686,16 @@ M0_INTERNAL uint64_t m0_addb_counter_nr(const struct m0_addb_counter *c);
 M0_INTERNAL void m0__addb_counter_reset(struct m0_addb_counter *c);
 
 /**
+ * Post ADDB counter values if samples collected.
+ * @param mc Specify ADDB machine.
+ * @param cv Specify ADDB context vector.
+ * @param c  Specify ADDB counter.
+ */
+M0_INTERNAL void m0_addb_post_cntr(struct m0_addb_mc       *mc,
+                                   struct m0_addb_ctx     **cv,
+                                   struct m0_addb_counter  *c);
+
+/**
  * State machine counter data object
  *
  * This object efficiently maintains the equivalent of an array

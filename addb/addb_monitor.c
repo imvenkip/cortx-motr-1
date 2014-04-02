@@ -322,6 +322,13 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
 	addb_mon_tlink_fini(monitor);
 }
 
+M0_INTERNAL bool m0_addb_monitor_is_initialised(struct m0_addb_monitor *monitor)
+{
+	M0_PRE(m0_addb_monitor_invariant(monitor));
+
+	return addb_mon_tlink_is_in(monitor);
+}
+
 M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh               *reqh,
 				     struct m0_addb_monitor       *monitor)
 {
