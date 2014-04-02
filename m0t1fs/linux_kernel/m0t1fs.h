@@ -617,9 +617,11 @@ static inline struct m0t1fs_inode *M0T1FS_I(const struct inode *inode)
 }
 
 extern const struct file_operations m0t1fs_dir_file_operations;
+extern const struct file_operations m0t1fs_fid_dir_file_operations;
 extern const struct file_operations m0t1fs_reg_file_operations;
 
 extern const struct inode_operations m0t1fs_dir_inode_operations;
+extern const struct inode_operations m0t1fs_fid_dir_inode_operations;
 extern const struct inode_operations m0t1fs_reg_inode_operations;
 
 /* super.c */
@@ -637,7 +639,10 @@ M0_INTERNAL bool m0t1fs_fs_is_locked(const struct m0t1fs_sb *csb);
 
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *de,
 			       struct kstat *stat);
+M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *de,
+			           struct kstat *stat);
 M0_INTERNAL int m0t1fs_setattr(struct dentry *de, struct iattr *attr);
+M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *de, struct iattr *attr);
 M0_INTERNAL int m0t1fs_inode_update(struct inode *inode,
 				    struct m0_fop_cob *body);
 
@@ -651,8 +656,8 @@ M0_INTERNAL int m0t1fs_inode_cache_init(void);
 M0_INTERNAL void m0t1fs_inode_cache_fini(void);
 
 M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
-M0_INTERNAL bool m0t1fs_inode_is_mero(const struct inode *inode);
-M0_INTERNAL bool m0t1fs_inode_is_fid(const struct inode *inode);
+M0_INTERNAL bool m0t1fs_inode_is_dot_mero(const struct inode *inode);
+M0_INTERNAL bool m0t1fs_inode_is_dot_mero_fid(const struct inode *inode);
 
 M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 					   struct m0_fid *root_fid);
@@ -762,12 +767,21 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode,
 M0_INTERNAL int m0t1fs_setxattr(struct dentry *dentry, const char *name,
                                 const void *value, size_t size, int flags);
 
+M0_INTERNAL int m0t1fs_fid_setxattr(struct dentry *dentry, const char *name,
+                                    const void *value, size_t size, int flags);
+
 M0_INTERNAL ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
                                     void *buffer, size_t size);
 
+M0_INTERNAL ssize_t m0t1fs_fid_getxattr(struct dentry *dentry, const char *name,
+                                        void *buffer, size_t size);
+
 M0_INTERNAL int m0t1fs_removexattr(struct dentry *dentry, const char *name);
+M0_INTERNAL int m0t1fs_fid_removexattr(struct dentry *dentry, const char *name);
 
 M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer,
+				     size_t size);
+M0_INTERNAL ssize_t m0t1fs_fid_listxattr(struct dentry *dentry, char *buffer,
 				     size_t size);
 
 M0_INTERNAL const struct m0_fid *

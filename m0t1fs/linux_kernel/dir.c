@@ -41,23 +41,43 @@ static int m0t1fs_create(struct inode     *dir,
 			 int               mode,
 			 struct nameidata *nd);
 
+static int m0t1fs_fid_create(struct inode     *dir,
+			     struct dentry    *dentry,
+			     int               mode,
+			     struct nameidata *nd);
+
 static struct dentry *m0t1fs_lookup(struct inode     *dir,
 				    struct dentry    *dentry,
 				    struct nameidata *nd);
+
+static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
+				        struct dentry    *dentry,
+				        struct nameidata *nd);
 
 static int m0t1fs_readdir(struct file *f,
 			  void        *dirent,
 			  filldir_t    filldir);
 
+static int m0t1fs_fid_readdir(struct file *f,
+			      void        *dirent,
+			      filldir_t    filldir);
+
 static int m0t1fs_opendir(struct inode *inode, struct file *file);
 static int m0t1fs_releasedir(struct inode *inode, struct file *file);
+static int m0t1fs_fid_opendir(struct inode *inode, struct file *file);
+static int m0t1fs_fid_releasedir(struct inode *inode, struct file *file);
 
 static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry);
+static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry);
 static int m0t1fs_link(struct dentry *old, struct inode *dir,
 		       struct dentry *new);
+static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
+		           struct dentry *new);
 
 static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode);
+static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, int mode);
 static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry);
+static int m0t1fs_fid_rmdir(struct inode *dir, struct dentry *dentry);
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       int (*func)(struct m0t1fs_sb *csb,
@@ -96,6 +116,15 @@ const struct file_operations m0t1fs_dir_file_operations = {
 	.llseek  = generic_file_llseek, /* provided by linux kernel */
 };
 
+const struct file_operations m0t1fs_fid_dir_file_operations = {
+	.read    = generic_read_dir,    /* provided by linux kernel */
+	.open    = m0t1fs_fid_opendir,
+	.release = m0t1fs_fid_releasedir,
+	.readdir = m0t1fs_fid_readdir,
+	.fsync   = simple_fsync,	/* provided by linux kernel */
+	.llseek  = generic_file_llseek, /* provided by linux kernel */
+};
+
 const struct inode_operations m0t1fs_dir_inode_operations = {
 	.create         = m0t1fs_create,
 	.lookup         = m0t1fs_lookup,
@@ -109,6 +138,21 @@ const struct inode_operations m0t1fs_dir_inode_operations = {
         .getxattr       = m0t1fs_getxattr,
         .listxattr      = m0t1fs_listxattr,
         .removexattr    = m0t1fs_removexattr
+};
+
+const struct inode_operations m0t1fs_fid_dir_inode_operations = {
+	.create         = m0t1fs_fid_create,
+	.lookup         = m0t1fs_fid_lookup,
+	.unlink         = m0t1fs_fid_unlink,
+	.link           = m0t1fs_fid_link,
+	.mkdir          = m0t1fs_fid_mkdir,
+	.rmdir          = m0t1fs_fid_rmdir,
+	.setattr        = m0t1fs_fid_setattr,
+	.getattr        = m0t1fs_fid_getattr,
+        .setxattr       = m0t1fs_fid_setxattr,
+        .getxattr       = m0t1fs_fid_getxattr,
+        .listxattr      = m0t1fs_fid_listxattr,
+        .removexattr    = m0t1fs_fid_removexattr
 };
 
 static int name_mem2wire(struct m0_fop_str *tgt,
@@ -169,6 +213,12 @@ void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out)
 	M0_LOG(M0_DEBUG, "fid "FID_F, FID_P(out));
 }
 
+int m0t1fs_fid_setxattr(struct dentry *dentry, const char *name,
+                        const void *value, size_t size, int flags)
+{
+        return -EOPNOTSUPP;
+}
+
 int m0t1fs_setxattr(struct dentry *dentry, const char *name,
                     const void *value, size_t size, int flags)
 {
@@ -195,6 +245,12 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	m0t1fs_fs_unlock(csb);
 	M0_LEAVE("rc: %d", rc);
 	return rc;
+}
+
+ssize_t m0t1fs_fid_getxattr(struct dentry *dentry, const char *name,
+                            void *buffer, size_t size)
+{
+        return -EOPNOTSUPP;
 }
 
 ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
@@ -235,7 +291,17 @@ out:
 	return rc;
 }
 
+ssize_t m0t1fs_fid_listxattr(struct dentry *dentry, char *buffer, size_t size)
+{
+        return -EOPNOTSUPP;
+}
+
 ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size)
+{
+        return -EOPNOTSUPP;
+}
+
+int m0t1fs_fid_removexattr(struct dentry *dentry, const char *name)
 {
         return -EOPNOTSUPP;
 }
@@ -266,6 +332,14 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	m0t1fs_fs_unlock(csb);
 	M0_LEAVE("rc: %d", rc);
 	return rc;
+}
+
+static int m0t1fs_fid_create(struct inode     *dir,
+			     struct dentry    *dentry,
+			     int               mode,
+			     struct nameidata *nd)
+{
+        return -EOPNOTSUPP;
 }
 
 static int m0t1fs_create(struct inode     *dir,
@@ -368,9 +442,34 @@ out:
 	return rc;
 }
 
+static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+{
+	return m0t1fs_fid_create(dir, dentry, mode | S_IFDIR, NULL);
+}
+
 static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	return m0t1fs_create(dir, dentry, mode | S_IFDIR, NULL);
+}
+
+static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
+				        struct dentry    *dentry,
+				        struct nameidata *nd)
+{
+	struct m0_fid             fid;
+        int rc;
+
+        rc = m0_fid_sscanf((char *)dentry->d_name.name, &fid);
+        if (rc != 0) {
+		M0_LEAVE("Cannot parse fid \"%s\"", (char *)dentry->d_name.name);
+		return ERR_PTR(rc);
+        }
+        /**
+           @todo: When multi-mdservice support is added,
+           @fid will be used to figure out what mdservice
+           lookup operation should be sent to.
+        */
+        return m0t1fs_lookup(dir, dentry, nd);
 }
 
 static struct dentry *m0t1fs_lookup(struct inode     *dir,
@@ -382,7 +481,6 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	struct inode             *inode = NULL;
 	struct m0_fop_lookup_rep *rep = NULL;
 	struct m0t1fs_mdop        mo;
-	struct m0_fid             fid;
 	int rc;
 
 
@@ -399,20 +497,6 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	M0_LOG(M0_DEBUG, "Name: \"%s\"", dentry->d_name.name);
 
 	m0t1fs_fs_lock(csb);
-
-        if (m0t1fs_inode_is_fid(&ci->ci_inode)) {
-	        rc = m0_fid_sscanf((char *)dentry->d_name.name, &fid);
-	        if (rc != 0) {
-			M0_LEAVE("ERROR: %d", rc);
-			m0t1fs_fs_unlock(csb);
-			return ERR_PTR(rc);
-	        }
-	        /**
-	           @todo: When multi-mdservice support is added,
-	           @fid will be used to figure out what mdservice
-	           lookup operation should be sent to.
-	        */
-	}
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_pfid = *m0t1fs_inode_fid(M0T1FS_I(dir));
@@ -447,6 +531,11 @@ struct m0_dirent *dirent_first(struct m0_fop_readdir_rep *rep)
 	return ent->d_namelen > 0 ? ent : NULL;
 }
 
+static int m0t1fs_fid_opendir(struct inode *inode, struct file *file)
+{
+        return m0t1fs_opendir(inode, file);
+}
+
 static int m0t1fs_opendir(struct inode *inode, struct file *file)
 {
 	struct m0t1fs_filedata *fd;
@@ -468,6 +557,11 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int m0t1fs_fid_releasedir(struct inode *inode, struct file *file)
+{
+        return m0t1fs_releasedir(inode, file);
+}
+
 static int m0t1fs_releasedir(struct inode *inode, struct file *file)
 {
 	struct m0t1fs_filedata *fd = file->private_data;
@@ -476,6 +570,13 @@ static int m0t1fs_releasedir(struct inode *inode, struct file *file)
 	m0_free(fd->fd_dirpos);
 	m0_free0(&file->private_data);
 	return 0;
+}
+
+static int m0t1fs_fid_readdir(struct file *f,
+			      void        *buf,
+			      filldir_t    filldir)
+{
+        return M0_RC(0);
 }
 
 static int m0t1fs_readdir(struct file *f,
@@ -503,9 +604,6 @@ static int m0t1fs_readdir(struct file *f,
 	ci     = M0T1FS_I(dir);
 	csb    = M0T1FS_SB(dir->i_sb);
 	i      = f->f_pos;
-
-	if (m0t1fs_inode_is_mero(&ci->ci_inode) || m0t1fs_inode_is_fid(&ci->ci_inode))
-		return M0_RC(0);
 
 	fd = f->private_data;
 	if (fd->fd_direof)
@@ -600,6 +698,12 @@ out:
 	return rc;
 }
 
+static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
+		           struct dentry *new)
+{
+        return -EOPNOTSUPP;
+}
+
 static int m0t1fs_link(struct dentry *old, struct inode *dir,
 		       struct dentry *new)
 {
@@ -643,6 +747,11 @@ out:
 	m0t1fs_fs_unlock(csb);
 	M0_LEAVE("rc: %d", rc);
 	return rc;
+}
+
+static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry)
+{
+        return -EOPNOTSUPP;
 }
 
 static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
@@ -717,6 +826,11 @@ out:
 	return rc;
 }
 
+static int m0t1fs_fid_rmdir(struct inode *dir, struct dentry *dentry)
+{
+        return -EOPNOTSUPP;
+}
+
 static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	int rc;
@@ -729,6 +843,68 @@ static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
 	}
 	M0_LEAVE("rc: %d", rc);
 
+	return rc;
+}
+
+M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
+			           struct kstat *stat)
+{
+	struct m0t1fs_sb                *csb;
+	struct inode                    *inode;
+	struct m0_fop_cob               *body;
+	struct m0t1fs_inode             *ci;
+	int                              rc;
+
+	M0_ENTRY();
+
+	M0_LOG(M0_INFO, "Name: \"%s\"", dentry->d_name.name);
+
+	inode = dentry->d_inode;
+	csb   = M0T1FS_SB(inode->i_sb);
+	ci    = M0T1FS_I(inode);
+
+	m0t1fs_fs_lock(csb);
+
+        /* Return cached attributes for files in .mero/fid dir */
+        body = &csb->csb_virt_body;
+
+	/* Update inode fields with data from @getattr_rep or cached attrs */
+	rc = m0t1fs_inode_update(inode, body);
+	if (rc != 0)
+		goto out;
+
+	if (ci->ci_layout_id != body->b_lid) {
+		/* layout for this file is changed. */
+
+		M0_ASSERT(ci->ci_layout_instance != NULL);
+		m0_layout_instance_fini(ci->ci_layout_instance);
+
+		ci->ci_layout_id = body->b_lid;
+		rc = m0t1fs_inode_layout_init(ci);
+		M0_ASSERT(rc == 0);
+	}
+
+	/** Now its time to return inode stat data to user. */
+	stat->dev = inode->i_sb->s_dev;
+	stat->ino = inode->i_ino;
+	stat->mode = inode->i_mode;
+	stat->nlink = inode->i_nlink;
+	stat->uid = inode->i_uid;
+	stat->gid = inode->i_gid;
+	stat->rdev = inode->i_rdev;
+	stat->atime = inode->i_atime;
+	stat->mtime = inode->i_mtime;
+	stat->ctime = inode->i_ctime;
+#ifdef HAVE_INODE_BLKSIZE
+	stat->blksize = inode->i_blksize;
+#else
+	stat->blksize = 1 << inode->i_blkbits;
+#endif
+	stat->size = i_size_read(inode);
+	stat->blocks = inode->i_blocks;
+out:
+	m0t1fs_fs_unlock(csb);
+	M0_LEAVE("rc: %d", rc);
 	return rc;
 }
 
@@ -753,24 +929,19 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 	m0t1fs_fs_lock(csb);
 
-        /** Return cached attributes for obf dir. */
-	if (!m0t1fs_inode_is_mero(&ci->ci_inode) && !m0t1fs_inode_is_fid(&ci->ci_inode)) {
-	        M0_SET0(&mo);
-	        mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
+        M0_SET0(&mo);
+        mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
 
-	        /**
-	          TODO: When we have dlm locking working, this will be changed to
-	          revalidate inode with checking cached lock. If lock is cached
-	          (not canceled), which means inode did not change, then we don't
-	          have to do getattr and can just use @inode cached data.
-	        */
-	        rc = m0t1fs_mds_cob_getattr(csb, &mo, &getattr_rep);
-	        if (rc != 0)
-		        goto out;
-		body = &getattr_rep->g_body;
-        } else {
-		body = &csb->csb_virt_body;
-        }
+	/**
+	   @todo When we have rm locking working, this will be changed to
+	   revalidate inode with checking cached lock. If lock is cached
+	   (not canceled), which means inode did not change, then we don't
+	   have to do getattr and can just use @inode cached data.
+	*/
+        rc = m0t1fs_mds_cob_getattr(csb, &mo, &getattr_rep);
+        if (rc != 0)
+	        goto out;
+	body = &getattr_rep->g_body;
 
 	/** Update inode fields with data from @getattr_rep or cached attrs. */
 	rc = m0t1fs_inode_update(inode, body);
@@ -838,6 +1009,11 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
 out:
 	m0t1fs_fs_unlock(csb);
 	return rc;
+}
+
+M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *dentry, struct iattr *attr)
+{
+        return -EOPNOTSUPP;
 }
 
 M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)

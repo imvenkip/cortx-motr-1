@@ -101,16 +101,16 @@ m0_fid_type_getfid(const struct m0_fid *fid);
 M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
 
 /* Namespace name for virtual .mero directory */
-extern const char M0_VIRT_MERO_NAME[];
+extern const char M0_DOT_MERO_NAME[];
 
 /* Virtual .mero directory fid. */
-extern const struct m0_fid M0_VIRT_MERO_FID;
+extern const struct m0_fid M0_DOT_MERO_FID;
 
 /* Namespace name for virtual .mero/fid directory */
-extern const char M0_VIRT_OBF_NAME[];
+extern const char M0_DOT_MERO_FID_NAME[];
 
 /* Virtual .mero/fid directory fid. */
-extern const struct m0_fid M0_VIRT_OBF_FID;
+extern const struct m0_fid M0_DOT_MERO_FID_FID;
 
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */

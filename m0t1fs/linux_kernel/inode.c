@@ -58,18 +58,18 @@ M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode)
 			 &M0T1FS_SB(inode->i_sb)->csb_root_fid);
 }
 
-M0_INTERNAL bool m0t1fs_inode_is_mero(const struct inode *inode)
+M0_INTERNAL bool m0t1fs_inode_is_dot_mero(const struct inode *inode)
 {
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
 
-	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_VIRT_MERO_FID);
+	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_DOT_MERO_FID);
 }
 
-M0_INTERNAL bool m0t1fs_inode_is_fid(const struct inode *inode)
+M0_INTERNAL bool m0t1fs_inode_is_dot_mero_fid(const struct inode *inode)
 {
 	struct m0t1fs_inode *ci = M0T1FS_I(inode);
 
-	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_VIRT_OBF_FID);
+	return m0_fid_eq(m0t1fs_inode_fid(ci), &M0_DOT_MERO_FID_FID);
 }
 
 static void init_once(void *foo)
@@ -353,8 +353,13 @@ static int m0t1fs_inode_read(struct inode      *inode,
 		inode->i_op   = &m0t1fs_reg_inode_operations;
 		inode->i_fop  = &m0t1fs_reg_file_operations;
 	} else if (S_ISDIR(inode->i_mode)) {
-		inode->i_op   = &m0t1fs_dir_inode_operations;
-		inode->i_fop  = &m0t1fs_dir_file_operations;
+	        if (m0t1fs_inode_is_dot_mero(inode) || m0t1fs_inode_is_dot_mero_fid(inode)) {
+		        inode->i_op   = &m0t1fs_fid_dir_inode_operations;
+		        inode->i_fop  = &m0t1fs_fid_dir_file_operations;
+	        } else {
+		        inode->i_op   = &m0t1fs_dir_inode_operations;
+		        inode->i_fop  = &m0t1fs_dir_file_operations;
+		}
 	} else {
 		rc = -ENOSYS;
 	}

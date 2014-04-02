@@ -1476,25 +1476,25 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
                         S_IROTH | S_IXOTH);
 
         /* Init virtual .mero directory */
-        mero_dentry = d_alloc_name(sb->s_root, M0_VIRT_MERO_NAME);
+        mero_dentry = d_alloc_name(sb->s_root, M0_DOT_MERO_NAME);
         if (mero_dentry == NULL)
                 return M0_RC(-ENOMEM);
 
-        mero_inode = m0t1fs_iget(sb, &M0_VIRT_MERO_FID, body);
+        mero_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID, body);
         if (IS_ERR(mero_inode)) {
                 dput(mero_dentry);
                 return M0_RC((int)PTR_ERR(mero_inode));
         }
 
         /* Init virtual .mero/fid directory */
-        fid_dentry = d_alloc_name(mero_dentry, M0_VIRT_OBF_NAME);
+        fid_dentry = d_alloc_name(mero_dentry, M0_DOT_MERO_FID_NAME);
         if (fid_dentry == NULL) {
                 iput(mero_inode);
                 dput(mero_dentry);
                 return M0_RC(-ENOMEM);
         }
 
-        fid_inode = m0t1fs_iget(sb, &M0_VIRT_OBF_FID, body);
+        fid_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID_FID, body);
         if (IS_ERR(fid_inode)) {
                 dput(fid_dentry);
                 iput(mero_inode);
