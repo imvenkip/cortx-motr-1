@@ -187,7 +187,7 @@ void rm_ctx_init(struct rm_context *rmctx)
 		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
 				    rmstype->rst_key, rmservice);
 		saved_loc[rmctx->rc_id] = rm_ctx[rmctx->rc_id].
-			rc_rmach_ctx.rmc_reqh.rh_fom_dom.fd_localities;
+			rc_rmach_ctx.rmc_reqh.rh_fom_dom.fd_localities[0];
 		rm_ctx[rmctx->rc_id].rc_rmach_ctx.rmc_reqh.
 			rh_fom_dom.fd_localities = rm_ctx[0].rc_rmach_ctx.
 			rmc_reqh.rh_fom_dom.fd_localities;
@@ -209,7 +209,7 @@ void rm_ctx_fini(struct rm_context *rmctx)
 		m0_reqh_service_fini(rpcsvc);
 	} else {
 		rm_ctx[rmctx->rc_id].rc_rmach_ctx.rmc_reqh.rh_fom_dom.
-			fd_localities = saved_loc[rmctx->rc_id];
+			fd_localities[0] = saved_loc[rmctx->rc_id];
 	}
 	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
 }

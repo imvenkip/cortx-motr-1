@@ -40,6 +40,22 @@ static struct m0_reqh       reqh;
 static struct m0_fom_simple s[NR];
 static struct m0_atomic64   hoarded;
 
+static void fom_simple_svc_start(void)
+{
+	struct m0_reqh_service_type *stype;
+	struct m0_reqh_service      *service;
+	int                          rc;
+
+	stype = m0_reqh_service_type_find("simple fom service");
+	M0_ASSERT(stype != NULL);
+	rc = m0_reqh_service_allocate(&service, stype, NULL);
+	M0_ASSERT(rc == 0);
+	m0_reqh_service_init(service, &reqh, &M0_UINT128(1, 2));
+	rc = m0_reqh_service_start(service);
+	M0_ASSERT(rc == 0);
+	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
+}
+
 static void _reqh_init(void)
 {
 	int result;
@@ -52,6 +68,7 @@ static void _reqh_init(void)
 			      .rhia_svc       = (void*)1);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_start(&reqh);
+	fom_simple_svc_start();
 }
 
 static void _reqh_fini(void)

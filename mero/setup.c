@@ -921,8 +921,8 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 #if USE_MGMT_STARTUP
 	/* Do not terminate on failure here as services start asynchronously. */
 #else
-	if (rc != 0)
-		m0_reqh_services_terminate(&rctx->rc_reqh);
+	//if (rc != 0)
+	//	m0_reqh_services_terminate(&rctx->rc_reqh);
 #endif
 	return M0_RC(rc);
 }
@@ -1146,7 +1146,6 @@ static void cs_reqh_be_tx_svc_stop(struct m0_reqh *reqh)
 		  (M0_RST_STARTED, M0_RST_STOPPING)))
 		m0_reqh_service_stop(svc);
 	m0_reqh_service_fini(svc);
-	M0_LOG(M0_FATAL, "here");
 }
 
 /**
@@ -1301,22 +1300,22 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(reqh);
 
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
+	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
+	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
+		m0_reqh_pre_storage_fini_svcs_stop(reqh);
+
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
+		m0_reqh_mgmt_service_stop(reqh);
+
+	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_dbenv_fini(reqh);
 	m0_mdstore_fini(&rctx->rc_mdstore);
 	cs_addb_storage_fini(&rctx->rc_addb_stob);
 	cs_storage_fini(&rctx->rc_stob);
 	m0_dbenv_fini(&rctx->rc_db);
+	m0_reqh_post_storage_fini_svcs_stop(reqh);
 	cs_rpc_machines_fini(reqh);
-
-	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
-	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
-		m0_reqh_services_terminate(reqh);
-
-	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
-		m0_reqh_mgmt_service_stop(reqh);
-	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
-
 	m0_reqh_fini(reqh);
 
 	rctx->rc_state = RC_UNINITIALISED;

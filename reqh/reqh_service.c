@@ -205,7 +205,7 @@ static void reqh_service_failed_common(struct m0_reqh *reqh,
 	if (!m0_reqh_lockers_is_empty(reqh, key))
 		m0_reqh_lockers_clear(reqh, key);
 	if (!m0_fom_locality_lockers_is_empty(
-		    reqh->rh_fom_dom.fd_localities,
+		    *reqh->rh_fom_dom.fd_localities,
 		    service->rs_type->rst_fomcnt_key))
 		m0_fom_locality_locker_vaults_free(&reqh->rh_fom_dom,
 					service->rs_type->rst_fomcnt_key);

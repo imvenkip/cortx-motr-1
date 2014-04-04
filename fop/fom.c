@@ -355,7 +355,6 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (fom->fo_service != NULL)
 		m0_fom_locality_locker_inc_fom_nr(fom->fo_loc,
 				fom->fo_service->rs_type->rst_fomcnt_key);
-	//M0_CNT_INC(fom->fo_loc->fl_foms);
 	fom_ready(fom);
 }
 
@@ -965,7 +964,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 	fd_loc_nr = dom->fd_localities_nr;
 	while (fd_loc_nr > 0) {
 		struct m0_fom_locality *loc =
-			&dom->fd_localities[fd_loc_nr - 1];
+			dom->fd_localities[fd_loc_nr - 1];
 
 		m0_fom_locality_lockers_fini(loc);
 		loc_fini(loc);
@@ -995,7 +994,7 @@ M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
 					   uint32_t loc_key)
 {
 	return m0_forall(i, dom->fd_localities_nr,
-			 is_loc_locker_empty(&dom->fd_localities[i], loc_key));
+			 is_loc_locker_empty(dom->fd_localities[i], loc_key));
 }
 
 >>>>>>> fom-loc-lockers,
@@ -1003,7 +1002,7 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 {
 	return m0_forall(i, dom->fd_localities_nr,
 			 m0_forall(j, m0_fom_locality_lockers_type.lot_count,
-				   is_loc_locker_empty(&dom->fd_localities[i], j)));
+				   is_loc_locker_empty(dom->fd_localities[i], j)));
 }
 
 M0_INTERNAL void
@@ -1014,7 +1013,7 @@ m0_fom_locality_locker_vaults_allocate(struct m0_fom_domain *dom,
 
 	for (i = 0; i < dom->fd_localities_nr; ++i) {
 		unsigned               *fl_locker;
-		struct m0_fom_locality *loc = &dom->fd_localities[i];
+		struct m0_fom_locality *loc = dom->fd_localities[i];
 
 		M0_ALLOC_PTR(fl_locker);
 		M0_ASSERT(fl_locker != NULL);
@@ -1030,7 +1029,7 @@ m0_fom_locality_locker_vaults_free(struct m0_fom_domain *dom,
 
 	for (i = 0; i < dom->fd_localities_nr; ++i) {
 		unsigned               *fl_locker;
-		struct m0_fom_locality *loc = &dom->fd_localities[i];
+		struct m0_fom_locality *loc = dom->fd_localities[i];
 
 		fl_locker = m0_fom_locality_lockers_get(loc, key);
 		m0_free(fl_locker);

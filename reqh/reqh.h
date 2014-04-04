@@ -383,6 +383,8 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
    @see m0_reqh_mgmt_service_stop()
  */
 M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh);
+M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh);
+M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh);
 
 /**
    Stop the management service.
