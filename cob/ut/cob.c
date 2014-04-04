@@ -123,9 +123,11 @@ static void test_mkfs(void)
 	rc = m0_cob_domain_mkfs(&dom, &M0_MDSERVICE_SLASH_FID, tx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = _locate(1, 2); /* slash */
+	rc = _locate(M0_MDSERVICE_SLASH_FID.f_container,
+	             M0_MDSERVICE_SLASH_FID.f_key); /* slash */
 	M0_UT_ASSERT(rc == 0);
-	rc = _locate(1, 1); /* root */
+	rc = _locate(M0_COB_ROOT_FID.f_container,
+	             M0_COB_ROOT_FID.f_key); /* root */
 	M0_UT_ASSERT(rc != 0);
 
 	ut_tx_close(tx);
