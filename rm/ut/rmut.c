@@ -150,11 +150,10 @@ void rm_ctx_config(enum rm_server id)
 	rm_ctx_init(&rm_ctx[id]);
 }
 
-struct m0_reqh_service      *rmservice;
-struct m0_reqh_service      *rpcsvc;
-struct m0_reqh_service_type *rmstype;
-struct m0_reqh_service_type *rpctype;
-struct m0_fom_locality      *saved_loc[SERVER_NR];
+struct m0_reqh_service      *rmservice[SERVER_NR];
+struct m0_reqh_service      *rpcsvc[SERVER_NR];
+struct m0_reqh_service_type *rmstype[SERVER_NR];
+struct m0_reqh_service_type *rpctype[SERVER_NR];
 
 static void service_start(const char *svc, struct m0_reqh *reqh,
 			  struct m0_reqh_service_type **stype,
@@ -171,27 +170,16 @@ static void service_start(const char *svc, struct m0_reqh *reqh,
 	rc = m0_reqh_service_start(*service);
 	M0_UT_ASSERT(rc == 0);
 }
+
 void rm_ctx_init(struct rm_context *rmctx)
 {
 	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
 	m0_mutex_init(&rmctx->rc_mutex);
 
-	if (rmctx->rc_id == 0) {
-		service_start("rpcservice", &rmctx->rc_rmach_ctx.rmc_reqh,
-			      &rpctype, &rpcsvc);
-		service_start("rmservice", &rmctx->rc_rmach_ctx.rmc_reqh,
-			      &rmstype, &rmservice);
-	} else {
-		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
-				    rpctype->rst_key, rpcsvc);
-		m0_reqh_lockers_set(&rmctx->rc_rmach_ctx.rmc_reqh,
-				    rmstype->rst_key, rmservice);
-		saved_loc[rmctx->rc_id] = rm_ctx[rmctx->rc_id].
-			rc_rmach_ctx.rmc_reqh.rh_fom_dom.fd_localities[0];
-		rm_ctx[rmctx->rc_id].rc_rmach_ctx.rmc_reqh.
-			rh_fom_dom.fd_localities = rm_ctx[0].rc_rmach_ctx.
-			rmc_reqh.rh_fom_dom.fd_localities;
-	}
+	service_start("rpcservice", &rmctx->rc_rmach_ctx.rmc_reqh,
+		      &rpctype[rmctx->rc_id], &rpcsvc[rmctx->rc_id]);
+	service_start("rmservice", &rmctx->rc_rmach_ctx.rmc_reqh,
+		      &rmstype[rmctx->rc_id], &rmservice[rmctx->rc_id]);
 
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
 	m0_clink_init(&rmctx->rc_clink, NULL);
@@ -202,15 +190,6 @@ void rm_ctx_fini(struct rm_context *rmctx)
 	m0_clink_fini(&rmctx->rc_clink);
 	m0_chan_fini_lock(&rmctx->rc_chan);
 	m0_mutex_fini(&rmctx->rc_mutex);
-	if (rmctx->rc_id == 0) {
-		m0_reqh_service_stop(rmservice);
-		m0_reqh_service_fini(rmservice);
-		m0_reqh_service_stop(rpcsvc);
-		m0_reqh_service_fini(rpcsvc);
-	} else {
-		rm_ctx[rmctx->rc_id].rc_rmach_ctx.rmc_reqh.rh_fom_dom.
-			fd_localities[0] = saved_loc[rmctx->rc_id];
-	}
 	m0_ut_rpc_mach_fini(&rmctx->rc_rmach_ctx);
 }
 

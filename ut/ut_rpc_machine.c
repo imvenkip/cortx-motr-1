@@ -120,12 +120,11 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	struct m0_sm_group *grp;
 	int                 rc;
 
-	m0_reqh_rpc_mach_tlink_del_fini(&ctx->rmc_rpc);
-	m0_rpc_machine_fini(&ctx->rmc_rpc);
-
 	m0_reqh_fom_domain_idle_wait(&ctx->rmc_reqh);
 	m0_reqh_pre_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
+	m0_reqh_rpc_mach_tlink_del_fini(&ctx->rmc_rpc);
+	m0_rpc_machine_fini(&ctx->rmc_rpc);
 	m0_reqh_fol_destroy(&ctx->rmc_reqh);
 	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
