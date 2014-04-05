@@ -470,6 +470,10 @@ rmw_test()
 
 obf_test()
 {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
+		cat $MERO_TEST_LOGFILE
+		return 1
+	}
         stat $MERO_M0T1FS_MOUNT_DIR/.mero || return 1
         ls -la $MERO_M0T1FS_MOUNT_DIR/.mero || return 1
         stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid || return 1
@@ -478,7 +482,9 @@ obf_test()
         # Though start_fid=65536, obf access pattern uses hex notation
         stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:10000 || return 1
         ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:10000 || return 1
-
+        rm -fr $MERO_M0T1FS_MOUNT_DIR/file0 || return 1
+	unmount_m0t1fs $MERO_M0T1FS_MOUNT_DIR &>> $MERO_TEST_LOGFILE
+	echo "Success: Open-by-fid test."
         return 0
 }
 
