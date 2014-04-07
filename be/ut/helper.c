@@ -39,6 +39,7 @@
 #include "ut/ast_thread.h"
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
+#include "be/seg0.h"            /* m0_be_0type_register */
 
 #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
 
@@ -139,8 +140,8 @@ M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void)
 	int             result;
 
 	struct be_ut_helper_struct *h = &be_ut_helper;
-	M0_CNT_INC(h->buh_reqh_ref_cnt);
 	be_ut_helper_init_once();
+	M0_CNT_INC(h->buh_reqh_ref_cnt);
 	M0_ALLOC_PTR(reqh);
         result = M0_REQH_INIT(reqh,
                               .rhia_dtm       = NULL,
@@ -244,11 +245,12 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
 			.bec_group_fom_reqh = reqh,
 		},
+		.bc_seg0_size = 1ULL << 20,
 	};
 }
 
-M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-					   struct m0_be_domain_cfg *cfg)
+static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+				struct m0_be_domain_cfg *cfg)
 {
 	int rc = 0;
 
@@ -278,15 +280,39 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 		ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
 	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
 	m0_mutex_init(&ut_be->but_sgt_lock);
-	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
+	rc = m0_be_domain_start(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
 }
 
+M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+					   struct m0_be_domain_cfg *cfg)
+{
+	struct m0_be_0type *zt;
+
+	/* XXX: Funny thing... Types have to be included into every domain so
+	   link inside 0type does. Leaks here... */
+	M0_ALLOC_PTR(zt);
+	M0_ASSERT(zt != NULL);
+	*zt = m0_be_ut_log0;
+
+	(void)m0_be_domain_init(&ut_be->but_dom);
+	m0_be_0type_register(&ut_be->but_dom, zt);
+	ut_backend_init_cfg(ut_be, cfg);
+}
+
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 {
 	m0_be_ut_backend_init_cfg(ut_be, NULL);
+}
+
+void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be)
+{
+	(void)m0_be_domain_init(&ut_be->but_dom);
+	m0_be_0type_register(&ut_be->but_dom, &m0_be_ut_log0);
+	m0_be_0type_register(&ut_be->but_dom, &m0_be_ut_seg0);
+	ut_backend_init_cfg(ut_be, NULL);
 }
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
@@ -411,6 +437,28 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 	be_ut_tx_unlock_if(grp, ut_be);
 }
 
+static int storage_prepare(const char *storage_dir, const char *obj_dir,
+			   struct m0_stob_domain **dom)
+{
+	int rc;
+
+	M0_PRE(*dom == NULL);
+
+#if 0
+	rc = system("rm -rf " storage_dir);
+	M0_ASSERT(rc == 0);
+#endif
+	rc = mkdir(storage_dir, 0700);
+	// M0_ASSERT(rc == 0);
+	rc = mkdir(obj_dir, 0700);
+	// M0_ASSERT(rc == 0);
+
+	rc = m0_linux_stob_domain_locate(storage_dir, dom);
+	M0_ASSERT(rc == 0);
+
+	return rc;
+}
+
 struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create)
 {
 	struct be_ut_helper_struct *h = &be_ut_helper;
@@ -424,18 +472,9 @@ struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create)
 
 	m0_mutex_lock(&h->buh_seg_lock);
 	if (h->buh_storage_ref_cnt == 0) {
-#if 0
-		rc = system("rm -rf " BE_UT_H_STORAGE_DIR);
-		M0_ASSERT(rc == 0);
-#endif
-		rc = mkdir(BE_UT_H_STORAGE_DIR, 0700);
-		// M0_ASSERT(rc == 0);
-		rc = mkdir(BE_UT_H_STORAGE_DIR "/o", 0700);
-		// M0_ASSERT(rc == 0);
-
-		M0_PRE(h->buh_stob_dom == NULL);
-		rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR,
-						 &h->buh_stob_dom);
+		rc = storage_prepare(BE_UT_H_STORAGE_DIR,
+				     BE_UT_H_STORAGE_DIR "/o",
+				     &h->buh_stob_dom);
 		M0_ASSERT(rc == 0);
 	}
 	M0_CNT_INC(h->buh_storage_ref_cnt);
@@ -554,7 +593,7 @@ void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
 	m0_be_seg_open(&ut_seg->bus_seg);
 }
 
-static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,
 					 struct m0_be_ut_backend *ut_be,
 					 bool init)
 {
@@ -563,8 +602,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 	struct m0_be_tx         tx;
 	int                     rc;
 
-	ut_seg->bus_allocator = m0_be_seg_allocator(&ut_seg->bus_seg);
-	a = ut_seg->bus_allocator;
+	a = m0_be_seg_allocator(seg);
 	if (ut_be != NULL) {
 		m0_be_ut_tx_init(&tx, ut_be);
 		be_ut_tx_lock_if(tx.t_sm.sm_grp, ut_be);
@@ -576,7 +614,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 	}
 
 	if (init) {
-		rc = m0_be_allocator_init(a, &ut_seg->bus_seg);
+		rc = m0_be_allocator_init(a, seg);
 		M0_ASSERT(rc == 0);
 		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx);
 		M0_ASSERT(rc == 0);
@@ -595,13 +633,26 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be)
 {
-	be_ut_seg_allocator_initfini(ut_seg, ut_be, true);
+	be_ut_seg_allocator_initfini(&ut_seg->bus_seg, ut_be, true);
+	ut_seg->bus_allocator = m0_be_seg_allocator(&ut_seg->bus_seg);
 }
 
 void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be)
 {
-	be_ut_seg_allocator_initfini(ut_seg, ut_be, false);
+	be_ut_seg_allocator_initfini(&ut_seg->bus_seg, ut_be, false);
+}
+
+void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
+				  struct m0_be_ut_backend *ut_be)
+{
+	be_ut_seg_allocator_initfini(seg, ut_be, true);
+}
+
+void m0_be_ut__seg_allocator_fini(struct m0_be_seg *seg,
+				  struct m0_be_ut_backend *ut_be)
+{
+	be_ut_seg_allocator_initfini(seg, ut_be, false);
 }
 
 M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc)
@@ -725,6 +776,154 @@ M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
 }
+
+/* ------------------------------------------------------------------
+ * XXX: 0types definitions, used for fake-mkfs.
+ * have to be redeclared in mkfs utility.
+ * ------------------------------------------------------------------ */
+
+static int ut_log0_init(struct m0_be_domain *dom, const char *suffix,
+			const struct m0_buf *data)
+{
+	const struct m0_be_engine_cfg *en_cfg = &dom->bd_cfg.bc_engine;
+	struct m0_be_engine *en = m0_be_domain_engine(dom);
+
+	M0_ENTRY();
+
+	M0_ASSERT_INFO(en_cfg->bec_log_size >=
+		       en_cfg->bec_group_size_max.tc_reg_size,
+		       "Log size shouldn't be less than maximum group size: "
+		       "log_size = %lu, group_size_max = %lu",
+		       en_cfg->bec_log_size,
+		       en_cfg->bec_group_size_max.tc_reg_size);
+	M0_ASSERT_INFO(!en_cfg->bec_log_replay, "Recovery is not implemented");
+
+	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob,
+		       m0_be_engine_got_log_space_cb);
+	return M0_RC(m0_be_log_create(&en->eng_log, en_cfg->bec_log_size));
+}
+
+static void ut_log0_fini(struct m0_be_domain *dom, const char *suffix,
+			 const struct m0_buf *data)
+{
+	struct m0_be_engine *en = m0_be_domain_engine(dom);
+
+	M0_ENTRY();
+	m0_be_log_fini(&en->eng_log);
+	M0_LEAVE();
+}
+
+static int ut_seg0_init(struct m0_be_domain *dom, const char *suffix,
+			const struct m0_buf *data)
+{
+	struct be_ut_helper_struct *h = &be_ut_helper;
+	struct m0_be_seg           *seg;
+	uint64_t                    size = dom->bd_cfg.bc_seg0_size;
+	int			    rc;
+
+	M0_ALLOC_PTR(seg);
+	M0_ASSERT(seg != NULL);
+
+	m0_be_seg_init(seg, m0_be_ut_stob_get(true), dom);
+	rc = m0_be_seg_create(seg, size, be_ut_seg_allocate_addr(h, size));
+	M0_ASSERT(rc == 0);
+	rc = m0_be_seg_open(seg);
+	M0_ASSERT(rc == 0);
+
+	M0_ASSERT(seg_tlist_is_empty(&dom->bd_seg_list));
+	seg_tlist_add(&dom->bd_seg_list, seg);
+
+	return rc;
+}
+
+static void ut_seg0_fini(struct m0_be_domain *dom, const char *suffix,
+			 const struct m0_buf *data)
+{
+	struct m0_be_seg    *seg  = m0_be_domain_seg0_get(dom);
+	struct m0_stob      *stob = seg->bs_stob;
+	int		     rc;
+
+	m0_be_seg_close(seg);
+	rc = m0_be_seg_destroy(seg);
+	M0_ASSERT(rc == 0);
+	seg_tlist_del(seg);
+	m0_be_seg_fini(seg);
+	m0_free(seg);
+
+	m0_be_ut_stob_put(stob, true);
+}
+
+struct m0_be_0type m0_be_ut_seg0 = {
+	.b0_name = "M0_BE_MKFS:SEG0",
+	.b0_init = ut_seg0_init,
+	.b0_fini = ut_seg0_fini
+};
+
+struct m0_be_0type m0_be_ut_log0 = {
+	.b0_name = "M0_BE_MKFS:LOG",
+	.b0_init = ut_log0_init,
+	.b0_fini = ut_log0_fini
+};
+
+static int seg0_init(struct m0_be_domain *d, const char *suffix,
+		     const struct m0_buf *data)
+{
+	M0_ENTRY();
+	M0_LEAVE();
+	return 0;
+}
+
+static void seg0_fini(struct m0_be_domain *d, const char *suffix,
+		      const struct m0_buf *data)
+{
+	M0_ENTRY();
+	M0_LEAVE();
+}
+
+static int log0_init(struct m0_be_domain *dom, const char *suffix,
+		     const struct m0_buf *data)
+{
+	struct m0_be_engine *en = m0_be_domain_engine(dom);
+	struct m0_be_0type_log_opts *opts =
+		(struct m0_be_0type_log_opts *) data->b_addr;
+	struct m0_stob *log_stob;
+
+	int rc;
+
+	M0_ENTRY();
+	M0_ALLOC_PTR(log_stob);
+	M0_ASSERT(log_stob != NULL);
+
+	rc = m0_stob_create_helper(dom->bd_seg0_stob->so_domain,
+				   NULL, &opts->lo_stob_id, &log_stob);
+	M0_ASSERT(rc == 0);
+
+	m0_be_log_init(&en->eng_log, log_stob, m0_be_engine_got_log_space_cb);
+	return M0_RC(m0_be_log_create(&en->eng_log, opts->lo_size));
+}
+
+static void log0_fini(struct m0_be_domain *dom, const char *suffix,
+			 const struct m0_buf *data)
+{
+	struct m0_be_engine *en = m0_be_domain_engine(dom);
+
+	M0_ENTRY();
+	m0_be_log_fini(&en->eng_log);
+	m0_stob_put(en->eng_log.lg_store.ls_stob);
+	M0_LEAVE();
+}
+
+struct m0_be_0type m0_be_log0 = {
+	.b0_name = "M0_BE:LOG",
+	.b0_init = log0_init,
+	.b0_fini = log0_fini
+};
+
+struct m0_be_0type m0_be_seg0 = {
+	.b0_name = "M0_BE:SEG0",
+	.b0_init = seg0_init,
+	.b0_fini = seg0_fini
+};
 
 #undef M0_TRACE_SUBSYSTEM
 

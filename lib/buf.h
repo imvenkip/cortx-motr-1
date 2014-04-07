@@ -59,6 +59,7 @@ struct m0_buf {
 		.b_addr = (data)	\
 	})
 
+#define M0_BUF_INIT_PTR(p)      M0_BUF_INIT(sizeof *(p), (p))
 #define M0_BUF_INITS(str)       M0_BUF_INIT(strlen(str), (str))
 #define M0_BUF_INIT0            M0_BUF_INIT(0, NULL)
 

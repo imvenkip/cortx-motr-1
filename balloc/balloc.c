@@ -42,9 +42,6 @@
 
  */
 
-/* XXX */
-#define M0_BUF_INIT_PTR(p)      M0_BUF_INIT(sizeof *(p), (p))
-
 /** XXX @todo rewrite using M0_BE_OP_SYNC() */
 static inline int btree_lookup_sync(struct m0_be_btree  *tree,
 			       const struct m0_buf *key,

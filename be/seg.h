@@ -25,6 +25,7 @@
 #include "be/alloc.h"		/* m0_be_allocator */
 #include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
 
+#include "lib/list.h"
 #include "stob/stob.h"  /* m0_stob */
 
 struct m0_be;
@@ -66,8 +67,11 @@ struct m0_be_seg {
 	struct m0_be_allocator bs_allocator;
 	struct m0_be_domain   *bs_domain;
 	int                    bs_state;
+	uint64_t               bs_magic;
+	struct m0_tlink        bs_linkage;
 };
 
+M0_TL_DECLARE(seg, M0_INTERNAL, struct m0_be_seg);
 
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,

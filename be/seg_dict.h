@@ -35,8 +35,18 @@ struct m0_sm_group;
 struct m0_be_tx_credit;
 
 M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg);
+M0_INTERNAL void m0_be_seg_dict_fini(struct m0_be_seg *seg);
 M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
 				      const char *name,	void **out);
+M0_INTERNAL int m0_be_seg_dict_begin(struct m0_be_seg *seg,
+				     const char *start_key,
+				     const char **this_key,
+				     void **this_rec);
+M0_INTERNAL int m0_be_seg_dict_next(struct m0_be_seg *seg,
+				    const char *prefix,
+				    const char *start_key,
+				    const char **this_key,
+				    void **this_rec);
 
 /* tx based dictionary interface */
 M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,

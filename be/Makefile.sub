@@ -2,8 +2,8 @@ nobase_mero_include_HEADERS += be/alloc.h           \
                                be/alloc_internal.h  \
                                be/be.h              \
                                be/btree.h           \
-			       be/domain.h	    \
-			       be/engine.h	    \
+			       be/domain.h          \
+			       be/engine.h          \
                                be/extmap.h          \
                                be/extmap_internal.h \
                                be/io.h              \
@@ -12,6 +12,7 @@ nobase_mero_include_HEADERS += be/alloc.h           \
 			       be/log_store.h       \
 			       be/op.h              \
                                be/seg.h             \
+                               be/seg0.h             \
                                be/seg_dict.h        \
                                be/seg_internal.h    \
                                be/tx.h              \
@@ -20,32 +21,33 @@ nobase_mero_include_HEADERS += be/alloc.h           \
                                be/tx_group.h        \
                                be/tx_group_ondisk.h \
                                be/tx_group_ondisk_internal.h \
-			       be/tx_internal.h	    \
+			       be/tx_internal.h     \
                                be/tx_regmap.h       \
                                be/tx_service.h	    \
 			       be/ut/helper.h
 
-mero_libmero_la_SOURCES += be/alloc.c     	\
-			   be/be.c        	\
-			   be/btree.c     	\
-			   be/extmap.c		\
-			   be/extmap_xc.c	\
-			   be/domain.c		\
-			   be/engine.c       	\
-			   be/io.c        	\
-			   be/list.c      	\
-			   be/log.c       	\
-			   be/log_store.c 	\
-			   be/op.c 		\
-			   be/seg.c       	\
-			   be/seg_dict.c       	\
-			   be/tx.c        	\
-			   be/tx_credit.c 	\
-			   be/tx_group_fom.c	\
-			   be/tx_group.c  	\
+mero_libmero_la_SOURCES += be/alloc.c           \
+			   be/be.c              \
+			   be/btree.c           \
+			   be/extmap.c          \
+			   be/extmap_xc.c       \
+			   be/domain.c          \
+			   be/engine.c          \
+			   be/io.c              \
+			   be/list.c            \
+			   be/log.c             \
+			   be/log_store.c       \
+			   be/op.c              \
+			   be/seg.c             \
+			   be/seg0.c            \
+			   be/seg_dict.c        \
+			   be/tx.c              \
+			   be/tx_credit.c       \
+			   be/tx_group_fom.c    \
+			   be/tx_group.c        \
 			   be/tx_group_ondisk.c \
-			   be/tx_regmap.c 	\
-			   be/tx_service.c	\
+			   be/tx_regmap.c       \
+			   be/tx_service.c      \
                            be/ut/helper.c
 
 XC_FILES += be/extmap_xc.h

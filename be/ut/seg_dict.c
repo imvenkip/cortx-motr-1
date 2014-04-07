@@ -48,14 +48,17 @@ static int seg_dict_op(struct m0_be_seg *seg, struct m0_sm_group *grp,
 	struct m0_be_tx	       *tx;
 	int			rc;
 
+	M0_ENTRY();
 	M0_ALLOC_PTR(tx);
 	M0_ASSERT(tx != NULL);
 
 	switch(dop) {
 	case DICTOP_CREATE:
+		M0_LOG(M0_DEBUG, "create");
 		m0_be_seg_dict_create_credit(seg, &cred);
 		break;
 	case DICTOP_DESTROY:
+		M0_LOG(M0_DEBUG, "destroy");
 		m0_be_seg_dict_destroy_credit(seg, &cred);
 		break;
 	default:
@@ -79,7 +82,7 @@ static int seg_dict_op(struct m0_be_seg *seg, struct m0_sm_group *grp,
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
@@ -102,20 +105,28 @@ void m0_be_ut_seg_dict(void)
 	struct m0_sm_group     *grp;
 	struct m0_be_seg       *seg = &ut_seg.bus_seg;
 	struct m0_be_tx         tx;
+	const char             *nk; /*next key */
 	void                   *p;
 	int                     i;
 	int                     rc;
+#define OPT 7
+#define END 11
 	struct {
 		const char *name;
 		void       **value;
 	} dict[] = {
-		{ "dead", (void*)0xdead },
-		{ "beaf", (void*)0xbeaf },
-		{ "cafe", (void*)0xcafe },
-		{ "babe", (void*)0xbabe },
-		{ "d00d", (void*)0xd00d },
-		{ "8bad", (void*)0x8bad },
-		{ "f00d", (void*)0xf00d },
+			{ "dead",       (void*)0xdead },
+			{ "beaf",       (void*)0xbeaf },
+			{ "cafe",       (void*)0xcafe },
+			{ "babe",       (void*)0xbabe },
+			{ "d00d",       (void*)0xd00d },
+			{ "8bad",       (void*)0x8bad },
+			{ "f00d",       (void*)0xf00d },
+		[OPT] = { "M0_BE:opt1", (void*)0xf00d0001 },
+			{ "M0_BE:opt2", (void*)0xf00d0002 },
+			{ "M0_BE:opt3", (void*)0xf00d0003 },
+			{ "M0_BE:opt4", (void*)0xf00d0004 },
+		[END] =	{ "M0_BE:end0", (void*)0xf00d0000 },
 	};
 
 	M0_SET0(&ut_be);
@@ -145,6 +156,14 @@ void m0_be_ut_seg_dict(void)
 		rc = m0_be_seg_dict_lookup(seg, dict[i].name, &p);
 		M0_UT_ASSERT(rc == 0 && dict[i].value == p);
 	}
+
+	for (i = 0, rc = m0_be_seg_dict_begin(seg, "M0_BE:opt", &nk, &p);
+	     rc == 0;
+	     i++, rc = m0_be_seg_dict_next(seg, "M0_BE:opt", nk, &nk, &p)) {
+		M0_UT_ASSERT(rc == 0 && p == dict[i + OPT].value &&
+			     strcmp(nk, dict[i + OPT].name) == 0);
+	}
+	M0_UT_ASSERT(i == END-OPT);
 
 	for (i = 0; i < ARRAY_SIZE(dict); i+=2) {
 		rc = m0_be_seg_dict_delete(seg, &tx, dict[i].name);

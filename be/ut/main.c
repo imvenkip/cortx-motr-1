@@ -68,6 +68,8 @@ extern void m0_be_ut_list_api(void);
 extern void m0_be_ut_btree_simple(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
+extern void m0_be_ut_fake_mkfs(void);
+extern void m0_be_ut_seg0_test(void);
 
 
 const struct m0_test_suite be_ut = {
@@ -110,6 +112,8 @@ const struct m0_test_suite be_ut = {
 		{ "list",                m0_be_ut_list_api             },
 		{ "btree",               m0_be_ut_btree_simple         },
 		{ "seg_dict",            m0_be_ut_seg_dict             },
+		{ "fake_mkfs",           m0_be_ut_fake_mkfs            },
+		{ "seg0",                m0_be_ut_seg0_test            },
 		{ "emap",                m0_be_ut_emap                 },
 		{ NULL, NULL }
 	}

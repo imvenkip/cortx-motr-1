@@ -29,6 +29,7 @@
 
 #include "be/tx_group.h"	/* m0_be_tx_group */
 #include "be/tx_internal.h"	/* m0_be_tx__state_post */
+#include "be/seg0.h"		/* m0_be_0type */
 
 /**
  * @addtogroup be
@@ -46,8 +47,6 @@ M0_TL_DESCR_DEFINE(egr, "m0_be_engine::eng_groups[]", static,
 		   M0_BE_TX_MAGIC /* XXX */, M0_BE_TX_ENGINE_MAGIC /* XXX */);
 M0_TL_DEFINE(egr, static, struct m0_be_tx_group);
 
-static void be_engine_got_log_space_cb(struct m0_be_log *log);
-
 M0_INTERNAL int
 m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 {
@@ -56,10 +55,8 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 
 	M0_ENTRY();
 
-	*en = (struct m0_be_engine) {
-		.eng_cfg      = en_cfg,
-		.eng_group_nr = en_cfg->bec_group_nr,
-	};
+	en->eng_cfg      = en_cfg;
+	en->eng_group_nr = en_cfg->bec_group_nr;
 
 	M0_ASSERT_INFO(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
 					  &en_cfg->bec_group_size_max),
@@ -68,28 +65,15 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		       "tx_size_max = " BETXCR_F ", group_size_max = " BETXCR_F,
 		       BETXCR_P(&en_cfg->bec_tx_size_max),
 		       BETXCR_P(&en_cfg->bec_group_size_max));
-	M0_ASSERT_INFO(en_cfg->bec_log_size >=
-		       en_cfg->bec_group_size_max.tc_reg_size,
-		       "Log size shouldn't be less than maximum group size: "
-		       "log_size = %lu, group_size_max = %lu",
-		       en_cfg->bec_log_size,
-		       en_cfg->bec_group_size_max.tc_reg_size);
 	M0_ASSERT_INFO(en_cfg->bec_group_nr == 1,
 		       "Only one group is supported at the moment, "
 		       "but group_nr = %zu", en_cfg->bec_group_nr);
-	M0_ASSERT_INFO(!en_cfg->bec_log_replay, "Recovery is not implemented");
 
 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
 	if (en->eng_group == NULL) {
 		rc = -ENOMEM;
 		goto err;
 	}
-
-	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob,
-		       be_engine_got_log_space_cb);
-	rc = m0_be_log_create(&en->eng_log, en_cfg->bec_log_size);
-	if (rc != 0)
-		goto log_fini;
 
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_init(&en->eng_groups[i]), true));
@@ -108,15 +92,11 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 		  (etx_tlist_init(&en->eng_txs[i]), true));
 	m0_mutex_init(&en->eng_lock);
 
-	M0_ASSERT(rc == 0);
 	M0_POST(m0_be_engine__invariant(en));
 	return M0_RC(0);
 
-log_fini:
-	m0_be_log_fini(&en->eng_log);
 	m0_free(en->eng_group);
 err:
-	M0_ASSERT(rc != 0);
 	return M0_RC(rc);
 }
 
@@ -443,7 +423,7 @@ M0_INTERNAL void m0_be_engine_stop(struct m0_be_engine *en)
 	M0_LEAVE();
 }
 
-static void be_engine_got_log_space_cb(struct m0_be_log *log)
+M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log)
 {
 	struct m0_be_engine *en =
 		container_of(log, struct m0_be_engine, eng_log);

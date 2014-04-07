@@ -155,6 +155,12 @@ enum m0_magic_satchel {
 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
 	M0_BE_ALLOC_FREE_LINK_MAGIC = 0xed1f1cefaded,
 
+	/* m0_be_tx::t_magic (bee fires stig) */
+	M0_BE_0TYPE_MAGIC = 0x33beef17e5519177,
+
+	/* m0_be_tx::t_magic (bee seg faded) */
+	M0_BE_SEG_MAGIC = 0x33bee5e9faded177,
+
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,

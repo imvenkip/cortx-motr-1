@@ -109,6 +109,9 @@ M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
 					      struct m0_be_tx_group *gr);
 
+M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log);
+
+
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */
 

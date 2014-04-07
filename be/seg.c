@@ -58,8 +58,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 		.bh_size = size,
 	};
 	return M0_RC(m0_be_io_single(seg->bs_stob, SIO_WRITE,
-				      &hdr, M0_BE_SEG_HEADER_OFFSET,
-				      sizeof hdr));
+				     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr));
 }
 
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
@@ -84,6 +83,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
 	};
+	seg_tlink_init(seg);
 	M0_LEAVE();
 }
 
@@ -91,6 +91,7 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 {
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
+	seg_tlink_fini(seg);
 	M0_LEAVE();
 }
 

@@ -175,3 +175,9 @@ m0_xc_u64_init
 m0_xc_u8_init
 m0_xc_void_init
 m0_xcode_type_invariant
+m0_be_0type_add
+m0_be_0type_del
+m0_be_0type_register
+m0_be_ut_backend_mkfs_init
+m0_be_ut__seg_allocator_fini
+m0_be_ut__seg_allocator_init

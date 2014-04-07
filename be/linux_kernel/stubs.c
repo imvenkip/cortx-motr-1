@@ -272,3 +272,26 @@ m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be)
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 {
 }
+
+void m0_be_ut_fake_mkfs(void)
+{
+}
+
+void m0_be_ut_seg0_test(void)
+{
+}
+
+void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be)
+{
+}
+
+void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
+				  struct m0_be_ut_backend *ut_be)
+{
+}
+
+M0_INTERNAL
+struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom)
+{
+	return NULL;
+}
