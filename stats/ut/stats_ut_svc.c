@@ -150,6 +150,7 @@ static void stats_ut_svc_start_stop()
 	 */
 	m0_reqh_service_stop(stats_srv);
 	M0_UT_ASSERT(m0_reqh_service_state_get(stats_srv) == M0_RST_STOPPED);
+	m0_reqh_service_fini(stats_srv);
 
 	stop_rpc_client_and_server();
 

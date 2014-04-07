@@ -175,6 +175,7 @@ static void test_service(void)
 
 	for (i = 0; i < MAX_REQH_UT_FOP; ++i)
 		m0_reqh_fop_handle(reqh, fop);
+	m0_reqh_fom_domain_idle_wait(reqh);
 
 	m0_fop_put(fop);
 

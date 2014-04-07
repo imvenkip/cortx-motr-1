@@ -505,15 +505,15 @@ static void receiver_init()
 	m0_cm_unlock(cm);
 
 	cm_ready(cm);
-	M0_UT_ASSERT(m0_cm_start(cm) == 0);
-	while (m0_fom_domain_is_idle(&s0_reqh->rh_fom_dom) ||
+        M0_UT_ASSERT(m0_cm_start(cm) == 0);
+        while (m0_fom_domain_is_idle_for(&s0_reqh->rh_fom_dom,
+					 scm_service->rs_type->rst_fomcnt_key) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
-		usleep(200);
+                usleep(200);
 
 	receiver_ag_create();
 	receiver_stob_create();
 	cp_cm_proxy_init(&recv_cm_proxy, client_addr);
-
 	m0_cm_lock(cm);
 	m0_cm_proxy_add(cm, &recv_cm_proxy);
 	m0_cm_unlock(cm);
@@ -680,9 +680,10 @@ static void sender_init()
 	rc = m0_cm_start(&sender_cm);
 	M0_UT_ASSERT(rc == 0);
 
-	while (m0_fom_domain_is_idle(&rmach_ctx.rmc_reqh.rh_fom_dom) ||
-			!m0_cm_cp_pump_is_complete(&sender_cm.cm_cp_pump))
-		usleep(200);
+        while (m0_fom_domain_is_idle_for(&rmach_ctx.rmc_reqh.rh_fom_dom,
+					 sender_cm_service->rs_type->rst_fomcnt_key) ||
+	       !m0_cm_cp_pump_is_complete(&sender_cm.cm_cp_pump))
+                usleep(200);
 
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
