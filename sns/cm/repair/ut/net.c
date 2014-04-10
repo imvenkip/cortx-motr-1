@@ -681,7 +681,7 @@ static void sender_init()
 	M0_UT_ASSERT(rc == 0);
 
         while (m0_fom_domain_is_idle_for(&rmach_ctx.rmc_reqh.rh_fom_dom,
-					 sender_cm_service->rs_type->rst_fomcnt_key) ||
+				sender_cm_service->rs_type->rst_fomcnt_key) ||
 	       !m0_cm_cp_pump_is_complete(&sender_cm.cm_cp_pump))
                 usleep(200);
 

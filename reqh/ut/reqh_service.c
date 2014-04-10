@@ -40,6 +40,7 @@
 
 static struct m0_fop_type        m0_reqhut_dummy_fopt;
 static struct m0_ut_rpc_mach_ctx rmach_ctx;
+static struct m0_semaphore       sem;
 
 static int reqhut_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			     struct m0_reqh *reqh);
@@ -93,6 +94,7 @@ static size_t reqhut_find_fom_home_locality(const struct m0_fom *fom)
 
 static int reqhut_fom_tick(struct m0_fom *fom)
 {
+	m0_semaphore_up(&sem);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }
@@ -148,6 +150,7 @@ static void test_service(void)
 	struct m0_reqh_service      *reqh_svc;
 	struct m0_fop               *fop;
 
+	m0_semaphore_init(&sem, 0);
 	rc = m0_reqhut_fop_init();
 	M0_UT_ASSERT(rc == 0);
 
@@ -173,14 +176,14 @@ static void test_service(void)
 	fop = m0_fop_alloc(&m0_reqhut_dummy_fopt, NULL);
 	M0_UT_ASSERT(fop != NULL);
 
-	for (i = 0; i < MAX_REQH_UT_FOP; ++i)
+	for (i = 0; i < MAX_REQH_UT_FOP; ++i) {
 		m0_reqh_fop_handle(reqh, fop);
+		m0_semaphore_down(&sem);
+	}
 	m0_reqh_fom_domain_idle_wait(reqh);
 
 	m0_fop_put(fop);
-
 	m0_ut_rpc_mach_fini(&rmach_ctx);
-
 	m0_reqhut_fop_fini();
 }
 

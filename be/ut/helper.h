@@ -166,13 +166,6 @@ M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
 M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
 					   struct m0_sm_group *grp);
 
-/**
- * Blocks until all the FOMs are completed except the be tx_group_fom.
- * @note This is a temporary solution and will be replaced by per service
- * FOM completion notification mechanism.
- */
-M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
-
 extern struct m0_be_0type m0_be_ut_seg0;
 extern struct m0_be_0type m0_be_ut_log0;
 extern struct m0_be_0type m0_be_log0;

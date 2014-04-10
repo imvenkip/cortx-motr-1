@@ -441,8 +441,6 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 		reqh->rh_fom_dom.fd_localities[0]->fl_lockers;
 	m0_fom_locality_locker_fom_cnt_inc(base_fom->fo_loc,
 		base_fom->fo_service->rs_type->rst_fomcnt_key);
-
-	//M0_CNT_INC(base_fom->fo_loc->fl_foms);
 	base_fom->fo_type = &ft;
 
 	m0_fom_sm_init(base_fom);
@@ -1191,7 +1189,6 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 				 ftype->ft_ops->fto_redo(fp_part, rec->fr_fol);
 			M0_UT_ASSERT(result == 0);
 			m0_reqh_fom_domain_idle_wait(rec->fr_fol->f_reqh);
-			//m0_ut_be_fom_domain_idle_wait(rec->fr_fol->f_reqh);
 		}
 	} m0_tl_endfor;
 

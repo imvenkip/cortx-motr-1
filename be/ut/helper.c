@@ -637,35 +637,6 @@ M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
 	m0_buf_free(&tc->butc_seg_copy);
 }
 
-static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
-{
-	int  i;
-	bool result = false;
-
-	for (i = 0; i < dom->fd_localities_nr; ++i) {
-		if ((i == 0 && dom->fd_localities[i]->fl_foms == 1) ||
-				dom->fd_localities[i]->fl_foms == 0)
-			result = true;
-		else
-			return false;
-	}
-
-	return result;
-}
-
-M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
-{
-	struct m0_clink clink;
-
-	M0_PRE(reqh != NULL);
-	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
-	while (!fom_domain_is_idle(&reqh->rh_fom_dom))
-		m0_chan_timedwait((&clink), m0_time_from_now(2, 0));
-	m0_clink_del_lock(&clink);
-	m0_clink_fini(&clink);
-}
-
 /* ------------------------------------------------------------------
  * XXX: 0types definitions, used for fake-mkfs.
  * have to be redeclared in mkfs utility.
