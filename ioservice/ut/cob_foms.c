@@ -439,7 +439,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	base_fom->fo_loc = &dummy_loc;
 	base_fom->fo_loc->fl_lockers =
 		reqh->rh_fom_dom.fd_localities[0]->fl_lockers;
-	m0_fom_locality_locker_inc_fom_nr(base_fom->fo_loc,
+	m0_fom_locality_locker_fom_cnt_inc(base_fom->fo_loc,
 		base_fom->fo_service->rs_type->rst_fomcnt_key);
 
 	//M0_CNT_INC(base_fom->fo_loc->fl_foms);

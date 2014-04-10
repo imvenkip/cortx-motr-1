@@ -54,6 +54,8 @@ struct m0_fop_rate_monitor {
 	struct m0_sm_ast        frm_ast;
 };
 
+M0_INTERNAL int m0_fop_rate_monitor_module_init(void);
+
 /**
  * It initialise fop rate monitor.
  * @param loc pointer to fom locality.

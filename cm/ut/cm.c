@@ -145,7 +145,6 @@ static void cm_setup_failure_ut(void)
 	m0_fi_enable_once("m0_cm_setup", "setup_failure_2");
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc != 0);
-
 	m0_reqh_service_fini(cm_ut_service);
 }
 

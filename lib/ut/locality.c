@@ -46,7 +46,7 @@ static void fom_simple_svc_start(void)
 	struct m0_reqh_service      *service;
 	int                          rc;
 
-	stype = m0_reqh_service_type_find("simple fom service");
+	stype = m0_reqh_service_type_find("simple-fom-service");
 	M0_ASSERT(stype != NULL);
 	rc = m0_reqh_service_allocate(&service, stype, NULL);
 	M0_ASSERT(rc == 0);

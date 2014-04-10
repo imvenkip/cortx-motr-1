@@ -261,7 +261,6 @@ struct m0_reqh_service {
 	struct m0_reqh_context           *rs_reqh_ctx;
 
 	/**
-	   @todo Implement this.
 	   Count of outstanding FOMs created by this service.
 	   @see m0_fom_init(), m0_fom_fini()
 	 */
@@ -433,7 +432,8 @@ struct m0_reqh_service_type {
 	 * @see m0_reqh::rh_key
 	 */
 	unsigned                               rst_key;
-	/** Key for per-locality-per-svc foms */
+
+	/** Key for per-locality-per-svc fom count. */
 	unsigned                               rst_fomcnt_key;
 	/**
 	   Pointer to ADDB context type for this service type

@@ -149,6 +149,13 @@ const struct m0_addb_monitor_ops monitor_ops = {
 	.amo_sum_rec = monitor_sum_rec
 };
 
+M0_INTERNAL int m0_fop_rate_monitor_module_init(void)
+{
+	key = m0_fom_locality_lockers_allot();
+	M0_LOG(M0_FATAL, "key: %u", key);
+	return 0;
+}
+
 M0_INTERNAL
 int m0_fop_rate_monitor_init(struct m0_fom_locality *loc)
 {

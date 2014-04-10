@@ -157,12 +157,8 @@ struct m0_loc_thread {
 	uint64_t                lt_magix;
 };
 
-extern uint32_t  fop_rate_monitor_key;
-static m0_time_t fop_rate_interval = M0_MKTIME(1, 0);
-
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_fom_locality, fl_lockers);
 
->>>>>>> fom-loc-lockers,
 M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
 		   lt_magix, M0_FOM_THREAD_MAGIC, M0_FOM_THREAD_HEAD_MAGIC);
 M0_TL_DEFINE(thr, static, struct m0_loc_thread);
@@ -174,8 +170,6 @@ M0_TL_DEFINE(runq, static, struct m0_fom);
 M0_TL_DESCR_DEFINE(wail, "wail fom", static, struct m0_fom, fo_linkage,
 		   fo_magic, M0_FOM_MAGIC, M0_FOM_WAIL_MAGIC);
 M0_TL_DEFINE(wail, static, struct m0_fom);
-
-M0_LOCKERS_DEFINE(M0_INTERNAL, m0_fom_locality, fl_locker);
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
                                  const struct m0_fom *fom);
@@ -353,7 +347,7 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
 
 	if (fom->fo_service != NULL)
-		m0_fom_locality_locker_inc_fom_nr(fom->fo_loc,
+		m0_fom_locality_locker_fom_cnt_inc(fom->fo_loc,
 				fom->fo_service->rs_type->rst_fomcnt_key);
 	fom_ready(fom);
 }
@@ -856,8 +850,8 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	return result;
 
 err0:
-	m0_fom_locality_lockers_fini(loc);
-	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+        m0_fom_locality_lockers_fini(loc);
+        m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 err2:
@@ -946,7 +940,6 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 				.lo_reqh = dom->fd_reqh,
 				.lo_idx  = dom->fd_localities_nr });
 		M0_CNT_INC(dom->fd_localities_nr);
-		m0_fom_locality_lockers_init(loc);
 	}
 
 	m0_bitmap_fini(&onln_cpu_map);
@@ -963,11 +956,9 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 
 	fd_loc_nr = dom->fd_localities_nr;
 	while (fd_loc_nr > 0) {
-		struct m0_fom_locality *loc =
-			dom->fd_localities[fd_loc_nr - 1];
-
-		m0_fom_locality_lockers_fini(loc);
+		struct m0_fom_locality *loc = dom->fd_localities[fd_loc_nr - 1];
 		loc_fini(loc);
+		m0_fom_locality_lockers_fini(loc);
 		--fd_loc_nr;
 	}
 
@@ -975,14 +966,6 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 		m0_free(dom->fd_localities[i]);
 	}
 	m0_free(dom->fd_localities);
-}
-
-M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
-{
-	__fom_domain_fini(dom);
-	fop_rate_monitor_fini(dom->fd_reqh,
-			      &dom->fd_fop_rate_monitor,
-			      fop_rate_monitor_key);
 }
 
 static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
@@ -997,7 +980,6 @@ M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
 			 is_loc_locker_empty(dom->fd_localities[i], loc_key));
 }
 
->>>>>>> fom-loc-lockers,
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 {
 	return m0_forall(i, dom->fd_localities_nr,
@@ -1006,39 +988,42 @@ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 }
 
 M0_INTERNAL void
-m0_fom_locality_locker_vaults_allocate(struct m0_fom_domain *dom,
-				       unsigned              key)
+m0_fom_locality_fom_cnt_vaults_alloc(struct m0_fom_domain *dom,
+				     unsigned              key)
 {
 	int i;
 
 	for (i = 0; i < dom->fd_localities_nr; ++i) {
-		unsigned               *fl_locker;
+		unsigned               *fom_cnt;
 		struct m0_fom_locality *loc = dom->fd_localities[i];
 
-		M0_ALLOC_PTR(fl_locker);
-		M0_ASSERT(fl_locker != NULL);
-		m0_fom_locality_lockers_set(loc, key, fl_locker);
+		M0_ALLOC_PTR(fom_cnt);
+		M0_ASSERT(fom_cnt != NULL);
+		m0_fom_locality_lockers_set(loc, key, fom_cnt);
 	}
 }
 
 M0_INTERNAL void
-m0_fom_locality_locker_vaults_free(struct m0_fom_domain *dom,
-				   unsigned              key)
+m0_fom_locality_fom_cnt_vaults_free(struct m0_fom_domain *dom,
+				    unsigned              key)
 {
 	int i;
 
 	for (i = 0; i < dom->fd_localities_nr; ++i) {
-		unsigned               *fl_locker;
+		unsigned               *fom_cnt;
 		struct m0_fom_locality *loc = dom->fd_localities[i];
 
-		fl_locker = m0_fom_locality_lockers_get(loc, key);
-		m0_free(fl_locker);
+		/* Handle failure cases where the lockers are not allocated.*/
+		if (m0_fom_locality_lockers_is_empty(loc, key))
+			continue;
+		fom_cnt = m0_fom_locality_lockers_get(loc, key);
+		m0_free(fom_cnt);
 		m0_fom_locality_lockers_clear(loc, key);
 	}
 }
 
-M0_INTERNAL void m0_fom_locality_locker_inc_fom_nr(struct m0_fom_locality *loc,
-						   unsigned                key)
+M0_INTERNAL void m0_fom_locality_locker_fom_cnt_inc(struct m0_fom_locality *loc,
+						    unsigned                key)
 {
 	unsigned *nr;
 
@@ -1047,8 +1032,8 @@ M0_INTERNAL void m0_fom_locality_locker_inc_fom_nr(struct m0_fom_locality *loc,
 	M0_CNT_INC(*nr);
 }
 
-M0_INTERNAL void m0_fom_locality_locker_dec_fom_nr(struct m0_fom_locality *loc,
-						   unsigned                key)
+M0_INTERNAL void m0_fom_locality_locker_fom_cnt_dec(struct m0_fom_locality *loc,
+						    unsigned                key)
 {
 	unsigned *nr;
 
@@ -1117,7 +1102,7 @@ void m0_fom_fini(struct m0_fom *fom)
 	if (fop_rate_monitor != NULL)
 		M0_CNT_INC(fop_rate_monitor->frm_count);
 	if (svc != NULL) {
-		m0_fom_locality_locker_dec_fom_nr(fom->fo_loc,
+		m0_fom_locality_locker_fom_cnt_dec(fom->fo_loc,
 				svc->rs_type->rst_fomcnt_key);
 		if (is_loc_locker_empty(loc, svc->rs_type->rst_fomcnt_key))
 			m0_chan_signal_lock(&reqh->rh_sd_signal);

@@ -47,6 +47,7 @@
 #include "fid/fid.h"
 #include "fop/fom_simple.h"
 #include "fop/fom_generic.h"
+#include "fop/fop_rate_monitor.h"
 #include "graph/graph.h"
 #include "mero/init.h"
 #include "lib/cookie.h"
@@ -125,6 +126,7 @@ struct init_fini_call subsystem[] = {
 	/* fops must be initialised before network, because network build fop
 	   type for network descriptors. */
 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
+	{ &m0_fop_rate_monitor_module_init, NULL,     "fop_rate_monitor" },
 	{ &m0_net_init,         &m0_net_fini,         "net" },
 #ifdef __KERNEL__
 	{ &m0_net_test_init,    &m0_net_test_fini,    "net-test" },
