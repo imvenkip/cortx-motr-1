@@ -76,7 +76,6 @@ To summarise:
 
       This rule applied to block-level variable declarations too.
 
-
 In addition to the above syntactic conventions, Mero code should
 try to adhere to some higher level idioms.
 
@@ -146,13 +145,12 @@ try to adhere to some higher level idioms.
 
       Specifically, never use if (r == true);
 
-      In ?: operator of the following gcc-extension form it is Ok
-      to use any scalar type expressions:
+    * use ?: form of ternary operator (a gcc-extension) like 
 
         a ?: b ?: c ?: ...
 
-      This operator means "return first non-zero value among a, b, c",
-      that's why "a" there can have any suitable type.
+      This expression means "return first non-zero value among a, b,
+      c". Operands, including "a" can have any suitable type.
 
     * simplify:
 
@@ -160,10 +158,12 @@ try to adhere to some higher level idioms.
               return expr ? 0 : 1;      to     return !expr;
 
       Specifically, never use (x == true) or (x == false) instead of
-      (x) or (!x) respectively. Rationale: if (x == true) is clearer
-      than (x), then ((x == true) == true) is even more clearer.
+      (x) or (!x) respectively;
 
-      Use !!x to convert a "boolean" integer into an "arithmetic" integer;
+      (Rationale: if (x == true) is clearer than (x), then ((x == true) == true)
+      is even more clearer.)
+
+    * use !!x to convert a "boolean" integer into an "arithmetic" integer;
 
     * use C99 bool type;
 
@@ -246,7 +246,7 @@ try to adhere to some higher level idioms.
       inside of the struct. Don't use "const" in this case. Instead,
       document why the argument is not technically a constant;
 
-    * control flow statement conditions should have no side-effects:
+    * control flow statement conditions ought to have no side-effects:
 
         alive = qoo_is_alive(elvis);
         if (alive) { /* rather than if (qoo_is_alive(elvis)) */
@@ -279,7 +279,7 @@ try to adhere to some higher level idioms.
 
       (Rationale: avoids inconsistent data structures on different arch);
 
-    * no comparison between signed vs unsigned without explicit casting.
+    * no comparison between signed vs. unsigned without explicit casting;
 
     * the canonical order of type qualifiers in declarations and
       definitions is
@@ -291,10 +291,10 @@ try to adhere to some higher level idioms.
     * declare one variable per line;
 
     * avoid bit-fields. Instead, use explicit bit manipulations with
-      integer types.
+      integer types;
 
       (Rationale: eliminates non-atomic access to bit-fields and implicit
-      integer promotion);
+      integer promotion.)
 
     * avoid dead assignments and initializations (i.e., assignments
       which are overwritten before the variable is read)
@@ -336,6 +336,8 @@ try to adhere to some higher level idioms.
       upon, rather than as a disjunction of exceptions. Use m0_*_forall() macros
       to build conjunctions over containers and sequences;
 
+    * in invariants use _0C() macro to record a failed conjunct;
+
     * a header file should include only headers, which are necessary for the
       header to pass compilation. Forward declarations should be used instead of
       includes where possible. .c files should include all necessary headers
@@ -343,7 +345,7 @@ try to adhere to some higher level idioms.
       headers. Unneeded headers should not be included. When a header is
       included only for a few definitions (as opposed to for a whole interface
       defined in this header) these symbols should be mentioned in the comment
-      in #include line.
+      on the #include line.
 
       (Rationale: reduces dependencies between modules, makes inclusion tree
       re-structuring easier and compilation faster.).
@@ -359,7 +361,7 @@ try to adhere to some higher level idioms.
 
         reply = m0_fop_alloc(&m0_addb_reply_fopt, NULL);
         if (reply == NULL)
-            M0_LOG(M0_ERROR, "failed to allocate addb reply fop");
+                M0_LOG(M0_ERROR, "failed to allocate addb reply fop");
 
       try to describe error using current context, and not a low-level
       (which might be already logged by the other func), for example
@@ -371,10 +373,9 @@ try to adhere to some higher level idioms.
       guidelines for this can be found in lib/trace.h in
       documentation of m0_trace_level enum.
 
-    * consider using M0_ENTRY()/M0_LEAVE() at function's entry and
-      exit points, as well as M0_RETURN() and M0_RETERR() to
-      explicitly return from function, which conforms to the standard
-      return code convention.
+    * consider using M0_ENTRY()/M0_LEAVE() at function's entry and exit points,
+      as well as M0_RC() and M0_ERR() to explicitly return from function, which
+      conforms to the standard return code convention.
 
 Things to look after:
 
@@ -417,3 +418,72 @@ Things to look after:
       A general rule of thumb is that object creation and destruction
       should be protected by "existential lock(s)", with a life-time
       longer than that of the object.
+
+Code organization guidelines.
+
+The following is not a substitute for design guidelines, which are defined
+elsewhere.
+
+Traditional code organization techniques, taught in universities, include
+modularity, layering, information hiding, and maintaining abstraction
+boundaries. They tend to produce code, which is easy to modify and re-factor,
+and are, hence, very important. Their utility is highest in the projects that
+experience constant frequent modifications. Such projects (or phases of
+projects) cannot be long. In a long term project, where code lives around for
+many years, different considerations start playing an increasing role.
+
+Consider an example. In a project that is in a stable phase, i.e., sees
+relatively infrequent addition of the new features, most typical use of source
+code by a programmer is bug analysis. That is starting from a failure report (or
+performance degradation, or test failure) a programmer looks through the area of
+code that is most likely to be the culprit. Failing to find the problem here
+(which is usually the case, because all obvious bugs are already ironed out),
+the programmer proceeds through the other involved modules, recursively.
+
+Two observations are of import here:
+
+    * the code is mostly read, not written. The stabler the project, the more
+      predominant reads are, because only harder to find bugs remain and more
+      code has to be analyzed for each of them;
+
+    * the code is read under an assumption that it is incorrect.
+
+The last point goes contrary to the principles of information hiding and
+abstraction boundaries: when a module A, which uses a module B, is analyzed
+under an assumption that there is a bug in either, abstraction boundary is not
+only not helpful, but directly detrimental, because every call from A to B has
+to be followed anyway (cannot rely on invariants!) and the more rigorous is
+abstraction, the more effort is spent jumping around the abstraction wall.
+
+The experience with large long term projects, such as Lustre and Linux kernel,
+demonstrated that after a certain threshold readability is at least as important
+as modifiability. In such projects, abstraction and modularity are properties of
+the software *design*, whereas the code, produced from the design, is optimised
+toward the long term readability.
+
+Some concrete consequences:
+
+    * keep the code *visually* compact. The amount of code visible at the screen
+      at once is very important, if you stare at it for hours. Blank lines are
+      precious resource;
+
+    * all kinds of redundant Hungarian notations should be eschewed. For
+      example, don't put information about parameters in function name, because
+      parameters are already present at the call-site. A typical call for
+      m0_mod_call_with_bar() would look like m0_mod_call_with_bar(foo, bar). Not
+      only "bar" is redundant, it is also ugly. Use thesaurus to deal with
+      "call_with_x" vs. "call_with_y";
+
+    * wrapping field access in an accessor function is a gratuitous abstraction,
+      which should only be used sparingly, if it makes code more compact: field
+      accesses have nice properties (like side-effect freedom), which are
+      important for code analysis and which function wrapper hides. Besides, C
+      type system doesn't allow correct handling of constness in this case,
+      unless you have *two* wrappers;
+
+    * more generally, abstractions should be introduced for design purposes,
+      e.g., to mark a point of possible variability. Sub-modules,
+      data-structures and operation vectors should not be created simply to
+      "keep things small". Remember, that in the long term, refactoring is easy.
+
+LocalWords:  struct enums structs sizeof summarise accessor
