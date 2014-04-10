@@ -145,7 +145,7 @@ try to adhere to some higher level idioms.
 
       Specifically, never use if (r == true);
 
-    * use ?: form of ternary operator (a gcc-extension) like 
+    * use ?: form of ternary operator (a gcc-extension) like
 
         a ?: b ?: c ?: ...
 
@@ -469,7 +469,7 @@ Some concrete consequences:
 
     * all kinds of redundant Hungarian notations should be eschewed. For
       example, don't put information about parameters in function name, because
-      parameters are already present at the call-site. A typical call for
+      parameters are already present at a call-site. A typical call for
       m0_mod_call_with_bar() would look like m0_mod_call_with_bar(foo, bar). Not
       only "bar" is redundant, it is also ugly. Use thesaurus to deal with
       "call_with_x" vs. "call_with_y";
