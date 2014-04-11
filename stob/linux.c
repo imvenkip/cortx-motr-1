@@ -27,6 +27,7 @@
 #include <sys/stat.h>			/* lstat */
 #include <unistd.h>			/* lstat */
 #include <fcntl.h>			/* open */
+#include <limits.h>			/* PATH_MAX */
 
 #include "lib/errno.h"			/* ENOENT */
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
@@ -274,6 +275,7 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	char   *dir_domain  = stob_linux_dir_domain(path);
 	char   *dir_stob    = stob_linux_dir_stob(path);
 	char   *file_dom_id = stob_linux_file_domain_id(path);
+	char    cmd[PATH_MAX];
 	int	rc;
 	int	rc1;
 
@@ -295,9 +297,14 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	if (rc == 0)
 		goto out;
 destroy:
-	rc1 = unlink(file_dom_id);
+	/* XXX: One day this mess should be cleaned up.*/
+	//rc1 = unlink(file_dom_id);
+	snprintf(cmd, sizeof(cmd), "rm -fr %s", file_dom_id);
+	rc1 = WEXITSTATUS(system(cmd));
 	rc = rc1 == -1 ? -errno : rc;
-	rc1 = rmdir(dir_stob);
+	//rc1 = rmdir(dir_stob);
+	snprintf(cmd, sizeof(cmd), "rm -fr %s", dir_stob);
+	rc1 = WEXITSTATUS(system(cmd));
 	rc = rc1 == -1 ? -errno : rc;
 rmdir_domain:
 	rc1 = rmdir(dir_domain);

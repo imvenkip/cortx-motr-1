@@ -54,7 +54,6 @@ EP=(
 
 SNS_CLI_EP="12345:33:991"
 
-PREPARE_STORAGE="-p"
 POOL_WIDTH=$(expr ${#EP[*]} - 1)
 NR_PARITY=1
 NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)

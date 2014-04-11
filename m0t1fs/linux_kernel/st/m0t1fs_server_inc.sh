@@ -40,6 +40,7 @@ mero_service()
 	then
 		P=$2
 	fi
+        prog_mkfs="$MERO_CORE_ROOT/utils/mkfs/m0mkfs"
         prog_start="$MERO_CORE_ROOT/mero/m0d"
         prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
 
@@ -84,7 +85,19 @@ mero_service()
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
-			$prog_start $PREPARE_STORAGE \
+			$prog_mkfs \
+			 -T $MERO_STOB_DOMAIN \
+			 -D db -S stobs -A linuxstob:addb-stobs \
+			 -w $P \
+			 -G $XPT:${lnet_nid}:${EP[0]} \
+			 -e $XPT:${lnet_nid}:${EP[$i]} \
+			 $ios_eps \
+			 $SNAME -m $MAX_RPC_MSG_SIZE \
+			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			echo $cmd
+			(eval "$cmd") &
+			cmd="cd $DIR && exec \
+			$prog_start \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
 			 -w $P \

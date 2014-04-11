@@ -122,7 +122,7 @@ fill_global_array_with_last_posted_addb_rec(struct rpcsink *rsink)
 }
 
 static char *addb_server_argv[] = {
-	"rpclib_ut", "-p", "-T", "linux", "-D", SERVER_DB_NAME,
+	"rpclib_ut", "-T", "linux", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "addb", "-w",
 	"10"

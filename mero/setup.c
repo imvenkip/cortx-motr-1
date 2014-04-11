@@ -697,9 +697,19 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 			      "adstob:seg=%p,ad.%lx", seg, cid);
 		M0_ASSERT(rc < sizeof(location));
 		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_fid_get(bstore));
-		rc = dom_cfg == NULL ? -ENOMEM :
-		     m0_stob_domain_create_or_init(location, NULL, cid, dom_cfg,
-						   &adstob->as_dom);
+		if (dom_cfg == NULL) {
+			rc = -ENOMEM;
+		} else {
+/*			if (mkfs) {
+				rc = m0_stob_domain_init(location, NULL, &adstob->as_dom);
+				if (rc == 0) {
+					m0_stob_domain_destroy(adstob->as_dom);
+				}
+			}*/
+			rc = m0_stob_domain_create_or_init(location, NULL,
+							   cid, dom_cfg,
+							   &adstob->as_dom);
+		}
 		m0_free(dom_cfg);
 
 		if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail")) {
@@ -797,7 +807,8 @@ static int cs_storage_init(const char *stob_type,
 			   const char *stob_path,
 			   uint64_t dom_key,
 			   struct cs_stobs *stob,
-			   struct m0_be_seg *db)
+			   struct m0_be_seg *db,
+			   bool mkfs)
 {
 	int                rc;
 	size_t             slen;
@@ -823,6 +834,13 @@ static int cs_storage_init(const char *stob_type,
 		return M0_RC(-ENOMEM);
 
 	sprintf(location, "%s%s", prefix, stob_path);
+	if (mkfs) {
+		rc = m0_stob_domain_init(location, "directio=true", &stob->s_sdom);
+		if (rc == 0) {
+			/* Found existing stob domain, kill it. */
+			m0_stob_domain_destroy(stob->s_sdom);
+		}
+	}
 	rc = m0_stob_domain_create_or_init(location, "directio=true", dom_key, NULL,
 					   &stob->s_sdom);
 	m0_free(location);
@@ -1050,7 +1068,7 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
 		m0_net_xprt_fini(cctx->cc_xprts[i]);
 }
 
-static int cs_storage_prepare(struct m0_reqh_context *rctx)
+static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob_domain *dom = &rctx->rc_mdstore.md_dom;
@@ -1058,6 +1076,9 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx)
 	int                   rc;
 
 	m0_sm_group_lock(grp);
+
+	if (erase)
+		m0_mdstore_destroy(&rctx->rc_mdstore, grp);
 
 	rc = m0_mdstore_create(&rctx->rc_mdstore, grp);
 	if (rc != 0)
@@ -1086,7 +1107,7 @@ end:
    @see m0_addb_mc_configure_stob_sink() that is used by ADDB machine
    to store the ADDB recs.
  */
-static int cs_addb_storage_init(struct m0_reqh_context *rctx)
+static int cs_addb_storage_init(struct m0_reqh_context *rctx, bool mkfs)
 {
 	struct cs_addb_stob *addb_stob = &rctx->rc_addb_stob;
 	struct m0_stob	    *stob;
@@ -1094,6 +1115,13 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 
 	M0_ENTRY();
 
+	if (mkfs) {
+		rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL, &addb_stob->cas_stobs.s_sdom);
+		if (rc == 0) {
+			/* Found existing stob domain, kill it. */
+			m0_stob_domain_destroy(addb_stob->cas_stobs.s_sdom);
+		}
+	}
 	/** @todo allow different stob type for data stobs & ADDB stobs? */
 	rc = m0_stob_domain_create_or_init(rctx->rc_addb_stlocation, NULL, 0,
 					   NULL, &addb_stob->cas_stobs.s_sdom);
@@ -1140,7 +1168,7 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 
    @param rctx Request handler context to be initialised
  */
-static int cs_reqh_start(struct m0_reqh_context *rctx)
+static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 {
 	int rc;
 
@@ -1183,14 +1211,15 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
 			     M0_AD_STOB_LINUX_DOM_KEY,
-			     &rctx->rc_stob, rctx->rc_beseg);
+			     &rctx->rc_stob, rctx->rc_beseg,
+			     mkfs);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init");
 		/* XXX who should call yaml_document_delete()? */
 		goto reqh_dbenv_fini;
 	}
 
-	rc = cs_addb_storage_init(rctx);
+	rc = cs_addb_storage_init(rctx, mkfs);
 	if (rc != 0)
 		goto cleanup_stob;
 
@@ -1201,11 +1230,10 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 
 	rctx->rc_cdom_id.id = ++cdom_id;
 
-	/** Mkfs cob domain before using it. */
-	if (rctx->rc_prepare_storage) {
+	if (mkfs) {
 		/*
-		 * Init mdstore without root cob init first. Now we can use its
-		 * cob domain for mkfs.
+		 * Init mdstore without root cob first. Now we can use it
+        	 * for mkfs.
 		 */
 		rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 				     rctx->rc_beseg, false);
@@ -1213,15 +1241,16 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 			M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
 			goto cleanup_addb_stob;
 		}
-		if (rc == -ENOENT)
-			rc = cs_storage_prepare(rctx);
+
+		/* Prepare new metadata structure, erase old one if exists. */
+		rc = cs_storage_prepare(rctx, rc == 0);
 		m0_mdstore_fini(&rctx->rc_mdstore);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_storage_prepare: rc=%d", rc);
 			goto cleanup_addb_stob;
 		}
 	}
-
+	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);
 	if (rc != 0) {
@@ -1350,22 +1379,23 @@ static void cs_mero_fini(struct m0_mero *cctx)
 		m0_free(cctx->cc_args.ca_argv[--cctx->cc_args.ca_argc]);
 }
 
-static void cs_usage(FILE *out)
+static void cs_usage(FILE *out, const char *progname)
 {
 	M0_PRE(out != NULL);
+	M0_PRE(progname != NULL);
 
 	fprintf(out,
-"Usage: m0d [-h] [-x] [-l]\n"
-"    or m0d <global options> <reqh>+\n"
+"Usage: %s [-h] [-x] [-l]\n"
+"    or %s <global options> <reqh>+\n"
 "\n"
-"Type `m0d -h' for help.\n");
+"Type `%s -h' for help.\n", progname, progname, progname);
 }
 
-static void cs_help(FILE *out)
+static void cs_help(FILE *out, const char *progname)
 {
 	M0_PRE(out != NULL);
 
-	cs_usage(out);
+	cs_usage(out, progname);
 	fprintf(out, "\n"
 "Queries:\n"
 "  -h   Display this help.\n"
@@ -1423,8 +1453,8 @@ static void cs_help(FILE *out)
 "           Defaults to the value set with '-M' option.\n"
 "\n"
 "Example:\n"
-"    m0d -Q 4 -M 4096 -T linux -D dbpath -S stobfile \\\n"
-"        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n");
+"    %s -Q 4 -M 4096 -T linux -D dbpath -S stobfile \\\n"
+"        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n", progname);
 }
 
 static int reqh_ctx_validate(struct m0_mero *cctx)
@@ -1555,14 +1585,14 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 	if (argc <= 1)
 		return M0_RC(-EINVAL);
 
-	rc_getops = M0_GETOPTS("m0d", argc, argv,
+	rc_getops = M0_GETOPTS(argv[0], argc, argv,
 			/* -------------------------------------------
 			 * Global options
 			 */
-			M0_VOIDARG('h', "m0d usage help",
+			M0_VOIDARG('h', "Usage help",
 				LAMBDA(void, (void)
 				{
-					cs_help(cctx->cc_outfile);
+					cs_help(cctx->cc_outfile, argv[0]);
 					rc = 1;
 				})),
 			M0_VOIDARG('x', "List supported transports",
@@ -1584,7 +1614,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				     "%i", &cctx->cc_recv_queue_min_length),
 			M0_FORMATARG('M', "Maximum RPC message size", "%i",
 				     &cctx->cc_max_rpc_msg_size),
-			M0_STRINGARG('C', "confd endpoint address",
+			M0_STRINGARG('C', "Confd endpoint address",
 				LAMBDA(void, (const char *s)
 				{
 					M0_ASSERT(confd_addr != NULL);
@@ -1596,19 +1626,19 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 					M0_ASSERT(profile != NULL);
 					*profile = s;
 				})),
-			M0_STRINGARG('G', "mdservice endpoint address",
+			M0_STRINGARG('G', "Mdservice endpoint address",
 				LAMBDA(void, (const char *s)
 				{
 					rc = m0_ep_and_xprt_extract(
 						&cctx->cc_mds_epx, s);
 				})),
-			M0_STRINGARG('R', "stats service endpoint address",
+			M0_STRINGARG('R', "Stats service endpoint address",
 				LAMBDA(void, (const char *s)
 				{
 					rc = m0_ep_and_xprt_extract(
 						&cctx->cc_stats_svc_epx, s);
 				})),
-			M0_STRINGARG('i', "ioservice endpoints list",
+			M0_STRINGARG('i', "Ioservice endpoints list",
 				LAMBDA(void, (const char *s)
 				{
 					rc = ep_and_xprt_append(
@@ -1630,13 +1660,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			/* -------------------------------------------
 			 * Request handler options
 			 */
-			M0_VOIDARG('p', "Prepare storage (root session,"
-				   " hierarchy root, etc)",
-				LAMBDA(void, (void)
-				{
-					rctx->rc_prepare_storage = 1;
-				})),
-			M0_STRINGARG('D', "Database environment path",
+			M0_STRINGARG('D', "Metadata storage filename",
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_dbpath = s;
@@ -1656,12 +1680,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				{
 					rctx->rc_addb_stlocation = s;
 				})),
-			M0_STRINGARG('S', "Storage domain name",
+			M0_STRINGARG('S', "Data storage filename",
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_stpath = s;
 				})),
-			M0_STRINGARG('d', "device configuration file",
+			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_dfilepath = s;
@@ -1718,11 +1742,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
-	int         rc;
-	const char *confd_addr = NULL;
-	const char *profile = NULL;
-	const char *genders = NULL;
-	bool        use_genders = false;
+	int                     rc;
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	const char             *confd_addr = NULL;
+	const char             *profile = NULL;
+	const char             *genders = NULL;
+	bool                    use_genders = false;
 
 	M0_ENTRY();
 
@@ -1730,6 +1755,12 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 			 &genders, &use_genders);
 	if (rc != 0)
 		return M0_RC(rc);
+
+	if (rctx->rc_dbpath == NULL)
+		return M0_ERR(-EPROTO, "Database path is not specified");
+
+	if (rctx->rc_stpath == NULL)
+		return M0_ERR(-EPROTO, "Storage domain path is not specified");
 
 	if (genders != NULL && !use_genders)
 		return M0_ERR(-EPROTO, "-f genders file specified without -g");
@@ -1784,13 +1815,13 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 		cs_daemonize(cctx) ?:
 		cs_net_domains_init(cctx) ?:
 		cs_buffer_pool_setup(cctx) ?:
-		cs_reqh_start(&cctx->cc_reqh_ctx) ?:
+		cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs) ?:
 		cs_rpc_machines_init(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0) {
 		M0_LOG(M0_ERROR, "m0_cs_setup_env: %d", rc);
-		cs_usage(cctx->cc_outfile);
+		cs_usage(cctx->cc_outfile, argv[0]);
 	}
 	return rc;
 }

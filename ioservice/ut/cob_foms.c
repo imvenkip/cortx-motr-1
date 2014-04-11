@@ -101,7 +101,7 @@ struct cobthread_arg {
 };
 
 static char *server_args[] = {
-	"m0d", "-p", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
+	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
 	"-e", SERVER_ENDP, "-s", "ioservice", "-w", "10"/* =POOL_WIDTH */,
 };

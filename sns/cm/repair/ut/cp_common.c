@@ -30,7 +30,7 @@
 
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";
-char      *sns_cm_ut_svc[] = { "m0d", "-p", "-T", "LINUX",
+char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
                                "-D", "sr_db", "-S", "sr_stob",
                                "-A", "linuxstob:sr_addb_stob",
 			       "-w", "10",

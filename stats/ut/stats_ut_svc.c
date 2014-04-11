@@ -32,7 +32,7 @@ struct m0_cond  ut_stats_cond;
 struct m0_rpc_server_ctx stats_ut_sctx_bk;
 
 static char *stats_ut_server_argv[] = {
-        "rpclib_ut", "-p", "-T", "AD", "-D", SERVER_DB_NAME,
+        "rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
         "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
         "-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
 };

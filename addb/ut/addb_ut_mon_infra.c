@@ -29,7 +29,7 @@ enum {
 };
 
 static char *addb_mon_infra_server_argv[] = {
-	"addb_mon_infra_ut", "-p", "-T", "linux", "-D", SERVER_DB_NAME,
+	"addb_mon_infra_ut", "-T", "linux", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-R", SERVER_ENDPOINT, "-s", "addb",
 	"-s", "stats", "-w", "10"

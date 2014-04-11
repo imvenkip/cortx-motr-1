@@ -35,7 +35,7 @@
 
 #define LOG_FILE_NAME "as_ut.errlog"
 
-static char *addb_ut_svc[] = { "m0d", "-p", "-T", "linux",
+static char *addb_ut_svc[] = { "m0d", "-T", "linux",
 			       "-D", "as_db", "-S", "as_stob",
 			       "-A", "linuxstob:as_addb_stob",
 			       "-w", "10",

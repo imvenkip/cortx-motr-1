@@ -34,7 +34,7 @@
 #define SERVER_LOG           "rmserver.log"
 
 static char *server_argv[] = {
-	"rm-ut", "-p", "-T", "linux", "-D", SERVER_DB,
+	"rm-ut", "-T", "linux", "-D", SERVER_DB,
 	"-S", SERVER_STOB, "-A", SERVER_ADDB_STOB, "-e", SERVER_ENDPOINT,
 	"-w", "10", "-s", "rmservice"
 };

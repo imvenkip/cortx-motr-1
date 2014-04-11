@@ -51,7 +51,7 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 	char        tm_len[STRLEN];
 	char        rpc_size[STRLEN];
 	const char *argv[] = {
-		"bulkio_st", "-p", "-T", "AD", "-D", S_DBFILE,
+		"bulkio_st", "-T", "AD", "-D", S_DBFILE,
 		"-S", S_STOBFILE, "-A", S_ADDB_STOBFILE, "-e", ep,
 		"-s", "ioservice", "-s", "sns_repair", "-q", tm_len,
 		"-m", rpc_size, "-w", "10", "-G", ep

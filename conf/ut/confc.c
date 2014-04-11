@@ -399,7 +399,7 @@ static void test_confc_net(void)
 	int                      rc;
 #define NAME(ext) "ut_confd" ext
 	char                    *argv[] = {
-		NAME(""), "-p", "-T", "AD", "-D", NAME(".db"),
+		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10",
 		"-e", SERVER_ENDPOINT, "-s", "confd",

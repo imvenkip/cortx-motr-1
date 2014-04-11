@@ -48,14 +48,14 @@ struct cl_ctx {
 };
 
 /* Configures mero environment with given parameters. */
-static char *cs_ut_service_one_cmd[] = { "m0d", "-p", "-T", "linux",
+static char *cs_ut_service_one_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
                                 "-s", "ds1"};
 
-static char *cs_ut_services_many_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -63,13 +63,13 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
-static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-p", "-D",
+static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_stob"};
 
-static char *cs_ut_dev_stob_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -77,53 +77,53 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_stype_bad_cmd[] = { "m0d", "-p", "-T", "asdadd",
+static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-p","-T", "AD",
+static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
                                 "-s", "ds1"};
 
-static char *cs_ut_ep_bad_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
-static char *cs_ut_service_bad_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_service_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                                 "-s", "dasdadasd"};
 
-static char *cs_ut_args_bad_cmd[] = { "m0d", "-p", "-D", "cs_sdb",
+static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
-static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-p", "-T", "linux",
+static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1", "-q", "4", "-m", "4096"};
 
-static char *cs_ut_lnet_cmd[] = { "m0d", "-p", "-T", "linux",
+static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-p", "-T", "linux",
+static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -131,7 +131,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-p", "-T", "linux",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -141,7 +141,7 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-s", "ioservice"};
 
-static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -149,7 +149,7 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-p", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-s", "ds1"};
 
-static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",

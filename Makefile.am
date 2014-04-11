@@ -550,6 +550,15 @@ utils_trace_m0traced_LDADD     = $(top_builddir)/mero/libmero.la
 include $(top_srcdir)/utils/trace/Makefile.sub
 
 #
+# utils/mkfs
+#
+
+bin_PROGRAMS                  += utils/mkfs/m0mkfs
+utils_mkfs_m0mkfs_LDADD        = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/utils/mkfs/Makefile.sub
+
+#
 # utils/layout
 #
 

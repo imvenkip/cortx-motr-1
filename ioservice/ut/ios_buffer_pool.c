@@ -35,14 +35,14 @@
 extern const struct m0_tl_descr bufferpools_tl;
 
 /* Mero setup arguments. */
-static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
 				"-A", "linuxstob:cs_addb_stob",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-w", "10",
 				"-s", "ioservice"};
 
-static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
 				"-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -50,7 +50,7 @@ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-p", "-T", "AD",
 				"-e", "bulk-mem:127.0.0.1:35678",
 				"-s", "ioservice"};
 
-static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
 				"-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
@@ -58,7 +58,7 @@ static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-p", "-T", "AD",
 				"-e", "bulk-mem:127.0.0.1:35679",
 				"-s", "ioservice"};
 
-static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-p", "-T", "AD",
+static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
 				"-D", "cs_sdb", "-S", "cs_stob",
 				"-A", "linuxstob:cs_addb_stob",
 				"-w", "10",

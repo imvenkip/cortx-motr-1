@@ -252,9 +252,6 @@ struct m0_reqh_context {
 	/** Database environment path for request handler context. */
 	const char                  *rc_dbpath;
 
-	/** Whether to prepare storage (mkfs) attached to this context. */
-	int                          rc_prepare_storage;
-
 	/** Services running in request handler context. */
 	char                       **rc_services;
 
@@ -384,6 +381,9 @@ struct m0_mero {
 
 	/** Run as a daemon? */
 	bool                        cc_daemon;
+
+	/** Run from mkfs? */
+	bool                        cc_mkfs;
 
 	/** Command line arguments. */
 	struct cs_args		    cc_args;

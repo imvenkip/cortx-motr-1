@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 	uint32_t tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	uint32_t max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	char    *default_server_argv[] = {
-		argv[0], "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+		argv[0], "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 		"-s", "ds1", "-s", "ds2", "-s", "ioservice", "-q", tm_len,
 		"-m", rpc_size, "-A", "linuxstob:as_addb_stob"
