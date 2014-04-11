@@ -3,6 +3,7 @@ nobase_mero_include_HEADERS += stob/ad.h \
 				  stob/ad_private_xc.h \
 				  stob/battr.h \
                                   stob/cache.h \
+                                  stob/domain.h \
                                   stob/io.h \
                                   stob/ioq.h \
                                   stob/linux_getevents.h \
@@ -16,8 +17,8 @@ nobase_mero_include_HEADERS += stob/ad.h \
 
 mero_libmero_la_SOURCES  += stob/ad.c \
                                   stob/ad_private_xc.c \
-                                  stob/domain.c \
                                   stob/cache.c \
+                                  stob/domain.c \
                                   stob/io.c \
                                   stob/ioq.c \
                                   stob/linux.c \
