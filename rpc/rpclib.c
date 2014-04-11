@@ -64,7 +64,7 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	 * m0_rpc_server_start() must register the service stypes before.
 	 */
 	rc = m0_cs_init(&sctx->rsx_mero_ctx, sctx->rsx_xprts,
-			sctx->rsx_xprts_nr, sctx->rsx_log_file);
+			sctx->rsx_xprts_nr, sctx->rsx_log_file, true);
 	M0_LOG(M0_DEBUG, "cs_init: rc=%d", rc);
 	if (rc != 0)
 		goto fclose;

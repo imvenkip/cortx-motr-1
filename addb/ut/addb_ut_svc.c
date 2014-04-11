@@ -61,7 +61,7 @@ static int server_start(void)
 	lfile = fopen(LOG_FILE_NAME, "w+");
 	M0_UT_ASSERT(lfile != NULL);
 
-        rc = m0_cs_init(&sctx2, as_xprts, ARRAY_SIZE(as_xprts), lfile);
+        rc = m0_cs_init(&sctx2, as_xprts, ARRAY_SIZE(as_xprts), lfile, true);
         if (rc != 0)
 		return rc;
 

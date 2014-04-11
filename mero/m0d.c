@@ -98,14 +98,13 @@ M0_INTERNAL int main(int argc, char **argv)
 	}
 	errno = 0;
 	M0_SET0(&mero_ctx);
-	mero_ctx.cc_mkfs = false;
 	rc = m0_init(&instance);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Mero \n");
 		goto out;
 	}
 
-	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
+	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, false);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Mero \n");
 		goto cleanup2;

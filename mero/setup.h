@@ -410,9 +410,10 @@ struct cs_ad_stob {
    @param xprts Array or network transports supported in a mero context
    @param xprts_nr Size of xprts array
    @param out File descriptor to which output is written
+   @param should the storage be prepared just like mkfs does?
  */
 int m0_cs_init(struct m0_mero *cs_mero,
-	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE *out);
+	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE *out, bool mkfs);
 /**
    Finalises mero context.
  */

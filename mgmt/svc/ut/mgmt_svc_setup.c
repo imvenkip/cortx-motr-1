@@ -83,7 +83,7 @@ static int mgmt_svc_ut_setup_start(void)
 
 	rc = m0_cs_init(&mgmt_svc_ut_setup_sctx, mgmt_svc_ut_setup_xprts,
 			ARRAY_SIZE(mgmt_svc_ut_setup_xprts),
-			mgmt_svc_ut_setup_lfile);
+			mgmt_svc_ut_setup_lfile, true);
 	if (rc != 0)
 		goto done;
 	rc = m0_cs_setup_env(&mgmt_svc_ut_setup_sctx,

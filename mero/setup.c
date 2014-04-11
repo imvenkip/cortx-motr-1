@@ -1863,7 +1863,7 @@ int m0_cs_start(struct m0_mero *cctx)
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
-	       size_t xprts_nr, FILE *out)
+	       size_t xprts_nr, FILE *out, bool mkfs)
 {
 	M0_PRE(xprts != NULL && xprts_nr > 0 && out != NULL);
 
@@ -1873,6 +1873,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	cctx->cc_xprts    = xprts;
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile  = out;
+	cctx->cc_mkfs     = mkfs;
 
 	cs_mero_init(cctx);
 
