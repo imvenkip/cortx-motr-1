@@ -34,7 +34,6 @@
  */
 
 /* import */
-struct m0_stob_id;
 struct m0_dtm;
 struct m0_io_req;
 struct m0_dtx;
@@ -58,20 +57,6 @@ struct m0_pool {
 
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, uint32_t width);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
-
-/**
-   Allocates object id in the pool.
-
-   @post ergo(result == 0, m0_stob_id_is_set(id))
- */
-M0_INTERNAL int m0_pool_alloc(struct m0_pool *pool, struct m0_stob_id *id);
-
-/**
-   Releases object id back to the pool.
-
-   @pre m0_stob_id_is_set(id)
- */
-M0_INTERNAL void m0_pool_put(struct m0_pool *pool, struct m0_stob_id *id);
 
 M0_INTERNAL int m0_pools_init(void);
 M0_INTERNAL void m0_pools_fini(void);

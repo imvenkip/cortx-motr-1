@@ -11,15 +11,10 @@ mkloopdevs()
 	cd $dir || return 1
 
 	dd if=/dev/zero of=$adisk bs=1M seek=1M count=1 || return 1
-	for ((j=1; j < $nr_devs; j++)) ; do
-		dd if=/dev/zero of=$j$ddisk bs=1M seek=1M count=1 ||
-			return 1
-	done
-
 	cat > disks.conf << EOF
 Device:
    - id: 0
-     filename: $adisk
+     filename: `pwd`/$adisk
 EOF
 	if (($ios > 0))
 	then
@@ -27,9 +22,11 @@ EOF
 		dev_end=$(($dev_start - $nr_devs))
 	fi
 	for ((j=$dev_start; j > $dev_end; j--)) ; do
+		dd if=/dev/zero of=$j$ddisk bs=1M seek=1M count=1 ||
+			return 1
 		cat >> disks.conf << EOF
    - id: $j
-     filename: $j$ddisk
+     filename: `pwd`/$j$ddisk
 EOF
 	done
 
@@ -89,7 +86,7 @@ mero_service()
 			cmd="cd $DIR && exec \
 			$prog_start $PREPARE_STORAGE \
 			 -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A addb-stobs \
+			 -D db -S stobs -A linuxstob:addb-stobs \
 			 -w $P \
 			 -G $XPT:${lnet_nid}:${EP[0]} \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \

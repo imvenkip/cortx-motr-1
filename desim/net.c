@@ -27,6 +27,7 @@
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/elevator.h"
+#include "stob/stob.h"		/* m0_stob_fid_key_get */
 
 /**
    @addtogroup desim desim
@@ -63,14 +64,14 @@ static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 		srv->ns_active++;
 		rpc = rpc_tlist_pop(&srv->ns_queue);
 		count = rpc->nr_todo;
-		dev = rpc->nr_id.si_bits.u_hi % srv->ns_nr_devices;
-		obj = rpc->nr_id.si_bits.u_lo;
+		dev = m0_stob_fid_dom_id_get(&rpc->nr_stob_fid) % srv->ns_nr_devices;
+		obj = m0_stob_fid_key_get(&rpc->nr_stob_fid);
 		offset = srv->ns_file_size * obj + rpc->nr_offset;
 
-		sim_log(s, SLL_TRACE, "S#%s %2i/%2i: [%lu/%u:%lu] "
+		sim_log(s, SLL_TRACE, "S#%s %2i/%2i: [%"PRIu64"/%u:%lu] "
 			"%10llu %8lu %10llu\n",
 			srv->ns_name, trid, srv->ns_active,
-			rpc->nr_id.si_bits.u_hi, dev, obj,
+			m0_stob_fid_dom_id_get(&rpc->nr_stob_fid), dev, obj,
 			rpc->nr_offset, rpc->nr_todo, offset);
 		rpc->nr_srv_thread = t;
 		/* delay before bulk */
@@ -141,14 +142,14 @@ M0_INTERNAL void net_fini(struct net_conf *net)
 }
 
 M0_INTERNAL void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-			      struct net_srv *srv, struct m0_stob_id *id,
+			      struct net_srv *srv, struct m0_fid *stob_fid,
 			      unsigned long long offset, unsigned long nob)
 {
-	rpc->nr_conf   = conf;
-	rpc->nr_srv    = srv;
-	rpc->nr_id     = *id;
-	rpc->nr_offset = offset;
-	rpc->nr_todo   = nob;
+	rpc->nr_conf     = conf;
+	rpc->nr_srv      = srv;
+	rpc->nr_stob_fid = *stob_fid;
+	rpc->nr_offset   = offset;
+	rpc->nr_todo     = nob;
 	rpc_tlink_init(rpc);
 	sim_chan_init(&rpc->nr_wait, NULL);
 	sim_chan_init(&rpc->nr_bulk_wait, NULL);
@@ -221,12 +222,12 @@ M0_INTERNAL void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc)
 
 M0_INTERNAL void net_rpc_process(struct sim_thread *t,
 				 struct net_conf *net, struct net_srv *srv,
-				 struct m0_stob_id *id,
+				 struct m0_fid *stob_fid,
 				 unsigned long long offset, unsigned long count)
 {
 	struct net_rpc rpc;
 
-	net_rpc_init(&rpc, net, srv, id, offset, count);
+	net_rpc_init(&rpc, net, srv, stob_fid, offset, count);
 	net_rpc_send(t, &rpc);
 	net_rpc_bulk(t, &rpc);
 	net_rpc_fini(&rpc);

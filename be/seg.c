@@ -27,6 +27,8 @@
 #include "lib/memory.h"       /* m0_alloc_aligned */
 #include "lib/errno.h"        /* ENOMEM */
 
+#include "stob/stob.h"	      /* m0_stob */
+
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
 #include "be/be.h"            /* m0_be_op */
 #include "be/tx_regmap.h"     /* m0_be_reg_area */

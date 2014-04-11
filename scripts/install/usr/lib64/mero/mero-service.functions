@@ -299,7 +299,7 @@ m0_get_server_pid_for()
 
 # Profile fid in the format suitable for 'prof=' mount option. Must match $prof
 # variable in m0_build_local_conf()
-m0_prof_opt='0x7000000000000001:0'
+m0_prof_opt='<0x7000000000000001:0>'
 
 # Construct local_conf mount option from genders file
 m0_build_local_conf()

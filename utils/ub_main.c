@@ -114,8 +114,8 @@ static void ub_add(const struct ub_args *args)
 //XXX_BE_DB 	m0_ub_set_add(&m0_cob_ub);
 //XXX_BE_DB 	m0_ub_set_add(&m0_bitmap_ub);
 //XXX_BE_DB 	m0_ub_set_add(&m0_atomic_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_adieu_ub);
-//XXX_BE_DB 	m0_ub_set_add(&m0_ad_ub);
+	m0_ub_set_add(&m0_adieu_ub);
+	m0_ub_set_add(&m0_ad_ub);
 }
 
 static int ub_run(const struct ub_args *args)

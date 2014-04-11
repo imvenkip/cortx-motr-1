@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 		argv[0], "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
 		"-s", "ds1", "-s", "ds2", "-s", "ioservice", "-q", tm_len,
-		"-m", rpc_size, "-A", "as_addb_stob"
+		"-m", rpc_size, "-A", "linuxstob:as_addb_stob"
 	};
 	struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
 	struct m0_rpc_server_ctx sctx = {

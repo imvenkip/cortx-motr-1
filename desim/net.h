@@ -26,7 +26,7 @@
 #define __MERO_DESIM_NET_H__
 
 #include "lib/tlist.h"
-#include "stob/stob_id.h"
+#include "fid/fid.h"
 #include "desim/sim.h"
 
 /**
@@ -72,7 +72,7 @@ struct net_srv {
 struct net_rpc {
 	struct net_srv     *nr_srv;
 	struct net_conf    *nr_conf;
-	struct m0_stob_id   nr_id;
+	struct m0_fid       nr_stob_fid;
 	unsigned long long  nr_offset;
 	unsigned long       nr_todo;
 	struct m0_tlink     nr_inqueue;
@@ -89,14 +89,14 @@ M0_INTERNAL void net_init(struct net_conf *net);
 M0_INTERNAL void net_fini(struct net_conf *net);
 
 M0_INTERNAL void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-			      struct net_srv *srv, struct m0_stob_id *id,
+			      struct net_srv *srv, struct m0_fid *stob_fid,
 			      unsigned long long offset, unsigned long nob);
 M0_INTERNAL void net_rpc_fini(struct net_rpc *rpc);
 M0_INTERNAL void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
 M0_INTERNAL void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
 M0_INTERNAL void net_rpc_process(struct sim_thread *t,
 				 struct net_conf *net, struct net_srv *srv,
-				 struct m0_stob_id *id,
+				 struct m0_fid *stob_fid,
 				 unsigned long long offset,
 				 unsigned long count);
 

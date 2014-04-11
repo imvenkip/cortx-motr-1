@@ -163,9 +163,6 @@ m0_be_ut_seg_check_persistence
 m0_be_ut_seg_fini
 m0_be_ut_seg_init
 m0_be_ut_seg_reload
-m0_be_ut_stob_get
-m0_be_ut_stob_get_by_id
-m0_be_ut_stob_put
 m0_be_ut_tx_init
 m0_dbenv_reset
 m0_xc_opaque_init

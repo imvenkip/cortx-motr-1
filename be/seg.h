@@ -25,13 +25,13 @@
 #include "be/alloc.h"		/* m0_be_allocator */
 #include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
 
-#include "lib/list.h"
-#include "stob/stob.h"  /* m0_stob */
+#include "lib/tlist.h"		/* m0_tlink */
 
 struct m0_be;
 struct m0_be_op;
 struct m0_be_reg_d;
 struct m0_be_reg_area;
+struct m0_stob;
 
 /**
  * @defgroup be

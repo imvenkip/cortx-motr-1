@@ -259,7 +259,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	struct m0_clink        sri_wait;
 	struct m0_stob_domain *dom;
 	m0_bcount_t            header_size;
-	uint32_t               bshift = stob->so_op->sop_block_shift(stob);
+	uint32_t               bshift = m0_stob_block_shift(stob);
 	int                    rc;
 
 	header_size = max64u(sizeof(struct m0_addb_seg_header), 1 << bshift);
@@ -657,7 +657,7 @@ M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 		return rc;
 	}
 	si->ssi_base.asi_segsize = rc;
-	bshift = stob->so_op->sop_block_shift(stob);
+	bshift = m0_stob_block_shift(stob);
 	si->ssi_bshift = bshift;
 	si->ssi_stob = stob;
 	rc = m0_bufvec_alloc_aligned(&si->ssi_base.asi_buf, 1,

@@ -31,6 +31,7 @@
 #include "reqh/reqh_service.h"
 #include "cm/proxy.h"
 #include "ut/ut_rpc_machine.h"
+#include "ut/stob.h"		/* m0_ut_stob_create_by_fid */
 #include <unistd.h>			/* usleep */
 
 /* import from pool/pool_store.c */
@@ -51,8 +52,6 @@ struct m0_reqh_service     *scm_service;
 struct m0_cm_aggr_group    *ag_cpy;
 struct m0_sns_cm_repair_ag  rag;
 struct m0_stob_domain      *sdom;
-static struct m0_dtx        tx;
-static struct m0_stob      *stob;
 
 /*
  * Global structures for read copy packet used for verification.
@@ -112,12 +111,7 @@ static struct m0_net_buffer_pool  nbp;
 static struct m0_cm_proxy         sender_cm_proxy;
 static struct m0_cm_proxy         recv_cm_proxy;
 
-static struct m0_stob_id sid = {
-	.si_bits = {
-		.u_hi = 0,
-		.u_lo = 4
-	}
-};
+static struct m0_fid cob_fid = M0_FID_INIT(0, 4);
 
 static struct m0_cm_ag_id ag_id = {
 	.ai_hi = {
@@ -393,9 +387,8 @@ static void read_and_verify()
 	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR * BUF_NR, SEG_SIZE,
 		   &r_rag.rag_base, data, &read_cp_fom_ops, s0_reqh, 0, false, cm);
 
-	r_sns_cp.sc_sid = sid;
-	r_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
-	r_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
+	r_sns_cp.sc_cobfid = cob_fid;
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &r_sns_cp.sc_stob_fid);
 	r_sns_cp.sc_index = 0;
 	r_sns_cp.sc_base.c_ops = &read_cp_ops;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, s0_reqh);
@@ -419,13 +412,12 @@ static void receiver_ag_create()
 	M0_ALLOC_ARR(rag.rag_fc, FAIL_NR);
 	M0_UT_ASSERT(rag.rag_fc != NULL);
 	for (i = 0; i < sag->sag_fnr; ++i) {
-		rag.rag_fc[i].fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
-		rag.rag_fc[i].fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
+		rag.rag_fc[i].fc_tgt_cobfid = cob_fid;
 		rag.rag_fc[i].fc_is_inuse = true;
 		sns_cp = &rag.rag_fc[i].fc_tgt_acc_cp;
 		m0_sns_cm_acc_cp_init(sns_cp, sag);
 		sns_cp->sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
-		sns_cp->sc_sid = sid;
+		io_fom_cob_rw_fid2stob_map(&cob_fid, &sns_cp->sc_stob_fid);
 		sns_cp->sc_cobfid = rag.rag_fc[i].fc_tgt_cobfid;
 		sns_cp->sc_is_acc = true;
 		m0_cm_lock(cm);
@@ -443,35 +435,24 @@ static void receiver_ag_create()
 
 static void receiver_stob_create()
 {
-	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob_domain *cdom;
 	struct m0_dbenv      *dbenv;
-	struct m0_fid         gfid = {0, 4};
+	struct m0_fid         gfid = cob_fid;
+	struct m0_fid	      stob_fid;
 	int                   rc;
 
 	M0_UT_ASSERT(m0_ios_cdom_get(s0_reqh, &cdom) == 0);
 	dbenv = s0_reqh->rh_dbenv;
 
 	cob_create(dbenv, cdom, 0, &gfid, 0);
-	sdom = m0_cs_stob_domain_find(s0_reqh, &sid);
-	M0_UT_ASSERT(sdom != NULL);
 
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
-	m0_stob_create_helper_credit(sdom, &sid, &tx.tx_betx_cred);
-	rc = sdom->sd_ops->sdo_tx_make(sdom, &tx);
-	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Create a stob. In actual repair scenario, this will already be
 	 * created by the IO path.
 	 */
-	rc = m0_stob_create_helper(sdom, &tx, &sid, &stob);
-	M0_UT_ASSERT(rc == 0);
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-
-	m0_stob_put(stob);
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
+	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
+	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 }
 
 static void cm_ready(struct m0_cm *cm)
@@ -841,9 +822,8 @@ static void test_cp_send_recv_verify()
 	/* Set some bit to true. */
 	m0_bitmap_set(&s_sns_cp.sc_base.c_xform_cp_indices, 1, true);
 	s_sns_cp.sc_base.c_cm_proxy = &sender_cm_proxy;
-	s_sns_cp.sc_sid = sid;
-	s_sns_cp.sc_cobfid.f_container = sid.si_bits.u_hi;
-	s_sns_cp.sc_cobfid.f_key = sid.si_bits.u_lo;
+	s_sns_cp.sc_cobfid = cob_fid;
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &s_sns_cp.sc_stob_fid);
 	s_sns_cp.sc_index = 0;
 	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
 	/* Assume this as accumulator copy packet to be sent on remote side. */

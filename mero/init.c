@@ -24,7 +24,9 @@
 #endif
 #include "lib/trace.h"   /* m0_trace_init */
 #include "lib/thread.h"
+#include "stob/type.h"
 #include "stob/stob.h"
+#include "ut/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
@@ -38,8 +40,6 @@
 #include "db/db.h"
 #include "sm/sm.h"
 #include "dtm/dtm.h"
-#include "stob/linux.h"
-#include "stob/ad.h"
 #include "fol/fol.h"
 #include "dtm/dtm.h"
 #include "reqh/reqh.h"
@@ -140,9 +140,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
 #ifndef __KERNEL__
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
-	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
-	{ &m0_linux_stobs_init, &m0_linux_stobs_fini, "linux-stob" },
-	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
+	{ &m0_stob_types_init,  &m0_stob_types_fini,  "stob-types" },
+	{ &m0_ut_stob_init,	&m0_ut_stob_fini,     "ut-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 #endif
 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },

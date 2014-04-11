@@ -17,22 +17,24 @@
  * Original creation date: 04/28/2010
  */
 
-#include <stdio.h>
-#include <unistd.h>                    /* close */
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <fcntl.h>
-
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/assert.h"
-#include "dtm/dtm.h"
-
 #include "stob/linux.h"
-#include "stob/linux_internal.h"
-#include "stob/stob_addb.h"
+
+#include <stdio.h>			/* fopen */
+#include <stdarg.h>			/* va_list */
+#include <string.h>			/* strncpy */
+
+#include <sys/types.h>			/* lstat */
+#include <sys/stat.h>			/* lstat */
+#include <unistd.h>			/* lstat */
+#include <fcntl.h>			/* open */
+
+#include "lib/errno.h"			/* ENOENT */
+#include "lib/memory.h"			/* M0_ALLOC_PTR */
+#include "lib/string.h"			/* m0_strdup */
+
+#include "stob/type.h"			/* m0_stob_type_id_get */
+#include "stob/stob_addb.h"		/* M0_STOB_OOM */
+#include "stob/ioq.h"			/* m0_stob_ioq_init */
 
 /**
    @addtogroup stoblinux
@@ -47,393 +49,454 @@
 
    @li a directory where files, corresponding to storage objects are stored
    in. A name of a file is built from the corresponding storage object local
-   identifier (currently m0_stob_id is used).
+   identifier (stob_ket).
 
    A linux storage object domain is identified by the path to its directory.
 
    When an in-memory representation for an object is created, no file system
    operations are performed. It is only when the object is "located"
-   (linux_stob_locate()) or "created" (linux_stob_create()) when actual open(2)
+   (m0_stob_locate()) or "created" (m0_stob_create()) when actual open(2)
    system call is made. If the call was successful, the file descriptor
-   (linux_stob::sl_fd) remains open until the object is destroyed.
+   (m0_stob_linux::sl_fd) remains open until the object is destroyed.
 
-   Storage objects are kept on a list linux_domain::sdl_object list that is
-   consulted by linux_domain_lookup().
+   <b>Direct I/O</b>
 
-   @todo object caching
+   To enable directio for a stob domain you should specify "directio=true"
+   somewhere in str_cfg_init for m0_stob_domain_init() or
+   m0_stob_domain_create().
 
-   @todo a per-domain limit on number of open file descriptors with LRU based
-   cleanup.
+   <b>Symlinks</b>
 
-   @todo more scalable object index instead of a list.
+   To make stob pointing to other file on the filesystem just pass filename
+   as str_cfg to m0_stob_create() to create a symlink instead of a file.
 
    @{
  */
 
-struct m0_stob_type m0_linux_stob_type;
-static const struct m0_stob_type_op linux_stob_type_op;
-static const struct m0_stob_op linux_stob_op;
-static const struct m0_stob_domain_op linux_stob_domain_op;
+enum {
+	STOB_TYPE_LINUX = 0x01,
+};
 
-static void linux_stob_fini(struct m0_stob *stob);
+const struct m0_stob_type m0_stob_linux_type;
 
+static struct m0_stob_type_ops stob_linux_type_ops;
+static struct m0_stob_domain_ops stob_linux_domain_ops;
+static struct m0_stob_ops stob_linux_ops;
 
-/**
-   Implementation of m0_stob_type_op::sto_init().
- */
-static int linux_stob_type_init(struct m0_stob_type *stype)
+static void stob_linux_type_register(struct m0_stob_type *type)
 {
-	m0_stob_type_init(stype);
-	return 0;
+}
+
+static void stob_linux_type_deregister(struct m0_stob_type *type)
+{
+}
+
+M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob)
+{
+	return container_of(stob, struct m0_stob_linux, sl_stob);
+}
+
+M0_INTERNAL struct m0_stob_linux_domain *
+m0_stob_linux_domain_container(struct m0_stob_domain *dom)
+{
+	return container_of(dom, struct m0_stob_linux_domain, sld_dom);
 }
 
 /**
-   Implementation of m0_stob_type_op::sto_fini().
- */
-static void linux_stob_type_fini(struct m0_stob_type *stype)
-{
-	m0_stob_type_fini(stype);
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_fini().
-
-   Finalizes all still existing in-memory objects.
- */
-static void linux_domain_fini(struct m0_stob_domain *self)
-{
-	struct linux_domain *ldom;
-
-	ldom = domain2linux(self);
-	linux_domain_io_fini(self);
-	m0_stob_cache_fini(&ldom->sdl_cache);
-	m0_stob_domain_fini(self);
-	m0_free(ldom);
-}
-
-/**
-   Implementation of m0_stob_type_op::sto_domain_locate().
-
-   Initialises adieu sub-system for the domain.
-
-   @note the domain returned is ready for use, but m0_linux_stob_setup() can be
-   called against it in order to customize some configuration options (currently
-   there is only one such option: "sdl_use_directio" flag).
- */
-static int linux_stob_type_domain_locate(struct m0_stob_type *type,
-					 const char *domain_name,
-					 struct m0_be_seg *be_seg,
-				         struct m0_sm_group *grp,
-					 struct m0_stob_domain **out,
-					 uint64_t dom_id)
-{
-	struct linux_domain   *ldom;
-	struct m0_stob_domain *dom;
-	int                    result;
-
-	M0_ASSERT(domain_name != NULL);
-	M0_ASSERT(strlen(domain_name) < ARRAY_SIZE(ldom->sdl_path));
-
-	M0_ALLOC_PTR(ldom);
-	if (ldom != NULL) {
-		strcpy(ldom->sdl_path, domain_name);
-		dom = &ldom->sdl_base;
-		dom->sd_ops = &linux_stob_domain_op;
-		m0_stob_domain_init(dom, type, dom_id, NULL);
-		m0_stob_cache_init(&ldom->sdl_cache);
-		result = linux_domain_io_init(dom);
-		if (result == 0)
-			*out = dom;
-		else
-			linux_domain_fini(dom);
-		ldom->sdl_use_directio = false;
-		dom->sd_name = ldom->sdl_path;
-	} else {
-		M0_STOB_OOM(LS_DOM_LOCATE);
-		result = -ENOMEM;
-	}
-	return result;
-}
-
-M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
-				            struct m0_stob_domain **dom)
-{
-	struct stat info;
-
-	return lstat(domain_name, &info) ?:
-	       M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_domain_locate,
-			       domain_name, NULL, NULL, dom, info.st_ino);
-}
-
-
-M0_INTERNAL int m0_linux_stob_setup(struct m0_stob_domain *dom,
-				    bool use_directio)
-{
-	struct linux_domain *ldom;
-
-	ldom = domain2linux(dom);
-
-	ldom->sdl_linux_setup  = true;
-	ldom->sdl_use_directio = use_directio;
-
-	return 0;
-}
-
-static bool linux_stob_invariant(const struct linux_stob *lstob)
-{
-	const struct m0_stob *stob;
-
-	stob = &lstob->sl_stob.ca_stob;
-	return
-		(lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS) &&
-		stob->so_domain->sd_type == &m0_linux_stob_type;
-}
-
-static int linux_incache_init(struct m0_stob_domain *dom,
-			      const struct m0_stob_id *id,
-			      struct m0_stob_cacheable **out)
-{
-	struct linux_stob        *lstob;
-	struct m0_stob_cacheable *incache;
-
-	M0_ALLOC_PTR(lstob);
-	if (lstob != NULL) {
-		*out = incache = &lstob->sl_stob;
-		incache->ca_stob.so_op = &linux_stob_op;
-		m0_stob_cacheable_init(incache, id, dom);
-		lstob->sl_fd = -1;
-		return 0;
-	} else {
-		M0_STOB_OOM(LS_STOB_FIND);
-		return -ENOMEM;
-	}
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_stob_find().
-
-   Returns an in-memory representation of the object with a given identifier.
- */
-static int linux_domain_stob_find(struct m0_stob_domain *dom,
-				  const struct m0_stob_id *id,
-				  struct m0_stob **out)
-{
-	struct m0_stob_cacheable *incache;
-	struct linux_domain      *ldom;
-	int                       result;
-
-	ldom = domain2linux(dom);
-	result = m0_stob_cache_find(&ldom->sdl_cache, dom, id,
-				    linux_incache_init, &incache);
-	*out = &incache->ca_stob;
-	return result;
-}
-
-/**
- * Implementation of m0_stob_op::sop_fini().
+ * Call vsnprintf() for the given parameters.
  *
- * Closes the object's file descriptor.
- *
- * @see m0_linux_stob_link()
+ * - memory is allocated using m0_alloc() for the string returned;
+ * - at most (MAXPATHLEN - 1) characters is in the string returned;
+ * - NULL is returned in case of error (including too large string).
  */
-static void linux_stob_fini(struct m0_stob *stob)
+static char *stob_linux_vsnprintf(const char *format, ...)
 {
-	struct linux_stob *lstob;
+	va_list ap;
+	char	str[MAXPATHLEN];
+	size_t	len;
 
-	lstob = stob2linux(stob);
-	M0_ASSERT(linux_stob_invariant(lstob));
-	/*
-	 * No caching for now, dispose of the body^Wobject immediately.
-	 */
-	if (lstob->sl_fd != -1) {
-		close(lstob->sl_fd);
-		lstob->sl_fd = -1;
-	}
-	m0_stob_cacheable_fini(&lstob->sl_stob);
-	m0_free(lstob);
+	va_start(ap, format);
+	len = vsnprintf(str, ARRAY_SIZE(str), format, ap);
+	va_end(ap);
+
+	return len < 0 || len >= ARRAY_SIZE(str) ? NULL : m0_strdup(str);
 }
 
-/**
-   Implementation of m0_stob_domain_op::sdo_tx_make().
- */
-static int linux_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
+static char *stob_linux_dir_domain(const char *path)
 {
-	int rc = 0;
+	return stob_linux_vsnprintf("%s", path);
+}
 
-	if (tx != NULL)
-		rc = m0_dtx_open_sync(tx);
+static char *stob_linux_dir_stob(const char *path)
+{
+	return stob_linux_vsnprintf("%s/o", path);
+}
+
+static char *stob_linux_file_domain_id(const char *path)
+{
+	return stob_linux_vsnprintf("%s/id", path);
+}
+
+static char *stob_linux_file_stob(const char *path, uint64_t stob_key)
+{
+	return stob_linux_vsnprintf("%s/o/%016lx", path, stob_key);
+}
+
+static int stob_linux_domain_key_get_set(const char *path,
+					 uint64_t *dom_key,
+					 bool get)
+{
+	const char *id_file_path;
+	FILE	   *id_file;
+	int	    rc;
+	int	    rc1;
+
+	id_file_path = stob_linux_file_domain_id(path);
+	rc = id_file_path == NULL ? -EOVERFLOW : 0;
+	if (rc == 0) {
+		id_file = fopen(id_file_path, get ? "r" : "w");
+		if (id_file == NULL)
+			rc = -errno;
+	}
+	if (rc == 0) {
+		if (get) {
+			rc = fscanf(id_file, "%lx\n", dom_key);
+			rc = rc == EOF ? -errno : 0;
+		} else {
+			rc = fprintf(id_file, "%lx\n", *dom_key);
+			rc = rc < 0 ? -errno : 0;
+		}
+		rc1 = fclose(id_file);
+		rc = rc == 0 && rc1 != 0 ? rc1 : rc;
+	}
 	return rc;
 }
 
-/**
-   Helper function constructing a file system path to the object.
- */
-static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
+static int stob_linux_domain_cfg_init_parse(const char *str_cfg_init,
+					    void **cfg_init)
 {
-	int                   nob;
-	struct linux_domain  *ldom;
-	const struct m0_stob *stob;
+	struct m0_stob_linux_domain_cfg *cfg;
+	int				 rc;
 
-	M0_ASSERT(linux_stob_invariant(lstob));
-
-	stob = &lstob->sl_stob.ca_stob;
-	ldom = domain2linux(stob->so_domain);
-	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path,
-		       stob->so_id.si_bits.u_hi, stob->so_id.si_bits.u_lo);
-	return nob < nr ? 0 : -EOVERFLOW;
-}
-
-/**
-   Helper function returns inode number of the linux stob object directory.
- */
-M0_INTERNAL int64_t m0_linux_stob_ino(struct m0_stob *obj)
-{
-	char		   pathname[MAXPATHLEN];
-	int		   result;
-	struct stat	   statbuf;
-	struct linux_stob *lstob;
-
-	M0_PRE(obj != NULL);
-
-	lstob = stob2linux(obj);
-
-	M0_ASSERT(linux_stob_invariant(lstob));
-
-	result = linux_stob_path(lstob, ARRAY_SIZE(pathname), pathname) ?:
-		 lstat(pathname, &statbuf);
-	if (statbuf.st_ino == 0 && result == 0)
-		 result = -ENOENT;
-	return result == 0 ? statbuf.st_ino : result;
-}
-
-/**
-   Helper function opening the object in the file system.
- */
-static int linux_stob_open(struct linux_stob *lstob, int oflag)
-{
-	char                 pathname[MAXPATHLEN];
-	int                  result;
-	struct stat          statbuf;
-
-	M0_ASSERT(linux_stob_invariant(lstob));
-	M0_ASSERT(lstob->sl_fd == -1);
-
-	result = linux_stob_path(lstob, ARRAY_SIZE(pathname), pathname);
-	if (result == 0) {
-		lstob->sl_fd = open(pathname, oflag, 0700);
-		if (lstob->sl_fd == -1)
-			result = -errno;
-		else {
-			result = fstat(lstob->sl_fd, &statbuf);
-			if (result == 0)
-				lstob->sl_mode = statbuf.st_mode;
-			else
-				result = -errno;
+	M0_ALLOC_PTR(cfg);
+	rc = cfg == NULL ? -ENOMEM : 0;
+	if (rc == 0) {
+		*cfg = (struct m0_stob_linux_domain_cfg) {
+			.sldc_file_mode	   = 0700,
+			.sldc_file_flags   = 0,
+			.sldc_use_directio = false,
+		};
+		if (str_cfg_init != NULL) {
+			cfg->sldc_use_directio = strstr(str_cfg_init,
+						"directio=true") != NULL;
 		}
 	}
-	return result;
+	if (rc == 0)
+		*cfg_init = cfg;
+	else
+		m0_free(cfg);
+	return rc;
 }
 
-/**
-   Implementation of m0_stob_op::sop_create().
- */
-static int linux_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
+static void stob_linux_domain_cfg_init_free(void *cfg_init)
 {
-	int oflags = O_RDWR|O_CREAT;
-	struct linux_domain *ldom;
-
-	ldom  = domain2linux(obj->so_domain);
-	if (ldom->sdl_use_directio)
-		oflags |= O_DIRECT;
-
-	return linux_stob_open(stob2linux(obj), oflags);
+	m0_free(cfg_init);
 }
 
-/**
-   Implementation of m0_stob_op::sop_locate().
- */
-static int linux_stob_locate(struct m0_stob *obj)
+static int stob_linux_domain_cfg_create_parse(const char *str_cfg_create,
+					      void **cfg_create)
 {
-	int oflags = O_RDWR;
-	struct linux_domain *ldom;
-
-	ldom  = domain2linux(obj->so_domain);
-	if (ldom->sdl_use_directio)
-		oflags |= O_DIRECT;
-
-	return linux_stob_open(stob2linux(obj), oflags);
+	return 0;
 }
 
-static const struct m0_stob_type_op linux_stob_type_op = {
-	.sto_init          = linux_stob_type_init,
-	.sto_fini          = linux_stob_type_fini,
-	.sto_domain_locate = linux_stob_type_domain_locate
-};
-
-static const struct m0_stob_domain_op linux_stob_domain_op = {
-	.sdo_fini        = linux_domain_fini,
-	.sdo_stob_find   = linux_domain_stob_find,
-	.sdo_tx_make     = linux_domain_tx_make,
-};
-
-static const struct m0_stob_op linux_stob_op = {
-	.sop_fini         = linux_stob_fini,
-	.sop_create       = linux_stob_create,
-	.sop_locate       = linux_stob_locate,
-	.sop_io_init      = linux_stob_io_init,
-	.sop_block_shift  = linux_stob_block_shift
-};
-
-struct m0_stob_type m0_linux_stob_type = {
-	.st_op    = &linux_stob_type_op,
-	.st_name  = "linuxstob",
-	.st_magic = 0xACC01ADE
-};
-
-/**
-   This function is called to link a path of an existing file to a stob id,
-   for a given Linux stob. This path will be typically a block device path.
-
-   @pre obj != NULL
-   @pre path != NULL
-
-   @param dom -> storage domain
-   @param obj -> stob object embedded inside Linux stob object
-   @param path -> Path to other file (typically block device)
-   @param tx -> transaction context
-
-   @see m0_linux_stob_open()
- */
-M0_INTERNAL int m0_linux_stob_link(struct m0_stob_domain *dom,
-				   struct m0_stob *obj, const char *path,
-				   struct m0_dtx *tx)
+static void stob_linux_domain_cfg_create_free(void *cfg_create)
 {
-	int                result;
-	char               symlinkname[64];
-	struct linux_stob *lstob;
+}
 
-	M0_PRE(obj != NULL);
-	M0_PRE(path != NULL);
+static int stob_linux_domain_init(struct m0_stob_type *type,
+				  const char *location_data,
+				  void *cfg_init,
+				  struct m0_stob_domain **out)
+{
+	struct m0_stob_linux_domain *ldom;
+	uint64_t		     dom_key;
+	uint64_t		     dom_id;
+	uint8_t			     type_id;
+	int			     rc;
+	char			    *path;
 
-	lstob = stob2linux(obj);
+	M0_PRE(location_data != NULL);
 
-	result = linux_stob_path(lstob, ARRAY_SIZE(symlinkname), symlinkname);
-	if (result == 0) {
-		result = symlink(path, symlinkname) < 0  ? -errno : 0;
+	M0_ALLOC_PTR(ldom);
+	if (ldom != NULL)
+		ldom->sld_cfg = *(struct m0_stob_linux_domain_cfg *)cfg_init;
+	path = m0_strdup(location_data);
+	rc = ldom == NULL || path == NULL ? -ENOMEM : 0;
+
+	rc = rc ?: stob_linux_domain_key_get_set(path, &dom_key, true);
+	rc = rc ?: m0_stob_domain__dom_key_is_valid(dom_key) ? 0 : -EINVAL;
+	rc = rc ?: m0_stob_ioq_init(&ldom->sld_ioq);
+	if (rc == 0) {
+		m0_stob_ioq_directio_setup(&ldom->sld_ioq,
+					   ldom->sld_cfg.sldc_use_directio);
+		ldom->sld_dom.sd_ops = &stob_linux_domain_ops;
+		ldom->sld_path	     = path;
+		type_id = m0_stob_type_id_get(type);
+		dom_id  = m0_stob_domain__dom_id(type_id, dom_key);
+		m0_stob_domain__id_set(&ldom->sld_dom, dom_id);
 	}
-
-	return result;
+	if (rc == -ENOMEM)
+		M0_STOB_OOM(LS_DOM_LOCATE);
+	if (rc != 0) {
+		m0_free(path);
+		m0_free(ldom);
+	}
+	*out = rc == 0 ? &ldom->sld_dom : NULL;
+	return rc;
 }
 
-M0_INTERNAL int m0_linux_stobs_init(void)
+static void stob_linux_domain_fini(struct m0_stob_domain *dom)
 {
-	return M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_init);
+	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
+
+	m0_stob_ioq_fini(&ldom->sld_ioq);
+	m0_free(ldom->sld_path);
+	m0_free(ldom);
 }
 
-M0_INTERNAL void m0_linux_stobs_fini(void)
+static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
+					    const char *path,
+					    uint64_t dom_key,
+					    void *cfg,
+					    bool create)
 {
-	M0_STOB_TYPE_OP(&m0_linux_stob_type, sto_fini);
+	mode_t	mode	    = 0700;	/** @todo get mode from create cfg */
+	char   *dir_domain  = stob_linux_dir_domain(path);
+	char   *dir_stob    = stob_linux_dir_stob(path);
+	char   *file_dom_id = stob_linux_file_domain_id(path);
+	int	rc;
+	int	rc1;
+
+	rc = dir_domain == NULL || dir_stob == NULL || file_dom_id == NULL ?
+	     -ENOMEM : 0;
+	if (rc != 0)
+		goto free;
+	if (!create)
+		goto destroy;
+	rc1 = mkdir(dir_domain, mode);
+	rc = rc1 == -1 ? -errno : 0;
+	if (rc != 0)
+		goto free;
+	rc1 = mkdir(dir_stob, mode);
+	rc = rc1 == -1 ? -errno : 0;
+	if (rc != 0)
+		goto rmdir_domain;
+	rc = stob_linux_domain_key_get_set(path, &dom_key, false);
+	if (rc == 0)
+		goto out;
+destroy:
+	rc1 = unlink(file_dom_id);
+	rc = rc1 == -1 ? -errno : rc;
+	rc1 = rmdir(dir_stob);
+	rc = rc1 == -1 ? -errno : rc;
+rmdir_domain:
+	rc1 = rmdir(dir_domain);
+	rc = rc1 == -1 ? -errno : rc;
+free:
+	m0_free(file_dom_id);
+	m0_free(dir_stob);
+	m0_free(dir_domain);
+out:
+	return rc;
 }
+
+static int stob_linux_domain_create(struct m0_stob_type *type,
+				    const char *location_data,
+				    uint64_t dom_key,
+				    void *cfg_create)
+{
+	return stob_linux_domain_create_destroy(type, location_data, dom_key,
+						cfg_create, true);
+}
+
+static int stob_linux_domain_destroy(struct m0_stob_type *type,
+				     const char *location_data)
+{
+	return stob_linux_domain_create_destroy(type, location_data, 0,
+						NULL, false);
+}
+
+static struct m0_stob *stob_linux_alloc(struct m0_stob_domain *dom,
+					uint64_t stob_key)
+{
+	struct m0_stob_linux *lstob;
+
+	M0_ALLOC_PTR(lstob);
+	return lstob == NULL ? NULL : &lstob->sl_stob;
+}
+
+static void stob_linux_free(struct m0_stob_domain *dom,
+			    struct m0_stob *stob)
+{
+	if (stob != NULL)
+		m0_free(m0_stob_linux_container(stob));
+}
+
+static int stob_linux_cfg_parse(const char *str_cfg_create,
+				void **cfg_create)
+{
+	*cfg_create = str_cfg_create == NULL ? NULL : m0_strdup(str_cfg_create);
+	return 0;
+}
+
+static void stob_linux_cfg_free(void *cfg_create)
+{
+	m0_free(cfg_create);
+}
+
+
+static int stob_linux_open(struct m0_stob *stob,
+			   struct m0_stob_domain *dom,
+			   uint64_t stob_key,
+			   void *cfg,
+			   bool create)
+{
+	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
+	struct m0_stob_linux	    *lstob = m0_stob_linux_container(stob);
+	struct stat		     statbuf;
+	mode_t			     mode = ldom->sld_cfg.sldc_file_mode;
+	char			    *path = ldom->sld_path;
+	char			    *file_stob;
+	int			     flags = ldom->sld_cfg.sldc_file_flags;
+	int			     rc;
+
+	stob->so_ops = &stob_linux_ops;
+	lstob->sl_dom = ldom;
+
+	file_stob = stob_linux_file_stob(path, stob_key);
+	rc	  = file_stob == NULL ? -ENOMEM : 0;
+	if (rc == 0) {
+		rc = create && cfg != NULL ? symlink((char*)cfg, file_stob) : 0;
+		flags |= O_RDWR;
+		flags |= create && cfg == NULL		      ? O_CREAT  : 0;
+		flags |= m0_stob_ioq_directio(&ldom->sld_ioq) ? O_DIRECT : 0;
+		lstob->sl_fd = rc ?: open(file_stob, flags, mode);
+		rc = lstob->sl_fd == -1 ? -errno : 0;
+		if (rc == 0) {
+			rc = fstat(lstob->sl_fd, &statbuf);
+			rc = rc == -1 ? -errno : 0;
+			if (rc == 0)
+				lstob->sl_mode = statbuf.st_mode;
+		}
+	}
+	m0_free(file_stob);
+	return rc;
+}
+
+static int stob_linux_init(struct m0_stob *stob,
+			   struct m0_stob_domain *dom,
+			   uint64_t stob_key)
+{
+	return stob_linux_open(stob, dom, stob_key, NULL, false);
+}
+
+static void stob_linux_fini(struct m0_stob *stob)
+{
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+	int		      rc;
+
+	if (lstob->sl_fd != -1) {
+		rc = close(lstob->sl_fd);
+		M0_ASSERT(rc == 0);
+		lstob->sl_fd = -1;
+	}
+}
+
+static void stob_linux_create_credit(struct m0_stob_domain *dom,
+				     struct m0_be_tx_credit *accum)
+{
+}
+
+static int stob_linux_create(struct m0_stob *stob,
+			     struct m0_stob_domain *dom,
+			     struct m0_dtx *dtx,
+			     uint64_t stob_key,
+			     void *cfg)
+{
+	return stob_linux_open(stob, dom, stob_key, cfg, true);
+}
+
+static void stob_linux_destroy_credit(struct m0_stob *stob,
+				      struct m0_be_tx_credit *accum)
+{
+}
+
+static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
+{
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+	char		     *file_stob;
+	int		      rc;
+
+	stob_linux_fini(stob);
+	file_stob = stob_linux_file_stob(lstob->sl_dom->sld_path,
+					 m0_stob_key_get(stob));
+	rc	  = file_stob == NULL ? -ENOMEM : unlink(file_stob);
+	m0_free(file_stob);
+	return rc;
+}
+
+static void stob_linux_write_credit(struct m0_stob_domain *dom,
+				    struct m0_indexvec *iv,
+				    struct m0_be_tx_credit *accum)
+{
+}
+
+static uint32_t stob_linux_block_shift(struct m0_stob *stob)
+{
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+
+	return m0_stob_ioq_bshift(&lstob->sl_dom->sld_ioq);
+}
+
+static struct m0_stob_type_ops stob_linux_type_ops = {
+	.sto_register		     = &stob_linux_type_register,
+	.sto_deregister		     = &stob_linux_type_deregister,
+	.sto_domain_cfg_init_parse   = &stob_linux_domain_cfg_init_parse,
+	.sto_domain_cfg_init_free    = &stob_linux_domain_cfg_init_free,
+	.sto_domain_cfg_create_parse = &stob_linux_domain_cfg_create_parse,
+	.sto_domain_cfg_create_free  = &stob_linux_domain_cfg_create_free,
+	.sto_domain_init	     = &stob_linux_domain_init,
+	.sto_domain_create	     = &stob_linux_domain_create,
+	.sto_domain_destroy	     = &stob_linux_domain_destroy,
+};
+
+static struct m0_stob_domain_ops stob_linux_domain_ops = {
+	.sdo_fini		= &stob_linux_domain_fini,
+	.sdo_stob_alloc		= &stob_linux_alloc,
+	.sdo_stob_free		= &stob_linux_free,
+	.sdo_stob_cfg_parse	= &stob_linux_cfg_parse,
+	.sdo_stob_cfg_free	= &stob_linux_cfg_free,
+	.sdo_stob_init		= &stob_linux_init,
+	.sdo_stob_create_credit = &stob_linux_create_credit,
+	.sdo_stob_create	= &stob_linux_create,
+	.sdo_stob_write_credit	= &stob_linux_write_credit,
+};
+
+static struct m0_stob_ops stob_linux_ops = {
+	.sop_fini	    = &stob_linux_fini,
+	.sop_destroy_credit = &stob_linux_destroy_credit,
+	.sop_destroy	    = &stob_linux_destroy,
+	.sop_io_init	    = &m0_stob_linux_io_init,
+	.sop_block_shift    = &stob_linux_block_shift,
+};
+
+const struct m0_stob_type m0_stob_linux_type = {
+	.st_ops  = &stob_linux_type_ops,
+	.st_fidt = {
+		.ft_id   = STOB_TYPE_LINUX,
+		.ft_name = "linuxstob",
+	},
+};
 
 /** @} end group stoblinux */
 

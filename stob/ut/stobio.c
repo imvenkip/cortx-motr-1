@@ -17,24 +17,24 @@
  * Original creation date: 05/21/2010
  */
 
-#include <stdlib.h>    /* system */
-#include <stdio.h>     /* fopen, fgetc, ... */
-#include <sys/stat.h>  /* mkdir */
-#include <sys/types.h> /* mkdir */
+#include <fcntl.h>		/* fcntl */
+#include <stdlib.h>		/* system */
+#include <stdio.h>		/* fopen, fgetc, ... */
+#include <sys/stat.h>		/* mkdir */
+#include <sys/types.h>		/* mkdir */
 #include <linux/limits.h>
 
-#include "lib/misc.h"    /* M0_SET0 */
+#include "lib/misc.h"		/* M0_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
+#include "lib/string.h"		/* m0_strdup */
+#include "ut/stob.h"
 #include "ut/ut.h"
 #include "lib/mutex.h"
 #include "lib/arith.h"
 
 #include "stob/stob.h"
-#include "stob/linux.h"
-#include "stob/linux_internal.h"
-#include "stob/ad.h"
 #include "balloc/balloc.h"
 #include "mero/init.h"
 #include "fol/fol.h"
@@ -53,14 +53,19 @@ enum {
 	TEST_NR = 10
 };
 
+enum {
+	M0_STOB_UT_DOM_KEY = 0xba5ec0de,
+	M0_STOB_UT_DOM_DIO_KEY = 0xc0deba5e,
+};
+
 struct stobio_test {
 	/* ctrl part */
 	struct m0_stob	        *st_obj;
-	const struct m0_stob_id  st_id;
+	uint64_t		 st_stob_key;
 	/* Real block device, if any */
 	char			*st_dev_path;
 
-	struct m0_stob_domain   *st_dom;
+	struct m0_stob_domain	*st_dom;
 	struct m0_stob_io	 st_io;
 
 	/* this flag controls whether to use direct IO */
@@ -85,28 +90,45 @@ struct stobio_test {
 /* Test block device */
 static const char test_blkdev[] = "/dev/loop0";
 
+static const char test_location[] = "linuxstob:./__s";
+static const char test_location_dio[] = "linuxstob:./__s_dio";
+static struct m0_stob_domain *test_dom;
+static struct m0_stob_domain *test_dom_dio;
+
 /* sync object for init/fini */
 static struct m0_mutex lock;
 static struct m0_thread thread[TEST_NR];
 
-#define ST_ID(hi, lo) .st_id = { .si_bits = { .u_hi = (hi), .u_lo = (lo) } }
+#define ST_ID(id) .st_stob_key = id
 struct stobio_test tests[TEST_NR] = {
 	/* buffered IO tests */
-	[0] = { ST_ID(1, 2), .st_directio = false },
-	[1] = { ST_ID(3, 4), .st_directio = false },
-	[2] = { ST_ID(5, 6), .st_directio = false },
-	[3] = { ST_ID(7, 8), .st_directio = false },
-	[4] = { ST_ID(9, 0), .st_directio = false },
+	[0] = { ST_ID(0x01), .st_directio = false },
+	[1] = { ST_ID(0x02), .st_directio = false },
+	[2] = { ST_ID(0x03), .st_directio = false },
+	[3] = { ST_ID(0x04), .st_directio = false },
+	[4] = { ST_ID(0x05), .st_directio = false },
 
 	/* direct IO tests */
-	[5] = { ST_ID(1, 2), .st_directio = true },
-	[6] = { ST_ID(3, 4), .st_directio = true },
-	[7] = { ST_ID(5, 6), .st_directio = true },
-	[8] = { ST_ID(7, 8), .st_directio = true },
-	[9] = { ST_ID(10, 0), .st_directio = true, .st_dev_path="/dev/loop0" },
+	[5] = { ST_ID(0x06), .st_directio = true },
+	[6] = { ST_ID(0x07), .st_directio = true },
+	[7] = { ST_ID(0x08), .st_directio = true },
+	[8] = { ST_ID(0x09), .st_directio = true },
+	[9] = { ST_ID(0x0a), .st_directio = true, .st_dev_path="/dev/loop0" },
 };
 
 #undef ST_ID
+
+static char *stob_backingfile_get(const struct stobio_test *test)
+{
+	char backingfile[PATH_MAX];
+	int  rc;
+
+	rc = sprintf(backingfile, "%s/%lu", test->st_dom->sd_location_data,
+					    test->st_stob_key);
+	M0_ASSERT(rc < sizeof(backingfile));
+	M0_ASSERT(backingfile[0] != '/');
+	return m0_strdup(backingfile);
+}
 
 /*
  * Assumes that we are dealing with loop-back device /dev/loop0
@@ -114,11 +136,11 @@ struct stobio_test tests[TEST_NR] = {
  */
 static void stob_dev_init(const struct stobio_test *test)
 {
-	struct stat statbuf;
-	int	    result;
-	m0_bcount_t dev_sz;
-	char	    sysbuf[PATH_MAX];
-	char	    backingfile[PATH_MAX];
+	struct stat  statbuf;
+	int	     result;
+	m0_bcount_t  dev_sz;
+	char	     sysbuf[PATH_MAX];
+	char	    *backingfile;
 
 	result = stat(test->st_dev_path, &statbuf);
 	M0_UT_ASSERT(result == 0);
@@ -133,8 +155,7 @@ static void stob_dev_init(const struct stobio_test *test)
 	/* Device size in MB */
 	dev_sz = dev_sz/1024 + 1;
 
-	sprintf(backingfile, "%s/%lu", test->st_dom->sd_name,
-				       test->st_id.si_bits.u_hi);
+	backingfile = stob_backingfile_get(test);
 	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu &>>/dev/null",
 			backingfile, (unsigned long)dev_sz);
 	result = system(sysbuf);
@@ -143,12 +164,15 @@ static void stob_dev_init(const struct stobio_test *test)
 	sprintf(sysbuf, "losetup %s %s", test->st_dev_path, backingfile);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);
+
+	m0_free(backingfile);
 }
 
 static void stob_dev_fini(const struct stobio_test *test)
 {
-	int	    result;
-	char	    sysbuf[PATH_MAX];
+	int   result;
+	char  sysbuf[PATH_MAX];
+	char *backingfile;
 
 	if(test->st_dev_path == NULL)
 		return;
@@ -161,6 +185,12 @@ static void stob_dev_fini(const struct stobio_test *test)
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);
+	backingfile = stob_backingfile_get(test);
+	result = sprintf(sysbuf, "rm -f %s", backingfile);
+	M0_ASSERT(result < sizeof(sysbuf));
+	result = system(sysbuf);
+	M0_UT_ASSERT(result == 0);
+	m0_free(backingfile);
 }
 
 static void stobio_io_prepare(struct stobio_test *test,
@@ -194,9 +224,9 @@ static void stobio_read_prepare(struct stobio_test *test,
 
 static void stobio_write(struct stobio_test *test)
 {
-	int result;
-	struct m0_stob_io  io;
-	struct m0_clink    clink;
+	struct m0_stob_io io;
+	struct m0_clink   clink;
+	int               result;
 
 	m0_stob_io_init(&io);
 
@@ -221,9 +251,9 @@ static void stobio_write(struct stobio_test *test)
 
 static void stobio_read(struct stobio_test *test)
 {
-	int result;
 	struct m0_stob_io io;
 	struct m0_clink   clink;
+	int               result;
 
 	m0_stob_io_init(&io);
 
@@ -286,14 +316,16 @@ static int stobio_storage_init(void)
 {
 	int result;
 
-	result = system("rm -fr ./__s");
+	result = m0_stob_domain_create(test_location, NULL, M0_STOB_UT_DOM_KEY,
+				       NULL, &test_dom);
 	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(test_dom != NULL);
 
-	result = mkdir("./__s", 0700);
-	M0_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
-
-	result = mkdir("./__s/o", 0700);
-	M0_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	result = m0_stob_domain_create(test_location_dio,
+				       "directio=true", M0_STOB_UT_DOM_DIO_KEY,
+				       NULL, &test_dom_dio);
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(test_dom_dio != NULL);
 
 	return result;
 }
@@ -302,40 +334,28 @@ static void stobio_storage_fini(void)
 {
 	int result;
 
-	result = system("rm -fr ./__s");
-	M0_UT_ASSERT(result == 0);
+	result = m0_stob_domain_destroy(test_dom);
+	M0_ASSERT(result == 0);
+	result = m0_stob_domain_destroy(test_dom_dio);
+	M0_ASSERT(result == 0);
 }
 
 static int stobio_init(struct stobio_test *test)
 {
-	int		   result;
-	struct linux_stob *lstob;
+	int result;
 
-	result = m0_linux_stob_domain_locate("./__s", &test->st_dom);
+	test->st_dom = test->st_directio ? test_dom_dio : test_dom;
+	result = m0_stob_find_by_key(test->st_dom, test->st_stob_key,
+				     &test->st_obj);
 	M0_UT_ASSERT(result == 0);
 
-	result = m0_linux_stob_setup(test->st_dom, test->st_directio);
-	M0_UT_ASSERT(result == 0);
-
-	result = m0_stob_find(test->st_dom, &test->st_id, &test->st_obj);
-	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(test->st_obj->so_state == CSS_UNKNOWN);
-
-	if(test->st_dev_path != NULL) {
+	if (test->st_dev_path != NULL)
 		stob_dev_init(test);
-		result = m0_linux_stob_link(test->st_dom, test->st_obj,
-					    test->st_dev_path, NULL);
-		M0_UT_ASSERT(result == 0);
 
-	}
-
-	result = m0_stob_create(test->st_obj, NULL);
+	result = m0_ut_stob_create(test->st_obj, test->st_dev_path);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(test->st_obj->so_state == CSS_EXISTS);
-	lstob = stob2linux(test->st_obj);
-	M0_UT_ASSERT(S_ISREG(lstob->sl_mode) || S_ISBLK(lstob->sl_mode));
 
-	test->st_block_shift = test->st_obj->so_op->sop_block_shift(test->st_obj);
+	test->st_block_shift = m0_stob_block_shift(test->st_obj);
 	test->st_block_size = 1 << test->st_block_shift;
 	/* buf_size is chosen so it would be at least MIN_BUFF_SIZE in bytes
 	 * or it would consist of at least MIN_BUFF_SIZE_IN_BLOCKS blocks */
@@ -350,11 +370,12 @@ static int stobio_init(struct stobio_test *test)
 
 static void stobio_fini(struct stobio_test *test)
 {
-	m0_stob_put(test->st_obj);
-	test->st_dom->sd_ops->sdo_fini(test->st_dom);
+	int rc;
+
+	rc = m0_stob_destroy(test->st_obj, NULL);
+	M0_UT_ASSERT(rc == 0);
 	stobio_rw_buffs_fini(test);
 	stob_dev_fini(test);
-
 }
 
 static void stobio_rwsegs_prepare(struct stobio_test *test, int starts_from)
@@ -582,17 +603,12 @@ void test_single_ivec()
 	}
 }
 
-const struct m0_test_suite stobio_ut = {
-	.ts_name = "stobio-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{ "stobio",             test_stobio },
-		{ "short-read",         test_short_read },
-		{ "stobio-single-ivec", test_single_ivec },
-		{ NULL, NULL }
-	}
-};
+void m0_stob_ut_stobio_linux(void)
+{
+	test_stobio();
+	test_short_read();
+	test_single_ivec();
+}
 
 /*
  *  Local variables:

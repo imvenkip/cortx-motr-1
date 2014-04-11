@@ -127,6 +127,7 @@ include $(src)/reqh/ut/Kbuild.sub
 include $(src)/rm/ut/Kbuild.sub
 include $(src)/rpc/ut/Kbuild.sub
 include $(src)/sm/ut/Kbuild.sub
+include $(src)/stob/ut/Kbuild.sub
 include $(src)/ut/Kbuild.sub
 include $(src)/xcode/ut/Kbuild.sub
 include $(src)/be/ut/Kbuild.sub

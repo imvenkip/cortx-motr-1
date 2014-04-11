@@ -43,7 +43,7 @@ static struct m0_rpc_client_ctx mgmt_svc_ut_cctx = {
 #define MGMT_SVC_UT_SVC M0_MGMT_SVC_UT_SVC_TYPE_NAME ":" M0_MGMT_SVC_UT_SVC_UUID
 static char *mgmt_svc_ut_setup_args[] = { "m0d", "-p", "-T", "linux",
 					  "-D", "ms.db", "-S", "ms.stob",
-					  "-A", "ms.addb_stob",
+					  "-A", "linuxstob:ms.addb_stob",
 					  "-e", MGMT_SVC_UT_SERVER_ENDPOINT,
 					  "-s", MGMT_SVC_UT_SVC,
 					  "-w", "10",

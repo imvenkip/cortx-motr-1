@@ -39,6 +39,8 @@
 #include "rpc/conn.h"
 #include "rpc/rpc_machine_internal.h"
 
+#include "ioservice/io_foms.h"	/* io_fom_cob_rw_stob2fid_map */
+
 /**
  * @addtogroup SNSCMCP
  * @{
@@ -108,9 +110,8 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
         M0_PRE(sns_cp != NULL);
         M0_PRE(sns_cpx != NULL);
 
-        sns_cp->sc_sid.si_bits.u_hi = sns_cpx->scx_sid.f_container;
-        sns_cp->sc_sid.si_bits.u_lo = sns_cpx->scx_sid.f_key;
-	sns_cp->sc_cobfid = sns_cpx->scx_sid;
+        sns_cp->sc_stob_fid = sns_cpx->scx_stob_fid;
+	io_fom_cob_rw_stob2fid_map(&sns_cpx->scx_stob_fid, &sns_cp->sc_cobfid);
 	sns_cp->sc_failed_idx = sns_cpx->scx_failed_idx;
 
         sns_cp->sc_index =
@@ -157,8 +158,7 @@ static int snscp_to_snscpx(struct m0_sns_cm_cp *sns_cp,
 
         cp = &sns_cp->sc_base;
 
-        sns_cpx->scx_sid.f_container = sns_cp->sc_sid.si_bits.u_hi;
-        sns_cpx->scx_sid.f_key = sns_cp->sc_sid.si_bits.u_lo;
+        sns_cpx->scx_stob_fid = sns_cp->sc_stob_fid;
 	sns_cpx->scx_failed_idx = sns_cp->sc_failed_idx;
         sns_cpx->scx_cp.cpx_prio = cp->c_prio;
         sns_cpx->scx_phase = M0_CCP_SEND;
@@ -496,7 +496,7 @@ out:
 M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm_cp *scp         = cp2snscp(cp);
-	struct m0_fid        fid;
+	struct m0_fid        cob_fid;
 	struct m0_cm        *cm          = cm_get(&cp->c_fom);
 	struct m0_cm_proxy  *cm_proxy;
 	const char          *remote_rep;
@@ -504,9 +504,8 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_SW_CHECK);
 
-	fid.f_container = scp->sc_sid.si_bits.u_hi;
-	fid.f_key       = scp->sc_sid.si_bits.u_lo;
-	remote_rep = m0_sns_cm_tgt_ep(cm, &fid);
+	io_fom_cob_rw_stob2fid_map(&scp->sc_stob_fid, &cob_fid);
+	remote_rep = m0_sns_cm_tgt_ep(cm, &cob_fid);
 	M0_ASSERT(remote_rep != NULL);
 	if (cp->c_cm_proxy == NULL) {
 		m0_cm_lock(cm);

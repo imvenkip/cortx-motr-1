@@ -131,10 +131,9 @@ enum {
 };
 
 enum {
-	M0_AD_STOB_ID_DEFAULT = 0x0,
-	M0_AD_STOB_ID_LO      = 0xadf11e, /* AD file */
-	M0_ADDB_STOB_ID_HI    = M0_AD_STOB_ID_DEFAULT,
-	M0_ADDB_STOB_ID_LI    = 1
+	M0_AD_STOB_KEY_DEFAULT   = 0x0,
+	M0_AD_STOB_LINUX_DOM_KEY = 0xadf11e, /* AD file */
+	M0_ADDB_STOB_KEY         = 1,
 };
 
 enum stob_type {
@@ -147,7 +146,7 @@ enum stob_type {
 M0_EXTERN const char *m0_cs_stypes[M0_STOB_TYPE_NR];
 
 /** Well-known stob ID for an addb stob. */
-M0_EXTERN const struct m0_stob_id m0_addb_stob_id;
+M0_EXTERN const uint64_t m0_addb_stob_key;
 
 /**
  * Auxiliary structure used to pass command line arguments to cs_parse_args().
@@ -206,7 +205,7 @@ struct cs_stobs {
 	/** Type of storage domain to be initialise (e.g. Linux or AD) */
 	enum stob_type         s_stype;
 	/** Linux storage domain. */
-	struct m0_stob_domain *s_ldom;
+	struct m0_stob_domain *s_sdom;
 	/** Devices configuration. */
 	struct cs_stob_file    s_sfile;
 	/** List of AD stobs */
@@ -241,8 +240,8 @@ struct m0_reqh_context {
 	/** Storage path for request handler context. */
 	const char                  *rc_stpath;
 
-	/** ADDB Storage path for request handler ADDB machine */
-	const char                  *rc_addb_stpath;
+	/** ADDB Storage location for request handler ADDB machine */
+	const char                  *rc_addb_stlocation;
 
 	/** Path to device configuration file. */
 	const char                  *rc_dfilepath;
@@ -398,8 +397,6 @@ M0_BASSERT(CS_MAX_EP_ADDR_LEN >= sizeof "lnet:" + M0_NET_LNET_XEP_ADDR_LEN);
 struct cs_ad_stob {
 	/** Allocation data storage domain.*/
 	struct m0_stob_domain *as_dom;
-	/** Back end storage object id, i.e. ad */
-	struct m0_stob_id      as_id_back;
 	/** Back end storage object. */
 	struct m0_stob        *as_stob_back;
 	uint64_t               as_magix;
@@ -444,9 +441,6 @@ int m0_cs_setup_env(struct m0_mero *cs_mero, int argc, char **argv);
 int m0_cs_start(struct m0_mero *cs_mero);
 
 M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero);
-
-M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
-					const struct m0_stob_id *stob_id);
 
 /**
  * Accesses the request handler.

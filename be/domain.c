@@ -37,6 +37,8 @@ M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_seg_list[]", M0_INTERNAL,
 M0_TL_DEFINE(seg, M0_INTERNAL, struct m0_be_seg);
 
 
+#include "module/instance.h"	/* m0 */
+
 /**
  * @addtogroup be
  *
@@ -216,6 +218,14 @@ M0_INTERNAL int m0_be_domain_start(struct m0_be_domain *dom,
 
 	rc = m0_be_engine_start(en);
 
+	if (rc == 0) {
+		if (m0_get()->i_be_dom != NULL) {
+			m0_get()->i_be_dom_save = m0_get()->i_be_dom;
+			m0_get()->i_be_dom = NULL;
+		} else if (m0_get()->i_be_dom_save == NULL) {
+			   m0_get()->i_be_dom = dom;
+		}
+	}
 	return rc;
 }
 
@@ -223,6 +233,11 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
 {
 	struct m0_be_0type *zt;
 	struct m0_be_seg   *seg;
+
+	if (m0_get()->i_be_dom == dom || m0_get()->i_be_dom_save == dom) {
+		m0_get()->i_be_dom = NULL;
+		m0_get()->i_be_dom_save = NULL;
+	}
 
 	m0_be_engine_stop(&dom->bd_engine);
 	m0_be_engine_fini(&dom->bd_engine);

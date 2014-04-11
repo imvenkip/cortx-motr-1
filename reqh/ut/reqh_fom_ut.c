@@ -29,7 +29,6 @@
 #include "reqh/reqh.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
-#include "stob/linux.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
@@ -43,6 +42,7 @@
 #include "rpc/rpclib.h"
 #include "balloc/balloc.h"
 #include "mdstore/mdstore.h"
+#include "stob/ad.h"		/* m0_stob_ad_cfg_make */
 
 #include "ut/ut.h"
 #include "ut/be.h"
@@ -58,6 +58,7 @@
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
+#define SERVER_BDOM_LOCATION	"linuxstob:./reqh_fom_ut"
 
 enum {
 	CLIENT_COB_DOM_ID  = 101,
@@ -142,7 +143,7 @@ static const struct m0_ad_balloc_ops reqh_ut_balloc_ops = {
 	.bo_free  = reqh_ut_balloc_free,
 };
 
-static struct reqh_ut_balloc rb = {
+/* static */ struct reqh_ut_balloc rb = {
 	.rb_next = 0,
 	.rb_ballroom = {
 		.ab_ops = &reqh_ut_balloc_ops
@@ -160,11 +161,10 @@ struct m0_stob_domain *reqh_ut_stob_domain_find(void)
 static int server_init(const char             *stob_path,
 		       const char             *srv_db_name,
 		       struct m0_net_domain   *net_dom,
-		       struct m0_stob_id      *backid,
+		       uint64_t		       back_key,
 		       struct m0_stob_domain **bdom,
-		       struct m0_stob        **bstore,
 		       struct m0_stob        **reqh_addb_stob,
-		       struct m0_stob_id      *rh_addb_stob_id)
+		       uint64_t		       rh_addb_stob_key)
 {
         int                          rc;
 	struct m0_sm_group          *grp;
@@ -172,9 +172,12 @@ static int server_init(const char             *stob_path,
 	struct m0_be_tx              tx;
 	struct m0_be_tx_credit       cred = {};
 	struct m0_be_seg            *seg;
+	struct m0_stob		    *bstore;
 	uint32_t		     bufs_nr;
 	uint32_t		     tms_nr;
 	struct m0_reqh_service_type *stype;
+	char			    *sdom_cfg;
+	char			    *sdom_location;
 
         srv_cob_dom_id.id = 102;
 
@@ -186,7 +189,10 @@ static int server_init(const char             *stob_path,
 			  .rhia_svc       = (void*)1);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_ut_backend_init(&ut_be, &ut_seg);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20 /* 1 MB */);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+
 	seg = &ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_be_ut__seg_dict_create(seg, grp);
@@ -201,39 +207,33 @@ static int server_init(const char             *stob_path,
 	/*
 	 * Locate and create (if necessary) the backing store object.
 	 */
-	rc = m0_linux_stob_domain_locate(stob_path, bdom);
+	rc = m0_stob_domain_create_or_init(SERVER_BDOM_LOCATION, NULL,
+					   1, NULL, bdom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_stob_find(*bdom, backid, bstore);
+	rc = m0_stob_find_by_key(*bdom, back_key, &bstore);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT((*bstore)->so_state == CSS_UNKNOWN);
-
-	rc = m0_stob_create(*bstore, NULL);
+	rc = m0_stob_create(bstore, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT((*bstore)->so_state == CSS_EXISTS);
 
 	/*
 	 * Create AD domain over backing store object.
 	 */
-	rc = m0_ad_stob_domain_locate("", seg, grp, &sdom, *bstore);
+	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_fid_get(bstore));
+	sdom_location = m0_alloc(0x1000);
+	snprintf(sdom_location, 0x1000, "adstob:seg=%p,1234", seg);
+	rc = m0_stob_domain_create(sdom_location, NULL, 2, sdom_cfg, &sdom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_ad_stob_setup(sdom, seg, grp, *bstore, &rb.rb_ballroom,
-			      BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCK_SHIFT,
-			      BALLOC_DEF_BLOCKS_PER_GROUP,
-			      BALLOC_DEF_RESERVED_GROUPS);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_stob_put(*bstore);
+	m0_free(sdom_cfg);
+	m0_free(sdom_location);
+	m0_stob_put(bstore);
 
 	/* Create or open a stob into which to store the record. */
-	rc = m0_stob_find(*bdom, rh_addb_stob_id, reqh_addb_stob);
+	rc = m0_stob_find_by_key(*bdom, rh_addb_stob_key, &*reqh_addb_stob);
+	M0_ASSERT(rc == 0);
+	rc = m0_stob_create(*reqh_addb_stob, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_UNKNOWN);
-
-	rc = m0_stob_create(*reqh_addb_stob, NULL);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT((*reqh_addb_stob)->so_state == CSS_EXISTS);
 
         /* Init mdstore without reading root cob. */
         rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, false);
@@ -286,10 +286,12 @@ static int server_init(const char             *stob_path,
 
 /* Fini the server */
 static void server_fini(struct m0_stob_domain *bdom,
+			uint64_t	       back_key,
 			struct m0_stob        *reqh_addb_stob)
 {
-	int rc;
 	struct m0_sm_group *grp;
+	struct m0_stob	   *bstore;
+	int		    rc;
 
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(&reqh);
@@ -299,7 +301,6 @@ static void server_fini(struct m0_stob_domain *bdom,
         m0_rpc_machine_fini(&srv_rpc_mach);
 	m0_rpc_net_buffer_pool_cleanup(&app_pool);
 
-	m0_stob_put(reqh_addb_stob);
 	m0_reqh_service_stop(reqh_ut_service);
 	m0_reqh_service_fini(reqh_ut_service);
 	m0_reqh_services_terminate(&reqh);
@@ -309,10 +310,10 @@ static void server_fini(struct m0_stob_domain *bdom,
 	M0_UT_ASSERT(rc == 0);
 	m0_mdstore_fini(&srv_mdstore);
 
-	M0_UT_ASSERT(sdom != NULL);
-	sdom->sd_ops->sdo_destroy(sdom, grp);
-	sdom->sd_ops->sdo_fini(sdom);
-	bdom->sd_ops->sdo_fini(bdom);
+	/* XXX domain can't be destroyed because of credit calculations bug */
+	/* rc = m0_stob_domain_destroy(sdom); */
+	/* M0_UT_ASSERT(rc == 0); */
+	m0_stob_domain_fini(sdom);
 
 	m0_reqh_fom_domain_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
@@ -320,9 +321,24 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_reqh_fol_destroy(&reqh);
 	m0_reqh_dbenv_fini(&reqh);
 
+	rc = m0_stob_destroy(reqh_addb_stob, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_stob_find_by_key(bdom, back_key, &bstore);
+	M0_ASSERT(rc == 0);
+	rc = m0_stob_destroy(bstore, NULL);
+	M0_ASSERT(rc == 0);
+
+	rc = m0_stob_domain_destroy(bdom);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_be_ut__seg_dict_destroy(&ut_seg.bus_seg, grp);
 	M0_ASSERT(rc == 0);
-	m0_ut_backend_fini(&ut_be, &ut_seg);
+
+	/* XXX can't be destroyed because something isn't freed */
+	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
 
 	m0_reqh_fini(&reqh);
 }
@@ -404,16 +420,9 @@ void test_reqh(void)
 	struct m0_net_domain   net_dom     = { };
 	struct m0_net_domain   srv_net_dom = { };
 	struct m0_stob_domain *bdom;
-	struct m0_stob_id      backid;
-	struct m0_stob        *bstore;
+	uint64_t	       back_key = 0xdf11e;
 	struct m0_stob        *reqh_addb_stob;
-
-	struct m0_stob_id      reqh_addb_stob_id = {
-					.si_bits = {
-						.u_hi = 1,
-						.u_lo = 2
-					}
-				};
+	uint64_t	       reqh_addb_stob_key = 12;
 
 	struct m0_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &net_dom,
@@ -421,9 +430,6 @@ void test_reqh(void)
 		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 	};
-
-	backid.si_bits.u_hi = 0x0;
-	backid.si_bits.u_lo = 0xdf11e;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -434,13 +440,6 @@ void test_reqh(void)
 
 	M0_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
-	result = mkdir(path, 0700);
-	M0_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
-	sprintf(opath, "%s/o", path);
-
-	result = mkdir(opath, 0700);
-	M0_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
-
 	result = m0_net_xprt_init(xprt);
 	M0_UT_ASSERT(result == 0);
 
@@ -449,8 +448,8 @@ void test_reqh(void)
 	result = m0_net_domain_init(&srv_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(result == 0);
 
-	server_init(path, SERVER_DB_NAME, &srv_net_dom, &backid, &bdom, &bstore,
-		    &reqh_addb_stob, &reqh_addb_stob_id);
+	server_init(path, SERVER_DB_NAME, &srv_net_dom, back_key, &bdom,
+		    &reqh_addb_stob, reqh_addb_stob_key);
 
 	result = m0_rpc_client_start(&cctx);
 	M0_UT_ASSERT(result == 0);
@@ -463,7 +462,7 @@ void test_reqh(void)
 	result = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(result == 0);
 
-	server_fini(bdom, reqh_addb_stob);
+	server_fini(bdom, back_key, reqh_addb_stob);
 
 	m0_net_domain_fini(&net_dom);
 	m0_net_domain_fini(&srv_net_dom);

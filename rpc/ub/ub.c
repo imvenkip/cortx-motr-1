@@ -167,7 +167,7 @@ M0_BASSERT(MIN_RECV_QUEUE_LEN == 200);
 static char *g_argv[] = {
 	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
 	"-p", "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
-	"-A", NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1"
+	"-A", "linuxstob:"NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1"
 };
 
 static struct m0_rpc_server_ctx g_sctx = {

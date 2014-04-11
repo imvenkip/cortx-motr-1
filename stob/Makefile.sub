@@ -2,22 +2,28 @@ nobase_mero_include_HEADERS += stob/ad.h \
 				  stob/ad_private.h \
 				  stob/ad_private_xc.h \
 				  stob/battr.h \
-				  stob/stob_id_xc.h \
                                   stob/cache.h \
+                                  stob/io.h \
+                                  stob/ioq.h \
                                   stob/linux_getevents.h \
                                   stob/linux.h \
-                                  stob/linux_internal.h \
+                                  stob/module.h \
+                                  stob/null.h \
+                                  stob/stob_addb.h \
                                   stob/stob.h \
-                                  stob/stob_id.h \
-                                  stob/stob_addb.h
+                                  stob/stob_internal.h \
+                                  stob/type.h
 
 mero_libmero_la_SOURCES  += stob/ad.c \
                                   stob/ad_private_xc.c \
-                                  stob/stob_id_xc.c \
+                                  stob/domain.c \
                                   stob/cache.c \
+                                  stob/io.c \
+                                  stob/ioq.c \
                                   stob/linux.c \
-                                  stob/linux_adieu.c \
+                                  stob/module.c \
+                                  stob/null.c \
                                   stob/stob.c \
-                                  stob/stob_id.c
+                                  stob/type.c
 
-XC_FILES   += stob/stob_id_xc.h stob/ad_private_xc.h
+XC_FILES   += stob/ad_private_xc.h

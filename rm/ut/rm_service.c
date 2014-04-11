@@ -30,7 +30,7 @@
 #define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB            "server_db"
 #define SERVER_STOB          "server_stob"
-#define SERVER_ADDB_STOB     "server_addb_stob"
+#define SERVER_ADDB_STOB     "linuxstob:server_addb_stob"
 #define SERVER_LOG           "rmserver.log"
 
 static char *server_argv[] = {

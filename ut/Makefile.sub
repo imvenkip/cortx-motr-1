@@ -1,3 +1,6 @@
+mero_libmero_la_SOURCES += ut/stob.c
+nobase_mero_include_HEADERS += ut/stob.h
+
 ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
                             ut/ast_thread.h \
                             ut/be.c \
@@ -7,6 +10,10 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
                             ut/cs_fop_foms_xc.c \
                             ut/cs_service.c \
                             ut/cs_service.h \
+                            ut/stob.c \
+                            ut/stob.h \
+                            ut/threads.c \
+                            ut/threads.h \
                             ut/ut.c \
                             ut/ut.h \
                             ut/user_space/ut.c \

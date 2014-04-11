@@ -561,6 +561,8 @@ struct m0_dtx {
 M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 			     struct m0_be_domain *be_domain,
 			     struct m0_sm_group  *sm_group);
+M0_INTERNAL void m0_dtx_prep(struct m0_dtx *tx,
+			     const struct m0_be_tx_credit *cred);
 M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx);
 M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx);
 M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx);

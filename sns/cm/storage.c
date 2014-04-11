@@ -32,6 +32,8 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/cp.h"
 
+#include "stob/domain.h"	/* m0_stob_domain_find_by_stob_fid */
+
 /**
  * @addtogroup SNSCMCP
  * @{
@@ -142,7 +144,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_stob_domain   *dom;
 	struct m0_sns_cm_cp     *sns_cp;
 	struct m0_stob          *stob;
-	struct m0_stob_id       *stobid;
 	struct m0_stob_io       *stio;
 	struct m0_addb_ctx      *addb_ctx;
 	uint32_t                 bshift;
@@ -154,9 +155,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
 	reqh = m0_fom_reqh(cp_fom);
-	stobid = &sns_cp->sc_sid;
 	stio = &sns_cp->sc_stio;
-	dom = m0_cs_stob_domain_find(reqh, stobid);
+	dom = m0_stob_domain_find_by_stob_fid(&sns_cp->sc_stob_fid);
 	m0_sns_cm_cp_addb_log(cp);
 
 	if (dom == NULL) {
@@ -164,12 +164,12 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		goto out;
 	}
 
-	rc = m0_stob_find(dom, stobid, &sns_cp->sc_stob);
+	rc = m0_stob_find(&sns_cp->sc_stob_fid, &sns_cp->sc_stob);
 	if (rc != 0)
 		goto out;
 
 	stob = sns_cp->sc_stob;
-	rc = m0_stob_locate(stob);
+	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	if (rc != 0) {
 		m0_stob_put(stob);
 		goto out;
@@ -178,17 +178,18 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	stio->si_flags = 0;
 	stio->si_opcode = op;
 	stio->si_fol_rec_part = &sns_cp->sc_fol_rec_part;
-	bshift = stob->so_op->sop_block_shift(stob);
+	bshift = m0_stob_block_shift(stob);
 	rc = cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
 			addb_ctx, bshift);
 	if (rc != 0)
 		goto err_stio;
 	m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
 		    &cp_fom->fo_loc->fl_group);
-	if (op == SIO_WRITE)
+	if (op == SIO_WRITE) {
 		m0_stob_write_credit(dom, &stio->si_stob,
-				m0_fom_tx_credit(cp_fom));
-	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
+				     m0_fom_tx_credit(cp_fom));
+	}
+	rc = m0_dtx_open_sync(&cp_fom->fo_tx);
 	if (rc != 0)
 		goto out;
 

@@ -35,6 +35,8 @@
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/sns_cp_onwire.h"
 
+#include "ioservice/io_foms.h"	/* io_fom_cob_rw_fid2stob_map */
+
 /**
   @addtogroup SNSCMCP
 
@@ -75,7 +77,8 @@ M0_INTERNAL void m0_sns_cm_cp_addb_log(const struct m0_cm_cp *cp)
 		     M0_ADDB_CTX_VEC(&m0_sns_cp_addb_ctx),
 		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
                      ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo,
-		     sns_cp->sc_sid.si_bits.u_hi, sns_cp->sc_sid.si_bits.u_lo,
+		     m0_stob_fid_dom_id_get(&sns_cp->sc_stob_fid),
+		     m0_stob_fid_key_get(&sns_cp->sc_stob_fid),
 		     sns_cp->sc_index, sns_cp->sc_is_local);
 }
 
@@ -90,7 +93,7 @@ M0_INTERNAL bool m0_sns_cm_cp_invariant(const struct m0_cm_cp *cp)
 
 	return m0_fom_phase(&cp->c_fom) < M0_CCP_NR &&
 	       ergo(m0_fom_phase(&cp->c_fom) > M0_CCP_INIT,
-		    m0_stob_id_is_set(&sns_cp->sc_sid));
+		    m0_fid_is_valid(&sns_cp->sc_stob_fid));
 }
 
 /*
@@ -109,7 +112,7 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
          */
 	if (fop != NULL && (m0_fom_phase(&cp->c_fom) != M0_CCP_FINI)) {
 		sns_cpx = m0_fop_data(fop);
-		return sns_cpx->scx_sid.f_container;
+		return m0_stob_fid_dom_id_get(&sns_cpx->scx_stob_fid);
 	} else
 		return sns_cp->sc_cobfid.f_container;
 }
@@ -209,8 +212,7 @@ M0_INTERNAL void m0_sns_cm_cp_tgt_info_fill(struct m0_sns_cm_cp *scp,
 					    uint64_t ag_cp_idx)
 {
 	scp->sc_cobfid = *cob_fid;
-	scp->sc_sid.si_bits.u_hi = cob_fid->f_container;
-	scp->sc_sid.si_bits.u_lo = cob_fid->f_key;
+	io_fom_cob_rw_fid2stob_map(cob_fid, &scp->sc_stob_fid);
 	scp->sc_index = stob_offset;
 	scp->sc_base.c_ag_cp_idx = ag_cp_idx;
 }

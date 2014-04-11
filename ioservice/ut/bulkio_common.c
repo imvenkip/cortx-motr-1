@@ -30,7 +30,7 @@
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"
-#define S_ADDB_STOBFILE "bulkio_st_addb_stob"
+#define S_ADDB_STOBFILE "linuxstob:bulkio_st_addb_stob"
 
 /**
    @todo This value can be reduced after multiple message delivery in a

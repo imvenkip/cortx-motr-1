@@ -39,6 +39,7 @@
 #include "ut/ast_thread.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"
+#include "ut/be.h"		/* m0_be_ut__seg_dict_create */
 
 #define BALLOC_DBNAME "./__balloc_db"
 

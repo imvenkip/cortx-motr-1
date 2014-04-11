@@ -40,8 +40,8 @@ struct m0_sns_cpx {
          */
         struct m0_io_indexvec_seq scx_ivecs;
 
-        /** Destination stob id. */
-        struct m0_fid             scx_sid;
+        /** Destination stob fid. */
+        struct m0_fid             scx_stob_fid;
 
 	uint64_t                  scx_failed_idx;
 

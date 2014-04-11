@@ -27,13 +27,16 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>    /* system */
+#include <stdlib.h>		/* system */
 
-#include "stob/linux.h"
+#include "lib/memory.h"		/* M0_ALLOC_PTR */
 
-static const struct m0_stob_id stobsink_stobid = {
-	.si_bits = { .u_hi = 1, .u_lo = 0xaddb570b }
-};
+#include "ut/ut.h"		/* M0_UT_ASSERT */
+#include "stob/stob.h"		/* m0_stob */
+#include "stob/domain.h"	/* m0_stob_domain */
+#include "stob/type.h"		/* m0_stob_type_id_get */
+
+static const uint64_t stobsink_stob_key = 0xaddb570b;
 
 enum {
 	/* Small segment is OK for UT, real code uses large segments */
@@ -69,113 +72,14 @@ static const struct stobsink_formula stobsink_search_params[] = {
 static int stobsink_search_idx;
 static size_t stobsink_seg_nr;
 
-static const struct m0_stob_op stobsink_mock_stob_op;
-static const struct m0_stob_domain_op stobsink_mock_stob_domain_op;
-static const struct m0_stob_io_op stobsink_mock_stob_io_op;
-
-struct stobsink_domain {
-	struct m0_stob_domain ssd_dom;
-	char                  ssd_buf[16];
-};
+static struct m0_stob_io_op stobsink_mock_stob_io_op;
 
 static const char addb_repofile[] = "./_addb/repofile.dat";
 
-static int stobsink_mock_stob_type_init(struct m0_stob_type *stype)
-{
-	m0_stob_type_init(stype);
-	return 0;
-}
-
-static void stobsink_mock_stob_type_fini(struct m0_stob_type *stype)
-{
-	m0_stob_type_fini(stype);
-}
-
-static int stobsink_mock_stob_type_domain_locate(struct m0_stob_type *type,
-						 const char *domain_name,
-						 struct m0_be_seg *seg,
-						 struct m0_sm_group *grp,
-						 struct m0_stob_domain **out,
-						 uint64_t dom_id)
-{
-	struct stobsink_domain *sdom;
-	struct m0_stob_domain  *dom;
-	int                     rc;
-
-	M0_UT_ASSERT(strlen(domain_name) < sizeof sdom->ssd_buf);
-	sdom = m0_alloc(sizeof *sdom);
-	if (sdom != NULL) {
-		dom = &sdom->ssd_dom;
-		dom->sd_ops = &stobsink_mock_stob_domain_op;
-		m0_stob_domain_init(dom, type, dom_id, NULL);
-		*out = dom;
-		strcpy(sdom->ssd_buf, domain_name);
-		dom->sd_name = sdom->ssd_buf;
-		rc = 0;
-	} else {
-		rc = -ENOMEM;
-	}
-	return rc;
-}
-
-static void stobsink_mock_domain_fini(struct m0_stob_domain *self)
-{
-	struct stobsink_domain *sdom =
-	    container_of(self, struct stobsink_domain, ssd_dom);
-	m0_stob_domain_fini(self);
-	m0_free(sdom);
-}
-
-static int stobsink_mock_domain_stob_find(struct m0_stob_domain *dom,
-					  const struct m0_stob_id *id,
-					  struct m0_stob **out)
-{
-	struct m0_stob *stob;
-	int             rc;
-
-	M0_ALLOC_PTR(stob);
-	if (stob != NULL) {
-		stob->so_op = &stobsink_mock_stob_op;
-		m0_stob_init(stob, id, dom);
-		*out = stob;
-		rc = 0;
-	} else {
-		rc = -ENOMEM;
-	}
-	return rc;
-}
-
-static int stobsink_mock_domain_tx_make(struct m0_stob_domain *dom,
-					struct m0_dtx *tx)
-{
-	return 0;
-}
-
-static void stobsink_mock_stob_fini(struct m0_stob *stob)
-{
-	m0_stob_fini(stob);
-	m0_free(stob);
-}
-
-static int stobsink_mock_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
-{
-	return 0;
-}
-
-static int stobsink_mock_stob_locate(struct m0_stob *obj)
-{
-	return 0;
-}
-
-int stobsink_mock_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
+static int stobsink_mock_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 {
 	M0_UT_ASSERT(io->si_state == SIS_IDLE);
 	io->si_op = &stobsink_mock_stob_io_op;
-	return 0;
-}
-
-uint32_t stobsink_mock_stob_block_shift(const struct m0_stob *stob)
-{
 	return 0;
 }
 
@@ -205,7 +109,7 @@ static int stobsink_mock_stob_io_launch(struct m0_stob_io *io)
 		return -ENOSYS;
 	M0_UT_ASSERT(io->si_stob.iv_vec.v_nr == 1);
 	M0_UT_ASSERT(io->si_user.ov_vec.v_nr == 1);
-	bshift = stobsink_mock_stob_block_shift(io->si_obj);
+	bshift = m0_stob_block_shift(io->si_obj);
 	seg_nr = io->si_stob.iv_index[0] << bshift;
 	M0_UT_ASSERT(seg_nr % STOBSINK_SEGMENT_SIZE == 0);
 	seg_nr /= STOBSINK_SEGMENT_SIZE;
@@ -242,46 +146,13 @@ static int stobsink_mock_stob_io_launch(struct m0_stob_io *io)
 	return 0;
 }
 
-static const struct m0_stob_type_op stobsink_mock_stob_type_op = {
-	.sto_init          = stobsink_mock_stob_type_init,
-	.sto_fini          = stobsink_mock_stob_type_fini,
-	.sto_domain_locate = stobsink_mock_stob_type_domain_locate,
+struct m0_stob_type_ops	  stobsink_mock_stob_type_ops;
+struct m0_stob_ops	  stobsink_mock_stob_ops;
+
+static struct m0_stob_io_op stobsink_mock_stob_io_op = {
+	.sio_fini   = stobsink_mock_stob_io_fini,
+	.sio_launch = stobsink_mock_stob_io_launch,
 };
-
-static const struct m0_stob_domain_op stobsink_mock_stob_domain_op = {
-	.sdo_fini        = stobsink_mock_domain_fini,
-	.sdo_stob_find   = stobsink_mock_domain_stob_find,
-	.sdo_tx_make     = stobsink_mock_domain_tx_make,
-};
-
-static const struct m0_stob_op stobsink_mock_stob_op = {
-	.sop_fini         = stobsink_mock_stob_fini,
-	.sop_create       = stobsink_mock_stob_create,
-	.sop_locate       = stobsink_mock_stob_locate,
-	.sop_io_init      = stobsink_mock_stob_io_init,
-	.sop_block_shift  = stobsink_mock_stob_block_shift,
-};
-
-static const struct m0_stob_io_op stobsink_mock_stob_io_op = {
-	.sio_fini    = stobsink_mock_stob_io_fini,
-	.sio_launch  = stobsink_mock_stob_io_launch,
-};
-
-static struct m0_stob_type stobsink_mock_stob_type = {
-	.st_op    = &stobsink_mock_stob_type_op,
-	.st_name  = "mockstob",
-	.st_magic = 0xFA15E,
-};
-
-static int stobsink_mock_stobs_init(void)
-{
-	return M0_STOB_TYPE_OP(&stobsink_mock_stob_type, sto_init);
-}
-
-static void stobsink_mock_stobs_fini(void)
-{
-	M0_STOB_TYPE_OP(&stobsink_mock_stob_type, sto_fini);
-}
 
 static void addb_ut_stobsink_search(void)
 {
@@ -290,6 +161,7 @@ static void addb_ut_stobsink_search(void)
 	struct m0_addb_mc         mc;
 	struct stobsink          *sink;
 	struct m0_addb_seg_header head;
+	struct m0_stob_ops	  stob_ops;
 	m0_bcount_t               stob_size;
 	m0_time_t                 timeout = M0_MKTIME(STOBSINK_TIMEOUT_SEC, 0);
 	int                       sz = STOBSINK_MIN_SEARCH_SEG_NR;
@@ -298,21 +170,25 @@ static void addb_ut_stobsink_search(void)
 	int64_t                   expected_nr;
 	int64_t                   expected_offset;
 
-	rc = stobsink_mock_stobs_init();
-	M0_UT_ASSERT(rc == 0);
-
 	m0_addb_mc_init(&mc);
 
 	/* must jump thru hoops to make mock stob usable */
-	rc = m0_stob_domain_locate(&stobsink_mock_stob_type, "mock", &dom,
-				   0);
+	rc = m0_stob_domain_create("nullstob:addb-mock", NULL, 0, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find(dom, &stobsink_stobid, &stob);
-	M0_UT_ASSERT(rc == 0 && stob != NULL);
-	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
-	rc = m0_stob_create(stob, NULL);
+	rc = m0_stob_find_by_key(dom, stobsink_stob_key, &stob);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
+	rc = m0_stob_locate(stob);
+	M0_UT_ASSERT(rc == 0);
+	if (m0_stob_state_get(stob) == CSS_NOENT) {
+		rc = m0_stob_create(stob, NULL, NULL);
+		M0_UT_ASSERT(rc == 0);
+	}
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+
+	/* replace stob operations vector with the new one to replace stobio */
+	stob_ops = *stob->so_ops;
+	stob_ops.sop_io_init = &stobsink_mock_stob_io_init;
+	stob->so_ops = &stob_ops;
 
 	/* Test: full configure path, exercises EOF handling. */
 	stobsink_search_idx = 0;
@@ -323,12 +199,11 @@ static void addb_ut_stobsink_search(void)
 	M0_UT_ASSERT(rc == 0);
 	sink = stobsink_from_mc(&mc);
 	M0_UT_ASSERT(sink->ss_segsize == STOBSINK_SEGMENT_SIZE);
-	M0_UT_ASSERT(sink->ss_bshift == stobsink_mock_stob_block_shift(stob));
+	M0_UT_ASSERT(sink->ss_bshift == m0_stob_block_shift(stob));
 	M0_UT_ASSERT(sink->ss_seg_nr == sz);
 	M0_UT_ASSERT(sink->ss_timeout == timeout);
 	M0_UT_ASSERT(sink->ss_stob == stob);
 	/* Test: verifies rs_get work correctly */
-	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	M0_UT_ASSERT(sink->ss_seq_nr == 1);
 	M0_UT_ASSERT(sink->ss_offset == 0);
 
@@ -359,11 +234,9 @@ static void addb_ut_stobsink_search(void)
 
 	/* Test: verifies rs_put work correctly */
 	m0_addb_mc_fini(&mc);
-	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 1);
 
-	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom);
-	stobsink_mock_stobs_fini();
+	m0_stob_destroy(stob, NULL);
+	m0_stob_domain_destroy(dom);
 }
 
 
@@ -447,6 +320,7 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 		M0_UT_ASSERT(head.sh_seq_nr == trl.st_seq_nr);
 		M0_UT_ASSERT(trl.st_rec_nr > 0);
 
+		u = 0;
 		for (j = 0; j < trl.st_rec_nr; ++j) {
 			r = NULL;
 			rc = addb_rec_encdec(&r, &cur, M0_XCODE_DECODE);
@@ -537,22 +411,23 @@ static void addb_ut_file_cursor(uint32_t flags, int expected)
 	addb_ut_cursor(iter, flags, expected);
 	m0_addb_segment_iter_free(iter);
 }
-static struct m0_stob *addb_ut_retrieval_stob_setup(const char *domain_name,
-						    const struct m0_stob_id *id)
+static struct m0_stob *addb_ut_retrieval_stob_setup(const char *domain_location,
+						    uint64_t stob_key)
 {
 	struct m0_stob_domain *dom;
 	struct m0_stob        *stob = NULL;
 	int                    rc;
 
-	M0_UT_ASSERT(id != NULL);
-	rc = m0_linux_stob_domain_locate(domain_name, &dom);
+	rc = m0_stob_domain_init(domain_location, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find(dom, id, &stob);
-	M0_UT_ASSERT(rc == 0 && stob != NULL);
-	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
-	rc = m0_stob_create(stob, NULL);
+	rc = m0_stob_find_by_key(dom, stob_key, &stob);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
+	rc = m0_stob_locate(stob);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_state_get(stob) == CSS_EXISTS ? 0 :
+	     m0_stob_create(stob, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
 
 	return stob;
 }
@@ -569,7 +444,8 @@ static void addb_ut_retrieval(void)
 	int                          count;
 	int                          rc;
 
-	stob = addb_ut_retrieval_stob_setup("./_addb", &stobsink_stobid);
+	stob = addb_ut_retrieval_stob_setup("linuxstob:./_addb",
+					    stobsink_stob_key);
 	M0_UT_ASSERT(stob != NULL);
 	dom = stob->so_domain;
 
@@ -645,9 +521,8 @@ static void addb_ut_retrieval(void)
 	addb_ut_stob_cursor(stob, M0_ADDB_CURSOR_REC_CTX, 1);
 	addb_ut_stob_cursor(stob, 0, STOBSINK_FULL_EVENT_NR + 1);
 
-	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom);
+	m0_stob_domain_fini(dom);
 
 	/* Test: file iter alloc correctly determines segment size */
 	rc = m0_addb_file_iter_alloc(&iter, addb_repofile);
@@ -752,21 +627,16 @@ static void addb_ut_stob(void)
 
 	/* Skip rec_post UT hooks, only for validation of posting rec's data */
 	addb_rec_post_ut_data_enabled = false;
-	rc = system("rm -fr ./_addb");
+	rc = m0_stob_domain_destroy_location("linuxstob:./_addb");
+	M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
+	rc = m0_stob_domain_create("linuxstob:./_addb", NULL, 0, NULL, &dom);
 	M0_UT_ASSERT(rc == 0);
-	rc = mkdir("./_addb", 0700);
-	M0_UT_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
-	rc = mkdir("./_addb/o", 0700);
-	M0_UT_ASSERT(rc == 0 || (rc == -1 && errno == EEXIST));
-
-	rc = m0_linux_stob_domain_locate("./_addb", &dom);
+	rc = m0_stob_find_by_key(dom, stobsink_stob_key, &stob);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_find(dom, &stobsink_stobid, &stob);
-	M0_UT_ASSERT(rc == 0 && stob != NULL);
-	M0_UT_ASSERT(stob->so_state == CSS_UNKNOWN);
-	rc = m0_stob_create(stob, NULL);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_UNKNOWN);
+	rc = m0_stob_create(stob, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(stob->so_state == CSS_EXISTS);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
 
 	m0_addb_mc_init(&mc);
 	stob_size = STOBSINK_SEGMENT_SIZE * STOBSINK_SMALL_SEG_NR;
@@ -799,7 +669,6 @@ static void addb_ut_stob(void)
 	M0_UT_ASSERT(sink->ss_record_nr == 2);
 
 	m0_addb_mc_fini(&mc);
-	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 
 	/* Test: re-open stob, detects 1 segment, sets seq and offset */
 	m0_addb_mc_init(&mc);
@@ -962,7 +831,6 @@ static void addb_ut_stob(void)
 	seq = sink->ss_seq_nr;
 	M0_UT_ASSERT(sink->ss_record_nr > sink->ss_persist_nr);
 	m0_addb_mc_fini(&mc);
-	M0_UT_ASSERT(m0_atomic64_get(&stob->so_ref) == 2);
 	m0_addb_mc_init(&mc);
 	rc = m0_addb_mc_configure_stob_sink(&mc, NULL, stob,
 					    STOBSINK_SEGMENT_SIZE,
@@ -978,7 +846,7 @@ static void addb_ut_stob(void)
 
 	m0_addb_mc_fini(&mc);
 	m0_stob_put(stob);
-	dom->sd_ops->sdo_fini(dom);
+	m0_stob_domain_fini(dom);
 	addb_rt_tlist_del(dp);
 	addb_ct_tlist_del(&m0__addb_ut_ct0);
 

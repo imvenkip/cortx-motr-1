@@ -13,7 +13,7 @@ collect_addb_from_all_services()
 	for ((i=0; i < ${#EP[*]}; i++)) ; do
 		cmd="cd $MERO_M0T1FS_TEST_DIR/d$i;
 		$addb_dump -T $MERO_STOB_DOMAIN -D db \
-		-A addb-stobs >> $ADDB_DUMP_FILE"
+		-A linuxstob:addb-stobs >> $ADDB_DUMP_FILE"
 		echo $cmd
 		eval $cmd
 	done

@@ -27,9 +27,7 @@ enum {
 	UT_ADDB_FOM_REC_NR = 100,
 };
 
-static const struct m0_stob_id addb_ut_fom_stobid = {
-	.si_bits = { .u_hi = 0, .u_lo = 1 }
-};
+static const uint64_t addb_ut_fom_stob_key = 1;
 
 struct addb_ut_fom_data {
 	struct m0_stob              *aufd_stob;
@@ -188,7 +186,7 @@ static void addb_ut_fom_test(void)
 	M0_SET0(&ut_data);
 
 	ut_data.aufd_stob = addb_ut_retrieval_stob_setup(SERVER_ADDB_STOB_NAME,
-							 &addb_ut_fom_stobid);
+							 addb_ut_fom_stob_key);
 	M0_UT_ASSERT(ut_data.aufd_stob != NULL);
 	dom = ut_data.aufd_stob->so_domain;
 	M0_UT_ASSERT(dom != NULL);
@@ -203,7 +201,7 @@ static void addb_ut_fom_test(void)
 	}
 
 	m0_stob_put(ut_data.aufd_stob);
-	dom->sd_ops->sdo_fini(dom);
+	m0_stob_domain_fini(dom);
 	for (i = 0; i < UT_ADDB_FOM_REC_NR; ++i)
 		m0_xcode_free(&M0_XCODE_OBJ(m0_addb_rec_xc,
 					    ut_addb_rec_arr[i]));

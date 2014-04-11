@@ -34,7 +34,6 @@
 #include "fop/fom_generic.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
-#include "stob/linux.h"
 #include "rpc/rpc.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
@@ -209,19 +208,14 @@ static const struct m0_fom_type_ops stob_write_fom_type_ops = {
 static struct m0_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 					struct m0_fom *fom)
 {
-	struct m0_stob_id	 id;
-	struct m0_stob		*obj;
-	int			 result;
-	struct m0_stob_domain	*fom_stdom;
+	struct m0_stob *stob;
+	int		rc;
 
-	id.si_bits.u_hi = fid->f_seq;
-	id.si_bits.u_lo = fid->f_oid;
-	fom_stdom = reqh_ut_stob_domain_find();
-	M0_ASSERT(fom_stdom != NULL);
-	result = m0_stob_find(fom_stdom, &id, &obj);
-	M0_ASSERT(result == 0);
-	result = m0_stob_locate(obj);
-	return obj;
+	rc = m0_stob_find_by_key(reqh_ut_stob_domain_find(), fid->f_oid, &stob);
+	M0_ASSERT(rc == 0);
+	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
+	M0_ASSERT(rc == 0);
+	return stob;
 }
 
 /**
@@ -350,12 +344,8 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_stob_io_fom, sif_fom);
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-			in_fop = m0_fop_data(fom->fo_fop);
-			fom_obj->sif_stobj =
-				stob_object_find(&in_fop->fic_object, fom);
-			m0_stob_create_credit(fom_obj->sif_stobj,
-				m0_fom_tx_credit(fom));
-			m0_stob_put(fom_obj->sif_stobj);
+			m0_stob_create_credit(reqh_ut_stob_domain_find(),
+					      m0_fom_tx_credit(fom));
 		}
 		result = m0_fom_tick_generic(fom);
 	} else {
@@ -364,7 +354,7 @@ static int stob_create_fom_tick(struct m0_fom *fom)
 
 		fom_obj->sif_stobj = stob_object_find(&in_fop->fic_object, fom);
 
-		result = m0_stob_create(fom_obj->sif_stobj, &fom->fo_tx);
+		result = m0_stob_create(fom_obj->sif_stobj, &fom->fo_tx, NULL);
 		out_fop->ficr_rc = result;
 		fop = fom_obj->sif_rep_fop;
 		item = m0_fop_to_rpc_item(fop);
@@ -428,7 +418,7 @@ static int stob_read_fom_tick(struct m0_fom *fom)
 				&in_fop->fir_object, fom);
 
                         stobj =  fom_obj->sif_stobj;
-                        bshift = stobj->so_op->sop_block_shift(stobj);
+                        bshift = m0_stob_block_shift(stobj);
 
 			M0_ALLOC_ARR(buf, 1 << BALLOC_DEF_BLOCK_SHIFT);
 			M0_ASSERT(buf != NULL);
@@ -455,7 +445,8 @@ static int stob_read_fom_tick(struct m0_fom *fom)
                         m0_mutex_lock(&stio->si_mutex);
                         m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
                         m0_mutex_unlock(&stio->si_mutex);
-                        result = m0_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
+                        result = m0_stob_io_launch(stio, stobj,
+						   &fom->fo_tx, NULL);
 
                         if (result != 0) {
                                 m0_mutex_lock(&stio->si_mutex);
@@ -468,7 +459,7 @@ static int stob_read_fom_tick(struct m0_fom *fom)
                         }
                 } else if (m0_fom_phase(fom) == M0_FOPH_READ_STOB_IO_WAIT) {
                         stobj = fom_obj->sif_stobj;
-			bshift = stobj->so_op->sop_block_shift(stobj);
+			bshift = m0_stob_block_shift(stobj);
 			out_fop->firr_count = stio->si_count << bshift;
 			m0_fom_phase_moveif(fom, stio->si_rc, M0_FOPH_SUCCESS,
 					    M0_FOPH_FAILURE);
@@ -520,8 +511,7 @@ static void fom_stob_write_credit(struct m0_fom *fom)
 	in_fop = m0_fop_data(fom->fo_fop);
 	stobj = stob_object_find(&in_fop->fiw_object, fom);
 	index = 0;
-	count = in_fop->fiw_value.fi_count >>
-		stobj->so_op->sop_block_shift(stobj);
+	count = in_fop->fiw_value.fi_count >> m0_stob_block_shift(stobj);
 	iv = (struct m0_indexvec) {
 		.iv_vec = (struct m0_vec) {.v_nr = 1, .v_count = &count},
 		.iv_index = &index};
@@ -569,7 +559,7 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 				&in_fop->fiw_object, fom);
 
                         stobj = fom_obj->sif_stobj;
-                        bshift = stobj->so_op->sop_block_shift(stobj);
+                        bshift = m0_stob_block_shift(stobj);
 
                         addr = m0_stob_addr_pack(in_fop->fiw_value.fi_buf,
 			                         bshift);
@@ -606,7 +596,7 @@ static int stob_write_fom_tick(struct m0_fom *fom)
                         }
                 } else if (m0_fom_phase(fom) == M0_FOPH_WRITE_STOB_IO_WAIT) {
                         stobj = fom_obj->sif_stobj;
-			bshift = stobj->so_op->sop_block_shift(stobj);
+			bshift = m0_stob_block_shift(stobj);
 			out_fop->fiwr_count = stio->si_count << bshift;
 			m0_fom_phase_moveif(fom, stio->si_rc, M0_FOPH_SUCCESS,
 					    M0_FOPH_FAILURE);

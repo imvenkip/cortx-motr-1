@@ -106,7 +106,7 @@ services_start() {
     local MODE="${1:-}"
 
     PROF='(0x7000000000000001, 0)'
-    PROF_OPT='0x7000000000000001:0'
+    PROF_OPT='<0x7000000000000001:0>'
     FS='(0x6600000000000001, 1)'
     MDS='(0x7300000000000001, 2)'
     RM='(0x7300000000000001, 3)'
@@ -134,7 +134,7 @@ services_start() {
   {0x70| (($PROF_AC), $FS1)},
   {0x66| (($FS1), (11, 22),
                 [11: "-p", "-T", "linux", "-D", "db", "-S", "stobs",
-                     "-A", "addb-stobs", "-w", "3"],
+                     "-A", "linuxstob:addb-stobs", "-w", "3"],
                 [1: $IOS1])},
   {0x73| (($IOS1), 2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)},
   {0x6e| (($NODE1), 163840, 0, 0, 16, 0, [0], [0])}]
@@ -148,7 +148,7 @@ EOF`"
 
     local OPTIONS="`cat <<EOF
 -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
--A $SANDBOX_DIR/addb-stobs
+-A linuxstob:$SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
 EOF`"
@@ -181,7 +181,7 @@ _mount() {
     [ "$fault" = bad_fs_params ] && FS_PARAMS='[1: "bad_param"]'
 
     PROF='(0x7000000000000001, 0)'
-    PROF_OPT='0x7000000000000001:0'
+    PROF_OPT='<0x7000000000000001:0>'
     FS='(0x6600000000000001, 1)'
     MDS='(0x7300000000000001, 2)'
     RM='(0x7300000000000001, 3)'
@@ -209,10 +209,10 @@ EOF`"
 
     case "$mode" in
 	net) # XXX TODO: Feed bad configuration strings to confd as well.
-	    mount -t m0t1fs -o profile=$PROF_OPT,confd=$CONFD_ENDPOINT \
+	    mount -t m0t1fs -o profile="$PROF_OPT",confd=$CONFD_ENDPOINT \
 		none $SANDBOX_DIR/mnt || return $?;;
 	local)
-	    mount -t m0t1fs -o profile=$PROF_OPT,local_conf="$CONF" \
+	    mount -t m0t1fs -o profile="$PROF_OPT",local_conf="$CONF" \
 		none $SANDBOX_DIR/mnt || return $?;;
 	*) die "_mount: Unsupported value of \`mode' argument: $mode";;
     esac

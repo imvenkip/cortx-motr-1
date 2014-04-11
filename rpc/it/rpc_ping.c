@@ -63,7 +63,7 @@
 
 #define SERVER_DB_FILE_NAME        "m0rpcping_server.db"
 #define SERVER_STOB_FILE_NAME      "m0rpcping_server.stob"
-#define SERVER_ADDB_STOB_FILE_NAME "m0rpcping_server_addb.stob"
+#define SERVER_ADDB_STOB_FILE_NAME "linuxstob:m0rpcping_server_addb.stob"
 #define SERVER_LOG_FILE_NAME       "m0rpcping_server.log"
 
 enum ep_type { EP_SERVER, EP_CLIENT };

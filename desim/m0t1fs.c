@@ -18,7 +18,6 @@
  */
 
 #include "lib/assert.h"
-#include "stob/stob_id.h"
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/m0t1fs.h"
@@ -28,12 +27,6 @@
    @addtogroup desim desim
    @{
  */
-
-static void fid_to_stob_id(struct m0_fid *fid, struct m0_stob_id *stob_id)
-{
-	stob_id->si_bits.u_hi = fid->f_container;
-	stob_id->si_bits.u_lo = fid->f_key;
-}
 
 static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 {
@@ -77,7 +70,6 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			uint32_t                   srv;
 			struct m0t1fs_conn        *conn;
 			struct m0_fid              fid;
-			struct m0_stob_id          stob_id;
 
 			m0_pdclust_instance_map(pi, &src, &tgt);
 			/* @todo for parity unit waste some time calculating
@@ -88,20 +80,19 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			conn = &cl->cc_srv[srv];
 			le->le_ops->leo_get(le, obj, &pi->pi_base.li_gfid,
 					    &fid);
-			fid_to_stob_id(&fid, &stob_id);
 
 			sim_log(s, SLL_TRACE,
-				"%c [%3i:%3i] -> %4u@%3u ["U128X_F"] %6lu\n",
+				"%c [%3i:%3i] -> %4u@%3u "FID_F" %6lu\n",
 				"DPS"[m0_pdclust_unit_classify(pl, idx)],
 				cl->cc_id, cth->cth_id, obj, srv,
-				U128_P(&stob_id.si_bits), tgt.ta_frame);
+				FID_P(&fid), tgt.ta_frame);
 
 			/* wait until rpc can be send to the server. */
 			while (conn->cs_inflight >= conf->ct_inflight_max)
 				sim_chan_wait(&conn->cs_wakeup, t);
 			conn->cs_inflight++;
 			net_rpc_process(t, conf->ct_net, &conf->ct_srv[srv],
-					&stob_id, tgt.ta_frame * unit, unit);
+					&fid, tgt.ta_frame * unit, unit);
 			conn->cs_inflight--;
 			sim_chan_signal(&conn->cs_wakeup);
 		}

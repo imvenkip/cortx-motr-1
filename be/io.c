@@ -27,7 +27,8 @@
 
 #include "lib/memory.h"		 /* m0_alloc */
 #include "lib/errno.h"		 /* ENOMEM */
-#include "stob/linux_internal.h" /* stob2linux */
+
+#include "stob/linux.h"		 /* m0_stob_linux_container */
 
 #include "be/be.h"		 /* m0_be_op_state_set */
 
@@ -58,10 +59,10 @@ M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio,
 	int		   rc;
 
 	*bio = (struct m0_be_io) {
-		.bio_stob = stob,
-		.bio_bshift = stob->so_op->sop_block_shift(stob),
+		.bio_stob   = stob,
+		.bio_bshift = m0_stob_block_shift(stob),
 		.bio_credit = *size_max,
-		.bio_sync = false,
+		.bio_sync   = false,
 	};
 	m0_stob_io_init(io);
 
@@ -179,7 +180,7 @@ static bool be_io_cb(struct m0_clink *link)
 	 *   now.
 	 */
 	if (rc == 0 && bio->bio_sync) {
-		rc = fdatasync(stob2linux(bio->bio_stob)->sl_fd);
+		rc = fdatasync(m0_stob_linux_container(bio->bio_stob)->sl_fd);
 		M0_ASSERT_INFO(rc == 0, "fdatasync() failed: %d", rc);
 	}
 

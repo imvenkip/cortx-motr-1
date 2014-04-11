@@ -556,7 +556,8 @@ static void test_status_query(void)
 	char uuid[M0_UUID_STRLEN+1];
 	bool foundFakeService = false;
 
-	M0_UT_ASSERT(mgmt_svc_ut_setup_start() == 0);
+	rc = mgmt_svc_ut_setup_start();
+	M0_UT_ASSERT(rc == 0);
 
 	ss_fop = mgmt_svc_ut_ss_fop_alloc();
 	M0_UT_ASSERT(ss_fop != NULL);

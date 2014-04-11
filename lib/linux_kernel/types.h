@@ -56,6 +56,7 @@ M0_BASSERT(INT64_MAX > 0);
 #define PRIi64 "lli"
 #define PRIo64 "llo"
 #define PRIx64 "llx"
+#define SCNx64 "llx"
 
 /* __MERO_LIB_LINUX_KERNEL_TYPES_H__ */
 #endif

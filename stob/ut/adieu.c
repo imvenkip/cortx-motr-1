@@ -27,11 +27,13 @@
 #include "lib/memory.h" /* m0_alloc_align */
 #include "lib/errno.h"
 #include "lib/ub.h"
+#include "ut/stob.h"
 #include "ut/ut.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
+#include "stob/domain.h"
+#include "stob/io.h"
 #include "stob/stob.h"
-#include "stob/linux.h"
 #include "fol/fol.h"
 
 /**
@@ -46,16 +48,16 @@ enum {
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 };
 
-static struct m0_stob_domain *dom;
-static const struct m0_stob_id id = {
-	.si_bits = {
-		.u_hi = 1,
-		.u_lo = 2
-	}
+enum {
+	M0_STOB_UT_DOMAIN_KEY = 0x01,
+	M0_STOB_UT_STOB_KEY   = 0x02,
 };
+
+/** @todo move vars to a context */
+static const char linux_location[] = "linuxstob:./__s";
+static struct m0_stob_domain *dom;
 static struct m0_stob *obj;
-static struct m0_stob *obj1;
-static const char path[] = "./__s/o/0000000000000001.0000000000000002";
+static const char path[] = "./__s/o/0000000000000002";
 static struct m0_stob_io io;
 static m0_bcount_t user_vec[NR];
 static char *user_buf[NR];
@@ -68,61 +70,29 @@ static FILE *f;
 static uint32_t block_shift;
 static uint32_t buf_size;
 
-static int test_adieu_init(void)
+static int test_adieu_init(const char *location,
+			   const char *dom_cfg,
+			   const char *stob_cfg)
 {
-	int	    i;
-	int	    result;
+	int i;
+	int rc;
 
-	result = system("rm -fr ./__s");
-	M0_ASSERT(result == 0);
+	rc = m0_stob_domain_create(location,
+				   NULL, M0_STOB_UT_DOMAIN_KEY, dom_cfg, &dom);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(dom != NULL);
 
-	result = mkdir("./__s", 0700);
-	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	rc = m0_stob_find_by_key(dom, M0_STOB_UT_STOB_KEY, &obj);
+	M0_ASSERT(rc == 0);
 
-	result = mkdir("./__s/o", 0700);
-	M0_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	rc = m0_ut_stob_create(obj, stob_cfg);
+	M0_ASSERT(rc == 0);
 
-	result = m0_linux_stob_domain_locate("./__s", &dom);
-	M0_ASSERT(result == 0);
-
-	result = m0_stob_find(dom, &id, &obj);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(obj->so_state == CSS_UNKNOWN);
-
-	result = m0_stob_locate(obj);
-	M0_ASSERT(result == -ENOENT);
-	M0_ASSERT(obj->so_state == CSS_NOENT);
-
-	result = m0_stob_find(dom, &id, &obj1);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(obj == obj1);
-
-	m0_stob_put(obj);
-	m0_stob_put(obj1);
-
-	result = m0_stob_find(dom, &id, &obj);
-	M0_ASSERT(result == 0);
-	/* This checks that obj is still in the cache. */
-	M0_ASSERT(obj->so_state == CSS_NOENT);
-
-	result = m0_stob_create(obj, NULL);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(obj->so_state == CSS_EXISTS);
-	m0_stob_put(obj);
-
-	result = m0_stob_find(dom, &id, &obj);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(obj->so_state == CSS_EXISTS); /* still in the cache. */
-
-	result = m0_stob_locate(obj);
-	M0_ASSERT(result == 0);
-	M0_ASSERT(obj->so_state == CSS_EXISTS);
-
-	block_shift = obj->so_op->sop_block_shift(obj);
+	block_shift = m0_stob_block_shift(obj);
 	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
 	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
-	buf_size = max_check(MIN_BUF_SIZE
-			, (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
+	buf_size = max_check(MIN_BUF_SIZE,
+			     (1 << block_shift) * MIN_BUF_SIZE_IN_BLOCKS);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
@@ -141,27 +111,29 @@ static int test_adieu_init(void)
 		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
-	return result;
+	return rc;
 }
 
-static int test_adieu_fini(void)
+static void test_adieu_fini(void)
 {
 	int i;
+	int rc;
 
-	m0_stob_put(obj);
-	dom->sd_ops->sdo_fini(dom);
+	rc = m0_stob_destroy(obj, NULL);
+	M0_ASSERT(rc == 0);
+	rc = m0_stob_domain_destroy(dom);
+	M0_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
 
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
 		m0_free(read_buf[i]);
-	return 0;
 }
 
 static void test_write(int i)
 {
-	int			result;
+	int			rc;
 	struct m0_fol_rec_part *fol_rec_part;
 
 	M0_ALLOC_PTR(fol_rec_part);
@@ -183,8 +155,8 @@ static void test_write(int i)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	result = m0_stob_io_launch(&io, obj, NULL, NULL);
-	M0_ASSERT(result == 0);
+	rc = m0_stob_io_launch(&io, obj, NULL, NULL);
+	M0_ASSERT(rc == 0);
 
 	m0_chan_wait(&clink);
 
@@ -199,7 +171,7 @@ static void test_write(int i)
 
 static void test_read(int i)
 {
-	int result;
+	int rc;
 
 	m0_stob_io_init(&io);
 
@@ -216,8 +188,8 @@ static void test_read(int i)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	result = m0_stob_io_launch(&io, obj, NULL, NULL);
-	M0_ASSERT(result == 0);
+	rc = m0_stob_io_launch(&io, obj, NULL, NULL);
+	M0_ASSERT(rc == 0);
 
 	m0_chan_wait(&clink);
 
@@ -242,6 +214,7 @@ static void test_adieu(void)
 	for (i = 1; i < NR; ++i) {
 		test_write(i);
 
+		/* this works only for linuxstob */
 		f = fopen(path, "r");
 		for (j = 0; j < i; ++j) {
 			int k;
@@ -268,15 +241,19 @@ static void test_adieu(void)
 	}
 }
 
-const struct m0_test_suite adieu_ut = {
-	.ts_name = "adieu-ut",
-	.ts_init = test_adieu_init,
-	.ts_fini = test_adieu_fini,
-	.ts_tests = {
-		{ "adieu", test_adieu },
-		{ NULL, NULL }
-	}
-};
+void m0_stob_ut_adieu_linux(void)
+{
+	int rc;
+
+	rc = test_adieu_init(linux_location, NULL, NULL);
+	M0_ASSERT(rc == 0);
+	test_adieu();
+	test_adieu_fini();
+}
+
+/*
+   Adieu unit-benchmark
+ */
 
 static void ub_write(int i)
 {
@@ -345,12 +322,12 @@ static void ub_iovec_sort_invert()
 
 static int ub_init(const char *opts M0_UNUSED)
 {
-	return test_adieu_init();
+	return test_adieu_init(linux_location, NULL, NULL);
 }
 
 static void ub_fini(void)
 {
-	(void)test_adieu_fini();
+	test_adieu_fini();
 }
 
 enum {

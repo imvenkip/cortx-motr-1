@@ -34,7 +34,8 @@
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
 #include "stob/stob.h"
-#include "stob/linux.h"
+#include "stob/type.h"		/* m0_stob_type_id_by_name */
+#include "stob/domain.h"	/* m0_stob_domain__dom_id */
 #include "fid/fid.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_foms.h"
@@ -45,6 +46,7 @@
 #include "pool/pool.h"
 #include "ioservice/io_service_addb.h"
 #include "sns/cm/cm.h" /* m0_sns_cm_fid_repair_done() */
+#include "module/instance.h"	/* m0_get() */
 
 /**
    @page DLD-bulk-server DLD of Bulk Server
@@ -891,35 +893,73 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
                 m0_fom_ready(fom);
 }
 
+enum {
+	/**
+	 * @see io_fom_cob_rw_fid2stob_map(), io_fom_cob_rw_stob2fid_map().
+	 */
+	IO_FOM_STOB_KEY_MAX = 0x10000000ULL,
+};
+
 /**
  * Function to map given fid to corresponding Component object id(in turn,
  * storage object id).
- * Currently, this mapping is identity. But it is subject to
- * change as per the future requirements.
+ *
+ * Current mapping function:
+ * - if reqh has multiple ad stob domains, then:
+ *   - stob domain id name is "adstob";
+ *   - stob domain key is cob fid container;
+ *   - stob key is cob fid key;
+ * - if reqh has only one ad or linux stob domain, then:
+ *   - stob domain id name is "adstob" or "linuxstob";
+ *   - stob domain key is 0;
+ *   - stob key is (cob fid container) * 10000 + (cob fid key)
+ *
+ * Stob domains are created in cs_storage_init().
  *
  * @param in file identifier
- * @param out corresponding STOB identifier
+ * @param out corresponding STOB fid
  *
- * @pre in != NULL
- * @pre out != NULL
+ * @see io_fom_cob_rw_stob2fid_map(), cs_storage_init().
  */
 M0_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct m0_fid *in,
-					    struct m0_stob_id *out)
-{
-	M0_PRE(in != NULL);
-	M0_PRE(out != NULL);
-
-	out->si_bits.u_hi = in->f_container;
-	out->si_bits.u_lo = in->f_key;
-}
-
-M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
 					    struct m0_fid *out)
 {
-        M0_PRE(in != NULL);
-        M0_PRE(out != NULL);
+	uint8_t  type_id;
+	uint64_t dom_id;
+	uint64_t dom_key  = in->f_container;
+	uint64_t stob_key = in->f_key;
+	bool	 stob_ad  = m0_get()->i_reqh_uses_ad_stob;
 
-        m0_fid_set(out, in->si_bits.u_hi, in->si_bits.u_lo);
+	type_id = m0_stob_type_id_by_name(stob_ad ? "adstob" : "linuxstob");
+	if (!m0_get()->i_reqh_has_multiple_ad_domains || !stob_ad) {
+		M0_ASSERT_INFO(stob_key < IO_FOM_STOB_KEY_MAX &&
+			       dom_key < UINT64_MAX / IO_FOM_STOB_KEY_MAX,
+			       "stob_key = %"PRIu64", dom_key = %"PRIu64
+			       ", IO_FOM_STOB_KEY_MAX = %lu",
+			       stob_key, dom_key, (long)IO_FOM_STOB_KEY_MAX);
+		stob_key = dom_key * IO_FOM_STOB_KEY_MAX + stob_key;
+		dom_key	 = 0;
+	}
+	dom_id = m0_stob_domain__dom_id(type_id, dom_key);
+	m0_stob_fid_make(out, dom_id, stob_key);
+}
+
+/**
+ * Complementary function for io_fom_cob_rw_fid2stob_map().
+ */
+M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_fid *in,
+					    struct m0_fid *out)
+{
+	uint64_t dom_id	  = m0_stob_fid_dom_id_get(in);
+	uint64_t dom_key  = m0_stob_domain__dom_key(dom_id);
+	uint64_t stob_key = m0_stob_fid_key_get(in);
+
+	if (!m0_get()->i_reqh_has_multiple_ad_domains ||
+	    !m0_get()->i_reqh_uses_ad_stob) {
+		dom_key	  = stob_key / IO_FOM_STOB_KEY_MAX;
+		stob_key %= IO_FOM_STOB_KEY_MAX;
+	}
+	*out = M0_FID_INIT(dom_key, stob_key);
 }
 
 static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
@@ -1019,9 +1059,9 @@ static int stob_object_find(struct m0_fom *fom)
 {
 	int			 result;
 	struct m0_io_fom_cob_rw	*fom_obj;
-	struct m0_stob_id	 stobid;
+	struct m0_fid		 stob_fid;
 	struct m0_fop_cob_rw	*rwfop;
-	struct m0_stob_domain	*fom_stdom;
+	// struct m0_stob_domain	*fom_stdom;
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1031,15 +1071,12 @@ static int stob_object_find(struct m0_fom *fom)
 
 	rwfop = io_rw_get(fom->fo_fop);
 
-	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
-	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom), &stobid);
-	if (fom_stdom == NULL)
-		return -EINVAL;
-
-	result = m0_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
+	io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
+	result = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
 	if (result != 0)
 		return result;
-	result = m0_stob_locate(fom_obj->fcrw_stob);
+	if (m0_stob_state_get(fom_obj->fcrw_stob) == CSS_UNKNOWN)
+		result = m0_stob_locate(fom_obj->fcrw_stob);
 	if (result != 0)
 		m0_stob_put(fom_obj->fcrw_stob);
 	return result;
@@ -1609,8 +1646,7 @@ static int io_launch(struct m0_fom *fom)
 	  Since the upper layer IO block size could differ with IO block size
 	  of storage object, the block alignment and mapping is necessary.
 	 */
-	fom_obj->fcrw_bshift = fom_obj->fcrw_stob->so_op->
-				sop_block_shift(fom_obj->fcrw_stob);
+	fom_obj->fcrw_bshift = m0_stob_block_shift(fom_obj->fcrw_stob);
 
 	M0_INVARIANT_EX(m0_tlist_invariant(&netbufs_tl,
 					   &fom_obj->fcrw_netbuf_list));
@@ -1765,7 +1801,6 @@ static int io_launch(struct m0_fom *fom)
 out:
 	if (fom_obj->fcrw_stob != NULL)
 		m0_stob_put(fom_obj->fcrw_stob);
-
 	if (rc != 0) {
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_1, &fom->fo_addb_ctx);
@@ -1889,8 +1924,6 @@ static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
 	int			 rc;
 	struct m0_io_fom_cob_rw	*fom_obj;
 	struct m0_stob_domain	*fom_stdom;
-	uint32_t                 bshift;
-
 
 	M0_PRE(fom != NULL);
         M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1903,14 +1936,10 @@ static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
 
 	rc = stob_object_find(fom);
 	M0_ASSERT(rc == 0);
-
-	fom_stdom = m0_cs_stob_domain_find(m0_fom_reqh(fom),
-					   &fom_obj->fcrw_stob->so_id);
+	fom_stdom = m0_stob_dom_get(fom_obj->fcrw_stob);
 	M0_ASSERT(fom_stdom != NULL);
 
-	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
-
-	indexvec_wire2mem(fom, bshift);
+	indexvec_wire2mem(fom, m0_stob_block_shift(fom_obj->fcrw_stob));
 
 	if (is_op_write)
 		m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,

@@ -815,7 +815,6 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	pb->spb_io.si_rc = 0;
 	pb->spb_io.si_count = 0;
 	m0_mutex_unlock(&sink->ss_mutex);
-	M0_ASSERT(dom->sd_bedom == NULL); /* Linux stob */
 	M0_LOG(M0_DEBUG, "pb=%p: launching stob io...", pb);
 	rc = m0_stob_io_launch(&pb->spb_io, sink->ss_stob, NULL, NULL);
 	m0_mutex_lock(&sink->ss_mutex);
@@ -1126,7 +1125,7 @@ M0_INTERNAL int m0_addb_mc_configure_stob_sink(struct m0_addb_mc *mc,
 	m0_ref_init(&sink->ss_ref, 1, stobsink_release);
 	m0_mutex_init(&sink->ss_mutex);
 	sink->ss_segsize = segment_size;
-	sink->ss_bshift = stob->so_op->sop_block_shift(stob);
+	sink->ss_bshift = m0_stob_block_shift(stob);
 	sink->ss_seg_nr = stob_size / segment_size;
 	sink->ss_persist_time = m0_time_now();
 	sink->ss_timeout = timeout;

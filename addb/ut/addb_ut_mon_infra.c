@@ -319,7 +319,7 @@ static void mon_test(int test_no)
 
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i)
 		addb_post_record(&ut_srv_reqh->rh_addb_mc, i, cv);
-	rem = m0_time(0, 400 * 1000 * 1000);
+	rem = m0_time(1, 0);
 	do {
 		rc = m0_nanosleep(rem, &rem);
 	} while (rc != 0);

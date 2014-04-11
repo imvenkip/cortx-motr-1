@@ -105,6 +105,7 @@
 #include "lib/ext.h"       /* m0_ext */
 #include "lib/ext_xc.h"	   /* m0_ext_xc */
 #include "lib/types.h"     /* struct m0_uint128 */
+#include "lib/types_xc.h"  /* m0_uint128_xc */
 #include "be/tx.h"
 #include "be/btree.h"
 

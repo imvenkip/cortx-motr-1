@@ -28,7 +28,7 @@ mount_m0t1fs()
 	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
 	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
 	PROF='(0x7000000000000001, 0)'
-	PROF_OPT='0x7000000000000001:0'
+	PROF_OPT='<0x7000000000000001:0>'
 	FS='(0x6600000000000001, 1)'
 	MDS='(0x7300000000000001, 2)'
 	RM='(0x7300000000000001, 3)'
@@ -68,7 +68,7 @@ EOF`"
 
 	echo "Mounting file system..."
 
-	cmd="sudo mount -t m0t1fs -o profile=$PROF_OPT,local_conf='$CONF',$mountop \
+	cmd="sudo mount -t m0t1fs -o profile='$PROF_OPT',local_conf='$CONF',$mountop \
 	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {

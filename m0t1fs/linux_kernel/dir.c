@@ -459,7 +459,7 @@ static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
 	struct m0_fid             fid;
         int rc;
 
-        rc = m0_fid_sscanf((char *)dentry->d_name.name, &fid);
+        rc = m0_fid_sscanf_simple((char *)dentry->d_name.name, &fid);
         if (rc != 0) {
 		M0_LEAVE("Cannot parse fid \"%s\"", (char *)dentry->d_name.name);
 		return ERR_PTR(rc);

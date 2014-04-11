@@ -29,6 +29,7 @@
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "ut/ut.h"
+#include "ut/stob.h"		/* m0_ut_stob_linux_get_by_key */
 
 #include <unistd.h>		/* chdir, get_current_dir_name */
 #include <stdlib.h>		/* system */
@@ -91,25 +92,17 @@ static void be_domain_fini(struct m0_be_domain *dom)
 void m0_be_ut_seg0_test(void)
 {
 	struct m0_stob        *seg0_stob;
-	struct m0_stob_id      stob_id;
 	struct m0_be_domain    bedom = {};
-	struct m0_stob_domain *dom;
-	int rc;
 
 	fake_mkfs();
 
-	stob_id.si_bits = M0_UINT128(0, 43);
-
-	rc = m0_linux_stob_domain_locate("./__seg_ut_stob", &dom);
-	M0_ASSERT(rc == 0);
-	rc = m0_stob_create_helper(dom, NULL, &stob_id, &seg0_stob);
-	M0_ASSERT(rc == 0);
+	seg0_stob = m0_ut_stob_linux_get_by_key(1043);
+	M0_UT_ASSERT(seg0_stob != NULL);
 
 	be_domain_init(&bedom, seg0_stob);
 	be_domain_fini(&bedom);
 
-	m0_stob_put(seg0_stob);
-	dom->sd_ops->sdo_fini(dom);
+	m0_ut_stob_put(seg0_stob, false);
 }
 
 #undef M0_TRACE_SUBSYSTEM

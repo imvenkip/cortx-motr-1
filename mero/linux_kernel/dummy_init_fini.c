@@ -61,16 +61,6 @@ M0_INTERNAL void m0_linux_stobs_fini(void)
 {
 }
 
-M0_INTERNAL int m0_ad_stobs_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-M0_INTERNAL void m0_ad_stobs_fini(void)
-{
-}
-
 M0_INTERNAL int sim_global_init(void)
 {
 	DUMMY_IMPLEMENTATION;

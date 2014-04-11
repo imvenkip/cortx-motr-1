@@ -138,7 +138,8 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 
 static bool cp_verify(struct m0_sns_cm_cp *scp)
 {
-	return m0_stob_id_is_set(&scp->sc_sid) && scp->sc_base.c_ag != NULL &&
+	return m0_fid_is_valid(&scp->sc_stob_fid) &&
+	       scp->sc_base.c_ag != NULL &&
 	       !cp_data_buf_tlist_is_empty(&scp->sc_base.c_buffers);
 }
 

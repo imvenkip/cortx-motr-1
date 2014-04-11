@@ -72,6 +72,12 @@ M0_INTERNAL void m0_dtx_init(struct m0_dtx *tx,
 	m0_fol_rec_init(&tx->tx_fol_rec);
 }
 
+M0_INTERNAL void m0_dtx_prep(struct m0_dtx *tx,
+			     const struct m0_be_tx_credit *cred)
+{
+	m0_be_tx_prep(&tx->tx_betx, cred);
+}
+
 M0_INTERNAL void m0_dtx_open(struct m0_dtx *tx)
 {
 	M0_PRE(tx->tx_state == M0_DTX_INIT);

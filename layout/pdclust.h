@@ -70,7 +70,6 @@
 #include "layout/layout.h"
 
 struct m0_pool;
-struct m0_stob_id;
 
 /* export */
 struct m0_pdclust_attr;

@@ -954,7 +954,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
           extracted from name.
          */
         if (m0_fid_eq(pfid, &M0_DOT_MERO_FID_FID)) {
-                rc = m0_fid_sscanf((char *)name->b_addr, &fid);
+                rc = m0_fid_sscanf_simple((char *)name->b_addr, &fid);
                 if (rc != 0)
                         goto out;
                 rc = m0_mdstore_locate(md, &fid, cob, M0_MD_LOCATE_STORED);

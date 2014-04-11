@@ -23,6 +23,8 @@
 #ifndef __MERO_STOB_LINUX_GETEVENTS_H__
 #define __MERO_STOB_LINUX_GETEVENTS_H__
 
+#include <libaio.h>	/* io_context_t */
+
 /**
    @addtogroup stoblinux Storage object based on Linux specific file system
    interfaces.

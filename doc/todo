@@ -92,12 +92,6 @@ sub-team leads, contact them to add more things here.
     the names of test suite _variables_ being sorted in utils/ut_main.c.
     We need to sort the strings themselves, not only variable names.
 
-2013-Jul-11 add m0_stob_block_shift()
-
-    m0_stob_block_shift() should call m0_stob_op::sop_block_shift(), and
-    all direct calls to sop_block_shift() should be replaced with
-    m0_stob_block_shift().
-
 2014-Feb-27 enforce uniqueness of magic values
 
     `scripts/check-sources' should check uniqueness of magic numbers

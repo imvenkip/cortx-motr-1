@@ -141,6 +141,7 @@ static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
    @post result < max
  */
 M0_INTERNAL uint64_t m0_rnd(uint64_t max, uint64_t * seed);
+M0_INTERNAL uint64_t m0_rnd64(uint64_t *seed);
 
 /**
    Greatest common divisor.
@@ -150,6 +151,18 @@ M0_INTERNAL uint64_t m0_gcd64(uint64_t p, uint64_t q);
 static inline bool m0_is_po2(uint64_t val)
 {
 	return (val & (val - 1)) == 0;
+}
+
+/**
+ * @note This function will return 0 for val = 0.
+ */
+static inline unsigned m0_log2(uint64_t val)
+{
+	unsigned shift = 0;
+
+	for (val >>= 1; val != 0; val >>= 1)
+		++shift;
+	return shift;
 }
 
 static inline uint64_t m0_align(uint64_t val, uint64_t alignment)

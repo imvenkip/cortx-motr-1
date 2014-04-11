@@ -30,12 +30,12 @@
 #include "mero/setup.h"
 #include "net/net.h"
 #include "sns/cm/repair/ut/cp_common.h"
+#include "ioservice/io_foms.h"		/* io_fom_cob_rw_fid2stob_map */
+#include "ut/stob.h"			/* m0_ut_stob_create_by_fid */
 
 struct m0_reqh_service          *service;
 static struct m0_reqh           *reqh;
 static struct m0_semaphore       sem;
-static struct m0_stob           *stob;
-static struct m0_dtx             tx;
 static struct m0_net_buffer_pool nbp;
 
 /* Global structures for write copy packet. */
@@ -48,12 +48,7 @@ static struct m0_sns_cm_ag  r_sag;
 static struct m0_sns_cm_cp  r_sns_cp;
 static struct m0_net_buffer r_buf;
 
-static struct m0_stob_id sid = {
-	.si_bits = {
-		.u_hi = 1,
-		.u_lo = 1
-	}
-};
+static struct m0_fid cob_fid = M0_FID_INIT(1, 1);
 
 /*
  * Copy packet will typically have a single segment with its size equal to
@@ -204,39 +199,26 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 
 void write_post(void)
 {
-	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
-	struct m0_stob_domain  *sdom;
-	int                     rc;
+	struct m0_fid stob_fid;
+	int	      rc;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
-	w_sns_cp.sc_sid = sid;
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &w_sns_cp.sc_stob_fid);
 	w_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
-	sdom = m0_cs_stob_domain_find(reqh, &sid);
-	M0_UT_ASSERT(sdom != NULL);
-
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
-	m0_stob_create_helper_credit(sdom, &sid, &tx.tx_betx_cred);
-	rc = sdom->sd_ops->sdo_tx_make(sdom, &tx);
-	M0_ASSERT(rc == 0);
-	/*
-	 * Create a stob. In actual repair scenario, this will already be
-	 * created by the IO path.
-	 */
-	rc = m0_stob_create_helper(sdom, &tx, &sid, &stob);
+        /*
+         * Create a stob. In actual repair scenario, this will already be
+         * created by the IO path.
+         */
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
+	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
 	M0_UT_ASSERT(rc == 0);
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-
-	m0_stob_put(stob);
 
 	m0_fom_queue(&w_sns_cp.sc_base.c_fom, reqh);
 
@@ -287,7 +269,7 @@ static void read_post(void)
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sag.sag_fnr = 1;
-	r_sns_cp.sc_sid = sid;
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &r_sns_cp.sc_stob_fid);
 	r_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom, reqh);
 

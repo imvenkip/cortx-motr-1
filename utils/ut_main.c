@@ -35,9 +35,7 @@
 
 /* Sort test suites in alphabetic order, please. */
 extern const struct m0_test_suite libm0_ut; /* test lib first */
-extern const struct m0_test_suite ad_ut;
 extern const struct m0_test_suite addb_ut;
-extern const struct m0_test_suite adieu_ut;
 extern const struct m0_test_suite balloc_ut;
 extern const struct m0_test_suite be_ut;
 extern const struct m0_test_suite buffer_pool_ut;
@@ -97,7 +95,7 @@ extern const struct m0_test_suite snscm_net_ut;
 extern const struct m0_test_suite snscm_storage_ut;
 extern const struct m0_test_suite snscm_xform_ut;
 extern const struct m0_test_suite stats_ut;
-extern const struct m0_test_suite stobio_ut;
+extern const struct m0_test_suite stob_ut;
 extern const struct m0_test_suite udb_ut;
 extern const struct m0_test_suite xcode_bufvec_fop_ut;
 extern const struct m0_test_suite xcode_ff2c_ut;
@@ -109,8 +107,6 @@ void add_uts(void)
 	/* sort test suites in alphabetic order */
 	m0_ut_add(&libm0_ut); /* test lib first */
 	m0_ut_add(&di_ut);
-	m0_ut_add(&ad_ut);
-	m0_ut_add(&adieu_ut);
 	m0_ut_add(&balloc_ut);
 	m0_ut_add(&be_ut);
 	m0_ut_add(&buffer_pool_ut);
@@ -168,7 +164,7 @@ void add_uts(void)
 	m0_ut_add(&snscm_net_ut);
 	m0_ut_add(&sns_flock_ut);
 	m0_ut_add(&stats_ut);
-	m0_ut_add(&stobio_ut);
+	m0_ut_add(&stob_ut);
 	m0_ut_add(&udb_ut);
 	m0_ut_add(&xcode_bufvec_fop_ut);
 	m0_ut_add(&xcode_ff2c_ut);

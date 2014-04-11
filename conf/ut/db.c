@@ -28,6 +28,7 @@
 #include "reqh/reqh.h"
 #include "ut/ut.h"
 #include "be/ut/helper.h"
+#include "ut/be.h"	   /* m0_be_ut__seg_dict_create */
 
 #define _CONFDB_PATH "_conf.db"
 #define _BUF(str) M0_BUF_INITS(str)

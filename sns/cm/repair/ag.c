@@ -88,6 +88,7 @@ static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
 
 	M0_PRE(rag != NULL);
 
+	rc = 0;
 	for (i = 0; i < rag->rag_base.sag_fnr; ++i) {
 		if (!rag->rag_fc[i].fc_is_inuse)
 			continue;

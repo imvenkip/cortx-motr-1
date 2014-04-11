@@ -62,10 +62,6 @@ int unit_start(const char *sandbox)
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	rc = m0_init(&instance);
-	if (rc != 0)
-		return rc;
-
 	rc = reset_sandbox(sandbox);
 	if (rc != 0)
 		goto err;
@@ -76,13 +72,18 @@ int unit_start(const char *sandbox)
 		goto err_box;
 	}
 
+	rc = m0_init(&instance);
+	if (rc != 0)
+		goto err_box;
+
 	rc = m0_ut_init();
 	if (rc == 0)
 		return 0;
+
+	m0_fini();
 err_box:
 	(void)reset_sandbox(sandbox);
 err:
-	m0_fini();
 	return rc;
 }
 

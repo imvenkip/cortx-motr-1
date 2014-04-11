@@ -265,8 +265,8 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
  * @param out Output stob id.
  */
 M0_INTERNAL void io_fom_cob_rw_fid2stob_map(const struct m0_fid *in,
-					    struct m0_stob_id *out);
-M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
+					    struct m0_fid *out);
+M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_fid *in,
 					    struct m0_fid *out);
 
 /** @} end of io_foms */

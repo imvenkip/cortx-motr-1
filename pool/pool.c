@@ -22,7 +22,6 @@
 #include "lib/trace.h"      /* M0_LOG */
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "stob/stob.h"
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
 #include "lib/misc.h"
@@ -211,21 +210,6 @@ M0_INTERNAL int m0_pool_init(struct m0_pool *pool, uint32_t width)
 
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
 {
-}
-
-M0_INTERNAL int m0_pool_alloc(struct m0_pool *pool, struct m0_stob_id *id)
-{
-	static uint64_t seq = 3;
-
-	id->si_bits.u_hi = (uint64_t)pool;
-	id->si_bits.u_lo  = seq++;
-	M0_POST(m0_stob_id_is_set(id));
-	return 0;
-}
-
-M0_INTERNAL void m0_pool_put(struct m0_pool *pool, struct m0_stob_id *id)
-{
-	M0_PRE(m0_stob_id_is_set(id));
 }
 
 M0_INTERNAL int m0_pools_init(void)

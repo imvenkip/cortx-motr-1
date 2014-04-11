@@ -22,12 +22,17 @@
 
 #include "module/module.h"  /* m0_module */
 #include "net/module.h"     /* m0_net */
+#include "stob/module.h"    /* m0_stob_module */
+#include "ut/stob.h"	    /* m0_ut_stob_module */
 
 /**
  * @addtogroup module
  *
  * @{
  */
+
+struct m0_be_domain;
+struct m0_dbenv;
 
 /**
  * m0 instance.
@@ -52,9 +57,9 @@ struct m0 {
 	 * dependency is added. Used to detect when initialisation
 	 * should re-start.
 	 */
-	uint64_t         i_dep_gen;
+	uint64_t		  i_dep_gen;
 	/** Module representing this instance. */
-	struct m0_module i_self;
+	struct m0_module	  i_self;
 
 	/* Global modules. */
 
@@ -63,11 +68,21 @@ struct m0 {
 	 * Contains modules for library (thread, xc, etc.) together
 	 * with their global data.
 	 */
-	struct m0_lib    i_lib;
+	struct m0_lib		  i_lib;
 
 	/* ... */
 #endif
-	struct m0_net    i_net;
+	struct m0_net		  i_net;
+	struct m0_stob_module	  i_stob_module;
+	struct m0_ut_stob_module  i_ut_stob_module;
+	struct m0_be_domain	 *i_be_dom;
+	struct m0_be_domain	 *i_be_dom_save;
+	struct m0_be_ut_backend	 *i_be_ut_backend;
+	struct m0_be_ut_backend	 *i_be_ut_backend_save;
+	struct m0_dbenv		 *i_dbenv;
+	struct m0_dbenv		 *i_dbenv_save;
+	bool			  i_reqh_has_multiple_ad_domains;
+	bool			  i_reqh_uses_ad_stob;
 };
 
 M0_INTERNAL void m0_instance_init(struct m0 *instance);

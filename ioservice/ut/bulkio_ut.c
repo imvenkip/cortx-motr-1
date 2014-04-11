@@ -370,8 +370,8 @@ static int check_write_fom_tick(struct m0_fom *fom)
         struct m0_stob_io_desc    *saved_stobio_desc;
 	int                        saved_count;
 	struct m0_net_domain      *netdom;
-	struct m0_stob_domain     *fom_stdom;
-        struct m0_stob_id          stobid;
+        struct m0_stob_domain     *fom_stdom;
+        struct m0_fid		   stob_fid;
         struct m0_net_transfer_mc *tm;
 	struct m0_reqh            *reqh;
 
@@ -632,12 +632,12 @@ static int check_write_fom_tick(struct m0_fom *fom)
                  * Restore original fom.
                  */
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-                io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
+                io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
 		reqh = m0_fom_reqh(fom);
-                fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
+                fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
 		M0_UT_ASSERT(fom_stdom != NULL);
 
-                rc = m0_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
+		rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
                 M0_UT_ASSERT(rc == 0);
 
                 rc = M0_FSO_WAIT;
@@ -721,7 +721,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
         struct m0_fid              invalid_fid;
         struct m0_stob_io_desc    *saved_stobio_desc;
         struct m0_stob_domain     *fom_stdom;
-        struct m0_stob_id          stobid;
+        struct m0_fid		   stob_fid;
         struct m0_net_transfer_mc *tm;
 	struct m0_reqh            *reqh;
 
@@ -914,12 +914,12 @@ static int check_read_fom_tick(struct m0_fom *fom)
                  * Restore original fom.
                  */
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
-                io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
+                io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
 		reqh = m0_fom_reqh(fom);
-                fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
+                fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
 		M0_UT_ASSERT(fom_stdom != NULL);
 
-                rc = m0_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
+		rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
                 M0_UT_ASSERT(rc == 0);
 
                 rc = M0_FSO_WAIT;
@@ -1055,7 +1055,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 {
         struct m0_fop_cob_rw         *rwfop;
         struct m0_stob_domain        *fom_stdom;
-        struct m0_stob_id             stobid;
+        struct m0_fid		      stob_fid;
         int			      rc;
 	struct m0_fop_cob_writev_rep *wrep;
 	struct m0_reqh               *reqh;
@@ -1069,35 +1069,33 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 			   rios_gen);
 
 	rwfop = io_rw_get(fom->fo_fop);
-        io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stobid);
+        io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
 	reqh = m0_fom_reqh(fom);
-        fom_stdom = m0_cs_stob_domain_find(reqh, &stobid);
+	fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
 	M0_UT_ASSERT(fom_stdom != NULL);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
 			m0_cob_tx_credit(ios->rios_cdom, M0_COB_OP_CREATE,
 					 m0_fom_tx_credit(fom));
-			m0_stob_create_helper_credit(fom_stdom, &stobid,
-				m0_fom_tx_credit(fom));
+			m0_stob_create_credit(fom_stdom, m0_fom_tx_credit(fom));
 		}
 		return m0_fom_tick_generic(fom);
 	}
 
-	cc.fco_stobid = stobid;
-	cc.fco_gfid   = M0_MDSERVICE_SLASH_FID;
-	cc.fco_cfid   = rwfop->crw_gfid;
-	cc.fco_cob_idx = (uint32_t) rwfop->crw_gfid.f_key;
+	cc.fco_stob_fid = stob_fid;
+	cc.fco_gfid	= M0_MDSERVICE_SLASH_FID;
+	cc.fco_cfid	= rwfop->crw_gfid;
+	cc.fco_cob_idx	= (uint32_t) rwfop->crw_gfid.f_key;
 
 	lsn = m0_fol_lsn_allocate(m0_fom_reqh(fom)->rh_fol);
 	rc = m0_cc_cob_setup(&cc, ios->rios_cdom, lsn, m0_fom_tx(fom));
         M0_UT_ASSERT(rc == 0);
 
-	rc = m0_stob_create_helper(fom_stdom, &fom->fo_tx, &stobid,
-				  &fom_obj->fcrw_stob);
+	rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_create(fom_obj->fcrw_stob, &fom->fo_tx, NULL);
         M0_UT_ASSERT(rc == 0);
-        M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
-        M0_UT_ASSERT(fom_obj->fcrw_stob->so_state == CSS_EXISTS);
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;

@@ -24,6 +24,8 @@
 
 #include "lib/misc.h"		/* M0_BITS */
 
+#include "sm/sm.h"		/* m0_sm */
+
 #include "be/tx_regmap.h"	/* m0_be_reg_area */
 
 struct m0_ref;

@@ -416,7 +416,7 @@ enum m0_magic_satchel {
 	M0_HA_DOMAIN_MAGIC = 0x33beef0ff1c1a177,
 
 /* ioservice */
-	/* m0_stob_io_descr::siod_linkage (zealos obsses) */
+	/* m0_tmp_stob_io_descr::siod_linkage (zealos obsses) */
 	M0_STOB_IO_DESC_LINK_MAGIC = 0x332ea1050b55e577,
 
 	/* stobio_tl::td_head_magic (official ball) */
@@ -757,11 +757,35 @@ enum m0_magic_satchel {
 	M0_SNS_CM_MAGIC = 0x335A1E5A1E5A1E77,
 
 /* stob */
-	/* m0_stob_cacheable::ca_magix (bilobed flood) */
-	M0_STOB_CACHEABLE_MAGIX = 0x33b110bedf100d77,
+	/* m0_stob::so_cache_magic (cache fill) */
+	M0_STOB_CACHE_MAGIC         = 0x33cac4ef11177,
 
-	/* stob/cache.c:cache_tl::td_head_magic (faded ballade) */
-	M0_STOB_CACHE_MAGIX     = 0x33FADEDBA11ADE77,
+	/* cache lists in stob/cache.c (cache billed) */
+	M0_STOB_CACHE_HEAD_MAGIC    = 0x33cac4eb111ed77,
+
+	/* m0_stob_type::st_magic (disc class) */
+	M0_STOB_TYPES_MAGIC         = 0x33d15cc1a5577,
+
+	/* stob/type.c:types_tl::td_head_magic (disc head) */
+	M0_STOB_TYPES_HEAD_MAGIC    = 0x33d15c4ead77,
+
+	/* m0_stob_domain::sd_magic (disc alle code) */
+	M0_STOB_DOMAINS_MAGIC       = 0x33d15ca11ec0de77,
+
+	/* stob/type.c:domains_tl::td_head_magic (disc loco code) */
+	M0_STOB_DOMAINS_HEAD_MAGIC  = 0x33d15c10c0c0de77,
+
+	/* stob_null::sn_magic (discoid solo) */
+	M0_STOB_NULL_MAGIC          = 0x33d15c01d501077,
+
+	/* stob/null.c:null_stobs_tl::td_head_magic (discoid boss) */
+	M0_STOB_NULL_HEAD_MAGIC     = 0x33d15c01db05577,
+
+	/* stob_null_domain::snd_magic (discoid class) */
+	M0_STOB_DOM_NULL_MAGIC      = 0x33d15c01dc1a5577,
+
+	/* stob/null.c:null_domains_tl::td_head_magic (discoid head) */
+	M0_STOB_DOM_NULL_HEAD_MAGIC = 0x33d15c01d4ead77,
 
 /* Stats */
 	/* m0_stats::s_magic (slab slab) */

@@ -73,14 +73,6 @@ struct m0_be_op {
 		/* Used by m0_be_reg_get(). */
 		struct m0_be_reg                   u_reg;
 
-		/* Used by m0_be_seg_read(), m0_be_seg_write(). */
-		struct {
-			/* STOB i/o structure with allocated si_stob.iv_index
-			 * array. */
-			struct m0_stob_io          si_stobio;
-			struct m0_clink            si_clink;
-		} u_segio;
-
 		/* Used by m0_be_list_get() and its callback. */
 		struct {
 			const struct m0_be_list   *l_list;
@@ -168,19 +160,29 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
  *                                bo_u.u_btree.t_rc);
  * @endcode
  */
-#define M0_BE_OP_SYNC_RET(op_obj, action, member) \
-	({                                        \
-		struct m0_be_op	      op_obj;     \
-		int		      __rc;	  \
-		typeof(op_obj.member) __result;   \
-						  \
-		m0_be_op_init(&op_obj);           \
-		action;                           \
-		__rc = m0_be_op_wait(&op_obj);    \
-		M0_ASSERT(__rc == 0);             \
-		__result = op_obj.member;         \
-		m0_be_op_fini(&op_obj);           \
-		__result;                         \
+#define M0_BE_OP_SYNC_RET(op_obj, action, member)		 \
+	({							 \
+		struct m0_be_op	op_obj;				 \
+		M0_BE_OP_SYNC_RET_WITH(&op_obj, action, member); \
+	})
+
+/**
+ * Similar to #M0_BE_OP_SYNC_RET, but works with a caller-supplied operation
+ * structure.
+ */
+#define M0_BE_OP_SYNC_RET_WITH(op, action, member)	\
+	({						\
+		struct m0_be_op	      *__opp = (op);	\
+		int		       __rc;		\
+		typeof(__opp->member)  __result;	\
+							\
+		m0_be_op_init(__opp);			\
+		action;					\
+		__rc = m0_be_op_wait(__opp);		\
+		M0_ASSERT(__rc == 0);			\
+		__result = __opp->member;		\
+		m0_be_op_fini(__opp);			\
+		__result;				\
 	})
 
 M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op);

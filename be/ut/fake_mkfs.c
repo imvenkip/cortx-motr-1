@@ -63,8 +63,8 @@ void m0_be_ut_fake_mkfs(void)
 	/* 1) log */
 	M0_BE_ALLOC_PTR_SYNC(log_opts_buf, seg, &tx);
 	M0_BE_ALLOC_PTR_SYNC(log_opts, seg, &tx);
-	log_opts->lo_size            = 1 << 27;
-	log_opts->lo_stob_id.si_bits = M0_UINT128(0, 42);
+	log_opts->lo_size     = 1 << 27;
+	log_opts->lo_stob_key = 42;
 	*log_opts_buf = M0_BUF_INIT_PTR(log_opts);
 	M0_BE_TX_CAPTURE_PTR(seg, &tx, log_opts);
 	M0_BE_TX_CAPTURE_PTR(seg, &tx, log_opts_buf);

@@ -32,6 +32,7 @@ struct m0_be_seg;
 struct m0_be_ut_backend;
 struct m0_be_ut_seg;
 struct m0_reqh;
+struct m0_sm_group;
 
 /**
  * @addtogroup ut
@@ -68,6 +69,13 @@ M0_INTERNAL void *m0_ut_be_alloc(m0_bcount_t size, struct m0_be_seg *seg,
 M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
 			       struct m0_be_seg *seg,
 			       struct m0_be_ut_backend *ut_be);
+
+M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
+					  struct m0_sm_group *grp);
+
+M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
+					   struct m0_sm_group *grp);
+
 
 /** @} end of ut group */
 #endif /* __MERO_UT_BE_H__ */

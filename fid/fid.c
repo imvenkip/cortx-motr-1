@@ -145,15 +145,14 @@ M0_EXPORTED(m0_fid_cmp);
 
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
 {
-	/* use separate variables to keep sscanf format checks in gcc happy. */
-	unsigned long long container;
-	unsigned long long key;
+	int rc = sscanf(s, FID_SF, FID_S(fid));
+	return rc == 2 ? 0 : -EINVAL;
+}
 
-	if (sscanf(s, " %llx : %llx ", &container, &key) == 2) {
-		*fid = M0_FID_INIT(container, key);
-		return 0;
-	} else
-		return -EINVAL;
+M0_INTERNAL int m0_fid_sscanf_simple(const char *s, struct m0_fid *fid)
+{
+	int rc = sscanf(s, " %"SCNx64" : %"SCNx64" ", FID_S(fid));
+	return rc == 2 ? 0 : -EINVAL;
 }
 
 /**

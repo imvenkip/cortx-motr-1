@@ -27,10 +27,10 @@
 #include "lib/locality.h"
 #include "lib/misc.h"   /* M0_SET0 */
 #include "lib/thread.h" /* LAMBDA */
-#include "stob/linux.h"
 #include "mero/setup.h" /* m0_addb_stob_id */
 #include "mero/init.h"  /* m0_init */
 #include "module/instance.h"  /* m0 */
+#include "stob/domain.h"      /* m0_stob_domain_init */
 
 /*
  * Encapsulates stob, stob type and
@@ -83,37 +83,26 @@ struct addb_dump_ctl {
 	const struct addb_dump_ops  *adc_ops;
 };
 
-static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
-{
-	return m0_linux_stob_domain_locate(ctl->adc_stpath,
-					   &ctl->adc_stob.s_ldom) ?:
-	       m0_linux_stob_setup(ctl->adc_stob.s_ldom, false);
-}
-
 static int dump_stob_locate(struct m0_stob_domain *dom,
-			    const struct m0_stob_id *stob_id,
+			    uint64_t stob_key,
 			    struct m0_stob **out)
 {
 	struct m0_stob *stob;
 	int             rc;
 
 	*out = NULL;
-	rc = m0_stob_find(dom, stob_id, &stob);
+	rc = m0_stob_find_by_key(dom, stob_key, &stob);
 	if (rc == 0) {
 		/*
-		 * Here, stob != NULL and m0_stob_find() has taken reference on
-		 * stob. On error must call m0_stob_put() on stob, after this
-		 * point.
+		 * Here, stob != NULL and m0_stob_find_by_key() has taken
+		 * reference on stob. On error must call m0_stob_put() on stob,
+		 * after this point.
 		 */
-		if (stob->so_state == CSS_UNKNOWN)
+		if (m0_stob_state_get(stob) == CSS_UNKNOWN)
 			rc = m0_stob_locate(stob);
 		/* do not attempt to create, this is a dump utility! */
-		if (rc != 0) {
+		if (rc != 0)
 			m0_stob_put(stob);
-		} else {
-			M0_ASSERT(stob->so_state == CSS_EXISTS);
-			*out = stob;
-		}
 	}
 	return rc;
 }
@@ -123,7 +112,7 @@ static void dump_linux_stob_fini(struct dump_stob *stob)
 	M0_PRE(stob != NULL);
 	if (stob->s_ldom != NULL)
 		/* NULL group is safe for linux stob domain. */
-                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
+		m0_stob_domain_fini(stob->s_ldom);
 }
 
 static void dump_storage_fini(struct dump_stob *stob)
@@ -153,10 +142,10 @@ static int setup(struct addb_dump_ctl *ctl)
 		return rc;
 	}
 
-	rc = dump_linux_stob_init(ctl);
+	rc = m0_stob_domain_init(ctl->adc_stpath, NULL, &ctl->adc_stob.s_ldom);
 	if (rc == 0) {
 		rc = dump_stob_locate(ctl->adc_stob.s_ldom,
-				      &m0_addb_stob_id, &ctl->adc_stob.s_stob);
+				      m0_addb_stob_key, &ctl->adc_stob.s_stob);
 		if (rc == 0)
 			rc = m0_addb_stob_iter_alloc(&ctl->adc_iter,
 						     ctl->adc_stob.s_stob);

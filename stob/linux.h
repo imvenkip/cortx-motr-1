@@ -23,7 +23,9 @@
 #ifndef __MERO_STOB_LINUX_H__
 #define __MERO_STOB_LINUX_H__
 
-#include "stob/stob.h"	/* m0_stob_domain */
+#include "stob/stob.h"		/* m0_stob_type */
+#include "stob/domain.h"	/* m0_stob_domain */
+#include "stob/ioq.h"		/* m0_stob_ioq */
 
 /**
    @defgroup stoblinux Storage object based on Linux specific file system
@@ -33,24 +35,35 @@
    @{
  */
 
-extern struct m0_stob_type m0_linux_stob_type;
+struct m0_stob_linux_domain_cfg {
+	mode_t sldc_file_mode;
+	int    sldc_file_flags;
+	bool   sldc_use_directio;
+};
 
-M0_INTERNAL int m0_linux_stobs_init(void);
-M0_INTERNAL void m0_linux_stobs_fini(void);
+struct m0_stob_linux_domain {
+	struct m0_stob_domain		 sld_dom;
+	struct m0_stob_ioq		 sld_ioq;
+	/** parent directory to hold the objects  */
+	char				*sld_path;
+	/** @see m0_stob_type_ops::sto_domain_cfg_init_parse() */
+	struct m0_stob_linux_domain_cfg	 sld_cfg;
+};
 
-struct m0_stob_domain;
-struct m0_dtx;
+struct m0_stob_linux {
+	struct m0_stob		     sl_stob;
+	struct m0_stob_linux_domain *sl_dom;
+	/** fd from returned open(2) */
+	int			     sl_fd;
+	/** file mode as returned by stat(2) */
+	mode_t			     sl_mode;
+};
 
-M0_INTERNAL int m0_linux_stob_setup(struct m0_stob_domain *dom,
-				    bool use_directio);
-M0_INTERNAL int m0_linux_stob_link(struct m0_stob_domain *dom,
-				   struct m0_stob *obj, const char *path,
-				   struct m0_dtx *tx);
+M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob);
+M0_INTERNAL struct m0_stob_linux_domain *
+m0_stob_linux_domain_container(struct m0_stob_domain *dom);
 
-M0_INTERNAL int m0_linux_stob_domain_locate(const char *domain_name,
-				            struct m0_stob_domain **dom);
-
-M0_INTERNAL int64_t m0_linux_stob_ino(struct m0_stob *stob);
+extern const struct m0_stob_type m0_stob_linux_type;
 
 /** @} end group stoblinux */
 

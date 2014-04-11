@@ -17,124 +17,36 @@
  * Original creation date: 08/24/2010
  */
 
-#include <errno.h>
-#include <string.h>                 /* memset */
-
-#include "db/extmap.h"
-#include "be/extmap.h"
-#include "dtm/dtm.h"                /* m0_dtx */
-#include "fol/fol.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADSTOB
-#include "lib/trace.h"
-#include "lib/thread.h"             /* LAMBDA */
-#include "lib/memory.h"
-#include "lib/arith.h"              /* min_type, min3 */
-#include "lib/misc.h"		    /* M0_SET0 */
-
 #include "balloc/balloc.h"
-#include "stob/stob.h"
-#include "stob/cache.h"
+
+#include "be/extmap.h"
+#include "be/seg.h"
+#include "be/seg_dict.h"
+
+#include "dtm/dtm.h"		/* m0_dtx */
+
+#include "fid/fid.h"		/* m0_fid */
+
+#include "lib/errno.h"
+#include "lib/locality.h"	/* m0_locality0_get */
+#include "lib/memory.h"
+#include "lib/string.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADSTOB
+#include "lib/trace.h"		/* M0_LOG */
+
 #include "stob/ad.h"
-#include "stob/linux.h"
-#include "stob/stob_addb.h"
 #include "stob/ad_private.h"
 #include "stob/ad_private_xc.h"
+#include "stob/domain.h"
+#include "stob/io.h"
+#include "stob/stob.h"
+#include "stob/stob_internal.h"	/* m0_stob__fid_set */
+#include "stob/stob_addb.h"	/* M0_STOB_OOM */
+#include "stob/type.h"		/* m0_stob_type */
 
-/**
-   @addtogroup stobad
-
-   <b>Implementation of m0_stob with Allocation Data (AD).</b>
-
-   An object created by ad_domain_stob_find() is kept in a per-domain in-memory
-   list, until last reference to it is released and ad_stob_fini() is called.
-
-   @todo this code is identical to one in m0_linux_stob_type and must be
-   factored out.
-
-   <b>AD extent map.</b>
-
-   AD uses single m0_emap instance to store logical-physical translations for
-   all stobs in the domain.
-
-   For each ad storage object, its identifier (m0_stob_id) is used as a prefix
-   to identify an extent map in m0_emap.
-
-   The meaning of a segment ([A, B), V) in an extent map maintained for a
-   storage object X depends on the value of V:
-
-   @li if V is less than AET_MIN, the segment represents a mapping from extent
-   [A, B) in X's name-space to extent [V, V + B - A) in the underlying object's
-   name-space. This is the most usual "allocated extent", specifying where X
-   data live;
-
-   @li if V is AET_HOLE, the segment represents a hole [A, B) in X;
-
-   @li if V is AET_NONE, the segment represents an extent that is not part of
-   X's address-space. For example, when a new empty file is created, its extent
-   map initially consists of a single segment ([0, M0_BINDEX_MAX + 1),
-   AET_NONE);
-
-   @li other values of V greater than or equal to AET_MIN could be used for
-   special purpose segments in the future.
-
-   @{
- */
-
-static const struct m0_stob_type_op ad_stob_type_op;
-static const struct m0_stob_op ad_stob_op;
-static const struct m0_stob_domain_op ad_stob_domain_op;
-static const struct m0_stob_io_op ad_stob_io_op;
-
-struct ad_domain {
-	struct m0_stob_domain      ad_base;
-
-	char			   ad_path[MAXPATHLEN];
-
-	struct m0_be_seg          *ad_be_seg;
-	/**
-	   Extent map storing mapping from logical to physical offsets.
-	 */
-	struct m0_be_emap          ad_adata;
-
-	/**
-	   Set to true in m0_ad_stob_setup(). Used in pre-conditions to
-	   guarantee that the domain is fully initialized.
-	 */
-	bool                       ad_setup;
-	/**
-	    Backing store storage object, where storage objects of this domain
-	    are stored in.
-	 */
-	struct m0_stob            *ad_bstore;
-	struct m0_stob_cache       ad_cache;
-	struct m0_ad_balloc       *ad_ballroom;
-	int			   ad_babshift;
-
+enum {
+	STOB_TYPE_AD = 0x02,
 };
-
-/**
-   AD storage object.
-
-   There is very little of the state besides m0_stob_cacheable.
- */
-struct ad_stob {
-	/**
-	    Overwrite mode.
-	    Undo is not working on stobs with this mode enabled.
-	 */
-	bool                     as_overwrite;
-	struct m0_stob_cacheable as_stob;
-};
-
-static inline struct ad_stob *stob2ad(struct m0_stob *stob)
-{
-	return container_of(stob, struct ad_stob, as_stob.ca_stob);
-}
-
-static inline struct ad_domain *domain2ad(struct m0_stob_domain *dom)
-{
-	return container_of(dom, struct ad_domain, ad_base);
-}
 
 /**
    Types of allocation extents.
@@ -142,7 +54,7 @@ static inline struct ad_domain *domain2ad(struct m0_stob_domain *dom)
    Values of this enum are stored as "physical extent start" in allocation
    extents.
  */
-enum ad_stob_allocation_extent_type {
+enum stob_ad_allocation_extent_type {
 	/**
 	    Minimal "special" extent type. All values less than this are valid
 	    start values of normal allocated extents.
@@ -160,559 +72,680 @@ enum ad_stob_allocation_extent_type {
 	AET_HOLE
 };
 
-/**
-    Implementation of m0_fol_rec_part_ops::rpo_undo_credit and
-                      m0_fol_rec_part_ops::rpo_redo_credit().
- */
-static void ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
-					  struct m0_be_tx_credit *accum)
+struct ad_domain_cfg {
+	struct m0_fid     adg_fid;
+	struct m0_be_seg *adg_seg;
+	m0_bcount_t       adg_container_size;
+	uint32_t          adg_bshift;
+	m0_bcount_t       adg_blocks_per_group;
+	m0_bcount_t       adg_res_groups;
+};
+
+static struct m0_stob_domain_ops stob_ad_domain_ops;
+static struct m0_stob_ops stob_ad_ops;
+
+static int stob_ad_io_init(struct m0_stob *stob, struct m0_stob_io *io);
+static void stob_ad_write_credit(struct m0_stob_domain  *dom,
+				 struct m0_indexvec     *iv,
+				 struct m0_be_tx_credit *accum);
+static void
+stob_ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
+				   struct m0_be_tx_credit       *accum);
+static int stob_ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+					 struct m0_be_tx	*tx);
+
+M0_FOL_REC_PART_TYPE_DECLARE(stob_ad_rec_part, static,
+			     stob_ad_rec_part_undo_redo_op,
+			     stob_ad_rec_part_undo_redo_op,
+			     stob_ad_rec_part_undo_redo_op_cred,
+			     stob_ad_rec_part_undo_redo_op_cred);
+
+static struct m0_stob_ad_domain *stob_ad_domain2ad(struct m0_stob_domain *dom)
 {
-	struct ad_rec_part    *arp;
-	struct m0_stob_domain *dom;
-	struct ad_domain      *adom;
-
-	M0_PRE(part != NULL);
-
-	arp = part->rp_data;
-	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
-	adom = domain2ad(dom);
-
-	m0_be_emap_credit(&adom->ad_adata, M0_BEO_UPDATE,
-			  arp->arp_seg.ps_segments, accum);
+	return container_of(dom, struct m0_stob_ad_domain, sad_base);
 }
 
-/**
-    Implementation of m0_fol_rec_part_ops::rpo_undo and
-                      m0_fol_rec_part_ops::rpo_redo ().
- */
-static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
-				    struct m0_be_tx	   *tx)
+static struct m0_stob_ad *stob_ad_stob2ad(struct m0_stob *stob)
 {
-	struct ad_rec_part    *arp;
-	struct m0_stob_domain *dom;
-	struct ad_domain      *adom;
-	struct m0_be_emap_cursor  it;
-	int		       i;
-	int		       rc = 0;
-	struct m0_be_emap_seg *old_data;
-
-	M0_PRE(part != NULL);
-
-	arp = part->rp_data;
-	old_data = arp->arp_seg.ps_old_data;
-
-	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
-	adom = domain2ad(dom);
-
-	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
-		m0_be_op_init(&it.ec_op);
-		m0_be_emap_lookup(&adom->ad_adata,
-				    &old_data[i].ee_pre,
-				     old_data[i].ee_ext.e_start,
-				    &it);
-		m0_be_op_wait(&it.ec_op);
-		M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
-		rc = it.ec_op.bo_u.u_emap.e_rc;
-		m0_be_op_fini(&it.ec_op);
-
-		if (rc == 0) {
-			m0_be_op_init(&it.ec_op);
-			M0_LOG(M0_DEBUG, "%3d: ext=[0x%llx, 0x%llx) val=0x%llx",
-				i,
-				(unsigned long long)old_data[i].ee_ext.e_start,
-				(unsigned long long)old_data[i].ee_ext.e_end,
-				(unsigned long long)old_data[i].ee_val);
-			m0_be_emap_extent_update(&it, tx, &old_data[i]);
-			m0_be_op_wait(&it.ec_op);
-			M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
-			rc = it.ec_op.bo_u.u_emap.e_rc;
-			m0_be_op_fini(&it.ec_op);
-		}
-		m0_be_emap_close(&it);
-	}
-	return rc;
+	return container_of(stob, struct m0_stob_ad, ad_stob);
 }
 
-M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static,
-			     ad_rec_part_undo_redo_op,
-			     ad_rec_part_undo_redo_op,
-			     ad_rec_part_undo_redo_op_cred,
-			     ad_rec_part_undo_redo_op_cred);
-/**
-   Implementation of m0_stob_type_op::sto_init().
- */
-static int ad_stob_type_init(struct m0_stob_type *stype)
-{
-	m0_stob_type_init(stype);
-	m0_xc_ad_private_init();
-
-	M0_FOL_REC_PART_TYPE_INIT(ad_rec_part, "AD record part");
-	return m0_fol_rec_part_type_register(&ad_rec_part_type);
-}
-
-/**
-   Implementation of m0_stob_type_op::sto_fini().
- */
-static void ad_stob_type_fini(struct m0_stob_type *stype)
-{
-	m0_xc_ad_private_fini();
-	m0_stob_type_fini(stype);
-	m0_fol_rec_part_type_deregister(&ad_rec_part_type);
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_destroy().
-
-   Destroy all BE-related objects.
- */
-static void ad_domain_destroy(struct m0_stob_domain *self,
-			      struct m0_sm_group *grp)
-{
-	struct ad_domain       *adom = domain2ad(self);
-	struct m0_be_seg       *seg  = adom->ad_be_seg;
-	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = {};
-	struct m0_be_op         op;
-	int                     rc;
-
-	M0_PRE(seg != NULL);
-
-	m0_be_tx_init(&tx, 0, seg->bs_domain,
-		      grp, NULL, NULL, NULL, NULL);
-	M0_BE_FREE_CREDIT_PTR(adom, seg, &cred);
-	m0_be_emap_credit(&adom->ad_adata, M0_BEO_DESTROY, 1, &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-
-	if (rc == 0) {
-		m0_be_op_init(&op);
-		m0_be_emap_destroy(&adom->ad_adata, &tx, &op);
-		rc = m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
-
-		M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
-
-		m0_be_tx_close_sync(&tx);
-	}
-
-	m0_be_tx_fini(&tx);
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_fini().
-
-   Finalizes all still existing in-memory objects.
- */
-static void ad_domain_fini(struct m0_stob_domain *self)
-{
-	struct ad_domain       *adom = domain2ad(self);
-
-	if (adom->ad_setup) {
-		adom->ad_ballroom->ab_ops->bo_fini(adom->ad_ballroom);
-		m0_be_emap_fini(&adom->ad_adata);
-		m0_stob_put(adom->ad_bstore);
-	}
-	m0_stob_cache_fini(&adom->ad_cache);
-	m0_stob_domain_fini(self);
-}
-
-static const char prefix[] = "ad.";
-
-/**
-   Implementation of m0_stob_type_op::sto_domain_locate().
-
-   @note the domain returned is not immediately ready for
-   use. m0_ad_stob_setup() has to be called against it first.
- */
-static int ad_stob_type_domain_locate(struct m0_stob_type *type,
-				      const char *domain_name,
-				      struct m0_be_seg *be_seg,
-				      struct m0_sm_group *grp,
-				      struct m0_stob_domain **out,
-				      uint64_t dom_id)
-{
-	struct ad_domain       *adom;
-	struct m0_stob_domain  *dom;
-	struct m0_be_emap       map;
-	struct m0_be_emap      *emap = &map;
-	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = {};
-	struct m0_be_op         op;
-	int                     rc;
-
-	M0_ENTRY("name=%s id=%lld", domain_name,
-			(unsigned long long)dom_id);
-	M0_PRE(be_seg != NULL);
-	M0_PRE(out != NULL);
-	M0_PRE(domain_name != NULL);
-	M0_PRE(strlen(domain_name) <
-		  ARRAY_SIZE(adom->ad_path) - ARRAY_SIZE(prefix));
-
-	m0_be_tx_init(&tx, 0, be_seg->bs_domain, grp,
-		      NULL, NULL, NULL, NULL);
-	M0_BE_ALLOC_CREDIT_PTR(adom, be_seg, &cred);
-	m0_be_emap_init(emap, be_seg);
-	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
-	m0_be_emap_fini(emap);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-
-	if (rc == 0) {
-		M0_BE_ALLOC_PTR_SYNC(adom, be_seg, &tx);
-		if (adom != NULL) {
-			adom->ad_setup = false;
-			dom = &adom->ad_base;
-			dom->sd_ops = &ad_stob_domain_op;
-			m0_stob_domain_init(dom, type, dom_id,
-					    be_seg->bs_domain);
-			m0_stob_cache_init(&adom->ad_cache);
-			sprintf(adom->ad_path, "%s%s", prefix, domain_name);
-			dom->sd_name = adom->ad_path;
-			emap = &adom->ad_adata;
-			m0_be_emap_init(emap, be_seg);
-			m0_be_op_init(&op);
-			m0_be_emap_create(emap, &tx, &op);
-			rc = m0_be_op_wait(&op);
-			M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-			m0_be_op_fini(&op);
-			if (rc == 0) {
-				M0_BE_TX_CAPTURE_PTR(be_seg, &tx, adom);
-				*out = dom;
-			}
-		} else {
-			M0_STOB_OOM(AD_DOM_LOCATE);
-			rc = -ENOMEM;
-		}
-		m0_be_tx_close_sync(&tx);
-	}
-
-	m0_be_tx_fini(&tx);
-
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
-				         struct m0_be_seg *be_seg,
-				         struct m0_sm_group *grp,
-				         struct m0_stob_domain **dom,
-				         struct m0_stob *stob)
-{
-	int64_t ino;
-
-	M0_PRE(stob->so_domain->sd_type == &m0_linux_stob_type);
-
-	ino = m0_linux_stob_ino(stob);
-	return ino > 0 ? M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_domain_locate,
-					 domain_name, be_seg, grp, dom, ino) :
-			 ino;
-}
-
-/**
-   Block size shift for objects of this domain.
- */
-static uint32_t ad_bshift(const struct ad_domain *adom)
-{
-	M0_PRE(adom->ad_setup);
-	return adom->ad_bstore->so_op->sop_block_shift(adom->ad_bstore);
-}
-
-M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
-				 struct m0_be_seg *be_seg,
-				 struct m0_sm_group *grp,
-				 struct m0_stob *bstore,
-				 struct m0_ad_balloc *ballroom,
-				 m0_bcount_t container_size, uint32_t bshift,
-				 m0_bcount_t blocks_per_group,
-				 m0_bcount_t res_groups)
-{
-	int			 result;
-	m0_bcount_t		 groupsize;
-	m0_bcount_t		 blocksize;
-	struct ad_domain	*adom;
-
-	M0_ENTRY();
-
-	adom = domain2ad(dom);
-
-	M0_PRE(dom->sd_ops == &ad_stob_domain_op);
-	M0_PRE(!adom->ad_setup);
-	M0_PRE(bstore->so_state == CSS_EXISTS);
-
-	blocksize = 1 << bshift;
-	groupsize = blocks_per_group * blocksize;
-
-	M0_PRE(groupsize > blocksize);
-	M0_PRE(container_size > groupsize);
-	M0_PRE(container_size / groupsize > res_groups);
-
-	result = ballroom->ab_ops->bo_init(ballroom, be_seg, grp, bshift,
-					   container_size, blocks_per_group,
-					   res_groups);
-	if (result == 0) {
-		adom->ad_be_seg   = be_seg;
-		adom->ad_bstore   = bstore;
-		adom->ad_ballroom = ballroom;
-		adom->ad_setup    = true;
-		M0_ASSERT(bshift >= ad_bshift(adom));
-		adom->ad_babshift = bshift - ad_bshift(adom);
-		m0_stob_get(adom->ad_bstore);
-		m0_be_emap_init(&adom->ad_adata, be_seg);
-	}
-	return M0_RC(result);
-}
-
-static int ad_incache_init(struct m0_stob_domain *dom,
-			   const struct m0_stob_id *id,
-			   struct m0_stob_cacheable **out)
-{
-	struct ad_stob           *astob;
-	struct m0_stob_cacheable *incache;
-
-	M0_ALLOC_PTR(astob);
-	if (astob != NULL) {
-		*out = incache = &astob->as_stob;
-		incache->ca_stob.so_op = &ad_stob_op;
-		m0_stob_cacheable_init(incache, id, dom);
-		astob->as_overwrite = false;
-		return 0;
-	} else {
-		M0_STOB_OOM(AD_INCACHE_INIT);
-		return -ENOMEM;
-	}
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_stob_find().
-
-   Returns an in-memory representation of the object with a given identifier.
- */
-static int ad_domain_stob_find(struct m0_stob_domain *dom,
-			       const struct m0_stob_id *id,
-			       struct m0_stob **out)
-{
-	struct m0_stob_cacheable *incache;
-	struct ad_domain         *adom;
-	int                       result;
-
-	adom = domain2ad(dom);
-	result = m0_stob_cache_find(&adom->ad_cache, dom, id,
-				    ad_incache_init, &incache);
-	*out = &incache->ca_stob;
-	return result;
-}
-
-/**
-   Implementation of m0_stob_op::sop_fini().
-   Implementation of m0_stob_domain_op::sdo_tx_make().
- */
-static int ad_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
-{
-	struct ad_domain *adom = domain2ad(dom);
-
-	M0_PRE(adom->ad_setup);
-	return m0_dtx_open_sync(tx);
-}
-
-/**
- */
-static void ad_stob_fini(struct m0_stob *stob)
-{
-	struct ad_stob *astob;
-
-	astob = stob2ad(stob);
-	m0_stob_cacheable_fini(&astob->as_stob);
-	m0_free(astob);
-}
-
-/**
-   Implementation of m0_stob_op::sop_create().
- */
-static int ad_stob_create(struct m0_stob *obj, struct m0_dtx *tx)
-{
-	struct ad_domain *adom;
-	struct m0_be_op   op;
-	int               rc;
-
-	adom = domain2ad(obj->so_domain);
-	M0_PRE(adom->ad_setup);
-
-	m0_be_op_init(&op);
-	m0_be_emap_obj_insert(&adom->ad_adata, &tx->tx_betx, &op,
-				  &obj->so_id.si_bits, AET_NONE);
-	m0_be_op_wait(&op);
-	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-	rc = op.bo_u.u_emap.e_rc;
-	m0_be_op_fini(&op);
-
-	return rc;
-}
-
-/**
-   Implementation of m0_stob_op::sop_create_credit().
- */
-static void ad_stob_create_credit(struct m0_stob *obj,
-				  struct m0_be_tx_credit *accum)
-{
-	struct ad_domain *adom;
-
-	adom = domain2ad(obj->so_domain);
-	M0_PRE(adom->ad_setup);
-
-	m0_be_emap_credit(&adom->ad_adata, M0_BEO_INSERT, 1, accum);
-}
-
-static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
-		     uint64_t offset, struct m0_be_emap_cursor *it)
+static void stob_ad_type_register(struct m0_stob_type *type)
 {
 	int rc;
 
-	m0_be_op_init(&it->ec_op);
-	m0_be_emap_lookup(&adom->ad_adata, &obj->so_id.si_bits, offset, it);
-	m0_be_op_wait(&it->ec_op);
-	M0_ASSERT(m0_be_op_state(&it->ec_op) == M0_BOS_SUCCESS);
-	rc = it->ec_op.bo_u.u_emap.e_rc;
-	m0_be_op_fini(&it->ec_op);
-	if (rc != 0 && rc != -ENOENT && rc != -ESRCH)
-		M0_STOB_FUNC_FAIL(AD_CURSOR, rc);
+	m0_xc_ad_private_init();
+	M0_FOL_REC_PART_TYPE_INIT(stob_ad_rec_part, "AD record part");
+	rc = m0_fol_rec_part_type_register(&stob_ad_rec_part_type);
+	M0_ASSERT(rc == 0); /* XXX void */
+}
+
+static void stob_ad_type_deregister(struct m0_stob_type *type)
+{
+	m0_xc_ad_private_fini();
+	m0_fol_rec_part_type_deregister(&stob_ad_rec_part_type);
+}
+
+M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
+				     const struct m0_be_seg *seg,
+				     const struct m0_fid *bstore_fid)
+{
+	char buf[0x400];
+
+	snprintf(buf, ARRAY_SIZE(buf), "%p:"FID_F, seg, FID_P(bstore_fid));
+	*str = m0_strdup(buf);
+}
+
+static int stob_ad_domain_cfg_init_parse(const char *str_cfg_init,
+					 void **cfg_init)
+{
+	return 0;
+}
+
+static void stob_ad_domain_cfg_init_free(void *cfg_init)
+{
+}
+
+static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
+					   void **cfg_create)
+{
+	struct ad_domain_cfg *cfg;
+	int                   rc;
+
+	if (str_cfg_create == NULL)
+		return -EINVAL;
+
+	M0_ALLOC_PTR(cfg);
+	if (cfg != NULL) {
+		*cfg = (struct ad_domain_cfg) {
+			.adg_container_size   = BALLOC_DEF_CONTAINER_SIZE,
+			.adg_bshift           = BALLOC_DEF_BLOCK_SHIFT,
+			.adg_blocks_per_group = BALLOC_DEF_BLOCKS_PER_GROUP,
+			.adg_res_groups       = BALLOC_DEF_RESERVED_GROUPS,
+		};
+		/* format = seg:fid */
+		rc = sscanf(str_cfg_create, "%p:" FID_SF,
+			    (void **)&cfg->adg_seg, FID_S(&cfg->adg_fid));
+		rc = rc == 3 ? 0 : -EINVAL;
+	} else
+		rc = -ENOMEM;
+
+	if (rc == 0)
+		*cfg_create = cfg;
 
 	return rc;
 }
 
-/**
-   Implementation of m0_stob_op::sop_locate().
- */
-static int ad_stob_locate(struct m0_stob *obj)
+static void stob_ad_domain_cfg_create_free(void *cfg_create)
 {
-	struct m0_be_emap_cursor it;
-	int                      result;
-	struct ad_domain        *adom;
-
-	adom = domain2ad(obj->so_domain);
-	M0_PRE(adom->ad_setup);
-	result = ad_cursor(adom, obj, 0, &it);
-	if (result == 0)
-		m0_be_emap_close(&it);
-	else if (result == -ESRCH)
-		result = -ENOENT;
-	return result;
+	m0_free(cfg_create);
 }
 
-/** @} end group stobad */
+M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom)
+{
+	return _0C(adom->sad_ballroom != NULL);
+}
 
-/*****************************************************************************/
-/*                                    IO code                                */
-/*****************************************************************************/
-
-/**
-   @addtogroup stobad
-
-   <b>AD IO implementation.</b>
-
-   Storage object IO (m0_stob_io) is a request to transfer data from the user
-   address-space to the storage object name-space. The source and target
-   locations are specified by sequences of intervals: m0_stob_io::si_user for
-   locations in source address space, which are user buffers and
-   m0_stob_io::si_stob for locations in the target name-space, which are extents
-   in the storage object.
-
-   AD IO implementation takes a m0_stob_io against an AD storage object and
-   constructs a "back" m0_stob_io against the underlying storage object.
-
-   The user buffers list of the back IO request can differ from the user buffers
-   list of the original IO request, because in the case of read, some parts of
-   the original IO request might correspond to holes in the AD object and
-   produce no back IO.
-
-   For writes, the reason to make back IO user buffers list different from the
-   original user buffers list is to make memory management identical in read and
-   write case. See ad_stob_io_release() and ad_vec_alloc().
-
-   Two other interval sequences are used by AD to construct back IO request:
-
-   @li extent map for the AD object specifies how logical offsets in the AD
-   object map to offsets in the underlying object. The extent map can be seen as
-   a sequence of matching logical and physical extents;
-
-   @li for a write, a sequence of allocated extents, returned by the block
-   allocator (ad_balloc), specifies where newly written data should go.
-
-   Note that intervals of these sequences belong to different name-spaces (user
-   address-space, AD object name-space, underlying object name-space), but they
-   have the same total length, except for the extent map.
-
-   Construction of back IO request proceeds by making a number of passes over
-   these sequences. An interval boundary in any of the sequences can,
-   potentially, introduce a discontinuity in the back IO request (a point where
-   back IO has to switch another user buffer or to another offset in the
-   underlying object). To handle this, the IO request is split into a number of
-   "fragments", each fragment fitting completely inside corresponding intervals
-   in all relevant sequences. Fragment number calculation constitutes the first
-   pass.
-
-   To make code more uniform, sequences are represented by "cursor-like" data
-   structures:
-
-   @li m0_vec_cursor for m0_vec-derived sequences (list of user buffers and list
-   of target extents in a storage object);
-
-   @li m0_emap_caret for an extent map;
-
-   @li ad_wext_cursor for sequence of allocated extents.
-
-   With cursors a pass looks like
-
-   @code
-   frags = 0;
-   do {
-           frag_size = min(cursor_step(seq1), cursor_step(seq2), ...);
-
-	   ... handle fragment of size frag_size ...
-
-	   end_of_cursor = cursor_move(seq1, frag_step);
-	   cursor_move(seq2, frag_step);
-	   ...
-   } while (!end_of_cursor)
-   @endcode
-
-   Here cursor_step returns a distance to start of the next interval in a
-   sequence and cursor_move advances a sequence to a given amount.
-
-   @{
+/*
+ * Extract be_segment pointer from location string.
+ * This is only temporary solution until we haven't mechanism to save domain
+ * location permanently.
+ *
+ * @todo Remove when seg0 is landed as location string won't contain pointer
+ *       to segment.
  */
+static struct m0_be_seg *stob_ad_domain_seg(const char *location_data)
+{
+	void *seg;
+	int   rc;
 
-/**
-   AD private IO state.
+	rc = sscanf(location_data, "seg=%p,", &seg);
+	M0_ASSERT(rc == 1);
+	return (struct m0_be_seg *)seg;
+}
+
+static struct m0_sm_group *stob_ad_sm_group(void)
+{
+	return m0_locality0_get()->lo_grp;
+}
+
+static int stob_ad_bstore(struct m0_fid *fid, struct m0_stob **out)
+{
+	struct m0_stob *stob;
+	int		rc;
+
+	rc = m0_stob_find(fid, &stob);
+	if (rc == 0) {
+		if (m0_stob_state_get(stob) == CSS_UNKNOWN)
+			rc = m0_stob_locate(stob);
+		if (rc != 0 || m0_stob_state_get(stob) != CSS_EXISTS) {
+			m0_stob_put(stob);
+			rc = rc ?: -ENOENT;
+		}
+	}
+	*out = rc == 0 ? stob : NULL;
+	return rc;
+}
+
+static const char *stob_ad_domain_dict_key(const char *location_data)
+{
+	/* XXX Fix when seg0 is in master: this function should return
+	 * a key for seg0 based on location_data.
+	 */
+	char *ptr = strchr(location_data, ',');
+	return ptr == NULL ? NULL : (const char *)++ptr;
+}
+
+/*
+ * Return pointer to m0_stob_ad_domain within be_segment by location.
+ *
+ * Current solution assumes the pointer is stored in seg_dict. The final
+ * implementation should store this information in seg0.
+ *
+ * @todo lookup seg0 instead of seg_dict
  */
-struct ad_stob_io {
-	/** IO request */
-	struct m0_stob_io *ai_fore;
-	/** Back IO request */
-	struct m0_stob_io  ai_back;
-	/** Clink registered with back-io completion channel to intercept back
-	    IO completion notification. */
-	struct m0_clink    ai_clink;
+static struct m0_stob_ad_domain *
+stob_ad_domain_locate(const char *location_data)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_be_seg         *seg = stob_ad_domain_seg(location_data);
+	const char               *dict_key;
+	int                       rc;
+
+	M0_ASSERT(seg != NULL);
+	dict_key = stob_ad_domain_dict_key(location_data);
+	M0_ASSERT(dict_key != NULL);
+	rc = m0_be_seg_dict_lookup(seg, dict_key, (void **)&adom);
+	if (rc == 0)
+		adom->sad_be_seg = seg;
+	else
+		adom = NULL;
+
+	return adom;
+}
+
+static int stob_ad_domain_init(struct m0_stob_type *type,
+			       const char *location_data,
+			       void *cfg_init,
+			       struct m0_stob_domain **out)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_stob_domain    *dom;
+	struct m0_ad_balloc      *ballroom;
+	struct m0_sm_group       *grp = stob_ad_sm_group();
+	bool                      balloc_inited;
+	int                       rc;
+
+	adom = stob_ad_domain_locate(location_data);
+	if (adom != NULL) {
+		M0_ASSERT(m0_stob_ad_domain__invariant(adom));
+
+		dom         = &adom->sad_base;
+		dom->sd_ops = &stob_ad_domain_ops;
+		m0_mutex_init(&adom->sad_mutex);
+		m0_be_emap_init(&adom->sad_adata, adom->sad_be_seg);
+
+		ballroom = adom->sad_ballroom;
+		m0_balloc_init(b2m0(ballroom));
+		m0_sm_group_lock(grp);
+		rc = ballroom->ab_ops->bo_init(ballroom, adom->sad_be_seg, grp,
+					       adom->sad_bshift,
+					       adom->sad_container_size,
+					       adom->sad_blocks_per_group,
+					       adom->sad_res_groups);
+		m0_sm_group_unlock(grp);
+		balloc_inited = rc == 0;
+		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_fid,
+					  &adom->sad_bstore);
+		if (rc != 0) {
+			if (balloc_inited)
+				ballroom->ab_ops->bo_fini(ballroom);
+			m0_be_emap_fini(&adom->sad_adata);
+			m0_mutex_fini(&adom->sad_mutex);
+		} else {
+			adom->sad_babshift = adom->sad_bshift -
+					m0_stob_block_shift(adom->sad_bstore);
+			M0_ASSERT(adom->sad_babshift >= 0);
+		}
+	} else
+		rc = -ENOENT;
+
+	*out = rc == 0 ? dom : NULL;
+	return rc;
+}
+
+static void stob_ad_domain_fini(struct m0_stob_domain *dom)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
+
+	ballroom->ab_ops->bo_fini(ballroom);
+	m0_be_emap_fini(&adom->sad_adata);
+	m0_stob_put(adom->sad_bstore);
+	m0_mutex_fini(&adom->sad_mutex);
+}
+
+static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
+					 const char *dict_key,
+					 struct m0_be_tx_credit *accum)
+{
+	struct m0_be_emap map;
+
+	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
+	m0_be_emap_init(&map, seg);
+	m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
+	m0_be_emap_fini(&map);
+	m0_be_seg_dict_insert_credit(seg, dict_key, accum);
+}
+
+static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
+					  const char *dict_key,
+					  struct m0_be_tx_credit *accum)
+{
+	struct m0_be_emap map;
+
+	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
+	m0_be_emap_init(&map, seg);
+	m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
+	m0_be_emap_fini(&map);
+	m0_be_seg_dict_delete_credit(seg, dict_key, accum);
+}
+
+static int stob_ad_domain_create(struct m0_stob_type *type,
+				 const char *location_data,
+				 uint64_t dom_key,
+				 void *cfg_create)
+{
+	struct ad_domain_cfg     *cfg = (struct ad_domain_cfg *)cfg_create;
+	struct m0_be_seg         *seg = cfg->adg_seg;
+	struct m0_sm_group       *grp = stob_ad_sm_group();
+	struct m0_stob_ad_domain *adom;
+	struct m0_stob_domain    *dom;
+	struct m0_be_emap        *emap;
+	struct m0_balloc         *cb;
+	struct m0_be_tx           tx = {};
+	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
+	const char               *dict_key;
+	int                       rc;
+
+	M0_PRE(seg != NULL);
+	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
+
+	/* XXX Fix when seg0 is landed: be_segment won't be a part of location
+	 * string and seg0 should be used instead of seg_dict.
+	 * TODO Make cleanup on fail.
+	 */
+	M0_ASSERT(stob_ad_domain_seg(location_data) == seg);
+	dict_key = stob_ad_domain_dict_key(location_data);
+	M0_ASSERT(dict_key != NULL);
+
+	adom = stob_ad_domain_locate(location_data);
+	if (adom != NULL)
+		return -EEXIST;
+
+	m0_sm_group_lock(grp);
+	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+	stob_ad_domain_create_credit(seg, dict_key, &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+
+	M0_ASSERT(adom == NULL);
+	if (rc == 0)
+		M0_BE_ALLOC_PTR_SYNC(adom, seg, &tx);
+	if (adom != NULL) {
+		dom = &adom->sad_base;
+		dom->sd_id = m0_stob_domain__dom_id(m0_stob_type_id_get(type),
+						    dom_key);
+		adom->sad_container_size   = cfg->adg_container_size;
+		adom->sad_bshift           = cfg->adg_bshift;
+		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
+		adom->sad_res_groups       = cfg->adg_res_groups;
+		adom->sad_bstore_fid       = cfg->adg_fid;
+		strcpy(adom->sad_path, location_data);
+		emap = &adom->sad_adata;
+		m0_be_emap_init(emap, seg);
+		rc = M0_BE_OP_SYNC_RET(
+			op,
+			m0_be_emap_create(emap, &tx, &op),
+			bo_u.u_emap.e_rc);
+		m0_be_emap_fini(emap);
+		rc = rc ?: m0_balloc_create(dom_key, seg, grp, &cb);
+		rc = rc ?: m0_be_seg_dict_insert(seg, &tx, dict_key, adom);
+		if (rc == 0) {
+			adom->sad_ballroom = &cb->cb_ballroom;
+			M0_BE_TX_CAPTURE_PTR(seg, &tx, adom);
+		}
+
+		m0_be_tx_close_sync(&tx);
+	}
+
+	m0_be_tx_fini(&tx);
+	m0_sm_group_unlock(grp);
+
+	if (adom == NULL && rc == 0) {
+		M0_STOB_OOM(AD_DOM_LOCATE);
+		rc = -ENOMEM;
+	}
+	return rc;
+}
+
+static int stob_ad_domain_destroy(struct m0_stob_type *type,
+				  const char *location_data)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain_locate(location_data);
+	struct m0_be_seg         *seg = stob_ad_domain_seg(location_data);
+	struct m0_sm_group       *grp = stob_ad_sm_group();
+	struct m0_be_emap        *emap = &adom->sad_adata;
+	struct m0_be_tx           tx = {};
+	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
+	const char               *dict_key;
+	int                       rc;
+
+	if (adom == NULL)
+		return -ENOENT;
+
+	dict_key = stob_ad_domain_dict_key(location_data);
+	m0_sm_group_lock(grp);
+	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+	stob_ad_domain_destroy_credit(seg, dict_key, &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	if (rc == 0) {
+		m0_be_emap_init(emap, seg);
+		rc = M0_BE_OP_SYNC_RET(op, m0_be_emap_destroy(emap, &tx, &op),
+				       bo_u.u_emap.e_rc);
+		rc = rc ?: m0_be_seg_dict_delete(seg, &tx, dict_key);
+		if (rc == 0)
+			M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
+		m0_be_tx_close_sync(&tx);
+	}
+	m0_be_tx_fini(&tx);
+	m0_sm_group_unlock(grp);
+
+	return rc;
+}
+
+static struct m0_stob *stob_ad_alloc(struct m0_stob_domain *dom,
+				     uint64_t stob_key)
+{
+	struct m0_stob_ad *adstob;
+
+	M0_ALLOC_PTR(adstob);
+	return adstob == NULL ? NULL : &adstob->ad_stob;
+}
+
+static void stob_ad_free(struct m0_stob_domain *dom,
+			 struct m0_stob *stob)
+{
+	struct m0_stob_ad *adstob = stob_ad_stob2ad(stob);
+	m0_free(adstob);
+}
+
+static int stob_ad_cfg_parse(const char *str_cfg_create, void **cfg_create)
+{
+	return 0;
+}
+
+static void stob_ad_cfg_free(void *cfg_create)
+{
+}
+
+/*
+ * Remap real emap prefix to a random.
+ * This is quick workaround in case of adstob-unlink absence. Old objects
+ * ain't removed from emap but new ones are inserted with remapped prefixes.
+ *
+ * Workflow:
+ *  - Replace low 64bits of the prefix with value from seg_dict. Don't do
+ *    anything if seg_dict doesn't contain the record.
+ *  - When adstob is being destroyed just replace value in seg_dict with new
+ *    random number.
+ *
+ * @todo Remove this function and its calls when adstob-unlink is landed.
+ * @see  stob_ad_destroy().
+ */
+static void stob_ad_emap_prefix_remap(struct m0_uint128 *prefix,
+				      struct m0_stob_ad_domain *adom)
+{
+	void *value;
+	char  dict_key[64];
+	int   rc;
+
+	sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+		prefix->u_hi, prefix->u_lo);
+
+	rc = m0_be_seg_dict_lookup(adom->sad_be_seg, dict_key, &value);
+	if (rc == 0)
+		prefix->u_lo = (uint64_t)value;
+}
+
+static int stob_ad_init(struct m0_stob *stob,
+			struct m0_stob_domain *dom,
+			uint64_t stob_key)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+	struct m0_be_emap_cursor  it;
+	struct m0_uint128         prefix;
+	int                       rc;
+
+	stob->so_ops = &stob_ad_ops;
+	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
+	stob_ad_emap_prefix_remap(&prefix, adom); /* XXX */
+	rc = M0_BE_OP_SYNC_RET_WITH(
+		&it.ec_op,
+		m0_be_emap_lookup(&adom->sad_adata, &prefix, 0, &it),
+		bo_u.u_emap.e_rc);
+	if (rc == 0) {
+		m0_stob__fid_set(stob, dom, stob_key);
+		stob_ad_stob2ad(stob)->ad_overwrite = false;
+		m0_be_emap_close(&it);
+	}
+	return rc == -ESRCH ? -ENOENT : rc;
+}
+
+static void stob_ad_fini(struct m0_stob *stob)
+{
+}
+
+static void stob_ad_create_credit(struct m0_stob_domain *dom,
+				  struct m0_be_tx_credit *accum)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+	m0_be_emap_credit(&adom->sad_adata, M0_BEO_INSERT, 1, accum);
+}
+
+static int stob_ad_create(struct m0_stob *stob,
+			  struct m0_stob_domain *dom,
+			  struct m0_dtx *dtx,
+			  uint64_t stob_key,
+			  void *cfg)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+	struct m0_uint128         prefix;
+	int                       rc;
+
+	M0_PRE(dtx != NULL);
+	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
+	stob_ad_emap_prefix_remap(&prefix, adom); /* XXX */
+	rc = M0_BE_OP_SYNC_RET(
+		op,
+		m0_be_emap_obj_insert(&adom->sad_adata, &dtx->tx_betx, &op,
+				      &prefix, AET_NONE),
+		bo_u.u_emap.e_rc);
+
+	return rc;
+}
+
+static void stob_ad_destroy_credit(struct m0_stob *stob,
+				   struct m0_be_tx_credit *accum)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_uint128         prefix;
+	char                      dict_key[64];
+
+	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
+
+	/*
+	 * Now stob_ad_destroy_credit() adds credits for fake
+	 * stob_ad_destroy(). So it needs to be rewritten in the future.
+	 */
+	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+	sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+		prefix.u_hi, prefix.u_lo);
+	m0_be_seg_dict_insert_credit(adom->sad_be_seg, dict_key, accum);
+	m0_be_seg_dict_delete_credit(adom->sad_be_seg, dict_key, accum);
+}
+
+/*
+ * We don't destroy adstob. Instead, just remap emap prefix.
+ * @see  stob_ad_emap_prefix_remap().
+ * @note This is only workaround and correct destroy() should be implemented.
+ */
+static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_be_seg         *seg;
+	struct m0_uint128         prefix;
+	char                      dict_key[64];
+	void                     *value;
+        uint64_t                  value_int;
+	int                       rc;
+	static uint64_t           seed = 0xba5e5eed; /* base seed */
+
+	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
+	seg    = adom->sad_be_seg;
+	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+
+	sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+		prefix.u_hi, prefix.u_lo);
+
+	m0_mutex_lock(&adom->sad_mutex);
+	value_int = m0_rnd64(&seed);
+	m0_mutex_unlock(&adom->sad_mutex);
+	value = (void *)value_int;
+	M0_ASSERT((uint64_t)value == value_int);
+	(void)m0_be_seg_dict_delete(seg, &dtx->tx_betx, dict_key);
+	rc = m0_be_seg_dict_insert(seg, &dtx->tx_betx, dict_key, value);
+	M0_ASSERT(rc == 0);
+
+	return 0;
+}
+
+static uint32_t stob_ad_block_shift(struct m0_stob *stob)
+{
+	struct m0_stob_ad_domain *adom;
+
+	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
+	return m0_stob_block_shift(adom->sad_bstore);
+}
+
+static struct m0_stob_type_ops stob_ad_type_ops = {
+	.sto_register		     = &stob_ad_type_register,
+	.sto_deregister		     = &stob_ad_type_deregister,
+	.sto_domain_cfg_init_parse   = &stob_ad_domain_cfg_init_parse,
+	.sto_domain_cfg_init_free    = &stob_ad_domain_cfg_init_free,
+	.sto_domain_cfg_create_parse = &stob_ad_domain_cfg_create_parse,
+	.sto_domain_cfg_create_free  = &stob_ad_domain_cfg_create_free,
+	.sto_domain_init	     = &stob_ad_domain_init,
+	.sto_domain_create	     = &stob_ad_domain_create,
+	.sto_domain_destroy	     = &stob_ad_domain_destroy,
 };
 
-static bool ad_endio(struct m0_clink *link);
+static struct m0_stob_domain_ops stob_ad_domain_ops = {
+	.sdo_fini		= &stob_ad_domain_fini,
+	.sdo_stob_alloc	    	= &stob_ad_alloc,
+	.sdo_stob_free	    	= &stob_ad_free,
+	.sdo_stob_cfg_parse 	= &stob_ad_cfg_parse,
+	.sdo_stob_cfg_free  	= &stob_ad_cfg_free,
+	.sdo_stob_init	    	= &stob_ad_init,
+	.sdo_stob_create_credit	= &stob_ad_create_credit,
+	.sdo_stob_create	= &stob_ad_create,
+	.sdo_stob_write_credit	= &stob_ad_write_credit,
+};
+
+static struct m0_stob_ops stob_ad_ops = {
+	.sop_fini	    = &stob_ad_fini,
+	.sop_destroy_credit = &stob_ad_destroy_credit,
+	.sop_destroy	    = &stob_ad_destroy,
+	.sop_io_init	    = &stob_ad_io_init,
+	.sop_block_shift    = &stob_ad_block_shift,
+};
+
+const struct m0_stob_type m0_stob_ad_type = {
+	.st_ops  = &stob_ad_type_ops,
+	.st_fidt = {
+		.ft_id   = STOB_TYPE_AD,
+		.ft_name = "adstob",
+	},
+};
+
+/*
+ * Adieu
+ */
+
+static const struct m0_stob_io_op stob_ad_io_op;
+
+static bool stob_ad_endio(struct m0_clink *link);
+static void stob_ad_io_release(struct m0_stob_ad_io *aio);
+
+static int stob_ad_io_init(struct m0_stob *stob, struct m0_stob_io *io)
+{
+	struct m0_stob_ad_io *aio;
+	int                   rc;
+
+	M0_PRE(io->si_state == SIS_IDLE);
+
+	M0_ALLOC_PTR(aio);
+	if (aio != NULL) {
+		io->si_stob_private = aio;
+		io->si_op = &stob_ad_io_op;
+		aio->ai_fore = io;
+		m0_stob_io_init(&aio->ai_back);
+		m0_clink_init(&aio->ai_clink, &stob_ad_endio);
+		m0_clink_add_lock(&aio->ai_back.si_wait, &aio->ai_clink);
+		rc = 0;
+	} else {
+		M0_STOB_OOM(AD_IO_INIT);
+		rc = -ENOMEM;
+	}
+	return rc;
+}
+
+static void stob_ad_io_fini(struct m0_stob_io *io)
+{
+	struct m0_stob_ad_io *aio = io->si_stob_private;
+
+	stob_ad_io_release(aio);
+	m0_clink_del_lock(&aio->ai_clink);
+	m0_clink_fini(&aio->ai_clink);
+	m0_stob_io_fini(&aio->ai_back);
+	m0_free(aio);
+}
+
+static void *stob_ad_addr_open(const void *buf, uint32_t shift)
+{
+	uint64_t addr = (uint64_t)buf;
+
+	M0_PRE(((addr << shift) >> shift) == addr);
+	return (void *)(addr << shift);
+}
 
 /**
    Helper function to allocate a given number of blocks in the underlying
    storage object.
  */
-static int ad_balloc(struct ad_domain *adom, struct m0_dtx *tx,
-			m0_bcount_t count, struct m0_ext *out)
+static int stob_ad_balloc(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
+			  m0_bcount_t count, struct m0_ext *out)
 {
-	int rc;
+	struct m0_ad_balloc *ballroom = adom->sad_ballroom;
+	int                  rc;
 
-	M0_PRE(adom->ad_setup);
-	count >>= adom->ad_babshift;
+	count >>= adom->sad_babshift;
 	M0_LOG(M0_DEBUG, "count=%lu", (unsigned long)count);
 	M0_ASSERT(count > 0);
-	rc = adom->ad_ballroom->ab_ops->bo_alloc(adom->ad_ballroom,
-						   tx, count, out);
-	out->e_start <<= adom->ad_babshift;
-	out->e_end <<= adom->ad_babshift;
+	rc = ballroom->ab_ops->bo_alloc(ballroom, tx, count, out);
+	out->e_start <<= adom->sad_babshift;
+	out->e_end   <<= adom->sad_babshift;
 
 	return rc;
 }
@@ -721,46 +754,91 @@ static int ad_balloc(struct ad_domain *adom, struct m0_dtx *tx,
    Helper function to free a given block extent in the underlying storage
    object.
  */
-static int ad_bfree(struct ad_domain *adom, struct m0_dtx *tx,
-		    struct m0_ext *ext)
+static int stob_ad_bfree(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
+			 struct m0_ext *ext)
 {
-	struct m0_ext tgt;
+	struct m0_ad_balloc *ballroom = adom->sad_ballroom;
+	struct m0_ext        tgt;
 
-	M0_PRE(adom->ad_setup);
-	M0_PRE((ext->e_start & ((1ULL << adom->ad_babshift) - 1)) == 0);
-	M0_PRE((ext->e_end   & ((1ULL << adom->ad_babshift) - 1)) == 0);
+	M0_PRE((ext->e_start & ((1ULL << adom->sad_babshift) - 1)) == 0);
+	M0_PRE((ext->e_end   & ((1ULL << adom->sad_babshift) - 1)) == 0);
 
-	tgt.e_start = ext->e_start >> adom->ad_babshift;
-	tgt.e_end   = ext->e_end   >> adom->ad_babshift;
-	return adom->ad_ballroom->ab_ops->bo_free(adom->ad_ballroom, tx, &tgt);
+	tgt.e_start = ext->e_start >> adom->sad_babshift;
+	tgt.e_end   = ext->e_end   >> adom->sad_babshift;
+	return ballroom->ab_ops->bo_free(ballroom, tx, &tgt);
 }
 
-/**
-   Implementation of m0_stob_op::sop_io_init().
-
-   Allocates private IO state structure.
- */
-M0_INTERNAL int ad_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
+static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
+			  struct m0_stob *obj,
+			  uint64_t offset,
+			  struct m0_be_emap_cursor *it)
 {
-	struct ad_stob_io *aio;
-	int                result;
+	const struct m0_fid *fid = m0_stob_fid_get(obj);
+	struct m0_uint128    prefix;
+	int                  rc;
 
-	M0_PRE(io->si_state == SIS_IDLE);
+	/* XXX make fid2prefix */
+	prefix = M0_UINT128(fid->f_container, fid->f_key);
+	stob_ad_emap_prefix_remap(&prefix, adom); /* XXX */
+	rc = M0_BE_OP_SYNC_RET_WITH(
+		&it->ec_op,
+		m0_be_emap_lookup(&adom->sad_adata, &prefix, offset, it),
+		bo_u.u_emap.e_rc);
+	if (rc != 0 && rc != -ENOENT && rc != -ESRCH)
+		M0_STOB_FUNC_FAIL(AD_CURSOR, rc);
 
-	M0_ALLOC_PTR(aio);
-	if (aio != NULL) {
-		io->si_stob_private = aio;
-		io->si_op = &ad_stob_io_op;
-		aio->ai_fore = io;
-		m0_stob_io_init(&aio->ai_back);
-		m0_clink_init(&aio->ai_clink, &ad_endio);
-		m0_clink_add_lock(&aio->ai_back.si_wait, &aio->ai_clink);
-		result = 0;
-	} else {
-		M0_STOB_OOM(AD_IO_INIT);
-		result = -ENOMEM;
-	}
-	return result;
+	return rc;
+}
+static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
+					struct m0_indexvec *iv)
+{
+	uint32_t               frags;
+	m0_bcount_t            frag_size;
+	m0_bcount_t            grp_size;
+	bool                   eov;
+	struct m0_ivec_cursor  it;
+
+	frags = 0;
+	m0_ivec_cursor_init(&it, iv);
+	grp_size = adom->sad_blocks_per_group << adom->sad_bshift;
+
+	m0_indexvec_pack(iv);
+	do {
+		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
+		M0_ASSERT(frag_size > 0);
+		M0_ASSERT(frag_size <= (size_t)~0ULL);
+
+		eov = m0_ivec_cursor_move(&it, frag_size);
+
+		++frags;
+	} while (!eov);
+
+	return frags;
+}
+
+static void stob_ad_write_credit(struct m0_stob_domain  *dom,
+				 struct m0_indexvec     *iv,
+				 struct m0_be_tx_credit *accum)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
+	int                       blocks;
+	int                       bfrags;
+	int                       frags;
+
+	blocks = m0_vec_count(&iv->iv_vec) >> adom->sad_babshift;
+	bfrags = blocks / adom->sad_blocks_per_group + 1;
+	if (ballroom->ab_ops->bo_alloc_credit != NULL)
+		ballroom->ab_ops->bo_alloc_credit(ballroom, bfrags, accum);
+	frags = stob_ad_write_map_count(adom, iv);
+	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
+
+#if 0 /* Depends on as_overwrite flag which is always false now. */
+	/* for each emap_paste() seg_free() could be called 3 times */
+	if (ballroom->ab_ops->bo_free_credit != NULL)
+		ballroom->ab_ops->bo_free_credit(ballroom, 3, accum);
+#endif
+	m0_stob_write_credit(m0_stob_dom_get(adom->sad_bstore), iv, accum);
 }
 
 /**
@@ -771,7 +849,7 @@ M0_INTERNAL int ad_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 
    @see ad_vec_alloc()
  */
-static void ad_stob_io_release(struct ad_stob_io *aio)
+static void stob_ad_io_release(struct m0_stob_ad_io *aio)
 {
 	struct m0_stob_io *back = &aio->ai_back;
 
@@ -786,45 +864,33 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 }
 
 /**
-   Implementation of m0_stob_io_op::sio_fini().
- */
-static void ad_stob_io_fini(struct m0_stob_io *io)
-{
-	struct ad_stob_io  *aio = io->si_stob_private;
-
-	ad_stob_io_release(aio);
-	m0_clink_del_lock(&aio->ai_clink);
-	m0_clink_fini(&aio->ai_clink);
-	m0_stob_io_fini(&aio->ai_back);
-	m0_free(aio);
-}
-
-/**
    Initializes cursors at the beginning of a pass.
  */
-static int ad_cursors_init(struct m0_stob_io *io, struct ad_domain *adom,
-			   struct m0_be_emap_cursor *it,
-			   struct m0_vec_cursor *src, struct m0_vec_cursor *dst,
-			   struct m0_be_emap_caret *map)
+static int stob_ad_cursors_init(struct m0_stob_io *io,
+				struct m0_stob_ad_domain *adom,
+				struct m0_be_emap_cursor *it,
+				struct m0_vec_cursor *src,
+				struct m0_vec_cursor *dst,
+				struct m0_be_emap_caret *map)
 {
-	int result;
+	int rc;
 
-	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0], it);
-	if (result == 0) {
+	rc = stob_ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0], it);
+	if (rc == 0) {
 		m0_vec_cursor_init(src, &io->si_user.ov_vec);
 		m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
 		m0_be_emap_caret_init(map, it, io->si_stob.iv_index[0]);
 	}
-	return result;
+	return rc;
 }
 
 /**
    Finalizes the cursors that need finalisation.
  */
-static void ad_cursors_fini(struct m0_be_emap_cursor *it,
-			    struct m0_vec_cursor *src,
-			    struct m0_vec_cursor *dst,
-			    struct m0_be_emap_caret *map)
+static void stob_ad_cursors_fini(struct m0_be_emap_cursor *it,
+				 struct m0_vec_cursor *src,
+				 struct m0_vec_cursor *dst,
+				 struct m0_be_emap_caret *map)
 {
 	m0_be_emap_caret_fini(map);
 	m0_be_emap_close(it);
@@ -833,17 +899,17 @@ static void ad_cursors_fini(struct m0_be_emap_cursor *it,
 /**
    Allocates back IO buffers after number of fragments has been calculated.
 
-   @see ad_stob_io_release()
+   @see stob_ad_io_release()
  */
-static int ad_vec_alloc(struct m0_stob *obj,
-			struct m0_stob_io *back, uint32_t frags)
+static int stob_ad_vec_alloc(struct m0_stob *obj,
+			     struct m0_stob_io *back,
+			     uint32_t frags)
 {
 	m0_bcount_t *counts;
-	int          result;
+	int          rc = 0;
 
 	M0_ASSERT(back->si_user.ov_vec.v_count == NULL);
 
-	result = 0;
 	if (frags > 0) {
 		M0_ALLOC_ARR(counts, frags);
 		back->si_user.ov_vec.v_count = counts;
@@ -857,10 +923,10 @@ static int ad_vec_alloc(struct m0_stob *obj,
 		if (counts == NULL || back->si_user.ov_buf == NULL ||
 		    back->si_stob.iv_index == NULL) {
 			M0_STOB_OOM(AD_VEC_ALLOC);
-			result = -ENOMEM;
+			rc = -ENOMEM;
 		}
 	}
-	return result;
+	return rc;
 }
 
 /**
@@ -883,32 +949,34 @@ static int ad_vec_alloc(struct m0_stob *obj,
 
    @note cursors and fragment sizes are measured in blocks.
  */
-static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
-			  struct m0_vec_cursor *src,
-			  struct m0_vec_cursor *dst,
-			  struct m0_be_emap_caret *car)
+static int stob_ad_read_launch(struct m0_stob_io *io,
+			       struct m0_stob_ad_domain *adom,
+			       struct m0_vec_cursor *src,
+			       struct m0_vec_cursor *dst,
+			       struct m0_be_emap_caret *car)
 {
 	struct m0_be_emap_cursor *it;
 	struct m0_be_emap_seg    *seg;
-	struct m0_stob_io     *back;
-	struct ad_stob_io     *aio       = io->si_stob_private;
-	uint32_t               frags;
-	uint32_t               frags_not_empty;
-	uint32_t               bshift    = ad_bshift(adom);
-	m0_bcount_t            frag_size; /* measured in blocks */
-	m0_bindex_t            off;       /* measured in blocks */
-	int                    result;
-	int                    i;
-	int                    idx;
-	bool                   eosrc;
-	bool                   eodst;
-	int                    eomap;
+	struct m0_stob_io        *back;
+	struct m0_stob_ad_io     *aio = io->si_stob_private;
+	uint32_t                  frags;
+	uint32_t                  frags_not_empty;
+	uint32_t                  bshift;
+	m0_bcount_t               frag_size; /* measured in blocks */
+	m0_bindex_t               off;       /* measured in blocks */
+	int                       rc;
+	int                       i;
+	int                       idx;
+	bool                      eosrc;
+	bool                      eodst;
+	int                       eomap;
 
 	M0_PRE(io->si_opcode == SIO_READ);
 
-	it   = car->ct_it;
-	seg  = m0_be_emap_seg_get(it);
-	back = &aio->ai_back;
+	bshift = m0_stob_block_shift(adom->sad_bstore);
+	it     = car->ct_it;
+	seg    = m0_be_emap_seg_get(it);
+	back   = &aio->ai_back;
 
 	M0_LOG(M0_DEBUG, "ext=[0x%llx, 0x%llx) val=0x%llx",
 		(unsigned long long)seg->ee_ext.e_start,
@@ -977,15 +1045,15 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	M0_LOG(M0_DEBUG, "frags=%d frags_not_empty=%d",
 			(int)frags, (int)frags_not_empty);
 
-	ad_cursors_fini(it, src, dst, car);
+	stob_ad_cursors_fini(it, src, dst, car);
 
-	result = ad_vec_alloc(io->si_obj, back, frags_not_empty);
-	if (result != 0)
-		return result;
+	rc = stob_ad_vec_alloc(io->si_obj, back, frags_not_empty);
+	if (rc != 0)
+		return rc;
 
-	result = ad_cursors_init(io, adom, it, src, dst, car);
-	if (result != 0)
-		return result;
+	rc = stob_ad_cursors_init(io, adom, it, src, dst, car);
+	if (rc != 0)
+		return rc;
 
 	for (idx = i = 0; i < frags; ++i) {
 		void        *buf;
@@ -1017,7 +1085,7 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 			 * Read of a hole or unallocated space (beyond
 			 * end of the file).
 			 */
-			memset(m0_stob_addr_open(buf, bshift),
+			memset(stob_ad_addr_open(buf, bshift),
 			       0, frag_size << bshift);
 			io->si_count += frag_size;
 		} else {
@@ -1032,41 +1100,41 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
 		}
 		m0_vec_cursor_move(src, frag_size);
 		m0_vec_cursor_move(dst, frag_size);
-		result = m0_be_emap_caret_move_sync(car, frag_size);
-		if (result < 0) {
+		rc = m0_be_emap_caret_move_sync(car, frag_size);
+		if (rc < 0) {
 			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_5, eomap);
 			break;
 		}
-		M0_ASSERT(result == 0);
+		M0_ASSERT(rc == 0);
 	}
-	M0_ASSERT(ergo(result == 0, idx == frags_not_empty));
-	return result;
+	M0_ASSERT(ergo(rc == 0, idx == frags_not_empty));
+	return rc;
 }
 
 /**
    A linked list of allocated extents.
  */
-struct ad_write_ext {
-	struct m0_ext        we_ext;
-	struct ad_write_ext *we_next;
+struct stob_ad_write_ext {
+	struct m0_ext             we_ext;
+	struct stob_ad_write_ext *we_next;
 };
 
 /**
    A cursor over allocated extents.
  */
-struct ad_wext_cursor {
-	const struct ad_write_ext *wc_wext;
-	m0_bcount_t                wc_done;
+struct stob_ad_wext_cursor {
+	const struct stob_ad_write_ext *wc_wext;
+	m0_bcount_t                     wc_done;
 };
 
-static void ad_wext_cursor_init(struct ad_wext_cursor *wc,
-				struct ad_write_ext *wext)
+static void stob_ad_wext_cursor_init(struct stob_ad_wext_cursor *wc,
+				     struct stob_ad_write_ext *wext)
 {
 	wc->wc_wext = wext;
 	wc->wc_done = 0;
 }
 
-static m0_bcount_t ad_wext_cursor_step(struct ad_wext_cursor *wc)
+static m0_bcount_t stob_ad_wext_cursor_step(struct stob_ad_wext_cursor *wc)
 {
 	M0_PRE(wc->wc_wext != NULL);
 	M0_PRE(wc->wc_done < m0_ext_length(&wc->wc_wext->we_ext));
@@ -1074,12 +1142,13 @@ static m0_bcount_t ad_wext_cursor_step(struct ad_wext_cursor *wc)
 	return m0_ext_length(&wc->wc_wext->we_ext) - wc->wc_done;
 }
 
-static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, m0_bcount_t count)
+static bool stob_ad_wext_cursor_move(struct stob_ad_wext_cursor *wc,
+				     m0_bcount_t count)
 {
 	while (count > 0 && wc->wc_wext != NULL) {
 		m0_bcount_t step;
 
-		step = ad_wext_cursor_step(wc);
+		step = stob_ad_wext_cursor_step(wc);
 		if (count >= step) {
 			wc->wc_wext = wc->wc_wext->we_next;
 			wc->wc_done = 0;
@@ -1092,32 +1161,6 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, m0_bcount_t count)
 	return wc->wc_wext == NULL;
 }
 
-static uint32_t ad_write_map_count(struct m0_indexvec *iv)
-{
-	uint32_t               frags;
-	m0_bcount_t            frag_size;
-	m0_bcount_t            grp_size;
-	bool                   eov;
-	struct m0_ivec_cursor  it;
-
-	frags = 0;
-	m0_ivec_cursor_init(&it, iv);
-	grp_size = BALLOC_DEF_BLOCKS_PER_GROUP << BALLOC_DEF_BLOCK_SHIFT;
-
-	m0_indexvec_pack(iv);
-	do {
-		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
-		M0_ASSERT(frag_size > 0);
-		M0_ASSERT(frag_size <= (size_t)~0ULL);
-
-		eov = m0_ivec_cursor_move(&it, frag_size);
-
-		++frags;
-	} while (!eov);
-
-	return frags;
-}
-
 /**
    Calculates how many fragments this IO request contains.
 
@@ -1125,24 +1168,22 @@ static uint32_t ad_write_map_count(struct m0_indexvec *iv)
    for data, ignoring existing allocations in the overwritten extent of the
    file.
  */
-static uint32_t ad_write_count(struct m0_vec_cursor *src,
-			       struct ad_wext_cursor *wc)
+static uint32_t stob_ad_write_count(struct m0_vec_cursor *src,
+				    struct stob_ad_wext_cursor *wc)
 {
-	uint32_t    frags;
 	m0_bcount_t frag_size;
 	bool        eosrc;
 	bool        eoext;
-
-	frags = 0;
+	uint32_t    frags = 0;
 
 	do {
 		frag_size = min_check(m0_vec_cursor_step(src),
-				      ad_wext_cursor_step(wc));
+				      stob_ad_wext_cursor_step(wc));
 		M0_ASSERT(frag_size > 0);
 		M0_ASSERT(frag_size <= (size_t)~0ULL);
 
 		eosrc = m0_vec_cursor_move(src, frag_size);
-		eoext = ad_wext_cursor_move(wc, frag_size);
+		eoext = stob_ad_wext_cursor_move(wc, frag_size);
 
 		M0_ASSERT(ergo(eosrc, eoext));
 		++frags;
@@ -1153,9 +1194,10 @@ static uint32_t ad_write_count(struct m0_vec_cursor *src,
 /**
    Fills back IO request with information about fragments.
  */
-static void ad_write_back_fill(struct m0_stob_io *io, struct m0_stob_io *back,
-			       struct m0_vec_cursor *src,
-			       struct ad_wext_cursor *wc)
+static void stob_ad_write_back_fill(struct m0_stob_io *io,
+				    struct m0_stob_io *back,
+				    struct m0_vec_cursor *src,
+				    struct stob_ad_wext_cursor *wc)
 {
 	m0_bcount_t    frag_size;
 	uint32_t       idx;
@@ -1167,7 +1209,7 @@ static void ad_write_back_fill(struct m0_stob_io *io, struct m0_stob_io *back,
 		void *buf;
 
 		frag_size = min_check(m0_vec_cursor_step(src),
-				      ad_wext_cursor_step(wc));
+				      stob_ad_wext_cursor_step(wc));
 
 		buf = io->si_user.ov_buf[src->vc_seg] + src->vc_offset;
 
@@ -1178,7 +1220,7 @@ static void ad_write_back_fill(struct m0_stob_io *io, struct m0_stob_io *back,
 			wc->wc_wext->we_ext.e_start + wc->wc_done;
 
 		eosrc = m0_vec_cursor_move(src, frag_size);
-		eoext = ad_wext_cursor_move(wc, frag_size);
+		eoext = stob_ad_wext_cursor_move(wc, frag_size);
 		idx++;
 		M0_ASSERT(eosrc == eoext);
 	} while (!eoext);
@@ -1189,16 +1231,18 @@ static void ad_write_back_fill(struct m0_stob_io *io, struct m0_stob_io *back,
  * Helper function used by ad_write_map_ext() to free sub-segment "ext" from
  * allocated segment "seg".
  */
-static int seg_free(struct m0_stob_io *io, struct ad_domain *adom,
-		    const struct m0_be_emap_seg *seg, const struct m0_ext *ext,
-		    uint64_t val)
+static int stob_ad_seg_free(struct m0_stob_io *io,
+			    struct m0_stob_ad_domain *adom,
+			    const struct m0_be_emap_seg *seg,
+			    const struct m0_ext *ext,
+			    uint64_t val)
 {
 	m0_bcount_t   delta = ext->e_start - seg->ee_ext.e_start;
 	struct m0_ext tocut = {
 		.e_start = val + delta,
 		.e_end   = val + delta + m0_ext_length(ext)
 	};
-	return val < AET_MIN ? ad_bfree(adom, io->si_tx, &tocut) : 0;
+	return val < AET_MIN ? stob_ad_bfree(adom, io->si_tx, &tocut) : 0;
 }
 
 /**
@@ -1212,9 +1256,11 @@ static int seg_free(struct m0_stob_io *io, struct ad_domain *adom,
    logical name-space, starting with offset to an extent ext in the underlying
    storage object name-space.
  */
-static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
-			    m0_bindex_t off, struct m0_be_emap_cursor *orig,
-			    const struct m0_ext *ext)
+static int stob_ad_write_map_ext(struct m0_stob_io *io,
+				 struct m0_stob_ad_domain *adom,
+				 m0_bindex_t off,
+				 struct m0_be_emap_cursor *orig,
+				 const struct m0_ext *ext)
 {
 	int                    result;
 	int                    rc = 0;
@@ -1256,13 +1302,14 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
 			/* handle extent deletion. */
-			if (stob2ad(io->si_obj)->as_overwrite) {
+			if (stob_ad_stob2ad(io->si_obj)->ad_overwrite) {
 				M0_LOG(M0_DEBUG, "del: val=0x%llx",
 					(unsigned long long)seg->ee_val);
 				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
 					"Delete of the same just allocated block");
-				rc = rc ?: seg_free(io, adom, seg,
-						    &seg->ee_ext, seg->ee_val);
+				rc = rc ?:
+				     stob_ad_seg_free(io, adom, seg,
+						      &seg->ee_ext, seg->ee_val);
 			}
 		 }),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
@@ -1271,8 +1318,9 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 			M0_ASSERT(ext->e_start > seg->ee_ext.e_start);
 
 			seg->ee_val = val;
-			if (stob2ad(io->si_obj)->as_overwrite)
-				rc = rc ?: seg_free(io, adom, seg, ext, val);
+			if (stob_ad_stob2ad(io->si_obj)->ad_overwrite)
+				rc = rc ?:
+				     stob_ad_seg_free(io, adom, seg, ext, val);
 		}),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
@@ -1287,10 +1335,11 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 				 * logical extent, because otherwise "cut left"
 				 * already freed it.
 				 */
-				if (stob2ad(io->si_obj)->as_overwrite &&
+				if (stob_ad_stob2ad(io->si_obj)->ad_overwrite &&
 				    ext->e_start == seg->ee_ext.e_start)
-					rc = rc ?: seg_free(io, adom,
-							    seg, ext, val);
+					rc = rc ?:
+					     stob_ad_seg_free(io, adom, seg,
+							      ext, val);
 			} else
 				seg->ee_val = val;
 		}));
@@ -1303,16 +1352,16 @@ static int ad_write_map_ext(struct m0_stob_io *io, struct ad_domain *adom,
 	return M0_RC(result ?: rc);
 }
 
-static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
+static int stob_ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 {
-	struct ad_rec_part *arp;
+	struct stob_ad_rec_part *arp;
 
 	M0_PRE(part != NULL);
 
 	M0_ALLOC_PTR(arp);
 	if (arp == NULL)
 		return -ENOMEM;
-	m0_fol_rec_part_init(part, arp, &ad_rec_part_type);
+	m0_fol_rec_part_init(part, arp, &stob_ad_rec_part_type);
 
 	arp->arp_seg.ps_segments = frags;
 
@@ -1324,9 +1373,9 @@ static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 	return 0;
 }
 
-static void ad_fol_part_free(struct m0_fol_rec_part *part)
+static void stob_ad_fol_part_free(struct m0_fol_rec_part *part)
 {
-	struct ad_rec_part *arp = part->rp_data;
+	struct stob_ad_rec_part *arp = part->rp_data;
 
 	m0_free(arp->arp_seg.ps_old_data);
 	m0_free(arp);
@@ -1344,34 +1393,34 @@ static void ad_fol_part_free(struct m0_fol_rec_part *part)
    underlying object name-space.
 
  */
-static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
-			struct m0_ivec_cursor *dst,
-			struct m0_be_emap_caret *map, struct ad_wext_cursor *wc,
-			uint32_t frags)
+static int stob_ad_write_map(struct m0_stob_io *io,
+			     struct m0_stob_ad_domain *adom,
+			     struct m0_ivec_cursor *dst,
+			     struct m0_be_emap_caret *map,
+			     struct stob_ad_wext_cursor *wc,
+			     uint32_t frags)
 {
-	int			result;
-	m0_bcount_t		frag_size;
-	m0_bindex_t		off;
-	bool			eodst;
-	bool			eoext;
-	struct m0_ext		todo;
-	struct m0_fol_rec_part *part = NULL;
-	struct ad_rec_part     *arp;
-	uint32_t		i = 0;
+	int			 rc;
+	m0_bcount_t		 frag_size;
+	m0_bindex_t		 off;
+	bool			 eodst;
+	bool			 eoext;
+	struct m0_ext		 todo;
+	struct m0_fol_rec_part	*part = io->si_fol_rec_part;
+	struct stob_ad_rec_part	*arp;
+	uint32_t		 i = 0;
 
-	part = io->si_fol_rec_part;
-	result = ad_fol_part_alloc(part, frags);
-	if (result != 0)
-		return result;
+	rc = stob_ad_fol_part_alloc(part, frags);
+	if (rc != 0)
+		return rc;
 	arp = part->rp_data;
-
-	arp->arp_stob_id = io->si_obj->so_id;
-	arp->arp_dom_id  = adom->ad_base.sd_dom_id;
+	arp->arp_stob_fid = *m0_stob_fid_get(io->si_obj);
+	arp->arp_dom_id   =  m0_stob_domain_id_get(&adom->sad_base);
 
 	do {
 		off = m0_ivec_cursor_index(dst);
 		frag_size = min_check(m0_ivec_cursor_step(dst),
-				      ad_wext_cursor_step(wc));
+				      stob_ad_wext_cursor_step(wc));
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
@@ -1387,31 +1436,30 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
 		};
 		++i;
 
-		result = ad_write_map_ext(io, adom, off, map->ct_it, &todo);
-
-		if (result != 0)
+		rc = stob_ad_write_map_ext(io, adom, off, map->ct_it, &todo);
+		if (rc != 0)
 			break;
 
 		eodst = m0_ivec_cursor_move(dst, frag_size);
-		eoext = ad_wext_cursor_move(wc, frag_size);
+		eoext = stob_ad_wext_cursor_move(wc, frag_size);
 
 		M0_ASSERT(eodst == eoext);
 	} while (!eodst);
 
-	if (result == 0)
+	if (rc == 0)
 		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
 	else
-		ad_fol_part_free(part);
+		stob_ad_fol_part_free(part);
 
-	return result;
+	return rc;
 }
 
 /**
    Frees wext list.
  */
-static void ad_wext_fini(struct ad_write_ext *wext)
+static void stob_ad_wext_fini(struct stob_ad_write_ext *wext)
 {
-	struct ad_write_ext *next;
+	struct stob_ad_write_ext *next;
 
 	for (wext = wext->we_next; wext != NULL; wext = next) {
 		next = wext->we_next;
@@ -1431,20 +1479,21 @@ static void ad_wext_fini(struct ad_write_ext *wext)
    @li updates extent map for this AD object with allocated extents
        (ad_write_map()).
  */
-static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
-			   struct m0_vec_cursor *src,
-			   struct m0_ivec_cursor *dst,
-			   struct m0_be_emap_caret *map)
+static int stob_ad_write_launch(struct m0_stob_io *io,
+				struct m0_stob_ad_domain *adom,
+				struct m0_vec_cursor *src,
+				struct m0_ivec_cursor *dst,
+				struct m0_be_emap_caret *map)
 {
-	m0_bcount_t           todo;
-	uint32_t              frags;
-	int                   result;
-	struct ad_write_ext   head;
-	struct ad_write_ext  *wext;
-	struct ad_write_ext  *next;
-	struct m0_stob_io    *back;
-	struct ad_stob_io    *aio = io->si_stob_private;
-	struct ad_wext_cursor wc;
+	m0_bcount_t                 todo;
+	uint32_t                    frags;
+	int                         rc;
+	struct stob_ad_write_ext    head;
+	struct stob_ad_write_ext   *wext;
+	struct stob_ad_write_ext   *next;
+	struct m0_stob_io          *back;
+	struct m0_stob_ad_io       *aio = io->si_stob_private;
+	struct stob_ad_wext_cursor  wc;
 
 	M0_PRE(io->si_opcode == SIO_WRITE);
 
@@ -1457,8 +1506,8 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 	while (1) {
 		m0_bcount_t got;
 
-		result = ad_balloc(adom, io->si_tx, todo, &wext->we_ext);
-		if (result != 0)
+		rc = stob_ad_balloc(adom, io->si_tx, todo, &wext->we_ext);
+		if (rc != 0)
 			break;
 		got = m0_ext_length(&wext->we_ext);
 		M0_ASSERT(todo >= got);
@@ -1470,82 +1519,32 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
 				wext = next;
 			} else {
 				M0_STOB_OOM(AD_WRITE_LAUNCH);
-				result = -ENOMEM;
+				rc = -ENOMEM;
 				break;
 			}
 		} else
 			break;
 	}
 
-	if (result == 0) {
-		ad_wext_cursor_init(&wc, &head);
-		frags = ad_write_count(src, &wc);
-		result = ad_vec_alloc(io->si_obj, back, frags);
-		if (result == 0) {
+	if (rc == 0) {
+		stob_ad_wext_cursor_init(&wc, &head);
+		frags = stob_ad_write_count(src, &wc);
+		rc = stob_ad_vec_alloc(io->si_obj, back, frags);
+		if (rc == 0) {
 			struct m0_indexvec *ivec;
 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
-			ad_wext_cursor_init(&wc, &head);
-			ad_write_back_fill(io, back, src, &wc);
+			stob_ad_wext_cursor_init(&wc, &head);
+			stob_ad_write_back_fill(io, back, src, &wc);
 			m0_ivec_cursor_init(dst, &io->si_stob);
-			ad_wext_cursor_init(&wc, &head);
+			stob_ad_wext_cursor_init(&wc, &head);
 			ivec = container_of(dst->ic_cur.vc_vec,
 					    struct m0_indexvec, iv_vec);
-			frags = ad_write_map_count(ivec);
-			result = ad_write_map(io, adom, dst, map, &wc, frags);
+			frags = stob_ad_write_map_count(adom, ivec);
+			rc = stob_ad_write_map(io, adom, dst, map, &wc, frags);
 		}
 	}
-	ad_wext_fini(&head);
-	return M0_RC(result);
-}
-
-static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
-			    struct m0_be_tx_credit *acc)
-{
-	int blocks = m0_vec_count(&iv->iv_vec) >> dom->ad_babshift;
-	int bfrags = blocks / BALLOC_DEF_BLOCKS_PER_GROUP + 1;
-	int frags;
-
-	M0_ENTRY("vnr=%d cred=[%d:%d]", (int)iv->iv_vec.v_nr,
-		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
-
-	if (dom->ad_ballroom->ab_ops->bo_alloc_credit != NULL)
-		dom->ad_ballroom->ab_ops->bo_alloc_credit(dom->ad_ballroom,
-							  bfrags, acc);
-	M0_LOG(M0_DEBUG, "after bo_alloc: cred=[%d:%d]",
-		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
-
-	frags = ad_write_map_count(iv);
-	M0_LOG(M0_DEBUG, "frags=%d", frags);
-	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, frags, acc);
-	M0_LOG(M0_DEBUG, "after emap_cred: cred=[%d:%d]",
-		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
-
-#if 0
-	/*
-	 * Depends on as_overwrite flag which is always false now.
-	 * for each emap_paste() seg_free() could be called 3 times
-	 */
-	if (dom->ad_ballroom->ab_ops->bo_free_credit != NULL)
-		dom->ad_ballroom->ab_ops->bo_free_credit(dom->ad_ballroom,
-							 3, acc);
-#endif
-	M0_LEAVE("cred=[%d:%d]", (int)acc->tc_reg_nr, (int)acc->tc_reg_size);
-}
-
-/**
-   Implementation of m0_stob_domain_op::sdo_write_credit().
- */
-static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
-					struct m0_indexvec     *iv,
-					struct m0_be_tx_credit *accum)
-{
-	struct ad_domain     *adom    = domain2ad(dom);
-
-	M0_PRE(adom->ad_setup);
-	M0_PRE(dom->sd_type == &m0_ad_stob_type);
-
-	ad_write_credit(adom, iv, accum);
-	m0_stob_write_credit(adom->ad_bstore->so_domain, iv, accum);
+	stob_ad_wext_fini(&head);
+	return M0_RC(rc);
 }
 
 /**
@@ -1554,20 +1553,18 @@ static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
    Call ad_write_launch() or ad_read_launch() to do the bulk of work, then
    launch back IO just constructed.
  */
-static int ad_stob_io_launch(struct m0_stob_io *io)
+static int stob_ad_io_launch(struct m0_stob_io *io)
 {
-	struct ad_domain     *adom    = domain2ad(io->si_obj->so_domain);
-	struct ad_stob_io    *aio     = io->si_stob_private;
-	struct m0_be_emap_cursor it;
-	struct m0_vec_cursor  src;
-	struct m0_ivec_cursor dst;
-	struct m0_be_emap_caret  map;
-	struct m0_stob_io    *back    = &aio->ai_back;
-	int                   result;
-	bool                  wentout = false;
+	struct m0_stob_ad_domain *adom;
+	struct m0_stob_ad_io     *aio     = io->si_stob_private;
+	struct m0_be_emap_cursor  it;
+	struct m0_vec_cursor      src;
+	struct m0_ivec_cursor     dst;
+	struct m0_be_emap_caret   map;
+	struct m0_stob_io        *back    = &aio->ai_back;
+	int                       rc;
+	bool                      wentout = false;
 
-	M0_PRE(adom->ad_setup);
-	M0_PRE(io->si_obj->so_domain->sd_type == &m0_ad_stob_type);
 	M0_PRE(io->si_stob.iv_vec.v_nr > 0);
 	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
 
@@ -1578,9 +1575,10 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 
 	M0_ENTRY("op=%d", io->si_opcode);
 
-	result = ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
-	if (result != 0)
-		return M0_RC(result);
+	adom = stob_ad_domain2ad(m0_stob_dom_get(io->si_obj));
+	rc = stob_ad_cursors_init(io, adom, &it, &src, &dst.ic_cur, &map);
+	if (rc != 0)
+		return M0_RC(rc);
 
 	back->si_opcode	      = io->si_opcode;
 	back->si_flags	      = io->si_flags;
@@ -1588,16 +1586,16 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 
 	switch (io->si_opcode) {
 	case SIO_READ:
-		result = ad_read_launch(io, adom, &src, &dst.ic_cur, &map);
+		rc = stob_ad_read_launch(io, adom, &src, &dst.ic_cur, &map);
 		break;
 	case SIO_WRITE:
-		result = ad_write_launch(io, adom, &src, &dst, &map);
+		rc = stob_ad_write_launch(io, adom, &src, &dst, &map);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid io type.");
 	}
-	ad_cursors_fini(&it, &src, &dst.ic_cur, &map);
-	if (result == 0) {
+	stob_ad_cursors_fini(&it, &src, &dst.ic_cur, &map);
+	if (rc == 0) {
 		if (back->si_stob.iv_vec.v_nr > 0) {
 			/**
 			 * Sorts index vecs in incremental order.
@@ -1605,9 +1603,9 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 			 *        of sorting each stobio on ad stob.
 			 */
 			m0_stob_iovec_sort(back);
-			result = m0_stob_io_launch(back, adom->ad_bstore,
-						   io->si_tx, io->si_scope);
-			wentout = result == 0;
+			rc = m0_stob_io_launch(back, adom->sad_bstore,
+					       io->si_tx, io->si_scope);
+			wentout = rc == 0;
 		} else {
 			/*
 			 * Back IO request was constructed OK, but is empty (all
@@ -1615,30 +1613,20 @@ static int ad_stob_io_launch(struct m0_stob_io *io)
 			 * completion.
 			 */
 			M0_ASSERT(io->si_opcode == SIO_READ);
-			ad_endio(&aio->ai_clink);
+			stob_ad_endio(&aio->ai_clink);
 		}
 	}
 	if (!wentout)
-		ad_stob_io_release(aio);
-	return M0_RC(result);
+		stob_ad_io_release(aio);
+	return M0_RC(rc);
 }
 
-/**
-   An implementation of m0_stob_op::sop_block_shift() method.
-
-   AD uses the same block size as its backing store object.
- */
-static uint32_t ad_stob_block_shift(const struct m0_stob *stob)
+static bool stob_ad_endio(struct m0_clink *link)
 {
-	return ad_bshift(domain2ad(stob->so_domain));
-}
+	struct m0_stob_ad_io *aio;
+	struct m0_stob_io    *io;
 
-static bool ad_endio(struct m0_clink *link)
-{
-	struct ad_stob_io *aio;
-	struct m0_stob_io *io;
-
-	aio = container_of(link, struct ad_stob_io, ai_clink);
+	aio = container_of(link, struct m0_stob_ad_io, ai_clink);
 	io = aio->ai_fore;
 
 	M0_ASSERT(io->si_state == SIS_BUSY);
@@ -1647,57 +1635,76 @@ static bool ad_endio(struct m0_clink *link)
 	io->si_rc     = aio->ai_back.si_rc;
 	io->si_count += aio->ai_back.si_count;
 	io->si_state  = SIS_IDLE;
-	ad_stob_io_release(aio);
+	stob_ad_io_release(aio);
 	m0_chan_broadcast_lock(&io->si_wait);
 	return true;
 }
 
-static const struct m0_stob_io_op ad_stob_io_op = {
-	.sio_launch        = ad_stob_io_launch,
-	.sio_fini          = ad_stob_io_fini
-};
-
-static const struct m0_stob_type_op ad_stob_type_op = {
-	.sto_init          = ad_stob_type_init,
-	.sto_fini          = ad_stob_type_fini,
-	.sto_domain_locate = ad_stob_type_domain_locate
-};
-
-static const struct m0_stob_domain_op ad_stob_domain_op = {
-	.sdo_destroy      = ad_domain_destroy,
-	.sdo_fini         = ad_domain_fini,
-	.sdo_stob_find    = ad_domain_stob_find,
-	.sdo_tx_make      = ad_domain_tx_make,
-	.sdo_write_credit = ad_domain_stob_write_credit
-};
-
-static const struct m0_stob_op ad_stob_op = {
-	.sop_fini          = ad_stob_fini,
-	.sop_create        = ad_stob_create,
-	.sop_create_credit = ad_stob_create_credit,
-	.sop_locate        = ad_stob_locate,
-	.sop_io_init       = ad_stob_io_init,
-	.sop_block_shift   = ad_stob_block_shift
-};
-
-struct m0_stob_type m0_ad_stob_type = {
-	.st_op    = &ad_stob_type_op,
-	.st_name  = "adstob",
-	.st_magic = 0x3129A830
-};
-
-M0_INTERNAL int m0_ad_stobs_init(void)
+/**
+    Implementation of m0_fol_rec_part_ops::rpo_undo_credit and
+                      m0_fol_rec_part_ops::rpo_redo_credit().
+ */
+static void
+stob_ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
+				   struct m0_be_tx_credit	*accum)
 {
-	int rc;
-	M0_ENTRY();
-	rc = M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_init);
-	return M0_RC(rc);
+	struct stob_ad_rec_part  *arp  = part->rp_data;
+	struct m0_stob_domain    *dom  = m0_stob_domain_find(arp->arp_dom_id);
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+
+	M0_PRE(dom != NULL);
+	m0_be_emap_credit(&adom->sad_adata, M0_BEO_UPDATE,
+			  arp->arp_seg.ps_segments, accum);
 }
 
-M0_INTERNAL void m0_ad_stobs_fini(void)
+/**
+    Implementation of m0_fol_rec_part_ops::rpo_undo and
+                      m0_fol_rec_part_ops::rpo_redo ().
+ */
+static int stob_ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+					 struct m0_be_tx	*tx)
 {
-	M0_STOB_TYPE_OP(&m0_ad_stob_type, sto_fini);
+	struct stob_ad_rec_part  *arp  = part->rp_data;
+	struct m0_stob_domain    *dom  = m0_stob_domain_find(arp->arp_dom_id);
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+	struct m0_be_emap_seg    *old_data = arp->arp_seg.ps_old_data;
+	struct m0_be_emap_cursor  it;
+	int		          i;
+	int		          rc = 0;
+
+	M0_PRE(dom != NULL);
+
+	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
+		m0_be_op_init(&it.ec_op);
+		m0_be_emap_lookup(&adom->sad_adata,
+				  &old_data[i].ee_pre,
+				   old_data[i].ee_ext.e_start,
+				  &it);
+		m0_be_op_wait(&it.ec_op);
+		M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
+		rc = it.ec_op.bo_u.u_emap.e_rc;
+		m0_be_op_fini(&it.ec_op);
+
+		if (rc == 0) {
+			M0_LOG(M0_DEBUG, "%3d: ext=[0x%llx, 0x%llx) val=0x%llx",
+				i,
+				(unsigned long long)old_data[i].ee_ext.e_start,
+				(unsigned long long)old_data[i].ee_ext.e_end,
+				(unsigned long long)old_data[i].ee_val);
+			rc = M0_BE_OP_SYNC_RET_WITH(
+				&it.ec_op,
+				m0_be_emap_extent_update(&it, tx, &old_data[i]),
+				bo_u.u_emap.e_rc);
+			m0_be_emap_close(&it);
+		}
+	}
+	return rc;
 }
+
+static const struct m0_stob_io_op stob_ad_io_op = {
+	.sio_launch  = stob_ad_io_launch,
+	.sio_fini    = stob_ad_io_fini,
+};
 
 /** @} end group stobad */
 

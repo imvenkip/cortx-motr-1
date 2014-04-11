@@ -23,6 +23,13 @@
 #ifndef __MERO_STOB_AD_INTERNAL_H__
 #define __MERO_STOB_AD_INTERNAL_H__
 
+#include "be/extmap.h"		/* m0_be_emap */
+#include "fid/fid.h"		/* m0_fid */
+#include "lib/types.h"		/* m0_bcount_t */
+#include "stob/domain.h"	/* m0_stob_domain */
+#include "stob/io.h"		/* m0_stob_io */
+#include "stob/stob.h"		/* m0_stob */
+
 /**
    @defgroup stobad Storage objects with extent maps.
 
@@ -41,15 +48,9 @@
    @{
  */
 
-#include "stob/stob.h"
-
-struct m0_ext;
-struct m0_be_seg;
-struct m0_dtx;
-
-extern struct m0_stob_type m0_ad_stob_type;
-
+struct m0_ad_balloc;
 struct m0_ad_balloc_ops;
+struct m0_be_seg;
 
 /**
    Simple block allocator interface used by ad code to manage "free space" in
@@ -62,12 +63,11 @@ struct m0_ad_balloc {
 };
 
 struct m0_ad_balloc_ops {
-	/** Initializes this balloc instance, creating its persistent state, if
+	/** Initialises this balloc instance, creating its persistent state, if
 	    necessary. This also destroys allocated struct m0_balloc instance
 	    on failure.
 
-	    @param block size shift in bytes, similarly to
-	    m0_stob_op::sop_block_shift().
+	    @param block size shift in bytes, similarly to m0_stob_block_shift()
 	    @param container_size Total size of the container in bytes
 	    @param  blocks_per_group # of blocks per group
 	    @param res_groups # of reserved groups
@@ -91,41 +91,42 @@ struct m0_ad_balloc_ops {
 	void (*bo_free_credit)(const struct m0_ad_balloc *ballroom, int nr,
 				     struct m0_be_tx_credit *accum);
 };
+struct m0_stob_ad_domain {
+	struct m0_stob_domain  sad_base;
+	struct m0_stob        *sad_bstore;
+	struct m0_fid          sad_bstore_fid;
+	struct m0_be_emap      sad_adata;
+	struct m0_ad_balloc   *sad_ballroom;
+	m0_bcount_t            sad_container_size;
+	uint32_t               sad_bshift;
+	int                    sad_babshift;
+	m0_bcount_t            sad_blocks_per_group;
+	m0_bcount_t            sad_res_groups;
+	struct m0_be_seg      *sad_be_seg;
+	char                   sad_path[MAXPATHLEN];
 
-/**
-   Setup an AD storage domain.
+	/* XXX remove when ad-stob-unlink is landed */
+	struct m0_mutex        sad_mutex;
+};
 
-   @param adom - AD type stob domain;
-   @param be - a back-end environment where domain stores its meta-data
-   (extent map);
-   @param bstore - an underlying storage object, where domain stores its
-   objects;
-   @param ballroom - a byte allocator;
-   @param container_size - Container size for balloc;
-   @param bshift - Block shift value;
-   @param blocks_per_group - Number of blocks per group;
-   @param res_groups - Number of reserved groups.
- */
-M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
-				 struct m0_be_seg *be_seg,
-				 struct m0_sm_group *grp,
-				 struct m0_stob *bstore,
-				 struct m0_ad_balloc *ballroom,
-				 m0_bcount_t container_size, uint32_t bshift,
-				 m0_bcount_t blocks_per_group,
-				 m0_bcount_t res_groups);
+struct m0_stob_ad {
+	struct m0_stob ad_stob;
+	bool           ad_overwrite;
+};
 
-M0_INTERNAL int m0_ad_stobs_init(void);
-M0_INTERNAL void m0_ad_stobs_fini(void);
+struct m0_stob_ad_io {
+	struct m0_stob_io *ai_fore;
+	struct m0_stob_io  ai_back;
+	struct m0_clink    ai_clink;
+};
 
-/**
-   @param stob - linux backend stob object for AD.
- */
-M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
-				         struct m0_be_seg *be_seg,
-				         struct m0_sm_group *grp,
-				         struct m0_stob_domain **dom,
-				         struct m0_stob *stob);
+extern const struct m0_stob_type m0_stob_ad_type;
+
+M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom);
+
+M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
+				     const struct m0_be_seg *seg,
+				     const struct m0_fid *bstore_fid);
 
 /** @} end group stobad */
 

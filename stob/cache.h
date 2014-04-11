@@ -23,62 +23,105 @@
 #ifndef __MERO_STOB_CACHE_H__
 #define __MERO_STOB_CACHE_H__
 
+#include "lib/mutex.h"	/* m0_mutex */
+#include "lib/tlist.h"	/* m0_tl */
+#include "lib/types.h"	/* uint64_t */
+
 /**
- * @defgroup stobcache Stob caching.
+ * @defgroup stob
  *
- * This module provides a simple interface for stob types that want to cache
- * stobs in memory.
+ * @todo more scalable object index instead of a list.
  *
  * @{
  */
 
-#include "lib/tlist.h"
-#include "lib/types.h"             /* uint64_t */
+struct m0_stob;
+struct m0_stob_cache;
 
-#include "stob/stob.h"
-
-struct m0_stob_cacheable {
-	uint64_t        ca_magix;
-	struct m0_stob  ca_stob;
-	struct m0_tlink ca_linkage;
-};
-
+typedef void (*m0_stob_cache_eviction_cb_t)(struct m0_stob_cache *cache,
+					    struct m0_stob *stob);
+/**
+ * @todo document
+ */
 struct m0_stob_cache {
-	struct m0_tl ch_head;
+	struct m0_mutex		    sc_lock;
+	struct m0_tl		    sc_busy;
+	struct m0_tl		    sc_idle;
+	uint64_t		    sc_idle_size;
+	uint64_t		    sc_idle_used;
+	m0_stob_cache_eviction_cb_t sc_eviction_cb;
+
+	uint64_t		    sc_busy_hits;
+	uint64_t		    sc_idle_hits;
+	uint64_t		    sc_misses;
+	uint64_t		    sc_evictions;
 };
-
-M0_INTERNAL void m0_stob_cacheable_init(struct m0_stob_cacheable *obj,
-					const struct m0_stob_id *id,
-					struct m0_stob_domain *dom);
-M0_INTERNAL void m0_stob_cacheable_fini(struct m0_stob_cacheable *obj);
-
-M0_INTERNAL void m0_stob_cache_init(struct m0_stob_cache *cache);
-M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache);
-
-/** Searches for the object with a given identifier in the cache. */
-M0_INTERNAL struct m0_stob_cacheable *
-m0_stob_cacheable_lookup(struct m0_stob_cache *cache,
-			 const struct m0_stob_id *id);
 
 /**
- * Searches for the object with a given identifier in the cache, creates one if
- * none is found. This can be used as an implementation of
- * m0_stob_domain_op::sdo_stob_find().
+ * Initialises stob cache.
  *
- * Domain read-write lock is used for synchronisation.
+ * @param cache stob cache
+ * @param idle_size idle list maximum size
  */
-M0_INTERNAL int m0_stob_cache_find(struct m0_stob_cache *cache,
-				   struct m0_stob_domain *dom,
-				   const struct m0_stob_id *id,
-				   int (*init)(struct m0_stob_domain *,
-					       const struct m0_stob_id *,
-					       struct m0_stob_cacheable **),
-				   struct m0_stob_cacheable **out);
+M0_INTERNAL int m0_stob_cache_init(struct m0_stob_cache *cache,
+				   uint64_t idle_size,
+				   m0_stob_cache_eviction_cb_t eviction_cb);
+M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache);
 
-/** @} end group stobcache */
+/**
+ * Stob cache invariant.
+ *
+ * @pre m0_stob_cache_is_locked(cache)
+ * @post m0_stob_cache_is_locked(cache)
+ */
+M0_INTERNAL bool m0_stob_cache__invariant(const struct m0_stob_cache *cache);
 
-/* __MERO_STOB_CACHE_H__ */
-#endif
+/**
+ * Adds stob to the stob cache. Stob should be deleted from the stob cache using
+ * m0_stob_cache_idle().
+ *
+ * @pre m0_stob_cache_is_locked(cache)
+ * @post m0_stob_cache_is_locked(cache)
+ */
+M0_INTERNAL void m0_stob_cache_add(struct m0_stob_cache *cache,
+				   struct m0_stob *stob);
+
+/**
+ * Deletes item from the stob cache.
+ *
+ * @pre m0_stob_cache_is_locked(cache)
+ * @post m0_stob_cache_is_locked(cache)
+ */
+M0_INTERNAL void m0_stob_cache_idle(struct m0_stob_cache *cache,
+				   struct m0_stob *stob);
+
+/**
+ * Finds item in the stob cache. Stob found should be deleted from the stob
+ * cache using m0_stob_cache_idle().
+ *
+ * @pre m0_stob_cache_is_locked(cache)
+ * @post m0_stob_cache_is_locked(cache)
+ */
+M0_INTERNAL struct m0_stob *m0_stob_cache_lookup(struct m0_stob_cache *cache,
+						 uint64_t stob_key);
+
+/**
+ * Purges at most nr items from the idle stob cache.
+ *
+ * @pre m0_stob_cache_is_not_locked(cache)
+ * @post m0_stob_cache_is_not_locked(cache)
+ */
+M0_INTERNAL void m0_stob_cache_purge(struct m0_stob_cache *cache, int nr);
+
+M0_INTERNAL void m0_stob_cache_lock(struct m0_stob_cache *cache);
+M0_INTERNAL void m0_stob_cache_unlock(struct m0_stob_cache *cache);
+M0_INTERNAL bool m0_stob_cache_is_locked(const struct m0_stob_cache *cache);
+M0_INTERNAL bool m0_stob_cache_is_not_locked(const struct m0_stob_cache *cache);
+
+M0_INTERNAL void m0_stob_cache__print(struct m0_stob_cache *cache);
+
+
+#endif /* __MERO_STOB_CACHE_H__ */
 
 /*
  *  Local variables:

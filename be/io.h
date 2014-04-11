@@ -26,7 +26,8 @@
 
 #include "lib/chan.h"		/* m0_clink */
 #include "lib/types.h"		/* m0_bcount_t */
-#include "stob/stob.h"		/* m0_stob_io */
+
+#include "stob/io.h"		/* m0_stob_io */
 
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 
@@ -36,6 +37,8 @@
  *
  * @{
  */
+
+struct m0_stob;
 
 struct m0_be_io {
 	struct m0_stob	       *bio_stob;

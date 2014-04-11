@@ -21,6 +21,7 @@
 #include "be/tx_group_ondisk.h"
 
 #include "ut/ut.h"
+#include "ut/stob.h"		/* m0_ut_stob_linux_get */
 #include "be/ut/helper.h"
 
 #include "be/tx_group.h"	/* grp_tlist_init */
@@ -145,7 +146,7 @@ void m0_be_ut_group_ondisk(void)
 		}
 	}
 
-	stob = m0_be_ut_stob_get(true);
+	stob = m0_ut_stob_linux_get();
 	m0_be_log_init(&but_group_ondisk_log, stob, /* XXX */ NULL);
 	rc = m0_be_log_create(&but_group_ondisk_log,
 			      BE_UT_TX_GROUP_ONDISK_LOG_SIZE);
@@ -189,7 +190,7 @@ void m0_be_ut_group_ondisk(void)
 
 	m0_be_log_destroy(&but_group_ondisk_log);
 	m0_be_log_fini(&but_group_ondisk_log);
-	m0_be_ut_stob_put(stob, true);
+	m0_ut_stob_put(stob, true);
 
 	m0_be_ut_seg_fini(&ut_seg);
 	be_ut_group_ondisk_rb_fini();

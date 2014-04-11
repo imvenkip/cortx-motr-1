@@ -71,7 +71,7 @@ static struct m0_ut_redirect err_redir;
 #define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	   "cons_server_db"
 #define SERVER_STOB_FILE_NAME	   "cons_server_stob"
-#define SERVER_ADDB_STOB_FILE_NAME "cons_server_addb_stob"
+#define SERVER_ADDB_STOB_FILE_NAME "linuxstob:cons_server_addb_stob"
 #define SERVER_LOG_FILE_NAME	   "cons_server.log"
 
 enum {

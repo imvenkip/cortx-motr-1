@@ -1884,10 +1884,9 @@ int balloc_allocate_internal(struct m0_balloc *ctx,
 	       !balloc_claim_free_blocks(ctx, req->bar_len)) {
 		req->bar_len >>= 1;
 	}
-	if (req->bar_len == 0) {
-		rc = -ENOSPC;
+	rc = req->bar_len == 0 ? -ENOSPC : 0;
+	if (rc != 0)
 		goto out;
-	}
 
 	balloc_init_ac(&bac, ctx, tx, req);
 
@@ -2158,6 +2157,11 @@ static int balloc_trees_create(struct m0_balloc *bal,
 	return rc;
 }
 
+M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
+{
+	cb->cb_ballroom.ab_ops = &balloc_ops;
+}
+
 M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 				 struct m0_be_seg   *seg,
 				 struct m0_sm_group *grp,
@@ -2176,7 +2180,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	sprintf(cid_name, "%llu", (unsigned long long)cid);
 	rc = m0_be_seg_dict_lookup(seg, cid_name, (void**)out);
 	if (rc == 0)
-		return rc;
+		goto quit;
+
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
@@ -2199,7 +2204,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 			rc = m0_be_seg_dict_insert(seg, &tx, cid_name, cb);
 			if (rc == 0) {
 				cb->cb_container_id = cid;
-				cb->cb_ballroom.ab_ops = &balloc_ops;
 
 				m0_be_btree_init(&cb->cb_db_group_extents, seg,
 						 &ge_btree_ops);
@@ -2221,6 +2225,10 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	}
 
 	m0_be_tx_fini(&tx);
+
+quit:
+	if (rc == 0)
+		m0_balloc_init(*out);
 
 	return rc;
 }

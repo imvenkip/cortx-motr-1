@@ -27,7 +27,6 @@
 
 struct m0_sm_group;
 struct m0_cob_domain_id;
-struct m0_stob_id;
 struct m0_be_tx;
 struct m0_fid;
 struct m0_fop;

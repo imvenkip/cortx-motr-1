@@ -25,8 +25,7 @@
 #include "lib/errno.h"		/* ENOSYS */
 #include "lib/misc.h"		/* M0_SET0 */
 
-#include "stob/linux.h"		/* m0_linux_stob_domain_locate */
-#include "dtm/dtm.h"		/* m0_dtx_init */
+#include "stob/io.h"		/* m0_stob_iovec_sort */
 
 #include <stdlib.h>		/* system */
 #include <sys/stat.h>		/* mkdir */
@@ -36,11 +35,6 @@
 #define LOGD(...) printf(__VA_ARGS__)
 */
 #define LOGD(...)
-
-/* XXX */
-/*
-#define BE_LOG_STOR_DESTOROY_STOB 1
-*/
 
 /**
  * @addtogroup be

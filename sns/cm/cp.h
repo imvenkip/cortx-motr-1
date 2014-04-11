@@ -24,7 +24,6 @@
 #ifndef __MERO_SNS_CM_CP_H__
 #define __MERO_SNS_CM_CP_H__
 
-#include "stob/stob_id.h"
 #include "cm/cp.h"
 
 /**
@@ -39,8 +38,8 @@ struct m0_sns_cm_cp {
 	/** cob fid of the cob this copy packet is targeted for. */
 	struct m0_fid          sc_cobfid;
 
-	/** Read/write stob id. */
-	struct m0_stob_id      sc_sid;
+	/** Read/write stob fid. */
+	struct m0_fid	       sc_stob_fid;
 
 	/**
 	 * This is true if for the local/outgoing copy packet and false

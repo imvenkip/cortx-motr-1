@@ -25,13 +25,13 @@
 #include "lib/types.h"		/* bool */
 #include "lib/buf.h"		/* m0_buf */
 #include "sm/sm.h"		/* m0_sm */
-#include "stob/stob.h"		/* m0_stob */
 
 #include "be/be.h"		/* m0_be */
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
 
 struct m0_be_ut_sm_group_thread;
+struct m0_stob;
 
 struct m0_be_ut_backend {
 	struct m0_be_domain		  but_dom;
@@ -160,12 +160,6 @@ void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
 void m0_be_ut__seg_allocator_fini(struct m0_be_seg *seg,
 				  struct m0_be_ut_backend *ut_be);
 
-
-struct m0_stob *m0_be_ut_stob_get(bool stob_create);
-struct m0_stob *m0_be_ut_stob_get_by_id(uint64_t id, bool stob_create);
-void m0_be_ut_stob_put(struct m0_stob *stob, bool stob_destroy);
-
-
 M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
 					  struct m0_sm_group *grp);
 
@@ -185,8 +179,8 @@ extern struct m0_be_0type m0_be_log0;
 extern struct m0_be_0type m0_be_seg0;
 
 struct m0_be_0type_log_opts {
-	struct m0_stob_id lo_stob_id;
-	m0_bcount_t       lo_size;
+	uint64_t    lo_stob_key;
+	m0_bcount_t lo_size;
 };
 
 

@@ -49,6 +49,7 @@ extern const struct m0_test_suite rpc_mc_ut;
 extern const struct m0_test_suite rm_ut;
 extern const struct m0_test_suite session_ut;
 extern const struct m0_test_suite sm_ut;
+extern const struct m0_test_suite stob_ut;
 extern const struct m0_test_suite xcode_ut;
 extern const struct m0_test_suite di_ut;
 
@@ -86,6 +87,7 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&rpc_mc_ut);
 	m0_ut_add(&session_ut);
 	m0_ut_add(&sm_ut);
+	m0_ut_add(&stob_ut);
 	m0_ut_add(&xcode_ut);
 
 	m0_ut_run();

@@ -33,10 +33,6 @@
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 
-/* export */
-struct m0_fid_type;
-struct m0_fid;
-
 struct m0_fid {
         uint64_t f_container;
         uint64_t f_key;
@@ -54,6 +50,7 @@ M0_INTERNAL void m0_fid_tset(struct m0_fid *fid,
 			     uint8_t tid, uint64_t container, uint64_t key);
 
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);
+M0_INTERNAL int m0_fid_sscanf_simple(const char *s, struct m0_fid *fid);
 
 M0_INTERNAL int m0_fid_init(void);
 M0_INTERNAL void m0_fid_fini(void);
@@ -63,8 +60,10 @@ enum {
 	M0_FID_TYPE_MASK = 0x00ffffffffffffffULL
 };
 
-#define FID_F "<%lx:%lx>"
-#define FID_P(f) (unsigned long)(f)->f_container, (unsigned long)(f)->f_key
+#define FID_F  "<%"PRIx64":%"PRIx64">"
+#define FID_SF " < %"SCNx64" : %"SCNx64" > "
+#define FID_P(f)  (f)->f_container,  (f)->f_key
+#define FID_S(f) &(f)->f_container, &(f)->f_key
 
 #define M0_FID_TCONTAINER(type, container)		\
 	((((uint64_t)(type)) << (64 - 8)) |		\

@@ -251,6 +251,11 @@ enum {
 };
 
 /**
+   Initialises volatile only fields in m0_balloc
+ */
+M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb);
+
+/**
    Creates struct m0_balloc instance @out with container @id
    on back-end segment @seg.
 

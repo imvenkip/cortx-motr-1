@@ -43,12 +43,14 @@
 #include "lib/finject.h"
 #include "lib/string.h"		/* m0_strdup */
 
+#include "module/instance.h"	/* m0 */
 #include "mero/magic.h"
 #include "db/db.h"
 #include "db/db_common.h"
 #include "reqh/reqh.h"
 #include "be/domain.h"
 #include "db/extmap_xc.h"
+#include "ut/stob.h"		/* m0_ut_stob_linux_get_by_key */
 
 #include "be/ut/helper.h"
 #include "be/btree.h"
@@ -166,13 +168,13 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
 		M0_ASSERT(rc == 0);
 		if (smi == NULL) {
 			seg_map_add(name,
-				    ut_seg->bus_seg.bs_stob->so_id.si_bits.u_lo,
+				    m0_stob_key_get(ut_seg->bus_seg.bs_stob),
 				    ut_seg->bus_seg.bs_addr, ut_seg);
 		}
 	} else {
 		seg = &ut_seg->bus_seg;
 
-		stob = m0_be_ut_stob_get_by_id(smi->smi_stob_id, true);
+		stob = m0_ut_stob_linux_get_by_key(smi->smi_stob_id);
 		m0_be_seg_init(seg, stob, &ut_be->but_dom);
 		rc = m0_be_seg_open(&ut_seg->bus_seg);
 		M0_ASSERT(rc == 0);
@@ -202,7 +204,7 @@ static void dbenv_seg_fini(struct m0_be_ut_seg *ut_seg)
 	m0_be_seg_close(&ut_seg->bus_seg);
 	m0_be_seg_fini(&ut_seg->bus_seg);
 
-	m0_be_ut_stob_put(stob, true);
+	m0_ut_stob_put(stob, false);
 }
 
 static void dbenv_seg_reset(const char *name)
@@ -220,6 +222,12 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 {
 	struct m0_dbenv_impl *di = &env->d_i;
 
+	if (m0_get()->i_dbenv != NULL) {
+		m0_get()->i_dbenv_save = m0_get()->i_dbenv;
+		m0_get()->i_dbenv = NULL;
+	} else if (m0_get()->i_dbenv_save == NULL) {
+		   m0_get()->i_dbenv = env;
+	}
 	di->d_dom = &di->d_ut_be.but_dom;
 	di->d_seg = &di->d_ut_seg.bus_seg;
 	m0_be_ut_backend_init(&di->d_ut_be);
@@ -232,6 +240,10 @@ void m0_dbenv_fini(struct m0_dbenv *env)
 {
 	struct m0_dbenv_impl *di = &env->d_i;
 
+	if (m0_get()->i_dbenv == env || m0_get()->i_dbenv_save == env) {
+		m0_get()->i_dbenv = NULL;
+		m0_get()->i_dbenv_save = NULL;
+	}
 	dbenv_seg_fini(&di->d_ut_seg);
 	m0_be_ut_backend_fini(&di->d_ut_be);
 }

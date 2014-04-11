@@ -17,25 +17,22 @@
  * Original creation date: 05/21/2010
  */
 
-#include <limits.h>
-#include <sys/uio.h>
+#include "stob/ioq.h"
 
-#include "lib/misc.h"   /* M0_SET0 */
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/atomic.h"
-#include "lib/assert.h"
-#include "lib/queue.h"
-#include "lib/arith.h"
-#include "lib/thread.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"
-#include "addb/addb.h"
 
-#include "stob/stob_addb.h"
-#include "linux.h"
-#include "linux_internal.h"
-#include "linux_getevents.h"
+#include <limits.h>			/* IOV_MAX */
+#include <sys/uio.h>			/* iovec */
+
+#include "lib/misc.h"			/* M0_SET0 */
+#include "lib/errno.h"			/* ENOMEM */
+#include "lib/memory.h"			/* M0_ALLOC_PTR */
+
+#include "stob/stob_addb.h"		/* M0_STOB_OOM */
+#include "stob/linux.h"			/* m0_stob_linux_container */
+#include "stob/linux_getevents.h"	/* raw_io_getevents */
+#include "stob/io.h"			/* m0_stob_io */
 
 /**
    @addtogroup stoblinux
@@ -51,14 +48,14 @@
 
    On a high level, adieu IO request is first split into fragments. A fragment
    is initially placed into a per-domain queue (admission queue,
-   linux_domain::ioq_queue) where it is held until there is enough space in the
-   AIO ring buffer (linux_domain::ioq_ctx). Placing a fragment into the ring
+   tmp_linux_domain::ioq_queue) where it is held until there is enough space in the
+   AIO ring buffer (tmp_linux_domain::ioq_ctx). Placing a fragment into the ring
    buffer (ioq_queue_submit()) means that kernel AIO is launched for it. When IO
    completes, the kernel delivers an IO completion event via the ring buffer.
 
-   A number (IOQ_NR_THREADS by default) of worker adieu threads is created for
-   each storage object domain. These threads are implementing admission control
-   and completion notification, they
+   A number (M0_STOB_IOQ_NR_THREADS by default) of worker adieu threads is
+   created for each storage object domain. These threads are implementing
+   admission control and completion notification, they
 
    @li listen for the AIO completion events on the in the ring buffer. When AIO
    is completed, worker thread signals completion event to AIO users;
@@ -76,7 +73,7 @@
    <b>Concurrency control</b>
 
    Per-domain data structures (queue, thresholds, etc.) are protected by
-   linux_domain::ioq_mutex.
+   tmp_linux_domain::ioq_mutex.
 
    Concurrency control for an individual adieu fragment is very simple: user is
    not allowed to touch it in SIS_BUSY state and io_getevents() exactly-once
@@ -92,17 +89,19 @@
    @{
  */
 
+/* ---------------------------------------------------------------------- */
+
 /**
    AIO fragment.
 
    A ioq_qev is created for each fragment of original adieu request (see
-   linux_stob_io_launch()).
+   tmp_linux_stob_io_launch()).
  */
 struct ioq_qev {
 	struct iocb           iq_iocb;
 	m0_bcount_t           iq_nbytes;
 	/** Linkage to a per-domain admission queue
-	    (linux_domain::ioq_queue). */
+	    (tmp_linux_domain::ioq_queue). */
 	struct m0_queue_link  iq_linkage;
 	struct m0_stob_io    *iq_io;
 };
@@ -110,7 +109,7 @@ struct ioq_qev {
 /**
    Linux adieu specific part of generic m0_stob_io structure.
  */
-struct linux_stob_io {
+struct stob_linux_io {
 	/** Number of fragments in this adieu request. */
 	uint32_t           si_nr;
 	/** Number of completed fragments. */
@@ -119,16 +118,18 @@ struct linux_stob_io {
 	struct m0_atomic64 si_bdone;
 	/** Array of fragments. */
 	struct ioq_qev    *si_qev;
+	/** Main ioq struct */
+	struct m0_stob_ioq *si_ioq;
 };
 
-static struct ioq_qev *ioq_queue_get   (struct linux_domain *ldom);
-static void            ioq_queue_put   (struct linux_domain *ldom,
+static struct ioq_qev *ioq_queue_get   (struct m0_stob_ioq *ioq);
+static void            ioq_queue_put   (struct m0_stob_ioq *ioq,
 					struct ioq_qev *qev);
-static void            ioq_queue_submit(struct linux_domain *ldom);
-static void            ioq_queue_lock  (struct linux_domain *ldom);
-static void            ioq_queue_unlock(struct linux_domain *ldom);
+static void            ioq_queue_submit(struct m0_stob_ioq *ioq);
+static void            ioq_queue_lock  (struct m0_stob_ioq *ioq);
+static void            ioq_queue_unlock(struct m0_stob_ioq *ioq);
 
-static const struct m0_stob_io_op linux_stob_io_op;
+static const struct m0_stob_io_op stob_linux_io_op;
 
 enum {
 	/*
@@ -136,34 +137,17 @@ enum {
 	 *
 	 * According to open(2) manpage: "Under Linux 2.6, alignment to
 	 * 512-byte boundaries suffices".
-	 *
-	 * Don't use these constants directly, use LINUX_DOM_XXX macros
-	 * instead (see below), because they take into account
-	 * linux_domain.sdl_use_directio flag which is set in runtime.
 	 */
-	LINUX_BSHIFT = 12, /* pow(2, 12) == 4096 */
-	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
-	LINUX_BMASK  = LINUX_BSIZE - 1
+	STOB_IOQ_BSHIFT = 12, /* pow(2, 12) == 4096 */
+	STOB_IOQ_BSIZE	= 1 << STOB_IOQ_BSHIFT,
+	STOB_IOQ_BMASK	= STOB_IOQ_BSIZE - 1
 };
 
-#define LINUX_DOM_BSHIFT(ldom) ({				\
-	struct linux_domain *_ldom = (ldom);			\
-	_ldom->sdl_use_directio ? LINUX_BSHIFT : 0 ;		\
-})
-
-#define LINUX_DOM_BSIZE(ldom) ({				\
-	struct linux_domain *_ldom = (ldom);			\
-	_ldom->sdl_use_directio ? LINUX_BSIZE : 0 ;		\
-})
-
-#define LINUX_DOM_BMASK(ldom) ({				\
-	struct linux_domain *_ldom = (ldom);			\
-	_ldom->sdl_use_directio ? LINUX_BMASK : 0 ;		\
-})
-
-M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
+M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
+				      struct m0_stob_io *io)
 {
-	struct linux_stob_io *lio;
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+	struct stob_linux_io *lio;
 	int                   result;
 
 	M0_PRE(io->si_state == SIS_IDLE);
@@ -171,7 +155,8 @@ M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 	M0_ALLOC_PTR(lio);
 	if (lio != NULL) {
 		io->si_stob_private = lio;
-		io->si_op = &linux_stob_io_op;
+		io->si_op = &stob_linux_io_op;
+		lio->si_ioq = &lstob->sl_dom->sld_ioq;
 		result = 0;
 	} else {
 		M0_STOB_OOM(LAD_STOB_IO_INIT);
@@ -180,18 +165,18 @@ M0_INTERNAL int linux_stob_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 	return result;
 }
 
-static void linux_stob_io_release(struct linux_stob_io *lio)
+static void stob_linux_io_release(struct stob_linux_io *lio)
 {
 	if (lio->si_qev != NULL)
 		m0_free(lio->si_qev->iq_iocb.u.c.buf);
 	m0_free0(&lio->si_qev);
 }
 
-static void linux_stob_io_fini(struct m0_stob_io *io)
+static void stob_linux_io_fini(struct m0_stob_io *io)
 {
-	struct linux_stob_io *lio = io->si_stob_private;
+	struct stob_linux_io *lio = io->si_stob_private;
 
-	linux_stob_io_release(lio);
+	stob_linux_io_release(lio);
 	m0_free(lio);
 }
 
@@ -204,11 +189,11 @@ static void linux_stob_io_fini(struct m0_stob_io *io)
 
    @li queue all fragments and submit as many as possible;
  */
-static int linux_stob_io_launch(struct m0_stob_io *io)
+static int stob_linux_io_launch(struct m0_stob_io *io)
 {
-	struct linux_stob    *lstob  = stob2linux(io->si_obj);
-	struct linux_domain  *ldom   = domain2linux(io->si_obj->so_domain);
-	struct linux_stob_io *lio    = io->si_stob_private;
+	struct m0_stob_linux *lstob = m0_stob_linux_container(io->si_obj);
+	struct stob_linux_io *lio   = io->si_stob_private;
+	struct m0_stob_ioq   *ioq   = lio->si_ioq;
 	struct ioq_qev       *qev;
 	struct iovec         *iov;
 	struct m0_vec_cursor  src;
@@ -222,7 +207,6 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	bool                  eodst;
 	int                   opcode;
 
-	M0_PRE(io->si_obj->so_domain->sd_type == &m0_linux_stob_type);
 	M0_PRE(M0_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
 	/* prefix fragments execution mode is not yet supported */
 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
@@ -273,7 +257,7 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 		iocb->u.v.vec = iov;
 		iocb->aio_fildes = lstob->sl_fd;
 		iocb->u.v.nr = min32u(frags, IOV_MAX);
-		iocb->u.v.offset = off << LINUX_DOM_BSHIFT(ldom);
+		iocb->u.v.offset = off << m0_stob_ioq_bshift(ioq);
 		iocb->aio_lio_opcode = opcode;
 
 		for (i = 0; i < iocb->u.v.nr; ++i) {
@@ -297,25 +281,25 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 			}
 
 			iov->iov_base = m0_stob_addr_open(buf,
-						LINUX_DOM_BSHIFT(ldom));
-			iov->iov_len  = frag_size << LINUX_DOM_BSHIFT(ldom);
+						m0_stob_ioq_bshift(ioq));
+			iov->iov_len  = frag_size << m0_stob_ioq_bshift(ioq);
 			chunk_size += frag_size;
 
 			m0_vec_cursor_move(&src, frag_size);
 			m0_vec_cursor_move(&dst, frag_size);
 			++iov;
 		}
-		M0_LOG(M0_DEBUG, "["U128X_F"] %2d: frags=%d op=%d off=%lx sz=%lx",
-		       U128_P(&io->si_obj->so_id.si_bits),
+		M0_LOG(M0_DEBUG, FID_F" %2d: frags=%d op=%d off=%lx sz=%lx",
+		       FID_P(m0_stob_fid_get(io->si_obj)),
 		       (int)(qev - lio->si_qev), i, io->si_opcode,
 		       (unsigned long)off, (unsigned long)chunk_size);
 		if (result == 0) {
 			iocb->u.v.nr = i;
-			qev->iq_nbytes = chunk_size << LINUX_DOM_BSHIFT(ldom);
+			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
 
-			ioq_queue_lock(ldom);
-			ioq_queue_put(ldom, qev);
-			ioq_queue_unlock(ldom);
+			ioq_queue_lock(ioq);
+			ioq_queue_put(ioq, qev);
+			ioq_queue_unlock(ioq);
 
 			frags -= i;
 			if (frags == 0)
@@ -328,110 +312,99 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
 	lio->si_nr = ++qev - lio->si_qev;
 
 	if (result != 0)
-		linux_stob_io_release(lio);
+		stob_linux_io_release(lio);
 	else
-		ioq_queue_submit(ldom);
+		ioq_queue_submit(ioq);
 
 	return result;
 }
 
-static const struct m0_stob_io_op linux_stob_io_op = {
-	.sio_launch  = linux_stob_io_launch,
-	.sio_fini    = linux_stob_io_fini
+static const struct m0_stob_io_op stob_linux_io_op = {
+	.sio_launch  = stob_linux_io_launch,
+	.sio_fini    = stob_linux_io_fini
 };
-
-/**
-   An implementation of m0_stob_op::sop_block_shift() method.
- */
-M0_INTERNAL uint32_t linux_stob_block_shift(const struct m0_stob *stob)
-{
-	struct linux_domain *ldom;
-
-	ldom  = domain2linux(stob->so_domain);
-	return LINUX_DOM_BSHIFT(ldom);
-}
 
 /**
    Removes an element from the (non-empty) admission queue and returns it.
  */
-static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
+static struct ioq_qev *ioq_queue_get(struct m0_stob_ioq *ioq)
 {
 	struct m0_queue_link *head;
 
-	M0_ASSERT(!m0_queue_is_empty(&ldom->ioq_queue));
-	M0_ASSERT(m0_mutex_is_locked(&ldom->ioq_lock));
+	M0_ASSERT(!m0_queue_is_empty(&ioq->ioq_queue));
+	M0_ASSERT(m0_mutex_is_locked(&ioq->ioq_lock));
 
-	head = m0_queue_get(&ldom->ioq_queue);
-	ldom->ioq_queued--;
-	M0_ASSERT_EX(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
+	head = m0_queue_get(&ioq->ioq_queue);
+	ioq->ioq_queued--;
+	M0_ASSERT_EX(ioq->ioq_queued == m0_queue_length(&ioq->ioq_queue));
 	return container_of(head, struct ioq_qev, iq_linkage);
 }
 
 /**
    Adds an element to the admission queue.
  */
-static void ioq_queue_put(struct linux_domain *ldom,
+static void ioq_queue_put(struct m0_stob_ioq *ioq,
 			  struct ioq_qev *qev)
 {
 	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
-	M0_ASSERT(m0_mutex_is_locked(&ldom->ioq_lock));
-	M0_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
+	M0_ASSERT(m0_mutex_is_locked(&ioq->ioq_lock));
+	// M0_ASSERT(qev->iq_io->si_obj->so_domain == &ioq->sdl_base);
 
-	m0_queue_put(&ldom->ioq_queue, &qev->iq_linkage);
-	ldom->ioq_queued++;
-	M0_ASSERT_EX(ldom->ioq_queued == m0_queue_length(&ldom->ioq_queue));
+	m0_queue_put(&ioq->ioq_queue, &qev->iq_linkage);
+	ioq->ioq_queued++;
+	M0_ASSERT_EX(ioq->ioq_queued == m0_queue_length(&ioq->ioq_queue));
 }
 
-static void ioq_queue_lock(struct linux_domain *ldom)
+static void ioq_queue_lock(struct m0_stob_ioq *ioq)
 {
-	m0_mutex_lock(&ldom->ioq_lock);
+	m0_mutex_lock(&ioq->ioq_lock);
 }
 
-static void ioq_queue_unlock(struct linux_domain *ldom)
+static void ioq_queue_unlock(struct m0_stob_ioq *ioq)
 {
-	m0_mutex_unlock(&ldom->ioq_lock);
+	m0_mutex_unlock(&ioq->ioq_lock);
 }
 
 /**
    Transfers fragments from the admission queue to the ring buffer in batches
    until the ring buffer is full.
  */
-static void ioq_queue_submit(struct linux_domain *ldom)
+static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 {
 	int got;
 	int put;
 	int avail;
 	int i;
 
-	struct ioq_qev  *qev[IOQ_BATCH_IN_SIZE];
-	struct iocb    *evin[IOQ_BATCH_IN_SIZE];
+	struct ioq_qev  *qev[M0_STOB_IOQ_BATCH_IN_SIZE];
+	struct iocb    *evin[M0_STOB_IOQ_BATCH_IN_SIZE];
 
 	do {
-		ioq_queue_lock(ldom);
-		avail = m0_atomic64_get(&ldom->ioq_avail);
-		got = min32(ldom->ioq_queued, min32(avail, ARRAY_SIZE(evin)));
-		m0_atomic64_sub(&ldom->ioq_avail, got);
+		ioq_queue_lock(ioq);
+		avail = m0_atomic64_get(&ioq->ioq_avail);
+		got = min32(ioq->ioq_queued, min32(avail, ARRAY_SIZE(evin)));
+		m0_atomic64_sub(&ioq->ioq_avail, got);
 		for (i = 0; i < got; ++i) {
-			qev[i] = ioq_queue_get(ldom);
+			qev[i] = ioq_queue_get(ioq);
 			evin[i] = &qev[i]->iq_iocb;
 		}
-		ioq_queue_unlock(ldom);
+		ioq_queue_unlock(ioq);
 
 		if (got > 0) {
-			put = io_submit(ldom->ioq_ctx, got, evin);
+			put = io_submit(ioq->ioq_ctx, got, evin);
 
 			if (put < 0) {
 				M0_STOB_FUNC_FAIL(LAD_IOQ_SUBMIT, put);
 				put = 0;
 			}
 
-			ioq_queue_lock(ldom);
+			ioq_queue_lock(ioq);
 			for (i = put; i < got; ++i)
-				ioq_queue_put(ldom, qev[i]);
-			ioq_queue_unlock(ldom);
+				ioq_queue_put(ioq, qev[i]);
+			ioq_queue_unlock(ioq);
 
 			if (got > put)
-				m0_atomic64_add(&ldom->ioq_avail, got - put);
+				m0_atomic64_add(&ioq->ioq_avail, got - put);
 		}
 	} while (got > 0);
 }
@@ -442,16 +415,15 @@ static void ioq_queue_submit(struct linux_domain *ldom)
    When all fragments of a certain adieu request have completed, signals
    m0_stob_io::si_wait.
  */
-static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
+static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 			 long res, long res2)
 {
 	struct m0_stob_io    *io   = qev->iq_io;
-	struct linux_stob_io *lio  = io->si_stob_private;
+	struct stob_linux_io *lio  = io->si_stob_private;
 	struct iocb          *iocb = &qev->iq_iocb;
 	uint32_t              done;
 
 	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
-	M0_ASSERT(io->si_obj->so_domain == &ldom->sdl_base);
 	M0_ASSERT(io->si_state == SIS_BUSY);
 
 	done = m0_atomic64_get(&lio->si_done);
@@ -480,7 +452,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	}
 
 	if (res > 0) {
-		if ((res & LINUX_DOM_BMASK(ldom)) != 0) {
+		if ((res & m0_stob_ioq_bmask(ioq)) != 0) {
 			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
 			res = -EIO;
 		} else
@@ -489,6 +461,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 
 	if (res < 0 && io->si_rc == 0)
 		io->si_rc = res;
+	M0_ASSERT(io->si_rc == 0);
 
 	/*
 	 * The position of this operation is critical:
@@ -500,13 +473,13 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	if (done == lio->si_nr) {
 		m0_bcount_t bdone = m0_atomic64_get(&lio->si_bdone);
 
-		M0_LOG(M0_DEBUG, "["U128X_F"] nr=%d sz=%lx si_rc=%d",
-		       U128_P(&io->si_obj->so_id.si_bits),
+		M0_LOG(M0_DEBUG, FID_F" nr=%d sz=%lx si_rc=%d",
+		       FID_P(m0_stob_fid_get(io->si_obj)),
 		       done, (unsigned long)bdone, (int)io->si_rc);
 		M0_ASSERT(m0_forall(i, lio->si_nr,
 		          !m0_queue_link_is_in(&lio->si_qev[i].iq_linkage)));
-		io->si_count = bdone >> LINUX_DOM_BSHIFT(ldom);
-		linux_stob_io_release(lio);
+		io->si_count = bdone >> m0_stob_ioq_bshift(ioq);
+		stob_linux_io_release(lio);
 		io->si_state = SIS_IDLE;
 		m0_chan_broadcast_lock(&io->si_wait);
 	}
@@ -524,22 +497,22 @@ static const struct timespec ioq_timeout_default = {
    events to the users. Moves fragments from the admission queue to the ring
    buffer.
  */
-static void ioq_thread(struct linux_domain *ldom)
+static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 {
 	int got;
 	int avail;
 	int i;
-	struct io_event evout[IOQ_BATCH_OUT_SIZE];
+	struct io_event evout[M0_STOB_IOQ_BATCH_OUT_SIZE];
 	struct timespec ioq_timeout;
 
-	while (!ldom->ioq_shutdown) {
+	while (!ioq->ioq_shutdown) {
 		ioq_timeout = ioq_timeout_default;
-		got = raw_io_getevents(ldom->ioq_ctx, 1, ARRAY_SIZE(evout),
+		got = raw_io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),
 				       evout, &ioq_timeout);
 		M0_LOG(M0_DEBUG, "got=%d", got);
 		if (got > 0) {
-			avail = m0_atomic64_add_return(&ldom->ioq_avail, got);
-			M0_ASSERT(avail <= IOQ_RING_SIZE);
+			avail = m0_atomic64_add_return(&ioq->ioq_avail, got);
+			M0_ASSERT(avail <= M0_STOB_IOQ_RING_SIZE);
 		}
 
 		for (i = 0; i < got; ++i) {
@@ -549,64 +522,85 @@ static void ioq_thread(struct linux_domain *ldom)
 			iev = &evout[i];
 			qev = container_of(iev->obj, struct ioq_qev, iq_iocb);
 			M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
-			ioq_complete(ldom, qev, iev->res, iev->res2);
+			ioq_complete(ioq, qev, iev->res, iev->res2);
 		}
 		if (got < 0 && got != -EINTR)
 			M0_STOB_FUNC_FAIL(LAD_IOQ_THREAD, got);
 
-		ioq_queue_submit(ldom);
+		ioq_queue_submit(ioq);
 	}
 }
 
-M0_INTERNAL void linux_domain_io_fini(struct m0_stob_domain *dom)
-{
-	int i;
-	struct linux_domain *ldom;
-
-	ldom = domain2linux(dom);
-
-	ldom->ioq_shutdown = true;
-	for (i = 0; i < ARRAY_SIZE(ldom->ioq); ++i) {
-		if (ldom->ioq[i].t_func != NULL)
-			m0_thread_join(&ldom->ioq[i]);
-	}
-	if (ldom->ioq_ctx != NULL)
-		io_destroy(ldom->ioq_ctx);
-	m0_queue_fini(&ldom->ioq_queue);
-	m0_mutex_fini(&ldom->ioq_lock);
-}
-
-M0_INTERNAL int linux_domain_io_init(struct m0_stob_domain *dom)
+M0_INTERNAL int m0_stob_ioq_init(struct m0_stob_ioq *ioq)
 {
 	int                          result;
 	int                          i;
-	struct linux_domain *ldom;
 
-	ldom = domain2linux(dom);
-	ldom->ioq_shutdown = false;
-	ldom->ioq_ctx      = NULL;
-	m0_atomic64_set(&ldom->ioq_avail, IOQ_RING_SIZE);
-	ldom->ioq_queued   = 0;
+	ioq->ioq_shutdown = false;
+	ioq->ioq_ctx      = NULL;
+	m0_atomic64_set(&ioq->ioq_avail, M0_STOB_IOQ_RING_SIZE);
+	ioq->ioq_queued   = 0;
 
-	memset(ldom->ioq, 0, sizeof ldom->ioq);
-	m0_queue_init(&ldom->ioq_queue);
-	m0_mutex_init(&ldom->ioq_lock);
+	m0_queue_init(&ioq->ioq_queue);
+	m0_mutex_init(&ioq->ioq_lock);
 
-	result = io_setup(IOQ_RING_SIZE, &ldom->ioq_ctx);
+	result = io_setup(M0_STOB_IOQ_RING_SIZE, &ioq->ioq_ctx);
 	if (result == 0) {
-		for (i = 0; i < ARRAY_SIZE(ldom->ioq); ++i) {
-			result = M0_THREAD_INIT(&ldom->ioq[i],
-						struct linux_domain *,
-						NULL, &ioq_thread, ldom,
+		for (i = 0; i < ARRAY_SIZE(ioq->ioq_thread); ++i) {
+			result = M0_THREAD_INIT(&ioq->ioq_thread[i],
+						struct m0_stob_ioq *,
+						NULL, &stob_ioq_thread, ioq,
 						"ioq_thread%d", i);
 			if (result != 0)
 				break;
+			m0_stob_ioq_directio_setup(ioq, false);
 		}
 	} else
 		M0_STOB_FUNC_FAIL(LAD_DOM_IO_INIT, result);
 	if (result != 0)
-		linux_domain_io_fini(dom);
+		m0_stob_ioq_fini(ioq);
 	return result;
+}
+
+M0_INTERNAL void m0_stob_ioq_fini(struct m0_stob_ioq *ioq)
+{
+	int i;
+
+	ioq->ioq_shutdown = true;
+	for (i = 0; i < ARRAY_SIZE(ioq->ioq_thread); ++i) {
+		if (ioq->ioq_thread[i].t_func != NULL)
+			m0_thread_join(&ioq->ioq_thread[i]);
+	}
+	if (ioq->ioq_ctx != NULL)
+		io_destroy(ioq->ioq_ctx);
+	m0_queue_fini(&ioq->ioq_queue);
+	m0_mutex_fini(&ioq->ioq_lock);
+}
+
+M0_INTERNAL uint32_t m0_stob_ioq_bshift(struct m0_stob_ioq *ioq)
+{
+	return ioq->ioq_use_directio ? STOB_IOQ_BSHIFT : 0;
+}
+
+M0_INTERNAL m0_bcount_t m0_stob_ioq_bsize(struct m0_stob_ioq *ioq)
+{
+	return ioq->ioq_use_directio ? STOB_IOQ_BSIZE : 0;
+}
+
+M0_INTERNAL m0_bcount_t m0_stob_ioq_bmask(struct m0_stob_ioq *ioq)
+{
+	return ioq->ioq_use_directio ? STOB_IOQ_BMASK : 0;
+}
+
+M0_INTERNAL bool m0_stob_ioq_directio(struct m0_stob_ioq *ioq)
+{
+	return ioq->ioq_use_directio;
+}
+
+M0_INTERNAL void m0_stob_ioq_directio_setup(struct m0_stob_ioq *ioq,
+					    bool use_directio)
+{
+	ioq->ioq_use_directio = use_directio;
 }
 
 #undef M0_TRACE_SUBSYSTEM

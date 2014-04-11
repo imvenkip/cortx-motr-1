@@ -33,7 +33,6 @@
 #include "addb/addb.h"
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
-#include "stob/stob.h"
 #include "dtm/verno.h"
 #include "be/btree.h"
 
@@ -41,6 +40,7 @@
 struct m0_be_tx;
 struct m0_be_btree;
 struct m0_be_domain;
+struct m0_stob;
 
 /**
    @defgroup cob Component objects

@@ -24,6 +24,8 @@
 #include "mero/setup.h"
 #include "sns/cm/repair/xform.c"
 #include "sns/cm/repair/ut/cp_common.h"
+#include "ioservice/io_foms.h"		/* io_fom_cob_rw_fid2stob_map */
+#include "ut/stob.h"			/* m0_ut_stob_create_by_fid */
 
 enum {
 	SEG_NR                  = 16,
@@ -38,21 +40,13 @@ enum {
 	MULTI_FAIL_MULTI_CP_NR  = 5,
 };
 
-static struct m0_stob_id sid = {
-        .si_bits = {
-                .u_hi = 0,
-                .u_lo = 4
-        }
-};
+static struct m0_fid cob_fid = M0_FID_INIT(0, 4);
 
 static struct m0_reqh            *reqh;
 static struct m0_cm              *cm;
 static struct m0_sns_cm          *scm;
 static struct m0_reqh_service    *scm_service;
-static struct m0_stob_domain     *stob_dom;
-static struct m0_stob            *stob;
 static struct m0_cob_domain      *cdom;
-static struct m0_dtx              tx;
 static struct m0_semaphore        sem;
 static struct m0_net_buffer_pool  nbp;
 
@@ -241,31 +235,20 @@ static void cp_buf_free(struct m0_sns_cm_ag *sag)
 
 static void tgt_fid_cob_create(struct m0_reqh *reqh)
 {
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
-	struct m0_dbenv    *dbenv;
-	struct m0_fid       gfid = {0, 4};
-	int                 rc;
+        struct m0_dbenv *dbenv;
+	struct m0_fid	 stob_fid;
+        struct m0_fid	 gfid = cob_fid;
+        int		 rc;
 
 	rc = m0_ios_cdom_get(reqh, &cdom);
 	M0_ASSERT(rc == 0);
 	dbenv = reqh->rh_dbenv;
 
-	cob_create(dbenv, cdom, 0, &gfid, 0);
-	stob_dom = m0_cs_stob_domain_find(reqh, &sid);
-	M0_ASSERT(stob_dom != NULL);
+        cob_create(dbenv, cdom, 0, &gfid, 0);
 
-	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, dbenv->d_i.d_seg->bs_domain, grp);
-	m0_stob_create_helper_credit(stob_dom, &sid, &tx.tx_betx_cred);
-	rc = stob_dom->sd_ops->sdo_tx_make(stob_dom, &tx);
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
+	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
 	M0_ASSERT(rc == 0);
-	rc = m0_stob_create_helper(stob_dom, &tx, &sid, &stob);
-	M0_ASSERT(rc == 0);
-	m0_dtx_done_sync(&tx);
-	m0_dtx_fini(&tx);
-	m0_sm_group_unlock(grp);
-
-	m0_stob_put(stob);
 }
 
 static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
@@ -284,8 +267,7 @@ static void ag_prepare(struct m0_sns_cm_repair_ag *rag, int failure_nr,
 	sag->sag_base.cag_cp_global_nr = sag->sag_base.cag_cp_local_nr +
 					 failure_nr;
 	for (i = 0; i < failure_nr; ++i) {
-		fc[i].fc_tgt_cobfid.f_container = sid.si_bits.u_hi;
-		fc[i].fc_tgt_cobfid.f_key = sid.si_bits.u_lo;
+		fc[i].fc_tgt_cobfid = cob_fid;
 		fc[i].fc_is_inuse = true;
 	}
 	rag->rag_fc = fc;

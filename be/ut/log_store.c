@@ -23,8 +23,7 @@
 
 #include "lib/misc.h"		/* M0_SET0 */
 #include "ut/ut.h"		/* M0_UT_ASSERT */
-
-#include "be/ut/helper.h"	/* m0_be_ut_stob_get */
+#include "ut/stob.h"		/* m0_ut_stob_linux_get */
 
 #include <stdlib.h>		/* rand_r */
 
@@ -166,7 +165,7 @@ static void be_ut_log_store(bool fake_io)
 	int		      rc;
 	int		      i;
 
-	stob = m0_be_ut_stob_get(true);
+	stob = m0_ut_stob_linux_get();
 	M0_SET0(&ls);
 	m0_be_log_store_init(&ls, stob);
 
@@ -200,7 +199,7 @@ static void be_ut_log_store(bool fake_io)
 
 	m0_be_log_store_destroy(&ls);
 	m0_be_log_store_fini(&ls);
-	m0_be_ut_stob_put(stob, true);
+	m0_ut_stob_put(stob, true);
 }
 
 void m0_be_ut_log_store_reserve(void)

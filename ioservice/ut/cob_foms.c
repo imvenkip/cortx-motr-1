@@ -48,6 +48,7 @@ static void cd_fom_dealloc(struct m0_fom *fom);
 static void fom_dtx_init_open(struct m0_fom *fom, struct m0_sm_group *grp,
 			      enum m0_cob_op opcode);
 static void fom_dtx_done(struct m0_fom *fom, struct m0_sm_group *grp);
+static void cd_stob_delete_test();
 
 enum cob_fom_type {
 	COB_CREATE = 1,
@@ -100,8 +101,8 @@ struct cobthread_arg {
 
 static char *server_args[] = {
 	"m0d", "-p", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
-	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
-	"-s", "ioservice", "-w", "10"/* =POOL_WIDTH */,
+	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
+	"-e", SERVER_ENDP, "-s", "ioservice", "-w", "10"/* =POOL_WIDTH */,
 };
 
 static void cobfoms_utinit(void)
@@ -632,8 +633,6 @@ static void cc_stob_create_test()
 	fom_dtx_done(fom, grp);
 
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_CONTAINER);
-	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_lo == COB_TEST_KEY);
 
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
@@ -701,16 +700,14 @@ static void cc_cob_create_test()
 	 * Create STOB first.
 	 */
 	rc = cc_stob_create(fom, cc);
-	M0_UT_ASSERT(rc == 0);
+	/* stob may be already created by another test */
+	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 
 	rc = cc_cob_create(fom, cc);
 	fom_dtx_done(fom, grp);
 
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_UT_ASSERT(rc == 0);
-
-	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_CONTAINER);
-	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_lo == COB_TEST_KEY);
 
 	/*
 	 * Test-case 1 - Verify COB creation
@@ -751,6 +748,9 @@ static void cc_fom_state_test(void)
 	struct m0_fom_cob_op *cc;
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 
+	/* delete existing stob */
+	cd_stob_delete_test();
+
 	cfom = cc_fom_alloc();
 	M0_UT_ASSERT(cfom != NULL);
 
@@ -765,9 +765,6 @@ static void cc_fom_state_test(void)
 
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(cfom) == M0_FOPH_SUCCESS);
-
-	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_CONTAINER);
-	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_lo == COB_TEST_KEY);
 
 	cob_verify(cfom, true);
 
@@ -881,8 +878,6 @@ static void cd_fom_populate_test()
 	cd = cob_fom_get(fom);
 	M0_UT_ASSERT(cd->fco_cfid.f_container == COB_TEST_CONTAINER);
 	M0_UT_ASSERT(cd->fco_cfid.f_key == COB_TEST_KEY);
-	M0_UT_ASSERT(cd->fco_stobid.si_bits.u_hi == COB_TEST_CONTAINER);
-	M0_UT_ASSERT(cd->fco_stobid.si_bits.u_lo == COB_TEST_KEY);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	cd_fom_dealloc(fom);
@@ -947,7 +942,7 @@ static void cd_stob_delete_test()
 	cc = cob_fom_get(cfom);
 	fom_dtx_init_open(cfom, grp, M0_COB_OP_CREATE);
 	rc = cc_stob_create(cfom, cc);
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 	fom_dtx_done(cfom, grp);
 
 	/* Test stob delete after it has been created */

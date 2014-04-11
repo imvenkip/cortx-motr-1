@@ -269,6 +269,10 @@ m0_be_ut_backend_sm_group_lookup(struct m0_be_ut_backend *ut_be)
 	return NULL;
 }
 
+void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be)
+{
+}
+
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 {
 }
@@ -294,4 +298,14 @@ M0_INTERNAL
 struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom)
 {
 	return NULL;
+}
+
+M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg)
+{
+	return 0;
+}
+
+M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob)
+{
+	return 0;
 }

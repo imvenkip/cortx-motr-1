@@ -36,7 +36,6 @@
 #include "lib/locality.h"
 #include "balloc/balloc.h"
 #include "stob/ad.h"
-#include "stob/linux.h"
 #include "mgmt/mgmt.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
@@ -51,6 +50,7 @@
 #include "rpc/rpclib.h"
 #include "rpc/rpc_internal.h"
 #include "addb/addb_monitor.h"
+#include "module/instance.h"	/* m0_get */
 
 #include "be/ut/helper.h"
 
@@ -86,12 +86,7 @@ M0_INTERNAL const char *m0_cs_stypes[M0_STOB_TYPE_NR] = {
 	[M0_AD_STOB]    = "AD"
 };
 
-M0_INTERNAL const struct m0_stob_id m0_addb_stob_id = {
-	.si_bits = {
-		.u_hi = M0_ADDB_STOB_ID_HI,
-		.u_lo = M0_ADDB_STOB_ID_LI
-	}
-};
+M0_INTERNAL const uint64_t m0_addb_stob_key = M0_ADDB_STOB_KEY;
 
 static bool reqh_context_check(const void *bob);
 
@@ -126,7 +121,7 @@ static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 			m0_exists(i, rctx->rc_nr_services,
 				  m0_streq(rctx->rc_services[i], "confd"))) &&
 		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
-		rctx->rc_addb_stpath != NULL && rctx->rc_dbpath != NULL &&
+		rctx->rc_addb_stlocation != NULL && rctx->rc_dbpath != NULL &&
 		rctx->rc_nr_services != 0 && rctx->rc_services != NULL &&
 		!cs_eps_tlist_is_empty(&rctx->rc_eps);
 }
@@ -676,138 +671,71 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 	return 0;
 }
 
+/* XXX DESCRIBEME cid is linux_stob_key and ad_dom_key */
 static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
-			     struct m0_be_seg *db, const char *f_path)
+			     struct m0_be_seg *seg, const char *f_path)
 {
-	int                 rc;
-	char                ad_dname[MAXPATHLEN];
-	struct m0_stob_id  *bstob_id;
-	struct m0_stob    **bstob;
-	struct m0_balloc   *cb;
-	struct cs_ad_stob  *adstob;
-	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;
+	int                rc;
+	char               location[MAXPATHLEN];
+	char              *dom_cfg;
+	struct m0_stob    *bstore;
+	struct cs_ad_stob *adstob;
 
-	M0_ENTRY("cid=%d path=%s", (int)cid, f_path);
+	M0_ENTRY("cid=%llu path=%s", (unsigned long long)cid, f_path);
 
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL)
 		return M0_ERR(-ENOMEM, "adstob object allocation failed");
 
-	bstob = &adstob->as_stob_back;
-	bstob_id = &adstob->as_id_back;
-	bstob_id->si_bits.u_hi = cid;
-	bstob_id->si_bits.u_lo = M0_AD_STOB_ID_LO;
-	rc = m0_stob_find(stob->s_ldom, bstob_id, bstob);
-	if (rc == 0) {
-		if (f_path != NULL)
-			rc = m0_linux_stob_link(stob->s_ldom, *bstob,
-						f_path, NULL);
-		if (rc == 0 || rc == -EEXIST)
-			rc = m0_stob_create_helper(stob->s_ldom, NULL,
-						   bstob_id, bstob);
-		if (rc == 0)
-			m0_stob_put(*bstob);
+	rc = m0_stob_find_by_key(stob->s_sdom, cid, &bstore);
+	adstob->as_stob_back = bstore;
+	rc = rc ?: m0_stob_locate(bstore);
+	if (rc == 0 && m0_stob_state_get(bstore) == CSS_NOENT) {
+		/* XXX assume that whole cfg_str is a symlink if != NULL */
+		rc = m0_stob_create(bstore, NULL, f_path);
 	}
 
 	if (rc == 0) {
-		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
-					    bstob_id->si_bits.u_lo);
-		m0_sm_group_lock(grp);
-		rc = m0_ad_stob_domain_locate(ad_dname, db, grp,
-					      &adstob->as_dom, *bstob);
+		/* XXX fix when seg0 is landed */
+		rc = snprintf(location, sizeof(location),
+			      "adstob:seg=%p,ad.%lx", seg, cid);
+		M0_ASSERT(rc < sizeof(location));
+		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_fid_get(bstore));
+		rc = dom_cfg == NULL ? -ENOMEM :
+		     m0_stob_domain_create_or_init(location, NULL, cid, dom_cfg,
+						   &adstob->as_dom);
+		m0_free(dom_cfg);
 
 		if (rc == 0 && M0_FI_ENABLED("ad_domain_locate_fail")) {
-			struct m0_stob_domain *adom = adstob->as_dom;
-			adom->sd_ops->sdo_fini(adom);
+			m0_stob_domain_fini(adstob->as_dom);
 			rc = -EINVAL;
 		}
 
 		if (rc == 0) {
 			cs_ad_stob_bob_init(adstob);
 			astob_tlink_init_at_tail(adstob, &stob->s_adstobs);
-			rc =	m0_balloc_create(cid, db, grp, &cb) ?:
-				m0_ad_stob_setup(adstob->as_dom, db, grp,
-						 *bstob, &cb->cb_ballroom,
-						 BALLOC_DEF_CONTAINER_SIZE,
-						 BALLOC_DEF_BLOCK_SHIFT,
-						 BALLOC_DEF_BLOCKS_PER_GROUP,
-						 BALLOC_DEF_RESERVED_GROUPS);
-			if (rc == 0 && M0_FI_ENABLED("ad_stob_setup_fail"))
-				rc = -EINVAL;
-			if (rc != 0) {
-				struct m0_stob_domain *adom = adstob->as_dom;
-				astob_tlink_del_fini(adstob);
-				cs_ad_stob_bob_fini(adstob);
-				adom->sd_ops->sdo_fini(adom);
-			}
 		}
-		m0_sm_group_unlock(grp);
-
-		if (rc != 0)
-			m0_stob_put(*bstob);
 	}
 
-	if (rc != 0)
+	if (rc != 0) {
+		if (bstore != NULL)
+			m0_stob_put(bstore);
 		m0_free(adstob);
-	return M0_RC(rc);
-}
-
-static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
-{
-	yaml_document_t *doc = &stob->s_sfile.sf_document;
-	yaml_node_t     *node;
-	int              rc = 0;
-
-	M0_ENTRY();
-
-	astob_tlist_init(&stob->s_adstobs);
-
-	if (!stob->s_sfile.sf_is_initialised)
-		return M0_RC(cs_ad_stob_create(stob, M0_AD_STOB_ID_DEFAULT, db,
-					       NULL));
-
-	for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
-		yaml_node_item_t *item;
-
-		for (item = node->data.sequence.items.start;
-		     item < node->data.sequence.items.top && rc == 0;
-		     ++item) {
-			yaml_node_t *s_node;
-			uint64_t     cid;
-
-			s_node = yaml_document_get_node(doc, *item);
-			rc = stob_file_id_get(doc, s_node, &cid);
-			if (rc == 0)
-				rc = cs_ad_stob_create(
-					stob, cid, db,
-					stob_file_path_get(doc, s_node));
-			else
-				/* Ignore the result of stob_file_id_get(). */
-				rc = 0;
-		}
 	}
 	return M0_RC(rc);
 }
 
 static void cs_ad_stob_fini(struct cs_stobs *stob)
 {
-	struct m0_sm_group    *grp = m0_locality0_get()->lo_grp;
-	struct m0_stob        *bstob;
-	struct cs_ad_stob     *adstob;
-	struct m0_stob_domain *adom;
+	struct cs_ad_stob *adstob;
+
+	M0_PRE(stob != NULL);
 
 	m0_tl_for(astob, &stob->s_adstobs, adstob) {
-		M0_ASSERT(cs_ad_stob_bob_check(adstob) &&
-			  adstob->as_dom != NULL);
-		bstob = adstob->as_stob_back;
-		adom = adstob->as_dom;
-		if (bstob != NULL && bstob->so_state == CSS_EXISTS)
-			m0_stob_put(bstob);
-
-		m0_sm_group_lock(grp);
-		adom->sd_ops->sdo_fini(adom);
-		m0_sm_group_unlock(grp);
-
+		M0_ASSERT(cs_ad_stob_bob_check(adstob));
+		M0_ASSERT(adstob->as_dom != NULL);
+		m0_stob_domain_fini(adstob->as_dom);
+		m0_stob_put(adstob->as_stob_back);
 		astob_tlink_del_fini(adstob);
 		cs_ad_stob_bob_fini(adstob);
 		m0_free(adstob);
@@ -815,36 +743,50 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adstobs);
 }
 
-static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
+/**
+   Initialises AD type stob.
+ */
+static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 {
-	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
-	       m0_linux_stob_setup(stob->s_ldom, true);
-}
+	int		  rc;
+	int		  result;
+	uint64_t	  cid;
+	const char       *f_path;
+	yaml_document_t  *doc;
+	yaml_node_t      *node;
+	yaml_node_t      *s_node;
+	yaml_node_item_t *item;
 
-static void cs_linux_stob_fini(struct cs_stobs *stob)
-{
-	if (stob->s_ldom != NULL)
-		stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
-}
 
-M0_INTERNAL struct m0_stob_domain *
-m0_cs_stob_domain_find(struct m0_reqh *reqh, const struct m0_stob_id *stob_id)
-{
-	struct cs_stobs *stob = &bob_of(reqh, struct m0_reqh_context, rc_reqh,
-					&rhctx_bob)->rc_stob;
-	if (stob->s_stype == M0_AD_STOB) {
-		struct cs_ad_stob *adstob;
-		m0_tl_for(astob, &stob->s_adstobs, adstob) {
-			M0_ASSERT(cs_ad_stob_bob_check(adstob));
-			if (!stob->s_sfile.sf_is_initialised ||
-			    adstob->as_id_back.si_bits.u_hi ==
-			    stob_id->si_bits.u_hi)
-				return adstob->as_dom;
-		} m0_tl_endfor;
-		return NULL;
+	M0_ENTRY();
+
+	astob_tlist_init(&stob->s_adstobs);
+	if (stob->s_sfile.sf_is_initialised) {
+		doc = &stob->s_sfile.sf_document;
+		rc = 0;
+		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
+			for (item = (node)->data.sequence.items.start;
+			     item < (node)->data.sequence.items.top; ++item) {
+				s_node = yaml_document_get_node(doc, *item);
+				result = stob_file_id_get(doc, s_node, &cid);
+				if (result != 0)
+					continue;
+				f_path = stob_file_path_get(doc, s_node);
+				rc = cs_ad_stob_create(stob, cid, db, f_path);
+				if (rc != 0)
+					break;
+			}
+		}
+		m0_get()->i_reqh_has_multiple_ad_domains = true;
+	} else {
+		rc = cs_ad_stob_create(stob, M0_AD_STOB_KEY_DEFAULT, db, NULL);
+		m0_get()->i_reqh_has_multiple_ad_domains = false;
 	}
-	M0_ASSERT(stob->s_stype == M0_LINUX_STOB);
-	return stob->s_ldom;
+
+	if (rc != 0)
+		cs_ad_stob_fini(stob);
+
+	return M0_RC(rc);
 }
 
 /**
@@ -854,49 +796,46 @@ m0_cs_stob_domain_find(struct m0_reqh *reqh, const struct m0_stob_id *stob_id)
 
    @todo Use generic mechanism to generate stob ids
  */
-static int cs_storage_init(const char *stob_type, const char *stob_path,
-			   struct cs_stobs *stob, struct m0_be_seg *db)
+/* XXX rewrite stob_type */
+static int cs_storage_init(const char *stob_type,
+			   const char *stob_path,
+			   uint64_t dom_key,
+			   struct cs_stobs *stob,
+			   struct m0_be_seg *db)
 {
-	int               rc;
-	int               slen;
-	char             *objpath;
-	static const char objdir[] = "/o";
+	int                rc;
+	size_t             slen;
+	char              *location;
+	static const char  prefix[] = "linuxstob:";
 
 	M0_ENTRY();
 
 	M0_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
-	if (strcasecmp(stob_type, m0_cs_stypes[M0_LINUX_STOB]) == 0)
+	if (strcasecmp(stob_type, m0_cs_stypes[M0_LINUX_STOB]) == 0) {
 		stob->s_stype = M0_LINUX_STOB;
-	else if (strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
+		m0_get()->i_reqh_uses_ad_stob = false;
+	} else if (strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
 		stob->s_stype = M0_AD_STOB;
-	else
+		m0_get()->i_reqh_uses_ad_stob = true;
+	} else
 		return M0_RC(-EINVAL);
 
 	slen = strlen(stob_path);
-	M0_ALLOC_ARR(objpath, slen + ARRAY_SIZE(objdir));
-	if (objpath == NULL)
+	M0_ALLOC_ARR(location, slen + ARRAY_SIZE(prefix));
+	if (location == NULL)
 		return M0_RC(-ENOMEM);
 
-	sprintf(objpath, "%s%s", stob_path, objdir);
+	sprintf(location, "%s%s", prefix, stob_path);
+	rc = m0_stob_domain_create_or_init(location, "directio=true", dom_key, NULL,
+					   &stob->s_sdom);
+	m0_free(location);
 
-	rc = mkdir(stob_path, 0700);
-	if (rc != 0 && errno != EEXIST) {
-		M0_LOG(M0_ERROR, "mkdir(%s) failed: %d", stob_path, errno);
-		goto out;
-	}
-
-	rc = mkdir(objpath, 0700);
-	if (rc != 0 && errno != EEXIST) {
-		M0_LOG(M0_ERROR, "mkdir(%s) failed: %d", objpath, errno);
-		goto out;
-	}
-
-	rc = cs_linux_stob_init(stob_path, stob);
-	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
+	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
 		rc = cs_ad_stob_init(stob, db);
-out:
-	m0_free(objpath);
+		if (rc != 0)
+			m0_stob_domain_fini(stob->s_sdom);
+	}
 	return M0_RC(rc);
 }
 
@@ -907,7 +846,8 @@ static void cs_storage_fini(struct cs_stobs *stob)
 {
 	if (stob->s_stype == M0_AD_STOB)
 		cs_ad_stob_fini(stob);
-	cs_linux_stob_fini(stob);
+	if (stob->s_sdom != NULL)
+		m0_stob_domain_fini(stob->s_sdom);
 	if (stob->s_sfile.sf_is_initialised)
 		yaml_document_delete(&stob->s_sfile.sf_document);
 }
@@ -1154,23 +1094,31 @@ end:
  */
 static int cs_addb_storage_init(struct m0_reqh_context *rctx)
 {
-	int                    rc;
-	struct m0_stob_domain *sdom;
-	struct cs_addb_stob   *addb_stob = &rctx->rc_addb_stob;
-	const char            *stype = m0_cs_stypes[M0_LINUX_STOB];
+	struct cs_addb_stob *addb_stob = &rctx->rc_addb_stob;
+	struct m0_stob	    *stob;
+	int		     rc;
 
 	M0_ENTRY();
 
 	/** @todo allow different stob type for data stobs & ADDB stobs? */
-	rc = cs_storage_init(stype, rctx->rc_addb_stpath,
-			     &addb_stob->cas_stobs, rctx->rc_beseg);
+	rc = m0_stob_domain_create_or_init(rctx->rc_addb_stlocation, NULL, 0,
+					   NULL, &addb_stob->cas_stobs.s_sdom);
 	if (rc != 0)
 		return M0_RC(rc);
 
-	sdom = rctx->rc_addb_stob.cas_stobs.s_ldom;
-	m0_linux_stob_setup(sdom, false);
-	return M0_RC(m0_stob_create_helper(sdom, NULL, &m0_addb_stob_id,
-					   &addb_stob->cas_stob));
+	rc = m0_stob_find_by_key(rctx->rc_addb_stob.cas_stobs.s_sdom,
+				 m0_addb_stob_key, &stob);
+	if (rc == 0) {
+		rc = m0_stob_locate(stob);
+		rc = rc ?: m0_stob_state_get(stob) == CSS_EXISTS ? 0 :
+			   m0_stob_create(stob, NULL, NULL);
+		if (rc != 0)
+			m0_stob_put(stob);
+		addb_stob->cas_stob = stob;
+	}
+	if (rc != 0)
+		m0_stob_domain_fini(addb_stob->cas_stobs.s_sdom);
+	return M0_RC(rc);
 }
 
 /**
@@ -1214,6 +1162,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 {
 	int rc;
 
+	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
 	/** @todo Pass in a parent ADDB context for the db. Ideally should
@@ -1258,11 +1207,13 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 		}
 	}
 
-	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath, &rctx->rc_stob,
-			     rctx->rc_beseg);
+	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
+			     M0_AD_STOB_LINUX_DOM_KEY,
+			     &rctx->rc_stob, rctx->rc_beseg);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init");
-		goto cleanup_stob;
+		/* XXX who should call yaml_document_delete()? */
+		goto reqh_dbenv_fini;
 	}
 
 	rc = cs_addb_storage_init(rctx);
@@ -1730,10 +1681,10 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				{
 					rctx->rc_stype = s;
 				})),
-			M0_STRINGARG('A', "ADDB Storage domain name",
+			M0_STRINGARG('A', "ADDB Storage domain location",
 				LAMBDA(void, (const char *s)
 				{
-					rctx->rc_addb_stpath = s;
+					rctx->rc_addb_stlocation = s;
 				})),
 			M0_STRINGARG('S', "Storage domain name",
 				LAMBDA(void, (const char *s)

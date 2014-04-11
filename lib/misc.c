@@ -82,22 +82,20 @@ M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 	m0_uint128_add(res, *res, M0_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 }
 
-#if 0
-uint64_t m0_rnd(uint64_t max, uint64_t *prev)
+uint64_t m0_rnd64(uint64_t *prev)
 {
 	/*
 	 * Linear congruential generator with constants from TAOCP MMIX.
 	 * http://en.wikipedia.org/wiki/Linear_congruential_generator
 	 */
-	double result;
-	result = *prev = *prev * 6364136223846793005ULL + 1442695040888963407;
+	/* double result; */
+	return *prev = *prev * 6364136223846793005ULL + 1442695040888963407ULL;
 	/*
 	 * Use higher bits of *prev to generate return value, because they are
 	 * more random.
 	 */
-	return result * max / (1.0 + ~0ULL);
+	/* return result * max / (1.0 + ~0ULL); */
 }
-#endif
 
 uint64_t m0_rnd(uint64_t max, uint64_t *prev)
 {

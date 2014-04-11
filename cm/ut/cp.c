@@ -202,16 +202,10 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 		    struct m0_net_buffer *nb)
 {
 	struct m0_cm_cp *cp;
-	struct m0_stob_id sid = {
-			.si_bits = {
-				.u_hi = 1,
-				.u_lo = 1
-			}
-		};
 
 	cp = &sns_cp->sc_base;
 	cp->c_ag = ag;
-	sns_cp->sc_sid = sid;
+	sns_cp->sc_stob_fid = M0_FID_INIT(1, 1);	/* XXX ? */
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
 	m0_cm_cp_fom_init(ag->cag_cm, cp);
 	/* Over-ride the fom ops. */

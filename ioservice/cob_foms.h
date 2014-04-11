@@ -41,7 +41,7 @@ enum m0_fom_cob_operations_phases {
  */
 struct m0_fom_cob_op {
 	/** Stob identifier. */
-	struct m0_stob_id        fco_stobid;
+	struct m0_fid		 fco_stob_fid;
 	/** Generic fom object. */
 	struct m0_fom		 fco_fom;
 	/** Fid of global file. */
