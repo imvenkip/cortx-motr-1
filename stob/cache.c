@@ -82,12 +82,6 @@ static void stob_cache_evict(struct m0_stob_cache *cache,
 	++cache->sc_evictions;
 }
 
-static void stob_cache_busy_add(struct m0_stob_cache *cache,
-				struct m0_stob *stob)
-{
-	stob_cache_tlink_init_at(stob, &cache->sc_busy);
-}
-
 static void stob_cache_idle_del(struct m0_stob_cache *cache,
 				struct m0_stob *stob)
 {
@@ -120,7 +114,7 @@ M0_INTERNAL void m0_stob_cache_add(struct m0_stob_cache *cache,
 	M0_PRE(m0_stob_cache__invariant(cache));
 	M0_PRE_EX(m0_stob_cache_lookup(cache, m0_stob_key_get(stob)) == NULL);
 
-	stob_cache_busy_add(cache, stob);
+	stob_cache_tlink_init_at(stob, &cache->sc_busy);
 }
 
 M0_INTERNAL void m0_stob_cache_idle(struct m0_stob_cache *cache,
