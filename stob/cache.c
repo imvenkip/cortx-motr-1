@@ -32,15 +32,10 @@
  * @{
  */
 
-M0_TL_DESCR_DEFINE(stob_busy, "used stobs in cache", static, struct m0_stob,
+M0_TL_DESCR_DEFINE(stob_cache, "cached stobs", static, struct m0_stob,
 		   so_cache_linkage, so_cache_magic,
 		   M0_STOB_CACHE_MAGIC, M0_STOB_CACHE_HEAD_MAGIC);
-M0_TL_DEFINE(stob_busy, static, struct m0_stob);
-
-M0_TL_DESCR_DEFINE(stob_idle, "unused stobs in cache", static, struct m0_stob,
-		   so_cache_linkage, so_cache_magic,
-		   M0_STOB_CACHE_MAGIC, M0_STOB_CACHE_HEAD_MAGIC);
-M0_TL_DEFINE(stob_idle, static, struct m0_stob);
+M0_TL_DEFINE(stob_cache, static, struct m0_stob);
 
 M0_INTERNAL int m0_stob_cache_init(struct m0_stob_cache *cache,
 				   uint64_t idle_size,
@@ -56,8 +51,8 @@ M0_INTERNAL int m0_stob_cache_init(struct m0_stob_cache *cache,
 		.sc_evictions	= 0,
 	};
 	m0_mutex_init(&cache->sc_lock);
-	stob_busy_tlist_init(&cache->sc_busy);
-	stob_idle_tlist_init(&cache->sc_idle);
+	stob_cache_tlist_init(&cache->sc_busy);
+	stob_cache_tlist_init(&cache->sc_idle);
 	return 0;
 }
 
@@ -65,8 +60,8 @@ M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache)
 {
 	m0_stob_cache_purge(cache, cache->sc_idle_size);
 	m0_stob_cache__print(cache);
-	stob_idle_tlist_fini(&cache->sc_idle);
-	stob_busy_tlist_fini(&cache->sc_busy);
+	stob_cache_tlist_fini(&cache->sc_idle);
+	stob_cache_tlist_fini(&cache->sc_busy);
 	m0_mutex_init(&cache->sc_lock);
 }
 
@@ -75,7 +70,7 @@ M0_INTERNAL bool m0_stob_cache__invariant(const struct m0_stob_cache *cache)
 {
 	return _0C(m0_stob_cache_is_locked(cache)) &&
 	       _0C(cache->sc_idle_size >= cache->sc_idle_used) &&
-	       M0_CHECK_EX(_0C(stob_idle_tlist_length(&cache->sc_idle) ==
+	       M0_CHECK_EX(_0C(stob_cache_tlist_length(&cache->sc_idle) ==
 			       cache->sc_idle_used));
 
 }
@@ -90,13 +85,13 @@ static void stob_cache_evict(struct m0_stob_cache *cache,
 static void stob_cache_busy_add(struct m0_stob_cache *cache,
 				struct m0_stob *stob)
 {
-	stob_busy_tlink_init_at(stob, &cache->sc_busy);
+	stob_cache_tlink_init_at(stob, &cache->sc_busy);
 }
 
 static void stob_cache_idle_del(struct m0_stob_cache *cache,
 				struct m0_stob *stob)
 {
-	stob_idle_tlink_del_fini(stob);
+	stob_cache_tlink_del_fini(stob);
 	--cache->sc_idle_used;
 }
 
@@ -105,16 +100,16 @@ static void stob_cache_idle_moveto(struct m0_stob_cache *cache,
 {
 	struct m0_stob *evicted;
 
-	stob_busy_tlink_del_fini(stob);
+	stob_cache_tlink_del_fini(stob);
 	if (cache->sc_idle_size == 0) {
 		stob_cache_evict(cache, stob);
 	} else {
 		if (cache->sc_idle_size == cache->sc_idle_used) {
-			evicted = stob_idle_tlist_tail(&cache->sc_idle);
+			evicted = stob_cache_tlist_tail(&cache->sc_idle);
 			stob_cache_idle_del(cache, evicted);
 			stob_cache_evict(cache, evicted);
 		}
-		stob_idle_tlink_init_at(stob, &cache->sc_idle);
+		stob_cache_tlink_init_at(stob, &cache->sc_idle);
 		++cache->sc_idle_used;
 	}
 }
@@ -143,18 +138,18 @@ M0_INTERNAL struct m0_stob *m0_stob_cache_lookup(struct m0_stob_cache *cache,
 
 	M0_PRE(m0_stob_cache__invariant(cache));
 
-	m0_tl_for(stob_busy, &cache->sc_busy, stob) {
+	m0_tl_for(stob_cache, &cache->sc_busy, stob) {
 		if (stob_key == m0_stob_key_get(stob)) {
 			++cache->sc_busy_hits;
 			return stob;
 		}
 	} m0_tl_endfor;
 
-	m0_tl_for(stob_idle, &cache->sc_idle, stob) {
+	m0_tl_for(stob_cache, &cache->sc_idle, stob) {
 		if (stob_key == m0_stob_key_get(stob)) {
 			++cache->sc_idle_hits;
 			stob_cache_idle_del(cache, stob);
-			stob_busy_tlink_init_at(stob, &cache->sc_busy);
+			stob_cache_tlink_init_at(stob, &cache->sc_busy);
 			return stob;
 		}
 	} m0_tl_endfor;
@@ -172,9 +167,9 @@ M0_INTERNAL void m0_stob_cache_purge(struct m0_stob_cache *cache, int nr)
 	m0_stob_cache_lock(cache);
 	M0_PRE(m0_stob_cache__invariant(cache));
 
-	stob = stob_idle_tlist_tail(&cache->sc_idle);
+	stob = stob_cache_tlist_tail(&cache->sc_idle);
 	for (; stob != NULL && nr > 0; --nr) {
-		prev = stob_idle_tlist_prev(&cache->sc_idle, stob);
+		prev = stob_cache_tlist_prev(&cache->sc_idle, stob);
 		stob_cache_idle_del(cache, stob);
 		stob_cache_evict(cache, stob);
 		stob = prev;
@@ -220,13 +215,13 @@ M0_INTERNAL void m0_stob_cache__print(struct m0_stob_cache *cache)
 	       cache, cache->sc_idle_size, cache->sc_idle_used);
 	M0_LOG(LEVEL, "m0_stob_cache %p: "
 	       "sc_busy length = %zu, sc_idle length = %zu", cache,
-	       stob_busy_tlist_length(&cache->sc_busy),
-	       stob_idle_tlist_length(&cache->sc_idle));
+	       stob_cache_tlist_length(&cache->sc_busy),
+	       stob_cache_tlist_length(&cache->sc_idle));
 
 
 	M0_LOG(LEVEL, "m0_stob_cache %p: sc_busy list", cache);
 	i = 0;
-	m0_tl_for(stob_busy, &cache->sc_busy, stob) {
+	m0_tl_for(stob_cache, &cache->sc_busy, stob) {
 		M0_LOG(LEVEL, "%d: %p, stob_key = %"PRIu64,
 		       i, stob, m0_stob_key_get(stob));
 		++i;
@@ -234,7 +229,7 @@ M0_INTERNAL void m0_stob_cache__print(struct m0_stob_cache *cache)
 
 	M0_LOG(LEVEL, "m0_stob_cache %p: sc_idle list", cache);
 	i = 0;
-	m0_tl_for(stob_idle, &cache->sc_idle, stob) {
+	m0_tl_for(stob_cache, &cache->sc_idle, stob) {
 		M0_LOG(LEVEL, "%d: %p, stob_key = %"PRIu64,
 		       i, stob, m0_stob_key_get(stob));
 		++i;

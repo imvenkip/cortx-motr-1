@@ -744,7 +744,7 @@ enum m0_magic_satchel {
 	/* m0_stob::so_cache_magic (cache fill) */
 	M0_STOB_CACHE_MAGIC         = 0x33cac4ef11177,
 
-	/* cache lists in stob/cache.c (cache billed) */
+	/* stob/cache.c:stob_cache_tl::td_head_magic (cache billed) */
 	M0_STOB_CACHE_HEAD_MAGIC    = 0x33cac4eb111ed77,
 
 	/* m0_stob_type::st_magic (disc class) */
