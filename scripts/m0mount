@@ -216,6 +216,7 @@ LSUM=
 
 if [ $0 = "/usr/bin/m0mount" ]; then
 	M0D=/usr/bin/m0d
+	M0MKFS=/usr/bin/m0mkfs
 	M0LAYOUT="/usr/bin/m0layout"
 	SUMFILE=$M0D
 	MERO_KO_LOAD_CMD="modprobe m0mero"
@@ -223,6 +224,7 @@ if [ $0 = "/usr/bin/m0mount" ]; then
 else
 	BROOT=$PWD   # globally visible build root
 	M0D=$BROOT/mero/m0d
+	M0MKFS="$BROOT/utils/mkfs/m0mkfs"
 	M0LAYOUT="$BROOT/utils/m0layout"
 	SUMFILE=$BROOT/mero/.libs/m0d
 	MERO_KO_LOAD_CMD="insmod $BROOT/mero/m0mero.ko"
@@ -532,13 +534,22 @@ function start_server () {
 	fi
 
 	$DO "echo rotated > ${SLOG}$I.log"
+	echo Running mkfs...
+	$RUN "cd $DDIR && \
+M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
+M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+$M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
+-w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
+-e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log
+	echo Running m0d...
 	$RUN "cd $DDIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $M0D $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
 -w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
--e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
+-e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" >> ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1

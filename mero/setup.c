@@ -1170,7 +1170,6 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
  */
 static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 {
-	bool fol_initialized = false;
 	int rc;
 
 	M0_ENTRY();
