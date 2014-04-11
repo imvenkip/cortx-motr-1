@@ -1157,6 +1157,7 @@ EXTRA_DIST += addb/Kbuild.sub \
               sns/Kbuild.sub \
               stats/Kbuild.sub \
               stob/Kbuild.sub \
+              stob/ut/Kbuild.sub \
               ut/Kbuild.sub \
               utils/Kbuild.sub \
               xcode/Kbuild.sub \
