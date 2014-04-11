@@ -1170,6 +1170,7 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
  */
 static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 {
+	bool fol_initialized = false;
 	int rc;
 
 	M0_ENTRY();
@@ -1197,8 +1198,10 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 	rctx->rc_reqh.rh_dbenv = &rctx->rc_db;
 
 	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "m0_reqh_dbenv_init: rc=%d", rc);
 		goto dbenv_fini;
+	}
 
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
@@ -1214,7 +1217,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 			     &rctx->rc_stob, rctx->rc_beseg,
 			     mkfs);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "cs_storage_init");
+		M0_LOG(M0_ERROR, "cs_storage_init: rc=%d", rc);
 		/* XXX who should call yaml_document_delete()? */
 		goto reqh_dbenv_fini;
 	}
@@ -1254,7 +1257,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
+		M0_LOG(M0_ERROR, "Failed to initialize mdstore. %s", !mkfs ? " Did you run mkfs?" : "Mkfs failed?");
 		goto cleanup_addb_stob;
 	}
 
@@ -1582,8 +1585,10 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 
 	M0_ENTRY();
 
-	if (argc <= 1)
+	if (argc <= 1) {
+		cs_usage(cctx->cc_outfile, argv[0]);
 		return M0_RC(-EINVAL);
+	}
 
 	rc_getops = M0_GETOPTS(argv[0], argc, argv,
 			/* -------------------------------------------
@@ -1756,21 +1761,29 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	if (rctx->rc_dbpath == NULL)
+	if (rctx->rc_dbpath == NULL) {
+		cs_usage(cctx->cc_outfile, argv[0]);
 		return M0_ERR(-EPROTO, "Database path is not specified");
+	}
 
-	if (rctx->rc_stpath == NULL)
+	if (rctx->rc_stpath == NULL) {
+		cs_usage(cctx->cc_outfile, argv[0]);
 		return M0_ERR(-EPROTO, "Storage domain path is not specified");
+	}
 
-	if (genders != NULL && !use_genders)
+	if (genders != NULL && !use_genders) {
+		cs_usage(cctx->cc_outfile, argv[0]);
 		return M0_ERR(-EPROTO, "-f genders file specified without -g");
+	}
 	/**
 	 * @todo allow bootstrap via genders and confd afterward, but currently
 	 * confd is only used for bootstrap, thus a conflict if both present.
 	 */
-	if (use_genders && profile != NULL)
+	if (use_genders && profile != NULL) {
+		cs_usage(cctx->cc_outfile, argv[0]);
 		return M0_ERR(-EPROTO, "genders use conflicts with "
 			      "confd profile");
+	}
 	if (use_genders) {
 		struct cs_args *args = &cctx->cc_args;
 		bool global_daemonize = cctx->cc_daemon;
@@ -1783,10 +1796,12 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 				 NULL, NULL, NULL, &use_genders);
 		cctx->cc_daemon |= global_daemonize;
 	}
-	if ((confd_addr == NULL) != (profile == NULL))
+	if ((confd_addr == NULL) != (profile == NULL)) {
+		cs_usage(cctx->cc_outfile, argv[0]);
 		return M0_ERR(-EPROTO, "%s is not specified",
 			       (char *)(profile == NULL ?
 			       "configuration profile" : "confd address"));
+	}
 	if (confd_addr != NULL) {
 		struct cs_args *args = &cctx->cc_args;
 
@@ -1819,10 +1834,8 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 		cs_rpc_machines_init(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
-	if (rc < 0) {
+	if (rc < 0)
 		M0_LOG(M0_ERROR, "m0_cs_setup_env: %d", rc);
-		cs_usage(cctx->cc_outfile, argv[0]);
-	}
 	return rc;
 }
 

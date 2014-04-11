@@ -536,7 +536,7 @@ function start_server () {
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$M0D -p $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
+$M0D $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
 -w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
 -e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
