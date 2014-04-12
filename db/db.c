@@ -99,8 +99,8 @@ static void seg_map_unlock(void)
 	m0_mutex_unlock(&seg_map_lock_);
 }
 
-static void m0_be_state_save(const char *filename,
-                             bool (*func)(FILE *f, int *state))
+M0_INTERNAL void m0_be_state_save(const char *filename,
+                                  bool (*func)(FILE *f, int *state))
 {
         FILE *f;
         int   rc;
@@ -132,7 +132,7 @@ static void m0_be_state_save(const char *filename,
                        tmpfilename, filename, rc);
 }
 
-static bool seg_map_save_item(FILE *f, int *state)
+static  bool seg_map_save_item(FILE *f, int *state)
 {
         struct seg_map_item *smi;
         int                  rc;
@@ -190,8 +190,8 @@ static struct seg_map_item *seg_map_lookup(const char *name)
 	return smi;
 }
 
-static void m0_be_state_load(const char *filename,
-                             bool (*func)(FILE *f, int *state))
+M0_INTERNAL void m0_be_state_load(const char *filename,
+                                  bool (*func)(FILE *f, int *state))
 {
         FILE *f;
         int   rc;
