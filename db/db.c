@@ -89,6 +89,28 @@ static struct seg_map_item seg_map[SEG_MAP_SIZE_MAX];
 static int		   seg_map_size = 0;
 static struct m0_mutex	   seg_map_lock_;
 
+static void m0_be_state_tryload(const char *filename,
+                                bool (*func)(FILE *f, int *state))
+{
+        FILE *f;
+        int   rc;
+        int   state;
+
+        f = fopen(filename, "r");
+        if (f != NULL) {
+                state = 0;
+                while (func(f, &state))
+                        ;
+
+                rc = fclose(f);
+                M0_ASSERT_INFO(rc == 0, "can't close file %s: errno = %d",
+                               filename, errno);
+        } else {
+                M0_LOG(M0_NOTICE, "can't open file %s: errno = %d",
+                       filename, errno);
+        }
+}
+
 static bool seg_map_tryload_item(FILE *f, int *state)
 {
         uint64_t  stob_id;
@@ -830,6 +852,7 @@ M0_INTERNAL int m0_db_init(void)
 			 &m0_addb_ct_db_mod, &m0_addb_proc_ctx);
 	m0_xc_extmap_init();
 	m0_mutex_init(&seg_map_lock_);
+	m0_be_state_tryload("segments", &seg_map_tryload_item);
 	return 0;
 }
 
