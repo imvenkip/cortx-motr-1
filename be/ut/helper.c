@@ -63,6 +63,7 @@ struct be_ut_helper_struct {
 	struct m0_mutex		 buh_reqh_lock;
 	struct m0_mutex		 buh_seg_lock;
 	void			*buh_addr;
+	int64_t			 buh_id;
 };
 
 struct be_ut_helper_struct be_ut_helper = {
@@ -107,7 +108,7 @@ static void be_ut_helper_init(void)
 	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR,
 	m0_mutex_init(&h->buh_seg_lock);
 	m0_mutex_init(&h->buh_reqh_lock);
-	m0_be_ut_seg_state_load(h);
+	be_ut_seg_state_load(h);
 	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
 }
 
@@ -131,7 +132,7 @@ static void *be_ut_seg_allocate_addr(struct be_ut_helper_struct *h,
 	m0_mutex_lock(&h->buh_seg_lock);
 	addr	     = h->buh_addr;
 	h->buh_addr += size;
-	be_ut_seg_state_save();
+	be_ut_seg_state_save(h);
 	m0_mutex_unlock(&h->buh_seg_lock);
 
 	return addr;
