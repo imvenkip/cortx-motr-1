@@ -89,6 +89,21 @@ static struct seg_map_item seg_map[SEG_MAP_SIZE_MAX];
 static int		   seg_map_size = 0;
 static struct m0_mutex	   seg_map_lock_;
 
+static bool seg_map_tryload_item(FILE *f, int *state)
+{
+        uint64_t  stob_id;
+        char      name[256];
+        void     *seg_addr;
+        int       rc;
+
+        rc = fscanf(f, "%s %"SCNu64" %p\n", name, &stob_id, &seg_addr);
+        if (rc != EOF) {
+                M0_ASSERT_INFO(rc == 3, "invalid format: rc = %d", rc);
+                seg_map_add(name, stob_id, seg_addr, NULL);
+        }
+        return rc != EOF;
+}
+
 static void seg_map_lock(void)
 {
 	m0_mutex_lock(&seg_map_lock_);
