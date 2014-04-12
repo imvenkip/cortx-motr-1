@@ -1188,7 +1188,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
 		&rctx->rc_reqh;
 
-	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
+	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0, mkfs);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_dbenv_init");
 		goto reqh_fini;

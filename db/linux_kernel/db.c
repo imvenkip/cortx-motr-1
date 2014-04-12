@@ -46,7 +46,7 @@ static bool ktable_invariant_locked(struct m0_table *t,
 static bool ktable_invariant(struct m0_table *t);
 
 M0_INTERNAL int m0_dbenv_init(struct m0_dbenv *env, const char *name,
-			      uint64_t flags)
+			      uint64_t flags, bool mkfs)
 {
 	m0_dbenv_common_init(env);
 	return 0;

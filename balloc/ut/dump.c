@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 		M0_IMPOSSIBLE("invalid action");
 	}
 
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_ASSERT(result == 0);
 
 	result = m0_db_tx_init(&dtx.tx_dbtx, &db, 0);

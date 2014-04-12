@@ -1091,7 +1091,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	if (rc != 0)
 		goto be_fini;
 
-	rc = m0_dbenv_init(dbenv, db_name, 0);
+	rc = m0_dbenv_init(dbenv, db_name, 0, false);
 	if (rc != 0)
 		goto pool_fini;
 

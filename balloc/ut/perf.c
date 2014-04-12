@@ -103,7 +103,7 @@ int main(int argc, char **argv)
 
 	time(&now); srand(now);
 
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_ASSERT(result == 0);
 
 	m0_balloc_allocate(0, &mero_balloc);

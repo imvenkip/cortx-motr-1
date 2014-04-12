@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 	db_name = argv[1];
 	emap_name = argv[2];
 
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_ASSERT(result == 0);
 
 	result = m0_emap_init(&emap, &db, emap_name);

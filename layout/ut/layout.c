@@ -81,7 +81,7 @@ static int test_init(void)
 	m0_ut_db_reset(db_name);
 #endif
 
-	rc = m0_dbenv_init(&dbenv, db_name, DBFLAGS);
+	rc = m0_dbenv_init(&dbenv, db_name, DBFLAGS, true);
 	M0_ASSERT(rc == 0);
 
 	/* Initialise the domain. */
@@ -113,7 +113,7 @@ static void test_domain_init_fini(void)
 	M0_ENTRY();
 
 	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Initialise the domain. */
@@ -143,7 +143,7 @@ static void test_domain_init_fini_failure(void)
 
 	M0_ENTRY();
 	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fi_enable_once("m0_layout_domain_init", "table_init_err");
@@ -263,7 +263,7 @@ static void test_reg_unreg(void)
 	m0_layout_standard_types_unregister(&domain);
 
 	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Initialise the domain. */
@@ -340,7 +340,7 @@ static void test_reg_unreg_failure(void)
 	m0_layout_standard_types_unregister(&domain);
 
 	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Initialise the domain. */
@@ -2191,7 +2191,7 @@ static void test_max_recsize(void)
 	m0_layout_standard_types_unregister(&domain);
 
 	M0_SET0(&t_dbenv);
-	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	rc = m0_dbenv_init(&t_dbenv, t_db_name, DBFLAGS, true);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Initialise the domain. */

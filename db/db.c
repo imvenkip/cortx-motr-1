@@ -89,43 +89,6 @@ static struct seg_map_item seg_map[SEG_MAP_SIZE_MAX];
 static int		   seg_map_size = 0;
 static struct m0_mutex	   seg_map_lock_;
 
-static void m0_be_state_tryload(const char *filename,
-                                bool (*func)(FILE *f, int *state))
-{
-        FILE *f;
-        int   rc;
-        int   state;
-
-        f = fopen(filename, "r");
-        if (f != NULL) {
-                state = 0;
-                while (func(f, &state))
-                        ;
-
-                rc = fclose(f);
-                M0_ASSERT_INFO(rc == 0, "can't close file %s: errno = %d",
-                               filename, errno);
-        } else {
-                M0_LOG(M0_NOTICE, "can't open file %s: errno = %d",
-                       filename, errno);
-        }
-}
-
-static bool seg_map_tryload_item(FILE *f, int *state)
-{
-        uint64_t  stob_id;
-        char      name[256];
-        void     *seg_addr;
-        int       rc;
-
-        rc = fscanf(f, "%s %"SCNu64" %p\n", name, &stob_id, &seg_addr);
-        if (rc != EOF) {
-                M0_ASSERT_INFO(rc == 3, "invalid format: rc = %d", rc);
-                seg_map_add(name, stob_id, seg_addr, NULL);
-        }
-        return rc != EOF;
-}
-
 static void seg_map_lock(void)
 {
 	m0_mutex_lock(&seg_map_lock_);
@@ -134,6 +97,64 @@ static void seg_map_lock(void)
 static void seg_map_unlock(void)
 {
 	m0_mutex_unlock(&seg_map_lock_);
+}
+
+static void m0_be_state_save(const char *filename,
+                             bool (*func)(FILE *f, int *state))
+{
+        FILE *f;
+        int   rc;
+        char  tmpfilename[256];
+        int   state;
+
+        rc = snprintf(tmpfilename, ARRAY_SIZE(tmpfilename), "%s.TMP", filename);
+        M0_ASSERT_INFO(rc < ARRAY_SIZE(tmpfilename), "rc = %d", rc);
+
+        f = fopen(tmpfilename, "w");
+        M0_ASSERT_INFO(f != NULL, "can't open file %s: errno = %d",
+                       tmpfilename, errno);
+
+        state = 0;
+        while (func(f, &state))
+                ;
+
+        rc = fclose(f);
+        M0_ASSERT_INFO(rc == 0, "can't close file %s: errno = %d",
+                       tmpfilename, errno);
+
+        /*
+         * Don't write directly to the seg_map_file to prevent file corruption
+         * if process is killed between fopen() and fclose() in this function.
+         * mv will replace the file atomically (see rename(2) for reference).
+         */
+        rc = rename(tmpfilename, filename);
+        M0_ASSERT_INFO(rc == 0, "rename(%s, %s) failed: rc = %d",
+                       tmpfilename, filename, rc);
+}
+
+static bool seg_map_save_item(FILE *f, int *state)
+{
+        struct seg_map_item *smi;
+        int                  rc;
+
+        if (seg_map_size == 0)
+                return false;
+        smi = &seg_map[(*state)++];
+        if (!smi->smi_reset) {
+                rc = fprintf(f, "%s %"PRIu64" %p\n",
+                             smi->smi_name, smi->smi_stob_id,
+                             smi->smi_seg_addr);
+                M0_ASSERT_INFO(rc > 0, "rc = %d", rc);
+        }
+
+        return *state < seg_map_size;
+}
+
+static void seg_map_save(void)
+{
+        seg_map_lock();
+        m0_be_state_save("segments.map", &seg_map_save_item);
+        seg_map_unlock();
 }
 
 static void seg_map_add(const char *name,
@@ -169,6 +190,48 @@ static struct seg_map_item *seg_map_lookup(const char *name)
 	return smi;
 }
 
+static void m0_be_state_load(const char *filename,
+                             bool (*func)(FILE *f, int *state))
+{
+        FILE *f;
+        int   rc;
+        int   state;
+
+        f = fopen(filename, "r");
+        if (f != NULL) {
+                state = 0;
+                while (func(f, &state))
+                        ;
+
+                rc = fclose(f);
+                M0_ASSERT_INFO(rc == 0, "can't close file %s: errno = %d",
+                               filename, errno);
+        } else {
+                M0_LOG(M0_NOTICE, "can't open file %s: errno = %d",
+                       filename, errno);
+        }
+}
+
+static bool seg_map_load_item(FILE *f, int *state)
+{
+        uint64_t  stob_id;
+        char      name[256];
+        void     *seg_addr;
+        int       rc;
+
+        rc = fscanf(f, "%s %"SCNu64" %p\n", name, &stob_id, &seg_addr);
+        if (rc != EOF) {
+                M0_ASSERT_INFO(rc == 3, "invalid format: rc = %d", rc);
+                seg_map_add(name, stob_id, seg_addr, NULL);
+        }
+        return rc != EOF;
+}
+
+static void seg_map_load(void)
+{
+        m0_be_state_load("segments.map", &seg_map_load_item);
+}
+
 static struct seg_map_item *seg_map_lookup_ut_seg(struct m0_be_ut_seg *ut_seg)
 {
 	struct seg_map_item *smi = NULL;
@@ -187,7 +250,7 @@ static struct seg_map_item *seg_map_lookup_ut_seg(struct m0_be_ut_seg *ut_seg)
 
 static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
 			   struct m0_be_ut_backend *ut_be,
-			   const char *name)
+			   const char *name, bool mkfs)
 {
 	struct seg_map_item *smi = seg_map_lookup(name);
 	struct m0_be_seg    *seg;
@@ -195,7 +258,7 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
 	struct m0_stob	    *stob;
 	int		     rc;
 
-	if (smi == NULL || smi->smi_reset) {
+	if (smi == NULL || smi->smi_reset || mkfs) {
 		m0_be_ut_seg_init(ut_seg, ut_be, SEG_SIZE);
 		m0_be_ut_seg_allocator_init(ut_seg, ut_be);
 		grp = m0_be_ut_backend_sm_group_lookup(ut_be);
@@ -223,6 +286,7 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
 	smi = seg_map_lookup(name);
 	smi->smi_reset = false;
 	smi->smi_ut_seg = ut_seg;
+	seg_map_save();
 }
 
 static void dbenv_seg_fini(struct m0_be_ut_seg *ut_seg)
@@ -231,6 +295,7 @@ static void dbenv_seg_fini(struct m0_be_ut_seg *ut_seg)
 	struct m0_stob	    *stob = ut_seg->bus_seg.bs_stob;
 	// int		     rc;
 
+	seg_map_save();
 	M0_ASSERT(smi != NULL);
 	smi->smi_ut_seg = NULL;
 
@@ -251,11 +316,12 @@ static void dbenv_seg_reset(const char *name)
 	if (smi != NULL) {
 		M0_ASSERT(smi->smi_ut_seg == NULL);
 		smi->smi_reset = true;
+		seg_map_save();
 	}
 }
 
 int m0_dbenv_init(struct m0_dbenv *env, const char *name,
-		  uint64_t flags)
+		  uint64_t flags, bool mkfs)
 {
 	struct m0_dbenv_impl *di = &env->d_i;
 
@@ -269,7 +335,7 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 	di->d_seg = &di->d_ut_seg.bus_seg;
 	m0_be_ut_backend_init(&di->d_ut_be);
 	m0_be_ut_backend_new_grp_lock_state_set(&di->d_ut_be, true);
-	dbenv_seg_init(&di->d_ut_seg, &di->d_ut_be, name);
+	dbenv_seg_init(&di->d_ut_seg, &di->d_ut_be, name, mkfs);
 	return 0;
 }
 
@@ -852,14 +918,14 @@ M0_INTERNAL int m0_db_init(void)
 			 &m0_addb_ct_db_mod, &m0_addb_proc_ctx);
 	m0_xc_extmap_init();
 	m0_mutex_init(&seg_map_lock_);
-	m0_be_state_tryload("segments", &seg_map_tryload_item);
+	seg_map_load();
 	return 0;
 }
 
 M0_INTERNAL void m0_db_fini(void)
 {
 	int i;
-
+	seg_map_save();
 	for (i = 0; i < seg_map_size; ++i)
 		m0_free(seg_map[i].smi_name);
 	m0_mutex_fini(&seg_map_lock_);

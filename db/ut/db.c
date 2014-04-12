@@ -33,7 +33,7 @@ static void test_db_create(void)
 	int             result;
 
 	M0_SET0(&db);
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_UT_ASSERT(result == 0);
 	m0_dbenv_fini(&db);
 }
@@ -68,7 +68,7 @@ static void dbut_init(const char *db_name,
 {
         int result;
 
-	result = m0_dbenv_init(db, db_name, 0);
+	result = m0_dbenv_init(db, db_name, 0, true);
         M0_UT_ASSERT(result == 0);
 
         result = m0_table_init(table, db, test_table, 0, &test_table_ops);
@@ -99,7 +99,7 @@ static void test_table_create(void)
 	int             result;
 
 	M0_SET0(&db);
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_UT_ASSERT(result == 0);
 
 	result = m0_table_init(&table, &db, test_table, 0, &test_table_ops);
@@ -351,7 +351,7 @@ static int ub_init(const char *opts M0_UNUSED)
 
 	db_reset();
 
-	rc = m0_dbenv_init(&ub_db, db_name, 0);
+	rc = m0_dbenv_init(&ub_db, db_name, 0, true);
 	if (rc != 0)
 		return rc;
 

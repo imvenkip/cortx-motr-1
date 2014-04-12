@@ -56,7 +56,7 @@ static int dummy_create(struct m0_layout_domain *domain,
 	struct m0_layout_linear_attr  lin_attr;
 	struct m0_layout_linear_enum *lin_enum;
 
-	rc = m0_dbenv_init(dbenv, "ldemo-db", 0);
+	rc = m0_dbenv_init(dbenv, "ldemo-db", 0, true);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_layout_domain_init(domain, dbenv);

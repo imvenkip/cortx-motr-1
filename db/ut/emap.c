@@ -46,7 +46,7 @@ static int result;
 
 static void test_init(void)
 {
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_ASSERT(result == 0);
 
 	result = m0_emap_init(&emap, &db, emap_name);

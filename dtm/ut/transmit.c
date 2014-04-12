@@ -622,7 +622,7 @@ static void db_init(void)
 {
 	int result;
 
-	result = m0_dbenv_init(&db, db_name, 0);
+	result = m0_dbenv_init(&db, db_name, 0, true);
 	M0_UT_ASSERT(result == 0);
 	result = m0_emap_init(&emap, &db, "nonce");
 	M0_UT_ASSERT(result == 0);
