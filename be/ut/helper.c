@@ -41,6 +41,8 @@
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/seg0.h"            /* m0_be_0type_register */
 
+static const char *be_ut_seg_state = "be_ut_seg_state.txt";
+
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
 };
