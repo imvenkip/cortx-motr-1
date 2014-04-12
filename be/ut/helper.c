@@ -68,35 +68,6 @@ struct be_ut_helper_struct be_ut_helper = {
 	.buh_once_control = PTHREAD_ONCE_INIT,
 };
 
-static inline void be_ut_helper_fini(void)
-{
-	struct be_ut_helper_struct *h = &be_ut_helper;
-
-	m0_mutex_fini(&h->buh_reqh_lock);
-	m0_mutex_fini(&h->buh_seg_lock);
-}
-
-/* XXX call this function from m0_init()? */
-static void be_ut_helper_init(void)
-{
-	struct be_ut_helper_struct *h = &be_ut_helper;
-
-	h->buh_reqh_ref_cnt    = 0,
-	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR,
-	m0_mutex_init(&h->buh_seg_lock);
-	m0_mutex_init(&h->buh_reqh_lock);
-	m0_be_state_load(h);
-	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
-}
-
-static void be_ut_helper_init_once(void)
-{
-	int rc;
-
-	rc = pthread_once(&be_ut_helper.buh_once_control, &be_ut_helper_init);
-	M0_ASSERT(rc == 0);
-}
-
 static void be_ut_seg_state_save(struct be_ut_helper_struct *h)
 {
         m0_be_state_save(be_ut_seg_state,
@@ -115,6 +86,35 @@ static void be_ut_seg_state_load(struct be_ut_helper_struct *h)
                                              &h->buh_addr, &h->buh_id);
                                       return false;
                                       }));
+}
+
+static inline void be_ut_helper_fini(void)
+{
+	struct be_ut_helper_struct *h = &be_ut_helper;
+
+	m0_mutex_fini(&h->buh_reqh_lock);
+	m0_mutex_fini(&h->buh_seg_lock);
+}
+
+/* XXX call this function from m0_init()? */
+static void be_ut_helper_init(void)
+{
+	struct be_ut_helper_struct *h = &be_ut_helper;
+
+	h->buh_reqh_ref_cnt    = 0,
+	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR,
+	m0_mutex_init(&h->buh_seg_lock);
+	m0_mutex_init(&h->buh_reqh_lock);
+	m0_be_ut_seg_state_load(h);
+	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
+}
+
+static void be_ut_helper_init_once(void)
+{
+	int rc;
+
+	rc = pthread_once(&be_ut_helper.buh_once_control, &be_ut_helper_init);
+	M0_ASSERT(rc == 0);
 }
 
 static void *be_ut_seg_allocate_addr(struct be_ut_helper_struct *h,

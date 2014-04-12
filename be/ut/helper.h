@@ -22,6 +22,10 @@
 #ifndef __MERO_BE_UT_HELPER_H__
 #define __MERO_BE_UT_HELPER_H__
 
+#ifndef __KERNEL__
+#include <stdio.h>		/* FILE */
+#endif
+
 #include "lib/types.h"		/* bool */
 #include "lib/buf.h"		/* m0_buf */
 #include "sm/sm.h"		/* m0_sm */
