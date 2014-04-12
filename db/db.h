@@ -108,13 +108,6 @@ M0_INTERNAL int m0_dbenv_sync(struct m0_dbenv *env);
 void m0_dbenv_reset(const char *name);
 
 /**
-   Load/save segments using lambda functions to a file with name @filename.
- */
-M0_INTERNAL void m0_be_state_save(const char *filename,
-                                  bool (*func)(FILE *f, int *state));
-M0_INTERNAL void m0_be_state_load(const char *filename,
-                                  bool (*func)(FILE *f, int *state));
-/**
     Data-base table.
 
     A m0_table is (notionally) a container of (key, record) pairs. A new pair

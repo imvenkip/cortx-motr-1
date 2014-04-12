@@ -85,6 +85,7 @@ static void be_ut_helper_init(void)
 	h->buh_addr	       = (void *) BE_UT_SEG_START_ADDR,
 	m0_mutex_init(&h->buh_seg_lock);
 	m0_mutex_init(&h->buh_reqh_lock);
+	m0_be_state_load(h);
 	atexit(&be_ut_helper_fini);	/* XXX REFACTORME */
 }
 

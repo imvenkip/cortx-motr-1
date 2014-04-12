@@ -166,6 +166,16 @@ M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
 M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
 					   struct m0_sm_group *grp);
 
+/**
+   Load/save segments using lambda functions to a file with name @filename.
+ */
+#ifndef __KERNEL__
+M0_INTERNAL void m0_be_state_save(const char *filename,
+				  bool (*func)(FILE *, int *));
+M0_INTERNAL void m0_be_state_load(const char *filename,
+				  bool (*func)(FILE *, int *));
+#endif
+
 extern struct m0_be_0type m0_be_ut_seg0;
 extern struct m0_be_0type m0_be_ut_log0;
 extern struct m0_be_0type m0_be_log0;
