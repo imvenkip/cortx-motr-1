@@ -651,14 +651,13 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
 	m0_reqh_fom_domain_idle_wait(reqh);
 }
 
-static void __reqh_svcs_stop(struct m0_reqh *reqh, bool pre_storage)
+static void __reqh_svcs_stop(struct m0_reqh *reqh, unsigned level)
 {
 	struct m0_reqh_service *service;
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
-		if (pre_storage &&
-		    (strcmp(service->rs_type->rst_name, "be-tx-service") == 0))
+		if (service->rs_type->rst_level < level)
 			continue;
 		if (M0_IN(m0_reqh_service_state_get(service),
 			  (M0_RST_STARTED, M0_RST_STOPPING)))
@@ -687,7 +686,7 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
 
         m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	__reqh_svcs_stop(reqh, true);
+	__reqh_svcs_stop(reqh, M0_RST_LEVEL_1);
 
         m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (reqh->rh_mgmt_svc != NULL)
@@ -701,7 +700,7 @@ M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh)
 {
 	M0_PRE(M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_MGMT_STOP,
 					       M0_REQH_ST_STOPPED)));
-	__reqh_svcs_stop(reqh, false);
+	__reqh_svcs_stop(reqh, M0_RST_LEVEL_0);
 }
 
 M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)

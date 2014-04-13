@@ -119,7 +119,7 @@ struct m0_net_buffer_pool_ops buffer_pool_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-			     &m0_addb_ct_ios_serv);
+			     &m0_addb_ct_ios_serv, M0_RST_LEVEL_1);
 
 /**
  * Buffer pool operation function. This function gets called when buffer pool

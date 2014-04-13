@@ -437,10 +437,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	M0_UT_ASSERT(base_fom->fo_service != NULL);
 
 	base_fom->fo_loc = &dummy_loc;
-	base_fom->fo_loc->fl_lockers =
-		reqh->rh_fom_dom.fd_localities[0]->fl_lockers;
-	m0_fom_locality_locker_fom_cnt_inc(base_fom->fo_loc,
-		base_fom->fo_service->rs_type->rst_fomcnt_key);
+	m0_fom_locality_inc(base_fom);
 	base_fom->fo_type = &ft;
 
 	m0_fom_sm_init(base_fom);
@@ -518,8 +515,6 @@ static void fom_fini_test(enum cob_fom_type fomtype)
 	 *    stray foms around.
 	 */
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
-	m0_reqh_fom_domain_idle_wait(reqh);
-
 	base_mem = m0_allocated();
 	fom_create(&fom, fomtype);
 
@@ -1053,6 +1048,7 @@ static void dummy_locality_setup()
 
 	dummy_loc.fl_dom = &reqh->rh_fom_dom;
 	m0_sm_group_init(&dummy_loc.fl_group);
+	m0_fom_locality_lockers_init(&dummy_loc);
 }
 
 static void cob_create_api_test(void)
@@ -1188,7 +1184,6 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 				 ftype->ft_ops->fto_undo(fp_part, rec->fr_fol) :
 				 ftype->ft_ops->fto_redo(fp_part, rec->fr_fol);
 			M0_UT_ASSERT(result == 0);
-			m0_reqh_fom_domain_idle_wait(rec->fr_fol->f_reqh);
 		}
 	} m0_tl_endfor;
 

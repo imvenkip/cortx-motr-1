@@ -689,7 +689,8 @@ static struct m0_reqh_service_type_ops mgmt_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_type, &mgmt_service_type_ops,
-                            M0_MGMT_SVC_TYPE_NAME, &m0_addb_ct_mgmt_service);
+			    M0_MGMT_SVC_TYPE_NAME, &m0_addb_ct_mgmt_service,
+			    M0_RST_LEVEL_1);
 
 
 /*

@@ -61,7 +61,7 @@ static const struct m0_reqh_service_ops mds_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",
-			     &m0_addb_ct_mds_serv);
+			     &m0_addb_ct_mds_serv, M0_RST_LEVEL_1);
 
 M0_INTERNAL int m0_mds_register(void)
 {

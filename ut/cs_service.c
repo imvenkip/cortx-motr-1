@@ -60,9 +60,9 @@ static const struct m0_reqh_service_ops ds2_service_ops = {
 
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ds1_service_type, &ds1_service_type_ops, "ds1",
-			     &m0_addb_ct_ut_service);
+			     &m0_addb_ct_ut_service, M0_RST_LEVEL_1);
 M0_REQH_SERVICE_TYPE_DEFINE(ds2_service_type, &ds2_service_type_ops, "ds2",
-			     &m0_addb_ct_ut_service);
+			     &m0_addb_ct_ut_service, M0_RST_LEVEL_1);
 
 struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 	&ds1_service_type,

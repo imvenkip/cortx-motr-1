@@ -227,7 +227,7 @@ struct m0_fop_rate_monitor;
 /* defined in fom.c */
 struct m0_loc_thread;
 
-M0_LOCKERS_DECLARE(M0_EXTERN, m0_fom_locality, 64);
+M0_LOCKERS_DECLARE(M0_EXTERN, m0_fom_locality, 32);
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -454,13 +454,8 @@ m0_fom_locality_fom_cnt_vaults_free(struct m0_fom_domain *dom,
 /**
  * Increment number of foms with given key running in given fom locality
  */
-M0_INTERNAL void
-m0_fom_locality_locker_fom_cnt_inc(struct m0_fom_locality *loc,
-				   unsigned                key);
-
-M0_INTERNAL void
-m0_fom_locality_locker_fom_cnt_dec(struct m0_fom_locality *loc,
-				   unsigned                key);
+M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom);
+M0_INTERNAL void m0_fom_locality_dec(struct m0_fom *fom);
 
 /**
  * Fom call-back states

@@ -80,7 +80,7 @@ static const struct m0_reqh_service_type_ops txs_stype_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_be_txs_stype, &txs_stype_ops, "be-tx-service",
-                            &m0_addb_ct_tx_service);
+                            &m0_addb_ct_tx_service, M0_RST_LEVEL_0);
 
 M0_INTERNAL int m0_be_txs_register(void)
 {
