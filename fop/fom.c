@@ -994,7 +994,7 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 	uint64_t               *cnt;
 
 	cnt = (uint64_t *)&loc->fl_lockers.__base.loc_slots[key];
-	++*cnt;
+	M0_CNT_INC(*cnt);
 }
 
 M0_INTERNAL void m0_fom_locality_dec(struct m0_fom *fom)
@@ -1005,7 +1005,7 @@ M0_INTERNAL void m0_fom_locality_dec(struct m0_fom *fom)
 
 	M0_PRE(!m0_fom_locality_lockers_is_empty(loc, key));
 	cnt = (uint64_t *)&loc->fl_lockers.__base.loc_slots[key];
-	--*cnt;
+	M0_CNT_DEC(*cnt);
 }
 
 static void fop_fini(struct m0_fop *fop, bool local)

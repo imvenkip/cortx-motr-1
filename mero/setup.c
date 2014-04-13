@@ -921,8 +921,8 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 #if USE_MGMT_STARTUP
 	/* Do not terminate on failure here as services start asynchronously. */
 #else
-	//if (rc != 0)
-	//	m0_reqh_services_terminate(&rctx->rc_reqh);
+	if (rc != 0)
+		m0_reqh_pre_storage_fini_svcs_stop(&rctx->rc_reqh);
 #endif
 	return M0_RC(rc);
 }

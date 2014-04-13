@@ -440,21 +440,15 @@ M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
 M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom);
 
 /**
- * This functions allocates a place to store value of number of foms
- * associated with the given key
- */
-M0_INTERNAL void
-m0_fom_locality_fom_cnt_vaults_alloc(struct m0_fom_domain *dom,
-				     unsigned              key);
-
-M0_INTERNAL void
-m0_fom_locality_fom_cnt_vaults_free(struct m0_fom_domain *dom,
-				    unsigned              key);
-
-/**
- * Increment number of foms with given key running in given fom locality
+ * Increment fom count stored in m0_fom_locality::fl_lockers for service
+ * (m0_fom::fo_service) corresponding to the given fom.
  */
 M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom);
+
+/**
+ * Decrement fom count stored in m0_fom_locality::fl_lockers for service
+ * (m0_fom::fo_service) corresponding to the given fom.
+ */
 M0_INTERNAL void m0_fom_locality_dec(struct m0_fom *fom);
 
 /**
