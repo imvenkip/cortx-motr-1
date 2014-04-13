@@ -972,10 +972,12 @@ static bool is_loc_locker_empty(struct m0_fom_locality *loc, uint32_t key)
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
-					   uint32_t loc_key)
+					   struct m0_reqh_service *svc)
 {
+	unsigned key = svc->rs_type->rst_fomcnt_key;
+
 	return m0_forall(i, dom->fd_localities_nr,
-			 is_loc_locker_empty(dom->fd_localities[i], loc_key));
+			 is_loc_locker_empty(dom->fd_localities[i], key));
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)

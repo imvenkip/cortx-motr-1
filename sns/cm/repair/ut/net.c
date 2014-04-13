@@ -507,7 +507,7 @@ static void receiver_init()
 	cm_ready(cm);
         M0_UT_ASSERT(m0_cm_start(cm) == 0);
         while (m0_fom_domain_is_idle_for(&s0_reqh->rh_fom_dom,
-					 scm_service->rs_type->rst_fomcnt_key) ||
+					 scm_service) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
                 usleep(200);
 
@@ -681,7 +681,7 @@ static void sender_init()
 	M0_UT_ASSERT(rc == 0);
 
         while (m0_fom_domain_is_idle_for(&rmach_ctx.rmc_reqh.rh_fom_dom,
-				sender_cm_service->rs_type->rst_fomcnt_key) ||
+				sender_cm_service) ||
 	       !m0_cm_cp_pump_is_complete(&sender_cm.cm_cp_pump))
                 usleep(200);
 

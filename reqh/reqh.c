@@ -594,8 +594,7 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
 
 		if ((strcmp(service->rs_type->rst_name, "be-tx-service") == 0))
 			continue;
-		while (!m0_fom_domain_is_idle_for(&reqh->rh_fom_dom,
-						  service->rs_type->rst_fomcnt_key))
+		while (!m0_fom_domain_is_idle_for(&reqh->rh_fom_dom, service))
 			m0_chan_wait(&clink);
 	} m0_tl_endfor;
 	m0_clink_del_lock(&clink);
