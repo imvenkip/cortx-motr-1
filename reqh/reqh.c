@@ -656,7 +656,7 @@ static void __reqh_svcs_stop(struct m0_reqh *reqh, unsigned level)
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
-		if (service->rs_type->rst_level < level)
+		if (service->rs_level < level)
 			continue;
 		if (M0_IN(m0_reqh_service_state_get(service),
 			  (M0_RST_STARTED, M0_RST_STOPPING)))

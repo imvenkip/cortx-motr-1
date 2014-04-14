@@ -155,6 +155,8 @@ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
 		(*service)->rs_type = stype;
 		(*service)->rs_reqh_ctx = rctx;
 		m0_reqh_service_bob_init(*service);
+		if ((*service)->rs_level == 0)
+			(*service)->rs_level = stype->rst_level;
 		M0_POST(m0_reqh_service_invariant(*service));
 	}
 	return rc;

@@ -225,6 +225,14 @@ struct m0_reqh_service {
 	struct m0_reqh_service_type      *rs_type;
 
 	/**
+	   Same type of services may have different levels to manage their
+	   cleanup order.
+	   If this level is 0 during service creation,
+	   m0_reqh_service_type::rst_level is copied by m0_reqh_service_allocate().
+	 */
+	unsigned                          rs_level;
+
+	/**
 	   Service state machine.
 
 	   @see m0_reqh_service_state
