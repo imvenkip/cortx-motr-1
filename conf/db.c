@@ -304,7 +304,8 @@ static int confx_allocator_init(struct confx_allocator *alloc,
 				const struct m0_confx *conf,
 				struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	return conf_sizeof(conf) == 0 ? -EINVAL :
+	m0_bcount_t conf_size;
+	return (conf_size = conf_sizeof(conf)) == 0 ? -EINVAL :
 		confdb_alloc(alloc, seg, tx, conf_size);
 }
 
