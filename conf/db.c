@@ -304,16 +304,8 @@ static int confx_allocator_init(struct confx_allocator *alloc,
 				const struct m0_confx *conf,
 				struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	m0_bcount_t conf_size;
-	int         rc;
-
-	conf_size = conf_sizeof(conf);
-	if (conf_size == 0)
-		rc = -EINVAL;
-	if (rc == 0)
-		rc = confdb_alloc(alloc, seg, tx, conf_size);
-
-	return M0_RC(rc);
+	return conf_sizeof(conf) == 0 ? -EINVAL :
+		confdb_alloc(alloc, seg, tx, conf_size);
 }
 
 M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
@@ -424,13 +416,13 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg,
 	M0_ENTRY();
 
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
-	if (rc == 0)
+	if (rc == 0) {
 		rc = __confdb_free(btree, seg, tx);
-
-	if (rc == 0 || rc == -ENOENT) {
-		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
-		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
-		rc = m0_be_seg_dict_delete(seg, tx, btree_name);
+		if (rc == 0 || rc == -ENOENT) {
+			M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
+			M0_BE_FREE_PTR_SYNC(btree, seg, tx);
+			rc = m0_be_seg_dict_delete(seg, tx, btree_name);
+		}
 	}
 
 	return M0_RC(rc);
