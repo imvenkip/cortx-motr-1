@@ -112,7 +112,7 @@ M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
 			    &ut_long_lock_service_type_ops,
 			    "ut-long-lock-service",
-                            &m0_addb_ct_ut_service, M0_RST_LEVEL_1);
+                            &m0_addb_ct_ut_service, 1);
 
 static int test_long_lock_init(void)
 {

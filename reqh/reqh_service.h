@@ -198,12 +198,6 @@ enum m0_reqh_service_state {
 	M0_RST_FAILED
 };
 
-enum {
-	M0_RST_LEVEL_0 = 0,
-	M0_RST_LEVEL_1,
-	M0_RST_LEVEL_NR
-};
-
 /**
    Represents a service on node.
    Multiple services in a mero address space share the same request handler.
@@ -611,7 +605,6 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service);
     invoking m0_reqh_service_type_register()
 */
 #define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, ct, level)  \
-M0_BASSERT(level < M0_RST_LEVEL_NR);                              \
 struct m0_reqh_service_type stype = {                             \
 	.rst_name    = (name),	                                  \
 	.rst_ops     = (ops),                                     \

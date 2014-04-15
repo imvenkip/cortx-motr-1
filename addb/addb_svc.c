@@ -193,7 +193,7 @@ static struct m0_reqh_service_type_ops addb_service_type_ops = {
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_addb_svc_type, &addb_service_type_ops,
                             M0_ADDB_SVC_NAME, &m0_addb_ct_addb_service,
-			    M0_RST_LEVEL_1);
+			    1);
 
 /** @} end group addb_svc_pvt */
 
