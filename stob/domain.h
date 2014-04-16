@@ -133,6 +133,15 @@ struct m0_stob_domain_ops {
 			       struct m0_dtx *dtx,
 			       uint64_t stob_key,
 			       void *cfg);
+	/** @see m0_stob_create_credit() */
+	void (*sdo_stob_delete_credit)(struct m0_stob_domain *dom,
+				       struct m0_be_tx_credit *accum);
+	/** @see m0_stob_create() */
+	int (*sdo_stob_delete)(struct m0_stob *stob,
+			       struct m0_stob_domain *dom,
+			       struct m0_dtx *dtx,
+			       uint64_t stob_key,
+			       void *cfg);
 	/** @see m0_stob_write_credit() */
 	void (*sdo_stob_write_credit)(struct m0_stob_domain *dom,
 				      struct m0_indexvec *iv,

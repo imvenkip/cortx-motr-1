@@ -479,6 +479,8 @@ static struct m0_stob_domain_ops stob_linux_domain_ops = {
 	.sdo_stob_init		= &stob_linux_init,
 	.sdo_stob_create_credit = &stob_linux_create_credit,
 	.sdo_stob_create	= &stob_linux_create,
+	.sdo_stob_delete_credit = &stob_linux_delete_credit,
+	.sdo_stob_delete	= &stob_linux_delete,
 	.sdo_stob_write_credit	= &stob_linux_write_credit,
 };
 
