@@ -807,7 +807,6 @@ static int cs_storage_init(const char *stob_type,
 			   bool mkfs, bool force)
 {
 	int                rc;
-	size_t             slen;
 	char              *location;
 	static const char  prefix[] = "linuxstob:";
 
@@ -824,8 +823,7 @@ static int cs_storage_init(const char *stob_type,
 	} else
 		return M0_RC(-EINVAL);
 
-	slen = strlen(stob_path);
-	M0_ALLOC_ARR(location, slen + ARRAY_SIZE(prefix));
+	M0_ALLOC_ARR(location, strlen(stob_path) + ARRAY_SIZE(prefix));
 	if (location == NULL)
 		return M0_RC(-ENOMEM);
 
