@@ -1412,7 +1412,7 @@ static int balloc_find_by_goal(struct m0_balloc_allocation_context *bac)
 out_unlock:
 	m0_balloc_unlock_group(grp);
 out:
-	M0_RETURN(ret);
+	return M0_RC(ret);
 }
 #endif
 
