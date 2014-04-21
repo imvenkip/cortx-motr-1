@@ -275,6 +275,7 @@ M0_INTERNAL bool oper_update_unique(const struct m0_dtm_oper *oper,
 			return false;
 	} oper_endfor;
 	M0_IMPOSSIBLE("Missing update.");
+	return false;
 }
 
 M0_INTERNAL void oper_lock(const struct m0_dtm_oper *oper)

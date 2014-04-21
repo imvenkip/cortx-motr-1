@@ -82,6 +82,7 @@ static int ltx_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
 		    struct m0_dtm_history **out)
 {
 	M0_IMPOSSIBLE("Looking for ltx?");
+	return 0;
 }
 
 static const struct m0_dtm_history_type_ops ltx_htype_ops = {
