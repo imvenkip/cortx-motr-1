@@ -717,27 +717,31 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
 
 M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a)
 {
-	struct be_alloc_chunk *iter;
-	bool		       success = true;
+	/* XXX Disabled as it's too slow. */
+	if (0) {
+		struct be_alloc_chunk *iter;
+		bool		       success = true;
 
-	m0_mutex_lock(&a->ba_lock);
+		m0_mutex_lock(&a->ba_lock);
 
-	m0_tl_for(chunks_all, &a->ba_h->bah_chunks.bl_list, iter) {
-		if (!be_alloc_chunk_invariant(a, iter)) {
-			success = false;
-			break;
-		}
-	} m0_tl_endfor;
-	m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
-		if (!be_alloc_chunk_invariant(a, iter) && !success) {
-			success = false;
-			break;
-		}
-	} m0_tl_endfor;
+		m0_tl_for(chunks_all, &a->ba_h->bah_chunks.bl_list, iter) {
+			if (!be_alloc_chunk_invariant(a, iter)) {
+				success = false;
+				break;
+			}
+		} m0_tl_endfor;
+		m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
+			if (!be_alloc_chunk_invariant(a, iter) && !success) {
+				success = false;
+				break;
+			}
+		} m0_tl_endfor;
 
-	m0_mutex_unlock(&a->ba_lock);
+		m0_mutex_unlock(&a->ba_lock);
 
-	return success;
+		return success;
+	} else
+		return true;
 }
 
 M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
