@@ -236,7 +236,11 @@ M0_INTERNAL bool m0_locality_invariant(const struct m0_fom_locality *loc)
 		m0_tl_forall(thr, t, &loc->fl_threads,
 			     t->lt_loc == loc && thread_invariant(t)) &&
 		ergo(loc->fl_handler != NULL,
-		     thr_tlist_contains(&loc->fl_threads, loc->fl_handler));
+		     thr_tlist_contains(&loc->fl_threads, loc->fl_handler)) &&
+		M0_CHECK_EX(m0_tl_forall(runq, fom, &loc->fl_runq,
+					 fom->fo_loc == loc)) &&
+		M0_CHECK_EX(m0_tl_forall(wail, fom, &loc->fl_wail,
+					 fom->fo_loc == loc));
 
 }
 
@@ -271,26 +275,28 @@ static inline struct m0_fom *sm2fom(struct m0_sm *sm)
 M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 {
 	return
-		fom != NULL && fom->fo_loc != NULL &&
-		fom->fo_type != NULL && fom->fo_ops != NULL &&
+		_0C(fom != NULL) && _0C(fom->fo_loc != NULL) &&
+		_0C(fom->fo_type != NULL) && _0C(fom->fo_ops != NULL) &&
 
-		m0_fom_group_is_locked(fom) &&
+		_0C(m0_fom_group_is_locked(fom)) &&
 
 		/* fom magic is the same in runq and wail tlists,
 		 * so we can use either one here.
 		 * @todo replace this with bob_check() */
 		M0_CHECK_EX(m0_tlink_invariant(&runq_tl, fom)) &&
 
-		M0_IN(fom_state(fom), (M0_FOS_READY, M0_FOS_WAITING,
-				       M0_FOS_RUNNING, M0_FOS_INIT)) &&
-		(fom_state(fom) == M0_FOS_READY) == is_in_runq(fom) &&
-		(fom_state(fom) == M0_FOS_WAITING) == is_in_wail(fom) &&
-		ergo(fom->fo_thread != NULL,
-		     fom_state(fom) == M0_FOS_RUNNING) &&
-		ergo(fom->fo_pending != NULL,
-		     (fom_state(fom) == M0_FOS_READY || fom_is_blocked(fom))) &&
-		ergo(fom->fo_cb.fc_state != M0_FCS_DONE,
-		     fom_state(fom) == M0_FOS_WAITING);
+		_0C(M0_IN(fom_state(fom), (M0_FOS_READY, M0_FOS_WAITING,
+					   M0_FOS_RUNNING, M0_FOS_INIT))) &&
+		_0C((fom_state(fom) == M0_FOS_READY) == is_in_runq(fom)) &&
+		_0C((fom_state(fom) == M0_FOS_WAITING) == is_in_wail(fom)) &&
+		_0C(ergo(fom->fo_thread != NULL,
+			 fom_state(fom) == M0_FOS_RUNNING)) &&
+		_0C(ergo(fom->fo_pending != NULL,
+		    (fom_state(fom) == M0_FOS_READY || fom_is_blocked(fom)))) &&
+		_0C(ergo(fom->fo_cb.fc_state != M0_FCS_DONE,
+			 fom_state(fom) == M0_FOS_WAITING)) &&
+		_0C(ergo(fom->fo_service != NULL,
+			 fom->fo_service->rs_type == fom->fo_type->ft_rstype));
 }
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
@@ -346,8 +352,7 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
 
-	if (fom->fo_service != NULL)
-		m0_fom_locality_inc(fom);
+	m0_fom_locality_inc(fom);
 	fom_ready(fom);
 }
 
@@ -584,6 +589,7 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 
 	fom = runq_tlist_pop(&loc->fl_runq);
 	if (fom != NULL) {
+		M0_ASSERT(fom->fo_loc == loc);
 		M0_CNT_DEC(loc->fl_runq_nr);
 		m0_addb_counter_update(&loc->fl_stat_sched_wait_times,
 				       m0_time_sub(m0_time_now(), /* ~usec */
@@ -983,29 +989,34 @@ M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_fom_domain *dom,
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
 {
 	return m0_forall(i, dom->fd_localities_nr,
-			 m0_forall(j, m0_fom_locality_lockers_type.lot_count,
-				   is_loc_locker_empty(dom->fd_localities[i], j)));
+			 dom->fd_localities[i]->fl_foms == 0);
 }
 
 M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 {
-	unsigned                key = fom->fo_service->rs_type->rst_fomcnt_key;
+	unsigned                key = fom->fo_type->ft_rstype->rst_fomcnt_key;
 	struct m0_fom_locality *loc = fom->fo_loc;
-	uint64_t               *cnt;
+	uint64_t                cnt;
 
-	cnt = (uint64_t *)&loc->fl_lockers.__base.loc_slots[key];
-	M0_CNT_INC(*cnt);
+	M0_ASSERT(key != 0);
+	cnt = (uint64_t)m0_fom_locality_lockers_get(loc, key);
+	M0_CNT_INC(cnt);
+	M0_CNT_INC(loc->fl_foms);
+	m0_fom_locality_lockers_set(loc, key, (void *)cnt);
 }
 
-M0_INTERNAL void m0_fom_locality_dec(struct m0_fom *fom)
+M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
 {
-	unsigned                key = fom->fo_service->rs_type->rst_fomcnt_key;
+	unsigned                key = fom->fo_type->ft_rstype->rst_fomcnt_key;
 	struct m0_fom_locality *loc = fom->fo_loc;
-	uint64_t               *cnt;
+	uint64_t                cnt;
 
-	M0_PRE(!m0_fom_locality_lockers_is_empty(loc, key));
-	cnt = (uint64_t *)&loc->fl_lockers.__base.loc_slots[key];
-	M0_CNT_DEC(*cnt);
+	M0_ASSERT(key != 0);
+	cnt = (uint64_t)m0_fom_locality_lockers_get(loc, key);
+	M0_CNT_DEC(cnt);
+	M0_CNT_DEC(loc->fl_foms);
+	m0_fom_locality_lockers_set(loc, key, (void *)cnt);
+	return cnt == 0;
 }
 
 static void fop_fini(struct m0_fop *fop, bool local)
@@ -1067,15 +1078,12 @@ void m0_fom_fini(struct m0_fom *fom)
 	fop_rate_monitor = m0_fop_rate_monitor_get(loc);
 	if (fop_rate_monitor != NULL)
 		M0_CNT_INC(fop_rate_monitor->frm_count);
-	if (svc != NULL) {
-		m0_fom_locality_dec(fom);
-		if (is_loc_locker_empty(loc, svc->rs_type->rst_fomcnt_key))
-			m0_chan_signal_lock(&reqh->rh_sd_signal);
-	}
+	if (m0_fom_locality_dec(fom))
+		m0_chan_signal_lock(&reqh->rh_sd_signal);
 }
 M0_EXPORTED(m0_fom_fini);
 
-void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
+void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
 		 struct m0_fop *reply, struct m0_reqh *reqh,
 		 const struct m0_reqh_service_type *stype)
