@@ -458,9 +458,10 @@ static void addb_monitor_stats_fop_release(struct m0_ref *ref)
 static int addb_monitor_stats_fop_send(struct m0_stats_update_fop *fop_data,
 				       struct m0_rpc_conn         *conn)
 {
-	struct m0_fop      *stats_update_fop;
-	struct m0_rpc_item *item;
-	int                 rc;
+	struct m0_fop         *stats_update_fop;
+	struct m0_rpc_item    *item;
+	struct m0_rpc_machine *mach;
+	int                    rc;
 
 	M0_ALLOC_PTR(stats_update_fop);
 	if (stats_update_fop == NULL)
@@ -478,10 +479,11 @@ static int addb_monitor_stats_fop_send(struct m0_stats_update_fop *fop_data,
 	item->ri_deadline = 0;
 
 	rc = m0_rpc_oneway_item_post(conn, item);
-	M0_ASSERT(item->ri_rmachine);
-	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
+	mach = item->ri_rmachine;
+	M0_ASSERT(mach != NULL);
+	m0_sm_group_lock(&mach->rm_sm_grp);
 	m0_fop_put(stats_update_fop);
-	m0_sm_group_unlock(&item->ri_rmachine->rm_sm_grp);
+	m0_sm_group_unlock(&mach->rm_sm_grp);
 
 	return rc;
 }
