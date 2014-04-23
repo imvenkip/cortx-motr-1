@@ -233,13 +233,7 @@ static int counter_data_update(struct m0_addb_counter_data *data,
 			       const struct m0_addb_rec_type *rt,
 			       uint64_t datum)
 {
- 
-/**
- * @todo Counter overflow issue started comming again while
- *       running ST after added FOM phase statistics counters.
- *
- * Reopening Jira "Mero-8: ADDB Counter update error."
- */
+
 	if (m0_addu64_will_overflow(data->acd_sum_sq, datum * datum))
 		return M0_ERR(-EOVERFLOW, "%s: counter's sum of samples "
 				"square overflow: datum=%llu", rt->art_name,
