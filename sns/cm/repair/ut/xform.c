@@ -316,11 +316,7 @@ static void test_single_cp(void)
 
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
-	/*
-	 * Wait until all the foms in the request handler locality runq are
-	 * processed. This is required for further validity checks.
-	 */
-	m0_reqh_fom_domain_idle_wait(reqh);
+	m0_reqh_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that the single copy packet has been treated
@@ -361,12 +357,7 @@ static void test_multi_cp_single_failure(void)
 		m0_fom_queue(&cp->c_fom, reqh);
 		m0_semaphore_down(&sem);
 	}
-
-	/*
-	 * Wait until the fom in the request handler locality runq is
-	 * processed. This is required for further validity checks.
-	 */
-	m0_reqh_fom_domain_idle_wait(reqh);
+	m0_reqh_idle_wait(reqh);
 
 	/*
 	 * These asserts ensure that all the copy packets have been collected
@@ -497,11 +488,7 @@ static void test_multi_cp_multi_failures(void)
 	cp_multi_failures_post('v', 3, 4);
 	cp_multi_failures_post('w', 4, 5);
 
-        /*
-         * Wait until the fom in the request handler locality runq is
-         * processed. This is required for further validity checks.
-         */
-	m0_reqh_fom_domain_idle_wait(reqh);
+	m0_reqh_idle_wait(reqh);
 
 	/* Verify that first accumulator contains recovered data for D1. */
 	bv_populate(&src, 's', SEG_NR, SEG_SIZE);

@@ -73,7 +73,7 @@ static void *uthread_trampoline(void *arg)
 {
 	struct m0_thread *t = arg;
 
-	M0_PRE(pthread_getspecific(tls_key) == NULL);
+	M0_PRE(m0_thread_tls() == NULL);
 
 	t->t_initrc = -pthread_setspecific(tls_key, &t->t_tls);
 	if (t->t_initrc == 0) {

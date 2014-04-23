@@ -92,10 +92,8 @@ static const struct m0_reqh_service_type_ops ut_cp_service_type_ops = {
         .rsto_service_allocate = ut_cp_service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type,
-			    &ut_cp_service_type_ops,
-			    "ut-cp",
-                            &m0_addb_ct_ut_service, 1);
+M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type, &ut_cp_service_type_ops,
+			    "ut-cp", &m0_addb_ct_ut_service, 2);
 
 /* Multithreaded test vars. */
 static struct m0_sns_cm_cp m_sns_cp[THREADS_NR];
@@ -231,7 +229,7 @@ static void test_cp_single_thread(void)
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-        m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+        m0_reqh_idle_wait(&cmut_rmach_ctx.rmc_reqh);
 	m0_semaphore_fini(&sem);
 }
 
@@ -268,7 +266,7 @@ static void test_cp_multi_thread(void)
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
-        m0_reqh_fom_domain_idle_wait(&cmut_rmach_ctx.rmc_reqh);
+        m0_reqh_idle_wait(&cmut_rmach_ctx.rmc_reqh);
         m0_free(cp_thread);
 	m0_semaphore_fini(&sem);
 }

@@ -185,7 +185,7 @@ static struct m0_reqh_service_type_ops mgmt_svc_ut_svc_type_ops = {
 #define M0_MGMT_SVC_UT_SVC_UUID "abcdef01-2345-6789-abcd-ef0123456789"
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_ut_svc_type, &mgmt_svc_ut_svc_type_ops,
 			    M0_MGMT_SVC_UT_SVC_TYPE_NAME,
-			    &m0_addb_ct_mgmt_service, 1); /* reuse mgmt svc ct */
+			    &m0_addb_ct_mgmt_service, 2); /* reuse mgmt svc ct */
 
 static int mgmt_svc_ut_svc_start(struct m0_reqh *rh, bool async)
 {

@@ -88,7 +88,7 @@ M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type,
 			    &ut_stats_service_type_ops,
 			    "ut-stats-service",
-                            &m0_addb_ct_ut_service, 1);
+                            &m0_addb_ct_ut_service, 2);
 
 static int test_stats_init(void)
 {

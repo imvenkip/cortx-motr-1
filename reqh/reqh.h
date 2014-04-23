@@ -306,7 +306,13 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh);
    @see m0_fom_domain_is_idle()
    @see m0_reqh_shutdown_wait()
  */
-M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh);
+M0_INTERNAL void m0_reqh_idle_wait(struct m0_reqh *reqh);
+
+/**
+ * Waits until foms of the given service are gone.
+ */
+M0_INTERNAL void m0_reqh_idle_wait_for(struct m0_reqh *reqh,
+				       struct m0_reqh_service *service);
 
 /**
    Start the management service.
@@ -350,7 +356,7 @@ M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state);
    @param reqh request handler to be shutdown
    @pre m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
    @post m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN
-   @see m0_reqh_service_prepare_to_stop(), m0_reqh_fom_domain_idle_wait()
+   @see m0_reqh_service_prepare_to_stop(), m0_reqh_idle_wait()
  */
 M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh);
 
@@ -361,7 +367,7 @@ M0_INTERNAL void m0_reqh_shutdown(struct m0_reqh *reqh);
    @param reqh request handler to be shutdown
    @pre m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
    @post m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN
-   @see m0_reqh_service_prepare_to_stop(), m0_reqh_fom_domain_idle_wait()
+   @see m0_reqh_service_prepare_to_stop(), m0_reqh_idle_wait()
  */
 M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
 

@@ -180,7 +180,7 @@ static void test_service(void)
 		m0_reqh_fop_handle(reqh, fop);
 		m0_semaphore_down(&sem);
 	}
-	m0_reqh_fom_domain_idle_wait(reqh);
+	m0_reqh_idle_wait(reqh);
 
 	m0_fop_put(fop);
 	m0_ut_rpc_mach_fini(&rmach_ctx);
