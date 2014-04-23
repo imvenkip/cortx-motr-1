@@ -38,6 +38,7 @@
  */
 
 struct m0_rpc_conn;
+struct m0_cm_type;
 
 struct m0_cm_sw {
 	struct m0_cm_ag_id     sw_lo;
@@ -111,7 +112,7 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 				      struct m0_be_tx *tx,
 				      const struct m0_cm_sw *last);
 
-M0_INTERNAL void m0_cm_sw_update_init(void);
+M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype);
 
 /**
  * Marks the cm operation as done by deleting sliding window data from storage.

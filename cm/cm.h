@@ -158,6 +158,12 @@ struct m0_cm_type {
 	struct m0_reqh_service_type   ct_stype;
 	/** Linkage into the list of copy machine types (struct m0_tl cmtypes)*/
 	struct m0_tlink               ct_linkage;
+	/** Copy packet fom type. */
+	struct m0_fom_type            ct_fomt;
+	/** Sliding window update fom type.*/
+	struct m0_fom_type            ct_swu_fomt;
+	/** Pump fom type. */
+	struct m0_fom_type            ct_pump_fomt;
 	uint64_t                      ct_magix;
 };
 

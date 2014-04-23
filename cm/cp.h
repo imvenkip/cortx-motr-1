@@ -43,11 +43,6 @@
  * @section CPDLD-fspec-ds Data Structures
  *	- @b m0_cm_cp  : Generic copy packet.
  *	- @b m0_cm_ops : Copy packet operations.
- * @section CPDLD-fspec-sub Subroutines
- *	- @b m0_cm_cp_init() : Initialises copy packet and its corresponding
- *			       FOM.
- *	- @b m0_cm_cp_fini() : Finalises copy packet and its corresponding FOM.
- *	- @b m0_cm_cp_enqueue() : Posts copy packet FOM for execution.
  *
  * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
  *	- @b m0_cm_cp_invaraint()
@@ -72,6 +67,7 @@
 
 struct m0_cm_cp;
 struct m0_cm;
+struct m0_cm_type;
 
 /**
  * @todo replace this hard coded size with actual number from confc.
@@ -246,7 +242,7 @@ struct m0_cm_cp_ops {
 	int      (*co_action[]) (struct m0_cm_cp *cp);
 };
 
-M0_INTERNAL void m0_cm_cp_module_init(void);
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype);
 
 /**
  * Initialises generic copy packet only.

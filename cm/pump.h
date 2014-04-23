@@ -31,6 +31,7 @@
 
 /* Import */
 struct m0_cm;
+struct m0_cm_type;
 
 /**
  * Represents copy packet pump FOM. New copy packets are created in context
@@ -76,7 +77,7 @@ struct m0_cm_cp_pump {
         struct m0_mutex  p_signal_mutex;
 };
 
-M0_INTERNAL void m0_cm_cp_pump_init(void);
+M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype);
 
 /**
  * Initialises pump FOM and submits it to reqh for processing.

@@ -917,9 +917,6 @@ M0_INTERNAL int m0_cm_module_init(void)
 	cmtypes_tlist_init(&cmtypes);
 	m0_bob_type_tlist_init(&cmtypes_bob, &cmtypes_tl);
 	m0_mutex_init(&cmtypes_mutex);
-	m0_cm_cp_pump_init();
-	m0_cm_sw_update_init();
-	m0_cm_cp_module_init();
 	cm_xc_init();
 
 	M0_LEAVE();
@@ -1029,6 +1026,9 @@ M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmtype)
 	rc = m0_reqh_service_type_register(&cmtype->ct_stype);
 	if (rc == 0) {
 		m0_cm_type_bob_init(cmtype);
+		m0_cm_cp_init(cmtype);
+		m0_cm_sw_update_init(cmtype);
+		m0_cm_cp_pump_init(cmtype);
 		m0_mutex_lock(&cmtypes_mutex);
 		cmtypes_tlink_init_at_tail(cmtype, &cmtypes);
 		m0_mutex_unlock(&cmtypes_mutex);
