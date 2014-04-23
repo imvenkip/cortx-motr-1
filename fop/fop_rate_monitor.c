@@ -196,11 +196,11 @@ void m0_fop_rate_monitor_fini(struct m0_fom_locality *loc)
 {
 	struct m0_fop_rate_monitor *fmon = m0_fop_rate_monitor_get(loc);
 
+	__timer_fini(&fmon->frm_timer);
 	m0_fom_locality_lockers_clear(loc, key);
 	m0_addb_monitor_del(loc->fl_dom->fd_reqh, &fmon->frm_monitor);
 	m0_addb_monitor_fini(&fmon->frm_monitor);
 	m0_addb_counter_fini(&fmon->frm_addb_ctr);
-	__timer_fini(&fmon->frm_timer);
 	m0_addb_monitor_sum_rec_fini(&fmon->frm_sum_rec);
 	m0_free(fmon);
 }
