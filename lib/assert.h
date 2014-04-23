@@ -125,8 +125,22 @@ printf_check(const char *fmt, ...)
 		#cond, __func__, __FILE__, __LINE__, (fmt)		\
 	};								\
 	printf_check(fmt, ##__VA_ARGS__);				\
+	m0_assert_intercept();						\
 	(M0_ASSERT_OFF || likely(cond) ? (void)0 : m0_panic(&__pctx, ##__VA_ARGS__)); \
 })
+
+/**
+ * This function is executed on every assertion check whether successful or not.
+ *
+ * It should be used as a debugging device to execute some code very
+ * frequently. To this end, turn this definition into a declaration and add a
+ * real definition somewhere (both user and kernel versions are required). The
+ * function should be M0_EXTERN, because unit tests use it.
+ *
+ * @note Use sparingly and only in debugging environment, *never* leave this
+ * non-empty in a production branch.
+ */
+static inline void m0_assert_intercept(void) {;}
 
 /**
  * A macro to assert that a condition is true. If condition is true, M0_ASSERT()
