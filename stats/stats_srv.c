@@ -321,15 +321,17 @@ M0_INTERNAL void m0_stats_svc_fini(void)
 static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 				   struct m0_reqh *reqh);
 static int stats_update_fom_tick(struct m0_fom *fom);
-static void stats_update_fom_fini(struct m0_fom *fom);
+void stats_update_fom_fini(struct m0_fom *fom);
 static size_t stats_fom_home_locality(const struct m0_fom *fom);
 static void stats_update_fom_addb_init(struct m0_fom     *fom,
 				       struct m0_addb_mc *mc);
 
 /**
  * Stats update FOM operation vector.
+ *
+ * @note addb_ut_mon_infra_test() patches this.
  */
-static const struct m0_fom_ops stats_update_fom_ops = {
+struct m0_fom_ops stats_update_fom_ops = {
 	.fo_tick          = stats_update_fom_tick,
 	.fo_home_locality = stats_fom_home_locality,
 	.fo_addb_init     = stats_update_fom_addb_init,
@@ -373,7 +375,7 @@ static bool stats_invariant(const struct m0_stats *stats)
 
 M0_INTERNAL struct m0_stats *m0_stats_get(struct m0_tl *stats_list, uint64_t id)
 {
-	struct m0_stats *stats_obj = NULL;
+	struct m0_stats *stats_obj;
 
 	M0_PRE(stats_list != NULL);
 
@@ -510,7 +512,7 @@ static int stats_update_fom_tick(struct m0_fom *fom)
 		rc = M0_FSO_WAIT;
 		break;
 	default:
-		M0_IMPOSSIBLE("Phase not defined.");
+		M0_IMPOSSIBLE("Bad phase.");
 	}
 
 	return rc;
@@ -519,7 +521,7 @@ static int stats_update_fom_tick(struct m0_fom *fom)
 /**
  * Finalise stats update FOM.
  */
-static void stats_update_fom_fini(struct m0_fom *fom)
+void stats_update_fom_fini(struct m0_fom *fom)
 {
 	struct stats_update_fom *ufom;
 
