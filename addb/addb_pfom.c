@@ -137,7 +137,6 @@ static struct m0_sm_conf addb_pfom_sm_conf = {
 };
 
 static const struct m0_fom_type_ops addb_pfom_type_ops = {
-        .fto_create = NULL
 };
 
 static struct m0_fom_type addb_pfom_type;
@@ -395,8 +394,8 @@ static void addb_pfom_stop(struct addb_svc *svc)
  */
 M0_INTERNAL int addb_pfom_mod_init(void)
 {
-	m0_fom_type_init(&addb_pfom_type, &addb_pfom_type_ops, NULL,
-			 &addb_pfom_sm_conf);
+	m0_fom_type_init(&addb_pfom_type, &addb_pfom_type_ops,
+			 &m0_addb_svc_type, &addb_pfom_sm_conf);
 	return 0;
 }
 
