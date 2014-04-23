@@ -302,8 +302,9 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_rpc_net_buffer_pool_cleanup(&app_pool);
 
 	m0_reqh_service_stop(reqh_ut_service);
-	m0_reqh_service_fini(reqh_ut_service);
+	m0_reqh_idle_wait_for(&reqh, reqh_ut_service);
 	m0_reqh_services_terminate(&reqh);
+	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_mdstore_destroy(&srv_mdstore, grp);
@@ -315,7 +316,7 @@ static void server_fini(struct m0_stob_domain *bdom,
 	/* M0_UT_ASSERT(rc == 0); */
 	m0_stob_domain_fini(sdom);
 
-	m0_reqh_fom_domain_idle_wait(&reqh);
+	m0_reqh_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
 
 	m0_reqh_fol_destroy(&reqh);
