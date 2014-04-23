@@ -251,8 +251,8 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
 	struct m0_fid               cobfid;
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
-	struct m0_pdclust_instance *pi;
-	enum m0_pool_nd_state       state_out;
+	struct m0_pdclust_instance *pi = NULL; /* "may be used uninitialized" */
+	enum m0_pool_nd_state       state_out = 0;
 	bool                        result = true;
 	int                         rc;
 

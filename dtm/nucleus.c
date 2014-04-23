@@ -356,6 +356,7 @@ static int up_cmp(const struct m0_dtm_up *up, m0_dtm_ver_t hver)
 	case M0_DUR_APP:
 	default:
 		M0_IMPOSSIBLE("Impossible rule.");
+		return 0;
 	}
 }
 

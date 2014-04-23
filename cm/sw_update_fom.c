@@ -53,10 +53,7 @@ enum cm_sw_update_fom_phase {
 };
 
 static const struct m0_fom_type_ops cm_sw_update_fom_type_ops = {
-	.fto_create = NULL
 };
-
-static struct m0_fom_type cm_sw_update_fom_type;
 
 static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
 	[SWU_UPDATE] = {
@@ -298,10 +295,10 @@ static const struct m0_fom_ops cm_sw_update_fom_ops = {
 	.fo_addb_init     = cm_swu_fom_addb_init
 };
 
-M0_INTERNAL void m0_cm_sw_update_init(void)
+M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype)
 {
-	m0_fom_type_init(&cm_sw_update_fom_type, &cm_sw_update_fom_type_ops,
-			 NULL, &cm_sw_update_conf);
+	m0_fom_type_init(&cmtype->ct_swu_fomt, &cm_sw_update_fom_type_ops,
+			 &cmtype->ct_stype, &cm_sw_update_conf);
 }
 
 M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
@@ -309,7 +306,7 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 	struct m0_fom *fom = &cm->cm_sw_update.swu_fom;
 
 	cm->cm_sw_update.swu_is_complete = false;
-	m0_fom_init(fom, &cm_sw_update_fom_type, &cm_sw_update_fom_ops, NULL,
+	m0_fom_init(fom, &cm->cm_type->ct_swu_fomt, &cm_sw_update_fom_ops, NULL,
 		    NULL, cm->cm_service.rs_reqh, cm->cm_service.rs_type);
 	m0_fom_queue(fom, cm->cm_service.rs_reqh);
 

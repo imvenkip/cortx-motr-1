@@ -158,6 +158,12 @@ struct m0_cm_type {
 	struct m0_reqh_service_type   ct_stype;
 	/** Linkage into the list of copy machine types (struct m0_tl cmtypes)*/
 	struct m0_tlink               ct_linkage;
+	/** Copy packet fom type. */
+	struct m0_fom_type            ct_fomt;
+	/** Sliding window update fom type.*/
+	struct m0_fom_type            ct_swu_fomt;
+	/** Pump fom type. */
+	struct m0_fom_type            ct_pump_fomt;
 	uint64_t                      ct_magix;
 };
 
@@ -431,14 +437,15 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, enum m0_cm_failure failure,
 			    int rc);
 
-#define M0_CM_TYPE_DECLARE(cmtype, ops, name, ct) \
-struct m0_cm_type cmtype ## _cmt = {                  \
-	.ct_stype = {                                 \
-		.rst_name    = (name),                \
-		.rst_ops     = (ops),                 \
-		.rst_addb_ct = (ct),                  \
-	}				              \
-}					              \
+#define M0_CM_TYPE_DECLARE(cmtype, ops, name, ct)	\
+struct m0_cm_type cmtype ## _cmt = {			\
+	.ct_stype = {					\
+		.rst_name    = (name),			\
+		.rst_ops     = (ops),			\
+		.rst_addb_ct = (ct),			\
+		.rst_level   = 2,			\
+	}						\
+}
 
 /** Checks consistency of copy machine. */
 M0_INTERNAL bool m0_cm_invariant(const struct m0_cm *cm);

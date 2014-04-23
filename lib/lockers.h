@@ -117,7 +117,6 @@ M0_INTERNAL int m0_lockers_allot(struct m0_lockers_type *lt);
 /**
  * Stores a value in locker
  *
- * @pre m0_lockers_is_empty(locker, key)
  * @post !m0_lockers_is_empty(locker, key) &&
  *        m0_lockers_get(locker, key) == data
  */
@@ -137,7 +136,6 @@ M0_INTERNAL void *m0_lockers_get(const struct m0_lockers_type *lt,
 /**
  * Clears the value stored in a locker
  *
- * @pre !m0_lockers_is_empty(locker, key)
  * @post m0_lockers_is_empty(locker, key)
  */
 M0_INTERNAL void m0_lockers_clear(const struct m0_lockers_type *lt,

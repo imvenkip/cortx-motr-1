@@ -361,7 +361,7 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor);
 /**
  * Cleanup the ADDB monitoring sub-system
  */
-M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh);
+M0_INTERNAL void m0_addb_monitors_fini(struct m0_addb_monitoring_ctx *ctx);
 
 /**
  * This sends all the dirtied addb summary records for the added monitors

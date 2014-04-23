@@ -42,6 +42,7 @@ static struct cobfoms_ut      *cut;
 static struct m0_fom_locality  dummy_loc;
 
 static struct m0_cob *test_cob = NULL;
+static struct m0_fom_type ft;
 
 static struct m0_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct m0_fom *fom);
@@ -142,6 +143,8 @@ static void cobfoms_utinit(void)
 	cctx->rcx_local_addr         = CLIENT_EP_ADDR;
 	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
 	cctx->rcx_max_rpcs_in_flight = CLIENT_MAX_RPCS_IN_FLIGHT;
+
+	m0_fom_type_init(&ft, NULL, &m0_ios_type, &cob_ops_conf);
 
 	rc = m0_rpc_client_start(cctx);
 	M0_UT_ASSERT(rc == 0);
@@ -412,6 +415,7 @@ static void cobfoms_del_nonexist_cob(void)
 }
 
 extern struct m0_sm_conf cob_ops_conf;
+
 /*
  * Create COB FOMs - create or delete
  */
@@ -419,15 +423,12 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 {
 	struct m0_fom          *base_fom;
 	struct m0_reqh         *reqh;
-	struct m0_fom_type      ft;
 	int		        rc;
 
 	rc = cob_op_fom_create(fom);
 	M0_UT_ASSERT(rc == 0);
 
 	base_fom = *fom;
-	m0_fom_type_init(&ft, NULL, &m0_ios_type, &cob_ops_conf);
-
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	m0_fom_init(base_fom, &ft,
 		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,

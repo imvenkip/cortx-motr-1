@@ -303,7 +303,7 @@ static const struct m0_reqh_service_type_ops _stype_ops = {
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 
 M0_REQH_SERVICE_TYPE_DEFINE(ub_fom_stype, &_stype_ops, "ub-fom-service",
-			    &m0_addb_ct_ut_service, 1);
+			    &m0_addb_ct_ut_service, 2);
 
 /* ----------------------------------------------------------------
  * FOM operations
@@ -392,7 +392,7 @@ static void reqh_test(struct m0_reqh *reqh, enum scenario test)
 	for (seqn = 0; seqn < ST_NR_FOMS; ++seqn)
 		reqh_fom_add(reqh, seqn, test);
 
-	m0_reqh_fom_domain_idle_wait(reqh);
+	m0_reqh_idle_wait(reqh);
 }
 
 #define _UB_ROUND_DEFINE(name, test) \

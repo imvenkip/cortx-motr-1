@@ -1071,7 +1071,7 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 	struct m0_be_btree	*db	= &mero->cb_db_group_extents;
 	struct m0_buf		 key;
 	struct m0_buf		 val;
-	struct m0_ext		*cur;
+	struct m0_ext		*cur = NULL; /* "may be used uninitialized" */
 	m0_bcount_t		 i;
 	int			 rc	= 0;
 	m0_bcount_t              maxchunk = grp->bgi_maxchunk;

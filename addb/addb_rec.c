@@ -159,15 +159,17 @@ static void addb_rec_post(struct m0_addb_mc *mc,
 	 */
 	if (mc->am_reqh != NULL &&
 	    m0_addb_mon_ctx_invariant(&mc->am_reqh->rh_addb_monitoring_ctx)) {
-		struct m0_addb_monitor *mon;
+		struct m0_addb_monitor        *mon;
+		struct m0_addb_monitoring_ctx *ctx;
+
+		ctx = &mc->am_reqh->rh_addb_monitoring_ctx;
 		/* Invoke all the monitor's filters */
-		m0_mutex_lock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
-		m0_tl_for(addb_mon,
-			  &mc->am_reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+		m0_mutex_lock(&ctx->amc_mutex);
+		m0_tl_for(addb_mon, &ctx->amc_list, mon) {
 			M0_ASSERT(m0_addb_monitor_invariant(mon));
 			mon->am_ops->amo_watch(mon, rec, mc->am_reqh);
 		} m0_tl_endfor;
-		m0_mutex_unlock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+		m0_mutex_unlock(&ctx->amc_mutex);
 	}
 }
 

@@ -396,7 +396,7 @@
    Bulk I/O Service defines service type as follows -
 
    M0_REQH_SERVICE_TYPE_DEFINE(m0_io_service_type, &m0_io_service_type_ops,
-                                "ioservice", io_service_addb_ct_type);
+                                "ioservice", io_service_addb_ct_type, 2);
 
    It also assigns service name and service type operations for Bulk I/O
    Service.

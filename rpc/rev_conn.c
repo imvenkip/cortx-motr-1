@@ -472,10 +472,12 @@ static struct m0_sm_conf rev_conn_sm_conf = {
 	.scf_state     = rev_conn_state_descr
 };
 
+extern struct m0_reqh_service_type m0_rpc_service_type;
+
 M0_INTERNAL void m0_rev_conn_fom_type_init(void)
 {
-	m0_fom_type_init(&rev_conn_fom_type, &rev_conn_fom_type_ops, NULL,
-			 &rev_conn_sm_conf);
+	m0_fom_type_init(&rev_conn_fom_type, &rev_conn_fom_type_ops,
+			 &m0_rpc_service_type, &rev_conn_sm_conf);
 }
 
 #undef M0_TRACE_SUBSYSTEM

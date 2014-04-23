@@ -229,7 +229,8 @@ static const struct m0_reqh_service_type_ops fom_simple_rsops = {
 static struct m0_reqh_service_type fom_simple_rstype = {
 	.rst_name    = "simple-fom-service",
 	.rst_ops     = &fom_simple_rsops,
-	.rst_addb_ct = &m0_addb_ct_fom_simple
+	.rst_addb_ct = &m0_addb_ct_fom_simple,
+	.rst_level   = 2
 };
 
 /** @} end of fom group */

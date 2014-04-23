@@ -410,11 +410,9 @@ M0_BOB_DEFINE(static, &cp_bob, m0_cm_cp);
 static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 			 struct m0_reqh *reqh);
 
-const struct m0_fom_type_ops cp_fom_type_ops = {
+M0_INTERNAL const struct m0_fom_type_ops cp_fom_type_ops = {
         .fto_create = cp_fom_create
 };
-
-static struct m0_fom_type cp_fom_type;
 
 static void cp_fom_fini(struct m0_fom *fom)
 {
@@ -494,7 +492,7 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 	m0_cm_cp_fom_init(cm, cp);
 	cp->c_fom.fo_addb_ctx.ac_magic = 0;
-        m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, fop,
+        m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop,
                     NULL, reqh, service->rs_type);
         *m = &cp->c_fom;
         return 0;
@@ -576,10 +574,10 @@ static struct m0_sm_conf m0_cm_cp_sm_conf = {
 	.scf_state = m0_cm_cp_state_descr
 };
 
-M0_INTERNAL void m0_cm_cp_module_init(void)
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype)
 {
-	m0_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
-			 &m0_cm_cp_sm_conf);
+	m0_fom_type_init(&cmtype->ct_fomt, &cp_fom_type_ops,
+			 &cmtype->ct_stype, &m0_cm_cp_sm_conf);
 }
 
 M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
@@ -611,7 +609,7 @@ M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 
 	m0_cm_cp_only_init(cm, cp);
 	service = &cm->cm_service;
-	m0_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL,
+	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, NULL, NULL,
 		    service->rs_reqh, service->rs_type);
 }
 

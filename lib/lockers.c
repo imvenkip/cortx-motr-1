@@ -49,7 +49,6 @@ M0_INTERNAL void m0_lockers_set(const struct m0_lockers_type *lt,
 				void                         *data)
 {
 	M0_PRE(key < lt->lot_max);
-	M0_PRE(m0_lockers_is_empty(lt, lockers, key));
 	lockers->loc_slots[key] = data;
 }
 
@@ -66,7 +65,6 @@ M0_INTERNAL void m0_lockers_clear(const struct m0_lockers_type *lt,
 				  uint32_t                      key)
 {
 	M0_PRE(key < lt->lot_max);
-	M0_PRE(!m0_lockers_is_empty(lt, lockers, key));
 	lockers->loc_slots[key] = NULL;
 }
 

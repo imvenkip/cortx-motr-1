@@ -19,6 +19,7 @@
  */
 
 #include "stats/stats_srv.h"
+#include "lib/semaphore.h"
 
 enum {
 	UT_ADDB_MON_TS_INIT_PAGES  = 16,
@@ -34,54 +35,55 @@ static char *addb_mon_infra_server_argv[] = {
 	"-s", "stats", "-w", "10"
 };
 
-struct m0_addb_monitor  ut_mon[UT_ADDB_MONS_NR];
-uint32_t                ut_mon_data_key[UT_ADDB_MONS_NR];
-struct m0_reqh         *ut_srv_reqh;
-uint32_t                stats_id[UT_ADDB_MONS_NR];
-struct m0_addb_ctx     *cv[4] = { NULL, &m0_addb_proc_ctx,
-				     &m0_addb_node_ctx, NULL };
-struct stats_svc       *stats_srv;
+static struct m0_addb_monitor  ut_mon[UT_ADDB_MONS_NR];
+static uint32_t                ut_mon_data_key[UT_ADDB_MONS_NR];
+static struct m0_reqh         *ut_srv_reqh;
+static uint32_t                stats_id[UT_ADDB_MONS_NR];
+static struct m0_addb_ctx     *cv[4] = { NULL, &m0_addb_proc_ctx,
+					 &m0_addb_node_ctx, NULL };
+static struct stats_svc       *stats_srv;
+static struct m0_semaphore     stats_done;
 
-struct ut_monitor_sum_data1 {
+static struct ut_monitor_sum_data1 {
 	uint64_t umsd_field1;
-}ut_mon_sum_data1;
+} ut_mon_sum_data1;
 
-struct ut_monitor_sum_data2 {
+static struct ut_monitor_sum_data2 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
-}ut_mon_sum_data2;
+} ut_mon_sum_data2;
 
-struct ut_monitor_sum_data3 {
+static struct ut_monitor_sum_data3 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
-}ut_mon_sum_data3;
+} ut_mon_sum_data3;
 
-struct ut_monitor_sum_data4 {
+static struct ut_monitor_sum_data4 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
 	uint64_t umsd_field4;
-}ut_mon_sum_data4;
+} ut_mon_sum_data4;
 
-struct ut_monitor_sum_data5 {
+static struct ut_monitor_sum_data5 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
 	uint64_t umsd_field4;
 	uint64_t umsd_field5;
-}ut_mon_sum_data5;
+} ut_mon_sum_data5;
 
-struct ut_monitor_sum_data6 {
+static struct ut_monitor_sum_data6 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
 	uint64_t umsd_field4;
 	uint64_t umsd_field5;
 	uint64_t umsd_field6;
-}ut_mon_sum_data6;
+} ut_mon_sum_data6;
 
-struct ut_monitor_sum_data7 {
+static struct ut_monitor_sum_data7 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
@@ -89,9 +91,9 @@ struct ut_monitor_sum_data7 {
 	uint64_t umsd_field5;
 	uint64_t umsd_field6;
 	uint64_t umsd_field7;
-}ut_mon_sum_data7;
+} ut_mon_sum_data7;
 
-struct ut_monitor_sum_data8 {
+static struct ut_monitor_sum_data8 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
@@ -100,9 +102,9 @@ struct ut_monitor_sum_data8 {
 	uint64_t umsd_field6;
 	uint64_t umsd_field7;
 	uint64_t umsd_field8;
-}ut_mon_sum_data8;
+} ut_mon_sum_data8;
 
-struct ut_monitor_sum_data9 {
+static struct ut_monitor_sum_data9 {
 	uint64_t umsd_field1;
 	uint64_t umsd_field2;
 	uint64_t umsd_field3;
@@ -112,7 +114,7 @@ struct ut_monitor_sum_data9 {
 	uint64_t umsd_field7;
 	uint64_t umsd_field8;
 	uint64_t umsd_field9;
-}ut_mon_sum_data9;
+} ut_mon_sum_data9;
 
 
 void *mon_sum_data_arrp[] = { NULL,
@@ -293,10 +295,10 @@ static void addb_ut_mon_verify_stats_data(struct stats_svc *stats_srv, int idx,
 	M0_UT_ASSERT(stats != NULL);
 	for (i = 0; i < idx; ++i) {
 		if (test_no == MON_TEST_3)
-		M0_UT_ASSERT(stats->s_sum.ss_data.au64s_data[i] == 0);
+			M0_UT_ASSERT(stats->s_sum.ss_data.au64s_data[i] == 0);
 		else
-		M0_UT_ASSERT(stats->s_sum.ss_data.au64s_data[i]
-			     == ((i + 1) * 10));
+			M0_UT_ASSERT(stats->s_sum.ss_data.au64s_data[i]
+				     == ((i + 1) * 10));
 	}
 }
 
@@ -313,16 +315,19 @@ static void clear_stats(struct stats_svc *stats_srv, int idx)
 
 static void mon_test(int test_no)
 {
-	m0_time_t rem;
-	int	  rc;
-	int	  i;
+	int	                i;
+	struct m0_reqh_service *reqh_srv;
 
+	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, ut_srv_reqh);
+	M0_UT_ASSERT(reqh_srv != NULL);
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i)
 		addb_post_record(&ut_srv_reqh->rh_addb_mc, i, cv);
-	rem = m0_time(1, 0);
-	do {
-		rc = m0_nanosleep(rem, &rem);
-	} while (rc != 0);
+
+	if (test_no != MON_TEST_3) {
+		for (i = 1; i < UT_ADDB_MONS_NR; ++i)
+			m0_semaphore_down(&stats_done);
+	}
+	m0_reqh_idle_wait_for(ut_srv_reqh, reqh_srv);
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i) {
 		addb_ut_mon_verify_stats_data(stats_srv, i, test_no);
 		addb_ut_mon_fini(i);
@@ -361,18 +366,35 @@ static void mon_test_3(void)
 {
 	int i;
 
+	m0_fi_enable("m0_addb_monitor_summaries_post", "mem_err");
+
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i) {
 		addb_ut_mon_init(DPRT_P(i), i, MON_TEST_3);
 	}
 	mon_test(MON_TEST_3);
 }
 
+extern struct m0_fom_ops stats_update_fom_ops;
+extern void stats_update_fom_fini(struct m0_fom *fom);
+
+void ut_stats_update_fom_fini(struct m0_fom *fom)
+{
+	stats_update_fom_fini(fom);
+	m0_semaphore_up(&stats_done);
+}
+
 static void addb_ut_mon_infra_test(void)
 {
-	struct m0_reqh_service *reqh_srv;
-	m0_time_t               temp_time;
-	int                     i;
-	int                     default_batch = stats_batch;
+	struct m0_reqh_service        *reqh_srv;
+	m0_time_t                      temp_time;
+	int                            i;
+	int                            default_batch = stats_batch;
+	struct m0_addb_monitoring_ctx *mon_ctx;
+
+	/* Patch stats fom ->fo_fini() method, so that we can reliably wait
+	   until all records are processed. */
+	stats_update_fom_ops.fo_fini = &ut_stats_update_fom_fini;
+	m0_semaphore_init(&stats_done, 0);
 
 	/* Do not need to collect any data */
 	addb_rec_post_ut_data_enabled = false;
@@ -381,6 +403,7 @@ static void addb_ut_mon_infra_test(void)
 	sctx.rsx_argv = addb_mon_infra_server_argv;
 	start_rpc_client_and_server();
 	ut_srv_reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
+	mon_ctx = &ut_srv_reqh->rh_addb_monitoring_ctx;
 
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, ut_srv_reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);
@@ -409,9 +432,9 @@ static void addb_ut_mon_infra_test(void)
 		clear_stats(stats_srv, i);
 	}
 
-	m0_mutex_lock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_lock(&mon_ctx->amc_mutex);
 	stats_batch = 5;
-	m0_mutex_unlock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_unlock(&mon_ctx->amc_mutex);
 
 	/**
 	 * Add/remove monitors dynamically.
@@ -423,8 +446,6 @@ static void addb_ut_mon_infra_test(void)
 		((struct ut_monitor_sum_data1 *)MON_DATA(i))->umsd_field1 = 0;
 		clear_stats(stats_srv, i);
 	}
-	m0_fi_enable("m0_addb_monitor_summaries_post", "mem_err");
-
 	/**
 	 * This test checks for memory failure case, where no fop
 	 * gets sent.
@@ -432,9 +453,9 @@ static void addb_ut_mon_infra_test(void)
 	mon_test_3();
 
 	/* Reset to default */
-	m0_mutex_lock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_lock(&mon_ctx->amc_mutex);
 	stats_batch = default_batch;
-	m0_mutex_unlock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_unlock(&mon_ctx->amc_mutex);
 
 	stop_rpc_client_and_server();
 
@@ -447,6 +468,8 @@ static void addb_ut_mon_infra_test(void)
 		addb_rt_tlist_del((struct m0_addb_rec_type *)DPRT_P(i));
 		((struct m0_addb_rec_type *)DPRT_P(i))->art_magic = 0;
 	}
+	m0_semaphore_fini(&stats_done);
+	stats_update_fom_ops.fo_fini = &stats_update_fom_fini;
 }
 #undef DPRTP
 #undef MON_DATA

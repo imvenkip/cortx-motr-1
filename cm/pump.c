@@ -93,8 +93,6 @@ static const struct m0_fom_type_ops cm_cp_pump_fom_type_ops = {
 	.fto_create = NULL
 };
 
-static struct m0_fom_type cm_cp_pump_fom_type;
-
 static struct m0_cm *pump2cm(const struct m0_cm_cp_pump *cp_pump)
 {
 	return container_of(cp_pump, struct m0_cm, cm_cp_pump);
@@ -333,10 +331,10 @@ static bool pump_is_idle(const struct m0_cm_cp_pump *cp_pump)
 	return cp_pump->p_is_idle;
 }
 
-M0_INTERNAL void m0_cm_cp_pump_init(void)
+M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype)
 {
-	m0_fom_type_init(&cm_cp_pump_fom_type, &cm_cp_pump_fom_type_ops, NULL,
-			 &cm_cp_pump_conf);
+	m0_fom_type_init(&cmtype->ct_pump_fomt, &cm_cp_pump_fom_type_ops,
+			 &cmtype->ct_stype, &cm_cp_pump_conf);
 }
 
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
@@ -350,7 +348,7 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 	m0_cm_cp_pump_bob_init(cp_pump);
         m0_mutex_init(&cp_pump->p_signal_mutex);
         m0_chan_init(&cp_pump->p_signal, &cp_pump->p_signal_mutex);
-	m0_fom_init(&cp_pump->p_fom, &cm_cp_pump_fom_type,
+	m0_fom_init(&cp_pump->p_fom, &cm->cm_type->ct_pump_fomt,
 		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh,
 		    cm->cm_service.rs_type);
 	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);

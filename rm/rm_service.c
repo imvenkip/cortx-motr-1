@@ -77,7 +77,7 @@ static const struct m0_reqh_service_ops rms_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_rms_type, &rms_type_ops, "rmservice",
-			    &m0_addb_ct_rms_serv, 1);
+			    &m0_addb_ct_rms_serv, 2);
 
 static const struct m0_bob_type rms_bob = {
 	.bt_name = "rm service",

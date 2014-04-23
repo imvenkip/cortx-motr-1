@@ -257,7 +257,7 @@ static const struct m0_reqh_service_type_ops stype_ops = {
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 
 M0_REQH_SERVICE_TYPE_DEFINE(test_stype, &stype_ops, "dtm-ub-service",
-			    &m0_addb_ct_ut_service, 1);
+			    &m0_addb_ct_ut_service, 2);
 
 static void test_fom_fini(struct m0_fom *fom)
 {
@@ -712,7 +712,7 @@ static void redo_test(void)
 
 	ticked = 0;
 	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 2);
-	m0_reqh_fom_domain_idle_wait(&test_ctx.rmc_reqh);
+	m0_reqh_idle_wait(&test_ctx.rmc_reqh);
 	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();
 	src_fini();

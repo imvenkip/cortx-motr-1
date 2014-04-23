@@ -257,7 +257,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
      Incoming management status queries are accepted, but all other FOPs are
      rejected.
      - Note: The m0_reqh_shutdown_wait() subroutine uses
-       m0_reqh_fom_domain_idle_wait() to wait for activity to cease. This
+       m0_reqh_idle_wait() to wait for activity to cease. This
        implies that during this period it is possible that a stream of incoming
        management status requests could prevent the request handler from ever
        leaving the state. Some action has to be taken to sense such a condition
@@ -270,7 +270,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
      management status queries are accepted, but all other FOPs are rejected.
    - @b M0_REQH_ST_MGMT_STOP The management service is stopped.
      No FOPs are accepted in this state.
-     - Note: A second call must be made to m0_reqh_fom_domain_idle_wait() to
+     - Note: A second call must be made to m0_reqh_idle_wait() to
        ensure that ongoing management FOMs terminate.
    - @b M0_REQH_ST_STOPPED The request handler object is stopped and may be
      finalized.
@@ -448,7 +448,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    The m0_fom_fini() subroutine will be further extended to always signal on the
    m0_reqh::rh_sd_signal channel - currently it does so only when the locality
    counter FOM counter goes to 0.  This will have minimal impact on the existing
-   user of the channel, m0_reqh_fom_domain_idle_wait(), as the subroutine is
+   user of the channel, m0_reqh_idle_wait(), as the subroutine is
    used only during shutdown.
 
    @subsection MGMT-SVC-DLD-lspec-state State Specification
@@ -689,8 +689,7 @@ static struct m0_reqh_service_type_ops mgmt_service_type_ops = {
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mgmt_svc_type, &mgmt_service_type_ops,
-			    M0_MGMT_SVC_TYPE_NAME, &m0_addb_ct_mgmt_service,
-			    1);
+			    M0_MGMT_SVC_TYPE_NAME, &m0_addb_ct_mgmt_service, 2);
 
 
 /*

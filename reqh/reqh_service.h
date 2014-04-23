@@ -100,7 +100,7 @@ struct m0_fom;
    - define service type using M0_REQH_SERVICE_TYPE_DEFINE macro,
    @code
    M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-                               &m0_addb_ct_ios_serv);
+                               &m0_addb_ct_ios_serv, 2);
    @endcode
 
    - now, the above service type can be registered as below,

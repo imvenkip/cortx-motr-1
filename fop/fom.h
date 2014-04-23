@@ -448,8 +448,10 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom);
 /**
  * Decrement fom count stored in m0_fom_locality::fl_lockers for service
  * (m0_fom::fo_service) corresponding to the given fom.
+ *
+ * Returns true iff the count dropped to 0.
  */
-M0_INTERNAL void m0_fom_locality_dec(struct m0_fom *fom);
+M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom);
 
 /**
  * Fom call-back states
@@ -632,7 +634,7 @@ M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom);
  * @pre fom != NULL
  * @pre reqh != NULL
  */
-void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
+void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
 		 struct m0_fop *reply, struct m0_reqh *reqh,
 		 const struct m0_reqh_service_type *stype);

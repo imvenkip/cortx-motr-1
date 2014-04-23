@@ -728,7 +728,7 @@ M0_INTERNAL void m0_xcode_union_add(struct m0_xcode_type *un, const char *name,
 				    uint64_t tag)
 {
 	int                    i;
-	struct m0_xcode_field *f;
+	struct m0_xcode_field *f = NULL; /* "may be used uninitialized" */
 
 	M0_PRE(un->xct_aggr == M0_XA_UNION);
 	M0_PRE(un->xct_child[0].xf_name != NULL);

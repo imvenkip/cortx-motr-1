@@ -22,7 +22,6 @@
 
 #include "fop/fop.h"             /* m0_fop_xcode_length */
 #include "fop/fom_generic.h"     /* m0_generic_conf */
-#include "rpc/rpc.h"             /* m0_rpc_service_type */
 #include "rpc/rpc_opcodes.h"     /* M0_CONS_FOP_DEVICE_OPCODE */
 
 #include "console/console_fom.h" /* FOMs defs */

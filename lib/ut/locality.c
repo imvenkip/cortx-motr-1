@@ -221,7 +221,7 @@ void test_locality(void)
 	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &simple_tick, &nr, 1);
 	m0_semaphore_down(&sem[0]);
 	M0_UT_ASSERT(nr == NR);
-	m0_reqh_fom_domain_idle_wait(&reqh);
+	m0_reqh_idle_wait(&reqh);
 	M0_SET0(&s[0]);
 	M0_FOM_SIMPLE_POST(&s[0], &reqh, &semisimple_conf,
 			   &semisimple_tick, &nr, M0_FOM_SIMPLE_HERE);
@@ -229,7 +229,7 @@ void test_locality(void)
 	m0_fom_wakeup(&s[0].si_fom);
 	m0_semaphore_down(&sem[0]);
 	M0_UT_ASSERT(nr == 0);
-	m0_reqh_fom_domain_idle_wait(&reqh);
+	m0_reqh_idle_wait(&reqh);
 	M0_SET0(&s[0]);
 	m0_atomic64_set(&hoarded, 0);
 	m0_fom_simple_hoard(s, ARRAY_SIZE(s), &reqh, NULL, &cat_tick, NULL);
