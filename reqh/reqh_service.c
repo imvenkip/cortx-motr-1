@@ -120,7 +120,11 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING,
 					 M0_RST_STOPPED, M0_RST_FAILED)),
 	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc) ||
-	     svc->rs_reqh->rh_mgmt_svc == svc);
+	     svc->rs_reqh->rh_mgmt_svc == svc) &&
+	ergo(svc->rs_reqh != NULL,
+	     M0_IN(m0_reqh_lockers_get(svc->rs_reqh, svc->rs_type->rst_key),
+		   (0, svc))) &&
+	svc->rs_level > 0;
 }
 M0_EXPORTED(m0_reqh_service_invariant);
 
@@ -142,22 +146,23 @@ m0_reqh_service_type_find(const char *sname)
         return t;
 }
 
-M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
+M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **out,
 					 struct m0_reqh_service_type *stype,
 					 struct m0_reqh_context *rctx)
 {
 	int rc;
 
-	M0_PRE(service != NULL && stype != NULL);
+	M0_PRE(out != NULL && stype != NULL);
 
-        rc = stype->rst_ops->rsto_service_allocate(service, stype, rctx);
+        rc = stype->rst_ops->rsto_service_allocate(out, stype, rctx);
         if (rc == 0) {
-		(*service)->rs_type = stype;
-		(*service)->rs_reqh_ctx = rctx;
-		m0_reqh_service_bob_init(*service);
-		if ((*service)->rs_level == 0)
-			(*service)->rs_level = stype->rst_level;
-		M0_POST(m0_reqh_service_invariant(*service));
+		struct m0_reqh_service *service = *out;
+		service->rs_type = stype;
+		service->rs_reqh_ctx = rctx;
+		m0_reqh_service_bob_init(service);
+		if (service->rs_level == 0)
+			service->rs_level = stype->rst_level;
+		M0_POST(m0_reqh_service_invariant(service));
 	}
 	return rc;
 }
@@ -228,7 +233,6 @@ M0_INTERNAL int m0_reqh_service_start_async(struct
 	M0_PRE(service->rs_ops->rso_start_async != NULL);
 	reqh_service_starting_common(reqh, service, key);
 	M0_POST(m0_reqh_service_invariant(service));
-	M0_POST(m0_reqh_lockers_get(reqh, key) == service);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	rc = service->rs_ops->rso_start_async(asc);
@@ -236,7 +240,6 @@ M0_INTERNAL int m0_reqh_service_start_async(struct
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	if (rc == 0) {
 		M0_POST(m0_reqh_service_invariant(service));
-		M0_POST(m0_reqh_service_state_get(service) == M0_RST_STARTING);
 	} else {
 		reqh_service_failed_common(reqh, service, key);
 	}
@@ -362,7 +365,6 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	service->rs_ops->rso_stop(service);
-	M0_ASSERT(m0_reqh_lockers_get(reqh, key) == service);
 	m0_reqh_lockers_clear(reqh, key);
 }
 
