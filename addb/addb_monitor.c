@@ -332,36 +332,47 @@ M0_INTERNAL bool m0_addb_monitor_is_initialised(struct m0_addb_monitor *monitor)
 M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh               *reqh,
 				     struct m0_addb_monitor       *monitor)
 {
+	struct m0_addb_monitoring_ctx *ctx = &reqh->rh_addb_monitoring_ctx;
+
 	M0_PRE(reqh != NULL);
 	M0_PRE(m0_addb_monitor_invariant(monitor));
 
-	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
-	addb_mon_tlist_add_tail(&reqh->rh_addb_monitoring_ctx.amc_list, monitor);
-	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_lock(&ctx->amc_mutex);
+	addb_mon_tlist_add_tail(&ctx->amc_list, monitor);
+	m0_mutex_unlock(&ctx->amc_mutex);
 }
 
-M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
-				     struct m0_addb_monitor *monitor)
+static void monitor_del(struct m0_addb_monitoring_ctx *ctx,
+			struct m0_addb_monitor *monitor)
 {
 	struct m0_reqh_service *svc;
 	struct addb_svc        *addb_svc;
+	struct m0_reqh         *reqh;
 
 	M0_PRE(m0_addb_monitor_invariant(monitor));
 
+	reqh = container_of(ctx, struct m0_reqh, rh_addb_monitoring_ctx);
 	svc = m0_reqh_service_find(&m0_addb_svc_type, reqh);
 	if (svc != NULL) {
 		addb_svc = bob_of(svc, struct addb_svc, as_reqhs,
 				  &addb_svc_bob);
 
-		m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
-		if (addb_svc->as_pfom.pf_mon == monitor) {
+		if (addb_svc->as_pfom.pf_mon == monitor)
 			addb_svc->as_pfom.pf_mon = NULL;
-		}
-		m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
 	}
-	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
 	addb_mon_tlist_del(monitor);
-	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+}
+
+M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
+				     struct m0_addb_monitor *monitor)
+{
+	struct m0_addb_monitoring_ctx *ctx = &reqh->rh_addb_monitoring_ctx;
+
+	M0_PRE(m0_addb_monitor_invariant(monitor));
+
+	m0_mutex_lock(&ctx->amc_mutex);
+	monitor_del(ctx, monitor);
+	m0_mutex_unlock(&ctx->amc_mutex);
 }
 
 #ifndef __KERNEL__
@@ -382,18 +393,20 @@ M0_INTERNAL void m0_addb_monitor_stats_svc_conn_fini(struct m0_reqh *reqh)
 }
 #endif
 
-M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh)
+M0_INTERNAL void m0_addb_monitors_fini(struct m0_addb_monitoring_ctx *ctx)
 {
 	struct m0_addb_monitor *mon;
 
-	m0_tl_for(addb_mon, &reqh->rh_addb_monitoring_ctx.amc_list, mon) {
-		m0_addb_monitor_del(reqh, mon);
+	m0_mutex_lock(&ctx->amc_mutex);
+	m0_tl_for(addb_mon, &ctx->amc_list, mon) {
+		monitor_del(ctx, mon);
 		m0_addb_monitor_fini(mon);
 	} m0_tl_endfor;
+	m0_mutex_unlock(&ctx->amc_mutex);
 
-	addb_mon_tlist_fini(&reqh->rh_addb_monitoring_ctx.amc_list);
-	m0_mutex_fini(&reqh->rh_addb_monitoring_ctx.amc_mutex);
-	reqh->rh_addb_monitoring_ctx.amc_magic = 0;
+	addb_mon_tlist_fini(&ctx->amc_list);
+	m0_mutex_fini(&ctx->amc_mutex);
+	ctx->amc_magic = 0;
 }
 
 #define SUM_SIZE(sum) (sum->asr_rec.ss_data.au64s_nr * sizeof(uint64_t))
@@ -500,21 +513,21 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
 		struct m0_stats_sum    *rec;
 		void                   *data;
 
+		m0_mutex_lock(&mon_ctx->amc_mutex);
 		/* end of list reached, wrap around or the list is empty */
 		if (mon == NULL) {
-			m0_mutex_lock(&mon_ctx->amc_mutex);
 			mon = addb_mon_tlist_head(mon_list);
-			m0_mutex_unlock(&mon_ctx->amc_mutex);
 			if (mon == NULL ||
 			/* if the entire list was scanned and not a single
 			 * dirty record found, stop. */
-			    (scanned > 0 && fop_data == NULL))
+			    (scanned > 0 && fop_data == NULL)) {
+				m0_mutex_unlock(&mon_ctx->amc_mutex);
 				break;
+			}
 		}
 		++scanned;
 		sum = mon->am_ops->amo_sum_rec(mon, reqh);
-		m0_mutex_lock(&mon_ctx->amc_mutex);
-		mon = addb_mon_tlist_next(mon_list, mon);
+		fom->pf_mon = mon = addb_mon_tlist_next(mon_list, mon);
 		m0_mutex_unlock(&mon_ctx->amc_mutex);
 		if (sum == NULL || !sum->asr_dirty)
 			continue;
@@ -573,7 +586,6 @@ err1_injected:
 		if (result != 0)
 			goto out;
 	}
-	fom->pf_mon = mon;
 out:
 	return result;
 }

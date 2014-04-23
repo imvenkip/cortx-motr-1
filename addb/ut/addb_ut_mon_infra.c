@@ -369,10 +369,11 @@ static void mon_test_3(void)
 
 static void addb_ut_mon_infra_test(void)
 {
-	struct m0_reqh_service *reqh_srv;
-	m0_time_t               temp_time;
-	int                     i;
-	int                     default_batch = stats_batch;
+	struct m0_reqh_service        *reqh_srv;
+	m0_time_t                      temp_time;
+	int                            i;
+	int                            default_batch = stats_batch;
+	struct m0_addb_monitoring_ctx *mon_ctx;
 
 	/* Do not need to collect any data */
 	addb_rec_post_ut_data_enabled = false;
@@ -381,6 +382,7 @@ static void addb_ut_mon_infra_test(void)
 	sctx.rsx_argv = addb_mon_infra_server_argv;
 	start_rpc_client_and_server();
 	ut_srv_reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx);
+	mon_ctx = &ut_srv_reqh->rh_addb_monitoring_ctx;
 
 	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, ut_srv_reqh);
 	M0_UT_ASSERT(reqh_srv != NULL);
@@ -409,9 +411,9 @@ static void addb_ut_mon_infra_test(void)
 		clear_stats(stats_srv, i);
 	}
 
-	m0_mutex_lock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_lock(&mon_ctx->amc_mutex);
 	stats_batch = 5;
-	m0_mutex_unlock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_unlock(&mon_ctx->amc_mutex);
 
 	/**
 	 * Add/remove monitors dynamically.
@@ -432,9 +434,9 @@ static void addb_ut_mon_infra_test(void)
 	mon_test_3();
 
 	/* Reset to default */
-	m0_mutex_lock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_lock(&mon_ctx->amc_mutex);
 	stats_batch = default_batch;
-	m0_mutex_unlock(&ut_srv_reqh->rh_addb_monitoring_ctx.amc_mutex);
+	m0_mutex_unlock(&mon_ctx->amc_mutex);
 
 	stop_rpc_client_and_server();
 

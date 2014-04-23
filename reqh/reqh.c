@@ -195,7 +195,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	return rc;
 
 fom_domain_init_failed:
-	m0_addb_monitors_fini(reqh);
+	m0_addb_monitors_fini(&reqh->rh_addb_monitoring_ctx);
 monitors_init_failed:
 	m0_rwlock_fini(&reqh->rh_rwlock);
 	m0_reqh_lockers_fini(reqh);
@@ -383,7 +383,7 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
         m0_fom_domain_fini(&reqh->rh_fom_dom);
-	m0_addb_monitors_fini(reqh);
+	m0_addb_monitors_fini(&reqh->rh_addb_monitoring_ctx);
         m0_reqh_svc_tlist_fini(&reqh->rh_services);
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
 	m0_reqh_lockers_fini(reqh);
