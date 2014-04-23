@@ -585,7 +585,7 @@ M0_INTERNAL void m0_trace_logbuf_size_set(uint32_t size)
 {
 	M0_PRE(m0_is_po2(size) && size % m0_pagesize_get() == 0);
 	m0_logbufsize = size;
-	bufmask = size - 1;
+	bufmask = size ? size - 1 : 0;
 }
 M0_EXPORTED(m0_trace_logbuf_size_set);
 
@@ -896,7 +896,7 @@ M0_INTERNAL void m0_trace_switch_to_static_logbuf(void)
 {
 	m0_logbuf_header = &bootlog.bl_area.ta_header;
 	m0_logbuf = bootlog.bl_area.ta_buf;
-	m0_trace_logbuf_size_set(sizeof bootlog.bl_area.ta_buf);
+	m0_trace_logbuf_size_set(sizeof bootlog.bl_buf);
 }
 
 /** @} end of trace group */
