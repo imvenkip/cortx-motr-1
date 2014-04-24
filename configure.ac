@@ -120,6 +120,7 @@ AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
+AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([M0_BE_DB_SEGMENT_SIZE],  [BE segment size in MiB.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
@@ -166,6 +167,14 @@ AC_ARG_ENABLE([data_integrity],
 )
 AS_IF([test x$enable_data_integrity = xyes],
       AC_DEFINE([ENABLE_DATA_INTEGRITY]))
+
+AC_ARG_ENABLE([free_poison],
+        [AS_HELP_STRING([--enable-free-poison],
+                       [enable free poison])],
+        [], [enable_free_poison=no]
+)
+AS_IF([test x$enable_free_poison = xyes],
+      AC_DEFINE([ENABLE_FREE_POISON]))
 
 AC_ARG_ENABLE([frame_pointers],
         AS_HELP_STRING([--disable-frame-pointers],[disable frame pointers]),
