@@ -141,6 +141,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 	M0_PRE(ep_addr	    != NULL);
 	M0_PRE(net_dom	    != NULL);
 	M0_PRE(receive_pool != NULL);
+	M0_PRE(reqh         != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
 		return M0_RC(-EINVAL);
@@ -193,12 +194,16 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	M0_ADDB_CTX_INIT(addb_mc, &machine->rm_addb_ctx,
 			 &m0_addb_ct_rpc_machine, ctx);
 
+	rc = m0_rpc_service_start(machine->rm_reqh);
+	if (rc != 0)
+		goto out_fini;
+
 	M0_SET0(&machine->rm_cntr_sent_item_sizes);
 	M0_SET0(&machine->rm_cntr_rcvd_item_sizes);
 	rc = m0_addb_counter_init(&machine->rm_cntr_sent_item_sizes,
 				  &m0_addb_rt_rpc_sent_item_sizes);
 	if (rc != 0)
-		goto out_fini;
+		goto service_fini;
 
 	rc = m0_addb_counter_init(&machine->rm_cntr_rcvd_item_sizes,
 				  &m0_addb_rt_rpc_rcvd_item_sizes);
@@ -208,10 +213,14 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	m0_sm_group_init(&machine->rm_sm_grp);
 	m0_rpc_machine_bob_init(machine);
 	m0_sm_group_init(&machine->rm_sm_grp);
+	m0_reqh_rpc_mach_tlink_init_at_tail(machine,
+					    &machine->rm_reqh->rh_rpc_machines);
 	return M0_RC(0);
 
 cntr_fini:
 	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
+service_fini:
+	m0_rpc_service_stop(machine->rm_reqh);
 out_fini:
 	m0_addb_ctx_fini(&machine->rm_addb_ctx);
 	return M0_RC(rc);
@@ -221,11 +230,14 @@ static void __rpc_machine_fini(struct m0_rpc_machine *machine)
 {
 	M0_ENTRY("machine %p", machine);
 
+	m0_reqh_rpc_mach_tlink_del_fini(machine);
 	m0_sm_group_fini(&machine->rm_sm_grp);
 
 	m0_addb_counter_fini(&machine->rm_cntr_sent_item_sizes);
 	m0_addb_counter_fini(&machine->rm_cntr_rcvd_item_sizes);
 	m0_addb_ctx_fini(&machine->rm_addb_ctx);
+
+	m0_rpc_service_stop(machine->rm_reqh);
 
 	rmach_watch_tlist_fini(&machine->rm_watch);
 	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);

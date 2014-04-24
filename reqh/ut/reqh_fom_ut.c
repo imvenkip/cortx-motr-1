@@ -175,7 +175,6 @@ static int server_init(const char             *stob_path,
 	struct m0_stob		    *bstore;
 	uint32_t		     bufs_nr;
 	uint32_t		     tms_nr;
-	struct m0_reqh_service_type *stype;
 	char			    *sdom_cfg;
 	char			    *sdom_location;
 
@@ -268,18 +267,8 @@ static int server_init(const char             *stob_path,
 				 M0_BUFFER_ANY_COLOUR, 0,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
         M0_UT_ASSERT(rc == 0);
-	/* Start the rpcservice */
-	stype = m0_reqh_service_type_find("rpcservice");
-	M0_UT_ASSERT(stype != NULL);
-
-	rc = m0_reqh_service_allocate(&reqh_ut_service, stype, NULL);
-	M0_UT_ASSERT(rc == 0);
-	m0_reqh_rpc_mach_tlink_init_at_tail(rpc_machine,
-					    &reqh.rh_rpc_machines);
-	m0_reqh_service_init(reqh_ut_service, &reqh, NULL);
-
-	rc = m0_reqh_service_start(reqh_ut_service);
-	M0_UT_ASSERT(rc == 0);
+	reqh_ut_service = reqh.rh_rpc_service;
+	M0_UT_ASSERT(reqh_ut_service != NULL);
 	return rc;
 }
 
@@ -295,16 +284,6 @@ static void server_fini(struct m0_stob_domain *bdom,
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(&reqh);
 
-        /* Fini the rpc_machine */
-	m0_reqh_rpc_mach_tlink_del_fini(&srv_rpc_mach);
-        m0_rpc_machine_fini(&srv_rpc_mach);
-	m0_rpc_net_buffer_pool_cleanup(&app_pool);
-
-	m0_reqh_service_stop(reqh_ut_service);
-	m0_reqh_idle_wait_for(&reqh, reqh_ut_service);
-	m0_reqh_services_terminate(&reqh);
-	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
-
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_mdstore_destroy(&srv_mdstore, grp);
 	M0_UT_ASSERT(rc == 0);
@@ -314,6 +293,15 @@ static void server_fini(struct m0_stob_domain *bdom,
 	/* rc = m0_stob_domain_destroy(sdom); */
 	/* M0_UT_ASSERT(rc == 0); */
 	m0_stob_domain_fini(sdom);
+
+        /* Fini the rpc_machine */
+        m0_rpc_machine_fini(&srv_rpc_mach);
+	m0_rpc_net_buffer_pool_cleanup(&app_pool);
+
+	M0_UT_ASSERT(m0_fom_domain_is_idle_for(&reqh.rh_fom_dom,
+					       reqh_ut_service));
+	m0_reqh_services_terminate(&reqh);
+	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
 
 	m0_reqh_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);

@@ -176,8 +176,6 @@ void rm_ctx_init(struct rm_context *rmctx)
 	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
 	m0_mutex_init(&rmctx->rc_mutex);
 
-	service_start("rpcservice", &rmctx->rc_rmach_ctx.rmc_reqh,
-		      &rpctype[rmctx->rc_id], &rpcsvc[rmctx->rc_id]);
 	service_start("rmservice", &rmctx->rc_rmach_ctx.rmc_reqh,
 		      &rmstype[rmctx->rc_id], &rmservice[rmctx->rc_id]);
 

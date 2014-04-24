@@ -60,8 +60,6 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	M0_ASSERT(rc == 0);
-	m0_reqh_rpc_mach_tlink_init_at_tail(&ctx->rmc_rpc,
-					    &ctx->rmc_reqh.rh_rpc_machines);
 }
 
 #ifndef __KERNEL__
@@ -118,7 +116,6 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_reqh_idle_wait(&ctx->rmc_reqh);
 	m0_reqh_pre_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
-	m0_reqh_rpc_mach_tlink_del_fini(&ctx->rmc_rpc);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
 	m0_reqh_fol_destroy(&ctx->rmc_reqh);
 	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
@@ -158,7 +155,6 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 {
 	m0_reqh_services_terminate(&ctx->rmc_reqh);
-	m0_reqh_rpc_mach_tlink_del_fini(&ctx->rmc_rpc);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
 	m0_reqh_fini(&ctx->rmc_reqh);
 }

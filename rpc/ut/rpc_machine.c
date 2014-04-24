@@ -33,6 +33,7 @@ static struct m0_rpc_machine     machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 static const char               *ep_addr = "0@lo:12345:34:2";
 static struct m0_net_buffer_pool buf_pool;
+static struct m0_reqh            reqh;
 static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
 static int rpc_mc_ut_init(void)
@@ -51,12 +52,21 @@ static int rpc_mc_ut_init(void)
 	rc = m0_rpc_net_buffer_pool_setup(&client_net_dom, &buf_pool, bufs_nr,
 					  tms_nr);
 	M0_ASSERT(rc == 0);
-
-	return 0;
+	/*
+	 * Initialise a rudimentary reqh, sufficient for m0_rcp_machine_init()
+	 * to go through.
+	 */
+	rc = M0_REQH_INIT(&reqh,
+			  .rhia_dtm       = NULL,
+			  .rhia_db        = NULL,
+			  .rhia_mdstore   = NULL,
+			  .rhia_fol       = NULL);
+	return rc;
 }
 
 static int rpc_mc_ut_fini(void)
 {
+	m0_reqh_fini(&reqh);
 	m0_rpc_net_buffer_pool_cleanup(&buf_pool);
 	m0_net_domain_fini(&client_net_dom);
 	m0_net_xprt_fini(xprt);
@@ -73,10 +83,9 @@ static void rpc_mc_init_fini_test(void)
 	 */
 
 	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
-				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 &reqh, &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(machine.rm_reqh == NULL);
 	M0_UT_ASSERT(machine.rm_stopping == false);
 	m0_rpc_machine_fini(&machine);
 }
@@ -96,13 +105,13 @@ static void rpc_mc_init_fail_test(void)
 
 	m0_fi_enable_once("m0_net_tm_init", "fake_error");
 	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
-				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 &reqh, &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	m0_fi_enable_once("m0_net_tm_start", "fake_error");
 	rc = m0_rpc_machine_init(&machine, &client_net_dom, ep_addr,
-				 NULL, &buf_pool, M0_BUFFER_ANY_COLOUR,
+				 &reqh, &buf_pool, M0_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
 	M0_UT_ASSERT(rc == -ENETUNREACH);
 	/**

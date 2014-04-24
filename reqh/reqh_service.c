@@ -535,7 +535,7 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
 
 M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc)
 {
-	if (svc != NULL) {
+	if (svc != NULL && svc->rs_sm.sm_state == M0_RST_STARTED) {
 		M0_ASSERT(m0_reqh_service_find(svc->rs_type,
 					       svc->rs_reqh) == svc);
 		m0_reqh_idle_wait_for(svc->rs_reqh, svc);

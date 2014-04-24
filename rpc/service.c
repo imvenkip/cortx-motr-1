@@ -241,6 +241,25 @@ m0_reqh_rpc_service_find(struct m0_reqh *reqh)
 	return m0_reqh_service_find(&m0_rpc_service_type, reqh);
 }
 
+M0_INTERNAL int m0_rpc_service_start(struct m0_reqh *reqh)
+{
+	int result = 0;
+
+	if (reqh->rh_rpc_service == NULL)
+		result = m0_reqh_service_setup(&reqh->rh_rpc_service,
+					       &m0_rpc_service_type, reqh,
+					       NULL, NULL);
+	return result;
+}
+
+M0_INTERNAL void m0_rpc_service_stop(struct m0_reqh *reqh)
+{
+	if (m0_reqh_rpc_mach_tlist_is_empty(&reqh->rh_rpc_machines)) {
+		m0_reqh_service_quit(reqh->rh_rpc_service);
+		reqh->rh_rpc_service = NULL;
+	}
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of rpc_service group */

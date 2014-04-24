@@ -484,10 +484,7 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 	rc = m0_rpc_machine_init(rpcmach, ndom, ep,
 				 reqh, buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
-	if (rc == 0)
-		m0_reqh_rpc_mach_tlink_init_at_tail(rpcmach,
-						    &reqh->rh_rpc_machines);
-	else
+	if (rc != 0)
 		m0_free(rpcmach);
 	return rc;
 }
@@ -522,7 +519,6 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
 
 	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
 		M0_ASSERT(m0_rpc_machine_bob_check(rpcmach));
-		m0_reqh_rpc_mach_tlink_del_fini(rpcmach);
 		m0_rpc_machine_fini(rpcmach);
 		m0_free(rpcmach);
 	} m0_tl_endfor;
@@ -941,8 +937,7 @@ static int reqh_services_start(struct m0_reqh_context *rctx)
 
 	m0_reqh_start(reqh);
 
-	rc = cs_service_init("rpcservice", NULL, reqh, NULL) ?:
-		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
+	rc = cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
 		reqh_context_services_init(rctx);
 
 	m0_mgmt_reqh_services_start_wait(reqh);
@@ -962,7 +957,6 @@ static int reqh_services_start(struct m0_reqh_context *rctx)
 	M0_ENTRY();
 
 	rc = m0_reqh_mgmt_service_start(reqh) ?:
-		cs_service_init("rpcservice", NULL, reqh, NULL) ?:
 		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
 		reqh_context_services_init(rctx);
 

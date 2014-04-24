@@ -1119,10 +1119,6 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	m0_reqh_start(reqh);
 	tm = &rpc_machine->rm_tm;
 	M0_ASSERT(tm->ntm_recv_pool == buffer_pool);
-
-	m0_reqh_rpc_mach_tlink_init_at_tail(rpc_machine,
-					    &reqh->rh_rpc_machines);
-
 	return M0_RC(rc);
 
 reqh_fini:
@@ -1242,7 +1238,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	M0_ENTRY();
 
 	m0_reqh_services_terminate(&csb->csb_reqh);
-	m0_reqh_rpc_mach_tlink_del_fini(&csb->csb_rpc_machine);
 	m0_rpc_machine_fini(&csb->csb_rpc_machine);
 	m0_reqh_fini(&csb->csb_reqh);
 	m0_dbenv_fini(&csb->csb_dbenv);

@@ -133,6 +133,11 @@ struct m0_reqh {
 	    @see m0_rpc_machine::rm_rh_linkage
 	 */
         struct m0_tl                  rh_rpc_machines;
+	/**
+	   Service to which rpc-internal fops are directed. This is shared by
+	   all rpc machines.
+	*/
+	struct m0_reqh_service       *rh_rpc_service;
 
 	/** provides protected access to reqh members. */
 	struct m0_rwlock              rh_rwlock;

@@ -101,6 +101,9 @@ M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 
 M0_INTERNAL uint64_t m0_rpc_id_generate(void);
 
+M0_INTERNAL int m0_rpc_service_start(struct m0_reqh *reqh);
+M0_INTERNAL void m0_rpc_service_stop(struct m0_reqh *reqh);
+
 M0_TL_DESCR_DECLARE(item_source, M0_EXTERN);
 M0_TL_DECLARE(item_source, M0_INTERNAL, struct m0_rpc_item_source);
 

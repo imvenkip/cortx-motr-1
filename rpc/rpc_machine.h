@@ -130,6 +130,7 @@ struct m0_rpc_machine {
 	 */
 	struct m0_thread                  rm_worker;
 
+	struct m0_reqh_service           *rm_service;
 	/**
 	   Flag asking rm_worker thread to stop.
 	 */
