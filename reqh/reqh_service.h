@@ -651,6 +651,20 @@ M0_INTERNAL bool m0_reqh_service_is_registered(const char *sname);
 M0_INTERNAL void m0_reqh_service_list_print(void);
 M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s);
 
+/**
+ * A helper function that allocates, initialises and starts a service of the
+ * given type.
+ */
+M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
+				      struct m0_reqh_service_type *stype,
+				      struct m0_reqh *reqh,
+				      struct m0_reqh_context *rctx,
+				      struct m0_uint128 *uuid);
+/**
+ * Dual to m0_reqh_service_setup(), stops and finalises the service.
+ */
+M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc);
+
 /** @} endgroup reqhservice */
 
 /* __MERO_REQH_REQH_SERVICE_H__ */

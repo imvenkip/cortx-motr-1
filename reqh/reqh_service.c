@@ -510,6 +510,41 @@ M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s)
 	return s->rs_sm.sm_state;
 }
 
+M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
+				      struct m0_reqh_service_type *stype,
+				      struct m0_reqh *reqh,
+				      struct m0_reqh_context *rctx,
+				      struct m0_uint128 *uuid)
+{
+	int result;
+
+	M0_PRE(m0_reqh_service_find(stype, reqh) == NULL);
+	M0_ENTRY();
+
+	result = m0_reqh_service_allocate(out, stype, rctx);
+	if (result == 0) {
+		struct m0_reqh_service *svc = *out;
+
+		m0_reqh_service_init(svc, reqh, uuid);
+		result = m0_reqh_service_start(svc);
+		if (result != 0)
+			m0_reqh_service_fini(svc);
+	}
+	return M0_RC(result);
+}
+
+M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc)
+{
+	if (svc != NULL) {
+		M0_ASSERT(m0_reqh_service_find(svc->rs_type,
+					       svc->rs_reqh) == svc);
+		m0_reqh_idle_wait_for(svc->rs_reqh, svc);
+		m0_reqh_service_stop(svc);
+		m0_reqh_service_fini(svc);
+	}
+}
+
+
 /** @} endgroup reqhservice */
 #undef M0_TRACE_SUBSYSTEM
 
