@@ -63,8 +63,9 @@ static size_t __allocated(void)
 
 static void __free(void *ptr)
 {
-	if (ENABLE_FREE_POISON)
-		memset(ptr, U_POISON_BYTE, malloc_usable_size(ptr));
+#ifdef ENABLE_FREE_POISON
+	memset(ptr, U_POISON_BYTE, malloc_usable_size(ptr));
+#endif
 	free(ptr);
 }
 
@@ -78,8 +79,9 @@ static void __free(void *ptr)
 	size_t size = malloc_size(ptr);
 
 	m0_atomic64_sub(&allocated, size);
-	if (ENABLE_FREE_POISON)
-		memset(ptr, U_POISON_BYTE, size);
+#ifdef ENABLE_FREE_POISON
+	memset(ptr, U_POISON_BYTE, size);
+#endif
 	free(ptr);
 }
 
