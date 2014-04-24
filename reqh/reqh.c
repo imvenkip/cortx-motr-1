@@ -502,6 +502,13 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	if (svc == NULL) {
 		if (rh_st == M0_REQH_ST_MGMT_STARTED)
 			return -EAGAIN;
+		/**
+		 * @todo temporary allow serviceless foms for UT.
+		 *
+		 * Specifically, rm clients should start a service to accept
+		 * incoming REVOKE requests.
+		 */
+		return 0;
 		return -ECONNREFUSED;
 	}
 	M0_ASSERT(svc->rs_ops != NULL);
@@ -558,6 +565,8 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	if (rc != 0) {
 		REQH_ADDB_FUNCFAIL(rc, FOP_HANDLE_2, &reqh->rh_addb_ctx);
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
+		M0_LOG(M0_WARN, "fop \"%s\"@%p disallowed: %i.",
+		       m0_fop_name(fop), fop, rc);
 		return M0_RC(-ESHUTDOWN);
 	}
 
