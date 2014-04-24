@@ -99,6 +99,16 @@ M0_FOL_FRAG_TYPE_DECLARE(stob_ad_rec_frag, static,
 			 stob_ad_rec_frag_undo_redo_op,
 			 stob_ad_rec_frag_undo_redo_op_cred,
 			 stob_ad_rec_frag_undo_redo_op_cred);
+static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
+			  struct m0_stob *obj,
+			  uint64_t offset,
+			  struct m0_be_emap_cursor *it);
+
+static int stob_ad_seg_free(struct m0_dtx *tx,
+			    struct m0_stob_ad_domain *adom,
+			    const struct m0_be_emap_seg *seg,
+			    const struct m0_ext *ext,
+			    uint64_t val);
 
 static struct m0_stob_ad_domain *stob_ad_domain2ad(struct m0_stob_domain *dom)
 {
@@ -580,8 +590,8 @@ static void stob_ad_destroy_credit(struct m0_stob *stob,
 				   struct m0_be_tx_credit *accum)
 {
 	struct m0_stob_ad_domain *adom;
-	struct m0_uint128         prefix;
-	char                      dict_key[64];
+	//struct m0_uint128         prefix;
+	//char                      dict_key[64];
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 
@@ -589,11 +599,12 @@ static void stob_ad_destroy_credit(struct m0_stob *stob,
 	 * Now stob_ad_destroy_credit() adds credits for fake
 	 * stob_ad_destroy(). So it needs to be rewritten in the future.
 	 */
-	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
-	sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
-		prefix.u_hi, prefix.u_lo);
-	m0_be_seg_dict_insert_credit(adom->sad_be_seg, dict_key, accum);
-	m0_be_seg_dict_delete_credit(adom->sad_be_seg, dict_key, accum);
+	//prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+	//sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+	//	prefix.u_hi, prefix.u_lo);
+	//m0_be_seg_dict_insert_credit(adom->sad_be_seg, dict_key, accum);
+	//m0_be_seg_dict_delete_credit(adom->sad_be_seg, dict_key, accum);
+	m0_be_emap_credit(&adom->sad_adata, M0_BEO_DESTROY, 1, accum);
 }
 
 /*
@@ -601,32 +612,52 @@ static void stob_ad_destroy_credit(struct m0_stob *stob,
  * @see  stob_ad_emap_prefix_remap().
  * @note This is only workaround and correct destroy() should be implemented.
  */
-static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
+static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 {
 	struct m0_stob_ad_domain *adom;
-	struct m0_be_seg         *seg;
-	struct m0_uint128         prefix;
-	char                      dict_key[64];
-	void                     *value;
-        uint64_t                  value_int;
+	struct m0_be_emap_seg    *seg;
+	struct m0_be_emap_cursor  it;
+	struct m0_be_op          *it_op;
+	//struct m0_uint128         prefix;
+	//char                      dict_key[64];
+	//void                     *value;
+        //uint64_t                  value_int;
 	int                       rc;
-	static uint64_t           seed = 0xba5e5eed; /* base seed */
+	//static uint64_t           seed = 0xba5e5eed; /* base seed */
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
-	seg    = adom->sad_be_seg;
-	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+	//seg    = adom->sad_be_seg;
+	//prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
 
-	sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
-		prefix.u_hi, prefix.u_lo);
-
-	m0_mutex_lock(&adom->sad_mutex);
-	value_int = m0_rnd64(&seed);
-	m0_mutex_unlock(&adom->sad_mutex);
-	value = (void *)value_int;
-	M0_ASSERT((uint64_t)value == value_int);
-	(void)m0_be_seg_dict_delete(seg, &dtx->tx_betx, dict_key);
-	rc = m0_be_seg_dict_insert(seg, &dtx->tx_betx, dict_key, value);
+	//sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+	//	prefix.u_hi, prefix.u_lo);
+	rc = stob_ad_cursor(adom, stob, 0, &it);
 	M0_ASSERT(rc == 0);
+
+	seg = m0_be_emap_seg_get(&it);
+	do {
+		stob_ad_seg_free(tx, adom, seg,
+				 &seg->ee_ext, seg->ee_val);
+		if (!m0_be_emap_ext_is_last(&seg->ee_ext)){
+			it_op = m0_be_emap_op(&it);
+			m0_be_op_init(it_op);
+			m0_be_emap_next(&it);
+			rc = m0_be_op_wait(it_op);
+			M0_ASSERT(rc == 0);
+			M0_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+			m0_be_op_fini(it_op);
+			seg = m0_be_emap_seg_get(&it);
+		}
+	}while(m0_be_emap_ext_is_last(&seg->ee_ext));
+	//m0_mutex_lock(&adom->sad_mutex);
+	//value_int = m0_rnd64(&seed);
+	//m0_mutex_unlock(&adom->sad_mutex);
+	//value = (void *)value_int;
+	//M0_ASSERT((uint64_t)value == value_int);
+	//(void)m0_be_seg_dict_delete(seg, &dtx->tx_betx, dict_key);
+	//rc = m0_be_seg_dict_insert(seg, &dtx->tx_betx, dict_key, value);
+	//M0_ASSERT(rc == 0);
+	
 
 	return 0;
 }
@@ -1231,7 +1262,7 @@ static void stob_ad_write_back_fill(struct m0_stob_io *io,
  * Helper function used by ad_write_map_ext() to free sub-segment "ext" from
  * allocated segment "seg".
  */
-static int stob_ad_seg_free(struct m0_stob_io *io,
+static int stob_ad_seg_free(struct m0_dtx *tx,
 			    struct m0_stob_ad_domain *adom,
 			    const struct m0_be_emap_seg *seg,
 			    const struct m0_ext *ext,
@@ -1242,7 +1273,7 @@ static int stob_ad_seg_free(struct m0_stob_io *io,
 		.e_start = val + delta,
 		.e_end   = val + delta + m0_ext_length(ext)
 	};
-	return val < AET_MIN ? stob_ad_bfree(adom, io->si_tx, &tocut) : 0;
+	return val < AET_MIN ? stob_ad_bfree(adom, tx, &tocut) : 0;
 }
 
 /**
@@ -1308,7 +1339,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
 					"Delete of the same just allocated block");
 				rc = rc ?:
-				     stob_ad_seg_free(io, adom, seg,
+				     stob_ad_seg_free(io->si_tx, adom, seg,
 						      &seg->ee_ext, seg->ee_val);
 			}
 		 }),
@@ -1320,7 +1351,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 			seg->ee_val = val;
 			if (stob_ad_stob2ad(io->si_obj)->ad_overwrite)
 				rc = rc ?:
-				     stob_ad_seg_free(io, adom, seg, ext, val);
+				     stob_ad_seg_free(io->si_tx, adom, seg, ext, val);
 		}),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
@@ -1338,7 +1369,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				if (stob_ad_stob2ad(io->si_obj)->ad_overwrite &&
 				    ext->e_start == seg->ee_ext.e_start)
 					rc = rc ?:
-					     stob_ad_seg_free(io, adom, seg,
+					     stob_ad_seg_free(io->si_tx, adom, seg,
 							      ext, val);
 			} else
 				seg->ee_val = val;
