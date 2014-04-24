@@ -51,55 +51,46 @@ static struct m0_be_seg		*be_seg;
 
 static struct m0_mdstore        md;
 static struct m0_reqh           reqh;
-static struct m0_local_service  svc;
 static struct m0_fol           *fol;
+static struct m0_reqh_service  *mdservice;
+extern struct m0_reqh_service_type m0_mds_type;
 
 int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data);
 
-static struct m0_chan test_signal;
-static struct m0_mutex mutex;
-static struct m0_clink clink;
-static int locked = 0;
+static struct m0_semaphore inflight;
 static int error = 0;
 
-static void signal_locked()
+static void (*orig_fom_fini)(struct m0_fom *fom) = NULL;
+static int (*orig_fom_create)(struct m0_fop *fop, struct m0_fom **m,
+			      struct m0_reqh *reqh);
+
+static void fom_fini(struct m0_fom *fom)
 {
-        locked = 0;
-        m0_clink_signal(&clink);
-}
+	M0_UT_ASSERT(orig_fom_fini != NULL);
 
-static void wait_locked()
-{
-        m0_clink_init(&clink, NULL);
-        m0_clink_add_lock(&test_signal, &clink);
-
-        while (locked)
-                m0_chan_wait(&clink);
-
-        m0_clink_del_lock(&clink);
-        m0_clink_fini(&clink);
-        locked = 1;
-}
-
-static void fom_fini(struct m0_local_service *service, struct m0_fom *fom)
-{
         if (error == 0)
                 error = m0_fom_rc(fom);
-
 	fom_fop_put_norpc(fom);
-
-        signal_locked();
+	orig_fom_fini(fom);
+	m0_semaphore_up(&inflight);
 }
 
-const struct m0_local_service_ops svc_ops = {
-        .lso_fini = fom_fini
-};
+static int fom_create(struct m0_fop *fop, struct m0_fom **m,
+		       struct m0_reqh *reqh)
+{
+	int rc;
+
+	rc = orig_fom_create(fop, m, reqh);
+	if (rc == 0) {
+		M0_UT_ASSERT(*m != NULL);
+		(*m)->fo_local = true;
+	}
+	return rc;
+}
 
 static int db_reset(void)
 {
-        int rc = m0_ut_db_reset(db_name);
-        M0_ASSERT(rc == 0);
-        return rc;
+        return m0_ut_db_reset(db_name);
 }
 
 static void test_mkfs(void)
@@ -118,13 +109,13 @@ static void test_mkfs(void)
 	be_seg = &ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_be_ut__seg_dict_create(be_seg, grp);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
-        M0_ASSERT(fd > 0);
+        M0_UT_ASSERT(fd > 0);
 
         rc = read(fd, &testroot, sizeof(testroot));
-        M0_ASSERT(rc == sizeof(testroot));
+        M0_UT_ASSERT(rc == sizeof(testroot));
         close(fd);
 
         rc = m0_mdstore_init(&md, &id, be_seg, false);
@@ -151,18 +142,17 @@ static void test_mkfs(void)
         m0_mdstore_fini(&md);
 }
 
+extern void (*m0_md_req_fom_fini_func)(struct m0_fom *fom);
+extern struct m0_fom_type_ops m0_md_fom_ops;
+
 static void test_init(void)
 {
         struct m0_be_tx		 tx;
         struct m0_be_tx_credit	 cred = {};
 	int			 rc;
 
-	m0_mutex_init(&mutex);
-        m0_chan_init(&test_signal, &mutex);
-
 	fol = m0_ut_be_alloc(sizeof *fol, be_seg, &ut_be);
 	M0_UT_ASSERT(fol != NULL);
-
         m0_fol_init(fol, be_seg);
 	m0_fol_credit(fol, M0_FO_CREATE, 1, &cred);
 	m0_be_seg_dict_insert_credit(be_seg, "fol", &cred);
@@ -172,21 +162,27 @@ static void test_init(void)
 	rc = m0_be_seg_dict_insert(be_seg, &tx, "fol", fol);
 	M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
-
-
+	/* Patch md fom operations vector to overwrite finaliser. */
+	orig_fom_fini = m0_md_req_fom_fini_func;
+	m0_md_req_fom_fini_func = fom_fini;
+	/* Patch fom creation routine. */
+	orig_fom_create = m0_md_fom_ops.fto_create;
+	m0_md_fom_ops.fto_create = fom_create;
         rc = m0_mdstore_init(&md, &id, be_seg, true);
-        M0_ASSERT(rc == 0);
-
-        M0_SET0(&svc);
-        svc.s_ops = &svc_ops;
-
+        M0_UT_ASSERT(rc == 0);
 	rc = M0_REQH_INIT(&reqh,
 		          .rhia_dtm       = NULL,
 		          .rhia_db        = be_seg,
 		          .rhia_mdstore   = &md,
 		          .rhia_fol       = fol,
-		          .rhia_svc       = &svc);
-        M0_ASSERT(rc == 0);
+		          .rhia_svc       = NULL);
+        M0_UT_ASSERT(rc == 0);
+
+	rc = m0_reqh_service_allocate(&mdservice, &m0_mds_type, NULL);
+        M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(mdservice, &reqh, NULL);
+	m0_reqh_service_start(mdservice);
+
 	m0_reqh_start(&reqh);
 }
 
@@ -195,6 +191,9 @@ static void test_fini(void)
 	struct m0_be_tx		 tx;
 	struct m0_be_tx_credit	 cred = {};
 	int			 rc;
+
+	m0_reqh_service_stop(mdservice);
+	m0_reqh_service_fini(mdservice);
 
 	m0_reqh_shutdown_wait(&reqh);
 	m0_reqh_services_terminate(&reqh);
@@ -211,14 +210,14 @@ static void test_fini(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_mdstore_fini(&md);
 
-	m0_chan_fini_lock(&test_signal);
-	m0_mutex_fini(&mutex);
-
 	rc = m0_be_ut__seg_dict_destroy(be_seg, grp);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
+
+	m0_md_fom_ops.fto_create = orig_fom_create;
+	m0_md_req_fom_fini_func = orig_fom_fini;
 }
 
 static void test_mdops(void)
@@ -229,58 +228,39 @@ static void test_mdops(void)
         struct m0_fop *fop;
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
-        M0_ASSERT(fd > 0);
+        M0_UT_ASSERT(fd > 0);
 
         result = read(fd, &root, sizeof(root));
-        M0_ASSERT(result == sizeof(root));
+        M0_UT_ASSERT(result == sizeof(root));
         error = 0;
 
         while (1) {
                 fop = NULL;
-
-                /**
-                 * All fops should be sent in order they stored in dump.
-                 * This is why we wait here for locked == 0, which is set
-                 * in ->lso_fini().
-                 */
-                wait_locked();
-again:
-                result = read(fd, &size, sizeof(size));
-                if (result < sizeof(size)) {
-                        signal_locked();
-                        break;
-                }
-
-                rec = m0_alloc(size);
-                M0_ASSERT(rec != NULL);
-
-                result = read(fd, rec, size);
-                M0_ASSERT(result == size);
-
-                result = m0_md_lustre_fop_alloc(&fop, rec);
-                m0_free(rec);
-
-                if (result == -EOPNOTSUPP) {
-                        signal_locked();
+		do {
+			result = read(fd, &size, sizeof(size));
+			if (result < sizeof(size))
+				goto end;
+			rec = m0_alloc(size);
+			M0_UT_ASSERT(rec != NULL);
+			result = read(fd, rec, size);
+			M0_UT_ASSERT(result == size);
+			result = m0_md_lustre_fop_alloc(&fop, rec);
+			m0_free(rec);
+			/* Let's get second part of rename fop. */
+		} while (result == -EAGAIN);
+                if (result == -EOPNOTSUPP)
                         continue;
-                }
-
-                if (result == -EAGAIN) {
-                        /*
-                         * Let's get second part of rename fop.
-                         */
-                        goto again;
-                }
-
-                M0_ASSERT(result == 0);
                 m0_reqh_fop_handle(&reqh, fop);
 		m0_fop_put(fop);
-        }
-        close(fd);
 
+                /* Process fops one by one sequentially. */
+                m0_semaphore_down(&inflight);
+        }
+ end:
+        close(fd);
         /* Make sure that all fops are handled. */
-        wait_locked();
-        M0_ASSERT(error == 0);
+	m0_reqh_idle_wait_for(&reqh, m0_reqh_service_find(&m0_mds_type, &reqh));
+        M0_UT_ASSERT(error == 0);
 }
 
 const struct m0_test_suite mdservice_ut = {

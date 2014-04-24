@@ -146,6 +146,7 @@ void add_uts(void)
 	m0_ut_add(&m0_net_test_ut);
 	m0_ut_add(&m0_net_tm_prov_ut);
 	m0_ut_add(&m0d_ut);
+        m0_ut_add(&mdservice_ut);
 	m0_ut_add(&module_ut);
 	m0_ut_add(&packet_encdec_ut);
 	m0_ut_add(&parity_math_ut);
@@ -169,7 +170,6 @@ void add_uts(void)
 	m0_ut_add(&xcode_bufvec_fop_ut);
 	m0_ut_add(&xcode_ff2c_ut);
 	m0_ut_add(&xcode_ut);
-        // m0_ut_add(&mdservice_ut);	/* freeze */
 	/* These tests have redirection of messages. */
 	m0_ut_add(&console_ut);
 }

@@ -39,8 +39,9 @@ const struct m0_fop_type_ops m0_md_fop_ops = {
 };
 
 #ifndef __KERNEL__
-static const struct m0_fom_type_ops m0_md_fom_ops = {
-        .fto_create   = m0_md_req_fom_create
+struct m0_fom_type_ops m0_md_fom_ops = {
+	/* This field is patched by UT. */
+        .fto_create = m0_md_req_fom_create
 };
 
 extern struct m0_reqh_service_type m0_mds_type;
