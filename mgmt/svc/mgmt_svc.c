@@ -81,16 +81,11 @@
    to be used to support proper asynchronous service startup, as described in
    @ref MGMT-SVC-DLD-FOP-SR "Management Service Run FOP".
 
-   - The m0_reqh_service object is extended to add a counter to track the number
-   of outstanding FOMs of a service.  This is needed to implement the graceful
-   shutdown of an individual service or of a set of services.
-@code
-   struct m0_reqh_service {
-         ...
-         struct m0_atomic64 rs_nr_foms;
-   };
-@endcode
-   The counter is operated from the m0_fom_init() and m0_fom_fini() subroutines,
+   - This is needed to implement the graceful shutdown of an individual service
+   or of a set of services, each service counts in each locality locker the
+   number of outstanding foms it has in this locality.
+
+   The counter is operated from the m0_fom_queue() and m0_fom_fini() subroutines,
    as explained in @ref MGMT-SVC-DLD-lspec-mgmt-foms.
    - The m0_reqh_service object identifier must be modified to use a 128 bit
    field UUID instead of its current 64 bit identifier.  However, since this
@@ -437,19 +432,20 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    FOPs require a write-lock.
 
    When stopping a service or a set of services, it is necessary for the
-   management FOM to wait for the FOMs of the service to complete.  The design
-   introduces the m0_reqh_service::rs_nr_foms counter to track the number of
-   outstanding FOMs of a service.  The counter is incremented by the
-   m0_fom_init() subroutine and decremented by the m0_fom_fini() subroutine.  As
-   the FOMs of a given service could execute in multiple localities, the counter
-   is defined as an atomic variable so that it can be updated without adverse
-   impact to the locality operating on the counter.
+   management FOM to wait for the FOMs of the service to complete. To this end,
+   each service uses a slot in locality lockers m0_fom_locality::fl_lockers. The
+   key of this slot is allocated m0_reqh_service_type_register() and is stored
+   in rstype->rst_fomcnt_key.
 
-   The m0_fom_fini() subroutine will be further extended to always signal on the
-   m0_reqh::rh_sd_signal channel - currently it does so only when the locality
-   counter FOM counter goes to 0.  This will have minimal impact on the existing
-   user of the channel, m0_reqh_idle_wait(), as the subroutine is
-   used only during shutdown.
+   @todo this assumes that there is at most one instance of a given service type
+         per request handler.
+
+   The counter is incremented by m0_fom_locality_inc() called indirectly by
+   m0_fom_queue(), and decremented by m0_fom_locality_dec(), called by
+   m0_fom_fini().
+
+   The m0_fom_fini() signals on the m0_reqh::rh_sd_signal channel when the
+   locality counter FOM counter goes to 0.
 
    @subsection MGMT-SVC-DLD-lspec-state State Specification
 
@@ -466,10 +462,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
    - The m0_reqh::rh_rwlock is used to synchronize service management
    operations.  These are potentially blocking calls so FOM blocking support
    subroutines are used.
-   - The m0_reqh_service::rs_nr_foms counter is an atomic that can be used from
-   different locality threads without synchronization.  Decrementing this
-   counter is always accompanied by signaling on the m0_reqh::rh_sd_signal
-   channel to alert potential waiters.
 
    @subsection MGMT-SVC-DLD-lspec-numa NUMA optimizations
    - An atomic variable is used to track the number of request handler service

@@ -269,12 +269,6 @@ struct m0_reqh_service {
 	struct m0_reqh_context           *rs_reqh_ctx;
 
 	/**
-	   Count of outstanding FOMs created by this service.
-	   @see m0_fom_init(), m0_fom_fini()
-	 */
-	struct m0_atomic64                rs_nr_foms;
-
-	/**
 	   Service magic to check consistency of service instance.
 	 */
 	uint64_t                          rs_magix;
