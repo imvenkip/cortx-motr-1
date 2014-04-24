@@ -355,8 +355,6 @@ M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 	m->tgf_ast_timeout = _AST(be_tx_group_fom_handle_delayed);
 #undef _AST
 
-	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
-			 &m0_be_txs_stype, &tx_group_fom_conf);
 	m0_semaphore_init(&m->tgf_start_sem, 0);
 	m0_semaphore_init(&m->tgf_finish_sem, 0);
 	m0_be_op_init(&m->tgf_op);
@@ -439,6 +437,15 @@ static void be_op_reset(struct m0_be_op *op)
 	m0_be_op_fini(op);
 	m0_be_op_init(op);
 }
+
+M0_INTERNAL void m0_be_tx_group_fom_mod_init(void)
+{
+	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
+			 &m0_be_txs_stype, &tx_group_fom_conf);
+}
+
+M0_INTERNAL void m0_be_tx_group_fom_mod_fini(void)
+{}
 
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM

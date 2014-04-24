@@ -22,6 +22,7 @@
 #include "lib/trace.h"
 
 #include "be/be.h"
+#include "be/tx_group_fom.h"
 
 /**
  * @addtogroup be
@@ -33,11 +34,13 @@ extern struct m0_sm_group be_op_sm_group;	/* XXX dirty hack */
 M0_INTERNAL int m0_backend_init(void)
 {
 	m0_sm_group_init(&be_op_sm_group);
+	m0_be_tx_group_fom_mod_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_backend_fini(void)
 {
+	m0_be_tx_group_fom_mod_fini();
 	m0_sm_group_fini(&be_op_sm_group);
 }
 

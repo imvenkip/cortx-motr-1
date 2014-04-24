@@ -82,6 +82,9 @@ M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
 					   m0_time_t abs_timeout);
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf);
 
+M0_INTERNAL void m0_be_tx_group_fom_mod_init(void);
+M0_INTERNAL void m0_be_tx_group_fom_mod_fini(void);
+
 /** @} end of be group */
 #endif /* __MERO_BE_TX_GROUP_FOM_H__ */
 
