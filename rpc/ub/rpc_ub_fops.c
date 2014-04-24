@@ -70,7 +70,7 @@ ub_req_fom_create(struct m0_fop *fop, struct m0_fom **m, struct m0_reqh *reqh)
 	M0_ASSERT(fom != NULL);
 
 	m0_fom_init(fom, &m0_rpc_ub_req_fopt.ft_fom_type, &ub_req_fom_ops,
-		    fop, NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    fop, NULL, reqh);
 	*m = fom;
 	return 0;
 }

@@ -114,7 +114,7 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	}
 	reply_fop->f_item.ri_rmachine = fop->f_item.ri_rmachine;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop,
-		    reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    reqh);
 	*m = fom;
 	rc = 0;
 	m0_fop_put(reply_fop);

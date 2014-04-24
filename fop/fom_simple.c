@@ -71,7 +71,7 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 		.ft_rstype = &fom_simple_rstype
 	};
 	m0_fom_init(&simpleton->si_fom, fomt, &fom_simple_ops,
-		    NULL, NULL, reqh, &fom_simple_rstype);
+		    NULL, NULL, reqh);
 	simpleton->si_data = data;
 	simpleton->si_tick = tick;
 	if (locality == M0_FOM_SIMPLE_HERE)

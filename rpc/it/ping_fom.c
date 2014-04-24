@@ -97,7 +97,7 @@ static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
                 return -ENOMEM;
 	fom = &fom_obj->fp_gen;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_fom_ping_ops, fop,
-		    NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    NULL, reqh);
 	fom_obj->fp_fop = fop;
 	*m = fom;
 	return 0;

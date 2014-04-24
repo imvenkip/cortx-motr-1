@@ -493,7 +493,7 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	m0_cm_cp_fom_init(cm, cp);
 	cp->c_fom.fo_addb_ctx.ac_magic = 0;
         m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop,
-                    NULL, reqh, service->rs_type);
+                    NULL, reqh);
         *m = &cp->c_fom;
         return 0;
 }
@@ -610,7 +610,7 @@ M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 	m0_cm_cp_only_init(cm, cp);
 	service = &cm->cm_service;
 	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, NULL, NULL,
-		    service->rs_reqh, service->rs_type);
+		    service->rs_reqh);
 }
 
 M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp)

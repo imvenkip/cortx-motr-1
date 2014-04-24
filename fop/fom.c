@@ -1085,10 +1085,8 @@ M0_EXPORTED(m0_fom_fini);
 
 void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
-		 struct m0_fop *reply, struct m0_reqh *reqh,
-		 const struct m0_reqh_service_type *stype)
+		 struct m0_fop *reply, struct m0_reqh *reqh)
 {
-	M0_PRE(stype != NULL);
 	M0_PRE(fom != NULL);
 	M0_PRE(reqh != NULL);
 	M0_PRE(ops->fo_addb_init != NULL);
@@ -1112,7 +1110,7 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	 * NOTE: The service may be in M0_RST_STARTING state
 	 * if the fom was launched on startup
 	 */
-	fom->fo_service = m0_reqh_service_find(stype, reqh);
+	fom->fo_service = m0_reqh_service_find(fom_type->ft_rstype, reqh);
 	M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
 	/**
 	 * @todo This is conditional locking is required, since

@@ -96,8 +96,7 @@ static int mgmt_svc_ut_fake_fop_fto_create(struct m0_fop *fop,
 	if (ffom == NULL)
 		return -ENOMEM;
 	m0_fom_init(&ffom->msuff_fom, &fop->f_type->ft_fom_type,
-		    &mgmt_svc_ut_fake_fop_fom_ops, fop, NULL, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+		    &mgmt_svc_ut_fake_fop_fom_ops, fop, NULL, reqh);
 	*out = &ffom->msuff_fom;
 	return 0;
 }

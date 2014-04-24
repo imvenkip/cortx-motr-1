@@ -636,8 +636,7 @@ M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom);
  */
 void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 		 const struct m0_fom_ops *ops, struct m0_fop *fop,
-		 struct m0_fop *reply, struct m0_reqh *reqh,
-		 const struct m0_reqh_service_type *stype);
+		 struct m0_fop *reply, struct m0_reqh *reqh);
 /**
  * Finalises a fom after it completes its execution,
  * i.e success or failure.

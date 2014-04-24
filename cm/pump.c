@@ -349,8 +349,7 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
         m0_mutex_init(&cp_pump->p_signal_mutex);
         m0_chan_init(&cp_pump->p_signal, &cp_pump->p_signal_mutex);
 	m0_fom_init(&cp_pump->p_fom, &cm->cm_type->ct_pump_fomt,
-		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh,
-		    cm->cm_service.rs_type);
+		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
 	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
 	M0_LEAVE();
 }

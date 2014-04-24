@@ -108,7 +108,7 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		return M0_RC(-ENOMEM);
 	}
 	m0_fom_init(&m->dm_fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop,
-	            reqh, fop->f_type->ft_fom_type.ft_rstype);
+	            reqh);
 	*out = &m->dm_fom;
 
 	return M0_RC(0);

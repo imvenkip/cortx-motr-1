@@ -482,7 +482,7 @@ static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 
 	fom = &stats_ufom->suf_fom;
 	m0_fom_init(fom, &(fop->f_type->ft_fom_type), &stats_update_fom_ops,
-		    fop, NULL, reqh, &m0_stats_svc_type);
+		    fop, NULL, reqh);
 
 	stats_ufom->suf_magic = M0_STATS_UPDATE_FOM_MAGIC;
 
@@ -687,7 +687,7 @@ static int stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 
 	fom = &stats_qfom->sqf_fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &stats_query_fom_ops, fop,
-		    reply_fop, reqh, &m0_stats_svc_type);
+		    reply_fop, reqh);
 	m0_fop_put(reply_fop);
 
 	stats_qfom->sqf_magic = M0_STATS_QUERY_FOM_MAGIC;

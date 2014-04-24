@@ -338,7 +338,7 @@ M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 	M0_ENTRY();
 
 	m0_fom_init(&m->tgf_gen, &tx_group_fom_type,
-		    &tx_group_fom_ops, NULL, NULL, reqh, &m0_be_txs_stype);
+		    &tx_group_fom_ops, NULL, NULL, reqh);
 
 	m->tgf_group	= gr;
 	m->tgf_reqh	= reqh;

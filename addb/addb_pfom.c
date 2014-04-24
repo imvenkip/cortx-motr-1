@@ -323,8 +323,7 @@ static void addb_pfom_start(struct addb_svc *svc)
 	addb_post_fom_bob_init(pfom);
 	M0_POST(addb_pfom_invariant(pfom));
 
-	m0_fom_init(fom, &addb_pfom_type, &addb_pfom_ops, NULL, NULL,
-		    reqh, svc->as_reqhs.rs_type);
+	m0_fom_init(fom, &addb_pfom_type, &addb_pfom_ops, NULL, NULL, reqh);
 	m0_fom_timeout_init(&pfom->pf_timeout);
 	pfom->pf_period = addb_pfom_period;
 	pfom->pf_tolerance = pfom->pf_period

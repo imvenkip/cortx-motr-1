@@ -188,7 +188,7 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	revc->rcf_rpcmach = item->ri_rmachine;
 	revc->rcf_ft      = M0_REV_CONNECT;
 	m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type, &rev_conn_fom_ops,
-		    NULL, NULL, service->rs_reqh, service->rs_type);
+		    NULL, NULL, service->rs_reqh);
 
 	m0_fom_queue(&revc->rcf_fom, service->rs_reqh);
 	rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);

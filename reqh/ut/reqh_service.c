@@ -78,8 +78,7 @@ static int reqhut_fom_create(struct m0_fop  *fop,
 		return -ENOMEM;
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &reqhut_fom_ops,
-		    fop, NULL, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+		    fop, NULL, reqh);
 
 	*out = fom;
 

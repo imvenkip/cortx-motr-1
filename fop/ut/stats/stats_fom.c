@@ -119,8 +119,7 @@ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
         M0_UT_ASSERT(fom_obj != NULL);
 
 	fom = &fom_obj->fs_gen;
-	m0_fom_init(fom, &stats_fom_type, &fom_stats_ops, NULL, NULL,
-	            reqh, &ut_stats_service_type);
+	m0_fom_init(fom, &stats_fom_type, &fom_stats_ops, NULL, NULL, reqh);
 
 	*m = fom;
 	return 0;

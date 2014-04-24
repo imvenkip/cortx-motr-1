@@ -167,7 +167,7 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	else if (is_rebalance_trigger_fop(fop))
 		rep_fop = m0_fop_alloc(&rebalance_trigger_rep_fopt, NULL);
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop,
-		    rep_fop, reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    rep_fop, reqh);
 
 	*out = fom;
 	return 0;

@@ -70,8 +70,8 @@ static int console_fom_create(struct m0_fop *fop, struct m0_reqh *reqh,
 	 * where the client thread creates the fop. So the assertion in
 	 * m0_fom_init should pass
 	 */
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rep_fop,
-		    reqh, fop->f_type->ft_fom_type.ft_rstype);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type,
+		    fom_ops, fop, rep_fop, reqh);
 
 	m0_fop_put(rep_fop);
         *m = fom;

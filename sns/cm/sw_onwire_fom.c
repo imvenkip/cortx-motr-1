@@ -181,7 +181,7 @@ static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		return -ENOMEM;
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &sw_onwire_fom_ops, fop,
-		    NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    NULL, reqh);
 
 	*out = fom;
 	return 0;

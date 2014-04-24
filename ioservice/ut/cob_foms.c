@@ -432,7 +432,7 @@ static void fom_create(struct m0_fom **fom, enum cob_fom_type fomtype)
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
 	m0_fom_init(base_fom, &ft,
 		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
-		    NULL, NULL, reqh, &m0_ios_type);
+		    NULL, NULL, reqh);
 
 	base_fom->fo_service = m0_reqh_service_find(ft.ft_rstype, reqh);
 	M0_UT_ASSERT(base_fom->fo_service != NULL);

@@ -177,10 +177,12 @@
  *       .ft_ops = &fom_fetch_type_ops
  * };
  *
- * static int fetch_fom_create(struct m0_fop *fop, struct m0_fom **m)
+ * static int fetch_fom_create(struct m0_fop *fop, struct m0_fom **m,
+ *                             struct m0_reqh *reqh)
  * {
  *    1) allocate fom;
- *    2) m0_fom_init(fom, &m0_fom_ping_mopt, &fom_fetch_type_ops, fop, NULL);
+ *    2) m0_fom_init(fom, &m0_fom_ping_mopt, &fom_fetch_type_ops,
+ *                   fop, NULL, reqh);
  *    3) *m = fom;
  * }
  * @endcode

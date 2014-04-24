@@ -277,8 +277,7 @@ static int mgmt_fop_ss_fto_create(struct m0_fop *fop, struct m0_fom **out,
 	mgmt_fop_ss_fom_bob_init(ssfom);
 
 	m0_fom_init(&ssfom->ss_m0fom, &fop->f_type->ft_fom_type,
-		    &mgmt_fop_ss_fom_ops, fop, rfop, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+		    &mgmt_fop_ss_fom_ops, fop, rfop, reqh);
 	m0_fop_put(rfop);
 	M0_POST(m0_ref_read(&rfop->f_ref) == 1);
 

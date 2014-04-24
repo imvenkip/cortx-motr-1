@@ -1676,9 +1676,7 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		return -ENOMEM;
 	}
 	fom = &fom_obj->fm_fom;
-	m0_fom_init(fom, &fop->f_type->ft_fom_type,
-		    ops, fop, rep_fop, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop, reqh);
 	if (fom->fo_service == NULL)
 		fom->fo_local = true;
 

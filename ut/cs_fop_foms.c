@@ -217,8 +217,7 @@ static int cs_ds_req_fop_fom_create(struct m0_fop *fop,
 		m0_free(fom);
 		return -ENOMEM;
 	}
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, rfop, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, rfop, reqh);
 
         *out = fom;
         return 0;

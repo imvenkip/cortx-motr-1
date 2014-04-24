@@ -392,7 +392,7 @@ static int test_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	*out = &redo_fom[idx];
 	m0_fom_init(*out, &test_fopt.ft_fom_type, &test_fom_ops,
-		    fop, NULL, reqh, &test_stype);
+		    fop, NULL, reqh);
 	return 0;
 }
 

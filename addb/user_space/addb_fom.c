@@ -163,7 +163,7 @@ static int addb_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	fom = &addb_fom->af_fom;
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &addb_fom_ops, fop, NULL,
-		    reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    reqh);
 
 	M0_PRE(m0_fom_phase(fom) == ADDB_FOM_PHASE_INIT);
 	*out = fom;

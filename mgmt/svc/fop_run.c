@@ -356,7 +356,7 @@ static int mgmt_run_fom_create(struct m0_reqh_service *service,
 	mgmt_fop_run_fom_bob_init(sffom);
 
 	m0_fom_init(&sffom->sf_m0fom, fom_type, fom_ops, NULL, NULL,
-		    service->rs_reqh, service->rs_reqh->rh_mgmt_svc->rs_type);
+		    service->rs_reqh);
 
 	/* track this FOM */
 	m0_atomic64_inc(&mgmt_svc->ms_run_foms);

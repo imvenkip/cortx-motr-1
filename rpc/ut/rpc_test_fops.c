@@ -92,7 +92,7 @@ static int arrow_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	M0_ASSERT(fom != NULL);
 
 	m0_fom_init(fom, &m0_rpc_arrow_fopt.ft_fom_type, &arrow_fom_ops,
-		    fop, NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
+		    fop, NULL, reqh);
 	*m = fom;
 	return 0;
 }

@@ -244,8 +244,7 @@ static int stob_io_fop_fom_create_helper(struct m0_fop *fop,
 	fom_obj->sif_stobj = NULL;
 
 	m0_fom_init(&fom_obj->sif_fom, &fop->f_type->ft_fom_type, fom_ops, fop,
-		    fom_obj->sif_rep_fop, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+		    fom_obj->sif_rep_fop, reqh);
 
 	*out = &fom_obj->sif_fom;
 	return 0;

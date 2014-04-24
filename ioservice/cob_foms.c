@@ -144,8 +144,7 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		return -ENOMEM;
 	}
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop, reqh,
-		    fop->f_type->ft_fom_type.ft_rstype);
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop, reqh);
 	m0_fop_put(rfop);
 	cob_fom_populate(fom);
 

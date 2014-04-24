@@ -361,8 +361,7 @@ static void ub_fom_create(struct m0_fom **out, struct m0_reqh *reqh,
 	M0_UB_ASSERT(m != NULL);
 
 	*out = &m->uf_gen;
-	m0_fom_init(*out, &ub_fom_type, &ub_fom_ops, NULL, NULL, reqh,
-		    &ub_fom_stype);
+	m0_fom_init(*out, &ub_fom_type, &ub_fom_ops, NULL, NULL, reqh);
 
 	m->uf_seqn = seqn;
 	m->uf_test = test;
