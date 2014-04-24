@@ -55,7 +55,7 @@ M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
 
 M0_TL_DEFINE(ft, static, struct m0_fop_type);
 
-static const char *fop_name(const struct m0_fop *fop)
+M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop)
 {
 	return fop->f_type != NULL ? fop->f_type->ft_name : "untyped";
 }
@@ -94,7 +94,7 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 	M0_SET0(&fop->f_item);
 	m0_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_data.fd_data = data;
-	M0_LOG(M0_DEBUG, "fop: %p %s", fop, fop_name(fop));
+	M0_LOG(M0_DEBUG, "fop: %p %s", fop, m0_fop_name(fop));
 
 	M0_POST(m0_ref_read(&fop->f_ref) == 1);
 	M0_LEAVE();
@@ -125,7 +125,7 @@ M0_EXPORTED(m0_fop_alloc);
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
-	M0_ENTRY("fop: %p %s", fop, fop_name(fop));
+	M0_ENTRY("fop: %p %s", fop, m0_fop_name(fop));
 	M0_PRE(M0_IN(m0_ref_read(&fop->f_ref), (0, 1)));
 
 	m0_rpc_item_fini(&fop->f_item);
@@ -152,7 +152,7 @@ struct m0_fop *m0_fop_get(struct m0_fop *fop)
 {
 	uint64_t count = m0_ref_read(&fop->f_ref);
 
-	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, fop_name(fop),
+	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, m0_fop_name(fop),
 	         (unsigned long long)count, (unsigned long long)count + 1);
 	M0_PRE(count > 0);
 
@@ -167,7 +167,7 @@ void m0_fop_put(struct m0_fop *fop)
 {
 	uint64_t count = m0_ref_read(&fop->f_ref);
 
-	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, fop_name(fop),
+	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, m0_fop_name(fop),
 		 (unsigned long long)count, (unsigned long long)count - 1);
 	M0_PRE(count > 0);
 

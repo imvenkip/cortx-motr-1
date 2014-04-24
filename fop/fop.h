@@ -172,6 +172,7 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop);
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item);
 uint32_t m0_fop_opcode(const struct m0_fop *fop);
+M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop);
 
 /**  Returns a fop type associated with an rpc item type */
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
