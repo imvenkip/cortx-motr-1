@@ -238,9 +238,7 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 M0_INTERNAL struct m0_reqh_service *
 m0_reqh_rpc_service_find(struct m0_reqh *reqh)
 {
-	return
-		m0_reqh_service_find(m0_reqh_service_type_find("rpcservice"),
-				     reqh);
+	return m0_reqh_service_find(&m0_rpc_service_type, reqh);
 }
 
 #undef M0_TRACE_SUBSYSTEM
