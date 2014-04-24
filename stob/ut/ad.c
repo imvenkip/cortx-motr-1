@@ -233,21 +233,21 @@ static int test_ad_fini(void)
 
 static void test_write(int nr, struct m0_dtx *tx)
 {
-	int			rc;
-	struct m0_fol_rec_part *fol_rec_part;
-	bool                    is_local_tx = false;
+	int		    rc;
+	struct m0_fol_frag *fol_frag;
+	bool		    is_local_tx = false;
 
 	/* @Note: This Fol record part object is not freed and shows as leak,
 	 * as it is passed as embbedded object in other places.
 	 */
-	M0_ALLOC_PTR(fol_rec_part);
-	M0_UB_ASSERT(fol_rec_part != NULL);
+	M0_ALLOC_PTR(fol_frag);
+	M0_UB_ASSERT(fol_frag != NULL);
 
 	m0_stob_io_init(&io);
 
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
-	io.si_fol_rec_part = fol_rec_part;
+	io.si_fol_frag = fol_frag;
 	io.si_user.ov_vec.v_nr = nr;
 	io.si_user.ov_vec.v_count = user_vc;
 	io.si_user.ov_buf = (void **)user_bufs;
@@ -373,9 +373,9 @@ static void test_ad(void)
 
 static void test_ad_undo(void)
 {
-	int                     rc;
-	struct m0_fol_rec_part *rpart;
-	struct m0_dtx           tx;
+	int                 rc;
+	struct m0_fol_frag *rfrag;
+	struct m0_dtx       tx;
 
 	m0_dtx_init(&g_tx, seg->bs_domain, grp);
 	memset(user_buf[0], 'a', buf_size);
@@ -386,17 +386,17 @@ static void test_ad_undo(void)
 	test_read(1);
 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
 
-	rpart = m0_rec_part_tlist_head(&g_tx.tx_fol_rec.fr_parts);
-	M0_ASSERT(rpart != NULL);
+	rfrag = m0_rec_frag_tlist_head(&g_tx.tx_fol_rec.fr_frags);
+	M0_ASSERT(rfrag != NULL);
 
 	/* Write new data in stob */
 	m0_dtx_init(&tx, seg->bs_domain, grp);
-	rpart->rp_ops->rpo_undo_credit(rpart, &tx.tx_betx_cred);
+	rfrag->rp_ops->rpo_undo_credit(rfrag, &tx.tx_betx_cred);
 	memset(user_buf[0], 'b', buf_size);
 	test_write(1, &tx);
 
 	/* Do the undo operation. */
-	rc = rpart->rp_ops->rpo_undo(rpart, &tx.tx_betx);
+	rc = rfrag->rp_ops->rpo_undo(rfrag, &tx.tx_betx);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_dtx_done_sync(&tx);

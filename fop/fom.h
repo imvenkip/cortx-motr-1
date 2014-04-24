@@ -925,10 +925,10 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
 	M0_ADDB_POST(addb_mc, recid, M0_FOM_ADDB_CTX_VEC(fom), ## __VA_ARGS__);
 
 /**
- * Adds the FOL record prepared from the list of FOL record parts in
+ * Adds the FOL record prepared from the list of FOL record fragments in
  * fom->fo_tx.tx_fol_rec.
  * Record can contain fop data from fom->fo_fop, fom->fo_rep_fop and other data
- * added in FOL record part.
+ * added in FOL record fragment.
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 

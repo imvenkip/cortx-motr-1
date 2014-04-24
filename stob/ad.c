@@ -89,16 +89,16 @@ static void stob_ad_write_credit(struct m0_stob_domain  *dom,
 				 struct m0_indexvec     *iv,
 				 struct m0_be_tx_credit *accum);
 static void
-stob_ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
+stob_ad_rec_frag_undo_redo_op_cred(const struct m0_fol_frag *frag,
 				   struct m0_be_tx_credit       *accum);
-static int stob_ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 					 struct m0_be_tx	*tx);
 
-M0_FOL_REC_PART_TYPE_DECLARE(stob_ad_rec_part, static,
-			     stob_ad_rec_part_undo_redo_op,
-			     stob_ad_rec_part_undo_redo_op,
-			     stob_ad_rec_part_undo_redo_op_cred,
-			     stob_ad_rec_part_undo_redo_op_cred);
+M0_FOL_FRAG_TYPE_DECLARE(stob_ad_rec_frag, static,
+			 stob_ad_rec_frag_undo_redo_op,
+			 stob_ad_rec_frag_undo_redo_op,
+			 stob_ad_rec_frag_undo_redo_op_cred,
+			 stob_ad_rec_frag_undo_redo_op_cred);
 
 static struct m0_stob_ad_domain *stob_ad_domain2ad(struct m0_stob_domain *dom)
 {
@@ -115,15 +115,15 @@ static void stob_ad_type_register(struct m0_stob_type *type)
 	int rc;
 
 	m0_xc_ad_private_init();
-	M0_FOL_REC_PART_TYPE_INIT(stob_ad_rec_part, "AD record part");
-	rc = m0_fol_rec_part_type_register(&stob_ad_rec_part_type);
+	M0_FOL_FRAG_TYPE_INIT(stob_ad_rec_frag, "AD record fragment");
+	rc = m0_fol_frag_type_register(&stob_ad_rec_frag_type);
 	M0_ASSERT(rc == 0); /* XXX void */
 }
 
 static void stob_ad_type_deregister(struct m0_stob_type *type)
 {
 	m0_xc_ad_private_fini();
-	m0_fol_rec_part_type_deregister(&stob_ad_rec_part_type);
+	m0_fol_frag_type_deregister(&stob_ad_rec_frag_type);
 }
 
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
@@ -1352,16 +1352,16 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	return M0_RC(result ?: rc);
 }
 
-static int stob_ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
+static int stob_ad_fol_frag_alloc(struct m0_fol_frag *frag, uint32_t frags)
 {
-	struct stob_ad_rec_part *arp;
+	struct stob_ad_rec_frag *arp;
 
-	M0_PRE(part != NULL);
+	M0_PRE(frag != NULL);
 
 	M0_ALLOC_PTR(arp);
 	if (arp == NULL)
 		return -ENOMEM;
-	m0_fol_rec_part_init(part, arp, &stob_ad_rec_part_type);
+	m0_fol_frag_init(frag, arp, &stob_ad_rec_frag_type);
 
 	arp->arp_seg.ps_segments = frags;
 
@@ -1373,9 +1373,9 @@ static int stob_ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
 	return 0;
 }
 
-static void stob_ad_fol_part_free(struct m0_fol_rec_part *part)
+static void stob_ad_fol_frag_free(struct m0_fol_frag *frag)
 {
-	struct stob_ad_rec_part *arp = part->rp_data;
+	struct stob_ad_rec_frag *arp = frag->rp_data;
 
 	m0_free(arp->arp_seg.ps_old_data);
 	m0_free(arp);
@@ -1406,14 +1406,14 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 	bool			 eodst;
 	bool			 eoext;
 	struct m0_ext		 todo;
-	struct m0_fol_rec_part	*part = io->si_fol_rec_part;
-	struct stob_ad_rec_part	*arp;
+	struct m0_fol_frag	*frag = io->si_fol_frag;
+	struct stob_ad_rec_frag	*arp;
 	uint32_t		 i = 0;
 
-	rc = stob_ad_fol_part_alloc(part, frags);
+	rc = stob_ad_fol_frag_alloc(frag, frags);
 	if (rc != 0)
 		return rc;
-	arp = part->rp_data;
+	arp = frag->rp_data;
 	arp->arp_stob_fid = *m0_stob_fid_get(io->si_obj);
 	arp->arp_dom_id   =  m0_stob_domain_id_get(&adom->sad_base);
 
@@ -1447,9 +1447,9 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 	} while (!eodst);
 
 	if (rc == 0)
-		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
+		m0_fol_frag_add(&io->si_tx->tx_fol_rec, frag);
 	else
-		stob_ad_fol_part_free(part);
+		stob_ad_fol_frag_free(frag);
 
 	return rc;
 }
@@ -1580,9 +1580,9 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	back->si_opcode	      = io->si_opcode;
-	back->si_flags	      = io->si_flags;
-	back->si_fol_rec_part = io->si_fol_rec_part;
+	back->si_opcode	  = io->si_opcode;
+	back->si_flags	  = io->si_flags;
+	back->si_fol_frag = io->si_fol_frag;
 
 	switch (io->si_opcode) {
 	case SIO_READ:
@@ -1641,14 +1641,14 @@ static bool stob_ad_endio(struct m0_clink *link)
 }
 
 /**
-    Implementation of m0_fol_rec_part_ops::rpo_undo_credit and
-                      m0_fol_rec_part_ops::rpo_redo_credit().
+    Implementation of m0_fol_frag_ops::rpo_undo_credit and
+                      m0_fol_frag_ops::rpo_redo_credit().
  */
 static void
-stob_ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
-				   struct m0_be_tx_credit	*accum)
+stob_ad_rec_frag_undo_redo_op_cred(const struct m0_fol_frag *frag,
+				   struct m0_be_tx_credit   *accum)
 {
-	struct stob_ad_rec_part  *arp  = part->rp_data;
+	struct stob_ad_rec_frag  *arp  = frag->rp_data;
 	struct m0_stob_domain    *dom  = m0_stob_domain_find(arp->arp_dom_id);
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 
@@ -1658,13 +1658,13 @@ stob_ad_rec_part_undo_redo_op_cred(const struct m0_fol_rec_part *part,
 }
 
 /**
-    Implementation of m0_fol_rec_part_ops::rpo_undo and
-                      m0_fol_rec_part_ops::rpo_redo ().
+    Implementation of m0_fol_frag_ops::rpo_undo and
+                      m0_fol_frag_ops::rpo_redo ().
  */
-static int stob_ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
-					 struct m0_be_tx	*tx)
+static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
+					 struct m0_be_tx    *tx)
 {
-	struct stob_ad_rec_part  *arp  = part->rp_data;
+	struct stob_ad_rec_frag  *arp  = frag->rp_data;
 	struct m0_stob_domain    *dom  = m0_stob_domain_find(arp->arp_dom_id);
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_be_emap_seg    *old_data = arp->arp_seg.ps_old_data;

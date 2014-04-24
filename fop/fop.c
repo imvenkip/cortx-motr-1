@@ -265,7 +265,7 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_next(struct m0_fop_type *ftype)
 }
 
 
-M0_FOL_REC_PART_TYPE_DECLARE(m0_fop_fol_rec_part, , NULL, NULL, NULL, NULL);
+M0_FOL_FRAG_TYPE_DECLARE(m0_fop_fol_frag, , NULL, NULL, NULL, NULL);
 M0_INTERNAL int m0_fops_init(void)
 {
 	m0_xc_fop_init();
@@ -287,12 +287,12 @@ M0_INTERNAL int m0_fops_init(void)
 	m0_mutex_init(&fop_types_lock);
 	m0_fom_ll_global_init();
 
-	m0_fop_fol_rec_part_type.rpt_xt  = m0_fop_fol_rec_part_xc;
-	m0_fop_fol_rec_part_type.rpt_ops = NULL;
-	M0_FOL_REC_PART_TYPE_INIT(m0_fop_fol_rec_part,
-				  "fop generic record part");
+	m0_fop_fol_frag_type.rpt_xt  = m0_fop_fol_frag_xc;
+	m0_fop_fol_frag_type.rpt_ops = NULL;
+	M0_FOL_FRAG_TYPE_INIT(m0_fop_fol_frag,
+				  "fop generic record frag");
 	fop_rate_monitor_key = m0_reqh_lockers_allot();
-	return m0_fol_rec_part_type_register(&m0_fop_fol_rec_part_type);
+	return m0_fol_frag_type_register(&m0_fop_fol_frag_type);
 }
 
 M0_INTERNAL void m0_fops_fini(void)
@@ -301,7 +301,7 @@ M0_INTERNAL void m0_fops_fini(void)
 	m0_addb_ctx_fini(&m0_fop_addb_ctx);
 	m0_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
-	m0_fol_rec_part_type_deregister(&m0_fop_fol_rec_part_type);
+	m0_fol_frag_type_deregister(&m0_fop_fol_frag_type);
 }
 
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop)
@@ -361,7 +361,7 @@ static int fop_xc_type(uint32_t opcode, const struct m0_xcode_type **out)
 M0_INTERNAL int m0_fop_xc_type(const struct m0_xcode_obj   *par,
 			       const struct m0_xcode_type **out)
 {
-	struct m0_fop_fol_rec_part *rp = par->xo_ptr;
+	struct m0_fop_fol_frag *rp = par->xo_ptr;
 
 	return fop_xc_type(rp->ffrp_fop_code, out);
 }
@@ -369,7 +369,7 @@ M0_INTERNAL int m0_fop_xc_type(const struct m0_xcode_obj   *par,
 M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
 				   const struct m0_xcode_type **out)
 {
-	struct m0_fop_fol_rec_part *rp = par->xo_ptr;
+	struct m0_fop_fol_frag *rp = par->xo_ptr;
 
 	return fop_xc_type(rp->ffrp_rep_code, out);
 }
@@ -377,16 +377,16 @@ M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
 M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 			       struct m0_dtx *dtx)
 {
-	struct m0_fol_rec_part	   *part;
-	struct m0_fop_fol_rec_part *rp;
+	struct m0_fol_frag     *frag;
+	struct m0_fop_fol_frag *rp;
 
-	M0_ALLOC_PTR(part);
-	if (part == NULL)
+	M0_ALLOC_PTR(frag);
+	if (frag == NULL)
 		return -ENOMEM;
 
 	M0_ALLOC_PTR(rp);
 	if (rp == NULL) {
-		m0_free(part);
+		m0_free(frag);
 		return -ENOMEM;
 	}
 
@@ -395,8 +395,8 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 	rp->ffrp_fop = m0_fop_data(fop);
 	rp->ffrp_rep = m0_fop_data(rep);
 
-	m0_fol_rec_part_init(part, rp, &m0_fop_fol_rec_part_type);
-	m0_fol_rec_part_add(&dtx->tx_fol_rec, part);
+	m0_fol_frag_init(frag, rp, &m0_fop_fol_frag_type);
+	m0_fol_frag_add(&dtx->tx_fol_rec, frag);
 	return 0;
 }
 

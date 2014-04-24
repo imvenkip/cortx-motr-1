@@ -62,8 +62,8 @@ struct m0_sns_cm_cp {
 	/** Stob context. */
 	struct m0_stob        *sc_stob;
 
-	/** FOL record part for storage objects. */
-	struct m0_fol_rec_part sc_fol_rec_part;
+	/** FOL record frag for storage objects. */
+	struct m0_fol_frag     sc_fol_frag;
 };
 
 M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp);

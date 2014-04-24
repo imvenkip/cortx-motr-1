@@ -107,17 +107,17 @@ static const struct m0_rpc_item_type_ops io_item_type_ops = {
         .rito_io_coalesce = item_io_coalesce,
 };
 
-static int io_fol_rec_part_undo_redo_op(struct m0_fop_fol_rec_part *fpart,
+static int io_fol_frag_undo_redo_op(struct m0_fop_fol_frag *frag,
 					struct m0_fol *fol)
 {
 	struct m0_fop_cob_writev_rep *wfop;
 
-	M0_PRE(fpart != NULL);
+	M0_PRE(frag != NULL);
 
-	wfop = fpart->ffrp_rep;
-	switch(fpart->ffrp_fop_code) {
+	wfop = frag->ffrp_rep;
+	switch(frag->ffrp_fop_code) {
 	case M0_IOSERVICE_WRITEV_OPCODE:
-		wfop = fpart->ffrp_rep;
+		wfop = frag->ffrp_rep;
 		M0_ASSERT(wfop->c_rep.rwr_rc == 0);
 		break;
 	}
@@ -125,7 +125,7 @@ static int io_fol_rec_part_undo_redo_op(struct m0_fop_fol_rec_part *fpart,
 }
 
 #ifndef __KERNEL__
-static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
+static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 				 struct m0_fol *fol, bool undo)
 {
 	int		result;
@@ -134,20 +134,20 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 	struct m0_fom  *fom;
 	int	        delete;
 
-	M0_PRE(fpart != NULL);
-	M0_PRE(M0_IN(fpart->ffrp_fop_code, (M0_IOSERVICE_COB_CREATE_OPCODE,
+	M0_PRE(frag != NULL);
+	M0_PRE(M0_IN(frag->ffrp_fop_code, (M0_IOSERVICE_COB_CREATE_OPCODE,
 					    M0_IOSERVICE_COB_DELETE_OPCODE)));
 	M0_CASSERT(M0_IOSERVICE_COB_DELETE_OPCODE ==
 		   M0_IOSERVICE_COB_CREATE_OPCODE + 1);
 	M0_CASSERT(sizeof(struct m0_fop_cob_create) ==
 		   sizeof(struct m0_fop_cob_delete));
 
-	delete = fpart->ffrp_fop_code - M0_IOSERVICE_COB_CREATE_OPCODE;
+	delete = frag->ffrp_fop_code - M0_IOSERVICE_COB_CREATE_OPCODE;
 	if (undo)
 		delete = 1 - delete;
 	fop = m0_fop_alloc(delete ?
 			   &m0_fop_cob_delete_fopt : &m0_fop_cob_create_fopt,
-			   fpart->ffrp_fop);
+			   frag->ffrp_fop);
 	result = fop != NULL ? m0_cob_fom_create(fop, &fom, reqh) : -ENOMEM;
 	if (result == 0) {
 		fom->fo_local = true;
@@ -156,36 +156,36 @@ static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
 	return result;
 }
 #else
-static int io_fol_cd_rec_part_op(struct m0_fop_fol_rec_part *fpart,
+static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 				 struct m0_fol *fol, bool undo)
 {
 	return 0;
 }
 #endif
 
-static int io_fol_cd_rec_part_undo(struct m0_fop_fol_rec_part *fpart,
+static int io_fol_cd_rec_frag_undo(struct m0_fop_fol_frag *frag,
 				   struct m0_fol *fol)
 {
-	return io_fol_cd_rec_part_op(fpart, fol, true);
+	return io_fol_cd_rec_frag_op(frag, fol, true);
 }
 
-static int io_fol_cd_rec_part_redo(struct m0_fop_fol_rec_part *fpart,
+static int io_fol_cd_rec_frag_redo(struct m0_fop_fol_frag *frag,
 				   struct m0_fol *fol)
 {
-	return io_fol_cd_rec_part_op(fpart, fol, false);
+	return io_fol_cd_rec_frag_op(frag, fol, false);
 }
 
 const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
-	.fto_undo        = io_fol_rec_part_undo_redo_op,
-	.fto_redo        = io_fol_rec_part_undo_redo_op,
+	.fto_undo        = io_fol_frag_undo_redo_op,
+	.fto_redo        = io_fol_frag_undo_redo_op,
 };
 
 const struct m0_fop_type_ops io_fop_cd_ops = {
-	.fto_undo = io_fol_cd_rec_part_undo,
-	.fto_redo = io_fol_cd_rec_part_redo,
+	.fto_undo = io_fol_cd_rec_frag_undo,
+	.fto_redo = io_fol_cd_rec_frag_redo,
 };
 
 M0_INTERNAL void m0_ioservice_fop_fini(void)
@@ -341,30 +341,30 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    <hr>
    @section IOFOLDLD-highlights Design Highlights
 
-   For each update made on server corresponding FOL record part is
-   populated and added in the FOM transaction FOL record parts list.
+   For each update made on server corresponding FOL record fragment is
+   populated and added in the FOM transaction FOL record fragments list.
 
-   These FOL record parts are encoded in a single FOL record in a
+   These FOL record fragments are encoded in a single FOL record in a
    FOM generic phase after updates are executed.
 
    <hr>
    @section IOFOLDLD-fspec Functional Specification
 
-   @see ad_rec_part is added for AD write operation.
+   @see ad_rec_frag is added for AD write operation.
 
-   For each of create, delete and write IO operations FOL record parts are
-   added in FOM generic phase M0_FOPH_FOL_REC_PART_ADD using m0_fop_fol_add().
+   For each of create, delete and write IO operations FOL record fragments are
+   added in FOM generic phase M0_FOPH_FOL_FRAG_ADD using m0_fop_fol_add().
 
    For create and delete operations fop data and reply fop data is stored
-   in FOL record parts.
+   in FOL record fragments.
 	- fop data including fid.
 	- Reply fop data is added in FOL records so that it can be used
 	  as Reply Cache.
 
    For write operation, in ad_write_launch() store AD allocated extents in
-   FOL record part struct ad_rec_part.
+   FOL record fragment struct ad_rec_frag.
 
-   All these FOL record parts are to the list in the trasaction record.
+   All these FOL record fragments are to the list in the transaction record.
 
    <hr>
    @section IOFOLDLD-ut Unit Tests
@@ -376,10 +376,10 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	Now retrieve that FOL record using the same LSN and assert for fid and
 	reply fop data.
 
-	Also using this data, execute the cob delete opeartion on server side
+	Also using this data, execute the cob delete operation on server side
 	(undo operation).
 
-	Simlilarly, do the same things for delete operation.
+	Similarly, do the same things for delete operation.
 
    2) For Write update,
 	Send the data having value "A" from client to ioservice which logs fid
@@ -387,7 +387,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 	the ioservice.
 
 	Now retrieve the data extents of the first write operation from FOL record
-	and update the AD table by decoding ad_rec_part from FOL record.
+	and update the AD table by decoding ad_rec_frag from FOL record.
 	Then read the data from ioservice and assert for data "A".
 
    @endcode

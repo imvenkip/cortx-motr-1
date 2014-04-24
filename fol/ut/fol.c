@@ -41,9 +41,9 @@ static struct m0_be_ut_backend   g_ut_be;
 static struct m0_be_ut_seg       g_ut_seg;
 static struct m0_be_tx           g_tx;
 
-static int verify_part_data(struct m0_fol_rec_part *part,
+static int verify_frag_data(struct m0_fol_frag *frag,
 			    struct m0_be_tx *tx);
-M0_FOL_REC_PART_TYPE_DECLARE(ut_part, static, verify_part_data, NULL,
+M0_FOL_FRAG_TYPE_DECLARE(ut_frag, static, verify_frag_data, NULL,
 				NULL, NULL);
 
 static void test_init(void)
@@ -62,44 +62,44 @@ static void test_fini(void)
 	m0_ut_backend_fini(&g_ut_be, &g_ut_seg);
 }
 
-static void test_rec_part_type_reg(void)
+static void test_fol_frag_type_reg(void)
 {
 	int rc;
 
-	ut_part_type = M0_FOL_REC_PART_TYPE_XC_OPS("UT record part", m0_fid_xc,
-						   &ut_part_type_ops);
-	rc = m0_fol_rec_part_type_register(&ut_part_type);
+	ut_frag_type = M0_FOL_FRAG_TYPE_XC_OPS("UT record frag", m0_fid_xc,
+						   &ut_frag_type_ops);
+	rc = m0_fol_frag_type_register(&ut_frag_type);
 	M0_ASSERT(rc == 0);
-	M0_ASSERT(ut_part_type.rpt_index > 0);
+	M0_ASSERT(ut_frag_type.rpt_index > 0);
 }
 
-static void test_rec_part_type_unreg(void)
+static void test_fol_frag_type_unreg(void)
 {
-	m0_fol_rec_part_type_deregister(&ut_part_type);
-	M0_ASSERT(ut_part_type.rpt_ops == NULL);
-	M0_ASSERT(ut_part_type.rpt_xt == NULL);
-	M0_ASSERT(ut_part_type.rpt_index == 0);
+	m0_fol_frag_type_deregister(&ut_frag_type);
+	M0_ASSERT(ut_frag_type.rpt_ops == NULL);
+	M0_ASSERT(ut_frag_type.rpt_xt == NULL);
+	M0_ASSERT(ut_frag_type.rpt_index == 0);
 }
 
-static int verify_part_data(struct m0_fol_rec_part *part,
+static int verify_frag_data(struct m0_fol_frag *frag,
 			    struct m0_be_tx *_)
 {
 	struct m0_fid *dec_rec;
 
-	dec_rec = part->rp_data;
+	dec_rec = frag->rp_data;
 	M0_UT_ASSERT(dec_rec->f_container == 22);
 	M0_UT_ASSERT(dec_rec->f_key == 33);
 	return 0;
 }
 
-static void test_fol_rec_part_encdec(void)
+static void test_fol_frag_encdec(void)
 {
-	struct m0_fid          *rec;
-	struct m0_fol_rec       dec_rec;
-	struct m0_fol_rec_part  ut_rec_part;
-	struct m0_fol_rec_part *dec_part;
-	struct m0_buf           buf;
-	int                     rc;
+	struct m0_fid      *rec;
+	struct m0_fol_rec   dec_rec;
+	struct m0_fol_frag  ut_rec_frag;
+	struct m0_fol_frag *dec_frag;
+	struct m0_buf       buf;
+	int                 rc;
 
 	m0_fol_rec_init(&g_rec, &g_fol);
 
@@ -107,8 +107,8 @@ static void test_fol_rec_part_encdec(void)
 	M0_UT_ASSERT(rec != NULL);
 	*rec = (struct m0_fid){ .f_container = 22, .f_key = 33 };
 
-	m0_fol_rec_part_init(&ut_rec_part, rec, &ut_part_type);
-	m0_fol_rec_part_add(&g_rec, &ut_rec_part);
+	m0_fol_frag_init(&ut_rec_frag, rec, &ut_frag_type);
+	m0_fol_frag_add(&g_rec, &ut_rec_frag);
 
 	buf = g_tx.t_payload;
 	rc = m0_fol_rec_encode(&g_rec, &buf);
@@ -120,9 +120,9 @@ static void test_fol_rec_part_encdec(void)
 	rc = m0_fol_rec_decode(&dec_rec, &buf);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
+	m0_tl_for(m0_rec_frag, &dec_rec.fr_frags, dec_frag) {
 		/* Call verify_part_data() for each part. */
-		dec_part->rp_ops->rpo_undo(dec_part, &g_tx);
+		dec_frag->rp_ops->rpo_undo(dec_frag, &g_tx);
 	} m0_tl_endfor;
 	m0_fol_rec_fini(&dec_rec);
 }
@@ -152,9 +152,9 @@ const struct m0_test_suite fol_ut = {
 		 * Do not reorder them willy-nilly.
 		 */
 		{ "fol-init",                test_init                },
-		{ "fol-rec-part-type-reg",   test_rec_part_type_reg   },
-		{ "fol-rec-part-test",       test_fol_rec_part_encdec },
-		{ "fol-rec-part-type-unreg", test_rec_part_type_unreg },
+		{ "fol-frag-type-reg",       test_fol_frag_type_reg   },
+		{ "fol-frag-test",           test_fol_frag_encdec     },
+		{ "fol-frag-type-unreg",     test_fol_frag_type_unreg },
 		{ "fol-fini",                test_fini                },
 		{ NULL, NULL }
 	}
@@ -169,13 +169,13 @@ enum { UB_ITER = 100000 };
 static int ub_init(const char *opts M0_UNUSED)
 {
 	test_init();
-	test_rec_part_type_reg();
+	test_fol_frag_type_reg();
 	return 0;
 }
 
 static void ub_fini(void)
 {
-	test_rec_part_type_unreg();
+	test_fol_frag_type_unreg();
 	test_fini();
 }
 

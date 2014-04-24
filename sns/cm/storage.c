@@ -177,7 +177,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	m0_stob_io_init(stio);
 	stio->si_flags = 0;
 	stio->si_opcode = op;
-	stio->si_fol_rec_part = &sns_cp->sc_fol_rec_part;
+	stio->si_fol_frag = &sns_cp->sc_fol_frag;
 	bshift = m0_stob_block_shift(stob);
 	rc = cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
 			addb_ctx, bshift);

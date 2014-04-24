@@ -63,7 +63,7 @@ struct m0_xcode_type;
 /* export */
 struct m0_fop_data;
 struct m0_fop;
-struct m0_fop_fol_rec_part;
+struct m0_fop_fol_frag;
 
 /**
     fop storage.
@@ -267,8 +267,8 @@ struct m0_fop_type_ops {
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct m0_fop *fop,
 			        struct m0_net_buf_desc_data **desc);
-	int (*fto_undo)(struct m0_fop_fol_rec_part *fpart, struct m0_fol *fol);
-	int (*fto_redo)(struct m0_fop_fol_rec_part *fpart, struct m0_fol *fol);
+	int (*fto_undo)(struct m0_fop_fol_frag *ffrag, struct m0_fol *fol);
+	int (*fto_redo)(struct m0_fop_fol_frag *ffrag, struct m0_fol *fol);
 };
 
 typedef uint32_t m0_fop_type_code_t;
@@ -334,9 +334,9 @@ M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
 				   const struct m0_xcode_type **out);
 
 /**
- * fol record part for a fop.
+ * fol record fragment for a fop.
  */
-struct m0_fop_fol_rec_part {
+struct m0_fop_fol_frag {
 	/** m0_fop_type::ft_rpc_item_type::rit_opcode of fop. */
 	uint32_t  ffrp_fop_code;
 	/** m0_fop_type::ft_rpc_item_type::rit_opcode of fop. */
@@ -346,12 +346,13 @@ struct m0_fop_fol_rec_part {
 } M0_XCA_RECORD;
 
 /**
- * Adds fol record part for this fop (m0_fop_fol_rec_part) to the transaction.
+ * Adds fol record fragment for this fop (m0_fop_fol_frag)
+ * to the transaction.
  */
 M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 			       struct m0_dtx *dtx);
 
-extern struct m0_fol_rec_part_type m0_fop_fol_rec_part_type;
+extern struct m0_fol_frag_type m0_fop_fol_frag_type;
 
 /** @} end of fop group */
 #endif /* __MERO_FOP_FOP_H__ */

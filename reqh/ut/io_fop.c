@@ -136,9 +136,9 @@ struct m0_stob_io_fom {
 	struct m0_stob_io		 sif_stio;
 	/**
 	 * Fol record part representing stob io operations.
-	 * It should be pointed by m0_stob_io::si_fol_rec_part.
+	 * It should be pointed by m0_stob_io::si_fol_frag.
 	 */
-        struct m0_fol_rec_part           sif_fol_rec_part;
+        struct m0_fol_frag		 sif_fol_frag;
 };
 
 extern struct m0_stob_domain *reqh_ut_stob_domain_find(void);
@@ -574,7 +574,7 @@ static int stob_write_fom_tick(struct m0_fom *fom)
                         stio->si_stob.iv_vec.v_count = &count;
                         stio->si_stob.iv_index       = &offset;
                         stio->si_opcode = SIO_WRITE;
-			stio->si_fol_rec_part = &fom_obj->sif_fol_rec_part;
+			stio->si_fol_frag = &fom_obj->sif_fol_frag;
                         stio->si_flags  = 0;
 
                         m0_mutex_lock(&stio->si_mutex);

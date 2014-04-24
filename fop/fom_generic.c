@@ -245,7 +245,7 @@ static int fom_tx_init(struct m0_fom *fom)
 
 /**
  * Creates fom local transactional context.
- * Add a fol record part for the fop to the transaction.
+ * Add a fol record fragment for the fop to the transaction.
  */
 static int fom_tx_open(struct m0_fom *fom)
 {

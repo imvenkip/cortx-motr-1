@@ -158,7 +158,7 @@ M0_INTERNAL void m0_be_io_configure(struct m0_be_io *bio,
 {
 	bio->bio_io.si_opcode = opcode;
 	/* XXX */
-	bio->bio_io.si_fol_rec_part = (void *) 1;
+	bio->bio_io.si_fol_frag = (void *) 1;
 }
 
 static bool be_io_cb(struct m0_clink *link)

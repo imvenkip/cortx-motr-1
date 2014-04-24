@@ -35,48 +35,49 @@
    A fol is represented by an instance of struct m0_fol. A fol record
    is represented by the m0_fol_rec data type.
 
-   A fol record contains the list of fol record parts, belonging to fol record
-   part types, added during updates. These fol record parts provide flexibility
-   for modules to participate in a transaction without global knowledge.
+   A fol record contains the list of fol record fragments, belonging
+   to fol record fragment types, added during updates. These fol
+   record fragments provide flexibility for modules to participate
+   in a transaction without global knowledge.
 
-   @see m0_fol_rec_part : FOL record part.
-   @see m0_fol_rec_part_type : FOL record part type.
+   @see m0_fol_frag : FOL record fragment.
+   @see m0_fol_frag_type : FOL record fragment type.
 
-   m0_fol_rec_part_ops structure contains operations for undo and redo of
-   FOL record parts.
+   m0_fol_frag_ops structure contains operations for undo and redo of
+   FOL record fragments.
 
-   @see m0_fol_rec_part_init() : Initializes m0_fol_rec_part with
-				 m0_fol_rec_part_type_ops.
-   @see m0_fol_rec_part_fini() : Finalizes FOL record part.
+   @see m0_fol_frag_init() : Initializes m0_fol_frag with
+				 m0_fol_frag_type_ops.
+   @see m0_fol_frag_fini() : Finalizes FOL record fragment.
 
-   @see m0_fol_rec_part_type_register() : Registers FOL record part type.
-   @see m0_fol_rec_part_type_deregister() : Deregisters FOL record part type.
+   @see m0_fol_frag_type_register() : Registers FOL record fragment type.
+   @see m0_fol_frag_type_deregister() : Deregisters FOL record fragment
+                                            type.
 
-   FOL record parts list is kept in m0_fol_rec::fr_parts which is
+   FOL record fragments list is kept in m0_fol_rec::fr_frags which is
    initialized in m0_fol_rec_init().
 
-   m0_fol_rec_add() is used to compose FOL record from FOL record descriptor
-   and parts.
-   fol_record_encode() encodes the FOL record parts in the list
-   m0_fol_rec:fr_parts in a buffer, which then will be added into the BE log.
+   m0_fol_rec_encode() is used to compose FOL record from FOL record descriptor
+   and fragments. It encodes the FOL record fragments in the list
+   m0_fol_rec:fr_frags in a buffer, which then will be added into the BE log.
 
    @see m0_fol_rec_encode()
    @see m0_fol_rec_decode()
 
-   m0_fol_rec_part_type_init() and m0_fol_rec_part_type_fini() are added
-   to initialize and finalize FOL part types.
-   FOL record part types are registered in a global array of FOL record
-   parts using m0_fol_rec_part_type::rpt_index.
+   m0_fol_frag_type_init() and m0_fol_frag_type_fini() are added
+   to initialize and finalize FOL fragment types.
+   FOL record fragment types are registered in a global array of FOL record
+   fragments using m0_fol_frag_type::rpt_index.
 
-   After successful execution of updates on server side, in FOM generic phase
-   using m0_fom_fol_rec_add() FOL record parts in the list are combined in a
-   FOL record and is made persistent. Before this phase all FOL record parts
-   need to be added in the list after completing their updates.
+   After successful execution of updates on server side, in FOM
+   generic phase using m0_fom_fol_rec_encode() FOL record fragments
+   in the list are combined in a FOL record and is made persistent.
+   Before this phase all FOL record fragments need to be added in
+   the list after completing their updates.
 
-   After retrieving FOL record from the storage, FOL record parts are decoded
-   based on part type using index and are used in undo or redo operations.
-   <hr>
-   @section IOFOLDLD-conformance Conformance
+   After retrieving FOL record from the storage, FOL record fragments
+   are decoded based on fragment type using index and are used in
+   undo or redo operations.
 
    @{
  */
@@ -145,8 +146,8 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol);
    @see m0_fol_rec
  */
 struct m0_fol_rec_header {
-	/** Number of record parts added to the record. */
-	uint32_t            rh_parts_nr;
+	/** Number of record fragments added to the record. */
+	uint32_t            rh_frags_nr;
 	/**
 	 * Length of the remaining operation type specific data in bytes.
 	 *
@@ -179,21 +180,21 @@ struct m0_fol_rec {
 	/** Identifiers of sibling updates. */
 	struct m0_fol_update_ref *fr_sibling;
 	/**
-	   A list of all FOL record parts in a record.
-	   Record parts are linked through m0_fol_rec_part:rp_link to this list.
+	   A list of all FOL record fragments in a record.
+	   Fragments are linked through m0_fol_frag:rp_link to this list.
 	 */
-	struct m0_tl              fr_parts;
+	struct m0_tl              fr_frags;
 };
 
 /**
-   Initializes fol record parts list.
+   Initializes fol record fragments list.
 
    The user must call m0_fol_rec_fini() when finished dealing with
    the record.
  */
 M0_INTERNAL void m0_fol_rec_init(struct m0_fol_rec *rec, struct m0_fol *fol);
 
-/** Finalizes fol record parts list. */
+/** Finalizes fol record fragments list. */
 M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec);
 
 /**
@@ -219,116 +220,116 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec *drec);
 M0_INTERNAL int m0_fols_init(void);
 M0_INTERNAL void m0_fols_fini(void);
 
-/** Represents a part of FOL record. */
-struct m0_fol_rec_part {
-	const struct m0_fol_rec_part_ops  *rp_ops;
+/** Represents a fragment of FOL record. */
+struct m0_fol_frag {
+	const struct m0_fol_frag_ops	*rp_ops;
 	/**
-	    Pointer to the data where FOL record part is serialised or
+	    Pointer to the data where FOL record fragment is serialised or
 	    will be de-serialised.
 	 */
-	void				  *rp_data;
-	/** Linkage into a fol record parts. */
-	struct m0_tlink			   rp_link;
-	/** Magic for fol record part list. */
-	uint64_t			   rp_magic;
+	void				*rp_data;
+	/** Linkage into a fol record fragments. */
+	struct m0_tlink			 rp_link;
+	/** Magic for fol record fragments list. */
+	uint64_t			 rp_magic;
 	/**
-	 * As rp_data points to the in-memory record part during encoding,
+	 * As rp_data points to the in-memory record fragment during encoding,
 	 * rp_data is freed only when rp_flag is equals to M0_XCODE_DECODE.
 	 */
-	enum m0_xcode_what 		   rp_flag;
+	enum m0_xcode_what		 rp_flag;
 };
 
-struct m0_fol_rec_part_type {
-	uint32_t                               rpt_index;
-	const char                            *rpt_name;
+struct m0_fol_frag_type {
+	uint32_t                           rpt_index;
+	const char                        *rpt_name;
 	/**
-	    Xcode type representing the FOL record part.
+	    Xcode type representing the FOL record fragment.
 	    Used to encode, decode or calculate the length of
-	    FOL record parts using xcode operations.
+	    FOL record fragments using xcode operations.
 	 */
-	const struct m0_xcode_type	      *rpt_xt;
-	const struct m0_fol_rec_part_type_ops *rpt_ops;
+	const struct m0_xcode_type	  *rpt_xt;
+	const struct m0_fol_frag_type_ops *rpt_ops;
 };
 
-struct m0_fol_rec_part_type_ops {
-	/**  Sets the record part operations vector. */
-	void (*rpto_rec_part_init)(struct m0_fol_rec_part *part);
+struct m0_fol_frag_type_ops {
+	/**  Sets the record fragment operations vector. */
+	void (*rpto_rec_frag_init)(struct m0_fol_frag *frag);
 };
 
 /**
-    FOL record parts are decoded from FOL record and then undo or
-    redo operations are performed on these parts.
+    FOL record fragments are decoded from FOL record and then undo or
+    redo operations are performed on these fragments.
  */
-struct m0_fol_rec_part_ops {
-	const struct m0_fol_rec_part_type *rpo_type;
-	int (*rpo_undo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
-	int (*rpo_redo)(struct m0_fol_rec_part *part, struct m0_be_tx *tx);
-	void (*rpo_undo_credit)(const struct m0_fol_rec_part *part,
+struct m0_fol_frag_ops {
+	const struct m0_fol_frag_type *rpo_type;
+	int (*rpo_undo)(struct m0_fol_frag *frag, struct m0_be_tx *tx);
+	int (*rpo_redo)(struct m0_fol_frag *frag, struct m0_be_tx *tx);
+	void (*rpo_undo_credit)(const struct m0_fol_frag *frag,
 				struct m0_be_tx_credit *accum);
-	void (*rpo_redo_credit)(const struct m0_fol_rec_part *part,
+	void (*rpo_redo_credit)(const struct m0_fol_frag *frag,
 				struct m0_be_tx_credit *accum);
 };
 
-struct m0_fol_rec_part_header {
+struct m0_fol_frag_header {
 	uint32_t rph_index;
 	uint64_t rph_magic;
 } M0_XCA_RECORD;
 
 /**
    During encoding of FOL record data points to the in-memory FOL record
-   part object allocated by the calling function.
+   fragment object allocated by the calling function.
    In case if decoding data should be NULL, as it is allocated by xcode.
-   @pre part != NULL
+   @pre frag != NULL
    @pre type != NULL
  */
 M0_INTERNAL void
-m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
-		     const struct m0_fol_rec_part_type *type);
+m0_fol_frag_init(struct m0_fol_frag *frag, void *data,
+		     const struct m0_fol_frag_type *type);
 
-M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part);
+M0_INTERNAL void m0_fol_frag_fini(struct m0_fol_frag *frag);
 
-/** Register a new fol record part type. */
+/** Register a new fol record fragment type. */
 M0_INTERNAL int
-m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type);
+m0_fol_frag_type_register(struct m0_fol_frag_type *type);
 
 M0_INTERNAL void
-m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type);
+m0_fol_frag_type_deregister(struct m0_fol_frag_type *type);
 
-/** Descriptor for the tlist of fol record parts. */
-M0_TL_DESCR_DECLARE(m0_rec_part, M0_EXTERN);
-M0_TL_DECLARE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
+/** Descriptor for the tlist of fol record fragments. */
+M0_TL_DESCR_DECLARE(m0_rec_frag, M0_EXTERN);
+M0_TL_DECLARE(m0_rec_frag, M0_INTERNAL, struct m0_fol_frag);
 
-M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
-				     struct m0_fol_rec_part *part);
+M0_INTERNAL void m0_fol_frag_add(struct m0_fol_rec *rec,
+				     struct m0_fol_frag *frag);
 
-#define M0_FOL_REC_PART_TYPE_DECLARE(part, scope, undo, redo,	   \
+#define M0_FOL_FRAG_TYPE_DECLARE(frag, scope, undo, redo,	   \
 				     undo_cred, redo_cred)	   \
-scope struct m0_fol_rec_part_type part ## _type;		   \
-static const struct m0_fol_rec_part_ops part ## _ops = {           \
-	.rpo_type = &part ## _type,		                   \
+scope struct m0_fol_frag_type frag ## _type;		   \
+static const struct m0_fol_frag_ops frag ## _ops = {           \
+	.rpo_type = &frag ## _type,		                   \
 	.rpo_undo = undo,			                   \
 	.rpo_redo = redo,			                   \
 	.rpo_undo_credit = undo_cred,			           \
 	.rpo_redo_credit = redo_cred,			           \
 };						                   \
-static void part ## _ops_init(struct m0_fol_rec_part *part)        \
+static void frag ## _ops_init(struct m0_fol_frag *frag)        \
 {							           \
-	part->rp_ops = &part ## _ops;			           \
+	frag->rp_ops = &frag ## _ops;			           \
 }							           \
-static const struct m0_fol_rec_part_type_ops part ## _type_ops = { \
-	.rpto_rec_part_init = part ##_ops_init			   \
+static const struct m0_fol_frag_type_ops frag ## _type_ops = { \
+	.rpto_rec_frag_init = frag ##_ops_init			   \
 };
 
-#define M0_FOL_REC_PART_TYPE_XC_OPS(name, part_xc, part_type_ops) \
-(struct m0_fol_rec_part_type) {					  \
+#define M0_FOL_FRAG_TYPE_XC_OPS(name, frag_xc, frag_type_ops) \
+(struct m0_fol_frag_type) {					  \
 	.rpt_name = name,					  \
-	.rpt_xt   = (part_xc),					  \
-	.rpt_ops  = (part_type_ops)				  \
+	.rpt_xt   = (frag_xc),					  \
+	.rpt_ops  = (frag_type_ops)				  \
 };
 
-#define M0_FOL_REC_PART_TYPE_INIT(part, name)		        \
-part ## _type = M0_FOL_REC_PART_TYPE_XC_OPS(name, part ## _xc,  \
-				            &part ## _type_ops)
+#define M0_FOL_FRAG_TYPE_INIT(frag, name)		        \
+frag ## _type = M0_FOL_FRAG_TYPE_XC_OPS(name, frag ## _xc,  \
+				            &frag ## _type_ops)
 
 /** @} end of fol group */
 #endif /* __MERO_FOL_FOL_H__ */

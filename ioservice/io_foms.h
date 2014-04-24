@@ -159,9 +159,9 @@ struct m0_stob_io_desc {
         struct m0_fom_callback   siod_fcb;
 	/**
 	 * Fol record part representing stob io operations.
-	 * It should be pointed by m0_stob_io::si_fol_rec_part.
+	 * It should be pointed by m0_stob_io::si_fol_frag.
 	 */
-        struct m0_fol_rec_part   siod_fol_rec_part;
+        struct m0_fol_frag       siod_fol_frag;
 };
 
 /**
@@ -217,8 +217,8 @@ struct m0_io_fom_cob_rw {
 	 *  are returned successfully).
 	 */
 	int				 fcrw_rc;
-	/** fol record part representing operations in io sub-system. */
-	struct m0_fol_rec_part		 fcrw_fol_rec_part;
+	/** fol record fragment representing operations in io sub-system. */
+	struct m0_fol_frag		 fcrw_fol_frag;
 	/** Time stamp when stob io request was launched */
 	m0_time_t                        fcrw_io_launch_time;
 };

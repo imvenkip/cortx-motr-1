@@ -1317,7 +1317,7 @@ static void bulkio_server_write_fol_rec_verify(void)
 	struct m0_reqh		 *reqh;
 	struct m0_fol_rec	  dec_rec;
 	int			  result;
-	struct m0_fol_rec_part	 *dec_part;
+	struct m0_fol_frag	 *dec_frag;
 	struct m0_fop		 *fop;
 	struct m0_fop_cob_writev *wfop;
 
@@ -1330,21 +1330,21 @@ static void bulkio_server_write_fol_rec_verify(void)
 	result = m0_fol_rec_decode(&dec_rec, &payload_buf);
 	M0_UT_ASSERT(result == 0);
 
-	/* FOL record parts are 2 for AD stob type and 1 for LINUX stob type. */
-	M0_UT_ASSERT(dec_rec.fr_header.rh_parts_nr == 1 ||
-		     dec_rec.fr_header.rh_parts_nr == 2);
-	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
-		struct m0_fop_fol_rec_part *fp_part = dec_part->rp_data;
+	/* FOL record frags are 2 for AD stob type and 1 for LINUX stob type. */
+	M0_UT_ASSERT(dec_rec.fr_header.rh_frags_nr == 1 ||
+		     dec_rec.fr_header.rh_frags_nr == 2);
+	m0_tl_for(m0_rec_frag, &dec_rec.fr_frags, dec_frag) {
+		struct m0_fop_fol_frag *fp_frag = dec_frag->rp_data;
 
-		if (dec_part->rp_ops->rpo_type->rpt_index ==
-		    m0_fop_fol_rec_part_type.rpt_index &&
-		    fp_part->ffrp_fop_code == M0_IOSERVICE_WRITEV_OPCODE) {
+		if (dec_frag->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_frag_type.rpt_index &&
+		    fp_frag->ffrp_fop_code == M0_IOSERVICE_WRITEV_OPCODE) {
 			struct m0_fop_cob_writev_rep *wfop_rep;
 
 			M0_UT_ASSERT(m0_xcode_cmp(
-			     &WRITE_FOP_DATA(fp_part->ffrp_fop),
+			     &WRITE_FOP_DATA(fp_frag->ffrp_fop),
 			     &WRITE_FOP_DATA(wfop)) == 0);
-			wfop_rep = fp_part->ffrp_rep;
+			wfop_rep = fp_frag->ffrp_rep;
 			M0_UT_ASSERT(wfop_rep->c_rep.rwr_rc == 0);
 			M0_UT_ASSERT(wfop_rep->c_rep.rwr_count > 0);
 		}
@@ -1363,7 +1363,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	struct m0_dtx           dtx;
 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
 	int			result;
-	struct m0_fol_rec_part *dec_part;
+	struct m0_fol_frag     *dec_frag;
 	struct m0_buf           save_buf = M0_BUF_INIT0;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
@@ -1392,31 +1392,31 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	M0_UT_ASSERT(result == 0);
 	m0_buf_free(&save_buf);
 
-	M0_UT_ASSERT(dec_rec.fr_header.rh_parts_nr == 1 ||
-		     dec_rec.fr_header.rh_parts_nr == 2);
-	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
-		if (dec_part->rp_ops->rpo_type->rpt_index ==
-		    m0_fop_fol_rec_part_type.rpt_index) {
-			struct m0_fop_fol_rec_part *fp_part;
-			struct m0_fop_type	   *ftype;
+	M0_UT_ASSERT(dec_rec.fr_header.rh_frags_nr == 1 ||
+		     dec_rec.fr_header.rh_frags_nr == 2);
+	m0_tl_for(m0_rec_frag, &dec_rec.fr_frags, dec_frag) {
+		if (dec_frag->rp_ops->rpo_type->rpt_index ==
+		    m0_fop_fol_frag_type.rpt_index) {
+			struct m0_fop_fol_frag *fp_frag;
+			struct m0_fop_type     *ftype;
 
-			fp_part = dec_part->rp_data;
-			M0_UT_ASSERT(fp_part->ffrp_fop_code ==
+			fp_frag = dec_frag->rp_data;
+			M0_UT_ASSERT(fp_frag->ffrp_fop_code ==
 				     M0_IOSERVICE_WRITEV_OPCODE);
 
-			ftype = m0_fop_type_find(fp_part->ffrp_fop_code);
+			ftype = m0_fop_type_find(fp_frag->ffrp_fop_code);
 			M0_UT_ASSERT(ftype != NULL);
 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
 				     ftype->ft_ops->fto_redo != NULL);
-			result = ftype->ft_ops->fto_undo(fp_part,
+			result = ftype->ft_ops->fto_undo(fp_frag,
 							 &reqh->rh_fol);
 		} else {
 			m0_sm_group_lock(grp);
 			m0_dtx_init(&dtx, reqh->rh_beseg->bs_domain, grp);
-			dec_part->rp_ops->rpo_undo_credit(dec_part,
+			dec_frag->rp_ops->rpo_undo_credit(dec_frag,
 				&dtx.tx_betx_cred);
 			m0_dtx_open_sync(&dtx);
-			result = dec_part->rp_ops->rpo_undo(dec_part,
+			result = dec_frag->rp_ops->rpo_undo(dec_frag,
 							    &dtx.tx_betx);
 			m0_dtx_done_sync(&dtx);
 			m0_dtx_fini(&dtx);

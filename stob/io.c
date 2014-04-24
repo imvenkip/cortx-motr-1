@@ -73,7 +73,7 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	       m0_vec_count(&io->si_stob.iv_vec));
 	M0_PRE(m0_stob_io_user_is_valid(&io->si_user));
 	M0_PRE(m0_stob_io_stob_is_valid(&io->si_stob));
-	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_rec_part != NULL));
+	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_frag != NULL));
 
 	type_id = m0_stob_domain__type_id(
 			m0_stob_domain_id_get(m0_stob_dom_get(obj)));

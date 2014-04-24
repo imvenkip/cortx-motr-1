@@ -28,7 +28,7 @@
 #include "fol/fol.h"
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"       /* m0_xc_fol_init */
-#include "fop/fop.h"          /* m0_fop_fol_rec_part_type */
+#include "fop/fop.h"          /* m0_fop_fol_frag_type */
 
 /**
    @addtogroup fol
@@ -38,14 +38,10 @@
    FOL stores its records in BE log at transaction payloads and
    identifies them by transaction id.
 
-   The fol table is (naturally) indexed by lsn. The record itself does not store
-   the lsn (take a look at the comment before rec_init()) and has the following
-   variable-sized format:
-
-   @li struct m0_fol_rec_header
-   @li followed by rh_parts_nr m0_fol_rec_part-s
-   @li followed by rh_data_len bytes
-   @li followed by the list of fol record parts.
+   - struct m0_fol_rec_header
+   - followed by rh_frags_nr m0_fol_frag-s
+   - followed by rh_data_len bytes
+   - followed by the list of fol record fragments.
 
    When a record is fetched from the fol, it is decoded by m0_fol_rec_decode().
    When a record is placed into the fol, its representation is prepared by
@@ -54,18 +50,18 @@
   @{
  */
 
-M0_TL_DESCR_DEFINE(m0_rec_part, "fol record part", M0_INTERNAL,
-		   struct m0_fol_rec_part, rp_link, rp_magic,
-		   M0_FOL_REC_PART_LINK_MAGIC, M0_FOL_REC_PART_HEAD_MAGIC);
-M0_TL_DEFINE(m0_rec_part, M0_INTERNAL, struct m0_fol_rec_part);
+M0_TL_DESCR_DEFINE(m0_rec_frag, "fol record fragment", M0_INTERNAL,
+		   struct m0_fol_frag, rp_link, rp_magic,
+		   M0_FOL_FRAG_LINK_MAGIC, M0_FOL_FRAG_HEAD_MAGIC);
+M0_TL_DEFINE(m0_rec_frag, M0_INTERNAL, struct m0_fol_frag);
 
-#define REC_PART_HEADER_XCODE_OBJ(ptr) \
-	M0_XCODE_OBJ(m0_fol_rec_part_header_xc, ptr)
+#define FRAG_HEADER_XCODE_OBJ(ptr) \
+	M0_XCODE_OBJ(m0_fol_frag_header_xc, ptr)
 
-#define REC_PART_XCODE_OBJ(r) (struct m0_xcode_obj) { \
-	.xo_type = part->rp_ops != NULL ?             \
-		   part->rp_ops->rpo_type->rpt_xt :   \
-		   m0_fop_fol_rec_part_type.rpt_xt,   \
+#define FRAG_XCODE_OBJ(r) (struct m0_xcode_obj) { \
+	.xo_type = frag->rp_ops != NULL ?             \
+		   frag->rp_ops->rpo_type->rpt_xt :   \
+		   m0_fop_fol_frag_type.rpt_xt,   \
 	.xo_ptr  = r->rp_data                         \
 }
 
@@ -90,23 +86,23 @@ M0_INTERNAL void m0_fol_fini(struct m0_fol *fol)
 }
 
 /*------------------------------------------------------------------
- * FOL records and their parts
+ * FOL records and their fragments
  *------------------------------------------------------------------*/
 
 M0_INTERNAL void m0_fol_rec_init(struct m0_fol_rec *rec, struct m0_fol *fol)
 {
-	m0_rec_part_tlist_init(&rec->fr_parts);
+	m0_rec_frag_tlist_init(&rec->fr_frags);
 	rec->fr_fol = fol;
 }
 
 M0_INTERNAL void m0_fol_rec_fini(struct m0_fol_rec *rec)
 {
-	struct m0_fol_rec_part *part;
+	struct m0_fol_frag *frag;
 
-	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
-		m0_fol_rec_part_fini(part);
+	m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
+		m0_fol_frag_fini(frag);
 	} m0_tl_endfor;
-	m0_rec_part_tlist_fini(&rec->fr_parts);
+	m0_rec_frag_tlist_fini(&rec->fr_frags);
 }
 
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec *rec)
@@ -116,49 +112,49 @@ M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec *rec)
 	return h->rh_magic == M0_FOL_REC_MAGIC;
 }
 
-M0_INTERNAL void m0_fol_rec_part_init(struct m0_fol_rec_part *part, void *data,
-				      const struct m0_fol_rec_part_type *type)
+M0_INTERNAL void m0_fol_frag_init(struct m0_fol_frag *frag, void *data,
+				      const struct m0_fol_frag_type *type)
 {
-	M0_PRE(part != NULL);
+	M0_PRE(frag != NULL);
 	M0_PRE(type != NULL && type->rpt_ops != NULL);
 
-	part->rp_data = data;
-	type->rpt_ops->rpto_rec_part_init(part);
-	m0_rec_part_tlink_init(part);
+	frag->rp_data = data;
+	type->rpt_ops->rpto_rec_frag_init(frag);
+	m0_rec_frag_tlink_init(frag);
 }
 
-M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
+M0_INTERNAL void m0_fol_frag_fini(struct m0_fol_frag *frag)
 {
-	M0_PRE(part != NULL);
-	M0_PRE(part->rp_ops != NULL);
-	M0_PRE(part->rp_data != NULL);
+	M0_PRE(frag != NULL);
+	M0_PRE(frag->rp_ops != NULL);
+	M0_PRE(frag->rp_data != NULL);
 
-	if (m0_rec_part_tlink_is_in(part))
-		m0_rec_part_tlist_del(part);
-	m0_rec_part_tlink_fini(part);
+	if (m0_rec_frag_tlink_is_in(frag))
+		m0_rec_frag_tlist_del(frag);
+	m0_rec_frag_tlink_fini(frag);
 
-	if (part->rp_flag == M0_XCODE_DECODE) {
-		m0_xcode_free_obj(&REC_PART_XCODE_OBJ(part));
-		m0_free(part);
+	if (frag->rp_flag == M0_XCODE_DECODE) {
+		m0_xcode_free_obj(&FRAG_XCODE_OBJ(frag));
+		m0_free(frag);
 	} else {
-	    if (part->rp_ops->rpo_type == &m0_fop_fol_rec_part_type) {
-		m0_free(part->rp_data);
-		m0_free(part);
+	    if (frag->rp_ops->rpo_type == &m0_fop_fol_frag_type) {
+		m0_free(frag->rp_data);
+		m0_free(frag);
 	    } else
-		m0_xcode_free_obj(&REC_PART_XCODE_OBJ(part));
+		m0_xcode_free_obj(&FRAG_XCODE_OBJ(frag));
 	}
 }
 
 /* ------------------------------------------------------------------
- * Record part types
+ * Record fragment types
  * ------------------------------------------------------------------ */
 
 enum {
-	FOL_REC_PART_TYPE_MAX = 128,
+	FOL_FRAG_TYPE_MAX = 128,
 	PART_TYPE_START_INDEX = 1
 };
 
-static const struct m0_fol_rec_part_type *rptypes[FOL_REC_PART_TYPE_MAX];
+static const struct m0_fol_frag_type *rptypes[FOL_FRAG_TYPE_MAX];
 static struct m0_mutex rptypes_lock;
 
 M0_INTERNAL int m0_fols_init(void)
@@ -175,7 +171,7 @@ M0_INTERNAL void m0_fols_fini(void)
 }
 
 M0_INTERNAL int
-m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
+m0_fol_frag_type_register(struct m0_fol_frag_type *type)
 {
 	int		result;
 	static uint32_t index = PART_TYPE_START_INDEX;
@@ -198,7 +194,7 @@ m0_fol_rec_part_type_register(struct m0_fol_rec_part_type *type)
 }
 
 M0_INTERNAL void
-m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
+m0_fol_frag_type_deregister(struct m0_fol_frag_type *type)
 {
 	M0_PRE(type != NULL);
 
@@ -214,8 +210,8 @@ m0_fol_rec_part_type_deregister(struct m0_fol_rec_part_type *type)
 	type->rpt_ops	= NULL;
 }
 
-static const struct m0_fol_rec_part_type *
-fol_rec_part_type_lookup(uint32_t index)
+static const struct m0_fol_frag_type *
+fol_frag_type_lookup(uint32_t index)
 {
 	M0_PRE(IS_IN_ARRAY(index, rptypes));
 	return rptypes[index];
@@ -237,17 +233,17 @@ static size_t fol_rec_header_pack_size(struct m0_fol_rec_header *h)
 static size_t fol_record_pack_size(struct m0_fol_rec *rec)
 {
 	struct m0_fol_rec_header     *h = &rec->fr_header;
-	const struct m0_fol_rec_part *part;
-	struct m0_fol_rec_part_header rph;
+	const struct m0_fol_frag     *frag;
+	struct m0_fol_frag_header     rph;
 	struct m0_xcode_ctx           ctx;
 	size_t                        len;
 
 	len = fol_rec_header_pack_size(h) +
-	      h->rh_parts_nr *
-		m0_xcode_data_size(&ctx, &REC_PART_HEADER_XCODE_OBJ(&rph));
+	      h->rh_frags_nr *
+		m0_xcode_data_size(&ctx, &FRAG_HEADER_XCODE_OBJ(&rph));
 
-	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
-		len += m0_xcode_data_size(&ctx, &REC_PART_XCODE_OBJ(part));
+	m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
+		len += m0_xcode_data_size(&ctx, &FRAG_XCODE_OBJ(frag));
 	} m0_tl_endfor;
 
 	len = m0_align(len, 8);
@@ -274,7 +270,7 @@ static int fol_rec_encdec(struct m0_fol_rec *rec,
 
 static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
-	struct m0_fol_rec_part *part;
+	struct m0_fol_frag     *frag;
 	m0_bcount_t	        len = buf->b_nob;
 	struct m0_bufvec        bvec = M0_BUFVEC_INIT_BUF(&buf->b_addr, &len);
 	struct m0_bufvec_cursor cur;
@@ -286,22 +282,22 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 	if (rc != 0)
 		return rc;
 
-	m0_tl_for(m0_rec_part, &rec->fr_parts, part) {
-		struct m0_fol_rec_part_header rph;
-		uint32_t		      index;
+	m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
+		struct m0_fol_frag_header rph;
+		uint32_t		  index;
 
-		index = part->rp_ops != NULL ?
-			part->rp_ops->rpo_type->rpt_index :
-			m0_fop_fol_rec_part_type.rpt_index;
+		index = frag->rp_ops != NULL ?
+			frag->rp_ops->rpo_type->rpt_index :
+			m0_fop_fol_frag_type.rpt_index;
 
-		rph = (struct m0_fol_rec_part_header) {
+		rph = (struct m0_fol_frag_header) {
 			.rph_index = index,
-			.rph_magic = M0_FOL_REC_PART_MAGIC
+			.rph_magic = M0_FOL_FRAG_MAGIC
 		};
 
-		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&rph),
+		rc = m0_xcode_encdec(&FRAG_HEADER_XCODE_OBJ(&rph),
 				     &cur, M0_XCODE_ENCODE) ?:
-		     m0_xcode_encdec(&REC_PART_XCODE_OBJ(part),
+		     m0_xcode_encdec(&FRAG_XCODE_OBJ(frag),
 				     &cur, M0_XCODE_ENCODE);
 		if (rc != 0)
 			return rc;
@@ -316,7 +312,7 @@ M0_INTERNAL int m0_fol_rec_encode(struct m0_fol_rec *rec, struct m0_buf *at)
 	size_t                    size;
 
 	h->rh_magic = M0_FOL_REC_MAGIC;
-	h->rh_parts_nr = m0_rec_part_tlist_length(&rec->fr_parts);
+	h->rh_frags_nr = m0_rec_frag_tlist_length(&rec->fr_frags);
 
 	size = fol_record_pack_size(rec);
 	M0_ASSERT(M0_IS_8ALIGNED(size));
@@ -341,46 +337,46 @@ M0_INTERNAL int m0_fol_rec_decode(struct m0_fol_rec *rec, struct m0_buf *at)
 	if (rc != 0)
 		return rc;
 
-	for (i = 0; rc == 0 && i < rec->fr_header.rh_parts_nr; ++i) {
-		struct m0_fol_rec_part            *part;
-		const struct m0_fol_rec_part_type *part_type;
-		struct m0_fol_rec_part_header      ph;
+	for (i = 0; rc == 0 && i < rec->fr_header.rh_frags_nr; ++i) {
+		struct m0_fol_frag            *frag;
+		const struct m0_fol_frag_type *frag_type;
+		struct m0_fol_frag_header      ph;
 
-		rc = m0_xcode_encdec(&REC_PART_HEADER_XCODE_OBJ(&ph), &cur,
+		rc = m0_xcode_encdec(&FRAG_HEADER_XCODE_OBJ(&ph), &cur,
 				     M0_XCODE_DECODE);
 		if (rc == 0) {
 			void *rp_data;
 
-			part_type = fol_rec_part_type_lookup(ph.rph_index);
+			frag_type = fol_frag_type_lookup(ph.rph_index);
 
-			M0_ALLOC_PTR(part);
-			if (part == NULL)
+			M0_ALLOC_PTR(frag);
+			if (frag == NULL)
 				return -ENOMEM;
 
-			rp_data = m0_alloc(part_type->rpt_xt->xct_sizeof);
+			rp_data = m0_alloc(frag_type->rpt_xt->xct_sizeof);
 			if (rp_data == NULL) {
-				m0_free(part);
+				m0_free(frag);
 				return -ENOMEM;
 			}
 
-			part->rp_flag = M0_XCODE_DECODE;
+			frag->rp_flag = M0_XCODE_DECODE;
 
-			m0_fol_rec_part_init(part, rp_data, part_type);
-			rc = m0_xcode_encdec(&REC_PART_XCODE_OBJ(part), &cur,
+			m0_fol_frag_init(frag, rp_data, frag_type);
+			rc = m0_xcode_encdec(&FRAG_XCODE_OBJ(frag), &cur,
 					     M0_XCODE_DECODE);
 			if (rc == 0)
-				m0_fol_rec_part_add(rec, part);
+				m0_fol_frag_add(rec, frag);
 		}
 	}
 	return rc;
 }
 
-M0_INTERNAL void m0_fol_rec_part_add(struct m0_fol_rec *rec,
-				     struct m0_fol_rec_part *part)
+M0_INTERNAL void m0_fol_frag_add(struct m0_fol_rec *rec,
+				     struct m0_fol_frag *frag)
 {
-	M0_PRE(rec != NULL && part != NULL);
+	M0_PRE(rec != NULL && frag != NULL);
 
-	m0_rec_part_tlist_add_tail(&rec->fr_parts, part);
+	m0_rec_frag_tlist_add_tail(&rec->fr_frags, frag);
 }
 
 /** @} end of fol group */

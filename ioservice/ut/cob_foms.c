@@ -1152,16 +1152,16 @@ static void cobfoms_fv_updates(void)
 #define COB_DATA(data) M0_XCODE_OBJ(m0_fop_cob_common_xc, data)
 
 static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
-	struct m0_fol_rec_part   *dec_part;
+	struct m0_fol_frag	 *dec_frag;
 	struct m0_fop_cob_common *cob_cmn;
 	int			  result = 0;
 
 	cob_cmn =  m0_cobfop_common_get(fop);
-	m0_tl_for(m0_rec_part, &rec->fr_parts, dec_part) {
+	m0_tl_for(m0_rec_frag, &rec->fr_frags, dec_frag) {
 		if (dec_part->rp_ops->rpo_type->rpt_index ==
-		    m0_fop_fol_rec_part_type.rpt_index) {
+		    m0_fop_fol_frag_type.rpt_index) {
 			struct m0_fop_cob_common   *cob_data;
-			struct m0_fop_fol_rec_part *fp_part;
+			struct m0_fop_fol_frag	   *fp_frag;
 			struct m0_fop_type	   *ftype;
 			struct m0_fop_cob_op_reply *cob_rep;
 
@@ -1183,8 +1183,8 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
 				     ftype->ft_ops->fto_redo != NULL);
 			result = undo ?
-				 ftype->ft_ops->fto_undo(fp_part, rec->fr_fol) :
-				 ftype->ft_ops->fto_redo(fp_part, rec->fr_fol);
+				 ftype->ft_ops->fto_undo(fp_frag, rec->fr_fol) :
+				 ftype->ft_ops->fto_redo(fp_frag, rec->fr_fol);
 			M0_UT_ASSERT(result == 0);
 		}
 	} m0_tl_endfor;
@@ -1214,12 +1214,12 @@ static void cobfoms_fol_verify(void)
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(dec_cc_rec.fr_header.rh_parts_nr == 1);
+	M0_UT_ASSERT(dec_cc_rec.fr_header.rh_frags_nr == 1);
 
 	result = m0_fol_rec_lookup(reqh->rh_fol,
 				   reqh->rh_fol->f_lsn - 1, &dec_cd_rec);
 	M0_UT_ASSERT(result == 0);
-	M0_UT_ASSERT(dec_cd_rec.fr_header.rh_parts_nr == 1);
+	M0_UT_ASSERT(dec_cd_rec.fr_header.rh_frags_nr == 1);
 
 	/* Perform undo operations */
 	result = cob_cd_op(&dec_cd_rec, d_fop, true);

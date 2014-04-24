@@ -369,7 +369,7 @@ struct m0_stob_io {
 	 */
 	uint32_t                    si_stob_magic;
 	/** FOL record part representing operations on storage object. */
-	struct m0_fol_rec_part	   *si_fol_rec_part;
+	struct m0_fol_frag    	   *si_fol_frag;
 	/**
 	   A sequence of block attributes.
 	   Each element of this sequence is an array of N 64-bit values, where

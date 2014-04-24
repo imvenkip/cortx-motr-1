@@ -34,10 +34,10 @@ struct m0_cob_nskey;
 struct m0_cob_oikey;
 
 struct m0_fom_md {
-        /** Generic m0_fom object. */
-        struct m0_fom          fm_fom;
-	/** FOL record part to be added for meta-data operations. */
-	struct m0_fol_rec_part fm_fol_rec_part;
+	/** Generic m0_fom object. */
+	struct m0_fom      fm_fom;
+	/** FOL record fragment to be added for meta-data operations. */
+	struct m0_fol_frag fm_fol_frag;
 };
 
 enum m0_md_fom_phases {

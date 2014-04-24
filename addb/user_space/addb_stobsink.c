@@ -385,9 +385,9 @@ struct stobsink_poolbuf {
 	m0_bindex_t               spb_io_iv_index;
 	/**
 	 * Fol record part representing stob io operations.
-	 * It should be pointed by m0_stob_io::si_fol_rec_part.
+	 * It should be pointed by m0_stob_io::si_fol_frag.
 	 */
-        struct m0_fol_rec_part    spb_fol_rec_part;
+        struct m0_fol_frag        spb_fol_frag;
 };
 
 M0_TL_DESCR_DEFINE(stobsink_pool, "stobsink pool", static,
@@ -586,7 +586,7 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb->spb_io.si_opcode = SIO_WRITE;
 	pb->spb_io_v_count = sink->ss_segsize >> bshift;
 	pb->spb_buf_v_count = pb->spb_io_v_count;
-	pb->spb_io.si_fol_rec_part = &pb->spb_fol_rec_part;
+	pb->spb_io.si_fol_frag = &pb->spb_fol_frag;
 	return rc;
 }
 
@@ -725,7 +725,7 @@ static int stobsink_poolbuf_grow(struct stobsink *sink)
 
 	m0_stob_io_init(&pb->spb_io);
 	pb->spb_io.si_opcode = SIO_WRITE;
-	pb->spb_io.si_fol_rec_part = &pb->spb_fol_rec_part;
+	pb->spb_io.si_fol_frag = &pb->spb_fol_frag;
 	m0_clink_init(&pb->spb_wait, stobsink_chan_cb);
 	m0_clink_add_lock(&pb->spb_io.si_wait, &pb->spb_wait);
 
