@@ -34,6 +34,9 @@ extern struct m0_reqh_service_type m0_be_txs_stype;
 M0_INTERNAL int m0_be_txs_register(void);
 M0_INTERNAL void m0_be_txs_unregister(void);
 
+M0_INTERNAL int  m0_be_tx_service_init(struct m0_be_engine *en,
+				       struct m0_reqh *reqh);
+M0_INTERNAL void m0_be_tx_service_fini(struct m0_be_engine *en);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_SERVICE_H__ */

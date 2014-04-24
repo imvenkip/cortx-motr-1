@@ -27,6 +27,7 @@
 #include "addb/addb.h"
 
 #include "be/be.h"
+#include "be/engine.h"
 #include "be/tx_service.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -142,6 +143,41 @@ static void txs_stop(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
 	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_be_tx_service_init(struct m0_be_engine *en,
+				      struct m0_reqh *reqh)
+{
+	int result;
+
+	M0_PRE(en->eng_service == NULL);
+	M0_PRE(m0_reqh_service_find(&m0_be_txs_stype, reqh) == NULL);
+	M0_ENTRY();
+
+	result = m0_reqh_service_allocate(&en->eng_service,
+					  &m0_be_txs_stype, NULL);
+	if (result == 0) {
+		struct m0_reqh_service *svc = en->eng_service;
+
+		m0_reqh_service_init(svc, reqh, NULL);
+		result = m0_reqh_service_start(svc);
+		if (result != 0)
+			m0_reqh_service_fini(svc);
+	}
+	return M0_RC(result);
+}
+
+M0_INTERNAL void m0_be_tx_service_fini(struct m0_be_engine *en)
+{
+	struct m0_reqh_service *svc = en->eng_service;
+
+	if (svc != NULL) {
+		M0_ASSERT(m0_reqh_service_find(&m0_be_txs_stype,
+					       svc->rs_reqh) == svc);
+		m0_reqh_service_stop(svc);
+		m0_reqh_service_fini(svc);
+		en->eng_service = NULL;
+	}
 }
 
 /** @} end of be group */

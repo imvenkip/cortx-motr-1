@@ -1136,18 +1136,6 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 	cs_storage_fini(&addb_stob->cas_stobs);
 }
 
-static void cs_reqh_be_tx_svc_stop(struct m0_reqh *reqh)
-{
-	struct m0_reqh_service *svc;
-
-	svc = m0_reqh_service_find(m0_reqh_service_type_find("be-tx-service"),
-				   reqh);
-	if (M0_IN(m0_reqh_service_state_get(svc),
-		  (M0_RST_STARTED, M0_RST_STOPPING)))
-		m0_reqh_service_stop(svc);
-	m0_reqh_service_fini(svc);
-}
-
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1175,28 +1163,24 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 	if (rc != 0)
 		goto out;
 
-	rc = __service_init("be-tx-service", rctx, &rctx->rc_reqh, NULL, false);
-	if (rc != 0)
-		goto reqh_fini;
-
 	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
 		&rctx->rc_reqh;
 
 	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_dbenv_init");
-		return rc;
+		goto reqh_fini;
 	}
 	rctx->rc_beseg = rctx->rc_db.d_i.d_seg;
 	rctx->rc_reqh.rh_dbenv = &rctx->rc_db;
 
 	rc = m0_reqh_fol_create(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0 && rc != -EEXIST)
-		goto reqh_fini;
+		goto dbenv_fini;
 
 	rc = m0_reqh_dbenv_init(&rctx->rc_reqh, rctx->rc_beseg);
 	if (rc != 0)
-		goto dbenv_fini;
+		goto fol_fini;
 
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
@@ -1263,12 +1247,12 @@ cleanup_addb_stob:
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 reqh_dbenv_fini:
-	m0_reqh_fol_destroy(&rctx->rc_reqh);
 	m0_reqh_dbenv_fini(&rctx->rc_reqh);
+fol_fini:
+	/* Nothing, fall through. */
 dbenv_fini:
 	m0_dbenv_fini(&rctx->rc_db);
 reqh_fini:
-	cs_reqh_be_tx_svc_stop(&rctx->rc_reqh);
 	m0_reqh_fini(&rctx->rc_reqh);
 out:
 	M0_ASSERT(rc != 0);

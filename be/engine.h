@@ -32,6 +32,7 @@
 #include "be/tx.h"		/* m0_be_tx */
 #include "be/tx_credit.h"	/* m0_be_tx_credit */
 
+struct m0_reqh_service;
 struct m0_be_tx_group;
 struct m0_reqh;
 struct m0_stob;
@@ -76,6 +77,7 @@ struct m0_be_engine {
 	/** Transactional group. */
 	struct m0_be_tx_group	  *eng_group;
 	size_t			   eng_group_nr;
+	struct m0_reqh_service    *eng_service;
 	/**
 	 * XXX Indicator for one group.
 	 * Remove it when add multiple groups support.

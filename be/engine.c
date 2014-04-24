@@ -27,6 +27,7 @@
 #include "lib/errno.h"		/* ENOMEM */
 #include "lib/misc.h"		/* m0_forall */
 
+#include "be/tx_service.h"	/* m0_be_tx_service_init */
 #include "be/tx_group.h"	/* m0_be_tx_group */
 #include "be/tx_internal.h"	/* m0_be_tx__state_post */
 #include "be/seg0.h"		/* m0_be_0type */
@@ -77,6 +78,9 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_init(&en->eng_groups[i]), true));
+	rc = m0_be_tx_service_init(en, en_cfg->bec_group_fom_reqh);
+	if (rc != 0)
+		goto err_free;
 	for (i = 0; i < en->eng_group_nr; ++i) {
 		m0_be_tx_group_init(&en->eng_group[0],
 				    &en_cfg->bec_group_size_max,
@@ -95,9 +99,9 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 
 	M0_POST(m0_be_engine__invariant(en));
 	return M0_RC(0);
-
+ err_free:
 	m0_free(en->eng_group);
-err:
+ err:
 	return M0_RC(rc);
 }
 
@@ -122,6 +126,7 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 		m0_be_tx_group_fini(&en->eng_group[i]);
 		egr_tlink_fini(&en->eng_group[i]);
 	}
+	m0_be_tx_service_fini(en);
 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
 		  (egr_tlist_fini(&en->eng_groups[i]), true));
 	m0_be_log_destroy(&en->eng_log);
