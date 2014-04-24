@@ -64,8 +64,7 @@ static void _reqh_init(void)
 			      .rhia_dtm       = (void*)1,
 			      .rhia_db        = NULL,
 			      .rhia_mdstore   = (void*)1,
-			      .rhia_fol       = &fol,
-			      .rhia_svc       = (void*)1);
+			      .rhia_fol       = &fol);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_start(&reqh);
 	fom_simple_svc_start();

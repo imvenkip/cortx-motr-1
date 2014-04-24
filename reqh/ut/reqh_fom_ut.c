@@ -185,8 +185,7 @@ static int server_init(const char             *stob_path,
 			  .rhia_dtm       = NULL,
 			  .rhia_db        = NULL,
 			  .rhia_mdstore   = &srv_mdstore,
-			  .rhia_fol       = NULL,
-			  .rhia_svc       = (void*)1);
+			  .rhia_fol       = NULL);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_be_ut_backend_init(&ut_be);

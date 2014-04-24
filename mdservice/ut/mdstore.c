@@ -174,8 +174,7 @@ static void test_init(void)
 		          .rhia_dtm       = NULL,
 		          .rhia_db        = be_seg,
 		          .rhia_mdstore   = &md,
-		          .rhia_fol       = fol,
-		          .rhia_svc       = NULL);
+		          .rhia_fol       = fol);
         M0_UT_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_allocate(&mdservice, &m0_mds_type, NULL);
@@ -220,12 +219,15 @@ static void test_fini(void)
 	m0_md_req_fom_fini_func = orig_fom_fini;
 }
 
+enum { REC_NR = 128 };
+
 static void test_mdops(void)
 {
         struct m0_md_lustre_logrec *rec;
         struct m0_md_lustre_fid root;
         int fd, result, size;
         struct m0_fop *fop;
+	int i;
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         M0_UT_ASSERT(fd > 0);
@@ -234,7 +236,7 @@ static void test_mdops(void)
         M0_UT_ASSERT(result == sizeof(root));
         error = 0;
 
-        while (1) {
+        for (i = 0; i < REC_NR; ++i) {
                 fop = NULL;
 		do {
 			result = read(fd, &size, sizeof(size));

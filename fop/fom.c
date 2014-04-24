@@ -295,8 +295,8 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 		    (fom_state(fom) == M0_FOS_READY || fom_is_blocked(fom)))) &&
 		_0C(ergo(fom->fo_cb.fc_state != M0_FCS_DONE,
 			 fom_state(fom) == M0_FOS_WAITING)) &&
-		_0C(ergo(fom->fo_service != NULL,
-			 fom->fo_service->rs_type == fom->fo_type->ft_rstype));
+		_0C(fom->fo_service != NULL) &&
+		_0C(fom->fo_service->rs_type == fom->fo_type->ft_rstype);
 }
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
@@ -441,8 +441,7 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
 
 	M0_PRE(reqh != NULL);
 	M0_PRE(fom != NULL);
-
-	M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
+	M0_PRE(fom->fo_service != NULL);
 
 	dom = &reqh->rh_fom_dom;
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
@@ -1111,24 +1110,13 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	 * if the fom was launched on startup
 	 */
 	fom->fo_service = m0_reqh_service_find(fom_type->ft_rstype, reqh);
-	M0_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
-	/**
-	 * @todo This is conditional locking is required, since
-	 * mdservice does not have reqh service, but has local
-	 * service. Need to discuss about this
-	 */
-	if (reqh->rh_svc == NULL) {
-	/** @todo locking may not be necessary with sync nb events */
-		m0_mutex_lock(&fom->fo_service->rs_mutex);
-		M0_ASSERT(fom->fo_addb_ctx.ac_magic == 0);
-		(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
-		M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
-		m0_mutex_unlock(&fom->fo_service->rs_mutex);
-	} else {
-		M0_ASSERT(fom->fo_addb_ctx.ac_magic == 0);
-		(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
-		M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
-	}
+	M0_ASSERT(fom->fo_service != NULL);
+
+	m0_mutex_lock(&fom->fo_service->rs_mutex);
+	M0_ASSERT(fom->fo_addb_ctx.ac_magic == 0);
+	(*fom->fo_ops->fo_addb_init)(fom, &reqh->rh_addb_mc);
+	M0_ASSERT(fom->fo_addb_ctx.ac_magic != 0);
+	m0_mutex_unlock(&fom->fo_service->rs_mutex);
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
 		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
 }

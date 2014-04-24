@@ -148,8 +148,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 			  .rhia_dtm          = (void*)1,
 			  .rhia_db           = NULL,
 			  .rhia_mdstore      = (void*)1,
-			  .rhia_fol          = &cctx->rcx_fol,
-			  .rhia_svc          = (void*)1);
+			  .rhia_fol          = &cctx->rcx_fol);
 	if (rc != 0)
 		goto err;
 	m0_reqh_start(&cctx->rcx_reqh);

@@ -1440,17 +1440,11 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 
 static void m0_md_fom_fini(struct m0_fom *fom)
 {
-	struct m0_fom_md         *fom_obj;
-	struct m0_local_service  *svc;
+	struct m0_fom_md *fom_obj;
 
 	M0_ENTRY("fom=%p", fom);
 
 	fom_obj = container_of(fom, struct m0_fom_md, fm_fom);
-
-	/* Let local sevice know that we have finished. */
-	svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
-	if (svc != NULL && svc->s_ops->lso_fini)
-		svc->s_ops->lso_fini(svc, fom);
 	/* Fini fom itself. */
 	m0_fom_fini(fom);
 	m0_free(fom_obj);

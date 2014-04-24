@@ -60,18 +60,8 @@ struct m0_fol;
 struct m0_fop;
 struct m0_net_xprt;
 struct m0_rpc_machine;
-struct m0_local_service_ops;
 
 M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
-
-/** Local reply consumer service (testing or replicator) */
-struct m0_local_service {
-	const struct m0_local_service_ops    *s_ops;
-};
-
-struct m0_local_service_ops {
-	void (*lso_fini) (struct m0_local_service *service, struct m0_fom *fom);
-};
 
 /**
    Request handler states.
@@ -167,10 +157,6 @@ struct m0_reqh {
 	 */
 	struct m0_chan                rh_sd_signal;
 	struct m0_mutex               rh_mutex; /**< protect rh_sd_signal chan */
-
-	/** Local service consuming reply. */
-	struct m0_local_service      *rh_svc;
-
 	/**
 	 * Layout domain for this request handler.
 	 */
@@ -195,7 +181,6 @@ struct m0_reqh_init_args {
 	struct m0_mdstore       *rhia_mdstore;
 	/** fol File operation log to record fop execution */
 	struct m0_fol           *rhia_fol;
-	struct m0_local_service *rhia_svc;
 };
 
 /**

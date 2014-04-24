@@ -126,8 +126,7 @@ M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void)
                               .rhia_dtm       = NULL,
                               .rhia_db        = NULL,
                               .rhia_mdstore   = NULL,
-                              .rhia_fol       = NULL,
-                              .rhia_svc       = (void*)1);
+                              .rhia_fol       = NULL);
         M0_ASSERT(result == 0);
 	return reqh;
 }

@@ -152,7 +152,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 
 	reqh->rh_dtm     = reqh_args->rhia_dtm;
 	reqh->rh_beseg   = reqh_args->rhia_db;
-	reqh->rh_svc     = reqh_args->rhia_svc;
 	reqh->rh_mdstore = reqh_args->rhia_mdstore;
 	reqh->rh_fol     = reqh_args->rhia_fol;
 
@@ -499,9 +498,6 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	if (rh_st == M0_REQH_ST_MGMT_STOP || rh_st == M0_REQH_ST_STOPPED)
 		return -ESHUTDOWN;
 
-	/** @deprecated HACK: honor the presence of a local service */
-	if (reqh->rh_svc != NULL)
-		return 0;
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
 	if (svc == NULL) {
 		if (rh_st == M0_REQH_ST_MGMT_STARTED)

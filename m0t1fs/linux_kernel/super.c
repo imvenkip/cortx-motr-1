@@ -1108,8 +1108,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 			  .rhia_dtm = (void*)1,
 			  .rhia_db = &csb->csb_ut_seg.bus_seg,
 			  .rhia_mdstore = (void*)1,
-			  .rhia_fol = fol,
-			  .rhia_svc = (void*)1);
+			  .rhia_fol = fol);
 	if (rc != 0)
 		goto dbenv_fini;
 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,

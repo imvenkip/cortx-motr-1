@@ -80,8 +80,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	 * this test.
 	 */
 	rc = M0_REQH_INIT(&ctx->rmc_reqh,
-			  .rhia_mdstore = &ctx->rmc_mdstore,
-			  .rhia_svc     = (void*)1);
+			  .rhia_mdstore = &ctx->rmc_mdstore);
 	M0_ASSERT(rc == 0);
 
 	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
@@ -152,8 +151,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	 */
 	rc = M0_REQH_INIT(&ctx->rmc_reqh,
 			  .rhia_dtm     = (void*)1,
-			  .rhia_mdstore = (void*)1,
-			  .rhia_svc     = (void*)1);
+			  .rhia_mdstore = (void*)1);
 	M0_ASSERT(rc == 0);
 }
 
