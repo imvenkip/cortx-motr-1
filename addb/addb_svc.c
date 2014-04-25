@@ -60,6 +60,11 @@
    @{
  */
 
+static void addb_pfom_mod_fini(void);
+static int  addb_pfom_mod_init(void);
+static void addb_pfom_start(struct addb_svc *svc);
+static void addb_pfom_stop(struct addb_svc *svc);
+
 static const struct m0_bob_type addb_svc_bob = {
 	.bt_name = "addb svc",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct addb_svc, as_magic),

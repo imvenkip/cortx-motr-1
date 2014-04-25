@@ -37,7 +37,7 @@
 #include "sns/cm/repair/ut/cp_common.h"
 #include "fop/fom_simple.h"
 #include "mdservice/md_fid.h"
-
+#include "rm/rm_service.h"                 /* m0_rms_type */
 
 enum {
 	SINGLE_THREAD_TEST = 1,
@@ -248,8 +248,7 @@ static int test_setup(void)
 	M0_ASSERT(scm != NULL);
 	rc = m0_sns_cm_rm_init(scm);
 	M0_ASSERT(rc == 0);
-	service = m0_reqh_service_find(m0_reqh_service_type_find("rmservice"),
-				       reqh),
+	service = m0_reqh_service_find(&m0_rms_type, reqh),
 	M0_ASSERT(service != NULL);
 	return 0;
 }

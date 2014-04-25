@@ -102,6 +102,8 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 M0_INTERNAL struct m0_rm_domain *
 m0_rm_svc_domain_get(const struct m0_reqh_service *svc);
 
+M0_EXTERN struct m0_reqh_service_type m0_rms_type;
+
 /** @} end of rm_service group */
 
 #endif /* __MERO_RM_RM_SERVICE_H__ */

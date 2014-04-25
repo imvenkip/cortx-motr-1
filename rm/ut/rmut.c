@@ -24,6 +24,7 @@
 #include "ut/ut.h"
 #include "lib/ub.h"
 #include "rm/rm.h"
+#include "rm/rm_service.h"        /* m0_rms_type */
 #include "rm/rm_internal.h"
 #include "rm/ut/rings.h"
 #include "rm/ut/rmut.h"
@@ -155,29 +156,18 @@ struct m0_reqh_service      *rpcsvc[SERVER_NR];
 struct m0_reqh_service_type *rmstype[SERVER_NR];
 struct m0_reqh_service_type *rpctype[SERVER_NR];
 
-static void service_start(const char *svc, struct m0_reqh *reqh,
-			  struct m0_reqh_service_type **stype,
-			  struct m0_reqh_service **service)
+void rm_ctx_init(struct rm_context *rmctx)
 {
 	int rc;
 
-	*stype = m0_reqh_service_type_find(svc);
-	M0_UT_ASSERT(*stype != NULL);
-
-	rc = m0_reqh_service_allocate(service, *stype, NULL);
-	M0_UT_ASSERT(rc == 0);
-	m0_reqh_service_init(*service, reqh, NULL);
-	rc = m0_reqh_service_start(*service);
-	M0_UT_ASSERT(rc == 0);
-}
-
-void rm_ctx_init(struct rm_context *rmctx)
-{
 	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
 	m0_mutex_init(&rmctx->rc_mutex);
 
-	service_start("rmservice", &rmctx->rc_rmach_ctx.rmc_reqh,
-		      &rmstype[rmctx->rc_id], &rmservice[rmctx->rc_id]);
+	rc = m0_reqh_service_setup(&rmservice[rmctx->rc_id],
+				   &m0_rms_type, &rmctx->rc_rmach_ctx.rmc_reqh,
+				   NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rmstype[rmctx->rc_id] = &m0_rms_type;
 
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
 	m0_clink_init(&rmctx->rc_clink, NULL);

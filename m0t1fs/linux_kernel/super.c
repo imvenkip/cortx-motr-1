@@ -41,6 +41,8 @@
 #include "rpc/rpc_internal.h"
 #include "m0t1fs/m0t1fs_addb.h"
 #include "net/lnet/lnet_core_types.h"
+#include "rm/rm_service.h"                 /* m0_rms_type */
+#include "addb/addb_svc.h"                 /* m0_addb_svc_type */
 
 extern struct io_mem_stats iommstats;
 extern struct m0_bitmap    m0t1fs_client_ep_tmid;
@@ -967,24 +969,14 @@ static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-static int m0t1fs_service_start(const char *sname, struct m0_reqh *reqh)
+static int m0t1fs_service_start(struct m0_reqh_service_type *stype,
+				struct m0_reqh *reqh)
 {
-	int                          rc;
-	struct m0_reqh_service_type *stype;
-	struct m0_reqh_service      *service;
-	struct m0_uint128            uuid;
+	struct m0_reqh_service *service;
+	struct m0_uint128       uuid;
 
-	stype = m0_reqh_service_type_find(sname);
-	if (stype == NULL)
-		return M0_RC(-EINVAL);
-	rc = m0_reqh_service_allocate(&service, stype, NULL);
-	if (rc != 0)
-		return M0_RC(rc);
 	m0_uuid_generate(&uuid);
-	m0_reqh_service_init(service, reqh, &uuid);
-	rc = m0_reqh_service_start(service);
-
-	return M0_RC(rc);
+	return m0_reqh_service_setup(&service, stype, reqh, NULL, &uuid);
 }
 
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)
@@ -992,10 +984,10 @@ int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)
 	struct m0_reqh *reqh = &csb->csb_reqh;
 	int rc;
 
-	rc = m0t1fs_service_start(M0_ADDB_SVC_NAME, reqh);
+	rc = m0t1fs_service_start(&m0_addb_svc_type, reqh);
 	if (rc)
 		goto err;
-	rc = m0t1fs_service_start("rmservice", reqh);
+	rc = m0t1fs_service_start(&m0_rms_type, reqh);
 	if (rc)
 		goto err;
 	return M0_RC(rc);

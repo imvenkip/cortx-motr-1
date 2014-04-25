@@ -92,11 +92,6 @@ struct addb_svc {
 	struct m0_reqh_service as_reqhs;
 };
 
-static void addb_pfom_mod_fini(void);
-static int  addb_pfom_mod_init(void);
-static void addb_pfom_start(struct addb_svc *svc);
-static void addb_pfom_stop(struct addb_svc *svc);
-
 /** @} end group addb_svc_pvt */
 
 #endif /* __MERO_ADDB_ADDB_SVC_H__ */

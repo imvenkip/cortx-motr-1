@@ -116,9 +116,7 @@ M0_INTERNAL void m0t1fs_inode_cache_fini(void)
 
 M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(struct m0_reqh *reqh)
 {
-	return m0_rm_svc_domain_get(
-		m0_reqh_service_find(m0_reqh_service_type_find("rmservice"),
-				     reqh));
+	return m0_rm_svc_domain_get(m0_reqh_service_find(&m0_rms_type, reqh));
 }
 
 static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
