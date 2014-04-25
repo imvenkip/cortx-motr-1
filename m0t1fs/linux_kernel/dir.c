@@ -213,6 +213,17 @@ void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out)
 	M0_LOG(M0_DEBUG, "fid "FID_F, FID_P(out));
 }
 
+/**
+ * Given a fid of an existing file, update "fid allocator" so that this fid is
+ * not given out to another file.
+ */
+void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid)
+{
+	M0_PRE(m0t1fs_fs_is_locked(csb));
+
+	csb->csb_next_key = max64(csb->csb_next_key, fid->f_key + 1);
+}
+
 int m0t1fs_fid_setxattr(struct dentry *dentry, const char *name,
                         const void *value, size_t size, int flags)
 {
@@ -362,12 +373,13 @@ static int m0t1fs_create(struct inode     *dir,
 	       dentry->d_name.name, dir->i_ino,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
-	m0t1fs_fid_alloc(csb, &new_fid);
-	inode = iget_locked(sb, fid_hash(&new_fid));
+	inode = new_inode(sb);
 	if (inode == NULL)
 		return M0_RC(-ENOMEM);
-	ci = M0T1FS_I(inode);
 	m0t1fs_fs_lock(csb);
+	m0t1fs_fid_alloc(csb, &new_fid);
+	inode->i_ino = fid_hash(&new_fid);
+	ci = M0T1FS_I(inode);
 	ci->ci_fid = new_fid;
 
 	inode->i_mode = mode;
@@ -392,8 +404,6 @@ static int m0t1fs_create(struct inode     *dir,
 	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);
-	if ((inode->i_state & I_NEW) != 0)
-		unlock_new_inode(inode);
 	if (rc != 0)
 		goto out;
 
@@ -426,19 +436,24 @@ static int m0t1fs_create(struct inode     *dir,
 			goto out;
 	}
 
+	if (insert_inode_locked(inode) < 0) {
+		M0_LOG(M0_ERROR, "Duplicate inode: "FID_F, FID_P(&new_fid));
+		rc = -EIO;
+		goto out;
+	}
+
+	m0t1fs_fs_unlock(csb);
+	unlock_new_inode(inode);
+
 	mark_inode_dirty(dir);
-	m0t1fs_fs_unlock(csb);
-
 	d_instantiate(dentry, inode);
-	M0_LEAVE("rc: 0");
-	return 0;
+	return M0_RC(0);
 out:
-	inode_dec_link_count(inode);
+	clear_nlink(inode);
 	m0t1fs_fs_unlock(csb);
+	make_bad_inode(inode);
 	iput(inode);
-
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, int mode)
@@ -514,9 +529,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	}
 
 	m0t1fs_fs_unlock(csb);
-	d_add(dentry, inode);
-	M0_LEAVE("NULL");
-	return NULL;
+	return d_splice_alias(inode, dentry);
 }
 
 struct m0_dirent *dirent_next(struct m0_dirent *ent)
@@ -848,11 +861,11 @@ static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
 M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 			           struct kstat *stat)
 {
-	struct m0t1fs_sb                *csb;
-	struct inode                    *inode;
-	struct m0_fop_cob               *body;
-	struct m0t1fs_inode             *ci;
-	int                              rc;
+	struct m0t1fs_sb    *csb;
+	struct inode        *inode;
+	struct m0_fop_cob   *body;
+	struct m0t1fs_inode *ci;
+	int                  rc;
 
 	M0_ENTRY();
 
@@ -868,10 +881,7 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
         body = &csb->csb_virt_body;
 
 	/* Update inode fields with data from @getattr_rep or cached attrs */
-	rc = m0t1fs_inode_update(inode, body);
-	if (rc != 0)
-		goto out;
-
+	m0t1fs_inode_update(inode, body);
 	if (ci->ci_layout_id != body->b_lid) {
 		/* layout for this file is changed. */
 
@@ -901,10 +911,8 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 #endif
 	stat->size = i_size_read(inode);
 	stat->blocks = inode->i_blocks;
-out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
@@ -943,10 +951,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	body = &getattr_rep->g_body;
 
 	/** Update inode fields with data from @getattr_rep or cached attrs. */
-	rc = m0t1fs_inode_update(inode, body);
-	if (rc != 0)
-		goto out;
-
+	m0t1fs_inode_update(inode, body);
 	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
 	    ci->ci_layout_id != body->b_lid) {
 		/* layout for this file is changed. */
@@ -979,8 +984,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	stat->blocks = inode->i_blocks;
 out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)

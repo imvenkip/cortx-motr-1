@@ -648,8 +648,8 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *de,
 			           struct kstat *stat);
 M0_INTERNAL int m0t1fs_setattr(struct dentry *de, struct iattr *attr);
 M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *de, struct iattr *attr);
-M0_INTERNAL int m0t1fs_inode_update(struct inode *inode,
-				    struct m0_fop_cob *body);
+M0_INTERNAL void m0t1fs_inode_update(struct inode *inode,
+				     struct m0_fop_cob *body);
 
 M0_INTERNAL struct m0_rpc_session *
 m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
@@ -793,6 +793,13 @@ M0_INTERNAL const struct m0_fid *
 		m0t1fs_inode_fid(const struct m0t1fs_inode *ci);
 
 void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
+
+/**
+ * Given a fid of an existing file, update "fid allocator" so that this fid is
+ * not given out to another file.
+ */
+void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid);
+
 unsigned long fid_hash(const struct m0_fid *fid);
 M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
 
