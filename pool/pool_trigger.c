@@ -36,9 +36,8 @@
 
 /*#define RPC_ASYNC_MODE*/
 
-struct m0_net_domain     cl_ndom;
-struct m0_cob_domain     cl_cdom;
-struct m0_rpc_client_ctx cl_ctx;
+static struct m0_net_domain     cl_ndom;
+static struct m0_rpc_client_ctx cl_ctx;
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
@@ -46,22 +45,22 @@ enum {
 	MAX_SERVERS        = 1024
 };
 
-const char *poolmach_state_name[] = {
+static const char *poolmach_state_name[] = {
 	[M0_PNDS_ONLINE]          = "Online",
 	[M0_PNDS_FAILED]          = "Failed",
 	[M0_PNDS_OFFLINE]         = "Offline",
 	[M0_PNDS_SNS_REPAIRING]   = "SNS Repairing",
 	[M0_PNDS_SNS_REPAIRED]    = "SNS Repaired",
-	[M0_PNDS_SNS_REBALANCING] = "SNS Rebalancing",
+	[M0_PNDS_SNS_REBALANCING] = "SNS Rebalancing"
 };
 
-const char *cl_ep_addr;
-const char *srv_ep_addr[MAX_SERVERS];
-int64_t     device_index_arr[MAX_DEV_NR];
-int64_t     device_state_arr[MAX_DEV_NR];
-static int  di;
-static int  ds;
-uint32_t    dev_nr;
+static const char *cl_ep_addr;
+static const char *srv_ep_addr[MAX_SERVERS];
+static int64_t     device_index_arr[MAX_DEV_NR];
+static int64_t     device_state_arr[MAX_DEV_NR];
+static int         di;
+static int         ds;
+static uint32_t    dev_nr;
 
 struct rpc_ctx {
 	struct m0_rpc_conn    ctx_conn;
@@ -116,11 +115,11 @@ static void poolmach_rpc_ctx_fini(struct rpc_ctx *ctx)
 	rc = m0_rpc_session_destroy(&ctx->ctx_session, M0_TIME_NEVER);
 	if (rc != 0)
 		M0_LOG(M0_DEBUG, "Failed to destroy session to %s",
-				 ctx->ctx_sep);
+		       ctx->ctx_sep);
 	rc = m0_rpc_conn_destroy(&ctx->ctx_conn, M0_TIME_NEVER);
 	if (rc != 0)
 		M0_LOG(M0_DEBUG, "Failed to destroy connection to %s",
-				 ctx->ctx_sep);
+		       ctx->ctx_sep);
 }
 
 #ifdef RPC_ASYNC_MODE
@@ -145,9 +144,9 @@ static int poolmach_rpc_post(struct m0_fop *fop,
 }
 #endif
 
-struct m0_mutex poolmach_wait_mutex;
-struct m0_chan  poolmach_wait;
-int32_t         srv_cnt = 0;
+static struct m0_mutex poolmach_wait_mutex;
+static struct m0_chan  poolmach_wait;
+static int32_t         srv_cnt = 0;
 
 extern struct m0_fop_type trigger_fop_fopt;
 
@@ -168,7 +167,8 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 			int                               i;
 			query_fop_rep = m0_fop_data(rep_fop);
 			for (i = 0; i < dev_nr; ++i) {
-				fprintf(stderr, "Query: index = %d state=%d rc = %d\n",
+				fprintf(stderr, "Query: index = %d state=%d"
+					" rc = %d\n",
 					(int)query_fop_rep->fqr_dev_info.
 					fpi_dev[i].fpd_index,
 					(int)query_fop_rep->fqr_dev_info.
@@ -192,11 +192,11 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 	fprintf(stderr, "Got reply %d out of %d\n", srv_rep_cnt, srv_cnt);
 }
 
-const struct m0_rpc_item_ops poolmach_fop_rpc_item_ops = {
+static const struct m0_rpc_item_ops poolmach_fop_rpc_item_ops = {
 	.rio_replied = trigger_rpc_item_reply_cb
 };
 
-void print_help()
+static void print_help(void)
 {
 	fprintf(stdout,
 "-O Q(uery) or S(et): Query device state or Set device state\n"

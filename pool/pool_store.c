@@ -17,9 +17,9 @@
  * Original creation date: 05/03/2013
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
-#include "lib/trace.h"      /* M0_LOG */
+#include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "stob/stob.h"
@@ -59,12 +59,12 @@ struct m0_poolmach_state_rec {
 };
 
 struct m0_pool_event_rec {
-	struct m0_pool_event           per_event;
+	struct m0_pool_event per_event;
 };
 
 #ifndef __KERNEL__
 
-M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach        *pm,
+M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 					  struct m0_be_tx_credit *accum)
 {
 	struct m0_pool_event_link *event_link;
@@ -347,8 +347,7 @@ out:
 	return rc;
 }
 
-
-#else
+#else /* __KERNEL__ */
 
 M0_INTERNAL int m0_poolmach_event_store(struct m0_poolmach *pm,
 					struct m0_be_tx *tx,
@@ -357,9 +356,7 @@ M0_INTERNAL int m0_poolmach_event_store(struct m0_poolmach *pm,
 	return 0;
 }
 
-
-M0_INTERNAL int m0_poolmach_store(struct m0_poolmach *pm,
-				  struct m0_be_tx *tx)
+M0_INTERNAL int m0_poolmach_store(struct m0_poolmach *pm, struct m0_be_tx *tx)
 {
 	return 0;
 }
@@ -378,8 +375,8 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 
 #endif
 
-#undef M0_TRACE_SUBSYSTEM
 /** @} end group pool */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

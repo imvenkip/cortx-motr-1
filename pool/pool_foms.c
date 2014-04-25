@@ -181,15 +181,14 @@ static const struct m0_fom_ops poolmach_ops = {
  * I/O FOM type operation vector.
  */
 const struct m0_fom_type_ops poolmach_fom_type_ops = {
-	.fto_create = poolmach_fom_create,
+	.fto_create = poolmach_fom_create
 };
 
 struct m0_sm_state_descr poolmach_phases[] = {
 	[M0_FOPH_POOLMACH_FOM_EXEC] = {
-		.sd_name      = "Pool Machine query/set",
-		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
-					M0_FOPH_FAILURE)
-	},
+		.sd_name    = "Pool Machine query/set",
+		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
+	}
 };
 
 struct m0_sm_conf poolmach_conf = {
