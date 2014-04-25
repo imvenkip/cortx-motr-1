@@ -19,40 +19,32 @@
  * Original creation date: 10/31/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/assert.h"
-#include "lib/misc.h"        /* M0_IN() */
 #include "lib/memory.h"
-
 #include "fop/fop.h"
 #include "net/lnet/lnet.h"
-
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
 #include "repair_cli.h"
 
-struct m0_net_domain     cl_ndom;
-struct m0_dbenv          cl_dbenv;
-struct m0_cob_domain     cl_cdom;
-struct m0_rpc_client_ctx cl_ctx;
+static struct m0_net_domain     cl_ndom;
+static struct m0_rpc_client_ctx cl_ctx = {
+	.rcx_net_dom            = &cl_ndom,
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT
+};
 
 const char *cl_ep_addr;
 const char *srv_ep_addr[MAX_SERVERS];
 
 M0_INTERNAL void repair_client_init(void)
 {
-	int    rc;
+	int rc;
 
 	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
-	cl_ctx.rcx_net_dom            = &cl_ndom;
-	cl_ctx.rcx_local_addr         = cl_ep_addr;
-	cl_ctx.rcx_remote_addr        = srv_ep_addr[0];
-	cl_ctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
+	cl_ctx.rcx_local_addr  = cl_ep_addr;
+	cl_ctx.rcx_remote_addr = srv_ep_addr[0];
 
 	rc = m0_rpc_client_start(&cl_ctx);
 	M0_ASSERT(rc == 0);
