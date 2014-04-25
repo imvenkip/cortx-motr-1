@@ -45,13 +45,12 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 #define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
 
 /* Receiver side. */
-static struct m0_reqh      *s0_reqh;
-struct m0_cm               *cm;
-struct m0_sns_cm           *scm;
-struct m0_reqh_service     *scm_service;
-struct m0_cm_aggr_group    *ag_cpy;
-struct m0_sns_cm_repair_ag  rag;
-struct m0_stob_domain      *sdom;
+static struct m0_reqh            *s0_reqh;
+static struct m0_cm              *cm;
+static struct m0_sns_cm          *scm;
+static struct m0_reqh_service    *scm_service;
+static struct m0_cm_aggr_group   *ag_cpy;
+static struct m0_sns_cm_repair_ag rag;
 
 /*
  * Global structures for read copy packet used for verification.
@@ -84,24 +83,25 @@ static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
 static struct m0_semaphore   read_cp_sem;
 
-const char client_addr[]    = "0@lo:12345:34:2";
-const char server_addr[]    = "0@lo:12345:34:1";
-static const char send_db[] = "send-db";
+static const char client_addr[] = "0@lo:12345:34:2";
+static const char server_addr[] = "0@lo:12345:34:1";
+static const char send_db[]     = "send-db";
 
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
 	.rcx_local_addr         = client_addr,
 	.rcx_remote_addr        = server_addr,
-	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT
 };
 
-static struct m0_ut_rpc_mach_ctx  rmach_ctx;
-struct m0_cm                      sender_cm;
-struct m0_reqh_service           *sender_cm_service;
-extern struct m0_cm_type          sender_cm_cmt;
-struct m0_cm_cp                   sender_cm_cp;
-struct m0_mero                    sender_mero = { .cc_pool_width = 10 };
-struct m0_reqh_context            sender_rctx = { .rc_mero = &sender_mero };
+extern struct m0_cm_type sender_cm_cmt;
+
+static struct m0_ut_rpc_mach_ctx rmach_ctx;
+static struct m0_cm              sender_cm;
+static struct m0_reqh_service   *sender_cm_service;
+static struct m0_cm_cp           sender_cm_cp;
+static struct m0_mero            sender_mero = { .cc_pool_width = 10 };
+static struct m0_reqh_context    sender_rctx = { .rc_mero = &sender_mero };
 
 /* Global structures for copy packet to be sent (Sender side). */
 static struct m0_sns_cm_repair_ag s_rag;
@@ -126,7 +126,8 @@ static struct m0_cm_ag_id ag_id = {
 
 static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint);
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
-			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx);
+			    uint64_t cont, struct m0_fid *gfid,
+			    uint32_t cob_idx);
 M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
@@ -151,7 +152,7 @@ static bool cp_ag_can_fini(const struct m0_cm_aggr_group *ag)
 static const struct m0_cm_aggr_group_ops group_ops = {
 	.cago_local_cp_nr = &cp_single_get,
 	.cago_fini        = &cp_ag_fini,
-	.cago_ag_can_fini = &cp_ag_can_fini,
+	.cago_ag_can_fini = &cp_ag_can_fini
 };
 
 /* Over-ridden copy packet FOM fini. */
@@ -191,7 +192,6 @@ static int dummy_fom_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Bad State");
 		return 0;
 	}
-
 }
 
 static void dummy_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
@@ -238,7 +238,7 @@ const struct m0_cm_cp_ops cp_dummy_ops = {
 		[M0_CCP_SEND_WAIT] = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT] = &dummy_cp_phase,
 		[M0_CCP_RECV_WAIT] = &dummy_cp_phase,
-		[M0_CCP_FINI]      = &dummy_cp_phase,
+		[M0_CCP_FINI]      = &dummy_cp_phase
 	},
 	.co_action_nr  = M0_CCP_NR,
 	.co_phase_next = &m0_sns_cm_cp_phase_next,
@@ -343,7 +343,7 @@ const struct m0_cm_cp_ops read_cp_ops = {
 		[M0_CCP_SEND_WAIT] = &dummy_read_cp_phase,
 		[M0_CCP_RECV_INIT] = &dummy_read_cp_phase,
 		[M0_CCP_RECV_WAIT] = &dummy_read_cp_phase,
-		[M0_CCP_FINI]      = &dummy_read_cp_phase,
+		[M0_CCP_FINI]      = &dummy_read_cp_phase
 	},
 	.co_action_nr  = M0_CCP_NR,
 	.co_phase_next = &m0_sns_cm_cp_phase_next,
@@ -385,7 +385,8 @@ static void read_and_verify()
 	 */
 	data = ' ';
 	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR * BUF_NR, SEG_SIZE,
-		   &r_rag.rag_base, data, &read_cp_fom_ops, s0_reqh, 0, false, cm);
+		   &r_rag.rag_base, data, &read_cp_fom_ops, s0_reqh, 0, false,
+		   cm);
 
 	r_sns_cp.sc_cobfid = cob_fid;
 	io_fom_cob_rw_fid2stob_map(&cob_fid, &r_sns_cp.sc_stob_fid);
