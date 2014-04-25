@@ -73,7 +73,7 @@ M0_INTERNAL void m0_ut_fini(void)
 }
 M0_EXPORTED(m0_ut_fini);
 
-M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
+M0_INTERNAL void m0_ut_submit(const struct m0_test_suite *ts)
 {
 	struct test_suite_elem *elem;
 

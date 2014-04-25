@@ -90,6 +90,7 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&stob_ut);
 	m0_ut_add(&xcode_ut);
 
+	m0_ut_submit_all();
 	m0_ut_run();
 }
 

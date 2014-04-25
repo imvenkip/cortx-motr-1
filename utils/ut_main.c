@@ -18,7 +18,10 @@
  * Original creation date: 07/19/2010
  */
 
-#include <stdlib.h>  /* exit */
+#include <stdlib.h>  /* exit, srand, rand */
+#include <unistd.h>  /* getpid */
+#include <time.h>    /* time */
+
 #include <CUnit/CUnit.h>
 
 #include "ut/ut.h"
@@ -187,6 +190,7 @@ int main(int argc, char *argv[])
 	bool  parse_trace          = false;
 	char *test_list_str        = NULL;
 	char *exclude_list_str     = NULL;
+	int   seed                 = -1;
 
 	const char *fault_point         = NULL;
 	const char *fp_file_name        = NULL;
@@ -301,6 +305,9 @@ int main(int argc, char *argv[])
 				&finject_stats_before),
 		    M0_FLAGARG('S', "report fault injection stats after UT",
 				&finject_stats_after),
+		    M0_FORMATARG('H', "shuffle test suites before execution. "
+				 "The argument is a seed value. "
+				 "0 to shuffle randomly", "%u", &seed),
 		    );
 	if (result != 0)
 		goto out;
@@ -347,7 +354,7 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr, "Error: conflicting options: only one of the"
 				" -i -I -a -l -L -o -t -x option can be used at"
-				" the same time\n");
+				" the same time.\n");
 		result = EXIT_FAILURE;
 		goto out;
 	}
@@ -361,6 +368,14 @@ int main(int argc, char *argv[])
 		parse_test_list(exclude_list_str, &exclude_list);
 
 	add_uts();
+	if (seed != -1) {
+		if (seed == 0) {
+			seed = time(NULL) ^ (getpid() << 17);
+			printf("Seed: %u.\n", seed);
+		}
+		m0_ut_shuffle(seed);
+	}
+	m0_ut_submit_all();
 
 	if (list_ut)
 		m0_ut_list(with_tests);

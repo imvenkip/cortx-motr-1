@@ -126,7 +126,7 @@ int m0_ut_init(void);
 void m0_ut_fini(void);
 
 /**
- add test site into global pool.
+ add test suite into global pool.
  if adding test suite failed application is aborted.
 
  @param ts pointer to test suite
@@ -134,6 +134,20 @@ void m0_ut_fini(void);
  */
 M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts);
 
+/**
+ * Submits test suite for execution.
+ */
+M0_INTERNAL void m0_ut_submit(const struct m0_test_suite *ts);
+
+/**
+ * Submits all added suites for execution.
+ */
+M0_INTERNAL void m0_ut_submit_all(void);
+
+/**
+ * Shuffles added suites.
+ */
+M0_INTERNAL void m0_ut_shuffle(unsigned seed);
 /**
    CUnit user interfaces
  */

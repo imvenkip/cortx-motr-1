@@ -23,6 +23,51 @@
 #include "fop/fom_generic.h"
 #include "lib/misc.h"           /* M0_IN() */
 
+enum { SUITES_MAX = 4096 };
+static const struct m0_test_suite *suites[SUITES_MAX + 1];
+static unsigned                    used;
+
+M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
+{
+	M0_ASSERT(used < ARRAY_SIZE(suites));
+	suites[used++] = ts;
+}
+
+M0_INTERNAL void m0_ut_submit_all(void)
+{
+	unsigned i;
+
+	for (i = 0; i < used; ++i)
+		m0_ut_submit(suites[i]);
+}
+
+#ifndef __KERNEL__
+
+#include <stdlib.h>                       /* qsort */
+
+static int order[SUITES_MAX + 1];
+
+static int cmp(const struct m0_test_suite **s0, const struct m0_test_suite **s1)
+{
+	int i0 = s0 - suites;
+	int i1 = s1 - suites;
+
+	return order[i0] - order[i1];
+}
+
+M0_INTERNAL void m0_ut_shuffle(unsigned seed)
+{
+	unsigned i;
+
+	M0_ASSERT(used > 0);
+
+	srand(seed);
+	for (i = 1; i < used; ++i)
+		order[i] = rand();
+	qsort(suites + 1, used - 1, sizeof suites[0], (void *)&cmp);
+}
+#endif
+
 void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
 {
 	switch (m0_fom_phase(fom)) {

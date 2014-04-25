@@ -77,7 +77,7 @@ void m0_ut_fini(void)
 	M0_ASSERT(CU_get_error() == 0);
 }
 
-M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts)
+M0_INTERNAL void m0_ut_submit(const struct m0_test_suite *ts)
 {
 	struct m0_list_link *ts_link = (struct m0_list_link *)&ts->ts_linkage;
 	CU_pSuite            pSuite;
@@ -107,7 +107,8 @@ static void ut_traverse_test_list(struct m0_list *list, ut_suite_action_t sa,
 {
 	struct m0_test_suite_entry *te;
 
-	m0_list_for_each_entry(list, te, struct m0_test_suite_entry, tse_linkage) {
+	m0_list_for_each_entry(list, te,
+			       struct m0_test_suite_entry, tse_linkage) {
 		CU_pTestRegistry r;
 		CU_pSuite s;
 		CU_pTest t;
