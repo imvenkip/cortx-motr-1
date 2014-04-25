@@ -114,9 +114,10 @@ M0_INTERNAL void m0t1fs_inode_cache_fini(void)
 	M0_LEAVE();
 }
 
-M0_INTERNAL struct m0_rm_domain *m0t1fs_rmsvc_domain_get(struct m0_reqh *reqh)
+M0_INTERNAL struct m0_rm_domain *m0t1fs_rm_domain_get(struct m0t1fs_sb *sb)
 {
-	return m0_rm_svc_domain_get(m0_reqh_service_find(&m0_rms_type, reqh));
+	return m0_rm_svc_domain_get(m0_reqh_service_find(&m0_rms_type,
+							 &sb->csb_reqh));
 }
 
 static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
@@ -133,7 +134,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 	M0_ENTRY();
 
 	M0_LOG(M0_INFO, FID_F, FID_P(fid));
-	rdom = m0t1fs_rmsvc_domain_get(&csb->csb_reqh);
+	rdom = m0t1fs_rm_domain_get(csb);
 	M0_ASSERT(rdom != NULL);
 	/**
 	 * @todo Get di type from configuration.

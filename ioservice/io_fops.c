@@ -1254,7 +1254,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	rw      = io_rw_get(fop);
 	io_info = &rw->crw_ivec;
 	sb      = m0_fop_to_sb(fop);
-	rdom    = m0t1fs_rmsvc_domain_get(&sb->csb_reqh);
+	rdom    = m0t1fs_rm_domain_get(sb);
 	file    = m0_resource_to_file(&rw->crw_gfid,
 				   rdom->rd_types[M0_RM_FLOCK_RT]);
 	if (file->fi_di_ops->do_out_shift(file) == 0)

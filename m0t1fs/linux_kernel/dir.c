@@ -391,10 +391,9 @@ static int m0t1fs_create(struct inode     *dir,
 
 	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
 	m0t1fs_file_lock_init(ci, csb);
+	rc = m0t1fs_inode_layout_init(ci);
 	if ((inode->i_state & I_NEW) != 0)
 		unlock_new_inode(inode);
-
-	rc = m0t1fs_inode_layout_init(ci);
 	if (rc != 0)
 		goto out;
 
