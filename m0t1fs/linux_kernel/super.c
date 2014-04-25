@@ -602,7 +602,7 @@ out:
 	if (rc == 0 && mds_is_provided && rms_is_provided && *nr_ios > 0)
 		M0_LOG(M0_DEBUG, "Connected to IOS, MDS and RMS");
 	else {
-		M0_LOG(M0_FATAL, "Error connecting to the services. "
+		M0_LOG(M0_ERROR, "Error connecting to the services. "
 		       "(Please check whether IOS, MDS and RMS are provided)");
 		rc = rc ?: -EINVAL;
 		disconnect_from_services(csb);
@@ -1305,7 +1305,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = m0_fid_sscanf(mops->mo_profile, &prof_fid);
 	if (rc != 0) {
-		M0_LOG(M0_FATAL, "Cannot parse profile `%s'", mops->mo_profile);
+		M0_LOG(M0_ERROR, "Cannot parse profile `%s'", mops->mo_profile);
 		goto err_layout_fini;
 	}
 
@@ -1313,7 +1313,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		    prof_fid.f_container, prof_fid.f_key);
 
 	if (!m0_conf_fid_is_valid(&prof_fid)) {
-		M0_LOG(M0_FATAL, "Wrong profile fid "FID_F, FID_P(&prof_fid));
+		M0_LOG(M0_ERROR, "Wrong profile fid "FID_F, FID_P(&prof_fid));
 		rc = -EINVAL;
 		goto err_layout_fini;
 	}
