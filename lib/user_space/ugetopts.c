@@ -108,8 +108,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
                     option escape. */
 		M0_ASSERT(opts[i].go_opt != 'W');
 		optstring[scan++] = opts[i].go_opt;
-		if (opts[i].go_type != GOT_VOID && opts[i].go_type != GOT_FLAG
-		    && opts[i].go_type != GOT_HELP)
+		if (!M0_IN(opts[i].go_type, (GOT_VOID, GOT_FLAG, GOT_HELP)))
 			optstring[scan++] = ':';
 		if (opts[i].go_type == GOT_FLAG)
 			*opts[i].go_u.got_flag = false;
