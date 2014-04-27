@@ -251,7 +251,10 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 	rc = m0_net_buffer_pool_provision(app_pool, bufs_nr);
 	m0_net_buffer_pool_unlock(app_pool);
 
-	return M0_RC(rc == bufs_nr ? 0 : -ENOMEM);
+	if (rc == bufs_nr)
+		return M0_RC(0);
+	m0_net_buffer_pool_fini(app_pool);
+	return M0_RC(-ENOMEM);
 }
 M0_EXPORTED(m0_rpc_net_buffer_pool_setup);
 

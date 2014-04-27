@@ -1097,7 +1097,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	rc = m0_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
-		goto pool_fini;
+		goto be_fini;
 
 	rc = m0_dbenv_init(dbenv, db_name, 0);
 	if (rc != 0)
@@ -1125,6 +1125,7 @@ dbenv_fini:
 	m0_dbenv_fini(dbenv);
 pool_fini:
 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
+be_fini:
 	m0_be_ut_seg_allocator_fini(&csb->csb_ut_seg,
 				    &csb->csb_ut_be);
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);

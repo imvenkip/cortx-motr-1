@@ -141,7 +141,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
 		m0_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, NR_TM),
 		NR_TM);
 	if (rc != 0)
-		goto err;
+		return M0_RC(rc);
 
 	M0_SET0(&cctx->rcx_reqh);
 	rc = M0_REQH_INIT(&cctx->rcx_reqh,

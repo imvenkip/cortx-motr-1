@@ -38,19 +38,18 @@ static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 
 static int rpc_mc_ut_init(void)
 {
+	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
-	uint32_t tms_nr;
 
 	rc = m0_net_xprt_init(xprt);
 	M0_ASSERT(rc == 0);
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
-	tms_nr  = 1;
-	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, NR_TMS);
 	rc = m0_rpc_net_buffer_pool_setup(&client_net_dom, &buf_pool, bufs_nr,
-					  tms_nr);
+					  NR_TMS);
 	M0_ASSERT(rc == 0);
 	/*
 	 * Initialise a rudimentary reqh, sufficient for m0_rcp_machine_init()
