@@ -29,13 +29,12 @@
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "rm/rm_addb.h"
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/bob.h"
-
 #include "mero/magic.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -385,6 +384,7 @@ m0_rm_svc_domain_get(const struct m0_reqh_service *svc)
 }
 
 /** @} end of rm_service group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -14,14 +14,13 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya  <subhash_arya@xyratex.com>
+ * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 09/25/2012
  * Restructured by: Rohan Puri <Rohan_Puri@xyratex.com>
  * Restructured Date: 12/13/2012
  */
 
 #pragma once
-
 #ifndef __MERO_CM_UT_COMMON_SERVICE_H__
 #define __MERO_CM_UT_COMMON_SERVICE_H__
 
@@ -34,7 +33,6 @@
 #include "lib/memory.h"
 #include "ut/ut.h"
 #include "lib/chan.h"
-
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "mero/setup.h"
@@ -51,7 +49,7 @@ extern struct m0_ut_rpc_mach_ctx  cmut_rmach_ctx;
 enum {
 	AG_ID_NR = 4096,
 	CM_UT_LOCAL_CP_NR = 4,
-        MAX_CM_NR = 2,
+	MAX_CM_NR = 2
 };
 
 struct m0_ut_cm {
@@ -72,10 +70,6 @@ extern struct m0_cm_type                 cm_ut_cmt;
 extern const struct m0_cm_aggr_group_ops cm_ag_ut_ops;
 extern uint64_t                          ut_cm_id;
 extern bool                              test_ready_fop;
-
-int cm_ut_server_start(struct m0_mero *mero_ctx, struct m0_net_xprt **xprts,
-		       int xprts_len, int argc, char **argv);
-void cm_ut_server_stop(struct m0_mero *mero_ctx);
 
 void cm_ut_service_alloc_init();
 void cm_ut_service_cleanup();

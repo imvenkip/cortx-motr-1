@@ -242,36 +242,6 @@ void cm_ut_service_cleanup()
         m0_reqh_service_fini(cm_ut_service);
 }
 
-void cm_ut_server_stop(struct m0_mero *m0ctx)
-{
-	m0_cs_fini(m0ctx);
-	if (lf != NULL) {
-		fclose(lf);
-		lf = NULL;
-	}
-}
-
-int cm_ut_server_start(struct m0_mero *m0ctx, struct m0_net_xprt **xprts,
-		       int xprts_len, int argc, char **argv)
-{
-	int rc;
-
-	lf = fopen(lfname, "w+");
-	M0_UT_ASSERT(lf != NULL);
-
-	rc = m0_cs_init(m0ctx, xprts, xprts_len, lf);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_cs_setup_env(m0ctx, argc, argv);
-	if (rc == 0)
-		rc = m0_cs_start(m0ctx);
-	if (rc != 0)
-		cm_ut_server_stop(m0ctx);
-
-	return rc;
-}
-
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
 /*
  *  Local variables:

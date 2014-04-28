@@ -48,9 +48,6 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 int cs_init(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);
 
-int sns_cm_ut_server_start(void);
-void sns_cm_ut_server_stop(void);
-
 #endif /* __MERO_SNS_CM_UT_CP_COMMON_H__ */
 
 /*
