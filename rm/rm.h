@@ -983,7 +983,7 @@ struct m0_rm_owner {
 	 * A group this owner is part of.
 	 *
 	 * If this is m0_rm_no_group (0), the owner is not a member of any
-	 * group (a  "standalone" owner).
+	 * group (a "standalone" owner).
 	 */
 	struct m0_uint128      ro_group_id;
 	/**
@@ -1023,16 +1023,14 @@ struct m0_rm_owner {
 	 */
 	struct m0_tl           ro_outgoing[OQS_NR];
 	/**
-	 * Linkage of an owner to a list hanging off m0_rms_type
+	 * Linkage of an owner to a list hanging off
+	 * m0_reqh_rm_service::rms_owners.
 	 */
 	struct m0_tlink        ro_owner_linkage;
 	/**
 	 * Generation count associated with an owner cookie.
 	 */
 	uint64_t	       ro_id;
-	/**
-	 * Owner magic: Used when rm service handles owner list.
-	 */
 	uint64_t               ro_magix;
 };
 
@@ -1157,14 +1155,14 @@ enum m0_rm_incoming_flags {
 	 *       because local users resolve conflicts by some other means
 	 *       (usually some form of concurrency control, like locking);
 	 *
-	 *      - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
-	 *        when there is no locally possessed credits conflicting with
-	 *	  the wanted credit. This is typical for a remote request
-	 *        (M0_RIT_BORROW or M0_RIT_REVOKE);
+	 *     - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
+	 *       when there is no locally possessed credits conflicting with the
+	 *       wanted credit. This is typical for a remote request
+	 *       (M0_RIT_BORROW or M0_RIT_REVOKE);
 	 *
-	 *      - if RIF_LOCAL_TRY is set, the request will be immediately
-	 *        denied, if there are conflicting local credits. This allows to
-	 *        implement a "try-lock" like functionality.
+	 *     - if RIF_LOCAL_TRY is set, the request will be immediately
+	 *       denied, if there are conflicting local credits. This allows to
+	 *       implement a "try-lock" like functionality.
 	 */
 	RIF_LOCAL_WAIT = (1 << 2),
 	/**
@@ -1252,11 +1250,11 @@ enum m0_rm_incoming_flags {
  * @todo Should live-locks prove to be a practical issue, M0_RPF_BARRIER pins
  * can be used to reduce concurrency and assure state machine progress.
  *
- * It's a matter of policy - how many outgoing requests are sent out in ISSUE
- * state. The fewer requests are sent, the more CHECK-ISSUE-WAIT loop
+ * How many outgoing requests are sent out in ISSUE state is a matter of
+ * policy. The fewer requests are sent, the more CHECK-ISSUE-WAIT loop
  * iterations would typically happen. An extreme case of sending no more than a
- * single request is also possible and has some advantages: outgoing request
- * can be allocated as part of incoming request, simplifying memory management.
+ * single request is also possible and has some advantages: outgoing request can
+ * be allocated as part of incoming request, simplifying memory management.
  *
  * It is also a matter of policy, how exactly the request is satisfied after a
  * successful CHECK state. Suppose, for example, that the owner possesses
@@ -1354,11 +1352,11 @@ struct m0_rm_incoming {
 	 *     - RI_CHECK, RI_SUCCESS: a list of M0_RPF_PROTECT pins on credits
 	 *       in ->rin_want.cr_owner->ro_owned[];
 	 *
-	 *      - RI_WAIT: a list of M0_RPF_TRACK pins on outgoing requests
-	 *        (through m0_rm_outgoing::rog_want::rl_credit::cr_pins) and
-	 *        held credits in ->rin_want.cr_owner->ro_owned[OWOS_HELD];
+	 *     - RI_WAIT: a list of M0_RPF_TRACK pins on outgoing requests
+	 *       (through m0_rm_outgoing::rog_want::rl_credit::cr_pins) and held
+	 *       credits in ->rin_want.cr_owner->ro_owned[OWOS_HELD];
 	 *
-	 *      - other states: empty.
+	 *     - other states: empty.
 	 */
 	struct m0_tl			 rin_pins;
 	/**
@@ -1618,7 +1616,6 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res);
  * resource operation, rop_resource_free.
  *
  * @pre res->r_ops->rop_resource_free != NULL
- *
  */
 M0_INTERNAL void m0_rm_resource_free(struct m0_rm_resource *res);
 
@@ -1695,14 +1692,13 @@ M0_INTERNAL int m0_rm_owner_timedwait(struct m0_rm_owner *owner,
 /**
  * Finalises the owner. Dual to m0_rm_owner_init().
  *
- * @pre owner->ro_state == ROS_FINAL
+ * @pre M0_IN(owner->ro_state, (ROS_FINAL, ROS_INSOLVENT))
  * @pre m0_tlist_is_empty(owner->ro_borrowed) &&
+ *      m0_tlist_is_empty(owner->ro_sublet) &&
+ *      m0_tlist_is_empty(owner->ro_owned[*]) &&
+ *      m0_tlist_is_empty(owner->ro_incoming[*][*]) &&
+ *      m0_tlist_is_empty(owner->ro_outgoing[*]) &&
  * @see m0_rm_owner_timedwait()
- * m0_tlist_is_empty(owner->ro_sublet) &&
- *                         m0_tlist_is_empty(owner->ro_owned[*]) &&
- *                         m0_tlist_is_empty(owner->ro_incoming[*][*]) &&
- *                         m0_tlist_is_empty(owner->ro_outgoing[*]) &&
- *
  */
 M0_INTERNAL void m0_rm_owner_fini(struct m0_rm_owner *owner);
 
