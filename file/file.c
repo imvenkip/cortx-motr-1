@@ -215,6 +215,8 @@ const struct m0_rm_incoming_ops file_lock_incoming_ops = {
 	.rio_conflict = file_lock_incoming_conflict
 };
 
+#define R_F(resource) container_of(resource, struct m0_file, fi_res)
+
 /** Compare Ids of two file locks */
 static bool file_lock_equal(const struct m0_rm_resource *resource0,
 			    const struct m0_rm_resource *resource1)
@@ -224,8 +226,8 @@ static bool file_lock_equal(const struct m0_rm_resource *resource0,
 
 	M0_PRE(resource0 != NULL && resource1 != NULL);
 
-	file0 = container_of(resource0, struct m0_file, fi_res);
-	file1 = container_of(resource1, struct m0_file, fi_res);
+	file0 = R_F(resource0);
+	file1 = R_F(resource1);
 
 	return m0_fid_eq(file0->fi_fid, file1->fi_fid);
 }
@@ -240,7 +242,7 @@ static m0_bcount_t file_lock_len(const struct m0_rm_resource *resource)
 	M0_ASSERT(resource != NULL);
 
 	if (flock_len == 0) {
-		fl = container_of(resource, struct m0_file, fi_res);
+		fl = R_F(resource);
 		fidobj.xo_type = m0_fid_xc;
 		fidobj.xo_ptr  = (void *)fl->fi_fid;
 		m0_xcode_ctx_init(&ctx, &fidobj);
@@ -282,7 +284,7 @@ static int file_lock_encode(struct m0_bufvec_cursor     *cur,
 	M0_ENTRY();
 	M0_PRE(resource != NULL);
 
-	fl = container_of(resource, struct m0_file, fi_res);
+	fl = R_F(resource);
 	rc = file_lock_encdec(fl, cur, M0_XCODE_ENCODE);
 	return M0_RC(rc);
 }
@@ -328,7 +330,7 @@ static void file_lock_resource_free(struct m0_rm_resource *resource)
 {
 	struct m0_file *fl;
 
-	fl = container_of(resource, struct m0_file, fi_res);
+	fl = R_F(resource);
 	m0_xcode_free_obj(&M0_XCODE_OBJ(m0_fid_xc, (void *)fl->fi_fid));
 	m0_free(fl);
 }
@@ -590,7 +592,7 @@ struct m0_file *m0_resource_to_file(const struct m0_fid *fid,
 	lfile.fi_fid = fid;
 	res = m0_rm_resource_find(flock_rt, &lfile.fi_res);
 	if (res != NULL)
-		file = container_of(res, struct m0_file, fi_res);
+		file = R_F(res);
 
 	return file;
 }
