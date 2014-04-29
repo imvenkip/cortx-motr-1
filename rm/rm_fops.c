@@ -26,14 +26,15 @@
 #include "lib/trace.h"
 #include "lib/finject.h"
 
-#include "rm/rm_fops.h"
-#include "rm/rm_foms.h"
-#include "rm/rm_fops_xc.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
 #include "rm/rm.h"
+#include "rm/rm_fops.h"
+#include "rm/rm_foms.h"
+#include "rm/rm_fops_xc.h"
 #include "rm/rm_addb.h"
+#include "rm/rm_service.h"
 
 /*
  * Data structures.
@@ -66,7 +67,6 @@ struct m0_fop_type m0_rm_fop_borrow_fopt;
 struct m0_fop_type m0_rm_fop_borrow_rep_fopt;
 extern struct m0_sm_state_descr rm_req_phases[];
 extern struct m0_reqh_service_type m0_rpc_service_type;
-extern struct m0_reqh_service_type m0_rms_type;
 
 /**
  * FOP definitions for resource-credit revoke request.
