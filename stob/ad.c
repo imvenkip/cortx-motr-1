@@ -605,7 +605,7 @@ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
 	struct m0_ext   *ext = &it->ec_seg.ee_ext;
 	struct m0_ext    todo = {
 				.e_start = 0,
-				.e_end   = ~0,
+				.e_end   = M0_BCOUNT_MAX
 			 };
 	int              rc = 0;
 
