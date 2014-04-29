@@ -75,15 +75,18 @@
    @{
  */
 
-/** Distributed file lock */
+/** File. */
 struct m0_file {
-	/** Id of the resource (i.e., fid) for which mutex is created */
+	/**
+	 * File identifier.
+	 *
+	 * This points to the fid stored in an ambient structure, for example,
+	 * m0t1fs_inode::ci_fid.
+	 */
 	const struct m0_fid    *fi_fid;
-
-	/** Embed RM resource */
+	/** Embedded resource */
 	struct m0_rm_resource   fi_res;
-
-	/* Data-integrity operations to be supported for this file. */
+	/* Data-integrity operations supported by this file. */
 	const struct m0_di_ops *fi_di_ops;
 };
 
