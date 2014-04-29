@@ -798,5 +798,18 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 				      struct m0_conf_obj **pptr);
 
+/**
+ * Convenient helper to get root fs conf_obj.
+ *
+ * @confc is initialized automatically and should be finalized
+ *        when finished dealing with @fs along with the latter.
+ */
+M0_INTERNAL int m0_conf_fs_get(const char *profile,
+			       const char *confd_addr,
+			       struct m0_rpc_machine *rmach,
+			       struct m0_sm_group *grp,
+			       struct m0_confc *confc,
+			       struct m0_conf_obj **fs);
+
 /** @} confc_dfspec */
 #endif /* __MERO_CONF_CONFC_H__ */

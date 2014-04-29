@@ -219,20 +219,21 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
   M0_TRACE_SUBSYS(LNET,      17) \
   M0_TRACE_SUBSYS(M0D,       18) \
   M0_TRACE_SUBSYS(M0T1FS,    19) \
-  M0_TRACE_SUBSYS(MEMORY,    20) \
-  M0_TRACE_SUBSYS(MGMT,      21) \
-  M0_TRACE_SUBSYS(NET,       22) \
-  M0_TRACE_SUBSYS(POOL,      23) \
-  M0_TRACE_SUBSYS(RM,        24) \
-  M0_TRACE_SUBSYS(RPC,       25) \
-  M0_TRACE_SUBSYS(SM,        26) \
-  M0_TRACE_SUBSYS(SNS,       27) \
-  M0_TRACE_SUBSYS(SNSCM,     28) \
-  M0_TRACE_SUBSYS(STOB,      29) \
-  M0_TRACE_SUBSYS(STATS,     30) \
-  M0_TRACE_SUBSYS(FILE,      31)
+  M0_TRACE_SUBSYS(MDS,       20) \
+  M0_TRACE_SUBSYS(MEMORY,    21) \
+  M0_TRACE_SUBSYS(MGMT,      22) \
+  M0_TRACE_SUBSYS(NET,       23) \
+  M0_TRACE_SUBSYS(POOL,      24) \
+  M0_TRACE_SUBSYS(RM,        25) \
+  M0_TRACE_SUBSYS(RPC,       26) \
+  M0_TRACE_SUBSYS(SM,        27) \
+  M0_TRACE_SUBSYS(SNS,       28) \
+  M0_TRACE_SUBSYS(SNSCM,     29) \
+  M0_TRACE_SUBSYS(STOB,      30) \
+  M0_TRACE_SUBSYS(STATS,     31) \
+  M0_TRACE_SUBSYS(FILE,      32)
 
-#define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
+#define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1UL << value),
 /** The subsystem bitmask definitions */
 enum m0_trace_subsystem {
 	M0_TRACE_SUBSYSTEMS

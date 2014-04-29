@@ -1381,11 +1381,16 @@ static void cs_mero_init(struct m0_mero *cctx)
 	cs_eps_tlist_init(&cctx->cc_ios_eps);
 	cs_eps_tlist_init(&cctx->cc_mds_eps);
 	cctx->cc_args.ca_argc = 0;
+	cctx->cc_profile = NULL;
+	cctx->cc_confd_addr = NULL;
 }
 
 static void cs_mero_fini(struct m0_mero *cctx)
 {
 	struct cs_endpoint_and_xprt *ep;
+
+	m0_free(cctx->cc_confd_addr);
+	m0_free(cctx->cc_profile);
 
 	m0_tl_for(cs_eps, &cctx->cc_ios_eps, ep) {
 		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
@@ -1665,12 +1670,16 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				{
 					M0_ASSERT(confd_addr != NULL);
 					*confd_addr = s;
+					cctx->cc_confd_addr = m0_strdup(s);
+					M0_ASSERT(cctx->cc_confd_addr != NULL);
 				})),
 			M0_STRINGARG('P', "Configuration profile",
 				LAMBDA(void, (const char *s)
 				{
 					M0_ASSERT(profile != NULL);
 					*profile = s;
+					cctx->cc_profile = m0_strdup(s);
+					M0_ASSERT(cctx->cc_profile != NULL);
 				})),
 			M0_STRINGARG('G', "Mdservice endpoint address",
 				LAMBDA(void, (const char *s)
@@ -1828,14 +1837,16 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 				 NULL, NULL, NULL, &use_genders);
 		cctx->cc_daemon |= global_daemonize;
 	}
-	if ((confd_addr == NULL) != (profile == NULL)) {
-		cs_usage(cctx->cc_outfile, argv[0]);
-		return M0_ERR(-EPROTO, "%s is not specified",
-			       (char *)(profile == NULL ?
-			       "configuration profile" : "confd address"));
-	}
-	if (confd_addr != NULL) {
+
+	if (confd_addr != NULL || profile != NULL) {
 		struct cs_args *args = &cctx->cc_args;
+
+		if (confd_addr == NULL)
+			return M0_ERR(-EPROTO,
+				"confd address is not specified");
+		if (profile == NULL)
+			return M0_ERR(-EPROTO,
+				"configuration profile is not specified");
 
 		rc = cs_conf_to_args(args, confd_addr, profile);
 		if (rc != 0)
@@ -1846,6 +1857,7 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	}
 	if (rc == 0 && use_genders)
 		rc = -EINVAL;
+
 	return M0_RC(rc);
 }
 

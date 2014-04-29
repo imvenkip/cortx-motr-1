@@ -742,12 +742,6 @@ struct m0t1fs_sb {
 	/** mutex that serialises all file and directory operations */
 	struct m0_mutex                         csb_mutex;
 
-	/** File layout ID */
-	uint64_t                                csb_layout_id;
-
-	/** Layout for file */
-	struct m0_layout                       *csb_file_layout;
-
 	/**
 	 * Flag indicating if m0t1fs mount is active or not.
 	 * Flag is set when m0t1fs is mounted and is reset by unmount thread.

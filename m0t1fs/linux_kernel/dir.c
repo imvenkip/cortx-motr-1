@@ -133,7 +133,6 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 {
 	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
 	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
-	struct m0_fop_setxattr_rep *rep = NULL;
 	struct m0t1fs_mdop          mo;
 	int                         rc;
 
@@ -146,11 +145,41 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
 		    dentry->d_name.len);
-	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
-	m0_buf_init(&mo.mo_attr.ca_eaval, (void *)value, size);
 
-	rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep);
+	if (m0_streq(name, "lid")) {
+		char *endp;
+		char  buf[40];
 
+		rc = -EINVAL;
+		if (value == NULL || size >= ARRAY_SIZE(buf))
+			goto out;
+		/*
+		 * Layout can be changed only for the freshly
+		 * created file which does not contain any data yet.
+		 */
+		if (ci->ci_inode.i_size != 0) {
+			rc = -EEXIST;
+			goto out;
+		}
+		memcpy(buf, value, size);
+		buf[size] = '\0';
+		ci->ci_layout_id = simple_strtoul(buf, &endp, 0);
+		if (endp - buf < size)
+			goto out;
+		rc = m0t1fs_inode_layout_init(ci);
+		if (rc != 0)
+			goto out;
+
+		mo.mo_attr.ca_lid = ci->ci_layout_id;
+		mo.mo_attr.ca_valid |= M0_COB_LID;
+
+		rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
+	} else {
+		m0_buf_init(&mo.mo_attr.ca_eakey, (void*)name, strlen(name));
+		m0_buf_init(&mo.mo_attr.ca_eaval, (void*)value, size);
+		rc = m0t1fs_mds_cob_setxattr(csb, &mo, NULL);
+	}
+out:
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -307,7 +336,7 @@ static int m0t1fs_create(struct inode     *dir,
 		inode->i_mapping->a_ops = &m0t1fs_aops;
 	}
 
-	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
+	ci->ci_layout_id = M0_DEFAULT_LAYOUT_ID; /* layout id for new file */
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);
 	if (rc != 0)

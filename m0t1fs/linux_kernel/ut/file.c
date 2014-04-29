@@ -139,7 +139,6 @@ static int file_io_ut_init(void)
         M0_ASSERT(rc == 0);
 
 	random = m0_time_nanoseconds(m0_time_now());
-        csb.csb_layout_id = m0_rnd(~0ULL >> 16, &random);
         pdattr = (struct m0_pdclust_attr) {
                 .pa_N         = LAY_N,
                 .pa_K         = LAY_K,
@@ -148,14 +147,14 @@ static int file_io_ut_init(void)
 
         };
         m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
-        rc = m0_pdclust_build(&csb.csb_layout_dom, csb.csb_layout_id,
+        rc = m0_pdclust_build(&csb.csb_layout_dom, M0_DEFAULT_LAYOUT_ID,
 			      &pdattr, &llenum->lle_base, &pdlay);
         M0_ASSERT(rc == 0);
         M0_ASSERT(pdlay != NULL);
 
         /* Initializes the m0t1fs inode and build layout instance. */
         M0_SET0(&ci);
-        ci.ci_layout_id = csb.csb_layout_id;
+        ci.ci_layout_id = M0_DEFAULT_LAYOUT_ID;
 	csb.csb_cl_map.rm_ctx = &msc;
 	m0t1fs_fid_alloc(&csb, &ci.ci_fid);
 	m0t1fs_file_lock_init(&ci, &csb);

@@ -420,20 +420,20 @@ static inline uint64_t page_nr(m0_bcount_t size)
 	return size >> PAGE_CACHE_SHIFT;
 }
 
-static inline struct m0_layout_instance *layout_instance(const struct io_request
-							 *req)
+static inline struct m0_layout_instance *
+layout_instance(const struct io_request *req)
 {
 	return file_to_m0inode(req->ir_file)->ci_layout_instance;
 }
 
-static inline struct m0_pdclust_instance *pdlayout_instance(struct
-		m0_layout_instance *li)
+static inline struct m0_pdclust_instance *
+pdlayout_instance(struct m0_layout_instance *li)
 {
 	return m0_layout_instance_to_pdi(li);
 }
 
-static inline struct m0_pdclust_layout *pdlayout_get(const struct io_request
-						     *req)
+static inline struct m0_pdclust_layout *
+pdlayout_get(const struct io_request *req)
 {
 	return m0_layout_to_pdl(layout_instance(req)->li_l);
 }

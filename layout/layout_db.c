@@ -366,6 +366,15 @@
  * @{
  */
 
+M0_INTERNAL void m0_layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
+				    void *area, m0_bcount_t num_bytes)
+{
+	pair->dp_key.db_buf.b_addr = lid;
+	pair->dp_key.db_buf.b_nob  = sizeof *lid;
+	pair->dp_rec.db_buf.b_addr = area;
+	pair->dp_rec.db_buf.b_nob  = num_bytes;
+}
+
 static int pair_init(struct m0_db_pair *pair,
 		     struct m0_layout *l,
 		     struct m0_db_tx *tx,

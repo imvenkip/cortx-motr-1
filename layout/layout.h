@@ -87,7 +87,7 @@
  * - A layout can be assigned to a file both by the server and the client.
  *
  * @section layout-operations-sequence Sequence Of Layout Operation
- * The sequence of operation related to domain intialisation/finalisation,
+ * The sequence of operation related to domain initialization/finalisation,
  * layout type and enum type registration and unregistration is as follows:
  * - Initialise m0_layout_domain object.
  * - Register layout types and enum types using
@@ -96,8 +96,8 @@
  *   the usage of m0_pdclust_build(), m0_layout_get(), m0_layout_put(),
  *   m0_layout_encode(), m0_layout_decode(), m0_layout_enum_nr(),
  *   m0_layout_enum_get().
- * - Perform various required operation on the layouts in the DB including
- *   the usage of m0_layout_lookup(), m0_layout_add(), m0_layout_update(),
+ * - Perform various BE-related operations on the layouts, like:
+ *   m0_layout_lookup(), m0_layout_add(), m0_layout_update(),
  *   m0_layout_delete().
  * - Perform various operations on layout instances including the usage of
  *   m0_layout_instance_build(), m0_layout_instance_fini() and the relevant
@@ -155,6 +155,9 @@ enum {
 	M0_LAYOUT_TYPE_MAX      = 32,
 	M0_LAYOUT_ENUM_TYPE_MAX = 32
 };
+
+
+enum { M0_DEFAULT_LAYOUT_ID = 1 };
 
 /**
  * Layout domain.

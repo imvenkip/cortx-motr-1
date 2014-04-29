@@ -954,9 +954,9 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
 	       req->s_value.s_len, (char *)req->s_value.s_buf,
 	       FID_P(&body->b_pfid));
 
-        /**
+        /*
          * Init some fop fields (full path) that require mdstore and other
-         * initialialized structures.
+         * initialized structures.
          */
         rc = m0_md_fop_init(fop, fom);
         if (rc != 0)
@@ -1210,15 +1210,6 @@ out:
 	return M0_FSO_AGAIN;
 }
 
-static void layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
-			    void *area, m0_bcount_t num_bytes)
-{
-	pair->dp_key.db_buf.b_addr = lid;
-	pair->dp_key.db_buf.b_nob  = sizeof *lid;
-	pair->dp_rec.db_buf.b_addr = area;
-	pair->dp_rec.db_buf.b_nob  = num_bytes;
-}
-
 static int m0_md_tick_layout(struct m0_fom *fom)
 {
 	struct m0_fop_layout          *req;
@@ -1272,7 +1263,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 		m0_mutex_unlock(&l->l_lock);/* lock held by ->lto_allocate() */
 		if (rc == 0) {
 			M0_LOG(M0_DEBUG, "Start");
-			layout_pair_set(&pair, &req->l_lid,
+			m0_layout_pair_set(&pair, &req->l_lid,
 					req->l_buf.b_addr,
 					req->l_buf.b_count);
 			if (req->l_op == M0_LAYOUT_OP_ADD)
@@ -1297,7 +1288,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 			break;
 		}
 
-		layout_pair_set(&pair, &req->l_lid,
+		m0_layout_pair_set(&pair, &req->l_lid,
 				rep->lr_buf.b_addr,
 				rep->lr_buf.b_count);
 		/* lookup from db and encode into pair */

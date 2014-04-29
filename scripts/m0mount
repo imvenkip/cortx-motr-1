@@ -471,10 +471,7 @@ function build_conf ()
 	echo "[$((SERVICES_NR + 5)):
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22),
-              [4: \"pool_width=$POOL_WIDTH\",
-                  \"nr_data_units=$NR_DATA\",
-		  \"nr_parity_units=$NR_PARITY\",
-                  \"unit_size=$UNIT_SIZE\"],
+              [1: \"$POOL_WIDTH $NR_DATA $NR_PARITY\"],
               [$((SERVICES_NR + 3)): $MDS, $RM, $STATS, $IOS_NAMES])},
   {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
   {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},

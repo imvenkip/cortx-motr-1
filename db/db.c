@@ -573,7 +573,6 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)
 
 	M0_ENTRY();
 
-
 	m0_sm_group_lock(grp);
         m0_be_tx_close_sync(tx);
         m0_be_tx_fini(tx);

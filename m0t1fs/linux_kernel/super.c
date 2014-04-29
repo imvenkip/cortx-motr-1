@@ -422,106 +422,7 @@ out:
 	 */
 	return M0_RC(rc ?: mount_opts_validate(dest));
 }
-
-/* ----------------------------------------------------------------
- * File-system parameters
- * ---------------------------------------------------------------- */
 
-struct fs_params {
-	uint32_t fs_pool_width;      /* P */
-	uint32_t fs_nr_data_units;   /* N */
-	uint32_t fs_nr_parity_units; /* K */
-	uint32_t fs_unit_size;
-};
-
-static int fs_params_validate(const struct fs_params *params)
-{
-	M0_ENTRY();
-
-	M0_PRE(params->fs_pool_width != 0);
-	M0_PRE(params->fs_nr_data_units != 0);
-	M0_PRE(params->fs_nr_parity_units != 0);
-	M0_PRE(params->fs_unit_size != 0);
-
-	/* Need to test with unit size that is not multiple of page size.
-	 * Until then --- don't allow. */
-	if ((params->fs_unit_size & (PAGE_CACHE_SIZE - 1)) != 0)
-		return M0_ERR(-EINVAL,
-			       "Unit size must be a multiple of "
-			       "PAGE_CACHE_SIZE");
-	return M0_RC(0);
-}
-
-static int fs_params_parse(struct fs_params *dest, const char **src)
-{
-	int rc;
-	substring_t args[MAX_OPT_ARGS];
-	enum { POOL_WIDTH, NR_DATA_UNITS, NR_PAR_UNITS, UNIT_SIZE, NONE };
-	const match_table_t tbl = {
-		{ POOL_WIDTH,    "pool_width=%u" },
-		{ NR_DATA_UNITS, "nr_data_units=%u" },
-		{ NR_PAR_UNITS,  "nr_parity_units=%u" },
-		{ UNIT_SIZE,     "unit_size=%u" },
-		{ NONE, NULL }
-	};
-
-	M0_ENTRY();
-
-	M0_SET0(dest);
-
-	if (src == NULL)
-		goto end;
-
-	for (rc = 0; rc == 0 && *src != NULL; ++src) {
-		M0_LOG(M0_DEBUG, "conf fs src=%s", *src);
-		/* match_token() doesn't change the string pointed to
-		 * by its first argument.  We don't want to remove
-		 * `const' from m0_conf_filesystem::cf_params only
-		 * because match_token()'s first argument is not
-		 * const. We cast to const-less type instead. */
-		switch (match_token((char *)*src, tbl, args)) {
-		case POOL_WIDTH:
-			rc = num_parse(&dest->fs_pool_width, args);
-			break;
-		case NR_DATA_UNITS:
-			rc = num_parse(&dest->fs_nr_data_units, args);
-			break;
-		case NR_PAR_UNITS:
-			rc = num_parse(&dest->fs_nr_parity_units, args);
-			break;
-		case UNIT_SIZE:
-			rc = num_parse(&dest->fs_unit_size, args);
-			break;
-		default:
-			rc = -EINVAL;
-		}
-
-		if (rc != 0)
-			return M0_ERR(rc, "Invalid filesystem parameter: %s",
-				       *src);
-	}
-end:
-	if (dest->fs_nr_data_units == 0)
-		dest->fs_nr_data_units = M0T1FS_DEFAULT_NR_DATA_UNITS;
-
-	if (dest->fs_nr_parity_units == 0)
-		dest->fs_nr_parity_units = M0T1FS_DEFAULT_NR_PARITY_UNITS;
-
-	if (dest->fs_unit_size == 0)
-		dest->fs_unit_size = M0T1FS_DEFAULT_STRIPE_UNIT_SIZE;
-
-	if (dest->fs_pool_width == 0)
-		dest->fs_pool_width =
-			dest->fs_nr_data_units + 2 * dest->fs_nr_parity_units;
-
-	rc = fs_params_validate(dest);
-	if (rc == 0)
-		M0_LOG(M0_INFO, "pool_width (P) = %u, nr_data_units (N) = %u,"
-		       " nr_parity_units (K) = %u, unit_size = %u",
-		       dest->fs_pool_width, dest->fs_nr_data_units,
-		       dest->fs_nr_parity_units, dest->fs_unit_size);
-	return M0_RC(rc);
-}
 
 /* ----------------------------------------------------------------
  * Services
@@ -796,9 +697,8 @@ static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach)
 	m0_free(mach);
 }
 
-static int cl_map_build(struct m0t1fs_sb       *csb,
-			uint32_t                nr_ios,
-			const struct fs_params *fs_params)
+static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
+			const struct m0_pdclust_attr *pa)
 {
 	struct m0t1fs_service_context        *ctx;
 	int                                   nr_cont_per_svc;
@@ -813,11 +713,10 @@ static int cl_map_build(struct m0t1fs_sb       *csb,
 	/* See "Containers and component objects" section in m0t1fs.h
 	 * for more information on following line.
 	 */
-	csb->csb_nr_containers = fs_params->fs_pool_width;
-	csb->csb_pool_width    = fs_params->fs_pool_width;
+	csb->csb_nr_containers = pa->pa_P;
+	csb->csb_pool_width    = pa->pa_P;
 
-	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
-	    2 * fs_params->fs_nr_parity_units ||
+	if (pa->pa_P < pa->pa_N + 2 * pa->pa_K ||
 	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
 		return M0_RC(-EINVAL);
 
@@ -879,157 +778,54 @@ static int cl_map_build(struct m0t1fs_sb       *csb,
 	return M0_RC(0);
 }
 
-/* ----------------------------------------------------------------
+/*
+ * ----------------------------------------------------------------
  * Layout
- * ---------------------------------------------------------------- */
-static int m0t1fs_layout_build(struct m0t1fs_sb      *csb,
-			       const uint64_t         layout_id,
-			       const uint32_t         N,
-			       const uint32_t         K,
-			       const uint32_t         pool_width,
-			       const uint64_t         unit_size,
-			       struct m0_layout_enum *le,
-			       struct m0_layout     **layout)
-{
-	struct m0_pdclust_attr    pl_attr;
-	struct m0_pdclust_layout *pdlayout;
-	int                       rc;
-
-	M0_ENTRY();
-	M0_PRE(pool_width > 0);
-	M0_PRE(le != NULL && layout != NULL);
-
-	pl_attr = (struct m0_pdclust_attr){
-		.pa_N         = N,
-		.pa_K         = K,
-		.pa_P         = pool_width,
-		.pa_unit_size = unit_size,
-	};
-	m0_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
-
-	*layout = NULL;
-	rc = m0_pdclust_build(&csb->csb_layout_dom,
-			      layout_id, &pl_attr, le,
-			      &pdlayout);
-	if (rc == 0)
-		*layout = m0_pdl_to_layout(pdlayout);
-
-	return M0_RC(rc);
-}
-
-static int m0t1fs_cob_id_enum_build(struct m0t1fs_sb *csb,
-				    const uint32_t pool_width,
-				    struct m0_layout_enum **lay_enum)
-{
-	struct m0_layout_linear_attr  lin_attr;
-	struct m0_layout_linear_enum *lle;
-	int                           rc;
-
-	M0_ENTRY();
-	M0_PRE(pool_width > 0 && lay_enum != NULL);
-	/*
-	 * cob_fid = fid { B * idx + A, gob_fid.key }
-	 * where idx is in [0, pool_width)
-	 */
-	lin_attr = (struct m0_layout_linear_attr){
-		.lla_nr = pool_width,
-		.lla_A  = 1,
-		.lla_B  = 1
-	};
-
-	*lay_enum = NULL;
-	rc = m0_linear_enum_build(&csb->csb_layout_dom,
-				  &lin_attr, &lle);
-	if (rc == 0)
-		*lay_enum = &lle->lle_base;
-
-	return M0_RC(rc);
-}
+ * ----------------------------------------------------------------
+ */
 
 static int
-m0t1fs_sb_layout_init(struct m0t1fs_sb *csb, const struct fs_params *fs_params)
+m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
 {
-	struct m0_layout_enum *layout_enum;
-	int                    rc;
+	struct m0_layout *l;
+	int		  rc;
+	int		  i;
 
 	M0_ENTRY();
 
-	M0_PRE(fs_params->fs_pool_width != 0);
-	M0_PRE(fs_params->fs_nr_data_units != 0);
-	M0_PRE(fs_params->fs_nr_parity_units != 0);
-	M0_PRE(fs_params->fs_unit_size != 0);
-
-try_again:
-	do {
-		uint64_t          random = m0_time_nanoseconds(m0_time_now());
-		uint64_t          unique_lid;
-		struct m0_layout *unique_layout = NULL;
-
-		/* Generate a random layout id and make sure it doesn't exist */
-		do {
-			unique_lid = m0_rnd(~0ULL >> 16, &random);
-		} while (unique_lid == 0);
-
-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
-				      unique_lid, &unique_layout);
-		if (rc == 0) {
-			m0_layout_put(unique_layout);
-			M0_LOG(M0_DEBUG, "lid %lld is duplicated, try again.",
-					 (unsigned long long)unique_lid);
-			continue;
-		}
-		if (rc != -ENOENT) {
-			M0_LOG(M0_ERROR, "lid %lld layout lookup error: %d",
-					 (unsigned long long)unique_lid, rc);
-			return M0_RC(rc);
-		}
-		M0_LOG(M0_DEBUG, "lid %llu not found. It's a unique lid",
-				  (unsigned long long)unique_lid);
-		csb->csb_layout_id = unique_lid;
-		break;
-	} while (1);
-
-	rc = m0t1fs_cob_id_enum_build(csb, fs_params->fs_pool_width,
-				      &layout_enum);
-	if (rc == 0) {
-		rc = m0t1fs_layout_build(csb, csb->csb_layout_id,
-					 fs_params->fs_nr_data_units,
-					 fs_params->fs_nr_parity_units,
-					 fs_params->fs_pool_width,
-					 fs_params->fs_unit_size, layout_enum,
-					 &csb->csb_file_layout);
-		if (rc == 0) {
-			/* create the new layout on mds: detect -EEXIST.
-			 * Other client may already have created this since
-			 * last lookup.
-			 */
-			rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_ADD,
-					      csb->csb_layout_id, NULL);
-			if (rc != 0) {
-				/* layout_enum will be released along
-				 * with this layout */
-				m0_layout_put(csb->csb_file_layout);
-				csb->csb_file_layout = NULL;
-				if (rc == -EEXIST) {
-					M0_LOG(M0_DEBUG, "layout duplicated,"
-							 " try again.");
-					goto try_again;
-				}
+	for (i = 1; ; ++i) {
+		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, i, &l);
+		/* all layouts are added to domain, so we don't lose them */
+		if (rc != 0) {
+			if (rc == -ENOENT) {
+				M0_LOG(M0_DEBUG, "found %d layouts", i);
+				if (i > 1)
+					rc = 0;
+			} else {
+				M0_LOG(M0_ERROR, "error obtaining layout "
+				       "lid=%d: %d", i, rc);
 			}
-		} else
-			m0_layout_enum_fini(layout_enum);
+			break;
+		}
 	}
 
 	return M0_RC(rc);
 }
 
-static void m0t1fs_sb_layout_fini(struct m0t1fs_sb *csb)
+static void m0t1fs_sb_layouts_fini(struct m0t1fs_sb *csb)
 {
+	struct m0_layout *l;
+	int		  i;
+
 	M0_ENTRY();
 
-	if (csb->csb_file_layout != NULL)
-		m0_layout_put(csb->csb_file_layout);
-	csb->csb_file_layout = NULL;
+	for (i = 1; ; ++i) {
+		l = m0_layout_find(&csb->csb_layout_dom, i);
+		if (l == NULL)
+			break;
+		m0_layout_put(l); /* after find() */
+		m0_layout_put(l);
+	}
 
 	M0_LEAVE();
 }
@@ -1340,11 +1136,10 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0t1fs_service_context *ctx;
 	struct m0_conf_obj            *fs;
 	const char                    *ep_addr;
-	struct m0_fid                  prof_fid;
 	uint32_t                       nr_ios = 0;
 	int                            rc;
-	struct fs_params               fs_params = {0};
-	struct m0_reqh                *reqh = &csb->csb_reqh;
+	struct m0_confc                confc;
+	struct m0_pdclust_attr         pa = {0};
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
@@ -1367,34 +1162,17 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	csb->csb_next_key = mops->mo_fid_start;
 
-	rc = m0_fid_sscanf(mops->mo_profile, &prof_fid);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Cannot parse profile `%s'", mops->mo_profile);
-		goto err_layout_fini;
-	}
-
-	m0_fid_tset(&prof_fid, M0_CONF_PROFILE_TYPE.cot_ftype.ft_id,
-		    prof_fid.f_container, prof_fid.f_key);
-
-	if (!m0_conf_fid_is_valid(&prof_fid)) {
-		M0_LOG(M0_ERROR, "Wrong profile fid "FID_F, FID_P(&prof_fid));
-		rc = -EINVAL;
-		goto err_layout_fini;
-	}
-	rc = m0_confc_init(&reqh->rh_confc, &csb->csb_iogroup, &prof_fid,
-			   mops->mo_confd, &csb->csb_rpc_machine,
-			   mops->mo_local_conf);
+	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
+		&csb->csb_rpc_machine, &csb->csb_iogroup, &confc, &fs);
 	if (rc != 0)
 		goto err_layout_fini;
 
-	rc = m0_confc_open_sync(&fs, reqh->rh_confc.cc_root,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_pdclust_attr_read(fs, &pa) ?:
+	     connect_to_services(csb, fs, &nr_ios);
+	m0_confc_close(fs);
+	m0_confc_fini(&confc);
 	if (rc != 0)
-		goto confc_fini;
-
-	rc = fs_params_parse(&fs_params,
-			     M0_CONF_CAST(fs, m0_conf_filesystem)->cf_params) ?:
-		connect_to_services(csb, fs, &nr_ios);
+		goto err_layout_fini;
 
 	ctx = m0_tl_find(svc_ctx, ctx, &csb->csb_service_contexts,
 			 ctx->sc_type == M0_CST_SS);
@@ -1404,25 +1182,20 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		M0_LOG(M0_DEBUG, "Stats service connected");
 	} else
 		M0_LOG(M0_WARN, "Stats service not connected");
-	m0_confc_close(fs);
-	if (rc != 0)
-		goto confc_fini;
 
 	rc = configure_addb_rpc_sink(csb, &m0_addb_gmc);
 	if (rc != 0)
 		goto err_disconnect;
 
-	rc = m0_pool_init(&csb->csb_pool, fs_params.fs_pool_width);
+	rc = m0_pool_init(&csb->csb_pool, pa.pa_P);
 	if (rc != 0)
 		goto addb_mc_unconf;
 
-	rc = m0t1fs_poolmach_create(&csb->csb_pool.po_mach,
-				    fs_params.fs_pool_width,
-				    fs_params.fs_nr_parity_units);
+	rc = m0t1fs_poolmach_create(&csb->csb_pool.po_mach, pa.pa_P, pa.pa_K);
 	if (rc != 0)
 		goto err_pool_fini;
 
-	rc = cl_map_build(csb, nr_ios, &fs_params);
+	rc = cl_map_build(csb, nr_ios, &pa);
 	if (rc != 0)
 		goto err_poolmach_destroy;
 
@@ -1431,7 +1204,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_poolmach_destroy;
 
-	rc = m0t1fs_sb_layout_init(csb, &fs_params);
+	rc = m0t1fs_sb_layouts_init(csb);
 	if (rc != 0)
 		goto err_poolmach_destroy;
 
@@ -1447,8 +1220,6 @@ addb_mc_unconf:
 	m0_addb_mc_init(&m0_addb_gmc);
 err_disconnect:
 	disconnect_from_services(csb);
-confc_fini:
-	m0_confc_fini(&reqh->rh_confc);
 err_layout_fini:
 	m0t1fs_layout_fini(csb);
 err_addb_mon_fini:
@@ -1463,8 +1234,7 @@ err_return:
 
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 {
-	m0_confc_fini(&csb->csb_reqh.rh_confc);
-	m0t1fs_sb_layout_fini(csb);
+	m0t1fs_sb_layouts_fini(csb);
 	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 	m0_pool_fini(&csb->csb_pool);
 	/* @todo Make a separate unconfigure api and do this in that */
@@ -1522,7 +1292,7 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         body->b_size = 4096;
         body->b_blksize = 4096;
         body->b_nlink = 2;
-        body->b_lid = csb->csb_layout_id;
+        body->b_lid = M0_DEFAULT_LAYOUT_ID;
         body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);

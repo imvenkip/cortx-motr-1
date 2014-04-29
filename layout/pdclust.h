@@ -67,6 +67,7 @@
 /* import */
 #include "lib/arith.h" /* M0_IS_8ALIGNED */
 #include "sns/parity_math.h"
+#include "conf/obj.h"
 #include "layout/layout.h"
 
 struct m0_pool;
@@ -280,9 +281,8 @@ M0_INTERNAL enum m0_pdclust_unit_type
 m0_pdclust_unit_classify(const struct m0_pdclust_layout *play, int unit);
 
 /** Returns m0_pdclust_instance object given a m0_layout_instance object. */
-M0_INTERNAL struct m0_pdclust_instance *m0_layout_instance_to_pdi(const struct
-								  m0_layout_instance
-								  *li);
+M0_INTERNAL struct m0_pdclust_instance *
+m0_layout_instance_to_pdi(const struct m0_layout_instance *li);
 
 /**
  * Layout mapping function.
@@ -303,6 +303,10 @@ M0_INTERNAL void m0_pdclust_instance_map(struct m0_pdclust_instance *pi,
 M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 					 const struct m0_pdclust_tgt_addr *tgt,
 					 struct m0_pdclust_src_addr *src);
+
+/** Convenient helper to get @fs_params from @fs configuration object. */
+M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_obj *fs,
+				     struct m0_pdclust_attr *pa);
 
 extern struct m0_layout_type m0_pdclust_layout_type;
 

@@ -190,6 +190,8 @@ M0_INTERNAL int m0_layout_update(struct m0_layout *l,
 M0_INTERNAL int m0_layout_delete(struct m0_layout *l,
 				 struct m0_db_tx *tx, struct m0_db_pair *pair);
 
+M0_INTERNAL void m0_layout_pair_set(struct m0_db_pair *pair, uint64_t *lid,
+				    void *area, m0_bcount_t num_bytes);
 /** @} end group LayoutDBDFS */
 
 #endif /*  __MERO_LAYOUT_LAYOUT_DB_H__ */

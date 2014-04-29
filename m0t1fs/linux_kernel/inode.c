@@ -120,7 +120,7 @@ M0_INTERNAL struct m0_rm_domain *m0t1fs_rm_domain_get(struct m0t1fs_sb *sb)
 							 &sb->csb_reqh));
 }
 
-M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
+M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode *ci,
 				       struct m0t1fs_sb *csb)
 {
 	struct m0_rm_domain *rdom;
@@ -435,8 +435,11 @@ static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
 	if (layout == NULL) {
 		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
 				      layout_id, &layout);
-		if (rc != 0)
+		if (rc != 0) {
+			if (rc == -ENOENT)
+				rc = -EINVAL;
 			goto out;
+		}
 	}
 
 	*linst = NULL;
@@ -461,8 +464,11 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 
 	rc = m0t1fs_build_layout_instance(csb, ci->ci_layout_id,
 					  m0t1fs_inode_fid(ci), &linst);
-	if (rc == 0)
+	if (rc == 0) {
+		if (ci->ci_layout_instance != NULL)
+			m0_layout_instance_fini(ci->ci_layout_instance);
 		ci->ci_layout_instance = linst;
+	}
 
 	M0_LEAVE("rc: %d", rc);
 	return rc;

@@ -43,10 +43,11 @@
  * service specific information.
  */
 struct m0_reqh_md_service {
-        /** Generic reqh service object */
-        struct m0_reqh_service       rmds_gen;
-        /** Magic to check io service object */
-        uint64_t                     rmds_magic;
+	/** Generic reqh service object */
+	struct m0_reqh_service	 rmds_gen;
+	struct m0_layout_domain	 rmds_layout_dom;
+	/** Magic to check io service object */
+	uint64_t		 rmds_magic;
 };
 
 M0_INTERNAL void m0_mds_unregister(void);

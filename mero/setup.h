@@ -379,6 +379,9 @@ struct m0_mero {
 
 	uint32_t                    cc_pool_width;
 
+	char                       *cc_profile;
+	char                       *cc_confd_addr;
+
 	/** Run as a daemon? */
 	bool                        cc_daemon;
 

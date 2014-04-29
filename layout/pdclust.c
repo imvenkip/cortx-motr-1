@@ -878,6 +878,29 @@ M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li)
 	M0_LEAVE();
 }
 
+M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_obj *fs,
+				     struct m0_pdclust_attr *pa)
+{
+	int rc;
+	const char **p;
+
+	p = M0_CONF_CAST(fs, m0_conf_filesystem)->cf_params;
+
+	M0_ASSERT(p != NULL);
+	M0_LOG(M0_DEBUG, "params='%s'", *p);
+	rc = sscanf(*p, "%d %d %d", &pa->pa_P,
+				    &pa->pa_N,
+				    &pa->pa_K);
+	if (rc != 3) {
+		M0_LOG(M0_ERROR, "params parsing failed, got: %s", *p);
+		rc = -EINVAL;
+	} else {
+		rc = 0;
+	}
+
+	return rc;
+}
+
 static const struct m0_layout_ops pdclust_ops = {
 	.lo_fini           = pdclust_fini,
 	.lo_delete         = pdclust_delete,
