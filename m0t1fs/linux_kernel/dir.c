@@ -321,7 +321,6 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 {
 	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
 	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
-	struct m0_fop_delxattr_rep *rep = NULL;
 	struct m0t1fs_mdop          mo;
 	int                         rc;
 
@@ -336,7 +335,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 		    dentry->d_name.len);
 	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
 
-	rc = m0t1fs_mds_cob_delxattr(csb, &mo, &rep);
+	rc = m0t1fs_mds_cob_delxattr(csb, &mo, NULL);
 	if (rc == -ENOENT)
 		rc = -ENODATA;
 
@@ -360,7 +359,6 @@ static int m0t1fs_create(struct inode     *dir,
 {
 	struct super_block       *sb  = dir->i_sb;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
-	struct m0_fop_create_rep *rep = NULL;
 	struct m0t1fs_inode      *ci;
 	struct m0t1fs_mdop        mo;
 	struct inode             *inode;
@@ -427,7 +425,7 @@ static int m0t1fs_create(struct inode     *dir,
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
 		    dentry->d_name.len);
 
-	rc = m0t1fs_mds_cob_create(csb, &mo, &rep);
+	rc = m0t1fs_mds_cob_create(csb, &mo, NULL);
 	if (rc != 0)
 		goto out;
 
@@ -721,7 +719,6 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 		       struct dentry *new)
 {
 	struct m0t1fs_sb                *csb;
-	struct m0_fop_link_rep          *link_rep;
 	struct m0t1fs_mdop               mo;
 	struct m0t1fs_inode             *ci;
 	struct inode                    *inode;
@@ -744,7 +741,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name,
 		    new->d_name.len);
 
-	rc = m0t1fs_mds_cob_link(csb, &mo, &link_rep);
+	rc = m0t1fs_mds_cob_link(csb, &mo, NULL);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "mdservive link fop failed: %d", rc);
 		goto out;
@@ -769,9 +766,6 @@ static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry)
 
 static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 {
-	struct m0_fop_lookup_rep        *lookup_rep;
-	struct m0_fop_unlink_rep        *unlink_rep;
-	struct m0_fop_setattr_rep       *setattr_rep;
 	struct m0t1fs_sb                *csb;
 	struct inode                    *inode;
 	struct m0t1fs_inode             *ci;
@@ -799,11 +793,11 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	m0_buf_init(&mo.mo_attr.ca_name,
 		    (char *)dentry->d_name.name, dentry->d_name.len);
 
-	rc = m0t1fs_mds_cob_lookup(csb, &mo, &lookup_rep);
+	rc = m0t1fs_mds_cob_lookup(csb, &mo, NULL);
 	if (rc != 0)
 		goto out;
 
-	rc = m0t1fs_mds_cob_unlink(csb, &mo, &unlink_rep);
+	rc = m0t1fs_mds_cob_unlink(csb, &mo, NULL);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "mdservive unlink fop failed: %d", rc);
 		goto out;
@@ -824,7 +818,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	mo.mo_attr.ca_mtime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_MTIME);
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Setattr on parent dir failed with %d", rc);
 		goto out;
@@ -990,7 +984,6 @@ out:
 
 M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
 {
-	struct m0_fop_setattr_rep       *setattr_rep;
 	struct m0t1fs_sb                *csb;
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
@@ -1006,7 +999,7 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
 	mo.mo_attr.ca_size   = newsize;
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
 	if (rc != 0)
 		goto out;
 	inode->i_size = newsize;
@@ -1022,7 +1015,6 @@ M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *dentry, struct iattr *attr)
 
 M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 {
-	struct m0_fop_setattr_rep       *setattr_rep;
 	struct m0t1fs_sb                *csb;
 	struct inode                    *inode;
 	struct m0t1fs_inode             *ci;
@@ -1089,7 +1081,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	 * valid layout id should be called.
 	 */
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
 	if (rc != 0)
 		goto out;
 
@@ -1413,7 +1405,8 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	}
 
 	reply_fop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	*rep = reply_fop;
+	if (rep != NULL)
+		*rep = reply_fop;
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_MDSERVICE_CREATE_OPCODE:
