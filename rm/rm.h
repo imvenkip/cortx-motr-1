@@ -820,17 +820,17 @@ enum m0_rm_owner_state {
 	 */
 	ROS_FINALISING,
 	/**
-	 *  Final state.
+	 * Final state.
 	 *
-	 *  During finalisation, if owner fails to clear the loans, it
-	 * it enters INSOLVENT state.
+	 * During finalisation, if owner fails to clear the loans, it enters
+	 * INSOLVENT state.
 	 */
 	ROS_INSOLVENT,
 	/**
-	 *  Final state.
+	 * Final state.
 	 *
-	 *  In this state owner credits lists are empty (including incoming and
-	 *  outgoing request lists).
+	 * In this state owner credits lists are empty (including incoming and
+	 * outgoing request lists).
 	 */
 	ROS_FINAL
 };
