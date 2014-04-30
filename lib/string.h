@@ -29,22 +29,22 @@
  * Also pick up support for strtoul(3) and variants, and ctype macros.
  */
 
+#define m0_streq(a, b) (strcmp((a), (b)) == 0)
+
 #ifndef __KERNEL__
 # include <ctype.h>
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
 
-#define m0_strdup(s)   strdup((s))
-#define m0_streq(a, b) (strcmp((a), (b)) == 0)
+#define m0_strdup(s) strdup((s))
 
 #else
 # include <linux/ctype.h>
 # include <linux/kernel.h>
 # include <linux/string.h>
 
-#define m0_strdup(s)   kstrdup((s), GFP_KERNEL)
-#define m0_streq(a, b) streq((a), (b))
+#define m0_strdup(s) kstrdup((s), GFP_KERNEL)
 
 static inline char *strerror(int errnum)
 {
