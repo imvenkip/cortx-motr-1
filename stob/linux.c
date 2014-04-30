@@ -426,9 +426,10 @@ static int stob_linux_create(struct m0_stob *stob,
 	return stob_linux_open(stob, dom, stob_key, cfg, true);
 }
 
-static void stob_linux_destroy_credit(struct m0_stob *stob,
-				      struct m0_be_tx_credit *accum)
+static int stob_linux_destroy_credit(struct m0_stob *stob,
+				     struct m0_be_tx_credit *accum)
 {
+	return 0;
 }
 
 static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)

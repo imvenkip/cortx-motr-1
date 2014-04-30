@@ -62,6 +62,9 @@ M0_INTERNAL m0_bindex_t m0_ext_cap(const struct m0_ext *ext2, m0_bindex_t val);
 /** Tells if start of extent is less than end of extent. */
 M0_INTERNAL bool m0_ext_is_valid(const struct m0_ext *ext);
 
+#define EXT_F  "[0x%"PRIx64", 0x%"PRIx64")"
+#define EXT_P(x)  (x)->e_start, (x)->e_end
+
 /** @} end of ext group */
 #endif /* __MERO_LIB_EXT_H__ */
 

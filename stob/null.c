@@ -364,9 +364,10 @@ static int stob_null_create(struct m0_stob *stob,
 	return rc;
 }
 
-static void stob_null_destroy_credit(struct m0_stob *stob,
-				     struct m0_be_tx_credit *accum)
+static int stob_null_destroy_credit(struct m0_stob *stob,
+				    struct m0_be_tx_credit *accum)
 {
+	return 0;
 }
 
 static int stob_null_destroy(struct m0_stob *stob, struct m0_dtx *dtx)

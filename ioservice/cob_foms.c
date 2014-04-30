@@ -677,8 +677,8 @@ static int cd_stob_delete_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 			rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
 			     m0_stob_locate(stob) : 0;
 			if (rc == 0) {
-				m0_stob_destroy_credit(stob,
-						       m0_fom_tx_credit(fom));
+				rc = m0_stob_destroy_credit(stob,
+							    m0_fom_tx_credit(fom));
 			}
 			m0_stob_put(stob);
 		}

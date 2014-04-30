@@ -177,10 +177,10 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_stob_destroy_credit(struct m0_stob *stob,
-					struct m0_be_tx_credit *accum)
+M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
+				       struct m0_be_tx_credit *accum)
 {
-	stob->so_ops->sop_destroy_credit(stob, accum);
+	return stob->so_ops->sop_destroy_credit(stob, accum);
 }
 
 M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)

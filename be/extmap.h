@@ -199,6 +199,7 @@ M0_INTERNAL struct m0_be_emap_seg *
 
 /** Returns the back-end operation of emap cursor */
 M0_INTERNAL struct m0_be_op *m0_be_emap_op(struct m0_be_emap_cursor *it);
+M0_INTERNAL int m0_be_emap_op_rc(struct m0_be_emap_cursor *it);
 
 /**
    Initialises extent map cursor to point to the segment containing given
@@ -317,6 +318,9 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	void (*del)(struct m0_be_emap_seg*),
 	void (*cut_left)(struct m0_be_emap_seg*, struct m0_ext*, uint64_t),
 	void (*cut_right)(struct m0_be_emap_seg*, struct m0_ext*, uint64_t));
+
+/** Returns number of segments in the map. */
+M0_INTERNAL m0_bcount_t m0_be_emap_count(struct m0_be_emap_cursor *it);
 
 /**
    Updates the segment at the current cursor with the given

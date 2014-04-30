@@ -556,45 +556,25 @@ static int stob_ad_create(struct m0_stob *stob,
 	return rc;
 }
 
-static int __emap_next_sync(struct m0_be_emap_cursor *it)
-{
-	struct m0_be_op *it_op;
-	int              rc;
-
-	it_op = m0_be_emap_op(it);
-	m0_be_op_init(it_op);
-	m0_be_emap_next(it);
-	m0_be_op_wait(it_op);
-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
-	rc = it_op->bo_u.u_emap.e_rc;
-	m0_be_op_fini(it_op);
-
-	return M0_RC(rc);
-}
-
-static void stob_ad_destroy_credit(struct m0_stob *stob,
-				   struct m0_be_tx_credit *accum)
+static int stob_ad_destroy_credit(struct m0_stob *stob,
+				  struct m0_be_tx_credit *accum)
 {
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_cursor  it;
-	struct m0_be_emap_seg    *seg;
 	int                       rc;
 	m0_bcount_t               frags = 0;
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	rc = stob_ad_cursor(adom, stob, 0, &it);
-	while (rc == 0) {
-		seg = m0_be_emap_seg_get(&it);
-		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
-			  !m0_ext_is_empty(&seg->ee_ext));
-		++frags;
-		if (m0_be_emap_ext_is_last(&seg->ee_ext))
-			break;
-		rc = __emap_next_sync(&it);
-	}
+	if (rc != 0)
+		return M0_RC(rc);
+	frags = m0_be_emap_count(&it);
+	rc = m0_be_emap_op_rc(&it);
 	m0_be_emap_close(&it);
 	if (rc == 0)
 		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
+
+	return M0_RC(rc);
 }
 
 static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
@@ -609,14 +589,12 @@ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
 			 };
 	int              rc = 0;
 
-	M0_LOG(M0_DEBUG, "ext=[%llu, %llu) val=%llu",
-		(unsigned long long)ext->e_start,
-		(unsigned long long)ext->e_end,
-		(unsigned long long)it->ec_seg.ee_val);
+	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llu",
+		EXT_P(ext), (unsigned long long)it->ec_seg.ee_val);
 
 	it_op = &it->ec_op;
 	m0_be_op_init(it_op);
-	m0_be_emap_paste(it, &tx->tx_betx, &todo, it->ec_seg.ee_val,
+	m0_be_emap_paste(it, &tx->tx_betx, &todo, AET_HOLE,
 		 LAMBDA(void, (struct m0_be_emap_seg *seg) {
 				/* handle extent deletion. */
 				M0_LOG(M0_DEBUG, "del: val=%llu",
@@ -625,7 +603,6 @@ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
 							    &seg->ee_ext,
 							    seg->ee_val);
 		}), NULL, NULL);
-	m0_be_op_wait(it_op);
 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
 	rc = it_op->bo_u.u_emap.e_rc;
 	m0_be_op_fini(it_op);
@@ -649,14 +626,8 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
 	rc = stob_ad_cursor(adom, stob, 0, &it);
 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
-	while (rc == 0) {
-		seg = m0_be_emap_seg_get(&it);
-		rc = stob_ad_map_ext_delete(adom, &it, tx);
-		if (rc != 0 || m0_be_emap_ext_is_last(&seg->ee_ext))
-			break;
-		rc = __emap_next_sync(&it);
-	}
-
+	seg = m0_be_emap_seg_get(&it);
+	rc = stob_ad_map_ext_delete(adom, &it, tx);
 	if (rc == 0)
 		rc = M0_BE_OP_SYNC_RET(op,
 				       m0_be_emap_obj_delete(&adom->sad_adata,
@@ -1013,10 +984,8 @@ static int stob_ad_read_launch(struct m0_stob_io *io,
 	seg    = m0_be_emap_seg_get(it);
 	back   = &aio->ai_back;
 
-	M0_LOG(M0_DEBUG, "ext=[0x%llx, 0x%llx) val=0x%llx",
-		(unsigned long long)seg->ee_ext.e_start,
-		(unsigned long long)seg->ee_ext.e_end,
-		(unsigned long long)seg->ee_val);
+	M0_LOG(M0_DEBUG, "ext="EXT_F" val=0x%llx",
+		EXT_P(&seg->ee_ext), (unsigned long long)seg->ee_val);
 
 	frags = frags_not_empty = 0;
 	do {
@@ -1306,10 +1275,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		.e_end   = off + m0_ext_length(ext)
 	};
 
-	M0_ENTRY("ext=[0x%llx, 0x%llx) val=0x%llx",
-		(unsigned long long)todo.e_start,
-		(unsigned long long)todo.e_end,
-		(unsigned long long)ext->e_start);
+	M0_ENTRY("ext="EXT_F" val=0x%llx", EXT_P(&todo),
+		 (unsigned long long)ext->e_start);
 
 	m0_be_op_init(&it.ec_op);
 	m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre, off, &it);
@@ -1341,7 +1308,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				M0_LOG(M0_DEBUG, "del: val=0x%llx",
 					(unsigned long long)seg->ee_val);
 				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
-					"Delete of the same just allocated block");
+				"Delete of the same just allocated block");
 				rc = rc ?:
 				     stob_ad_seg_free(io->si_tx, adom, seg,
 						      &seg->ee_ext, seg->ee_val);
@@ -1355,7 +1322,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 			seg->ee_val = val;
 			if (stob_ad_stob2ad(io->si_obj)->ad_overwrite)
 				rc = rc ?:
-				     stob_ad_seg_free(io->si_tx, adom, seg, ext, val);
+				     stob_ad_seg_free(io->si_tx, adom, seg,
+						      ext, val);
 		}),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
@@ -1373,12 +1341,11 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				if (stob_ad_stob2ad(io->si_obj)->ad_overwrite &&
 				    ext->e_start == seg->ee_ext.e_start)
 					rc = rc ?:
-					     stob_ad_seg_free(io->si_tx, adom, seg,
-							      ext, val);
+					     stob_ad_seg_free(io->si_tx, adom,
+							      seg, ext, val);
 			} else
 				seg->ee_val = val;
 		}));
-	m0_be_op_wait(&it.ec_op);
 	M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
 	result = it.ec_op.bo_u.u_emap.e_rc;
 	m0_be_op_fini(&it.ec_op);
@@ -1721,10 +1688,8 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 		m0_be_op_fini(&it.ec_op);
 
 		if (rc == 0) {
-			M0_LOG(M0_DEBUG, "%3d: ext=[0x%llx, 0x%llx) val=0x%llx",
-				i,
-				(unsigned long long)old_data[i].ee_ext.e_start,
-				(unsigned long long)old_data[i].ee_ext.e_end,
+			M0_LOG(M0_DEBUG, "%3d: ext="EXT_F" val=0x%llx",
+				i, EXT_P(&old_data[i].ee_ext),
 				(unsigned long long)old_data[i].ee_val);
 			rc = M0_BE_OP_SYNC_RET_WITH(
 				&it.ec_op,

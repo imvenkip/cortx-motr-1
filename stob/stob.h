@@ -148,8 +148,8 @@ struct m0_stob_ops {
 	 */
 	void (*sop_fini)(struct m0_stob *stob);
 	/** @see m0_stob_destroy_credit() */
-	void (*sop_destroy_credit)(struct m0_stob *stob,
-				   struct m0_be_tx_credit *accum);
+	int (*sop_destroy_credit)(struct m0_stob *stob,
+				  struct m0_be_tx_credit *accum);
 	/** @see m0_stob_destroy() */
 	int (*sop_destroy)(struct m0_stob *stob, struct m0_dtx *dtx);
 	/** @see m0_stob_io_init() */
@@ -207,8 +207,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 			       const char *str_cfg);
 
 /** Calculates BE tx credit for m0_stob_destroy(). */
-M0_INTERNAL void m0_stob_destroy_credit(struct m0_stob *stob,
-					struct m0_be_tx_credit *accum);
+M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
+				       struct m0_be_tx_credit *accum);
 /*
  * Destroys stob.
  *
